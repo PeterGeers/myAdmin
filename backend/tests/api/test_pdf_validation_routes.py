@@ -165,6 +165,54 @@ class TestUpdateRecord:
         data = json.loads(response.data)
         assert data['success'] is True
 
+    @patch('routes.pdf_validation_routes.PDFValidator')
+    def test_update_record_passes_tenant_to_validator(self, mock_validator_class,
+                                                      client, finance_auth):
+        """Update record passes tenant parameter to PDFValidator.update_record()."""
+        mock_validator = MagicMock()
+        mock_validator_class.return_value = mock_validator
+        mock_validator.update_record.return_value = True
+
+        response = client.post(
+            '/api/pdf/update-record',
+            headers=finance_auth,
+            json={
+                'old_ref3': 'https://old-url.com',
+                'ref3': 'https://new-url.com',
+            }
+        )
+
+        assert response.status_code == 200
+        # Verify tenant was passed as the administration parameter
+        mock_validator.update_record.assert_called_once()
+        call_args = mock_validator.update_record.call_args
+        # The last positional arg should be the tenant
+        assert call_args[0][-1] == 'test-tenant'
+
+    def test_update_record_returns_403_for_other_tenant(self, client):
+        """Request with a tenant not in user_tenants returns 403."""
+        # Authenticate as user with access to 'tenant-a' only,
+        # but set X-Tenant to 'tenant-b' (not in user_tenants)
+        with patch('auth.cognito_utils.extract_user_credentials') as mock_creds, \
+             patch('auth.tenant_context.get_user_tenants', return_value=['tenant-a']), \
+             patch('auth.role_cache.get_tenant_roles', return_value=['Finance_CRUD']):
+            mock_creds.return_value = ('test@example.com', ['Finance_CRUD'], None)
+            headers = {
+                'Authorization': 'Bearer test-token',
+                'X-Tenant': 'tenant-b',  # Not in user_tenants
+            }
+
+            response = client.post(
+                '/api/pdf/update-record',
+                headers=headers,
+                json={
+                    'old_ref3': 'https://old-url.com',
+                    'ref3': 'https://new-url.com',
+                }
+            )
+
+        assert response.status_code == 403
+
 
 # ============================================================================
 # Get Administrations Tests
@@ -181,7 +229,7 @@ class TestGetAdministrations:
         mock_validator = MagicMock()
         mock_validator_class.return_value = mock_validator
         mock_validator.get_administrations_for_year.return_value = [
-            'Admin A', 'Admin B'
+            'test-tenant'
         ]
 
         response = client.get(
@@ -192,4 +240,91 @@ class TestGetAdministrations:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data['success'] is True
-        assert len(data['administrations']) == 2
+        assert data['administrations'] == ['test-tenant']
+
+    @patch('routes.pdf_validation_routes.PDFValidator')
+    def test_get_administrations_filters_to_user_tenants(self, mock_validator_class,
+                                                          client, finance_auth):
+        """Only administrations the user has access to are returned (REQ-1.2).
+
+        Validates: Requirements 1.2
+        """
+        mock_validator = MagicMock()
+        mock_validator_class.return_value = mock_validator
+        # DB returns multiple administrations, but user only has access to 'test-tenant'
+        mock_validator.get_administrations_for_year.return_value = [
+            'test-tenant', 'other-tenant', 'secret-tenant'
+        ]
+
+        response = client.get(
+            '/api/pdf/get-administrations?year=2024',
+            headers=finance_auth
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        # Only test-tenant should be in the result (user_tenants=['test-tenant'])
+        assert data['administrations'] == ['test-tenant']
+        assert 'other-tenant' not in data['administrations']
+        assert 'secret-tenant' not in data['administrations']
+
+    @patch('routes.pdf_validation_routes.PDFValidator')
+    def test_get_administrations_multi_tenant_user_sees_all_allowed(self, mock_validator_class,
+                                                                      client):
+        """Multi-tenant user sees all their allowed administrations (REQ-1.2).
+
+        Validates: Requirements 1.2
+        """
+        # Setup user with access to multiple tenants
+        with patch('auth.cognito_utils.extract_user_credentials') as mock_creds, \
+             patch('auth.tenant_context.validate_tenant_access', return_value=(True, None)), \
+             patch('auth.tenant_context.get_user_tenants', return_value=['tenant-a', 'tenant-b', 'tenant-c']), \
+             patch('auth.role_cache.get_tenant_roles', return_value=['Finance_CRUD']):
+            mock_creds.return_value = ('multi@example.com', ['Finance_CRUD'], None)
+            headers = {
+                'Authorization': 'Bearer test-token',
+                'X-Tenant': 'tenant-a',
+            }
+
+            mock_validator = MagicMock()
+            mock_validator_class.return_value = mock_validator
+            # DB returns all tenants in the system
+            mock_validator.get_administrations_for_year.return_value = [
+                'tenant-a', 'tenant-b', 'tenant-c', 'tenant-d', 'tenant-e'
+            ]
+
+            response = client.get(
+                '/api/pdf/get-administrations?year=2025',
+                headers=headers
+            )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        # User should see tenant-a, tenant-b, tenant-c (their allowed tenants)
+        assert sorted(data['administrations']) == ['tenant-a', 'tenant-b', 'tenant-c']
+        # Should NOT see tenant-d or tenant-e
+        assert 'tenant-d' not in data['administrations']
+        assert 'tenant-e' not in data['administrations']
+
+    def test_get_administrations_returns_403_for_unauthorized_tenant(self, client):
+        """Request with X-Tenant not in user_tenants returns 403 (REQ-1.2).
+
+        Validates: Requirements 1.2
+        """
+        with patch('auth.cognito_utils.extract_user_credentials') as mock_creds, \
+             patch('auth.tenant_context.get_user_tenants', return_value=['tenant-a']), \
+             patch('auth.role_cache.get_tenant_roles', return_value=['Finance_CRUD']):
+            mock_creds.return_value = ('test@example.com', ['Finance_CRUD'], None)
+            headers = {
+                'Authorization': 'Bearer test-token',
+                'X-Tenant': 'unauthorized-tenant',
+            }
+
+            response = client.get(
+                '/api/pdf/get-administrations?year=2024',
+                headers=headers
+            )
+
+        assert response.status_code == 403

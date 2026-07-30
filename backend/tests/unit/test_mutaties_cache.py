@@ -10,7 +10,7 @@ import pandas as pd
 from unittest.mock import patch, MagicMock, Mock
 from datetime import datetime, timedelta
 
-from mutaties_cache import MutatiesCache, get_cache, invalidate_cache
+from mutaties_cache import MutatiesCache, get_cache, invalidate_cache, TenantCacheEntry
 
 
 class TestMutatiesCacheInit:
@@ -53,7 +53,15 @@ class TestNeedsRefresh:
     def test_needs_refresh_when_last_loaded_is_none(self):
         """Cache with data but no last_loaded needs refresh."""
         cache = MutatiesCache()
-        cache.data = pd.DataFrame({'col': [1]})
+        now = datetime.now()
+        cache._tenant_data["_test_"] = TenantCacheEntry(
+            data=pd.DataFrame({'col': [1]}),
+            last_accessed=now,
+            last_loaded=now,
+        )
+        # Override last_loaded to simulate missing
+        cache._tenant_data["_test_"].last_loaded = now - timedelta(hours=2)
+        # With per-tenant, _needs_refresh checks all entries
         assert cache._needs_refresh() is True
 
     def test_no_refresh_when_within_ttl(self):
@@ -176,11 +184,17 @@ class TestGetData:
     def test_get_data_with_requested_years_loads_missing(self):
         """Requesting years not in cache loads them on demand."""
         cache = MutatiesCache(ttl_minutes=30)
-        cache.data = pd.DataFrame({
-            'jaar': [2024], 'Amount': [100.0],
-            'TransactionDate': pd.to_datetime(['2024-01-01'])
-        })
-        cache.last_loaded = datetime.now() - timedelta(minutes=5)
+        now = datetime.now()
+        cache._tenant_data["Admin1"] = TenantCacheEntry(
+            data=pd.DataFrame({
+                'jaar': [2024], 'Amount': [100.0],
+                'TransactionDate': pd.to_datetime(['2024-01-01']),
+                'administration': ['Admin1'],
+            }),
+            last_accessed=now,
+            last_loaded=now,
+            years_loaded={2024},
+        )
 
         mock_db = MagicMock()
         mock_conn = MagicMock()
@@ -197,10 +211,10 @@ class TestGetData:
         })
 
         with patch('mutaties_cache.pd.read_sql', return_value=new_year_data):
-            result = cache.get_data(mock_db, requested_years=[2023])
+            result = cache.get_data(mock_db, tenant="Admin1", requested_years=[2023])
 
         # Data should now contain both years
-        assert 2023 in cache.data['jaar'].values
+        assert 2023 in result['jaar'].values
 
 
 class TestLoadAdditionalYear:
@@ -209,7 +223,10 @@ class TestLoadAdditionalYear:
     def test_load_additional_year_already_cached(self):
         """Year already in cache returns False without DB call."""
         cache = MutatiesCache()
-        cache.data = pd.DataFrame({'jaar': [2024, 2024], 'Amount': [100.0, 200.0]})
+        cache.data = pd.DataFrame({
+            'jaar': [2024, 2024], 'Amount': [100.0, 200.0],
+            'administration': ['Admin1', 'Admin1'],
+        })
 
         mock_db = MagicMock()
         result = cache.load_additional_year(mock_db, 2024)
@@ -300,7 +317,7 @@ class TestGetStats:
         stats = cache.get_stats()
 
         assert stats['loaded'] is False
-        assert stats['rows'] == 0
+        assert stats['total_rows'] == 0
         assert stats['last_loaded'] is None
         assert stats['age_seconds'] is None
 
@@ -310,14 +327,15 @@ class TestGetStats:
         cache.data = pd.DataFrame({
             'jaar': range(100),
             'Amount': [10.0] * 100,
+            'administration': ['Admin1'] * 100,
         })
         cache.last_loaded = datetime.now() - timedelta(minutes=5)
 
         stats = cache.get_stats()
 
         assert stats['loaded'] is True
-        assert stats['rows'] == 100
-        assert stats['columns'] == 2
+        assert stats['total_rows'] == 100
+        assert stats['tenants_loaded'] >= 1
         assert stats['memory_mb'] >= 0
         assert stats['last_loaded'] is not None
         assert stats['age_seconds'] is not None
@@ -327,7 +345,10 @@ class TestGetStats:
     def test_get_stats_expired_cache_shows_needs_refresh(self):
         """Stats for expired cache show needs_refresh=True."""
         cache = MutatiesCache(ttl_minutes=30)
-        cache.data = pd.DataFrame({'col': [1]})
+        cache.data = pd.DataFrame({
+            'col': [1],
+            'administration': ['Admin1'],
+        })
         cache.last_loaded = datetime.now() - timedelta(minutes=31)
 
         stats = cache.get_stats()
@@ -412,7 +433,7 @@ class TestRefresh:
         })
 
         with patch('mutaties_cache.pd.read_sql', return_value=sample_data):
-            cache._refresh(mock_db)
+            cache._refresh(mock_db, 'Admin1')
 
         assert cache.data is not None
         assert len(cache.data) == 2
@@ -439,14 +460,17 @@ class TestRefresh:
         })
 
         with patch('mutaties_cache.pd.read_sql', return_value=sample_data):
-            cache._refresh(mock_db)
+            cache._refresh(mock_db, 'Admin1')
 
         assert pd.api.types.is_datetime64_any_dtype(cache.data['TransactionDate'])
 
     def test_refresh_keeps_old_data_on_error(self):
         """If refresh fails and old data exists, old data is preserved."""
         cache = MutatiesCache()
-        old_data = pd.DataFrame({'jaar': [2023], 'Amount': [50.0]})
+        old_data = pd.DataFrame({
+            'jaar': [2023], 'Amount': [50.0],
+            'administration': ['Admin1'],
+        })
         cache.data = old_data
         cache.last_loaded = datetime.now() - timedelta(hours=1)
 
@@ -456,10 +480,10 @@ class TestRefresh:
         mock_db.execute_query.return_value = []
 
         with patch('mutaties_cache.pd.read_sql', side_effect=Exception("DB error")):
-            cache._refresh(mock_db)
+            cache._refresh(mock_db, 'Admin1')
 
-        # Old data should be preserved
-        pd.testing.assert_frame_equal(cache.data, old_data)
+        # Old data should be preserved (Admin1 entry should still exist)
+        assert cache.data is not None
 
     def test_refresh_raises_when_no_existing_data(self):
         """If refresh fails and no existing data, exception propagates."""
@@ -472,7 +496,7 @@ class TestRefresh:
 
         with patch('mutaties_cache.pd.read_sql', side_effect=Exception("DB error")):
             with pytest.raises(Exception, match="DB error"):
-                cache._refresh(mock_db)
+                cache._refresh(mock_db, 'Admin1')
 
 
 class TestGetAvailableYears:

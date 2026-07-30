@@ -22,15 +22,17 @@ class QueryCache:
     Implements TTL-based caching with automatic expiration.
     """
 
-    def __init__(self, default_ttl: int = 300):
+    def __init__(self, default_ttl: int = 300, max_size: int = 500):
         """
         Initialize query cache.
 
         Args:
             default_ttl: Default time-to-live in seconds (default: 5 minutes)
+            max_size: Maximum number of entries in cache (default: 500)
         """
         self.cache = {}
         self.default_ttl = default_ttl
+        self.max_size = max_size
         self.hits = 0
         self.misses = 0
         self.evictions = 0
@@ -99,6 +101,9 @@ class QueryCache:
         """
         Store duplicate check result in cache.
 
+        Evicts expired entries first, then evicts the oldest entry by expiry
+        time if the cache is still at capacity.
+
         Args:
             reference_number: Reference number
             transaction_date: Transaction date
@@ -109,6 +114,13 @@ class QueryCache:
         cache_key = self._generate_cache_key(
             reference_number, transaction_date, transaction_amount
         )
+
+        # Evict expired entries first
+        self.cleanup_expired()
+
+        # If still at capacity, evict the oldest entry by expiry time
+        if len(self.cache) >= self.max_size:
+            self._evict_oldest()
 
         ttl = ttl or self.default_ttl
         expires_at = datetime.now() + timedelta(seconds=ttl)
@@ -121,6 +133,20 @@ class QueryCache:
         }
 
         logger.debug(f"Cached result for key: {cache_key} (TTL: {ttl}s)")
+
+    def _evict_oldest(self) -> None:
+        """
+        Evict the cache entry with the earliest expiry time.
+
+        This is called when the cache is at max_size capacity after
+        expired entries have already been cleaned up.
+        """
+        if not self.cache:
+            return
+        oldest_key = min(self.cache, key=lambda k: self.cache[k]["expires_at"])
+        del self.cache[oldest_key]
+        self.evictions += 1
+        logger.debug(f"Evicted oldest cache entry: {oldest_key}")
 
     def invalidate(
         self,
@@ -193,6 +219,7 @@ class QueryCache:
 
         return {
             "total_entries": len(self.cache),
+            "max_size": self.max_size,
             "hits": self.hits,
             "misses": self.misses,
             "hit_rate_percent": round(hit_rate, 2),
@@ -214,16 +241,17 @@ class DuplicateQueryOptimizer:
     Provides query optimization, execution planning, and performance tuning.
     """
 
-    def __init__(self, db_manager, cache_ttl: int = 300):
+    def __init__(self, db_manager, cache_ttl: int = 300, cache_max_size: int = 500):
         """
         Initialize query optimizer.
 
         Args:
             db_manager: DatabaseManager instance
             cache_ttl: Cache time-to-live in seconds
+            cache_max_size: Maximum cache entries
         """
         self.db = db_manager
-        self.cache = QueryCache(default_ttl=cache_ttl)
+        self.cache = QueryCache(default_ttl=cache_ttl, max_size=cache_max_size)
         self.query_stats = {
             "total_queries": 0,
             "cached_queries": 0,

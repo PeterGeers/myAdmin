@@ -1,118 +1,456 @@
 """
 In-Memory Cache for vw_mutaties View
-Provides fast access to mutation data for reporting
+Provides fast access to mutation data for reporting.
+
+Per-tenant partitioning: each tenant's data is cached independently
+with its own TTL and eviction policy.
 """
 
 import pandas as pd
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from threading import Lock
+from typing import Dict, Set, Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class TenantCacheEntry:
+    """Cache entry holding one tenant's mutation data."""
+
+    data: pd.DataFrame
+    last_accessed: datetime
+    last_loaded: datetime
+    years_loaded: Set[int] = field(default_factory=set)
+
+
 class MutatiesCache:
     """
-    Thread-safe in-memory cache for vw_mutaties data.
-    Automatically refreshes data based on TTL (Time To Live).
+    Thread-safe in-memory cache for vw_mutaties data, partitioned by tenant.
+
+    Each tenant's data is stored independently with its own TTL tracking.
+    Inactive tenants (not accessed for 2× TTL) are evicted to save memory.
 
     Thread safety model:
-    - All writes to self.data create a NEW DataFrame and assign atomically
-      (Python's GIL guarantees reference assignment is atomic)
-    - Readers grab self.data once and work with that snapshot reference
+    - Global lock protects all writes to _tenant_data
+    - Readers grab a reference to a tenant's DataFrame and work with that snapshot
     - Filtering operations (df[mask]) always return new DataFrames, never mutate
-    - Use get_snapshot() for consistent reads across multiple query calls
     """
 
     def __init__(self, ttl_minutes=30):
         """
-        Initialize the cache
+        Initialize the cache.
 
         Args:
             ttl_minutes: Time to live in minutes before auto-refresh (default: 30)
         """
-        self.data = None
-        self.last_loaded = None
+        self._tenant_data: Dict[str, TenantCacheEntry] = {}
         self.ttl = timedelta(minutes=ttl_minutes)
         self.lock = Lock()
         self._loading = False
 
-    def get_data(self, db_manager, requested_years=None):
-        """
-        Get cached data, refreshing if necessary.
+    @property
+    def data(self) -> Optional[pd.DataFrame]:
+        """Backward-compatible property: returns combined DataFrame of all tenants or None."""
+        if not self._tenant_data:
+            return None
+        frames = [entry.data for entry in self._tenant_data.values() if not entry.data.empty]
+        if not frames:
+            return None
+        return pd.concat(frames, ignore_index=True)
 
-        If requested_years are specified, ensures those years are in the cache
-        by loading missing years on demand.
+    @data.setter
+    def data(self, value):
+        """Backward-compatible setter: stores data as a single '_legacy_' tenant entry or clears."""
+        if value is None:
+            self._tenant_data.clear()
+        else:
+            now = datetime.now()
+            # Split by administration if present, otherwise store as single legacy entry
+            if "administration" in value.columns:
+                self._tenant_data.clear()
+                for admin in value["administration"].dropna().unique():
+                    tenant_df = value[value["administration"] == admin].copy()
+                    years = (
+                        set(tenant_df["jaar"].dropna().unique().astype(int))
+                        if "jaar" in tenant_df.columns
+                        else set()
+                    )
+                    self._tenant_data[admin] = TenantCacheEntry(
+                        data=tenant_df,
+                        last_accessed=now,
+                        last_loaded=now,
+                        years_loaded=years,
+                    )
+            else:
+                self._tenant_data.clear()
+                self._tenant_data["_legacy_"] = TenantCacheEntry(
+                    data=value,
+                    last_accessed=now,
+                    last_loaded=now,
+                    years_loaded=set(),
+                )
+
+    @property
+    def last_loaded(self) -> Optional[datetime]:
+        """Backward-compatible property: returns most recent load time across all tenants."""
+        if not self._tenant_data:
+            return None
+        times = [entry.last_loaded for entry in self._tenant_data.values()]
+        return max(times) if times else None
+
+    @last_loaded.setter
+    def last_loaded(self, value):
+        """Backward-compatible setter: sets last_loaded on all tenant entries."""
+        if value is None:
+            # Setting last_loaded to None means clear (already handled by invalidate)
+            return
+        for entry in self._tenant_data.values():
+            entry.last_loaded = value
+
+    def get_data(self, db_manager, tenant=None, requested_years=None):
+        """
+        Get cached data for a tenant, refreshing if necessary.
 
         Args:
             db_manager: DatabaseManager instance for loading data
+            tenant: Tenant identifier (administration). If None, returns all cached data.
             requested_years: Optional list of year integers to ensure are loaded
 
         Returns:
-            pandas.DataFrame: Cached mutation data
+            pandas.DataFrame: Cached mutation data for the tenant
         """
-        # Check if refresh is needed
-        if self._needs_refresh():
+        # Evict inactive tenants opportunistically
+        self._evict_inactive()
+
+        if tenant is None:
+            # Backward-compatible: return all cached data combined
+            if not self._tenant_data:
+                # Load without tenant filter (legacy behavior)
+                with self.lock:
+                    self._refresh_legacy(db_manager)
+            return self.data
+
+        # Per-tenant path
+        entry = self._tenant_data.get(tenant)
+
+        if entry is None or self._needs_refresh_tenant(entry):
             with self.lock:
                 # Double-check after acquiring lock
-                if self._needs_refresh():
-                    self._refresh(db_manager)
+                entry = self._tenant_data.get(tenant)
+                if entry is None or self._needs_refresh_tenant(entry):
+                    self._refresh(db_manager, tenant)
+                    entry = self._tenant_data.get(tenant)
+
+        if entry is None:
+            return pd.DataFrame()
+
+        # Update last_accessed
+        entry.last_accessed = datetime.now()
 
         # Load missing years on demand if specific years are requested
-        if requested_years and self.data is not None:
-            self._ensure_years_loaded(db_manager, requested_years)
+        if requested_years and entry.data is not None and not entry.data.empty:
+            self._ensure_years_loaded(db_manager, tenant, requested_years)
+            entry = self._tenant_data.get(tenant)
 
-        return self.data
+        return entry.data if entry else pd.DataFrame()
 
-    def get_snapshot(self, db_manager, requested_years=None):
+    def get_snapshot(self, db_manager, tenant=None, requested_years=None):
         """
         Get a consistent snapshot of cached data for use within a single request.
 
-        This ensures that multiple query methods called within the same request
-        all operate on the same DataFrame, even if the cache refreshes between calls.
-
-        Usage in routes:
-            snapshot = cache.get_snapshot(db)
-            summary = cache.query_aangifte_ib(year, admin, snapshot=snapshot)
-            details = cache.query_aangifte_ib_details(year, admin, ..., snapshot=snapshot)
-
         Args:
             db_manager: DatabaseManager instance for loading data
+            tenant: Tenant identifier (administration). If None, returns all cached data.
             requested_years: Optional list of year integers to ensure are loaded
 
         Returns:
             pandas.DataFrame: Snapshot reference to cached data
         """
-        self.get_data(db_manager, requested_years)
-        return self.data
+        return self.get_data(db_manager, tenant=tenant, requested_years=requested_years)
 
-    def _needs_refresh(self):
-        """Check if cache needs to be refreshed"""
-        if self.data is None:
+    def _needs_refresh_tenant(self, entry: TenantCacheEntry) -> bool:
+        """Check if a tenant's cache entry needs to be refreshed."""
+        if entry.data is None:
             return True
-        if self.last_loaded is None:
-            return True
-        if (datetime.now() - self.last_loaded) > self.ttl:
+        if (datetime.now() - entry.last_loaded) > self.ttl:
             return True
         return False
 
-    def _ensure_years_loaded(self, db_manager, requested_years):
-        """
-        Load missing years into cache on demand.
+    def _needs_refresh(self):
+        """Backward-compatible: check if any refresh is needed (legacy callers)."""
+        if not self._tenant_data:
+            return True
+        # Check if any tenant is stale
+        for entry in self._tenant_data.values():
+            if self._needs_refresh_tenant(entry):
+                return True
+        return False
 
-        Checks which requested years are not yet in the cache and loads them
-        from the database, appending to the existing cached DataFrame.
+    def _evict_inactive(self):
+        """Remove tenants not accessed for 2× TTL."""
+        eviction_threshold = datetime.now() - (2 * self.ttl)
+        tenants_to_evict = []
+
+        for tenant_key, entry in self._tenant_data.items():
+            if entry.last_accessed < eviction_threshold:
+                tenants_to_evict.append(tenant_key)
+
+        if tenants_to_evict:
+            with self.lock:
+                for tenant_key in tenants_to_evict:
+                    if tenant_key in self._tenant_data:
+                        entry = self._tenant_data[tenant_key]
+                        if entry.last_accessed < eviction_threshold:
+                            rows = len(entry.data) if entry.data is not None else 0
+                            del self._tenant_data[tenant_key]
+                            logger.info(
+                                f"Evicted inactive tenant '{tenant_key}' "
+                                f"({rows:,} rows, last accessed: {entry.last_accessed})"
+                            )
+
+    def _get_years_to_load(self, db_manager, tenant=None):
+        """
+        Determine which years to load into cache.
+
+        Strategy (Hybrid Approach):
+        1. Get all years that are NOT closed (open years)
+        2. Get the most recent closed year (for comparisons)
+        3. Return set of years to load
 
         Args:
             db_manager: DatabaseManager instance
+            tenant: Optional tenant filter
+
+        Returns:
+            set: Set of years (integers) to load
+        """
+        try:
+            current_year = datetime.now().year
+
+            # Query closed years
+            query = """
+                SELECT DISTINCT year
+                FROM year_closure_status
+                ORDER BY year DESC
+            """
+            closed_years_result = db_manager.execute_query(query, fetch=True)
+            closed_years = (
+                [row["year"] for row in closed_years_result]
+                if closed_years_result
+                else []
+            )
+
+            # Get all years that have transactions for this tenant
+            if tenant:
+                query_all_years = """
+                    SELECT DISTINCT jaar as year
+                    FROM vw_mutaties
+                    WHERE jaar IS NOT NULL AND administration = %s
+                    ORDER BY year DESC
+                """
+                all_years_result = db_manager.execute_query(
+                    query_all_years, params=[tenant], fetch=True
+                )
+            else:
+                query_all_years = """
+                    SELECT DISTINCT jaar as year
+                    FROM vw_mutaties
+                    WHERE jaar IS NOT NULL
+                    ORDER BY year DESC
+                """
+                all_years_result = db_manager.execute_query(query_all_years, fetch=True)
+
+            all_years = (
+                [row["year"] for row in all_years_result] if all_years_result else []
+            )
+
+            if not all_years:
+                logger.info("No transaction years found, loading current year")
+                return {current_year}
+
+            # Determine open years
+            open_years = [year for year in all_years if year not in closed_years]
+            if not open_years:
+                open_years = [current_year]
+
+            last_closed_year = closed_years[0] if closed_years else None
+
+            years_to_load = set(open_years)
+            if last_closed_year:
+                years_to_load.add(last_closed_year)
+
+            logger.info(
+                f"Years analysis for tenant '{tenant}': "
+                f"All={len(all_years)}, Closed={len(closed_years)}, "
+                f"Open={len(open_years)}, Loading={len(years_to_load)}"
+            )
+            return years_to_load
+
+        except Exception as e:
+            logger.error(f"Error determining years to load: {e}")
+            return set()
+
+    def _refresh(self, db_manager, tenant):
+        """
+        Refresh cache from database for a specific tenant.
+
+        Args:
+            db_manager: DatabaseManager instance
+            tenant: Tenant identifier (administration)
+        """
+        try:
+            self._loading = True
+            start_time = datetime.now()
+
+            logger.info(f"Loading vw_mutaties for tenant '{tenant}'...")
+
+            conn = db_manager.get_connection()
+
+            years_to_load = self._get_years_to_load(db_manager, tenant)
+
+            if years_to_load:
+                year_filter = " OR ".join([f"jaar = {year}" for year in years_to_load])
+                query = f"""
+                    SELECT 
+                        Aangifte, TransactionNumber, TransactionDate,
+                        TransactionDescription, Amount, Reknum, AccountName,
+                        Parent, VW, jaar, kwartaal, maand, week,
+                        ReferenceNumber, administration, Ref3, Ref4
+                    FROM vw_mutaties
+                    WHERE administration = %s AND ({year_filter})
+                """
+                data = pd.read_sql(query, conn, params=[tenant])
+            else:
+                query = """
+                    SELECT 
+                        Aangifte, TransactionNumber, TransactionDate,
+                        TransactionDescription, Amount, Reknum, AccountName,
+                        Parent, VW, jaar, kwartaal, maand, week,
+                        ReferenceNumber, administration, Ref3, Ref4
+                    FROM vw_mutaties
+                    WHERE administration = %s
+                """
+                data = pd.read_sql(query, conn, params=[tenant])
+
+            conn.close()
+
+            # Convert date column
+            if "TransactionDate" in data.columns:
+                data["TransactionDate"] = pd.to_datetime(data["TransactionDate"])
+
+            now = datetime.now()
+            self._tenant_data[tenant] = TenantCacheEntry(
+                data=data,
+                last_accessed=now,
+                last_loaded=now,
+                years_loaded=years_to_load if years_to_load else set(),
+            )
+
+            load_time = (datetime.now() - start_time).total_seconds()
+            logger.info(
+                f"Cache loaded for tenant '{tenant}': "
+                f"{len(data):,} rows in {load_time:.2f}s, "
+                f"~{data.memory_usage(deep=True).sum() / 1024 / 1024:.1f} MB"
+            )
+
+        except Exception as e:
+            logger.error(f"Error refreshing cache for tenant '{tenant}': {e}")
+            if tenant not in self._tenant_data:
+                raise
+        finally:
+            self._loading = False
+
+    def _refresh_legacy(self, db_manager):
+        """
+        Legacy refresh: loads all data without tenant filter.
+        Used when get_data() is called without a tenant parameter.
+
+        Args:
+            db_manager: DatabaseManager instance
+        """
+        try:
+            self._loading = True
+            start_time = datetime.now()
+            logger.info("Loading vw_mutaties into memory cache (legacy/all tenants)...")
+
+            conn = db_manager.get_connection()
+            years_to_load = self._get_years_to_load(db_manager)
+
+            if years_to_load:
+                year_filter = " OR ".join([f"jaar = {year}" for year in years_to_load])
+                query = f"""
+                    SELECT 
+                        Aangifte, TransactionNumber, TransactionDate,
+                        TransactionDescription, Amount, Reknum, AccountName,
+                        Parent, VW, jaar, kwartaal, maand, week,
+                        ReferenceNumber, administration, Ref3, Ref4
+                    FROM vw_mutaties
+                    WHERE {year_filter}
+                """
+            else:
+                query = """
+                    SELECT 
+                        Aangifte, TransactionNumber, TransactionDate,
+                        TransactionDescription, Amount, Reknum, AccountName,
+                        Parent, VW, jaar, kwartaal, maand, week,
+                        ReferenceNumber, administration, Ref3, Ref4
+                    FROM vw_mutaties
+                """
+
+            data = pd.read_sql(query, conn)
+            conn.close()
+
+            if "TransactionDate" in data.columns:
+                data["TransactionDate"] = pd.to_datetime(data["TransactionDate"])
+
+            # Split by tenant into individual entries
+            now = datetime.now()
+            if "administration" in data.columns:
+                for admin in data["administration"].dropna().unique():
+                    tenant_df = data[data["administration"] == admin].copy()
+                    tenant_years = (
+                        set(tenant_df["jaar"].dropna().unique().astype(int))
+                        if "jaar" in tenant_df.columns
+                        else set()
+                    )
+                    self._tenant_data[admin] = TenantCacheEntry(
+                        data=tenant_df,
+                        last_accessed=now,
+                        last_loaded=now,
+                        years_loaded=tenant_years,
+                    )
+
+            load_time = (datetime.now() - start_time).total_seconds()
+            logger.info(
+                f"Legacy cache loaded: {len(data):,} rows across "
+                f"{len(self._tenant_data)} tenants in {load_time:.2f}s"
+            )
+
+        except Exception as e:
+            logger.error(f"Error in legacy refresh: {e}")
+            if not self._tenant_data:
+                raise
+        finally:
+            self._loading = False
+
+    def _ensure_years_loaded(self, db_manager, tenant, requested_years):
+        """
+        Load missing years into cache on demand for a specific tenant.
+
+        Args:
+            db_manager: DatabaseManager instance
+            tenant: Tenant identifier
             requested_years: List of year integers to ensure are loaded
         """
-        if self.data is None or self.data.empty:
+        entry = self._tenant_data.get(tenant)
+        if entry is None or entry.data is None or entry.data.empty:
             return
 
-        # Find which years are already in cache
         cached_years = (
-            set(self.data["jaar"].unique()) if "jaar" in self.data.columns else set()
+            set(entry.data["jaar"].unique()) if "jaar" in entry.data.columns else set()
         )
         missing_years = [int(y) for y in requested_years if int(y) not in cached_years]
 
@@ -120,20 +458,24 @@ class MutatiesCache:
             return
 
         logger.info(
-            f"On-demand loading missing years: {sorted(missing_years)} (cached: {sorted(cached_years)})"
+            f"On-demand loading for tenant '{tenant}': "
+            f"missing years {sorted(missing_years)} (cached: {sorted(cached_years)})"
         )
 
         with self.lock:
-            # Double-check after acquiring lock (another thread may have loaded them)
+            # Double-check after acquiring lock
+            entry = self._tenant_data.get(tenant)
+            if entry is None or entry.data is None:
+                return
+
             cached_years = (
-                set(self.data["jaar"].unique())
-                if "jaar" in self.data.columns
+                set(entry.data["jaar"].unique())
+                if "jaar" in entry.data.columns
                 else set()
             )
             missing_years = [
                 int(y) for y in requested_years if int(y) not in cached_years
             ]
-
             if not missing_years:
                 return
 
@@ -143,15 +485,14 @@ class MutatiesCache:
 
                 query = f"""
                     SELECT 
-                        Aangifte, TransactionNumber, TransactionDate, TransactionDescription,
-                        Amount, Reknum, AccountName, Parent, VW,
-                        jaar, kwartaal, maand, week,
+                        Aangifte, TransactionNumber, TransactionDate,
+                        TransactionDescription, Amount, Reknum, AccountName,
+                        Parent, VW, jaar, kwartaal, maand, week,
                         ReferenceNumber, administration, Ref3, Ref4
                     FROM vw_mutaties
-                    WHERE {year_filter}
+                    WHERE administration = %s AND ({year_filter})
                 """
-
-                new_data = pd.read_sql(query, conn)
+                new_data = pd.read_sql(query, conn, params=[tenant])
                 conn.close()
 
                 if not new_data.empty:
@@ -159,311 +500,169 @@ class MutatiesCache:
                         new_data["TransactionDate"] = pd.to_datetime(
                             new_data["TransactionDate"]
                         )
-
-                    self.data = pd.concat([self.data, new_data], ignore_index=True)
+                    entry.data = pd.concat(
+                        [entry.data, new_data], ignore_index=True
+                    )
+                    entry.years_loaded.update(missing_years)
                     logger.info(
-                        f"Loaded {len(new_data):,} rows for years {sorted(missing_years)}. "
-                        f"Cache now has {len(self.data):,} total rows."
+                        f"Loaded {len(new_data):,} rows for tenant '{tenant}' "
+                        f"years {sorted(missing_years)}. "
+                        f"Total: {len(entry.data):,} rows."
                     )
                 else:
-                    logger.info(f"No data found for years {sorted(missing_years)}")
+                    logger.info(
+                        f"No data for tenant '{tenant}' years {sorted(missing_years)}"
+                    )
 
             except Exception as e:
-                logger.error(f"Error loading missing years {missing_years}: {e}")
-
-    def _get_years_to_load(self, db_manager):
-        """
-        Determine which years to load into cache.
-
-        Strategy (Option 3 - Hybrid Approach):
-        1. Get all years that are NOT closed (open years)
-        2. Get the most recent closed year (for comparisons)
-        3. Return set of years to load
-
-        Args:
-            db_manager: DatabaseManager instance
-
-        Returns:
-            set: Set of years (integers) to load
-        """
-        try:
-            # Get current year as fallback
-            current_year = datetime.now().year
-
-            # Query to get closed years from year_closure_status
-            # NOTE: If a year is in this table, it IS closed
-            query = """
-                SELECT DISTINCT year
-                FROM year_closure_status
-                ORDER BY year DESC
-            """
-
-            closed_years_result = db_manager.execute_query(query, fetch=True)
-            closed_years = (
-                [row["year"] for row in closed_years_result]
-                if closed_years_result
-                else []
-            )
-
-            # Get all years that have transactions
-            query_all_years = """
-                SELECT DISTINCT jaar as year
-                FROM vw_mutaties
-                WHERE jaar IS NOT NULL
-                ORDER BY jaar DESC
-            """
-
-            all_years_result = db_manager.execute_query(query_all_years, fetch=True)
-            all_years = (
-                [row["year"] for row in all_years_result] if all_years_result else []
-            )
-
-            if not all_years:
-                # No data yet, load current year
-                logger.info("No transaction years found, loading current year")
-                return {current_year}
-
-            # Determine open years (years with transactions that are not closed)
-            open_years = [year for year in all_years if year not in closed_years]
-
-            # If no open years, assume current year is open
-            if not open_years:
-                open_years = [current_year]
-
-            # Get last closed year (most recent)
-            last_closed_year = closed_years[0] if closed_years else None
-
-            # Build set of years to load
-            years_to_load = set(open_years)
-
-            # Add last closed year for comparisons
-            if last_closed_year:
-                years_to_load.add(last_closed_year)
-
-            logger.info(
-                f"Years analysis: All={len(all_years)}, Closed={len(closed_years)}, Open={len(open_years)}, Loading={len(years_to_load)}"
-            )
-
-            return years_to_load
-
-        except Exception as e:
-            logger.error(f"Error determining years to load: {e}")
-            # Fallback: return empty set to load all data
-            return set()
-
-    def _refresh(self, db_manager):
-        """
-        Refresh cache from database.
-
-        OPTIMIZATION (Option 3 - Hybrid Approach):
-        - Load all open years (not yet closed)
-        - Load last closed year (for year-end comparisons)
-        - Skip older closed years (load on-demand if needed)
-
-        This significantly improves performance for tenants with many years of data.
-
-        Args:
-            db_manager: DatabaseManager instance
-        """
-        try:
-            self._loading = True
-            start_time = datetime.now()
-
-            logger.info("Loading vw_mutaties into memory cache (optimized)...")
-
-            conn = db_manager.get_connection()
-
-            # Get years to load (open years + last closed year)
-            years_to_load = self._get_years_to_load(db_manager)
-
-            if years_to_load:
-                # Build year filter for query
-                year_filter = " OR ".join([f"jaar = {year}" for year in years_to_load])
-
-                query = f"""
-                    SELECT 
-                        Aangifte,
-                        TransactionNumber,
-                        TransactionDate,
-                        TransactionDescription,
-                        Amount,
-                        Reknum,
-                        AccountName,
-                        Parent,
-                        VW,
-                        jaar,
-                        kwartaal,
-                        maand,
-                        week,
-                        ReferenceNumber,
-                        administration,
-                        Ref3,
-                        Ref4
-                    FROM vw_mutaties
-                    WHERE {year_filter}
-                """
-
-                logger.info(f"Loading years: {sorted(years_to_load)}")
-            else:
-                # Fallback: Load all data if year detection fails
-                logger.warning("Could not determine years to load, loading all data")
-                query = """
-                    SELECT 
-                        Aangifte,
-                        TransactionNumber,
-                        TransactionDate,
-                        TransactionDescription,
-                        Amount,
-                        Reknum,
-                        AccountName,
-                        Parent,
-                        VW,
-                        jaar,
-                        kwartaal,
-                        maand,
-                        week,
-                        ReferenceNumber,
-                        administration,
-                        Ref3,
-                        Ref4
-                    FROM vw_mutaties
-                """
-
-            self.data = pd.read_sql(query, conn)
-            conn.close()
-            conn.close()
-
-            # Convert date column to datetime for faster filtering
-            if "TransactionDate" in self.data.columns:
-                self.data["TransactionDate"] = pd.to_datetime(
-                    self.data["TransactionDate"]
+                logger.error(
+                    f"Error loading years {missing_years} for tenant '{tenant}': {e}"
                 )
 
-            self.last_loaded = datetime.now()
-            load_time = (datetime.now() - start_time).total_seconds()
+    def invalidate(self, tenant=None):
+        """
+        Force cache refresh on next request.
 
-            logger.info(f"Cache loaded: {len(self.data):,} rows in {load_time:.2f}s")
-            logger.info(
-                f"Memory usage: ~{self.data.memory_usage(deep=True).sum() / 1024 / 1024:.1f} MB"
-            )
-
-        except Exception as e:
-            logger.error(f"Error refreshing cache: {e}")
-            # Keep old data if refresh fails
-            if self.data is None:
-                raise
-        finally:
-            self._loading = False
-
-    def invalidate(self):
-        """Force cache refresh on next request"""
+        Args:
+            tenant: If provided, only invalidate that tenant. Otherwise invalidate all.
+        """
         with self.lock:
-            logger.info("Cache invalidated - will refresh on next request")
-            self.data = None
-            self.last_loaded = None
+            if tenant:
+                if tenant in self._tenant_data:
+                    del self._tenant_data[tenant]
+                    logger.info(f"Cache invalidated for tenant '{tenant}'")
+            else:
+                self._tenant_data.clear()
+                logger.info("Cache invalidated - all tenants cleared")
 
-    def load_additional_year(self, db_manager, year):
+    def load_additional_year(self, db_manager, year, tenant=None):
         """
         Load an additional year into the cache on-demand.
-
-        This is used when a user requests data from a closed year that
-        wasn't loaded initially (older than last closed year).
 
         Args:
             db_manager: DatabaseManager instance
             year: Year to load (integer)
+            tenant: Optional tenant filter
 
         Returns:
-            bool: True if year was loaded, False if already in cache or error
+            bool: True if year was loaded, False if already cached or error
         """
-        with self.lock:
-            try:
-                # Check if year is already in cache
-                if self.data is not None and year in self.data["jaar"].unique():
+        if tenant:
+            entry = self._tenant_data.get(tenant)
+            if entry and entry.data is not None and year in entry.data["jaar"].unique():
+                return False
+            self._ensure_years_loaded(db_manager, tenant, [year])
+            return True
+
+        # Legacy: check if year exists in any tenant's data
+        for entry in self._tenant_data.values():
+            if entry.data is not None and "jaar" in entry.data.columns:
+                if year in entry.data["jaar"].unique():
                     logger.info(f"Year {year} already in cache")
                     return False
 
-                logger.info(f"Loading additional year {year} into cache...")
-                start_time = datetime.now()
-
+        # Load for all tenants
+        with self.lock:
+            try:
                 conn = db_manager.get_connection()
-
-                query = f"""
+                query = """
                     SELECT 
-                        Aangifte,
-                        TransactionNumber,
-                        TransactionDate,
-                        TransactionDescription,
-                        Amount,
-                        Reknum,
-                        AccountName,
-                        Parent,
-                        VW,
-                        jaar,
-                        kwartaal,
-                        maand,
-                        week,
-                        ReferenceNumber,
-                        administration,
-                        Ref3,
-                        Ref4
+                        Aangifte, TransactionNumber, TransactionDate,
+                        TransactionDescription, Amount, Reknum, AccountName,
+                        Parent, VW, jaar, kwartaal, maand, week,
+                        ReferenceNumber, administration, Ref3, Ref4
                     FROM vw_mutaties
-                    WHERE jaar = {year}
+                    WHERE jaar = %s
                 """
-
-                year_data = pd.read_sql(query, conn)
+                year_data = pd.read_sql(query, conn, params=[int(year)])
                 conn.close()
 
-                # Convert date column
                 if "TransactionDate" in year_data.columns:
                     year_data["TransactionDate"] = pd.to_datetime(
                         year_data["TransactionDate"]
                     )
 
-                # Append to existing cache
-                if self.data is not None:
-                    self.data = pd.concat([self.data, year_data], ignore_index=True)
-                else:
-                    self.data = year_data
-
-                load_time = (datetime.now() - start_time).total_seconds()
-                logger.info(
-                    f"Loaded year {year}: {len(year_data):,} rows in {load_time:.2f}s"
-                )
+                # Distribute to tenant entries
+                now = datetime.now()
+                if "administration" in year_data.columns:
+                    for admin in year_data["administration"].dropna().unique():
+                        tenant_df = year_data[
+                            year_data["administration"] == admin
+                        ].copy()
+                        if admin in self._tenant_data:
+                            entry = self._tenant_data[admin]
+                            entry.data = pd.concat(
+                                [entry.data, tenant_df], ignore_index=True
+                            )
+                            entry.years_loaded.add(int(year))
+                        else:
+                            self._tenant_data[admin] = TenantCacheEntry(
+                                data=tenant_df,
+                                last_accessed=now,
+                                last_loaded=now,
+                                years_loaded={int(year)},
+                            )
 
                 return True
-
             except Exception as e:
                 logger.error(f"Error loading additional year {year}: {e}")
                 return False
 
     def get_stats(self):
-        """Get cache statistics"""
-        if self.data is None:
+        """
+        Get cache statistics including per-tenant breakdown.
+
+        Returns:
+            dict: Cache statistics with tenants_loaded, total_rows, memory_mb
+        """
+        if not self._tenant_data:
             return {
                 "loaded": False,
-                "rows": 0,
+                "tenants_loaded": 0,
+                "total_rows": 0,
+                "memory_mb": 0.0,
                 "last_loaded": None,
                 "age_seconds": None,
+                "ttl_seconds": self.ttl.total_seconds(),
+                "needs_refresh": True,
             }
 
+        total_rows = 0
+        total_memory = 0
+        oldest_load = None
+
+        for entry in self._tenant_data.values():
+            if entry.data is not None:
+                total_rows += len(entry.data)
+                total_memory += entry.data.memory_usage(deep=True).sum()
+            if oldest_load is None or entry.last_loaded < oldest_load:
+                oldest_load = entry.last_loaded
+
+        memory_mb = round(total_memory / 1024 / 1024, 2)
         age = (
-            (datetime.now() - self.last_loaded).total_seconds()
-            if self.last_loaded
-            else None
+            (datetime.now() - oldest_load).total_seconds() if oldest_load else None
         )
 
         return {
             "loaded": True,
-            "rows": len(self.data),
-            "columns": len(self.data.columns),
-            "memory_mb": round(
-                self.data.memory_usage(deep=True).sum() / 1024 / 1024, 2
-            ),
+            "tenants_loaded": len(self._tenant_data),
+            "total_rows": total_rows,
+            "memory_mb": memory_mb,
             "last_loaded": self.last_loaded.isoformat() if self.last_loaded else None,
             "age_seconds": round(age, 1) if age else None,
             "ttl_seconds": self.ttl.total_seconds(),
             "needs_refresh": self._needs_refresh(),
+            "tenants": {
+                tenant: {
+                    "rows": len(entry.data) if entry.data is not None else 0,
+                    "years_loaded": sorted(entry.years_loaded),
+                    "last_accessed": entry.last_accessed.isoformat(),
+                    "memory_mb": round(
+                        entry.data.memory_usage(deep=True).sum() / 1024 / 1024, 2
+                    ) if entry.data is not None else 0,
+                }
+                for tenant, entry in self._tenant_data.items()
+            },
         }
 
     def query_aangifte_ib(
@@ -471,12 +670,13 @@ class MutatiesCache:
         year,
         administration="all",
         db_manager=None,
+        tenant=None,
         user_tenants=None,
         snapshot=None,
         start_year=None,
     ):
         """
-        Query Aangifte IB data from cache
+        Query Aangifte IB data from cache.
 
         Uses closure-aware filtering:
         - Balance sheet accounts (VW='N'): Cumulate from start_year through target year
@@ -486,31 +686,37 @@ class MutatiesCache:
             year: Year to filter (string or int)
             administration: Administration to filter (default: 'all')
             db_manager: DatabaseManager instance (for on-demand loading)
-            user_tenants: List of tenants user has access to (for security filtering)
-            snapshot: Optional DataFrame snapshot for consistent reads across calls
+            tenant: Tenant identifier for per-tenant cache lookup
+            user_tenants: List of tenants user has access to
+            snapshot: Optional DataFrame snapshot for consistent reads
             start_year: First year to include for balance sheet cumulation
-                        (from get_closure_aware_start_year). None means no closures
-                        exist — fall back to full cumulation (jaar <= target_year).
 
         Returns:
             dict: Summary data grouped by Parent and Aangifte
         """
-        if snapshot is None and self.data is None:
+        if snapshot is not None:
+            source = snapshot
+        elif tenant and tenant in self._tenant_data:
+            entry = self._tenant_data[tenant]
+            entry.last_accessed = datetime.now()
+            source = entry.data
+        elif self.data is not None:
+            source = self.data
+        else:
             raise ValueError("Cache not loaded")
 
         year_int = int(year)
 
         # Check if year is in cache, load if needed
-        source = snapshot if snapshot is not None else self.data
-        if year_int not in source["jaar"].unique():
+        if source is not None and year_int not in source["jaar"].unique():
             if db_manager:
                 logger.info(f"Year {year_int} not in cache, loading on-demand...")
-                self.load_additional_year(db_manager, year_int)
-                source = self.data  # Re-read after load
-            else:
-                logger.warning(
-                    f"Year {year_int} not in cache and no db_manager provided"
-                )
+                self.load_additional_year(db_manager, year_int, tenant=tenant)
+                # Re-read source after load
+                if tenant and tenant in self._tenant_data:
+                    source = self._tenant_data[tenant].data
+                else:
+                    source = self.data
 
         df = source
 
@@ -518,33 +724,26 @@ class MutatiesCache:
         if user_tenants is not None:
             df = df[df["administration"].isin(user_tenants)]
 
-        # Closure-aware filtering:
-        # - VW='N' (balance sheet): cumulate from start_year through target_year
-        # - VW='Y' (P&L): current year only (period-based)
+        # Closure-aware filtering
         if start_year is not None:
-            # Closures exist: cumulate from start_year (last_closed_year + 1) through target year
             mask = (
                 (df["VW"] == "N")
                 & (df["jaar"] >= start_year)
                 & (df["jaar"] <= year_int)
             ) | ((df["VW"] == "Y") & (df["jaar"] == year_int))
         else:
-            # No closures: cumulate all years <= target_year for balance sheet
             mask = ((df["VW"] == "N") & (df["jaar"] <= year_int)) | (
                 (df["VW"] == "Y") & (df["jaar"] == year_int)
             )
         df = df[mask]
 
-        # Filter by administration (exact match for tenant isolation)
+        # Filter by administration
         if administration != "all":
             df = df[df["administration"] == administration]
 
         # Group by Parent and Aangifte
         summary = df.groupby(["Parent", "Aangifte"])["Amount"].sum().reset_index()
         summary.columns = ["Parent", "Aangifte", "Amount"]
-
-        # Sort by Parent (ascending) and Aangifte (alphabetically) to match database order
-        # The Aangifte field comes from rekeningschema.Belastingaangifte which has a natural order
         summary = summary.sort_values(["Parent", "Aangifte"], ascending=[True, True])
 
         return summary.to_dict("records")
@@ -556,34 +755,38 @@ class MutatiesCache:
         parent,
         aangifte,
         user_tenants=None,
+        tenant=None,
         snapshot=None,
         start_year=None,
     ):
         """
-        Query detailed accounts for specific Parent and Aangifte
-
-        Uses closure-aware filtering:
-        - Balance sheet accounts (VW='N'): Cumulate from start_year through target year
-        - P&L accounts (VW='Y'): Current year only (period-based)
+        Query detailed accounts for specific Parent and Aangifte.
 
         Args:
             year: Year to filter
             administration: Administration to filter
             parent: Parent category
             aangifte: Aangifte category
-            user_tenants: List of tenants user has access to (for security filtering)
-            snapshot: Optional DataFrame snapshot for consistent reads across calls
-            start_year: First year to include for balance sheet cumulation
-                        (from get_closure_aware_start_year). None means no closures
-                        exist — fall back to full cumulation (jaar <= target_year).
+            user_tenants: List of tenants user has access to
+            tenant: Tenant identifier for per-tenant cache lookup
+            snapshot: Optional DataFrame snapshot
+            start_year: First year for balance sheet cumulation
 
         Returns:
             list: Account details with amounts
         """
-        if snapshot is None and self.data is None:
+        if snapshot is not None:
+            source = snapshot
+        elif tenant and tenant in self._tenant_data:
+            entry = self._tenant_data[tenant]
+            entry.last_accessed = datetime.now()
+            source = entry.data
+        elif self.data is not None:
+            source = self.data
+        else:
             raise ValueError("Cache not loaded")
 
-        df = snapshot if snapshot is not None else self.data
+        df = source
 
         # SECURITY: Filter by user's accessible tenants first
         if user_tenants is not None:
@@ -591,24 +794,20 @@ class MutatiesCache:
 
         year_int = int(year)
 
-        # Closure-aware filtering:
-        # - VW='N' (balance sheet): cumulate from start_year through target_year
-        # - VW='Y' (P&L): current year only (period-based)
+        # Closure-aware filtering
         if start_year is not None:
-            # Closures exist: cumulate from start_year (last_closed_year + 1) through target year
             mask = (
                 (df["VW"] == "N")
                 & (df["jaar"] >= start_year)
                 & (df["jaar"] <= year_int)
             ) | ((df["VW"] == "Y") & (df["jaar"] == year_int))
         else:
-            # No closures: cumulate all years <= target_year for balance sheet
             mask = ((df["VW"] == "N") & (df["jaar"] <= year_int)) | (
                 (df["VW"] == "Y") & (df["jaar"] == year_int)
             )
         df = df[mask]
 
-        # Filter by criteria (exact match for tenant isolation)
+        # Filter by criteria
         if administration != "all":
             df = df[df["administration"] == administration]
 
@@ -620,26 +819,35 @@ class MutatiesCache:
 
         return details.to_dict("records")
 
-    def get_available_years(self, db_manager=None):
+    def get_available_years(self, db_manager=None, tenant=None):
         """
         Get list of ALL available years from database (not just cached years).
 
-        This ensures year selectors show all years, even if they're not loaded in cache.
-
         Args:
-            db_manager: DatabaseManager instance (optional, will use cache if not provided)
+            db_manager: DatabaseManager instance
+            tenant: Optional tenant filter
 
         Returns:
             list: Sorted list of years (newest first)
         """
-        # If db_manager provided, query database directly for ALL years
-        # Uses YEAR() on base mutaties table — acceptable since this runs once
-        # for cache initialization, not performance-critical
         if db_manager is not None:
             try:
                 conn = db_manager.get_connection()
-                query = "SELECT DISTINCT YEAR(TransactionDate) as year FROM mutaties ORDER BY year DESC"
-                result = pd.read_sql(query, conn)
+                if tenant:
+                    query = """
+                        SELECT DISTINCT YEAR(TransactionDate) as year
+                        FROM mutaties
+                        WHERE administration = %s
+                        ORDER BY year DESC
+                    """
+                    result = pd.read_sql(query, conn, params=[tenant])
+                else:
+                    query = """
+                        SELECT DISTINCT YEAR(TransactionDate) as year
+                        FROM mutaties
+                        ORDER BY year DESC
+                    """
+                    result = pd.read_sql(query, conn)
                 conn.close()
                 return [str(int(y)) for y in result["year"].dropna()]
             except Exception as e:
@@ -648,27 +856,39 @@ class MutatiesCache:
                 )
 
         # Fallback: Use cached data
-        if self.data is None:
+        if tenant and tenant in self._tenant_data:
+            entry = self._tenant_data[tenant]
+            if entry.data is not None and not entry.data.empty:
+                years = entry.data["jaar"].dropna().unique()
+                return sorted([str(int(y)) for y in years], reverse=True)
+
+        # Fallback to combined data
+        combined = self.data
+        if combined is None:
             raise ValueError("Cache not loaded and no database manager provided")
 
-        years = self.data["jaar"].dropna().unique()
+        years = combined["jaar"].dropna().unique()
         return sorted([str(int(y)) for y in years], reverse=True)
 
-    def get_available_administrations(self, year=None):
+    def get_available_administrations(self, year=None, tenant=None):
         """
-        Get list of available administrations from cache
+        Get list of available administrations from cache.
 
         Args:
             year: Optional year filter
+            tenant: Optional tenant filter (returns just this tenant's admin)
 
         Returns:
             list: Sorted list of administrations
         """
-        if self.data is None:
+        if tenant and tenant in self._tenant_data:
+            return [tenant]
+
+        combined = self.data
+        if combined is None:
             raise ValueError("Cache not loaded")
 
-        df = self.data
-
+        df = combined
         if year:
             df = df[df["jaar"] == int(year)]
 
@@ -682,7 +902,7 @@ _cache = None
 
 def get_cache(ttl_minutes=30):
     """
-    Get or create the global cache instance
+    Get or create the global cache instance.
 
     Args:
         ttl_minutes: Time to live in minutes (default: 30)
@@ -696,8 +916,13 @@ def get_cache(ttl_minutes=30):
     return _cache
 
 
-def invalidate_cache():
-    """Invalidate the global cache"""
+def invalidate_cache(tenant=None):
+    """
+    Invalidate the global cache.
+
+    Args:
+        tenant: If provided, only invalidate that tenant. Otherwise invalidate all.
+    """
     global _cache
     if _cache:
-        _cache.invalidate()
+        _cache.invalidate(tenant=tenant)

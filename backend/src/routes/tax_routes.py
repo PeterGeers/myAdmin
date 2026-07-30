@@ -6,6 +6,7 @@ Handles BTW (VAT) and Toeristenbelasting (Tourist Tax) declaration routes
 from flask import Blueprint, request, jsonify
 from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from btw_processor import BTWProcessor
 from toeristenbelasting_processor import ToeristenbelastingProcessor
@@ -65,7 +66,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
         # Get cache and database instances
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
-        cache.get_data(db)
+        cache.get_data(db, tenant=administration)
 
         # Generate structured report data using new generator
         from report_generators import btw_aangifte_generator
@@ -280,7 +281,8 @@ def btw_upload_report(user_email, user_roles) -> ResponseReturnValue:
 # Toeristenbelasting (Tourist Tax) Declaration routes
 @tax_bp.route("/api/toeristenbelasting/generate-report", methods=["POST"])
 @cognito_required(required_permissions=["str_read", "reports_read"])
-def toeristenbelasting_generate_report(user_email, user_roles) -> ResponseReturnValue:
+@tenant_required()
+def toeristenbelasting_generate_report(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Generate Toeristenbelasting declaration report
 
     Supports multiple output destinations:
@@ -300,7 +302,7 @@ def toeristenbelasting_generate_report(user_email, user_roles) -> ResponseReturn
             return jsonify({"success": False, "error": "Year is required"}), 400
 
         processor = ToeristenbelastingProcessor(test_mode=flag)
-        result = processor.generate_toeristenbelasting_report(year)
+        result = processor.generate_toeristenbelasting_report(year, tenant=tenant)
 
         # If report generation failed, return error
         if not result.get("success"):

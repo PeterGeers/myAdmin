@@ -369,8 +369,16 @@ class PDFValidator:
             cursor.close()
             conn.close()
 
-    def update_record(self, old_ref3, reference_number=None, ref3=None, ref4=None):
-        """Update all records with matching Ref3"""
+    def update_record(self, old_ref3, reference_number=None, ref3=None, ref4=None, administration=None):
+        """Update all records with matching Ref3, scoped to tenant administration.
+
+        Args:
+            old_ref3: The current Ref3 value to match
+            reference_number: New reference number (optional)
+            ref3: New Ref3 value (optional)
+            ref4: New Ref4 value (optional)
+            administration: Tenant administration to scope the update (required for security)
+        """
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
@@ -391,14 +399,14 @@ class PDFValidator:
                 params.append(ref4.strip())
 
             if updates:
-                query = f"UPDATE mutaties SET {', '.join(updates)} WHERE Ref3 = %s"
-                all_params = params + [old_ref3]
+                query = f"UPDATE mutaties SET {', '.join(updates)} WHERE Ref3 = %s AND administration = %s"
+                all_params = params + [old_ref3, administration]
                 print(f"Executing query: {query}")
                 print(f"With params: {all_params}")
                 cursor.execute(query, all_params)
                 affected_rows = cursor.rowcount
                 conn.commit()
-                print(f"Updated {affected_rows} records with Ref3={old_ref3}")
+                print(f"Updated {affected_rows} records with Ref3={old_ref3}, administration={administration}")
                 return affected_rows > 0
 
             print(f"No updates for Ref3={old_ref3}")

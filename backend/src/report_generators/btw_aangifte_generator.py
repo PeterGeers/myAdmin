@@ -227,7 +227,7 @@ def _get_opening_balance_vat(
         Dictionary with {'amount': net_opening_balance} or None
     """
     try:
-        df = cache.get_data(db)
+        df = cache.get_data(db, tenant=administration)
 
         # Filter for opening balance transactions in the specified year
         df_filtered = df[
@@ -266,7 +266,7 @@ def _get_current_year_vat(
         List of dictionaries with Reknum, AccountName, and amount
     """
     try:
-        df = cache.get_data(db)
+        df = cache.get_data(db, tenant=administration)
 
         # Filter by date range (current year up to end_date, excluding opening balance)
         df_filtered = df[
@@ -315,7 +315,7 @@ def _get_quarter_data(
     """
     try:
         # Get cache data
-        df = cache.get_data(db)
+        df = cache.get_data(db, tenant=administration)
 
         # Filter by year and quarter
         df_filtered = df[

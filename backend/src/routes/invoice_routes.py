@@ -13,6 +13,7 @@ from auth.tenant_context import tenant_required
 from services.invoice_service import InvoiceService
 from db_exceptions import ClosedPeriodError
 import os
+import uuid
 
 invoice_bp = Blueprint("invoices", __name__)
 
@@ -73,7 +74,8 @@ def upload_file_authenticated(
 
         if file and invoice_service.allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            temp_path = os.path.join(UPLOAD_FOLDER, filename)
+            unique_filename = f"{tenant}_{uuid.uuid4().hex[:8]}_{filename}"
+            temp_path = os.path.join(UPLOAD_FOLDER, unique_filename)
             print(f"Saving file to: {temp_path}", flush=True)
             file.save(temp_path)
             print("File saved successfully", flush=True)

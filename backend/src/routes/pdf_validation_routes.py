@@ -153,7 +153,8 @@ def pdf_validate_urls(
 
 @pdf_validation_bp.route("/api/pdf/update-record", methods=["POST"])
 @cognito_required(required_permissions=["invoices_update"])
-def pdf_update_record(user_email, user_roles) -> ResponseReturnValue:
+@tenant_required()
+def pdf_update_record(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Update all records with matching Ref3/Ref4"""
     try:
         data = request.get_json()
@@ -173,7 +174,7 @@ def pdf_update_record(user_email, user_roles) -> ResponseReturnValue:
             ), 400
 
         validator = PDFValidator(test_mode=flag)
-        success = validator.update_record(old_ref3, reference_number, ref3, ref4)
+        success = validator.update_record(old_ref3, reference_number, ref3, ref4, tenant)
 
         if success:
             return jsonify({"success": True, "message": "Records updated successfully"})
@@ -195,14 +196,20 @@ def pdf_update_record(user_email, user_roles) -> ResponseReturnValue:
 
 @pdf_validation_bp.route("/api/pdf/get-administrations", methods=["GET"])
 @cognito_required(required_permissions=["invoices_read"])
-def pdf_get_administrations(user_email, user_roles) -> ResponseReturnValue:
-    """Get available administrations for a specific year"""
+@tenant_required()
+def pdf_get_administrations(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """Get available administrations for a specific year, filtered by tenant access"""
     try:
         year = request.args.get("year", "2025")
         validator = PDFValidator(test_mode=flag)
         administrations = validator.get_administrations_for_year(year)
 
-        return jsonify({"success": True, "administrations": administrations})
+        # Filter to only administrations the user has access to
+        filtered = [a for a in administrations if a in user_tenants]
+
+        return jsonify({"success": True, "administrations": filtered})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

@@ -8,6 +8,7 @@ Requirements: 6.1, 6.2, 6.4, 8.3
 Reference: .kiro/specs/missing-py-tests/design.md
 """
 import io
+import os
 import pytest
 import json
 from unittest.mock import patch, MagicMock
@@ -365,3 +366,200 @@ class TestApproveTransactions:
         resp_data = json.loads(response.data)
         assert resp_data['success'] is False
         assert 'DB connection lost' in resp_data['error']
+
+
+# ============================================================================
+# Temp File Collision Tests (REQ-1.3)
+# ============================================================================
+
+
+class TestTempFileCollision:
+    """Verify concurrent uploads with same filename don't collide."""
+
+    @patch('routes.invoice_routes.InvoiceService')
+    def test_concurrent_uploads_same_filename_get_unique_temp_paths(
+        self, mock_service_class, client, invoice_auth, tmp_path
+    ):
+        """
+        Two uploads of 'invoice.pdf' should produce different temp files.
+        Verifies REQ-1.3: temp files are namespaced to avoid collisions.
+        """
+        mock_instance = MagicMock()
+        mock_service_class.return_value = mock_instance
+        mock_instance.allowed_file.return_value = True
+        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
+        mock_instance.check_early_duplicates.return_value = {
+            'has_duplicates': False,
+            'message': '',
+            'duplicate_info': None
+        }
+        mock_instance.process_invoice_file.return_value = {
+            'folder': 'Vendor A',
+            'extracted_text': 'Invoice text',
+            'vendor_data': {'name': 'Vendor A'},
+            'transactions': [{'date': '2024-01-01', 'amount': 100, 'description': 'Test'}],
+            'prepared_transactions': [],
+            'template_transactions': [],
+            'parser_used': 'ai'
+        }
+
+        saved_paths = []
+        original_save = None
+
+        # Capture the temp_path passed to process_invoice_file
+        def capture_process_call(temp_path, drive_result, folder_name, tenant):
+            saved_paths.append(temp_path)
+            return {
+                'folder': 'Vendor A',
+                'extracted_text': 'Invoice text',
+                'vendor_data': {'name': 'Vendor A'},
+                'transactions': [{'date': '2024-01-01', 'amount': 100, 'description': 'Test'}],
+                'prepared_transactions': [],
+                'template_transactions': [],
+                'parser_used': 'ai'
+            }
+
+        mock_instance.process_invoice_file.side_effect = capture_process_call
+
+        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
+            # First upload
+            data1 = {
+                'file': (io.BytesIO(b'%PDF-1.4 first file content'), 'invoice.pdf'),
+                'folderName': 'Invoices'
+            }
+            response1 = client.post(
+                '/api/upload',
+                headers=invoice_auth,
+                data=data1,
+                content_type='multipart/form-data'
+            )
+
+            # Second upload with same filename
+            data2 = {
+                'file': (io.BytesIO(b'%PDF-1.4 second file content'), 'invoice.pdf'),
+                'folderName': 'Invoices'
+            }
+            response2 = client.post(
+                '/api/upload',
+                headers=invoice_auth,
+                data=data2,
+                content_type='multipart/form-data'
+            )
+
+        # Both should succeed
+        assert response1.status_code == 200
+        assert response2.status_code == 200
+
+        # The temp paths should be different (UUID ensures uniqueness)
+        assert len(saved_paths) == 2
+        assert saved_paths[0] != saved_paths[1], (
+            f"Temp paths should be unique but got same path: {saved_paths[0]}"
+        )
+
+        # Both responses should report the original filename (not the unique temp name)
+        resp1 = json.loads(response1.data)
+        resp2 = json.loads(response2.data)
+        assert resp1['filename'] == 'invoice.pdf'
+        assert resp2['filename'] == 'invoice.pdf'
+
+    @patch('routes.invoice_routes.InvoiceService')
+    def test_temp_filename_contains_tenant_and_uuid(
+        self, mock_service_class, client, invoice_auth, tmp_path
+    ):
+        """
+        Temp filename should follow pattern: {tenant}_{uuid8}_{filename}
+        Verifies REQ-1.3: tenant prefix + UUID namespacing.
+        """
+        mock_instance = MagicMock()
+        mock_service_class.return_value = mock_instance
+        mock_instance.allowed_file.return_value = True
+        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
+        mock_instance.check_early_duplicates.return_value = {
+            'has_duplicates': False,
+            'message': '',
+            'duplicate_info': None
+        }
+
+        captured_temp_path = []
+
+        def capture_process(temp_path, drive_result, folder_name, tenant):
+            captured_temp_path.append(temp_path)
+            return {
+                'folder': 'Vendor A',
+                'extracted_text': 'text',
+                'vendor_data': None,
+                'transactions': [],
+                'prepared_transactions': [],
+                'template_transactions': [],
+                'parser_used': 'ai'
+            }
+
+        mock_instance.process_invoice_file.side_effect = capture_process
+
+        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
+            data = {
+                'file': (io.BytesIO(b'%PDF-1.4 content'), 'invoice.pdf'),
+                'folderName': 'Invoices'
+            }
+            response = client.post(
+                '/api/upload',
+                headers=invoice_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+
+        assert response.status_code == 200
+        assert len(captured_temp_path) == 1
+
+        # Extract just the filename from the temp path
+        temp_filename = os.path.basename(captured_temp_path[0])
+
+        # Should match pattern: test-tenant_{8 hex chars}_invoice.pdf
+        import re
+        pattern = r'^test-tenant_[0-9a-f]{8}_invoice\.pdf$'
+        assert re.match(pattern, temp_filename), (
+            f"Temp filename '{temp_filename}' doesn't match expected pattern "
+            f"'{{tenant}}_{{uuid8}}_{{filename}}'"
+        )
+
+    @patch('routes.invoice_routes.InvoiceService')
+    def test_cleanup_uses_unique_temp_path(
+        self, mock_service_class, client, invoice_auth, tmp_path
+    ):
+        """
+        When duplicate is detected, cleanup should use the unique temp path.
+        Verifies REQ-1.3: cleanup of temp files still works correctly.
+        """
+        mock_instance = MagicMock()
+        mock_service_class.return_value = mock_instance
+        mock_instance.allowed_file.return_value = True
+        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
+        mock_instance.check_early_duplicates.return_value = {
+            'has_duplicates': True,
+            'message': 'File already exists',
+            'duplicate_info': {'existing_file_id': 'drive-456'}
+        }
+
+        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
+            data = {
+                'file': (io.BytesIO(b'%PDF-1.4 content'), 'invoice.pdf'),
+                'folderName': 'Invoices'
+            }
+            response = client.post(
+                '/api/upload',
+                headers=invoice_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+
+        assert response.status_code == 409
+
+        # cleanup_temp_file should have been called with the unique path
+        mock_instance.cleanup_temp_file.assert_called_once()
+        cleanup_path = mock_instance.cleanup_temp_file.call_args[0][0]
+        cleanup_filename = os.path.basename(cleanup_path)
+
+        # Should NOT be just 'invoice.pdf' — should include tenant + uuid
+        assert cleanup_filename != 'invoice.pdf'
+        assert 'test-tenant_' in cleanup_filename
+        assert cleanup_filename.endswith('_invoice.pdf')

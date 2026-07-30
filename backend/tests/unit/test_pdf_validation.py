@@ -341,16 +341,22 @@ class TestPDFValidator:
         mock_db.return_value.get_connection.return_value = mock_conn
         
         validator = PDFValidator()
-        result = validator.update_record('old_url', reference_number='REF001', ref3='new_url', ref4='new_file.pdf')
+        result = validator.update_record('old_url', reference_number='REF001', ref3='new_url', ref4='new_file.pdf', administration='test-tenant')
         
         assert result is True
         mock_cursor.execute.assert_called_once()
+        # Verify the query includes administration scoping
+        call_args = mock_cursor.execute.call_args
+        query = call_args[0][0]
+        params = call_args[0][1]
+        assert 'AND administration = %s' in query
+        assert params[-1] == 'test-tenant'
         mock_conn.commit.assert_called_once()
     
     @patch('pdf_validation.DatabaseManager')
     def test_update_record_no_updates(self, mock_db):
         validator = PDFValidator()
-        result = validator.update_record('old_url')
+        result = validator.update_record('old_url', administration='test-tenant')
         
         assert result is False
     
@@ -363,10 +369,52 @@ class TestPDFValidator:
         mock_db.return_value.get_connection.return_value = mock_conn
         
         validator = PDFValidator()
-        result = validator.update_record('old_url', ref3='new_url')
+        result = validator.update_record('old_url', ref3='new_url', administration='test-tenant')
         
         assert result is False
         mock_conn.rollback.assert_called_once()
+
+    @patch('pdf_validation.DatabaseManager')
+    def test_update_record_own_tenant_succeeds(self, mock_db):
+        """Verify update succeeds when administration matches the record's tenant."""
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.rowcount = 1
+        mock_conn.cursor.return_value = mock_cursor
+        mock_db.return_value.get_connection.return_value = mock_conn
+        
+        validator = PDFValidator()
+        result = validator.update_record(
+            'https://drive.google.com/file/d/old123',
+            ref3='https://drive.google.com/file/d/new456',
+            administration='MyTenant'
+        )
+        
+        assert result is True
+        call_args = mock_cursor.execute.call_args[0]
+        query = call_args[0]
+        params = call_args[1]
+        assert 'WHERE Ref3 = %s AND administration = %s' in query
+        assert params[-2] == 'https://drive.google.com/file/d/old123'
+        assert params[-1] == 'MyTenant'
+
+    @patch('pdf_validation.DatabaseManager')
+    def test_update_record_other_tenant_returns_false(self, mock_db):
+        """Verify update returns False when no records match the administration filter."""
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.rowcount = 0  # No rows matched — wrong tenant
+        mock_conn.cursor.return_value = mock_cursor
+        mock_db.return_value.get_connection.return_value = mock_conn
+        
+        validator = PDFValidator()
+        result = validator.update_record(
+            'https://drive.google.com/file/d/old123',
+            ref3='https://drive.google.com/file/d/new456',
+            administration='WrongTenant'
+        )
+        
+        assert result is False
     
     def test_find_folder_by_reference(self):
         validator = PDFValidator()
