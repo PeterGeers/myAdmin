@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional
 from database import DatabaseManager
 from dialect_helpers import dialect
 from pattern_scoring import calculate_statistics_from_db_patterns
+from pattern_detection import MAJORITY_VOTING_THRESHOLD
 
 
 def build_cache_key(
@@ -64,8 +65,22 @@ def store_verb_patterns_to_database(
     try:
         # Store verb patterns (unified approach for all predictions)
         for pattern_key, pattern in verb_patterns.items():
-            # Skip ambiguous company-level patterns — they are placeholders only
+            # Skip ambiguous company-level patterns — log the exclusion
             if pattern.get("_ambiguous"):
+                # Log the exclusion with competing account info
+                variants_info = pattern.get("_variants", {})
+                if variants_info:
+                    competing = {str(k): v["occurrences"] for k, v in variants_info.items()}
+                    print(
+                        f"⚠️ Skipping ambiguous pattern '{pattern_key}': "
+                        f"no combination exceeds {MAJORITY_VOTING_THRESHOLD*100:.0f}% threshold. "
+                        f"Competing accounts: {competing}"
+                    )
+                else:
+                    print(
+                        f"⚠️ Skipping ambiguous pattern '{pattern_key}': "
+                        f"marked ambiguous (confidence={pattern.get('confidence', 0.0)})"
+                    )
                 continue
             db.execute_query(
                 """

@@ -251,7 +251,10 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
         db = DatabaseManager()
         credential_service = CredentialService(db)
 
-        tenants = ["GoodwinSolutions", "PeterPrive"]
+        tenants_result = db.execute_query(
+            "SELECT DISTINCT administration FROM rekeningschema WHERE administration IS NOT NULL"
+        )
+        tenants = [r["administration"] for r in tenants_result] if tenants_result else []
         results = {}
 
         for tenant in tenants:

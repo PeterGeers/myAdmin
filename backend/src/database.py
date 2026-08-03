@@ -434,6 +434,10 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
 
     def insert_transaction(self, transaction, table_name="mutaties"):
         """Insert a single transaction into the specified table"""
+        administration = transaction.get("Administration") or transaction.get("administration")
+        if not administration:
+            raise ValueError("Administration is required for tenant-scoped insert into mutaties")
+
         return self.execute_query(
             f"""INSERT INTO {table_name} 
                 (TransactionNumber, TransactionDate, TransactionDescription, TransactionAmount, 
@@ -451,7 +455,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 transaction.get("Ref2", ""),
                 transaction.get("Ref3", ""),
                 transaction.get("Ref4", ""),
-                transaction.get("Administration", "GoodwinSolutions"),
+                administration,
             ),
             fetch=False,
             commit=True,

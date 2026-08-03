@@ -206,6 +206,11 @@ class TransactionLogic:
                     elif i == 1:  # Second transaction (VAT)
                         description = f"{ref1} {ref2} {vendor_data['commission_type']} {transaction_date} BTW"
 
+            # Resolve administration — must come from new_data or template, never a hardcoded fallback
+            administration = new_data.get("administration") or template.get("Administration")
+            if not administration:
+                raise ValueError("Administration is required — neither new_data nor template provides it")
+
             # Create new transaction based on template
             new_transaction = {
                 "ID": f"NEW_{i + 1}",  # Temporary ID
@@ -220,9 +225,7 @@ class TransactionLogic:
                 "Ref2": ref2,
                 "Ref3": new_data["drive_url"],
                 "Ref4": new_data["filename"],
-                "Administration": new_data.get(
-                    "administration", template.get("Administration", "GoodwinSolutions")
-                ),
+                "Administration": administration,
             }
             new_transactions.append(new_transaction)
 

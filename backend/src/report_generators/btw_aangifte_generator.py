@@ -15,7 +15,7 @@ Usage:
     report_data = generate_btw_report(
         cache=cache_instance,
         db=db_instance,
-        administration='GoodwinSolutions',
+        administration='ExampleTenant',
         year=2025,
         quarter=1
     )
@@ -41,7 +41,7 @@ def generate_btw_report(
     Args:
         cache: Cache instance for querying financial data
         db: Database instance (for compatibility)
-        administration: Administration/tenant identifier (e.g., 'GoodwinSolutions')
+        administration: Administration/tenant identifier (e.g., 'ExampleTenant')
         year: Report year (e.g., 2025)
         quarter: Quarter number (1, 2, 3, or 4)
 
@@ -69,7 +69,7 @@ def generate_btw_report(
         >>> report = generate_btw_report(
         ...     cache=cache,
         ...     db=db,
-        ...     administration='GoodwinSolutions',
+        ...     administration='ExampleTenant',
         ...     year=2025,
         ...     quarter=1
         ... )

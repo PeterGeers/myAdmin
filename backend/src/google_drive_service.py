@@ -43,7 +43,7 @@ class GoogleDriveService:
         Initialize GoogleDriveService for a specific administration/tenant.
 
         Args:
-            administration: The tenant/administration identifier (e.g., 'GoodwinSolutions', 'PeterPrive')
+            administration: The tenant/administration identifier (e.g., 'ExampleTenant', 'MyTenant')
             parameter_service: Optional ParameterService for resolving folder IDs from config
         """
         self.administration = administration
