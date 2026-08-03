@@ -16,8 +16,8 @@ Usage:
         report_data=summary_data,
         cache=cache_instance,
         year=2025,
-        administration='GoodwinSolutions',
-        user_tenants=['GoodwinSolutions', 'PeterPrive']
+        administration='ExampleTenant',
+        user_tenants=['ExampleTenant', 'MyTenant']
     )
 """
 
@@ -46,7 +46,7 @@ def generate_table_rows(
                     Example: [{'Parent': '1000', 'Aangifte': 'Liquide middelen', 'Amount': 88262.80}, ...]
         cache: Cache instance for querying account details (must have query_aangifte_ib_details method)
         year: Report year (e.g., 2025)
-        administration: Administration/tenant identifier (e.g., 'GoodwinSolutions')
+        administration: Administration/tenant identifier (e.g., 'ExampleTenant')
         user_tenants: List of tenants user has access to (for security filtering)
 
     Returns:
@@ -67,8 +67,8 @@ def generate_table_rows(
         ...     report_data=[{'Parent': '1000', 'Aangifte': 'Liquide middelen', 'Amount': 88262.80}],
         ...     cache=cache,
         ...     year=2025,
-        ...     administration='GoodwinSolutions',
-        ...     user_tenants=['GoodwinSolutions']
+        ...     administration='ExampleTenant',
+        ...     user_tenants=['ExampleTenant']
         ... )
         >>> rows[0]
         {

@@ -52,7 +52,7 @@ class BankingProcessor:
             "other_files": [f for f in all_files if f not in rabo_files],
         }
 
-    def read_rabo_csv(self, file_path):
+    def read_rabo_csv(self, file_path, administration: str):
         """Read Rabobank CSV file and extract necessary columns"""
         try:
             df = pd.read_csv(file_path, encoding="latin1", dtype=str)
@@ -70,7 +70,7 @@ class BankingProcessor:
                 "Ref2": df.iloc[:, 3] if len(df.columns) > 3 else "",
                 "Ref3": "",
                 "Ref4": file_path,
-                "Administration": "GoodwinSolutions",
+                "Administration": administration,
             }
 
             # Build transaction description from available columns
@@ -107,7 +107,7 @@ class BankingProcessor:
             print(f"Error reading Rabo CSV {file_path}: {e}")
             return pd.DataFrame()
 
-    def read_generic_csv(self, file_path):
+    def read_generic_csv(self, file_path, administration: str):
         """Read generic CSV file and map to standard format"""
         try:
             df = pd.read_csv(file_path, encoding="utf-8")
@@ -130,7 +130,7 @@ class BankingProcessor:
                 "Ref2": "",
                 "Ref3": "",
                 "Ref4": file_path,
-                "Administration": "GoodwinSolutions",
+                "Administration": administration,
             }
 
             return pd.DataFrame(standard_data)
@@ -146,7 +146,7 @@ class BankingProcessor:
                 return col
         return None
 
-    def process_csv_files(self, file_paths):
+    def process_csv_files(self, file_paths, administration: str):
         """Process multiple CSV files and combine into single dataset"""
         combined_data = pd.DataFrame()
 
@@ -154,11 +154,11 @@ class BankingProcessor:
             print(f"Processing: {file_path}")
 
             if "CSV_" in os.path.basename(file_path):
-                df = self.read_rabo_csv(file_path)
+                df = self.read_rabo_csv(file_path, administration)
             elif os.path.basename(file_path).startswith("RA_CC_"):
-                df = self.read_generic_csv(file_path)
+                df = self.read_generic_csv(file_path, administration)
             else:
-                df = self.read_generic_csv(file_path)
+                df = self.read_generic_csv(file_path, administration)
 
             if not df.empty:
                 if combined_data.empty:

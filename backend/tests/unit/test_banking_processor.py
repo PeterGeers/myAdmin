@@ -97,7 +97,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         ])
         mock_read_csv.return_value = mock_df
 
-        result = banking_processor.read_rabo_csv('test.csv')
+        result = banking_processor.read_rabo_csv('test.csv', 'TestTenant')
 
         assert not result.empty
         assert 'TransactionDate' in result.columns
@@ -110,7 +110,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         """Test Rabobank CSV reading error handling"""
         mock_read_csv.side_effect = Exception("File not found")
 
-        result = banking_processor.read_rabo_csv('nonexistent.csv')
+        result = banking_processor.read_rabo_csv('nonexistent.csv', 'TestTenant')
 
         assert result.empty
 
@@ -124,7 +124,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         })
         mock_read_csv.return_value = mock_df
 
-        result = banking_processor.read_generic_csv('test.csv')
+        result = banking_processor.read_generic_csv('test.csv', 'TestTenant')
 
         assert not result.empty
         assert 'TransactionDate' in result.columns
@@ -136,7 +136,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         """Test generic CSV reading error handling"""
         mock_read_csv.side_effect = Exception("Invalid format")
 
-        result = banking_processor.read_generic_csv('invalid.csv')
+        result = banking_processor.read_generic_csv('invalid.csv', 'TestTenant')
 
         assert result.empty
 
@@ -171,18 +171,18 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         mock_generic.return_value = generic_df
 
         files = ['CSV_O123.csv', 'other.csv']
-        result = banking_processor.process_csv_files(files)
+        result = banking_processor.process_csv_files(files, 'TestTenant')
 
         assert len(result) == 2
-        mock_rabo.assert_called_once_with('CSV_O123.csv')
-        mock_generic.assert_called_once_with('other.csv')
+        mock_rabo.assert_called_once_with('CSV_O123.csv', 'TestTenant')
+        mock_generic.assert_called_once_with('other.csv', 'TestTenant')
 
     @patch.object(BankingProcessor, 'read_rabo_csv')
     def test_process_csv_files_empty_result(self, mock_rabo, banking_processor):
         """Test processing CSV files with empty results"""
         mock_rabo.return_value = pd.DataFrame()
 
-        result = banking_processor.process_csv_files(['CSV_O123.csv'])
+        result = banking_processor.process_csv_files(['CSV_O123.csv'], 'TestTenant')
 
         assert result.empty
 
@@ -487,6 +487,50 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
             if 'Ref2 = %s' in str(call)
         ]
         assert len(ref2_calls) == 0
+
+    @patch('pandas.read_csv')
+    def test_read_rabo_csv_administration_parameter(self, mock_read_csv, banking_processor):
+        """Task 9.1: read_rabo_csv uses administration parameter for all rows"""
+        # Setup mock DataFrame with multiple rows (Rabobank format: 24 columns)
+        mock_df = pd.DataFrame([
+            ['NL80RABO0107936917', 'RABONL2U', 'Test Account', '1', '2025-01-15',
+             '2025-01-15', '+150.50', 'EUR', 'Kuwait Petroleum', 'NL12ABNA0123456789',
+             'ABNANL2A', 'GT', '123456', 'REF001', '', '', '', 'Fuel purchase',
+             '', '', 'Extra info 1', '-', '-', '-'],
+            ['NL80RABO0107936917', 'RABONL2U', 'Test Account', '2', '2025-01-16',
+             '2025-01-16', '-75.25', 'EUR', 'Supermarket', 'NL34INGB0987654321',
+             'INGBNL2A', 'GT', '123457', 'REF002', '', '', '', 'Groceries',
+             '', '', 'Extra info 2', '-', '-', '-'],
+            ['NL80RABO0107936917', 'RABONL2U', 'Test Account', '3', '2025-01-17',
+             '2025-01-17', '+200.00', 'EUR', 'Client Payment', 'NL56RABO1234567890',
+             'RABONL2U', 'GT', '123458', 'REF003', '', '', '', 'Invoice payment',
+             '', '', 'Extra info 3', '-', '-', '-'],
+        ])
+        mock_read_csv.return_value = mock_df
+
+        result = banking_processor.read_rabo_csv('test.csv', 'TenantA')
+
+        assert not result.empty
+        assert len(result) == 3
+        assert (result['Administration'] == 'TenantA').all(), \
+            f"Expected all rows to have Administration='TenantA', got: {result['Administration'].tolist()}"
+
+    @patch('pandas.read_csv')
+    def test_read_generic_csv_administration_parameter(self, mock_read_csv, banking_processor):
+        """Task 9.2: read_generic_csv uses administration parameter for all rows"""
+        mock_df = pd.DataFrame({
+            'Date': ['2025-01-15', '2025-01-16', '2025-01-17'],
+            'Description': ['Test 1', 'Test 2', 'Test 3'],
+            'Amount': [100.00, -50.00, 200.00]
+        })
+        mock_read_csv.return_value = mock_df
+
+        result = banking_processor.read_generic_csv('test.csv', 'TenantB')
+
+        assert not result.empty
+        assert len(result) == 3
+        assert (result['Administration'] == 'TenantB').all(), \
+            f"Expected all rows to have Administration='TenantB', got: {result['Administration'].tolist()}"
 
     def test_save_ref2_fx_suffix_deduplicated(self, banking_processor, mock_connection):
         """Test that _FX suffixed Ref2 values are also deduplicated correctly"""

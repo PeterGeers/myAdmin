@@ -221,3 +221,101 @@ class TestProtectedEndpointsAuth:
         data = json.loads(response.data)
         assert 'overall_status' in data
         assert 'tenants' in data
+
+
+# ============================================================================
+# Dynamic Tenant Query Tests (Task 7.3 verification)
+# ============================================================================
+
+
+class TestTokenHealthDynamicTenants:
+    """Verify the token-health endpoint uses dynamic tenant query from DB."""
+
+    @patch('services.credential_service.CredentialService')
+    @patch('routes.system_health_routes.DatabaseManager')
+    def test_token_health_queries_db_for_tenants(
+        self, mock_db_class, mock_cred_service_class, client, mock_auth_sysadmin
+    ):
+        """Token-health calls DB query to get distinct tenants."""
+        mock_db = MagicMock()
+        mock_db_class.return_value = mock_db
+        mock_db.execute_query.return_value = [
+            {"administration": "GoodwinSolutions"},
+            {"administration": "PeterPrive"},
+        ]
+        mock_cred_service = MagicMock()
+        mock_cred_service_class.return_value = mock_cred_service
+        mock_cred_service.get_credential.return_value = {
+            'expiry': '2026-12-31T00:00:00Z'
+        }
+
+        response = client.get(
+            '/api/google-drive/token-health',
+            headers=mock_auth_sysadmin
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        # Verify results returned for each tenant from DB
+        assert 'GoodwinSolutions' in data['tenants']
+        assert 'PeterPrive' in data['tenants']
+        # Verify the DB was queried for tenants
+        mock_db.execute_query.assert_called_once_with(
+            "SELECT DISTINCT administration FROM rekeningschema WHERE administration IS NOT NULL"
+        )
+
+    @patch('services.credential_service.CredentialService')
+    @patch('routes.system_health_routes.DatabaseManager')
+    def test_token_health_handles_empty_tenant_list(
+        self, mock_db_class, mock_cred_service_class, client, mock_auth_sysadmin
+    ):
+        """Token-health handles gracefully when no tenants in DB."""
+        mock_db = MagicMock()
+        mock_db_class.return_value = mock_db
+        mock_db.execute_query.return_value = []
+        mock_cred_service = MagicMock()
+        mock_cred_service_class.return_value = mock_cred_service
+
+        response = client.get(
+            '/api/google-drive/token-health',
+            headers=mock_auth_sysadmin
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['tenants'] == {}
+        assert data['overall_status'] == 'healthy'
+
+    @patch('services.credential_service.CredentialService')
+    @patch('routes.system_health_routes.DatabaseManager')
+    def test_token_health_returns_results_for_all_tenants(
+        self, mock_db_class, mock_cred_service_class, client, mock_auth_sysadmin
+    ):
+        """Token-health iterates over all tenants from dynamic query."""
+        mock_db = MagicMock()
+        mock_db_class.return_value = mock_db
+        mock_db.execute_query.return_value = [
+            {"administration": "TenantA"},
+            {"administration": "TenantB"},
+            {"administration": "TenantC"},
+        ]
+        mock_cred_service = MagicMock()
+        mock_cred_service_class.return_value = mock_cred_service
+        mock_cred_service.get_credential.return_value = {
+            'expiry': '2026-06-15T00:00:00Z'
+        }
+
+        response = client.get(
+            '/api/google-drive/token-health',
+            headers=mock_auth_sysadmin
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        # All three tenants should have results
+        assert len(data['tenants']) == 3
+        assert 'TenantA' in data['tenants']
+        assert 'TenantB' in data['tenants']
+        assert 'TenantC' in data['tenants']
+        # Credential service called once per tenant
+        assert mock_cred_service.get_credential.call_count == 3

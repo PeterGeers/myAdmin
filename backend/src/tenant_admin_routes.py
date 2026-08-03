@@ -103,7 +103,7 @@ def has_fin_module(tenant: str) -> bool:
     Check if a tenant has the FIN module enabled.
 
     Args:
-        tenant: The tenant administration name (e.g., 'GoodwinSolutions')
+        tenant: The tenant administration name (e.g., 'ExampleTenant')
 
     Returns:
         True if tenant has FIN module and it's active, False otherwise

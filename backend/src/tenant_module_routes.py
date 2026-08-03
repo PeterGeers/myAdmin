@@ -94,7 +94,7 @@ def get_tenant_modules(user_email, user_roles):
 
     Returns:
         {
-            "tenant": "GoodwinSolutions",
+            "tenant": "ExampleTenant",
             "available_modules": ["FIN", "STR"],
             "user_module_permissions": ["FIN", "STR"]
         }
@@ -156,8 +156,8 @@ def get_all_tenant_modules(user_email, user_roles):
     Returns:
         {
             "tenants": {
-                "PeterPrive": ["FIN"],
-                "GoodwinSolutions": ["FIN", "STR"]
+                "MyTenant": ["FIN"],
+                "ExampleTenant": ["FIN", "STR"]
             }
         }
     """

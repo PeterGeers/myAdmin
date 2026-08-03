@@ -18,6 +18,11 @@ import re
 from collections import defaultdict
 from typing import Dict, List, Optional, Any, Callable
 
+# Majority voting threshold for company-level pattern detection.
+# If one (debet, credit) combination has >= this fraction of all occurrences
+# for a company key, it wins and is stored as the pattern.
+MAJORITY_VOTING_THRESHOLD = 0.90  # 90% agreement required
+
 
 # ============================================================================
 # Description Normalization / Cleaning Utilities
@@ -565,7 +570,7 @@ def analyze_reference_patterns(
     Analyze patterns for predicting ReferenceNumber values using verb-based logic
 
     Logic: Administration + BankAccount + Verb → ReferenceNumber + Debet/Credit accounts
-    Example: "GoodwinSolutions" + "1300" + "Picnic" → "Picnic" + debet="1003", credit="1300"
+    Example: "ExampleTenant" + "1300" + "Picnic" → "Picnic" + debet="1003", credit="1300"
 
     REQ-PAT-002: Use historical ReferenceNumbers to match transaction descriptions
 
@@ -575,6 +580,19 @@ def analyze_reference_patterns(
         is_bank_account_fn: Callable to check if an account is a bank account
     """
     verb_patterns = {}
+    # Frequency tracker: company_key -> (debet, credit) -> variant data
+    company_variants = defaultdict(lambda: defaultdict(lambda: {
+        "occurrences": 0,
+        "last_seen": None,
+        "reference_number": None,
+        "sample_description": None,
+        "administration": None,
+        "bank_account": None,
+        "verb_company": None,
+        "verb_reference": None,
+        "is_compound": None,
+        "other_account": None,
+    }))
 
     for tx in transactions:
         debet = tx.get("Debet")
@@ -644,39 +662,74 @@ def analyze_reference_patterns(
         # Company-only key (fallback for simple verbs, or aggregated for single-product vendors)
         company_key = f"{administration}_{bank_account}_{verb_company}"
 
-        # For compound verbs: only store company-level pattern if ALL occurrences
-        # of this company map to the same accounts (single-product vendor)
-        existing = verb_patterns.get(company_key)
-        if existing:
-            # Check if this transaction uses the same accounts as existing pattern
-            if (
-                existing.get("debet_account") == debet
-                and existing.get("credit_account") == credit
-            ):
-                # Same accounts — safe to keep company-level pattern
-                existing["occurrences"] = existing.get("occurrences", 0) + 1
-                existing["last_seen"] = date
-            else:
-                # Different accounts for same company — mark as ambiguous
-                # Don't use company-level pattern for multi-product vendors
-                existing["_ambiguous"] = True
-                existing["confidence"] = 0.0
-        else:
+        # Track all (debet, credit) combinations for this company key
+        variant_key = (debet, credit)
+        variant = company_variants[company_key][variant_key]
+        variant["occurrences"] += 1
+        variant["last_seen"] = date
+        variant["reference_number"] = ref_num
+        variant["sample_description"] = description
+        variant["administration"] = administration
+        variant["bank_account"] = bank_account
+        variant["verb_company"] = verb_company
+        variant["verb_reference"] = verb_reference
+        variant["is_compound"] = is_compound
+        variant["other_account"] = other_account
+
+    # Apply majority voting to company-level patterns
+    for company_key, variants in company_variants.items():
+        any_variant = next(iter(variants.values()))
+        total = sum(v["occurrences"] for v in variants.values())
+
+        # Find the best (most frequent) account combination
+        best_pair, best_data = max(variants.items(), key=lambda x: x[1]["occurrences"])
+        majority_ratio = best_data["occurrences"] / total
+
+        if majority_ratio >= MAJORITY_VOTING_THRESHOLD:
+            # Majority wins — store pattern with confidence = majority_ratio
             verb_patterns[company_key] = {
-                "administration": administration,
-                "bank_account": bank_account,
-                "verb": verb_company,
-                "verb_company": verb_company,
-                "verb_reference": verb_reference,
-                "is_compound": is_compound,
-                "reference_number": ref_num,
-                "debet_account": debet,
-                "credit_account": credit,
-                "other_account": other_account,
-                "occurrences": 1,
-                "confidence": 1.0,
-                "last_seen": date,
-                "sample_description": description,
+                "administration": any_variant["administration"],
+                "bank_account": any_variant["bank_account"],
+                "verb": any_variant["verb_company"],
+                "verb_company": any_variant["verb_company"],
+                "verb_reference": best_data["verb_reference"],
+                "is_compound": best_data["is_compound"],
+                "reference_number": best_data["reference_number"],
+                "debet_account": best_pair[0],
+                "credit_account": best_pair[1],
+                "other_account": best_data["other_account"],
+                "occurrences": total,
+                "confidence": majority_ratio,
+                "_ambiguous": False,
+                "_minority_count": total - best_data["occurrences"],
+                "last_seen": best_data["last_seen"],
+                "sample_description": best_data["sample_description"],
+            }
+            # Log when majority wins with minority outliers
+            if total > best_data["occurrences"]:
+                minority_pairs = {k: v["occurrences"] for k, v in variants.items() if k != best_pair}
+                print(
+                    f"⚡ Pattern {company_key}: majority voting {best_data['occurrences']}/{total} "
+                    f"({majority_ratio:.1%}) — outliers: {minority_pairs}"
+                )
+        else:
+            # No clear majority — genuinely ambiguous
+            verb_patterns[company_key] = {
+                "administration": any_variant["administration"],
+                "bank_account": any_variant["bank_account"],
+                "verb": any_variant["verb_company"],
+                "verb_company": any_variant["verb_company"],
+                "verb_reference": best_data["verb_reference"],
+                "is_compound": best_data["is_compound"],
+                "reference_number": best_data["reference_number"],
+                "debet_account": best_pair[0],
+                "credit_account": best_pair[1],
+                "other_account": best_data["other_account"],
+                "occurrences": total,
+                "confidence": 0.0,
+                "_ambiguous": True,
+                "last_seen": best_data["last_seen"],
+                "sample_description": best_data["sample_description"],
             }
 
     return verb_patterns

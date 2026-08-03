@@ -123,7 +123,7 @@ class BankingService:
                 test_mode = self.test_mode
 
             processor = BankingProcessor(test_mode=test_mode)
-            df = processor.process_csv_files(file_paths)
+            df = processor.process_csv_files(file_paths, tenant)
 
             if df.empty:
                 return {"success": False, "error": "No data found in files"}

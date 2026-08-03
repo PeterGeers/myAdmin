@@ -53,7 +53,7 @@ def get_user_tenants(jwt_token: str) -> List[str]:
         # Handle both string (JSON array) and list formats
         if isinstance(tenants, str):
             try:
-                # Handle escaped quotes like [\"GoodwinSolutions\",\"PeterPrive\"]
+                # Handle escaped quotes like [\"ExampleTenant\",\"MyTenant\"]
                 if tenants.startswith("[") and "\\" in tenants:
                     print(
                         "[Backend] Detected escaped quotes, unescaping...", flush=True
@@ -251,9 +251,9 @@ def add_tenant_filter(
     Example:
         query = "SELECT * FROM mutaties WHERE TransactionDate > %s"
         params = ['2024-01-01']
-        query, params = add_tenant_filter(query, params, 'GoodwinSolutions')
+        query, params = add_tenant_filter(query, params, 'ExampleTenant')
         # Result: "SELECT * FROM mutaties WHERE TransactionDate > %s AND administration = %s"
-        # params: ['2024-01-01', 'GoodwinSolutions']
+        # params: ['2024-01-01', 'ExampleTenant']
     """
     # Determine the column reference
     column = f"{table_alias}.administration" if table_alias else "administration"
