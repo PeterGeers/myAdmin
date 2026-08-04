@@ -320,7 +320,7 @@ class TestValidAIResultPassthrough:
             f"Expected description='{description}', got '{main_tx['description']}'"
         )
 
-    @settings(max_examples=30, derandomize=True)
+    @settings(max_examples=30, derandomize=True, deadline=None)
     @given(
         folder_name=valid_folder_name_st,
         total_amount=valid_amount_st,

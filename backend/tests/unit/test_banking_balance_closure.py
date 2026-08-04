@@ -180,12 +180,14 @@ class TestCheckSequenceNumbersClosure:
         """With closure: verify start_date is overridden to opening_balance_date"""
         mock_conn, mock_cursor = mock_connection
 
-        mock_cursor.fetchone.return_value = {'rekeningNummer': 'NL80RABO0107936917'}
         mock_cursor.fetchall.return_value = [
             {'TransactionDate': '2025-01-15', 'TransactionDescription': 'Test', 'Ref2': '1', 'TransactionAmount': 100.00}
         ]
 
         with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
+             patch.object(processor.db, 'get_bank_account_lookups', return_value=[
+                 {'Account': '1600', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'TestAdmin'}
+             ]), \
              patch('banking_checks._get_opening_balance_date', return_value='2025-01-01'):
 
             result = processor.check_sequence_numbers('1600', 'TestAdmin', start_date='2024-01-01')
@@ -202,12 +204,14 @@ class TestCheckSequenceNumbersClosure:
         """Without closure: verify start_date parameter is used as-is (preservation)"""
         mock_conn, mock_cursor = mock_connection
 
-        mock_cursor.fetchone.return_value = {'rekeningNummer': 'NL80RABO0107936917'}
         mock_cursor.fetchall.return_value = [
             {'TransactionDate': '2024-06-15', 'TransactionDescription': 'Test', 'Ref2': '1', 'TransactionAmount': 100.00}
         ]
 
         with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
+             patch.object(processor.db, 'get_bank_account_lookups', return_value=[
+                 {'Account': '1600', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'TestAdmin'}
+             ]), \
              patch('banking_checks._get_opening_balance_date', return_value=None):
 
             result = processor.check_sequence_numbers('1600', 'TestAdmin', start_date='2024-01-01')

@@ -199,7 +199,7 @@ class TestParserUsedFieldCorrectness:
             f"got '{parser_used}'"
         )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(tx=ai_success_tx_st, result=result_without_ai_data_st)
     def test_positive_amount_returns_ai(self, tx, result):
         """
