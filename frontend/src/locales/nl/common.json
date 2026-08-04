@@ -186,7 +186,20 @@
       "budgetVersions": "Budgetversies",
       "budgetTemplates": "Budgetsjablonen",
       "budgetLines": "Budgetregels",
-      "budgetDashboard": "Budget Dashboard"
+      "budgetDashboard": "Budget Dashboard",
+      "banking": "Bankieren",
+      "strChannelRevenue": "STR Kanaal Omzet",
+      "checkAccounts": "Rekeningen Controleren",
+      "checkReference": "Referentie Controleren",
+      "transactions": "Transacties"
+    },
+    "groups": {
+      "import": "Importeren",
+      "transactions": "Transacties",
+      "validation": "Validatie",
+      "administration": "Administratie",
+      "invoices": "Facturen",
+      "tripRegistration": "Rittenregistratie"
     },
     "moduleGroups": {
       "fin": "Financieel",

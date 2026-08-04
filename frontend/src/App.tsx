@@ -14,6 +14,7 @@ import { useTenantModules } from './hooks/useTenantModules';
 import { useTenantFunctions } from './hooks/useTenantFunctions';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 import { HelpButton } from './components/help';
+import { MenuGroup } from './components/MenuGroup';
 import { buildApiUrl } from './config';
 
 // FIN module pages
@@ -22,6 +23,10 @@ const BankingProcessor = lazy(() => import('./components/BankingProcessor'));
 const FINReports = lazy(() => import('./components/FINReports'));
 const AssetList = lazy(() => import('./components/Assets/AssetList'));
 const BudgetPage = lazy(() => import('./pages/BudgetPage'));
+const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
+const CheckAccountsPage = lazy(() => import('./pages/CheckAccountsPage'));
+const CheckReferencePage = lazy(() => import('./pages/CheckReferencePage'));
+const STRChannelRevenuePage = lazy(() => import('./pages/STRChannelRevenuePage'));
 
 // STR module pages
 const STRProcessor = lazy(() => import('./components/STRProcessor'));
@@ -35,7 +40,6 @@ const ZZPProducts = lazy(() => import('./pages/ZZPProducts'));
 const ZZPInvoices = lazy(() => import('./pages/ZZPInvoices'));
 const ZZPTimeTracking = lazy(() => import('./pages/ZZPTimeTracking'));
 const ZZPTrips = lazy(() => import('./pages/ZZPTrips'));
-const ZZPVehicles = lazy(() => import('./pages/ZZPVehicles'));
 const ZZPDebtors = lazy(() => import('./pages/ZZPDebtors'));
 const ZZPTripQuick = lazy(() => import('./pages/ZZPTripQuick'));
 const ZZPTripImport = lazy(() => import('./pages/ZZPTripImport'));
@@ -55,7 +59,7 @@ const SysAdminDashboard = lazy(() =>
 // Admin pages (default exports)
 const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-trips' | 'zzp-trip-quick' | 'zzp-trip-import' | 'zzp-vehicles' | 'zzp-debtors' | 'budget';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-trips' | 'zzp-trip-quick' | 'zzp-trip-import' | 'zzp-debtors' | 'budget' | 'transactions' | 'check-accounts' | 'check-reference' | 'str-channel-revenue';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -66,7 +70,6 @@ function AppContent() {
       '/zzp/ritten/quick': 'zzp-trip-quick',
       '/zzp/ritten': 'zzp-trips',
       '/zzp/ritten/import': 'zzp-trip-import',
-      '/zzp/voertuigen': 'zzp-vehicles',
       '/zzp/facturen': 'zzp-invoices',
       '/zzp/contacten': 'zzp-contacts',
       '/zzp/producten': 'zzp-products',
@@ -74,6 +77,10 @@ function AppContent() {
       '/zzp/debiteuren': 'zzp-debtors',
       '/banking': 'banking',
       '/budget': 'budget',
+      '/fin/transactions': 'transactions',
+      '/fin/check-accounts': 'check-accounts',
+      '/fin/check-reference': 'check-reference',
+      '/fin/str-channel-revenue': 'str-channel-revenue',
     };
     // Strip base path (/myAdmin) if present
     const basePath = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
@@ -123,9 +130,9 @@ function AppContent() {
   // Only redirect when authenticated and modules have been loaded (not during initial no-tenant state)
   useEffect(() => {
     if (!modulesLoading && isAuthenticated && (hasFIN || hasSTR || hasZZP)) {
-      const isZZPPage = currentPage === 'zzp-invoices' || currentPage === 'zzp-contacts' || currentPage === 'zzp-products' || currentPage === 'zzp-time-tracking' || currentPage === 'zzp-trips' || currentPage === 'zzp-trip-quick' || currentPage === 'zzp-trip-import' || currentPage === 'zzp-vehicles' || currentPage === 'zzp-debtors';
+      const isZZPPage = currentPage === 'zzp-invoices' || currentPage === 'zzp-contacts' || currentPage === 'zzp-products' || currentPage === 'zzp-time-tracking' || currentPage === 'zzp-trips' || currentPage === 'zzp-trip-quick' || currentPage === 'zzp-trip-import' || currentPage === 'zzp-debtors';
       const isSTRPage = currentPage === 'str' || currentPage === 'str-invoice' || currentPage === 'str-pricing' || currentPage === 'str-reports';
-      const isFINPage = currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets' || currentPage === 'budget';
+      const isFINPage = currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets' || currentPage === 'budget' || currentPage === 'transactions' || currentPage === 'check-accounts' || currentPage === 'check-reference' || currentPage === 'str-channel-revenue';
 
       // If on STR page but no STR access, redirect to menu
       if (isSTRPage && !hasSTR) {
@@ -323,6 +330,58 @@ function AppContent() {
           </ProtectedRoute>
         );
 
+      case 'transactions':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Finance_CRUD', 'Finance_Read']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`📋 ${t('common:navigation.modules.transactions', 'Transactions')}`)}
+              <TransactionsPage />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'check-accounts':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Finance_CRUD', 'Finance_Read']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`✅ ${t('common:navigation.modules.checkAccounts', 'Check Accounts')}`)}
+              <CheckAccountsPage />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'check-reference':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Finance_CRUD', 'Finance_Read']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`✅ ${t('common:navigation.modules.checkReference', 'Check Reference')}`)}
+              <CheckReferencePage />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'str-channel-revenue':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Finance_CRUD']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`📺 ${t('common:navigation.modules.strChannelRevenue', 'STR Channel Revenue')}`)}
+              <STRChannelRevenuePage />
+            </Box>
+          </ProtectedRoute>
+        );
+
       case 'str-reports':
         return (
           <ProtectedRoute 
@@ -427,19 +486,6 @@ function AppContent() {
           </ProtectedRoute>
         );
 
-      case 'zzp-vehicles':
-        return (
-          <ProtectedRoute
-            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
-            onLoginSuccess={() => setCurrentPage('menu')}
-          >
-            <Box minH="100vh" bg="gray.900">
-              {renderPageHeader(`🚙 Voertuigen`)}
-              <ZZPVehicles />
-            </Box>
-          </ProtectedRoute>
-        );
-
       case 'zzp-debtors':
         return (
           <ProtectedRoute
@@ -506,29 +552,59 @@ function AppContent() {
                   {hasFIN && (user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read', 'Finance_Export'].includes(role))) && (
                     <>
                       <Text color="orange.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>📁 {t('common:navigation.moduleGroups.fin')}</Text>
+
+                      {/* Import group */}
                       {user?.roles?.some(role => ['Finance_CRUD'].includes(role)) && (
-                        <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
-                          📄 {t('common:navigation.modules.importInvoices')}
+                        <MenuGroup icon="📥" label={t('common:navigation.groups.import')} colorScheme="orange">
+                          <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('pdf')}>
+                            📄 {t('common:navigation.modules.importInvoices')}
+                          </Button>
+                          <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('banking')}>
+                            🏦 {t('common:navigation.modules.banking')}
+                          </Button>
+                          {hasFunction('assets') && (
+                            <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('assets')}>
+                              🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}
+                            </Button>
+                          )}
+                          {hasFunction('str_channel_revenue') && (
+                            <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('str-channel-revenue')}>
+                              📡 {t('common:navigation.modules.strChannelRevenue')}
+                            </Button>
+                          )}
+                        </MenuGroup>
+                      )}
+
+                      {/* Transactions — direct button */}
+                      {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && (
+                        <Button size="lg" w="full" colorScheme="blue" justifyContent="flex-start" onClick={() => setCurrentPage('transactions')}>
+                          📋 {t('common:navigation.modules.transactions')}
                         </Button>
                       )}
-                      {user?.roles?.some(role => ['Finance_CRUD'].includes(role)) && (
-                        <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
-                          🏦 {t('common:navigation.modules.importBanking')}
-                        </Button>
+
+                      {/* Validation group */}
+                      {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && (
+                        <MenuGroup icon="✅" label={t('common:navigation.groups.validation')} colorScheme="green">
+                          <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('check-accounts')}>
+                            🔍 {t('common:navigation.modules.checkAccounts')}
+                          </Button>
+                          <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('check-reference')}>
+                            🔗 {t('common:navigation.modules.checkReference')}
+                          </Button>
+                        </MenuGroup>
                       )}
-                      <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('fin-reports')}>
-                        📊 {t('common:navigation.modules.finReports')}
-                      </Button>
-                      {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && hasFunction('assets') && (
-                        <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('assets')}>
-                          🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}
-                        </Button>
-                      )}
+
+                      {/* Budget — direct button */}
                       {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && hasFunction('budget') && (
-                        <Button size="lg" w="full" colorScheme="orange" variant="outline" onClick={() => setCurrentPage('budget')}>
+                        <Button size="lg" w="full" colorScheme="orange" variant="outline" justifyContent="flex-start" onClick={() => setCurrentPage('budget')}>
                           💰 {t('common:navigation.modules.budgetGroup', 'Budget')}
                         </Button>
                       )}
+
+                      {/* Reports — direct button */}
+                      <Button size="lg" w="full" colorScheme="purple" justifyContent="flex-start" onClick={() => setCurrentPage('fin-reports')}>
+                        📊 {t('common:navigation.modules.finReports')}
+                      </Button>
                     </>
                   )}
 
@@ -537,19 +613,19 @@ function AppContent() {
                     <>
                       <Text color="blue.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>🏠 {t('common:navigation.moduleGroups.str')}</Text>
                       {user?.roles?.some(role => ['STR_CRUD'].includes(role)) && (
-                        <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
+                        <Button size="lg" w="full" colorScheme="blue" justifyContent="flex-start" onClick={() => setCurrentPage('str')}>
                           🏠 {t('common:navigation.modules.importSTRBookings')}
                         </Button>
                       )}
-                      <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
+                      <Button size="lg" w="full" colorScheme="teal" justifyContent="flex-start" onClick={() => setCurrentPage('str-invoice')}>
                         🧾 {t('common:navigation.modules.strInvoiceGenerator')}
                       </Button>
                       {user?.roles?.some(role => ['STR_CRUD'].includes(role)) && (
-                        <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
+                        <Button size="lg" w="full" colorScheme="green" justifyContent="flex-start" onClick={() => setCurrentPage('str-pricing')}>
                           💰 {t('common:navigation.modules.strPricingModel')}
                         </Button>
                       )}
-                      <Button size="lg" w="full" colorScheme="cyan" onClick={() => setCurrentPage('str-reports')}>
+                      <Button size="lg" w="full" colorScheme="cyan" justifyContent="flex-start" onClick={() => setCurrentPage('str-reports')}>
                         📈 {t('common:navigation.modules.strReports')}
                       </Button>
                     </>
@@ -559,24 +635,42 @@ function AppContent() {
                   {hasZZP && (user?.roles?.some(role => ['ZZP_Read', 'ZZP_CRUD'].includes(role))) && (
                     <>
                       <Text color="teal.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>💼 {t('common:navigation.moduleGroups.zzp')}</Text>
-                      <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('zzp-invoices')}>
-                        🧾 {t('zzp:invoices.title')}
-                      </Button>
-                      <Button size="lg" w="full" colorScheme="cyan" onClick={() => setCurrentPage('zzp-contacts')}>
-                        👥 {t('zzp:contacts.title')}
-                      </Button>
-                      <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('zzp-products')}>
-                        📦 {t('zzp:products.title')}
-                      </Button>
-                      <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('zzp-time-tracking')}>
-                        ⏱️ {t('zzp:timeTracking.title')}
-                      </Button>
-                      <Button size="lg" w="full" colorScheme="orange" variant="outline" onClick={() => setCurrentPage('zzp-trips')}>
-                        🚗 {t('zzp:trips.title')}
-                      </Button>
-                      <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('zzp-debtors')}>
-                        💰 {t('zzp:debtors.title')}
-                      </Button>
+
+                      {/* Administration group */}
+                      <MenuGroup icon="📋" label={t('common:navigation.groups.administration')} colorScheme="teal">
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-products')}>
+                          📦 {t('zzp:products.title')}
+                        </Button>
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-contacts')}>
+                          👥 {t('zzp:contacts.title')}
+                        </Button>
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-debtors')}>
+                          💰 {t('zzp:debtors.title')}
+                        </Button>
+                      </MenuGroup>
+
+                      {/* Invoices group */}
+                      <MenuGroup icon="🧾" label={t('common:navigation.groups.invoices')} colorScheme="cyan">
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-invoices')}>
+                          🧾 {t('zzp:invoices.title')}
+                        </Button>
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-time-tracking')}>
+                          ⏱️ {t('zzp:timeTracking.title')}
+                        </Button>
+                      </MenuGroup>
+
+                      {/* Trip Registration group */}
+                      <MenuGroup icon="🚗" label={t('common:navigation.groups.tripRegistration')} colorScheme="orange">
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-trips')}>
+                          🚗 {t('zzp:trips.title')}
+                        </Button>
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-trip-quick')}>
+                          ⚡ {t('zzp:trips.quickEntry')}
+                        </Button>
+                        <Button size="sm" w="full" variant="ghost" color="white" justifyContent="flex-start" _hover={{ bg: 'whiteAlpha.200' }} _active={{ bg: 'whiteAlpha.300' }} onClick={() => setCurrentPage('zzp-trip-import')}>
+                          📥 {t('zzp:trips.import.title')}
+                        </Button>
+                      </MenuGroup>
                     </>
                   )}
 
@@ -587,14 +681,14 @@ function AppContent() {
 
                   {/* System Administration - SysAdmin only */}
                   {(user?.roles?.some(role => ['SysAdmin'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="gray" onClick={() => setCurrentPage('system-admin')}>
+                    <Button size="lg" w="full" colorScheme="gray" justifyContent="flex-start" onClick={() => setCurrentPage('system-admin')}>
                       ⚙️ {t('common:navigation.modules.systemAdministration')}
                     </Button>
                   )}
 
                   {/* Tenant Administration - Tenant_Admin only */}
                   {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="pink" onClick={() => setCurrentPage('tenant-admin')}>
+                    <Button size="lg" w="full" colorScheme="pink" justifyContent="flex-start" onClick={() => setCurrentPage('tenant-admin')}>
                       🏢 {t('common:navigation.modules.tenantAdministration')}
                     </Button>
                   )}
