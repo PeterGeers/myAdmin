@@ -4,10 +4,10 @@ MutatiesCache data models.
 Shared dataclass definitions used across mutaties_cache sub-modules.
 """
 
-import pandas as pd
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Set
+
+import pandas as pd
 
 
 @dataclass
@@ -17,4 +17,4 @@ class TenantCacheEntry:
     data: pd.DataFrame
     last_accessed: datetime
     last_loaded: datetime
-    years_loaded: Set[int] = field(default_factory=set)
+    years_loaded: set[int] = field(default_factory=set)

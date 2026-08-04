@@ -13,7 +13,6 @@ Reference: .kiro/specs/zzp-module/design.md §5.3
 
 import logging
 from datetime import date, timedelta
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +79,7 @@ class ZZPInvoiceFactoryHelper:
 
         invoice_data = {
             "contact_id": contact_id,
-            "invoice_date": data.get("invoice_date", date.today().isoformat()),
+            "invoice_date": data.get("invoice_date", date.today().isoformat()),  # noqa: DTZ011
             "payment_terms_days": data.get("payment_terms_days"),
             "currency": data.get("currency"),
             "notes": data.get("notes"),
@@ -166,7 +165,7 @@ class ZZPInvoiceFactoryHelper:
 
         invoice_data = {
             "contact_id": contact_id,
-            "invoice_date": data.get("invoice_date", date.today().isoformat()),
+            "invoice_date": data.get("invoice_date", date.today().isoformat()),  # noqa: DTZ011
             "payment_terms_days": data.get("payment_terms_days"),
             "currency": data.get("currency"),
             "notes": data.get("notes"),
@@ -266,7 +265,7 @@ class ZZPInvoiceFactoryHelper:
         if original.get("invoice_type") == "credit_note":
             raise ValueError("Cannot credit a credit note")
 
-        invoice_date = date.today()
+        invoice_date = date.today()  # noqa: DTZ011
         cn_prefix = get_credit_note_prefix_fn(tenant)
         cn_number = generate_invoice_number_fn(tenant, cn_prefix, invoice_date.year)
 

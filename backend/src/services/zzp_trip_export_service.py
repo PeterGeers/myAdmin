@@ -16,7 +16,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.5
 
 import io
 import logging
-from typing import List
 
 import pandas as pd
 from openpyxl import Workbook
@@ -41,7 +40,9 @@ class TripExportService:
         self.db = db
         self.parameter_service = parameter_service
 
-    def export_pdf(self, tenant: str, vehicle_id: int, year: int, filters: dict = None) -> bytes:
+    def export_pdf(
+        self, tenant: str, vehicle_id: int, year: int, filters: dict | None = None
+    ) -> bytes:
         """Generate a Belastingdienst-compliant PDF export.
 
         Includes all trips for the vehicle/year with yearly totals
@@ -69,7 +70,9 @@ class TripExportService:
         pdf_bytes = self._html_to_pdf(html)
         return pdf_bytes
 
-    def export_csv(self, tenant: str, vehicle_id: int, year: int, filters: dict = None) -> bytes:
+    def export_csv(
+        self, tenant: str, vehicle_id: int, year: int, filters: dict | None = None
+    ) -> bytes:
         """Generate a CSV export of trips.
 
         Columns: Datum, Vertrekadres, Bestemming, Begin KM, Eind KM,
@@ -105,10 +108,12 @@ class TripExportService:
         # Build rows with only the export columns
         rows = []
         for trip in trips:
-            rows.append({
-                dutch_name: trip.get(field_name, "")
-                for field_name, dutch_name in column_mapping.items()
-            })
+            rows.append(
+                {
+                    dutch_name: trip.get(field_name, "")
+                    for field_name, dutch_name in column_mapping.items()
+                }
+            )
 
         df = pd.DataFrame(rows, columns=list(column_mapping.values()))
 
@@ -120,7 +125,9 @@ class TripExportService:
         # Encode with UTF-8 BOM for Excel compatibility
         return b"\xef\xbb\xbf" + csv_content.encode("utf-8")
 
-    def export_xlsx(self, tenant: str, vehicle_id: int, year: int, filters: dict = None) -> bytes:
+    def export_xlsx(
+        self, tenant: str, vehicle_id: int, year: int, filters: dict | None = None
+    ) -> bytes:
         """Generate an XLSX export with styled headers.
 
         Same data as CSV but with openpyxl formatting (bold headers,
@@ -216,7 +223,7 @@ class TripExportService:
         }
 
     @staticmethod
-    def _build_monthly_breakdown(trips: List[dict]) -> List[dict]:
+    def _build_monthly_breakdown(trips: list[dict]) -> list[dict]:
         """Group trips by month and sum distance per category.
 
         Args:
@@ -279,12 +286,13 @@ class TripExportService:
         except DatabaseError:
             logger.warning(
                 "Failed to load vehicle info: tenant=%s, vehicle_id=%s",
-                tenant, vehicle_id,
+                tenant,
+                vehicle_id,
             )
         return {"id": vehicle_id, "license_plate": "Onbekend", "make": "", "model": ""}
 
     @staticmethod
-    def _calculate_totals(trips: List[dict]) -> dict:
+    def _calculate_totals(trips: list[dict]) -> dict:
         """Calculate yearly totals by category.
 
         Args:
@@ -318,7 +326,7 @@ class TripExportService:
         }
 
     def _render_trip_pdf_html(
-        self, vehicle: dict, year: int, trips: List[dict], totals: dict
+        self, vehicle: dict, year: int, trips: list[dict], totals: dict
     ) -> str:
         """Render the Belastingdienst-compliant HTML for trip export.
 
@@ -400,8 +408,8 @@ class TripExportService:
         return weasyprint.HTML(string=html).write_pdf()
 
     def _get_trips_for_export(
-        self, tenant: str, vehicle_id: int, year: int, filters: dict = None
-    ) -> List[dict]:
+        self, tenant: str, vehicle_id: int, year: int, filters: dict | None = None
+    ) -> list[dict]:
         """Query trips from the database for export.
 
         Retrieves all non-cancelled trips for the given tenant, vehicle,
@@ -474,7 +482,9 @@ class TripExportService:
         except DatabaseError:
             logger.error(
                 "Failed to query trips for export: tenant=%s, vehicle=%s, year=%s",
-                tenant, vehicle_id, year,
+                tenant,
+                vehicle_id,
+                year,
             )
             raise
 
@@ -496,7 +506,11 @@ class TripExportService:
         # Convert date/time fields to strings
         for key in ("trip_date", "start_time", "end_time"):
             val = row.get(key)
-            if val is not None and hasattr(val, "isoformat") and not isinstance(val, str):
+            if (
+                val is not None
+                and hasattr(val, "isoformat")
+                and not isinstance(val, str)
+            ):
                 row[key] = val.isoformat()
 
         # Ensure integer odometer values

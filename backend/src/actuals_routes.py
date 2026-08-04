@@ -1,11 +1,13 @@
-from flask import Blueprint, request, jsonify
 import logging
+
 from dotenv import load_dotenv
+from flask import Blueprint, jsonify, request
+
 from api_schemas import validate_response_schema
-from mutaties_cache import get_cache
-from database import DatabaseManager
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from database import DatabaseManager
+from mutaties_cache import get_cache
 from utils.closure_helpers import get_closure_aware_start_year
 
 # testnow for the second time
@@ -123,7 +125,7 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
             return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logging.error(f"Error in get_actuals_balance: {str(e)}", exc_info=True)
+        logging.error(f"Error in get_actuals_balance: {e!s}", exc_info=True)  # noqa: G201, LOG015
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -146,8 +148,8 @@ def _get_closed_years(db, administration):
         """
         rows = db.execute_query(query, [administration])
         return [int(row["year"]) for row in rows] if rows else []
-    except Exception as e:
-        logging.warning(f"Could not fetch closed years for {administration}: {e}")
+    except Exception as e:  # noqa: BLE001
+        logging.warning(f"Could not fetch closed years for {administration}: {e}")  # noqa: LOG015
         return []
 
 
@@ -225,5 +227,5 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logging.error(f"Error in get_actuals_profitloss: {str(e)}", exc_info=True)
+        logging.error(f"Error in get_actuals_profitloss: {e!s}", exc_info=True)  # noqa: G201, LOG015
         return jsonify({"success": False, "error": str(e)}), 500

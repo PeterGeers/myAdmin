@@ -4,13 +4,15 @@ Extracted from reporting_routes.py for file size management.
 All endpoints are prefixed with /api/reports via blueprint registration.
 """
 
-from flask import Blueprint, request, jsonify
-from flask.typing import ResponseReturnValue
-from database import DatabaseManager
-from datetime import datetime
 from contextlib import contextmanager
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from database import DatabaseManager
 
 financial_reporting_bp = Blueprint("financial_reporting", __name__)
 
@@ -109,7 +111,7 @@ def get_balance_data(
 
             # Date range
             date_from = request.args.get("dateFrom")
-            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
+            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
             if date_from:
                 where_parts.append("TransactionDate BETWEEN %s AND %s")
                 params.extend([date_from, date_to])
@@ -135,7 +137,8 @@ def get_balance_data(
                 "date_range": {
                     "from": request.args.get("dateFrom"),
                     "to": request.args.get(
-                        "dateTo", datetime.now().strftime("%Y-%m-%d")
+                        "dateTo",
+                        datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
                     ),
                 },
                 "administration": administration,
@@ -158,7 +161,7 @@ def get_balance_data(
             results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -176,7 +179,7 @@ def get_trends_data(
 
         years = [
             int(y)
-            for y in request.args.get("years", str(datetime.now().year)).split(",")
+            for y in request.args.get("years", str(datetime.now().year)).split(",")  # noqa: DTZ005
             if y
         ]
 
@@ -211,7 +214,7 @@ def get_trends_data(
             results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -226,7 +229,7 @@ def get_reference_analysis(
         service = FinancialReportingService()
         years = [
             y
-            for y in request.args.get("years", str(datetime.now().year)).split(",")
+            for y in request.args.get("years", str(datetime.now().year)).split(",")  # noqa: DTZ005
             if y
         ]
         reference_number = request.args.get("reference_number", "")
@@ -339,5 +342,5 @@ def get_reference_analysis(
                 "available_accounts": available_accounts,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500

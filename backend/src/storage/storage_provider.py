@@ -10,7 +10,6 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ class StorageProvider(ABC):
     """Abstract base class for file storage backends."""
 
     @abstractmethod
-    def upload(self, file_data: bytes, path: str, metadata: dict = None) -> str:
+    def upload(self, file_data: bytes, path: str, metadata: dict | None = None) -> str:
         """Upload file, return reference string."""
 
     @abstractmethod
@@ -31,7 +30,7 @@ class StorageProvider(ABC):
         """Delete file by reference, return success."""
 
     @abstractmethod
-    def list_files(self, path: str) -> List[dict]:
+    def list_files(self, path: str) -> list[dict]:
         """List files at path, return list of metadata dicts."""
 
 

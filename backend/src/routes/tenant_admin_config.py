@@ -10,10 +10,11 @@ Endpoints:
 - DELETE /api/tenant-admin/config/<id> - Delete config entry
 """
 
+import logging
+import os
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
-import os
-import logging
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
@@ -82,7 +83,7 @@ def list_configs(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error listing configs: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -154,7 +155,7 @@ def create_config(user_email, user_roles) -> ResponseReturnValue:
             {"success": True, "message": "Configuration created successfully"}
         ), 201
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error creating config: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -236,7 +237,7 @@ def update_config(user_email, user_roles, config_id) -> ResponseReturnValue:
             {"success": True, "message": "Configuration updated successfully"}
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating config: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -295,7 +296,7 @@ def delete_config(user_email, user_roles, config_id) -> ResponseReturnValue:
             {"success": True, "message": "Configuration deleted successfully"}
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error deleting config: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -319,6 +320,8 @@ def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
     """
     from auth.tenant_context import (
         get_user_tenants,
+    )
+    from auth.tenant_context import (
         is_tenant_admin as check_tenant_admin,
     )
 
@@ -363,7 +366,7 @@ def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error getting tenant config: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -380,8 +383,10 @@ def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
     """
     from auth.tenant_context import (
         get_user_tenants,
-        is_tenant_admin as check_tenant_admin,
         set_tenant_config,
+    )
+    from auth.tenant_context import (
+        is_tenant_admin as check_tenant_admin,
     )
 
     try:
@@ -426,7 +431,7 @@ def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
         else:
             return jsonify({"error": "Failed to update configuration"}), 500
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error setting tenant config: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -447,6 +452,8 @@ def delete_tenant_config_legacy(
     """
     from auth.tenant_context import (
         get_user_tenants,
+    )
+    from auth.tenant_context import (
         is_tenant_admin as check_tenant_admin,
     )
 
@@ -484,6 +491,6 @@ def delete_tenant_config_legacy(
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error deleting tenant config: {e}", flush=True)
         return jsonify({"error": str(e)}), 500

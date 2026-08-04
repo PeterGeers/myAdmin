@@ -6,14 +6,16 @@ This service helps Tenant Administrators fix template errors without requiring S
 to tenant data, maintaining privacy while providing intelligent assistance.
 """
 
-import os
-import re
 import json
 import logging
+import os
+import re
+from typing import Any
+
 import requests
-from typing import Dict, List, Any, Optional
+
+from services.ai_model_registry import RegistryError, resolver
 from services.ai_usage_tracker import AIUsageTracker
-from services.ai_model_registry import resolver, RegistryError
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +59,10 @@ class AITemplateAssistant:
         self,
         template_type: str,
         template_content: str,
-        validation_errors: List[Dict],
-        required_placeholders: List[str],
-        administration: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        validation_errors: list[dict],
+        required_placeholders: list[str],
+        administration: str | None = None,
+    ) -> dict[str, Any]:
         """
         Get AI suggestions for fixing template errors.
 
@@ -212,30 +214,30 @@ class AITemplateAssistant:
                     logger.warning(
                         f"{model.model_id} request failed: {e} - trying next model"
                     )
-                    last_error = f"AI service request failed: {str(e)}"
+                    last_error = f"AI service request failed: {e!s}"
                     continue
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(f"{model.model_id} failed: {e} - trying next model")
-                    last_error = f"Failed to process response: {str(e)}"
+                    last_error = f"Failed to process response: {e!s}"
                     continue
 
             # All models failed
             logger.error(f"All models failed. Last error: {last_error}")
             return {"success": False, "error": "All models failed"}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Unexpected error in get_fix_suggestions: {e}")
             return {
                 "success": False,
-                "error": f"Failed to get AI suggestions: {str(e)}",
+                "error": f"Failed to get AI suggestions: {e!s}",
             }
 
     def _build_prompt(
         self,
         template_type: str,
         template_content: str,
-        validation_errors: List[Dict],
-        required_placeholders: List[str],
+        validation_errors: list[dict],
+        required_placeholders: list[str],
     ) -> str:
         """
         Build prompt for AI analysis.
@@ -344,7 +346,7 @@ Format your response as JSON:
 
         return sanitized
 
-    def _format_errors(self, errors: List[Dict]) -> str:
+    def _format_errors(self, errors: list[dict]) -> str:
         """
         Format errors for prompt.
 
@@ -376,7 +378,7 @@ Format your response as JSON:
 
         return "\n".join(formatted)
 
-    def _parse_ai_response(self, response_text: str) -> Dict:
+    def _parse_ai_response(self, response_text: str) -> dict:
         """
         Parse AI response into structured format.
 
@@ -406,7 +408,7 @@ Format your response as JSON:
 
             # Validate structure
             if not isinstance(parsed, dict):
-                raise ValueError("Response is not a dictionary")
+                raise ValueError("Response is not a dictionary")  # noqa: TRY004
 
             # Ensure required fields exist
             if "analysis" not in parsed:
@@ -431,7 +433,7 @@ Format your response as JSON:
                 "auto_fix_available": False,
                 "confidence": "low",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to parse AI response: {e}")
             return {
                 "analysis": "Failed to parse AI response",
@@ -440,7 +442,7 @@ Format your response as JSON:
                 "confidence": "low",
             }
 
-    def apply_auto_fixes(self, template_content: str, fixes: List[Dict]) -> str:
+    def apply_auto_fixes(self, template_content: str, fixes: list[dict]) -> str:
         """
         Apply auto-fixable suggestions to template.
 
@@ -486,7 +488,7 @@ Format your response as JSON:
 
             return modified_template
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to apply auto-fixes: {e}")
             # Return original template if fixes fail
             return template_content
@@ -532,7 +534,7 @@ Format your response as JSON:
                     )
                     return template
 
-            elif "body" in location_lower or "main" in location_lower:
+            elif "body" in location_lower or "main" in location_lower:  # noqa: SIM102
                 # Try to add in body/main section
                 if "<main" in template:
                     template = template.replace("</main>", f"{code_to_add}\n</main>", 1)
@@ -547,7 +549,7 @@ Format your response as JSON:
 
             return template
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to add placeholder: {e}")
             # Return original template if addition fails
             return template

@@ -12,10 +12,9 @@ Reusable validation and sanitization utilities for security checks:
 Extracted from security_audit.py to separate validators from audit reporting.
 """
 
-import re
-import os
 import logging
-from typing import Dict
+import os
+import re
 
 import bleach
 
@@ -33,7 +32,7 @@ INPUT_VALIDATION_RULES = {
 
 def validate_input(
     input_data, field_type, max_length=None, validation_rules=None
-) -> Dict:
+) -> dict:
     """Validate input data against security rules."""
     if not input_data:
         return {"valid": False, "error": "Input cannot be empty"}
@@ -114,7 +113,7 @@ def sanitize_input(input_data, field_type="text", validation_rules=None) -> str:
         return sanitized.strip()
 
 
-def check_sql_injection(query, params=None) -> Dict:
+def check_sql_injection(query, params=None) -> dict:
     """Check SQL query for potential injection vulnerabilities."""
     audit_result = {"query": query, "safe": True, "issues": [], "recommendations": []}
 
@@ -167,7 +166,7 @@ def check_sql_injection(query, params=None) -> Dict:
     return audit_result
 
 
-def validate_file_upload(file, allowed_types=None, max_size=None) -> Dict:
+def validate_file_upload(file, allowed_types=None, max_size=None) -> dict:
     """Validate file upload security."""
     if not file or not hasattr(file, "filename"):
         return {"valid": False, "error": "No file provided"}
@@ -189,7 +188,7 @@ def validate_file_upload(file, allowed_types=None, max_size=None) -> Dict:
         validation_result["issues"].append("No file extension")
         validation_result["valid"] = False
 
-    if allowed_types:
+    if allowed_types:  # noqa: SIM102
         if file_extension.lower() not in [f".{ext.lower()}" for ext in allowed_types]:
             validation_result["issues"].append(
                 f"File type {file_extension} not allowed"
@@ -256,7 +255,7 @@ def validate_file_upload(file, allowed_types=None, max_size=None) -> Dict:
     return validation_result
 
 
-def check_xss_vulnerabilities(template_content) -> Dict:
+def check_xss_vulnerabilities(template_content) -> dict:
     """Check templates for XSS vulnerabilities."""
     xss_audit = {
         "template": template_content[:500] + "..."
@@ -297,7 +296,7 @@ def check_xss_vulnerabilities(template_content) -> Dict:
     return xss_audit
 
 
-def check_password_strength(password) -> Dict:
+def check_password_strength(password) -> dict:
     """Check password strength and security."""
     if not password:
         return {"strong": False, "score": 0, "issues": ["No password provided"]}

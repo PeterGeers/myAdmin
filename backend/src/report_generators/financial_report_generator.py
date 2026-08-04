@@ -12,15 +12,15 @@ The generator follows the pattern:
 """
 
 import logging
-from typing import List, Dict, Any
 from datetime import datetime
+from typing import Any
 
 from utils.closure_helpers import get_closure_aware_start_year
 
 logger = logging.getLogger(__name__)
 
 
-def make_ledgers(db, year: int, administration: str) -> List[Dict[str, Any]]:
+def make_ledgers(db, year: int, administration: str) -> list[dict[str, Any]]:
     """
     Calculate starting balance and add all transactions for specific year and administration.
 
@@ -115,7 +115,7 @@ def make_ledgers(db, year: int, administration: str) -> List[Dict[str, Any]]:
         conn.close()
 
 
-def prepare_financial_report_data(db, administration: str, year: int) -> Dict[str, Any]:
+def prepare_financial_report_data(db, administration: str, year: int) -> dict[str, Any]:
     """
     Prepare financial report data for Excel export.
 
@@ -137,7 +137,7 @@ def prepare_financial_report_data(db, administration: str, year: int) -> Dict[st
         metadata = {
             "administration": administration,
             "year": year,
-            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # noqa: DTZ005
             "record_count": len(ledger_data),
         }
 
@@ -148,6 +148,6 @@ def prepare_financial_report_data(db, administration: str, year: int) -> Dict[st
 
         return {"ledger_data": ledger_data, "metadata": metadata}
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to prepare financial report data: {e}")
-        raise Exception(f"Failed to prepare financial report data: {str(e)}")
+        raise Exception(f"Failed to prepare financial report data: {e!s}")  # noqa: TRY002

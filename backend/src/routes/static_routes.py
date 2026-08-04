@@ -5,9 +5,10 @@ This blueprint handles serving static files from the React build,
 including the main index.html, assets, and various resource files.
 """
 
-from flask import Blueprint, send_from_directory, jsonify, request
-from flask.typing import ResponseReturnValue
 import os
+
+from flask import Blueprint, jsonify, request, send_from_directory
+from flask.typing import ResponseReturnValue
 
 # Create blueprint
 static_bp = Blueprint("static", __name__)
@@ -85,7 +86,7 @@ def serve_index() -> ResponseReturnValue:
     build_folder = "/app/frontend/build"
     try:
         return send_from_directory(build_folder, "index.html")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": "Frontend not built", "details": str(e)}), 404
 
 
@@ -103,5 +104,5 @@ def handle_404(e) -> ResponseReturnValue:
     )
     try:
         return send_from_directory(build_folder, "index.html")
-    except Exception:
+    except Exception:  # noqa: BLE001
         return jsonify({"error": "Frontend not built"}), 404

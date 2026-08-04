@@ -290,7 +290,7 @@ class TestTenantIsolation:
         match = pattern.search(query)
         assert match, "Query must contain `administration` = %s"
 
-    @settings(max_examples=50, database=None)
+    @settings(max_examples=50, database=None, derandomize=True)
     @given(config=valid_config_st())
     def test_empty_tenant_still_filters(self, config):
         """With empty string tenant, WHERE still contains administration = %s."""

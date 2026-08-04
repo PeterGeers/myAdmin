@@ -91,14 +91,14 @@ List of dictionaries representing table rows with structure:
 
 ```python
 {
-    'row_type': 'parent' | 'aangifte' | 'account' | 'resultaat' | 'grand_total',
-    'parent': str,
-    'aangifte': str,
-    'description': str,
-    'amount': str,  # Formatted
-    'amount_raw': float,  # Raw numeric value
-    'css_class': str,
-    'indent_level': int  # 0, 1, or 2
+    "row_type": "parent" | "aangifte" | "account" | "resultaat" | "grand_total",
+    "parent": str,
+    "aangifte": str,
+    "description": str,
+    "amount": str,  # Formatted
+    "amount_raw": float,  # Raw numeric value
+    "css_class": str,
+    "indent_level": int,  # 0, 1, or 2
 }
 ```
 
@@ -127,16 +127,14 @@ rows = generate_table_rows(
     report_data=summary_data,
     cache=cache,
     year=2025,
-    administration='GoodwinSolutions',
-    user_tenants=['GoodwinSolutions', 'PeterPrive']
+    administration="GoodwinSolutions",
+    user_tenants=["GoodwinSolutions", "PeterPrive"],
 )
 
 # Use rows with template service
 template_service = TemplateService(db)
 html_output = template_service.generate_output(
-    template=template_content,
-    data={'rows': rows},
-    output_format='html'
+    template=template_content, data={"rows": rows}, output_format="html"
 )
 ```
 

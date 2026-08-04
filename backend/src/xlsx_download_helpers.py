@@ -68,7 +68,10 @@ class XLSXDownloadHelpersMixin:
             files = results.get("files", [])
 
             for file_item in files:
-                if file_item["mimeType"] != "application/vnd.google-apps.folder" and file_item["name"] == document_name:
+                if (
+                    file_item["mimeType"] != "application/vnd.google-apps.folder"
+                    and file_item["name"] == document_name
+                ):
                     print(f"Found exact match: {file_item['name']}")
                     return self._download_single_file(
                         service, file_item["id"], file_item["name"], dest_folder

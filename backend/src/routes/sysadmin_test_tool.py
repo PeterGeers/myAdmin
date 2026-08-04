@@ -8,14 +8,16 @@ All endpoints require the SysAdmin role. No tenant isolation needed — the test
 is tenant-agnostic (SysAdmin operates across tenants).
 """
 
-import re
+import logging
 import os
+import re
 import tempfile
-from flask import Blueprint, request, jsonify
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from services.invoice_test_service import InvoiceTestService
-import logging
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -178,7 +180,7 @@ def process_file(user_email, user_roles) -> ResponseReturnValue:
         ), 200
 
     except Exception as e:
-        logger.error(f"Process file error: {e}", exc_info=True)
+        logger.error(f"Process file error: {e}", exc_info=True)  # noqa: G201
         print(f"Process file error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -237,7 +239,7 @@ def rerun_prompt(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"Rerun prompt error: {e}", exc_info=True)
+        logger.error(f"Rerun prompt error: {e}", exc_info=True)  # noqa: G201
         print(f"Rerun prompt error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -284,6 +286,6 @@ def vendor_history(user_email, user_roles) -> ResponseReturnValue:
         ), 200
 
     except Exception as e:
-        logger.error(f"Vendor history error: {e}", exc_info=True)
+        logger.error(f"Vendor history error: {e}", exc_info=True)  # noqa: G201
         print(f"Vendor history error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500

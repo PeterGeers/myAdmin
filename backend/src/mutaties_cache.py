@@ -11,14 +11,14 @@ This module acts as the facade. Implementation is split across:
 - mutaties_cache_queries.py — Query and read operations
 """
 
-import pandas as pd
+import logging
 from datetime import datetime, timedelta
 from threading import Lock
-from typing import Dict, Optional
-import logging
 
-from mutaties_cache_models import TenantCacheEntry
+import pandas as pd
+
 from mutaties_cache_loader import MutatisCacheLoaderMixin
+from mutaties_cache_models import TenantCacheEntry
 from mutaties_cache_queries import MutatisCacheQueriesMixin
 
 logger = logging.getLogger(__name__)
@@ -44,17 +44,19 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
         Args:
             ttl_minutes: Time to live in minutes before auto-refresh (default: 30)
         """
-        self._tenant_data: Dict[str, TenantCacheEntry] = {}
+        self._tenant_data: dict[str, TenantCacheEntry] = {}
         self.ttl = timedelta(minutes=ttl_minutes)
         self.lock = Lock()
         self._loading = False
 
     @property
-    def data(self) -> Optional[pd.DataFrame]:
+    def data(self) -> pd.DataFrame | None:
         """Backward-compatible property: returns combined DataFrame of all tenants or None."""
         if not self._tenant_data:
             return None
-        frames = [entry.data for entry in self._tenant_data.values() if not entry.data.empty]
+        frames = [
+            entry.data for entry in self._tenant_data.values() if not entry.data.empty
+        ]
         if not frames:
             return None
         return pd.concat(frames, ignore_index=True)
@@ -65,7 +67,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
         if value is None:
             self._tenant_data.clear()
         else:
-            now = datetime.now()
+            now = datetime.now()  # noqa: DTZ005
             # Split by administration if present, otherwise store as single legacy entry
             if "administration" in value.columns:
                 self._tenant_data.clear()
@@ -92,7 +94,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
                 )
 
     @property
-    def last_loaded(self) -> Optional[datetime]:
+    def last_loaded(self) -> datetime | None:
         """Backward-compatible property: returns most recent load time across all tenants."""
         if not self._tenant_data:
             return None
@@ -146,7 +148,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
             return pd.DataFrame()
 
         # Update last_accessed
-        entry.last_accessed = datetime.now()
+        entry.last_accessed = datetime.now()  # noqa: DTZ005
 
         # Load missing years on demand if specific years are requested
         if requested_years and entry.data is not None and not entry.data.empty:
@@ -173,9 +175,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
         """Check if a tenant's cache entry needs to be refreshed."""
         if entry.data is None:
             return True
-        if (datetime.now() - entry.last_loaded) > self.ttl:
-            return True
-        return False
+        return datetime.now() - entry.last_loaded > self.ttl  # noqa: DTZ005
 
     def _needs_refresh(self):
         """Backward-compatible: check if any refresh is needed (legacy callers)."""
@@ -189,7 +189,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
 
     def _evict_inactive(self):
         """Remove tenants not accessed for 2× TTL."""
-        eviction_threshold = datetime.now() - (2 * self.ttl)
+        eviction_threshold = datetime.now() - (2 * self.ttl)  # noqa: DTZ005
         tenants_to_evict = []
 
         for tenant_key, entry in self._tenant_data.items():
@@ -257,7 +257,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
 
         memory_mb = round(total_memory / 1024 / 1024, 2)
         age = (
-            (datetime.now() - oldest_load).total_seconds() if oldest_load else None
+            (datetime.now() - oldest_load).total_seconds() if oldest_load else None  # noqa: DTZ005
         )
 
         return {
@@ -276,7 +276,9 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
                     "last_accessed": entry.last_accessed.isoformat(),
                     "memory_mb": round(
                         entry.data.memory_usage(deep=True).sum() / 1024 / 1024, 2
-                    ) if entry.data is not None else 0,
+                    )
+                    if entry.data is not None
+                    else 0,
                 }
                 for tenant, entry in self._tenant_data.items()
             },
@@ -310,6 +312,6 @@ def invalidate_cache(tenant=None):
     Args:
         tenant: If provided, only invalidate that tenant. Otherwise invalidate all.
     """
-    global _cache
+    global _cache  # noqa: PLW0602
     if _cache:
         _cache.invalidate(tenant=tenant)

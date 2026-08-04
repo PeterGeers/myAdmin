@@ -16,7 +16,8 @@ They do NOT score/rank patterns or manage caching.
 
 import re
 from collections import defaultdict
-from typing import Dict, List, Optional, Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 # Majority voting threshold for company-level pattern detection.
 # If one (debet, credit) combination has >= this fraction of all occurrences
@@ -29,7 +30,7 @@ MAJORITY_VOTING_THRESHOLD = 0.90  # 90% agreement required
 # ============================================================================
 
 
-def extract_keywords(description: str) -> List[str]:
+def extract_keywords(description: str) -> list[str]:
     """Extract meaningful keywords from transaction description"""
     if not description:
         return []
@@ -58,14 +59,12 @@ def extract_keywords(description: str) -> List[str]:
         "to",
         "at",
         "on",
-        "in",
         "with",
         "by",
         "and",
         "or",
         "but",
         "en",
-        "of",
         "maar",
     }
 
@@ -77,7 +76,7 @@ def extract_keywords(description: str) -> List[str]:
     return keywords[:5]  # Top 5 keywords
 
 
-def extract_company_name(description: str) -> Optional[str]:
+def extract_company_name(description: str) -> str | None:
     """Extract the main company/vendor name from description"""
     if not description:
         return None
@@ -213,16 +212,14 @@ def extract_company_name(description: str) -> Optional[str]:
         has_digits = bool(re.search(r"\d", word))
 
         if (
-            (
-                has_letters and has_digits and len(word) >= 8
-            )  # Long mixed alphanumeric codes
-            or re.match(r"^[A-Z]{2}\d+[A-Z]+\d+$", word)  # Mixed letter-number patterns
-            or re.match(r"^\d+[A-Z]+\d+$", word)  # Number-letter-number patterns
-            or re.match(r"^[A-Z]+\d+[A-Z]+$", word)  # Letter-number-letter patterns
-            or word.startswith("P16")  # Transaction prefixes
-            or word.startswith("NO")  # Reference prefixes
-            or word.startswith("ID")  # ID prefixes
-            or "FACTUURNR" in word  # Invoice number references
+            has_letters
+            and has_digits
+            and len(word) >= 8
+            or re.match(r"^[A-Z]{2}\d+[A-Z]+\d+$", word)
+            or re.match(r"^\d+[A-Z]+\d+$", word)
+            or re.match(r"^[A-Z]+\d+[A-Z]+$", word)
+            or word.startswith(("P16", "NO", "ID"))
+            or "FACTUURNR" in word
             or "KLANTNR" in word
         ):  # Customer number references
             continue
@@ -251,7 +248,7 @@ def extract_company_name(description: str) -> Optional[str]:
     return None
 
 
-def extract_reference_number_from_description(description: str) -> Optional[str]:
+def extract_reference_number_from_description(description: str) -> str | None:
     """
     Extract reference/invoice numbers from description
 
@@ -331,16 +328,14 @@ def is_valid_verb(verb: str) -> bool:
 
     if not has_vowels:
         # Allow short acronyms (3-5 uppercase letters without digits)
-        if 3 <= len(verb) <= 5 and verb.isupper() and not has_digits:
-            return True
-        return False
+        return bool(3 <= len(verb) <= 5 and verb.isupper() and not has_digits)
 
     return True
 
 
 def extract_compound_verb_from_description(
     description: str, reference_number: str
-) -> Optional[str]:
+) -> str | None:
     """
     Extract compound verb (company + reference) from transaction description
 
@@ -377,7 +372,7 @@ def extract_compound_verb_from_description(
 
 def extract_verb_from_description(
     description: str, reference_number: str
-) -> Optional[str]:
+) -> str | None:
     """
     Extract verb from description - supports both simple and compound verbs
 
@@ -406,10 +401,10 @@ def extract_verb_from_description(
 
 
 def analyze_debet_patterns(
-    transactions: List[Dict],
+    transactions: list[dict],
     administration: str,
     is_bank_account_fn: Callable[[str, str], bool],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyze patterns for predicting Debet account numbers
 
@@ -484,10 +479,10 @@ def analyze_debet_patterns(
 
 
 def analyze_credit_patterns(
-    transactions: List[Dict],
+    transactions: list[dict],
     administration: str,
     is_bank_account_fn: Callable[[str, str], bool],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyze patterns for predicting Credit account numbers
 
@@ -562,10 +557,10 @@ def analyze_credit_patterns(
 
 
 def analyze_reference_patterns(
-    transactions: List[Dict],
+    transactions: list[dict],
     administration: str,
     is_bank_account_fn: Callable[[str, str], bool],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyze patterns for predicting ReferenceNumber values using verb-based logic
 
@@ -581,18 +576,22 @@ def analyze_reference_patterns(
     """
     verb_patterns = {}
     # Frequency tracker: company_key -> (debet, credit) -> variant data
-    company_variants = defaultdict(lambda: defaultdict(lambda: {
-        "occurrences": 0,
-        "last_seen": None,
-        "reference_number": None,
-        "sample_description": None,
-        "administration": None,
-        "bank_account": None,
-        "verb_company": None,
-        "verb_reference": None,
-        "is_compound": None,
-        "other_account": None,
-    }))
+    company_variants = defaultdict(
+        lambda: defaultdict(
+            lambda: {
+                "occurrences": 0,
+                "last_seen": None,
+                "reference_number": None,
+                "sample_description": None,
+                "administration": None,
+                "bank_account": None,
+                "verb_company": None,
+                "verb_reference": None,
+                "is_compound": None,
+                "other_account": None,
+            }
+        )
+    )
 
     for tx in transactions:
         debet = tx.get("Debet")
@@ -707,7 +706,9 @@ def analyze_reference_patterns(
             }
             # Log when majority wins with minority outliers
             if total > best_data["occurrences"]:
-                minority_pairs = {k: v["occurrences"] for k, v in variants.items() if k != best_pair}
+                minority_pairs = {
+                    k: v["occurrences"] for k, v in variants.items() if k != best_pair
+                }
                 print(
                     f"⚡ Pattern {company_key}: majority voting {best_data['occurrences']}/{total} "
                     f"({majority_ratio:.1%}) — outliers: {minority_pairs}"

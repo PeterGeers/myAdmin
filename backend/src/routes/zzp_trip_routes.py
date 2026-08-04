@@ -10,16 +10,17 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §3.1, §3.2, §3.5
 
 import logging
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
-from services.module_registry import module_required
 from database import DatabaseManager
+from services.module_registry import module_required
 from services.parameter_service import ParameterService
-from services.zzp_vehicle_service import VehicleService
-from services.zzp_trip_service import TripService
 from services.zzp_route_preset_service import RoutePresetService
+from services.zzp_trip_service import TripService
+from services.zzp_vehicle_service import VehicleService
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +59,7 @@ def _get_route_preset_service() -> RoutePresetService:
 @cognito_required(required_permissions=["zzp_read"])
 @tenant_required()
 @module_required("ZZP")
-def list_vehicles(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def list_vehicles(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List vehicles for the tenant, optionally filtered by is_active."""
     try:
         svc = _get_vehicle_service()
@@ -71,7 +70,7 @@ def list_vehicles(
             active_only = True
         vehicles = svc.list_vehicles(tenant, active_only=active_only)
         return jsonify({"success": True, "data": vehicles})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("list_vehicles error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -80,9 +79,7 @@ def list_vehicles(
 @cognito_required(required_permissions=["zzp_crud"])
 @tenant_required()
 @module_required("ZZP")
-def create_vehicle(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def create_vehicle(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a new vehicle."""
     try:
         svc = _get_vehicle_service()
@@ -93,7 +90,7 @@ def create_vehicle(
         return jsonify({"success": True, "data": vehicle}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("create_vehicle error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -115,7 +112,7 @@ def update_vehicle(
         return jsonify({"success": True, "data": vehicle})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("update_vehicle error for %s/%s: %s", tenant, vehicle_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -131,10 +128,12 @@ def deactivate_vehicle(
     try:
         svc = _get_vehicle_service()
         svc.deactivate_vehicle(tenant, vehicle_id)
-        return jsonify({"success": True, "data": {"id": vehicle_id, "is_active": False}})
+        return jsonify(
+            {"success": True, "data": {"id": vehicle_id, "is_active": False}}
+        )
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("deactivate_vehicle error for %s/%s: %s", tenant, vehicle_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -146,9 +145,7 @@ def deactivate_vehicle(
 @cognito_required(required_permissions=["zzp_crud"])
 @tenant_required()
 @module_required("ZZP")
-def list_trips(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def list_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List trips with filtering and pagination.
 
     Query params: vehicle_id, date_from, date_to, trip_category,
@@ -172,17 +169,21 @@ def list_trips(
         if request.args.get("is_billed") is not None:
             filters["is_billed"] = request.args.get("is_billed", "").lower() == "true"
         if request.args.get("is_gap_fill") is not None:
-            filters["is_gap_fill"] = request.args.get("is_gap_fill", "").lower() == "true"
+            filters["is_gap_fill"] = (
+                request.args.get("is_gap_fill", "").lower() == "true"
+            )
         if request.args.get("limit"):
             filters["limit"] = request.args.get("limit")
         if request.args.get("offset"):
             filters["offset"] = request.args.get("offset")
 
         result = svc.list_trips(tenant, filters=filters)
-        return jsonify({"success": True, "data": result["data"], "total": result["total"]})
+        return jsonify(
+            {"success": True, "data": result["data"], "total": result["total"]}
+        )
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("list_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -191,9 +192,7 @@ def list_trips(
 @cognito_required(required_permissions=["zzp_crud"])
 @tenant_required()
 @module_required("ZZP")
-def create_trip(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def create_trip(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a new trip record. Includes gap warnings if odometer gap detected."""
     try:
         svc = _get_trip_service()
@@ -212,7 +211,7 @@ def create_trip(
         return jsonify(response), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("create_trip error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -233,21 +232,29 @@ def create_gap_fill(
 
         # Validate required fields
         required_fields = [
-            "vehicle_id", "trip_date", "start_odometer", "end_odometer",
-            "start_address", "end_address", "trip_category", "trip_purpose"
+            "vehicle_id",
+            "trip_date",
+            "start_odometer",
+            "end_odometer",
+            "start_address",
+            "end_address",
+            "trip_category",
+            "trip_purpose",
         ]
         missing = [f for f in required_fields if f not in data or data[f] is None]
         if missing:
-            return jsonify({
-                "success": False,
-                "error": f"Missing required fields: {', '.join(missing)}"
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing)}",
+                }
+            ), 400
 
         result = svc.create_gap_fill(tenant, data, user_email)
         return jsonify({"success": True, "data": result}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("create_gap_fill error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -256,9 +263,7 @@ def create_gap_fill(
 @cognito_required(required_permissions=["zzp_crud"])
 @tenant_required()
 @module_required("ZZP")
-def list_gaps(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def list_gaps(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List unresolved gap-fill entries (purpose = 'Niet geregistreerd').
 
     Optional query param: vehicle_id (int) — filter by vehicle.
@@ -271,7 +276,7 @@ def list_gaps(
         return jsonify({"success": True, "data": gaps})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("list_gaps error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -291,17 +296,16 @@ def get_unbilled_trips(
     try:
         contact_id = request.args.get("contact_id")
         if not contact_id:
-            return jsonify({
-                "success": False,
-                "error": "contact_id query parameter is required"
-            }), 400
+            return jsonify(
+                {"success": False, "error": "contact_id query parameter is required"}
+            ), 400
 
         svc = _get_trip_service()
         trips = svc.get_unbilled_trips(tenant, int(contact_id))
         return jsonify({"success": True, "data": trips})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_unbilled_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -324,17 +328,19 @@ def get_trip_summary(
         year = request.args.get("year")
 
         if not vehicle_id or not year:
-            return jsonify({
-                "success": False,
-                "error": "vehicle_id and year query parameters are required"
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "vehicle_id and year query parameters are required",
+                }
+            ), 400
 
         svc = _get_trip_service()
         summary = svc.get_summary(tenant, int(vehicle_id), int(year))
         return jsonify({"success": True, "data": summary})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_trip_summary error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -355,7 +361,7 @@ def get_trip(
         return jsonify({"success": True, "data": trip})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_trip error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -379,10 +385,9 @@ def update_trip(
 
         correction_reason = data.pop("correction_reason", None)
         if not correction_reason:
-            return jsonify({
-                "success": False,
-                "error": "correction_reason is required"
-            }), 400
+            return jsonify(
+                {"success": False, "error": "correction_reason is required"}
+            ), 400
 
         trip = svc.update_trip(
             tenant, trip_id, data, correction_reason, updated_by=user_email
@@ -390,7 +395,7 @@ def update_trip(
         return jsonify({"success": True, "data": trip})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("update_trip error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -414,19 +419,15 @@ def cancel_trip(
 
         cancel_reason = data.get("cancel_reason")
         if not cancel_reason:
-            return jsonify({
-                "success": False,
-                "error": "cancel_reason is required"
-            }), 400
+            return jsonify(
+                {"success": False, "error": "cancel_reason is required"}
+            ), 400
 
         svc.cancel_trip(tenant, trip_id, cancel_reason, cancelled_by=user_email)
-        return jsonify({
-            "success": True,
-            "data": {"id": trip_id, "is_cancelled": True}
-        })
+        return jsonify({"success": True, "data": {"id": trip_id, "is_cancelled": True}})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("cancel_trip error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -448,7 +449,7 @@ def get_trip_history(
         return jsonify({"success": True, "data": history})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_trip_history error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -468,7 +469,7 @@ def list_route_presets(
         svc = _get_route_preset_service()
         presets = svc.get_suggestions(tenant)
         return jsonify({"success": True, "data": presets})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("list_route_presets error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -490,7 +491,7 @@ def create_route_preset(
         return jsonify({"success": True, "data": preset}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("create_route_preset error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -512,7 +513,7 @@ def update_route_preset(
         return jsonify({"success": True, "data": preset})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("update_route_preset error for %s/%s: %s", tenant, preset_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -531,6 +532,6 @@ def delete_route_preset(
         return jsonify({"success": True, "data": {"id": preset_id, "deleted": True}})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("delete_route_preset error for %s/%s: %s", tenant, preset_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

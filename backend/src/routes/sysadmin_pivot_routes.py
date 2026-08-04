@@ -15,8 +15,10 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md §9
 
 import logging
 import os
-from flask import Blueprint, request, jsonify
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -137,7 +139,7 @@ def list_datasources(
 
         return jsonify({"success": True, "data": data})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error listing pivot datasources: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -310,7 +312,7 @@ def update_datasources(
 
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error updating pivot datasources: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -330,7 +332,7 @@ def _auto_create_defaults(db, ps, source_name, created_by) -> None:
     """
     try:
         # Introspect schema to discover columns
-        groupable, aggregatable, type_map = derive_columns_from_schema(
+        _groupable, aggregatable, _type_map = derive_columns_from_schema(
             db,
             source_name,
             exclude_columns=set(),
@@ -390,7 +392,7 @@ def _auto_create_defaults(db, ps, source_name, created_by) -> None:
             force_groupable,
         )
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # Non-fatal: log warning but don't fail the PUT request
         logger.warning(
             "Failed to auto-create defaults for '%s': %s",

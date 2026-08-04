@@ -8,11 +8,11 @@ Manages user invitation lifecycle including:
 - Expiry handling
 """
 
+import logging
 import secrets
 import string
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-import logging
+from typing import Any
 
 from database import DatabaseManager
 
@@ -42,8 +42,7 @@ class InvitationService:
         Returns:
             Secure random password meeting Cognito requirements
         """
-        if length < 8:
-            length = 8
+        length = max(length, 8)
 
         # Cognito requires: uppercase, lowercase, number, special character
         uppercase = string.ascii_uppercase
@@ -72,10 +71,10 @@ class InvitationService:
         self,
         administration: str,
         email: str,
-        username: Optional[str] = None,
+        username: str | None = None,
         created_by: str = "",
         template_type: str = "user_invitation",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a new invitation record
 
@@ -94,7 +93,7 @@ class InvitationService:
             temp_password = self.generate_temporary_password()
 
             # Calculate expiry date (7 days from now)
-            expires_at = datetime.now() + timedelta(days=self.invitation_expiry_days)
+            expires_at = datetime.now() + timedelta(days=self.invitation_expiry_days)  # noqa: DTZ005
 
             # Check if there's an existing invitation (any status)
             existing = self.get_invitation(administration, email)
@@ -164,7 +163,7 @@ class InvitationService:
                 "expiry_days": self.invitation_expiry_days,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error creating invitation: {e}")
             return {"success": False, "error": str(e)}
 
@@ -193,7 +192,7 @@ class InvitationService:
             logger.info(f"Marked invitation as sent for {email} in {administration}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error marking invitation as sent: {e}")
             return False
 
@@ -225,7 +224,7 @@ class InvitationService:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error marking invitation as accepted: {e}")
             return False
 
@@ -258,13 +257,11 @@ class InvitationService:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error marking invitation as failed: {e}")
             return False
 
-    def get_invitation(
-        self, administration: str, email: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_invitation(self, administration: str, email: str) -> dict[str, Any] | None:
         """
         Get invitation details
 
@@ -290,13 +287,11 @@ class InvitationService:
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error getting invitation: {e}")
             return None
 
-    def list_invitations(
-        self, administration: str, status: Optional[str] = None
-    ) -> list:
+    def list_invitations(self, administration: str, status: str | None = None) -> list:
         """
         List invitations for a tenant
 
@@ -329,7 +324,7 @@ class InvitationService:
 
             return results or []
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error listing invitations: {e}")
             return []
 
@@ -358,13 +353,13 @@ class InvitationService:
 
             return count
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error expiring invitations: {e}")
             return 0
 
     def resend_invitation(
         self, administration: str, email: str, created_by: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Resend an invitation (generates new password and extends expiry)
 

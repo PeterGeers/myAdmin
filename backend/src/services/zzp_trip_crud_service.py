@@ -16,7 +16,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 
 import json
 import logging
-from typing import Optional
 
 from db_exceptions import IntegrityError
 
@@ -27,10 +26,21 @@ class TripCrudService:
     """Trip CRUD operations: create, update, cancel, gap-fill."""
 
     # Fields that can be updated via update_trip (excludes distance_km which is generated)
-    UPDATABLE_FIELDS = [
-        "trip_date", "start_time", "end_time", "start_address", "end_address",
-        "start_odometer", "end_odometer", "trip_category", "trip_purpose",
-        "route_description", "contact_id", "project_name", "notes", "is_billable",
+    UPDATABLE_FIELDS = [  # noqa: RUF012
+        "trip_date",
+        "start_time",
+        "end_time",
+        "start_address",
+        "end_address",
+        "start_odometer",
+        "end_odometer",
+        "trip_category",
+        "trip_purpose",
+        "route_description",
+        "contact_id",
+        "project_name",
+        "notes",
+        "is_billable",
     ]
 
     def __init__(self, service):
@@ -73,7 +83,9 @@ class TripCrudService:
         self.service._validate_vehicle(tenant, data["vehicle_id"])
 
         # Detect gap BEFORE insert (check against existing trips)
-        gap_info = self.service.detect_gap(tenant, int(data["vehicle_id"]), start_odometer)
+        gap_info = self.service.detect_gap(
+            tenant, int(data["vehicle_id"]), start_odometer
+        )
 
         try:
             trip_id = self.db.execute_query(
@@ -117,8 +129,9 @@ class TripCrudService:
             )
 
         # Write audit entry for creation
-        self._write_audit_entry(tenant, trip_id, version=1,
-                                action="created", changed_by=created_by)
+        self._write_audit_entry(
+            tenant, trip_id, version=1, action="created", changed_by=created_by
+        )
 
         trip = self.service.get_trip(tenant, trip_id)
 
@@ -131,13 +144,15 @@ class TripCrudService:
             prev_end = gap_info["previous_end_odometer"]
             curr_start = gap_info["current_start_odometer"]
 
-            warnings.append({
-                "type": "odometer_gap",
-                "message": f"Gap of {gap_km} km detected ({prev_end} → {curr_start})",
-                "gap_km": gap_km,
-                "previous_end_odometer": prev_end,
-                "current_start_odometer": curr_start,
-            })
+            warnings.append(
+                {
+                    "type": "odometer_gap",
+                    "message": f"Gap of {gap_km} km detected ({prev_end} → {curr_start})",
+                    "gap_km": gap_km,
+                    "previous_end_odometer": prev_end,
+                    "current_start_odometer": curr_start,
+                }
+            )
             result["gap_fill_offer"] = {
                 "start_odometer": prev_end,
                 "end_odometer": curr_start,
@@ -156,15 +171,17 @@ class TripCrudService:
             large_distance_threshold = 300
 
         if distance_km > large_distance_threshold:
-            warnings.append({
-                "type": "large_distance",
-                "message": (
-                    f"Unusually large distance: {distance_km} km "
-                    f"(threshold: {large_distance_threshold} km)"
-                ),
-                "distance_km": distance_km,
-                "threshold_km": large_distance_threshold,
-            })
+            warnings.append(
+                {
+                    "type": "large_distance",
+                    "message": (
+                        f"Unusually large distance: {distance_km} km "
+                        f"(threshold: {large_distance_threshold} km)"
+                    ),
+                    "distance_km": distance_km,
+                    "threshold_km": large_distance_threshold,
+                }
+            )
 
         if warnings:
             result["warnings"] = warnings
@@ -172,6 +189,7 @@ class TripCrudService:
         # Auto-learn route preset (Requirement 3 — track route frequency)
         try:
             from services.zzp_route_preset_service import RoutePresetService
+
             preset_service = RoutePresetService(self.db, self.service.parameter_service)
             preset_service.increment_usage(
                 tenant,
@@ -181,14 +199,18 @@ class TripCrudService:
                 default_purpose=data.get("trip_purpose"),
                 typical_distance_km=end_odometer - start_odometer,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Route preset auto-learn failed (non-blocking): {e}")
 
         return result
 
     def update_trip(
-        self, tenant: str, trip_id: int, data: dict,
-        correction_reason: str, updated_by: str
+        self,
+        tenant: str,
+        trip_id: int,
+        data: dict,
+        correction_reason: str,
+        updated_by: str,
     ) -> dict:
         """Update/correct a trip with version increment and audit logging.
 
@@ -212,10 +234,7 @@ class TripCrudService:
             )
 
         # 4. Filter to only updatable fields that are actually provided
-        update_fields = {
-            k: v for k, v in data.items()
-            if k in self.UPDATABLE_FIELDS
-        }
+        update_fields = {k: v for k, v in data.items() if k in self.UPDATABLE_FIELDS}
         if not update_fields:
             raise ValueError(
                 "No valid fields to update. Updatable fields: "
@@ -298,9 +317,7 @@ class TripCrudService:
 
         # 3. Block cancellation of already-cancelled trips
         if existing.get("is_cancelled"):
-            raise ValueError(
-                f"Trip {trip_id} is already cancelled"
-            )
+            raise ValueError(f"Trip {trip_id} is already cancelled")
 
         # 4. Block cancellation of billed trips
         if existing.get("is_billed"):
@@ -413,8 +430,9 @@ class TripCrudService:
             )
 
         # Write audit entry
-        self._write_audit_entry(tenant, trip_id, version=1,
-                                action="created", changed_by=created_by)
+        self._write_audit_entry(
+            tenant, trip_id, version=1, action="created", changed_by=created_by
+        )
 
         trip = self.service.get_trip(tenant, trip_id)
         return {"success": True, "data": trip}
@@ -426,8 +444,8 @@ class TripCrudService:
         version: int,
         action: str,
         changed_by: str,
-        changed_fields: str = None,
-        correction_reason: str = None,
+        changed_fields: str | None = None,
+        correction_reason: str | None = None,
     ) -> None:
         """Insert an audit trail record into zzp_trip_audit.
 

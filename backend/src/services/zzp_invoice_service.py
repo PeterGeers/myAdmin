@@ -11,13 +11,12 @@ Reference: .kiro/specs/zzp-module/design.md §5.3
 
 import logging
 from datetime import date, timedelta
-from typing import Optional
 
+from dialect_helpers import dialect
 from services.field_config_mixin import FieldConfigMixin
 from services.zzp_invoice_delivery import ZZPInvoiceDeliveryHelper
 from services.zzp_invoice_factory import ZZPInvoiceFactoryHelper
 from services.zzp_invoice_numbering import ZZPInvoiceNumberingHelper
-from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class ZZPInvoiceService(FieldConfigMixin):
     """Invoice lifecycle: create, calculate, number, send, credit, copy."""
 
     FIELD_CONFIG_KEY = "invoice_field_config"
-    ALWAYS_REQUIRED = ["contact_id", "invoice_date"]
+    ALWAYS_REQUIRED = ["contact_id", "invoice_date"]  # noqa: RUF012
 
     def __init__(
         self,
@@ -44,12 +43,19 @@ class ZZPInvoiceService(FieldConfigMixin):
         self.pdf_generator = pdf_generator
         self.email_service = email_service
         self._delivery = ZZPInvoiceDeliveryHelper(
-            db=db, parameter_service=parameter_service,
-            booking_helper=booking_helper, pdf_generator=pdf_generator,
+            db=db,
+            parameter_service=parameter_service,
+            booking_helper=booking_helper,
+            pdf_generator=pdf_generator,
             email_service=email_service,
         )
-        self._factory = ZZPInvoiceFactoryHelper(db=db, parameter_service=parameter_service)
-        self._numbering = ZZPInvoiceNumberingHelper(db=db, parameter_service=parameter_service)
+        self._factory = ZZPInvoiceFactoryHelper(
+            db=db, parameter_service=parameter_service
+        )
+        self._numbering = ZZPInvoiceNumberingHelper(
+            db=db, parameter_service=parameter_service
+        )
+
     # ── Invoice Numbering (delegated to numbering helper) ───
 
     def _generate_invoice_number(self, tenant: str, prefix: str, year: int) -> str:
@@ -68,7 +74,8 @@ class ZZPInvoiceService(FieldConfigMixin):
         vat_rate = 0.0
         if self.tax_rate_service:
             rate_info = self.tax_rate_service.get_tax_rate(
-                tenant, "btw", line["vat_code"], invoice_date)
+                tenant, "btw", line["vat_code"], invoice_date
+            )
             if rate_info:
                 vat_rate = rate_info["rate"]
 
@@ -276,7 +283,7 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         return self.get_invoice(tenant, invoice_id)
 
-    def get_invoice(self, tenant: str, invoice_id: int) -> Optional[dict]:
+    def get_invoice(self, tenant: str, invoice_id: int) -> dict | None:
         """Get invoice with lines, VAT summary, and contact info."""
         inv = self._get_invoice_raw(tenant, invoice_id)
         if not inv:
@@ -315,7 +322,7 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         return inv
 
-    def list_invoices(self, tenant: str, filters: dict = None) -> list:
+    def list_invoices(self, tenant: str, filters: dict | None = None) -> list:
         """List invoices with optional filters and pagination."""
         filters = filters or {}
         query = """SELECT i.*, c.client_id, c.company_name
@@ -361,7 +368,7 @@ class ZZPInvoiceService(FieldConfigMixin):
             results.append(r)
         return results
 
-    def _get_invoice_raw(self, tenant: str, invoice_id: int) -> Optional[dict]:
+    def _get_invoice_raw(self, tenant: str, invoice_id: int) -> dict | None:
         """Get raw invoice row without joins."""
         rows = self.db.execute_query(
             "SELECT * FROM invoices WHERE id = %s AND administration = %s",
@@ -381,7 +388,9 @@ class ZZPInvoiceService(FieldConfigMixin):
     def _default_payment_terms(self, tenant: str) -> int:
         """Return tenant-configured payment terms or 30 days."""
         if self.parameter_service:
-            p = self.parameter_service.get_param("zzp", "default_payment_terms_days", tenant=tenant)
+            p = self.parameter_service.get_param(
+                "zzp", "default_payment_terms_days", tenant=tenant
+            )
             if p is not None:
                 return int(p)
         return 30
@@ -389,15 +398,19 @@ class ZZPInvoiceService(FieldConfigMixin):
     def _default_currency(self, tenant: str) -> str:
         """Return tenant-configured default currency or EUR."""
         if self.parameter_service:
-            p = self.parameter_service.get_param("zzp", "default_currency", tenant=tenant)
+            p = self.parameter_service.get_param(
+                "zzp", "default_currency", tenant=tenant
+            )
             if p:
                 return p
         return "EUR"
 
-    def _get_default_revenue_account(self, tenant: str) -> Optional[str]:
+    def _get_default_revenue_account(self, tenant: str) -> str | None:
         """Return tenant-configured default revenue account."""
         if self.parameter_service:
-            p = self.parameter_service.get_param("zzp", "revenue_account", tenant=tenant)
+            p = self.parameter_service.get_param(
+                "zzp", "revenue_account", tenant=tenant
+            )
             if p:
                 return str(p)
         return None
@@ -420,13 +433,15 @@ class ZZPInvoiceService(FieldConfigMixin):
             tenant, invoice_id, options, self.get_invoice, output_service
         )
 
-    def get_invoice_pdf(self, tenant: str, invoice_id: int) -> Optional[dict]:
+    def get_invoice_pdf(self, tenant: str, invoice_id: int) -> dict | None:
         """Retrieve stored PDF or regenerate as copy (delegated to delivery helper)."""
         return self._delivery.get_invoice_pdf(tenant, invoice_id, self.get_invoice)
 
     def _store_pdf(self, tenant, invoice, pdf_bytes, destination, output_service=None):
         """Store PDF via OutputService (delegated to delivery helper)."""
-        return self._delivery._store_pdf(tenant, invoice, pdf_bytes, destination, output_service)
+        return self._delivery._store_pdf(
+            tenant, invoice, pdf_bytes, destination, output_service
+        )
 
     def _update_status(self, tenant, invoice_id, status, sent_at=None):
         """Update invoice status (delegated to delivery helper)."""
@@ -439,7 +454,9 @@ class ZZPInvoiceService(FieldConfigMixin):
     ) -> dict:
         """Create a credit note linked to an original invoice (delegated to factory helper)."""
         return self._factory.create_credit_note(
-            tenant, original_invoice_id, created_by,
+            tenant,
+            original_invoice_id,
+            created_by,
             get_invoice_fn=self.get_invoice,
             generate_invoice_number_fn=self._generate_invoice_number,
             get_credit_note_prefix_fn=self._get_credit_note_prefix,
@@ -448,23 +465,43 @@ class ZZPInvoiceService(FieldConfigMixin):
         )
 
     def create_invoice_from_time_entries(
-        self, tenant: str, contact_id: int, entry_ids: list,
-        data: dict, created_by: str, time_tracking_service=None,
+        self,
+        tenant: str,
+        contact_id: int,
+        entry_ids: list,
+        data: dict,
+        created_by: str,
+        time_tracking_service=None,
     ) -> dict:
         """Create a draft invoice from selected time entries (delegated to factory helper)."""
         return self._factory.create_invoice_from_time_entries(
-            tenant, contact_id, entry_ids, data, created_by,
+            tenant,
+            contact_id,
+            entry_ids,
+            data,
+            created_by,
             create_invoice_fn=self.create_invoice,
             time_tracking_service=time_tracking_service,
         )
 
     def create_invoice_from_trips(
-        self, tenant: str, contact_id: int, trip_ids: list,
-        km_rate: float, data: dict, created_by: str, trip_service=None,
+        self,
+        tenant: str,
+        contact_id: int,
+        trip_ids: list,
+        km_rate: float,
+        data: dict,
+        created_by: str,
+        trip_service=None,
     ) -> dict:
         """Create a draft invoice from selected trips (delegated to factory helper)."""
         return self._factory.create_invoice_from_trips(
-            tenant, contact_id, trip_ids, km_rate, data, created_by,
+            tenant,
+            contact_id,
+            trip_ids,
+            km_rate,
+            data,
+            created_by,
             create_invoice_fn=self.create_invoice,
             trip_service=trip_service,
         )
@@ -472,7 +509,9 @@ class ZZPInvoiceService(FieldConfigMixin):
     def copy_last_invoice(self, tenant: str, contact_id: int, created_by: str) -> dict:
         """Create a new draft by copying the most recent invoice (delegated to factory helper)."""
         return self._factory.copy_last_invoice(
-            tenant, contact_id, created_by,
+            tenant,
+            contact_id,
+            created_by,
             create_invoice_fn=self.create_invoice,
         )
 

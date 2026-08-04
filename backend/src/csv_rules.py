@@ -4,10 +4,9 @@ Handles CSV files with known column layouts using business rules
 instead of AI extraction, ensuring deterministic and cost-free processing.
 """
 
-from dataclasses import dataclass
-from typing import Optional
 import json
 import re
+from dataclasses import dataclass
 from datetime import datetime
 
 import pandas as pd
@@ -43,10 +42,10 @@ CSV_RULES: list[CsvAggregationRule] = [
 class CsvRuleEngine:
     """Applies declarative CSV aggregation rules."""
 
-    def __init__(self, rules: Optional[list[CsvAggregationRule]] = None):
+    def __init__(self, rules: list[CsvAggregationRule] | None = None):
         self.rules = rules if rules is not None else CSV_RULES
 
-    def get_rule(self, folder_name: str) -> Optional[CsvAggregationRule]:
+    def get_rule(self, folder_name: str) -> CsvAggregationRule | None:
         """Find matching rule for folder name (substring match)."""
         folder_lower = folder_name.lower()
         for rule in self.rules:
@@ -56,7 +55,7 @@ class CsvRuleEngine:
 
     def apply(
         self, rule: CsvAggregationRule, lines: list[str], folder_name: str
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Apply a CSV aggregation rule to extracted lines."""
         csv_data = self._extract_csv_data(lines)
         if csv_data is None:
@@ -68,13 +67,13 @@ class CsvRuleEngine:
         try:
             # Aggregate amount
             total_amount = 0.0
-            if rule.amount_column in df.columns:
+            if rule.amount_column in df.columns:  # noqa: SIM102
                 if rule.amount_operation == "sum":
                     total_amount = float(df[rule.amount_column].dropna().sum())
 
             # Extract date
-            date = datetime.now().strftime("%Y-%m-%d")
-            if rule.date_column in df.columns:
+            date = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+            if rule.date_column in df.columns:  # noqa: SIM102
                 if rule.date_operation == "max":
                     max_date = df[rule.date_column].max()
                     if pd.notna(max_date):
@@ -93,11 +92,11 @@ class CsvRuleEngine:
                 "parser_used_hint": "csv_rule",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error applying CSV rule for {folder_name}: {e}")
             return None
 
-    def _extract_csv_data(self, lines: list[str]) -> Optional[list[dict]]:
+    def _extract_csv_data(self, lines: list[str]) -> list[dict] | None:
         """Extract JSON CSV data from processed lines."""
         for i, line in enumerate(lines):
             if line == "[CSV_DATA_START]" and i + 1 < len(lines):

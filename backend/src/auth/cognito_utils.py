@@ -11,13 +11,13 @@ are configured. Falls back to base64 payload decoding only when env vars are mis
 Based on the implementation guide at .kiro/specs/Common/Cognito/implementation-guide.md
 """
 
-import os
-import json
 import base64
 import functools
+import json
 import logging
-from typing import Tuple, List, Optional, Dict, Any
+import os
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +201,7 @@ ROLE_PERMISSIONS = {
 }
 
 
-def cors_headers() -> Dict[str, str]:
+def cors_headers() -> dict[str, str]:
     """
     Standard CORS headers for all API responses
 
@@ -216,7 +216,7 @@ def cors_headers() -> Dict[str, str]:
     }
 
 
-def handle_options_request() -> Dict[str, Any]:
+def handle_options_request() -> dict[str, Any]:
     """
     Handle CORS preflight OPTIONS request
 
@@ -227,8 +227,8 @@ def handle_options_request() -> Dict[str, Any]:
 
 
 def create_error_response(
-    status_code: int, message: str, details: Optional[str] = None
-) -> Dict[str, Any]:
+    status_code: int, message: str, details: str | None = None
+) -> dict[str, Any]:
     """
     Create standardized error response
 
@@ -251,7 +251,7 @@ def create_error_response(
     }
 
 
-def create_success_response(data: Any, status_code: int = 200) -> Dict[str, Any]:
+def create_success_response(data: Any, status_code: int = 200) -> dict[str, Any]:
     """
     Create standardized success response
 
@@ -270,8 +270,8 @@ def create_success_response(data: Any, status_code: int = 200) -> Dict[str, Any]
 
 
 def extract_user_credentials(
-    event: Dict[str, Any],
-) -> Tuple[Optional[str], Optional[List[str]], Optional[Dict[str, Any]]]:
+    event: dict[str, Any],
+) -> tuple[str | None, list[str] | None, dict[str, Any] | None]:
     """
     Extract user credentials from Lambda event or Flask request
 
@@ -338,7 +338,7 @@ def extract_user_credentials(
         # Fallback: base64 payload decoding (no cryptographic verification)
         return _extract_with_base64(jwt_token)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(
             f"Error extracting user credentials: {type(e).__name__}", exc_info=False
         )
@@ -351,7 +351,7 @@ def extract_user_credentials(
 
 def _extract_with_verifier(
     verifier, jwt_token: str
-) -> Tuple[Optional[str], Optional[List[str]], Optional[Dict[str, Any]]]:
+) -> tuple[str | None, list[str] | None, dict[str, Any] | None]:
     """
     Extract credentials using cryptographic JWT verification.
 
@@ -366,8 +366,8 @@ def _extract_with_verifier(
     """
     from auth.jwt_verifier import (
         InvalidTokenError,
-        TokenExpiredError,
         ServiceUnavailableError,
+        TokenExpiredError,
     )
 
     try:
@@ -401,7 +401,7 @@ def _extract_with_verifier(
 
 def _extract_with_base64(
     jwt_token: str,
-) -> Tuple[Optional[str], Optional[List[str]], Optional[Dict[str, Any]]]:
+) -> tuple[str | None, list[str] | None, dict[str, Any] | None]:
     """
     Extract credentials using base64 payload decoding (fallback, no cryptographic verification).
 
@@ -434,7 +434,7 @@ def _extract_with_base64(
     try:
         payload_decoded = base64.urlsafe_b64decode(payload_encoded)
         payload = json.loads(payload_decoded)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.debug(f"JWT base64 decode error: {type(e).__name__}")
         return (
             None,
@@ -462,14 +462,14 @@ def _extract_with_base64(
     # Check token expiration (optional but recommended for fallback)
     exp = payload.get("exp")
     if exp:
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.utcnow().timestamp()  # noqa: DTZ003
         if current_time > exp:
             return None, None, create_error_response(401, "Token has expired")
 
     return user_email, user_roles, None
 
 
-def get_permissions_for_roles(user_roles: List[str]) -> List[str]:
+def get_permissions_for_roles(user_roles: list[str]) -> list[str]:
     """
     Get all permissions for given roles
 
@@ -494,8 +494,8 @@ def get_permissions_for_roles(user_roles: List[str]) -> List[str]:
 
 
 def validate_permissions(
-    user_roles: List[str], required_permissions: List[str]
-) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    user_roles: list[str], required_permissions: list[str]
+) -> tuple[bool, dict[str, Any] | None]:
     """
     Validate user has required permissions based on their roles
 
@@ -539,9 +539,9 @@ def validate_permissions(
 
 def log_successful_access(
     user_email: str,
-    user_roles: List[str],
+    user_roles: list[str],
     operation: str,
-    details: Optional[Dict[str, Any]] = None,
+    details: dict[str, Any] | None = None,
 ):
     """
     Log successful access for audit trail
@@ -553,7 +553,7 @@ def log_successful_access(
         details: Optional additional details
     """
     log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.utcnow().isoformat(),  # noqa: DTZ003
         "user_email": user_email,
         "user_roles": user_roles,
         "operation": operation,
@@ -568,8 +568,8 @@ def log_successful_access(
 
 
 def cognito_required(
-    required_roles: Optional[List[str]] = None,
-    required_permissions: Optional[List[str]] = None,
+    required_roles: list[str] | None = None,
+    required_permissions: list[str] | None = None,
 ):
     """
     Decorator to protect Flask routes with Cognito authentication
@@ -602,7 +602,7 @@ def cognito_required(
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
-            from flask import request, jsonify
+            from flask import jsonify, request
 
             # Debug: Log request info
             logger.debug(f"Request to {f.__name__}: {request.method} {request.path}")
@@ -618,8 +618,8 @@ def cognito_required(
                 return jsonify(json.loads(auth_error["body"])), auth_error["statusCode"]
 
             # Split: global roles from JWT, per-tenant roles from DB
-            from auth.tenant_context import get_current_tenant
             from auth.role_cache import get_tenant_roles
+            from auth.tenant_context import get_current_tenant
             from database import DatabaseManager
 
             global_roles = [
@@ -641,7 +641,7 @@ def cognito_required(
             )
 
             # Check required roles (if specified)
-            if required_roles:
+            if required_roles:  # noqa: SIM102
                 if not any(role in user_roles for role in required_roles):
                     logger.debug(
                         f"Role check failed for {f.__name__}. Required: {required_roles}, User has: {user_roles}"

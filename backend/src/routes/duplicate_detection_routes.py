@@ -3,12 +3,14 @@ Duplicate Detection Routes Blueprint
 Handles duplicate transaction detection and user decision logging
 """
 
-from flask import Blueprint, request, jsonify
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from duplicate_checker import DuplicateChecker
-from datetime import datetime
 
 # Create blueprint
 duplicate_detection_bp = Blueprint("duplicate_detection", __name__)
@@ -63,17 +65,15 @@ def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
                 "newFileUrl": new_file_url,
                 "newFileId": new_file_id,
                 "tableName": table_name,
-                "checkTimestamp": datetime.now().isoformat(),
+                "checkTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
             }
         )
 
         return jsonify({"success": True, "duplicateInfo": duplicate_info})
 
     except ValueError as e:
-        return jsonify(
-            {"success": False, "error": f"Invalid data format: {str(e)}"}
-        ), 400
-    except Exception as e:
+        return jsonify({"success": False, "error": f"Invalid data format: {e!s}"}), 400
+    except Exception as e:  # noqa: BLE001
         print(f"Duplicate check error: {e}", flush=True)
         # Return graceful degradation - allow import to continue with warning
         return jsonify(
@@ -84,8 +84,8 @@ def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
                     "duplicate_count": 0,
                     "existing_transactions": [],
                     "requires_user_decision": False,
-                    "error_message": f"Duplicate check failed: {str(e)}",
-                    "checkTimestamp": datetime.now().isoformat(),
+                    "error_message": f"Duplicate check failed: {e!s}",
+                    "checkTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
                 },
             }
         ), 200
@@ -166,7 +166,7 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                 {
                     "success": True,
                     "message": f'Decision "{decision}" logged successfully',
-                    "logTimestamp": datetime.now().isoformat(),
+                    "logTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
                 }
             )
         else:
@@ -176,11 +176,11 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                     "success": True,
                     "message": f'Decision "{decision}" processed (logging may have failed)',
                     "warning": "Audit logging encountered an issue",
-                    "logTimestamp": datetime.now().isoformat(),
+                    "logTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
                 }
             )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Decision logging error: {e}", flush=True)
         # Don't fail the user's workflow even if logging fails
         return jsonify(
@@ -188,7 +188,7 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                 "success": True,
                 "message": "Decision processed (logging failed)",
                 "error": str(e),
-                "logTimestamp": datetime.now().isoformat(),
+                "logTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
             }
         ), 200
 
@@ -270,11 +270,11 @@ def handle_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                     f" {inserted_count} transaction(s) inserted into database."
                 )
 
-            except Exception as db_error:
+            except Exception as db_error:  # noqa: BLE001
                 print(f"Database insertion error: {db_error}")
                 result["success"] = False
                 result["message"] = (
-                    f"Decision processed but database insertion failed: {str(db_error)}"
+                    f"Decision processed but database insertion failed: {db_error!s}"
                 )
 
         return jsonify(
@@ -285,16 +285,16 @@ def handle_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                 "cleanupPerformed": result.get("cleanup_performed", False),
                 "transactionsProcessed": len(result.get("transactions", [])),
                 "transactionsInserted": result.get("transactions_inserted", 0),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Duplicate decision handling error: {e}", flush=True)
         return jsonify(
             {
                 "success": False,
-                "error": f"Error handling duplicate decision: {str(e)}",
-                "timestamp": datetime.now().isoformat(),
+                "error": f"Error handling duplicate decision: {e!s}",
+                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             }
         ), 500

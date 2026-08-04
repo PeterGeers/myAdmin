@@ -5,17 +5,20 @@ API endpoints for managing tenants (create, list, get, update, delete)
 Also includes module management endpoints nested under tenants
 """
 
-from flask import Blueprint, request, jsonify
+import logging
+import os
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+
 from .sysadmin_helpers import (
     get_tenant_user_count,
     get_tenant_users,
     validate_administration_name,
 )
-import os
-import logging
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -107,7 +110,7 @@ def create_tenant(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(response), 201
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error creating tenant: {e}")
         import traceback
 
@@ -232,7 +235,7 @@ def list_tenants(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error listing tenants: {e}")
         import traceback
 
@@ -300,7 +303,7 @@ def get_tenant(user_email, user_roles, administration) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting tenant: {e}")
         import traceback
 
@@ -407,7 +410,7 @@ def update_tenant(user_email, user_roles, administration) -> ResponseReturnValue
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating tenant: {e}")
         import traceback
 
@@ -471,7 +474,7 @@ def delete_tenant(user_email, user_roles, administration) -> ResponseReturnValue
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error deleting tenant: {e}")
         import traceback
 
@@ -551,7 +554,7 @@ def get_tenant_modules(user_email, user_roles, administration) -> ResponseReturn
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting tenant modules: {e}")
         import traceback
 
@@ -650,7 +653,7 @@ def update_tenant_modules(
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating tenant modules: {e}")
         import traceback
 

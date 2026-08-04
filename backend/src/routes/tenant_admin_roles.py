@@ -13,19 +13,20 @@ Endpoints:
 - GET /api/tenant/users - List users (legacy)
 """
 
+import os
+
+from botocore.exceptions import ClientError
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
-import os
-from botocore.exceptions import ClientError
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
 from routes.tenant_admin_users import (
-    get_user_attribute,
-    get_available_roles_for_tenant,
-    cognito_client,
     USER_POOL_ID,
+    cognito_client,
+    get_available_roles_for_tenant,
+    get_user_attribute,
 )
 
 # Create blueprint
@@ -289,7 +290,7 @@ def get_available_roles(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -345,7 +346,7 @@ def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
                         group["GroupName"]
                         for group in groups_response.get("Groups", [])
                     ]
-                except Exception:
+                except Exception:  # noqa: BLE001
                     user_groups = []
 
                 tenant_users.append(
@@ -370,7 +371,7 @@ def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error getting tenant users: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -432,7 +433,7 @@ def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseRetur
             target_user_tenants = get_user_attribute(
                 user_response.get("UserAttributes", []), "custom:tenants"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             return jsonify({"error": f"User not found: {username}"}), 404
 
         if not target_user_tenants or tenant not in target_user_tenants:
@@ -459,7 +460,7 @@ def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseRetur
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error assigning tenant role: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -517,7 +518,7 @@ def remove_tenant_role_legacy(
             target_user_tenants = get_user_attribute(
                 user_response.get("UserAttributes", []), "custom:tenants"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             return jsonify({"error": f"User not found: {username}"}), 404
 
         if not target_user_tenants or tenant not in target_user_tenants:
@@ -544,6 +545,6 @@ def remove_tenant_role_legacy(
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error removing tenant role: {e}", flush=True)
         return jsonify({"error": str(e)}), 500

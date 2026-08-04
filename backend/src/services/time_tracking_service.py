@@ -9,10 +9,9 @@ Reference: .kiro/specs/zzp-module/design.md §5.8
 
 import logging
 from decimal import Decimal
-from typing import List, Optional
 
-from services.field_config_mixin import FieldConfigMixin
 from dialect_helpers import dialect
+from services.field_config_mixin import FieldConfigMixin
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ class TimeTrackingService(FieldConfigMixin):
     """Time entry CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "time_entry_field_config"
-    ALWAYS_REQUIRED = ["contact_id", "entry_date", "hours", "hourly_rate"]
+    ALWAYS_REQUIRED = ["contact_id", "entry_date", "hours", "hourly_rate"]  # noqa: RUF012
 
     def __init__(self, db, parameter_service=None):
         self.db = db
@@ -77,7 +76,7 @@ class TimeTrackingService(FieldConfigMixin):
 
         if "contact_id" in data:
             self._validate_contact(tenant, data["contact_id"])
-        if "product_id" in data and data["product_id"]:
+        if data.get("product_id"):
             self._validate_product(tenant, data["product_id"])
 
         fields = [
@@ -121,14 +120,14 @@ class TimeTrackingService(FieldConfigMixin):
         )
         return True
 
-    def get_entry(self, tenant: str, entry_id: int) -> Optional[dict]:
+    def get_entry(self, tenant: str, entry_id: int) -> dict | None:
         rows = self.db.execute_query(
             "SELECT * FROM time_entries WHERE id = %s AND administration = %s",
             (entry_id, tenant),
         )
         return self._format_entry(rows[0]) if rows else None
 
-    def list_entries(self, tenant: str, filters: dict = None) -> List[dict]:
+    def list_entries(self, tenant: str, filters: dict | None = None) -> list[dict]:
         filters = filters or {}
         query = "SELECT * FROM time_entries WHERE administration = %s"
         params: list = [tenant]
@@ -158,7 +157,7 @@ class TimeTrackingService(FieldConfigMixin):
         rows = self.db.execute_query(query, tuple(params)) or []
         return [self._format_entry(r) for r in rows]
 
-    def get_unbilled_entries(self, tenant: str, contact_id: int) -> List[dict]:
+    def get_unbilled_entries(self, tenant: str, contact_id: int) -> list[dict]:
         rows = (
             self.db.execute_query(
                 """SELECT * FROM time_entries
@@ -171,7 +170,7 @@ class TimeTrackingService(FieldConfigMixin):
         )
         return [self._format_entry(r) for r in rows]
 
-    def mark_as_billed(self, tenant: str, entry_ids: List[int], invoice_id: int) -> int:
+    def mark_as_billed(self, tenant: str, entry_ids: list[int], invoice_id: int) -> int:
         if not entry_ids:
             return 0
         placeholders = ",".join(["%s"] * len(entry_ids))
@@ -187,8 +186,8 @@ class TimeTrackingService(FieldConfigMixin):
         return result if isinstance(result, int) else 0
 
     def get_summary(
-        self, tenant: str, group_by: str = "contact", period: str = None
-    ) -> List[dict]:
+        self, tenant: str, group_by: str = "contact", period: str | None = None
+    ) -> list[dict]:
         if group_by == "contact":
             query = """SELECT contact_id, SUM(hours) as total_hours,
                               SUM(hours * hourly_rate) as total_amount
@@ -240,7 +239,7 @@ class TimeTrackingService(FieldConfigMixin):
                 row[key] = float(row[key])
         return row
 
-    def enrich_with_contacts(self, tenant: str, entries: List[dict]) -> List[dict]:
+    def enrich_with_contacts(self, tenant: str, entries: list[dict]) -> list[dict]:
         """Add contact info (id, client_id, company_name) to each entry."""
         if not entries:
             return entries

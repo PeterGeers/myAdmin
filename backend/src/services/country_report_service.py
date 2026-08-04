@@ -340,7 +340,7 @@ def generate_country_report_html(country_data, region_data, total_bookings):
                             </tr>
                         </thead>
                         <tbody>
-"""
+"""  # noqa: DTZ005
 
     # Add region data
     for region, bookings in region_data:

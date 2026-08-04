@@ -8,12 +8,13 @@ Per-tenant partitioning: each tenant's data is cached independently
 with its own TTL and eviction policy.
 """
 
-import pandas as pd
-from dataclasses import dataclass, field
+import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from threading import Lock
-from typing import Dict, Optional
-import logging
+
+import pandas as pd
+
 from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class BnbCache:
     """
 
     def __init__(self, ttl_minutes=30):
-        self._tenant_data: Dict[str, TenantCacheEntry] = {}
+        self._tenant_data: dict[str, TenantCacheEntry] = {}
         self.ttl = timedelta(minutes=ttl_minutes)
         self.lock = Lock()
         logger.info(f"BnbCache initialized with TTL={ttl_minutes} minutes")
@@ -52,12 +53,15 @@ class BnbCache:
     # ──────────────────────────────────────────────────────────────────────────
 
     @property
-    def data(self) -> Optional[pd.DataFrame]:
+    def data(self) -> pd.DataFrame | None:
         """Backward-compatible: returns combined DataFrame of all tenants or None."""
         if not self._tenant_data:
             return None
-        frames = [entry.data for entry in self._tenant_data.values()
-                  if entry.data is not None and not entry.data.empty]
+        frames = [
+            entry.data
+            for entry in self._tenant_data.values()
+            if entry.data is not None and not entry.data.empty
+        ]
         if not frames:
             return None
         return pd.concat(frames, ignore_index=True)
@@ -68,7 +72,7 @@ class BnbCache:
         if value is None:
             self._tenant_data.clear()
         else:
-            now = datetime.now()
+            now = datetime.now()  # noqa: DTZ005
             if "administration" in value.columns:
                 self._tenant_data.clear()
                 for admin in value["administration"].dropna().unique():
@@ -87,7 +91,7 @@ class BnbCache:
                 )
 
     @property
-    def last_refresh(self) -> Optional[datetime]:
+    def last_refresh(self) -> datetime | None:
         """Backward-compatible: returns most recent load time across all tenants."""
         if not self._tenant_data:
             return None
@@ -113,13 +117,16 @@ class BnbCache:
             entry = self._tenant_data.get(tenant)
             if entry is None or entry.data is None:
                 return False
-            return (datetime.now() - entry.last_loaded) < self.ttl
+            return (datetime.now() - entry.last_loaded) < self.ttl  # noqa: DTZ005
 
         # Legacy: check if there's any valid data
         if not self._tenant_data:
             return False
         for entry in self._tenant_data.values():
-            if entry.data is not None and (datetime.now() - entry.last_loaded) < self.ttl:
+            if (
+                entry.data is not None
+                and (datetime.now() - entry.last_loaded) < self.ttl  # noqa: DTZ005
+            ):
                 return True
         return False
 
@@ -158,14 +165,14 @@ class BnbCache:
             return pd.DataFrame()
 
         # Update last_accessed
-        entry.last_accessed = datetime.now()
+        entry.last_accessed = datetime.now()  # noqa: DTZ005
         return entry.data if entry.data is not None else pd.DataFrame()
 
     def _needs_refresh_tenant(self, entry: TenantCacheEntry) -> bool:
         """Check if a tenant's cache entry needs to be refreshed."""
         if entry.data is None:
             return True
-        return (datetime.now() - entry.last_loaded) > self.ttl
+        return (datetime.now() - entry.last_loaded) > self.ttl  # noqa: DTZ005
 
     def _refresh_tenant(self, db, tenant):
         """
@@ -175,7 +182,7 @@ class BnbCache:
             db: DatabaseManager instance
             tenant: Tenant identifier (administration)
         """
-        start_time = datetime.now()
+        start_time = datetime.now()  # noqa: DTZ005
         logger.info(f"Loading BNB data for tenant '{tenant}'...")
 
         try:
@@ -205,22 +212,26 @@ class BnbCache:
             ORDER BY checkinDate DESC
             """
 
-            with db.get_cursor() as (cursor, conn):
+            with db.get_cursor() as (_cursor, conn):
                 data = pd.read_sql(query, conn, params=[tenant])
 
             self._process_dataframe(data)
 
-            now = datetime.now()
+            now = datetime.now()  # noqa: DTZ005
             self._tenant_data[tenant] = TenantCacheEntry(
                 data=data,
                 last_accessed=now,
                 last_loaded=now,
             )
 
-            elapsed = (datetime.now() - start_time).total_seconds()
+            elapsed = (datetime.now() - start_time).total_seconds()  # noqa: DTZ005
             memory_mb = data.memory_usage(deep=True).sum() / 1024 / 1024
-            actual_count = len(data[data["source_type"] == "actual"]) if not data.empty else 0
-            planned_count = len(data[data["source_type"] == "planned"]) if not data.empty else 0
+            actual_count = (
+                len(data[data["source_type"] == "actual"]) if not data.empty else 0
+            )
+            planned_count = (
+                len(data[data["source_type"] == "planned"]) if not data.empty else 0
+            )
 
             logger.info(
                 f"Cache loaded for tenant '{tenant}': "
@@ -246,7 +257,7 @@ class BnbCache:
             return
 
         # Legacy: load all data
-        start_time = datetime.now()
+        start_time = datetime.now()  # noqa: DTZ005
         logger.info("Loading BNB data into memory cache (all tenants)...")
 
         try:
@@ -275,13 +286,13 @@ class BnbCache:
             ORDER BY checkinDate DESC
             """
 
-            with db.get_cursor() as (cursor, conn):
+            with db.get_cursor() as (_cursor, conn):
                 data = pd.read_sql(query, conn)
 
             self._process_dataframe(data)
 
             # Split by tenant
-            now = datetime.now()
+            now = datetime.now()  # noqa: DTZ005
             with self.lock:
                 self._tenant_data.clear()
                 if "administration" in data.columns:
@@ -300,10 +311,14 @@ class BnbCache:
                         last_loaded=now,
                     )
 
-            elapsed = (datetime.now() - start_time).total_seconds()
+            elapsed = (datetime.now() - start_time).total_seconds()  # noqa: DTZ005
             memory_mb = data.memory_usage(deep=True).sum() / 1024 / 1024
-            actual_count = len(data[data["source_type"] == "actual"]) if not data.empty else 0
-            planned_count = len(data[data["source_type"] == "planned"]) if not data.empty else 0
+            actual_count = (
+                len(data[data["source_type"] == "actual"]) if not data.empty else 0
+            )
+            planned_count = (
+                len(data[data["source_type"] == "planned"]) if not data.empty else 0
+            )
 
             logger.info(
                 f"Cache loaded: {len(data):,} rows ({actual_count:,} actual, "
@@ -328,8 +343,13 @@ class BnbCache:
 
         # Ensure numeric columns are float
         numeric_cols = [
-            "nights", "amountGross", "amountNett", "amountChannelFee",
-            "amountTouristTax", "amountVat", "guests",
+            "nights",
+            "amountGross",
+            "amountNett",
+            "amountChannelFee",
+            "amountTouristTax",
+            "amountVat",
+            "guests",
         ]
         for col in numeric_cols:
             if col in data.columns:
@@ -337,8 +357,12 @@ class BnbCache:
 
         # Fill NaN values in string columns
         string_cols = [
-            "channel", "listing", "guestName", "reservationCode",
-            "status", "source_type",
+            "channel",
+            "listing",
+            "guestName",
+            "reservationCode",
+            "status",
+            "source_type",
         ]
         for col in string_cols:
             if col in data.columns:
@@ -350,7 +374,7 @@ class BnbCache:
 
     def _evict_inactive(self):
         """Remove tenants not accessed for 2× TTL."""
-        eviction_threshold = datetime.now() - (2 * self.ttl)
+        eviction_threshold = datetime.now() - (2 * self.ttl)  # noqa: DTZ005
         tenants_to_evict = []
 
         for tenant_key, entry in self._tenant_data.items():
@@ -420,7 +444,9 @@ class BnbCache:
             "loaded": True,
             "row_count": total_rows,
             "memory_mb": memory_mb,
-            "last_refresh": self.last_refresh.isoformat() if self.last_refresh else None,
+            "last_refresh": self.last_refresh.isoformat()
+            if self.last_refresh
+            else None,
             "ttl_minutes": self.ttl.total_seconds() / 60,
             "is_valid": self.is_valid(),
         }
@@ -465,7 +491,9 @@ class BnbCache:
                     "last_accessed": entry.last_accessed.isoformat(),
                     "memory_mb": round(
                         entry.data.memory_usage(deep=True).sum() / 1024 / 1024, 2
-                    ) if entry.data is not None else 0,
+                    )
+                    if entry.data is not None
+                    else 0,
                 }
                 for tenant_key, entry in self._tenant_data.items()
             },

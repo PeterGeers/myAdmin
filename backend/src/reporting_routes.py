@@ -4,12 +4,14 @@ Aangifte IB endpoints extracted to: routes/aangifte_ib_routes.py
 Balance/trends endpoints extracted to: routes/financial_reporting_routes.py
 """
 
-from flask import Blueprint, request, jsonify
-from database import DatabaseManager
-from datetime import datetime
 from contextlib import contextmanager
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from database import DatabaseManager
 from utils.date_utils import normalize_dates
 
 reporting_bp = Blueprint("reporting", __name__)
@@ -113,7 +115,7 @@ class ReportingService:
 
             return {"success": True, "data": results}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"success": False, "error": str(e)}
 
 
@@ -123,8 +125,8 @@ class ReportingService:
 def get_str_revenue(user_email, user_roles, tenant, user_tenants):
     """Get STR revenue summary with tenant filtering"""
     try:
-        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
-        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
+        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))  # noqa: DTZ005
+        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
         test_mode = request.args.get("testMode", "false").lower() == "true"
 
         service = ReportingService(test_mode=test_mode)
@@ -132,7 +134,7 @@ def get_str_revenue(user_email, user_roles, tenant, user_tenants):
 
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -145,8 +147,8 @@ def get_account_summary(user_email, user_roles, tenant, user_tenants):
         service = ReportingService(
             request.args.get("testMode", "false").lower() == "true"
         )
-        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
-        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
+        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))  # noqa: DTZ005
+        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
         administration = request.args.get(
             "administration", tenant
         )  # Default to current tenant
@@ -187,7 +189,7 @@ def get_account_summary(user_email, user_roles, tenant, user_tenants):
             results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -218,9 +220,10 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
 
             # Date range
             date_from = request.args.get(
-                "dateFrom", datetime.now().strftime("%Y-01-01")
+                "dateFrom",
+                datetime.now().strftime("%Y-01-01"),  # noqa: DTZ005
             )
-            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
+            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
             where_parts.append("TransactionDate BETWEEN %s AND %s")
             params.extend([date_from, date_to])
 
@@ -241,10 +244,12 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
             conditions = {
                 "date_range": {
                     "from": request.args.get(
-                        "dateFrom", datetime.now().strftime("%Y-01-01")
+                        "dateFrom",
+                        datetime.now().strftime("%Y-01-01"),  # noqa: DTZ005
                     ),
                     "to": request.args.get(
-                        "dateTo", datetime.now().strftime("%Y-%m-%d")
+                        "dateTo",
+                        datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
                     ),
                 },
                 "administration": administration,
@@ -269,7 +274,7 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
 
         normalize_dates(results, ["TransactionDate"])
         return jsonify({"success": True, "data": results})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -369,7 +374,7 @@ def get_filter_options(user_email, user_roles, tenant, user_tenants):
                 "references": references,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in get_filter_options: {e}", flush=True)
         import traceback
 
@@ -403,7 +408,7 @@ def get_available_data(data_type, user_email, user_roles, tenant, user_tenants):
             values = [str(row["value"]) for row in cursor.fetchall()]
 
         return jsonify({"success": True, data_type: values})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -486,7 +491,7 @@ def get_check_reference(user_email, user_roles, tenant, user_tenants):
         return jsonify(
             {"success": True, "transactions": transactions, "summary": summary}
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in get_check_reference: {e}", flush=True)
         import traceback
 
@@ -527,7 +532,7 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
             years = [str(row["value"]) for row in cursor.fetchall()]
 
         return jsonify({"success": True, "years": years})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 

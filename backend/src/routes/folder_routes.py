@@ -5,17 +5,19 @@ Handles folder listing and creation endpoints for Google Drive integration.
 Extracted from app.py during refactoring (Phase 1.4)
 """
 
+import os
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from google_drive_service import GoogleDriveService
 from services.storage_resolver import (
-    resolve_storage_provider,
-    list_s3_folders,
     create_s3_folder,
+    list_s3_folders,
+    resolve_storage_provider,
 )
-import os
 
 folder_bp = Blueprint("folders", __name__)
 
@@ -108,7 +110,7 @@ def get_folders(user_email, user_roles) -> ResponseReturnValue:
                         f"Google Drive: found {len(folders)} unique folders for tenant={tenant}",
                         flush=True,
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(
                     f"Storage error for tenant={tenant}: {type(e).__name__}: {e}",
                     flush=True,
@@ -139,7 +141,7 @@ def get_folders(user_email, user_roles) -> ResponseReturnValue:
                 return jsonify({"error": f"Invalid regex pattern: {e}"}), 400
 
         return jsonify(folders)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in get_folders: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -176,7 +178,7 @@ def create_folder(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
                             "drive_folder": s3_result,
                         }
                     )
-                except Exception as s3_error:
+                except Exception as s3_error:  # noqa: BLE001
                     print(
                         f"S3 folder creation failed for tenant {tenant}: {s3_error}",
                         flush=True,
@@ -211,7 +213,7 @@ def create_folder(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
                                 "drive_folder": drive_result,
                             }
                         )
-                except Exception as drive_error:
+                except Exception as drive_error:  # noqa: BLE001
                     print(
                         f"Google Drive folder creation failed for tenant {tenant}: {drive_error}",
                         flush=True,
@@ -219,5 +221,5 @@ def create_folder(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 
             return jsonify({"success": True, "path": folder_path})
         return jsonify({"success": False, "error": "No folder name provided"}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500

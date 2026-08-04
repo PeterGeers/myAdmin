@@ -17,14 +17,14 @@ Usage:
 
 import logging
 from datetime import datetime
-from typing import Any, Union
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def format_currency(
-    value: Union[int, float, Decimal, str],
+    value: float | Decimal | str,
     currency: str = "EUR",
     decimals: int = 2,
     show_symbol: bool = True,
@@ -101,7 +101,7 @@ def format_currency(
 
 
 def format_amount(
-    value: Union[int, float, Decimal, str], decimals: int = 2, locale: str = "nl_NL"
+    value: float | Decimal | str, decimals: int = 2, locale: str = "nl_NL"
 ) -> str:
     """
     Format a numeric amount without currency symbol with locale-specific formatting.
@@ -125,7 +125,7 @@ def format_amount(
     return format_currency(value, show_symbol=False, decimals=decimals, locale=locale)
 
 
-def format_date(value: Union[str, datetime], format_type: str = "DD-MM-YYYY") -> str:
+def format_date(value: str | datetime, format_type: str = "DD-MM-YYYY") -> str:
     """
     Format a date value according to specified format.
 
@@ -158,7 +158,7 @@ def format_date(value: Union[str, datetime], format_type: str = "DD-MM-YYYY") ->
             date_obj = None
             for fmt in date_formats:
                 try:
-                    date_obj = datetime.strptime(value, fmt)
+                    date_obj = datetime.strptime(value, fmt)  # noqa: DTZ007
                     break
                 except ValueError:
                     continue
@@ -185,13 +185,13 @@ def format_date(value: Union[str, datetime], format_type: str = "DD-MM-YYYY") ->
         strftime_format = format_map.get(format_type, "%d-%m-%Y")
         return date_obj.strftime(strftime_format)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Failed to format date '{value}': {e}")
         return str(value)
 
 
 def format_datetime(
-    value: Union[str, datetime], format_type: str = "DD-MM-YYYY HH:MM:SS"
+    value: str | datetime, format_type: str = "DD-MM-YYYY HH:MM:SS"
 ) -> str:
     """
     Format a datetime value according to specified format.
@@ -220,7 +220,7 @@ def format_datetime(
             datetime_obj = None
             for fmt in datetime_formats:
                 try:
-                    datetime_obj = datetime.strptime(value, fmt)
+                    datetime_obj = datetime.strptime(value, fmt)  # noqa: DTZ007
                     break
                 except ValueError:
                     continue
@@ -244,13 +244,13 @@ def format_datetime(
         else:
             return datetime_obj.strftime("%d-%m-%Y %H:%M:%S")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Failed to format datetime '{value}': {e}")
         return str(value)
 
 
 def format_percentage(
-    value: Union[int, float, Decimal, str], decimals: int = 2, show_symbol: bool = True
+    value: float | Decimal | str, decimals: int = 2, show_symbol: bool = True
 ) -> str:
     """
     Format a numeric value as percentage.
@@ -283,7 +283,7 @@ def format_percentage(
 
 
 def format_number(
-    value: Union[int, float, Decimal, str],
+    value: float | Decimal | str,
     decimals: int = 2,
     thousand_separator: bool = True,
     locale: str = "nl_NL",
@@ -431,9 +431,7 @@ def truncate_text(text: str, max_length: int = 50, suffix: str = "...") -> str:
     return text[: max_length - len(suffix)] + suffix
 
 
-def get_css_class_for_amount(
-    amount: Union[int, float, Decimal], threshold: float = 0.01
-) -> str:
+def get_css_class_for_amount(amount: float | Decimal, threshold: float = 0.01) -> str:
     """
     Get CSS class name based on amount value (positive/negative/zero).
 

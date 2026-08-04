@@ -11,7 +11,7 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 
 import json
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ SCOPE_CHAIN = ["user", "role", "tenant", "system"]
 #
 # Key: (namespace, key)  →  Value: {value, value_type, description}
 # ---------------------------------------------------------------------------
-CODE_DEFAULTS: Dict[Tuple[str, str], Dict[str, Any]] = {}
+CODE_DEFAULTS: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +44,7 @@ _SCHEMA_TYPE_MAP = {
 }
 
 # Default values per value_type when the schema param has no explicit default.
-_TYPE_EMPTY_DEFAULTS: Dict[str, Any] = {
+_TYPE_EMPTY_DEFAULTS: dict[str, Any] = {
     "string": "",
     "number": 0,
     "boolean": False,
@@ -325,7 +325,7 @@ class ParameterService:
     """Resolves flat key-value parameters by walking the scope inheritance chain."""
 
     def __init__(self, db, credential_service=None):
-        self._cache: Dict[tuple, Any] = {}
+        self._cache: dict[tuple, Any] = {}
         self.db = db
         self.credential_service = credential_service
 
@@ -333,9 +333,9 @@ class ParameterService:
         self,
         namespace: str,
         key: str,
-        tenant: str = None,
-        role: str = None,
-        user: str = None,
+        tenant: str | None = None,
+        role: str | None = None,
+        user: str | None = None,
     ) -> Any:
         """
         Resolve parameter value by walking scope chain: user -> role -> tenant -> system.
@@ -377,7 +377,7 @@ class ParameterService:
         value: Any,
         value_type: str = "string",
         is_secret: bool = False,
-        created_by: str = None,
+        created_by: str | None = None,
     ) -> None:
         """
         Write parameter value at specified scope. Invalidates cache for this key.
@@ -447,7 +447,7 @@ class ParameterService:
         self._invalidate_cache(namespace, key)
         return result is not None and result > 0
 
-    def get_params_by_namespace(self, namespace: str, tenant: str) -> List[dict]:
+    def get_params_by_namespace(self, namespace: str, tenant: str) -> list[dict]:
         """
         Return all parameters in a namespace for a tenant, with scope origin indicator.
         Used by the admin API to show where each value comes from.
@@ -472,8 +472,8 @@ class ParameterService:
         """
         rows = self.db.execute_query(query, (namespace, tenant), fetch=True)
 
-        seen_keys: Dict[str, bool] = {}
-        results: List[dict] = []
+        seen_keys: dict[str, bool] = {}
+        results: list[dict] = []
 
         # Process DB rows first (tenant rows come before system rows due to ORDER BY)
         for row in rows:
@@ -488,7 +488,7 @@ class ParameterService:
             if row["is_secret"] and self.credential_service:
                 try:
                     parsed = self.credential_service.decrypt_credential(parsed)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     logger.warning(
                         "Failed to decrypt secret param %s.%s", namespace, key
                     )
@@ -596,7 +596,7 @@ class ParameterService:
         if row["is_secret"] and self.credential_service:
             try:
                 parsed = self.credential_service.decrypt_credential(parsed)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.warning(
                     "Failed to decrypt secret param %s.%s at scope %s",
                     namespace,

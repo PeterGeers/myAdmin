@@ -9,7 +9,6 @@ Reference: .kiro/specs/zzp-module/design.md §5.2
 
 import logging
 from datetime import date
-from typing import List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
 
@@ -22,7 +21,7 @@ class ProductService(FieldConfigMixin):
     """Shared product/service CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "product_field_config"
-    ALWAYS_REQUIRED = ["product_code", "name"]
+    ALWAYS_REQUIRED = ["product_code", "name"]  # noqa: RUF012
 
     def __init__(self, db, tax_rate_service=None, parameter_service=None):
         """Initialise with database handle and optional collaborators."""
@@ -32,7 +31,7 @@ class ProductService(FieldConfigMixin):
 
     # ── Read ────────────────────────────────────────────────
 
-    def list_products(self, tenant: str, include_inactive: bool = False) -> List[dict]:
+    def list_products(self, tenant: str, include_inactive: bool = False) -> list[dict]:
         query = "SELECT * FROM products WHERE administration = %s"
         params: list = [tenant]
         if not include_inactive:
@@ -41,7 +40,7 @@ class ProductService(FieldConfigMixin):
         rows = self.db.execute_query(query, tuple(params)) or []
         return [self.strip_hidden_fields(tenant, r) for r in rows]
 
-    def get_product(self, tenant: str, product_id: int) -> Optional[dict]:
+    def get_product(self, tenant: str, product_id: int) -> dict | None:
         rows = self.db.execute_query(
             "SELECT * FROM products WHERE id = %s AND administration = %s",
             (product_id, tenant),
@@ -50,7 +49,7 @@ class ProductService(FieldConfigMixin):
             return None
         return self.strip_hidden_fields(tenant, rows[0])
 
-    def get_product_by_code(self, tenant: str, product_code: str) -> Optional[dict]:
+    def get_product_by_code(self, tenant: str, product_code: str) -> dict | None:
         rows = self.db.execute_query(
             "SELECT * FROM products WHERE product_code = %s AND administration = %s",
             (product_code, tenant),
@@ -156,7 +155,7 @@ class ProductService(FieldConfigMixin):
 
     # ── Parameter lookups ───────────────────────────────────
 
-    def get_product_types(self, tenant: str) -> List[str]:
+    def get_product_types(self, tenant: str) -> list[str]:
         """Return allowed product types from tenant parameters or module defaults."""
         if self.parameter_service:
             types = self.parameter_service.get_param(
@@ -179,7 +178,10 @@ class ProductService(FieldConfigMixin):
             )
         if self.tax_rate_service:
             rate = self.tax_rate_service.get_tax_rate(
-                tenant, "btw", vat_code, date.today()
+                tenant,
+                "btw",
+                vat_code,
+                date.today(),  # noqa: DTZ011
             )
             if rate is None:
                 raise ValueError(
@@ -194,7 +196,7 @@ class ProductService(FieldConfigMixin):
             )
 
     def _check_product_code_unique(
-        self, tenant: str, product_code: str, exclude_id: Optional[int] = None
+        self, tenant: str, product_code: str, exclude_id: int | None = None
     ) -> None:
         query = (
             "SELECT id FROM products WHERE administration = %s AND product_code = %s"

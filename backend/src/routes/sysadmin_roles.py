@@ -4,13 +4,15 @@ SysAdmin Role Management Endpoints
 API endpoints for managing Cognito groups (roles)
 """
 
-from flask import Blueprint, request, jsonify
+import logging
+import os
+
+import boto3
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from services.module_registry import MODULE_REGISTRY
-import os
-import boto3
-import logging
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -117,7 +119,7 @@ def list_roles(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "roles": groups, "total": len(groups)})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error listing roles: {e}")
         import traceback
 
@@ -179,7 +181,7 @@ def create_role(user_email, user_roles) -> ResponseReturnValue:
             }
         ), 201
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error creating role: {e}")
         import traceback
 
@@ -234,7 +236,7 @@ def update_role(user_email, user_roles, role_name) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating role: {e}")
         import traceback
 
@@ -284,7 +286,7 @@ def delete_role(user_email, user_roles, role_name) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error deleting role: {e}")
         import traceback
 

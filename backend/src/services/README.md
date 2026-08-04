@@ -27,10 +27,11 @@ db = DatabaseManager()
 service = CredentialService(db)
 
 # Store credentials
-service.store_credential("GoodwinSolutions", "google_drive", {
-    "client_id": "123.apps.googleusercontent.com",
-    "client_secret": "secret_key"
-})
+service.store_credential(
+    "GoodwinSolutions",
+    "google_drive",
+    {"client_id": "123.apps.googleusercontent.com", "client_secret": "secret_key"},
+)
 
 # Retrieve credentials
 creds = service.get_credential("GoodwinSolutions", "google_drive")
@@ -57,24 +58,23 @@ db = DatabaseManager()
 template_service = TemplateService(db)
 
 # Get template metadata
-metadata = template_service.get_template_metadata('GoodwinSolutions', 'financial_report')
+metadata = template_service.get_template_metadata(
+    "GoodwinSolutions", "financial_report"
+)
 
 # Fetch template from Google Drive
 template_xml = template_service.fetch_template_from_drive(
-    metadata['template_file_id'],
-    'GoodwinSolutions'
+    metadata["template_file_id"], "GoodwinSolutions"
 )
 
 # Apply field mappings
-data = {'company_name': 'Goodwin Solutions', 'total_revenue': 150000.00}
+data = {"company_name": "Goodwin Solutions", "total_revenue": 150000.00}
 processed = template_service.apply_field_mappings(
-    template_xml,
-    data,
-    metadata['field_mappings']
+    template_xml, data, metadata["field_mappings"]
 )
 
 # Generate output
-html_output = template_service.generate_output(processed, data, 'html')
+html_output = template_service.generate_output(processed, data, "html")
 ```
 
 ### Features
@@ -102,13 +102,13 @@ The `GoogleDriveService` provides tenant-specific Google Drive integration.
 from google_drive_service import GoogleDriveService
 
 # Initialize with tenant
-drive_service = GoogleDriveService('GoodwinSolutions')
+drive_service = GoogleDriveService("GoodwinSolutions")
 
 # List folders
-folders = drive_service.list_subfolders('parent_folder_id')
+folders = drive_service.list_subfolders("parent_folder_id")
 
 # Upload file
-file_id = drive_service.upload_file('local_file.pdf', 'folder_id')
+file_id = drive_service.upload_file("local_file.pdf", "folder_id")
 ```
 
 ---

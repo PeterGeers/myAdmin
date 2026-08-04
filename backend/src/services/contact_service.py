@@ -9,7 +9,6 @@ Reference: .kiro/specs/zzp-module/design.md §5.1
 
 import logging
 import re
-from typing import List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
 
@@ -26,7 +25,7 @@ class ContactService(FieldConfigMixin):
     """Shared contact CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "contact_field_config"
-    ALWAYS_REQUIRED = ["client_id", "company_name"]
+    ALWAYS_REQUIRED = ["client_id", "company_name"]  # noqa: RUF012
 
     def __init__(self, db, parameter_service=None):
         self.db = db
@@ -35,8 +34,11 @@ class ContactService(FieldConfigMixin):
     # ── Read ────────────────────────────────────────────────
 
     def list_contacts(
-        self, tenant: str, contact_type: str = None, include_inactive: bool = False
-    ) -> List[dict]:
+        self,
+        tenant: str,
+        contact_type: str | None = None,
+        include_inactive: bool = False,
+    ) -> list[dict]:
         """List contacts for tenant, optionally filtered by type."""
         query = "SELECT * FROM contacts WHERE administration = %s"
         params: list = [tenant]
@@ -55,7 +57,7 @@ class ContactService(FieldConfigMixin):
 
         return [self.strip_hidden_fields(tenant, c) for c in contacts]
 
-    def get_contact(self, tenant: str, contact_id: int) -> Optional[dict]:
+    def get_contact(self, tenant: str, contact_id: int) -> dict | None:
         """Get single contact by id."""
         rows = self.db.execute_query(
             "SELECT * FROM contacts WHERE id = %s AND administration = %s",
@@ -67,7 +69,7 @@ class ContactService(FieldConfigMixin):
         contact["emails"] = self._get_emails(contact["id"], tenant)
         return self.strip_hidden_fields(tenant, contact)
 
-    def get_contact_by_client_id(self, tenant: str, client_id: str) -> Optional[dict]:
+    def get_contact_by_client_id(self, tenant: str, client_id: str) -> dict | None:
         """Get contact by short client_id reference."""
         rows = self.db.execute_query(
             "SELECT * FROM contacts WHERE client_id = %s AND administration = %s",
@@ -192,7 +194,7 @@ class ContactService(FieldConfigMixin):
 
     # ── Email helpers ───────────────────────────────────────
 
-    def get_invoice_email(self, tenant: str, contact_id: int) -> Optional[str]:
+    def get_invoice_email(self, tenant: str, contact_id: int) -> str | None:
         """Return invoice email, falling back to primary email."""
         rows = self.db.execute_query(
             """SELECT email, email_type, is_primary FROM contact_emails
@@ -216,7 +218,7 @@ class ContactService(FieldConfigMixin):
 
     # ── Parameter lookups ───────────────────────────────────
 
-    def get_contact_types(self, tenant: str) -> List[str]:
+    def get_contact_types(self, tenant: str) -> list[str]:
         """Return configurable contact types from ParameterService."""
         if self.parameter_service:
             types = self.parameter_service.get_param(
@@ -247,7 +249,7 @@ class ContactService(FieldConfigMixin):
             )
 
     def _check_client_id_unique(
-        self, tenant: str, client_id: str, exclude_id: int = None
+        self, tenant: str, client_id: str, exclude_id: int | None = None
     ) -> None:
         query = "SELECT id FROM contacts WHERE administration = %s AND client_id = %s"
         params: list = [tenant, client_id]
@@ -265,7 +267,7 @@ class ContactService(FieldConfigMixin):
         )
         return bool(rows)
 
-    def _get_emails(self, contact_id: int, tenant: str) -> List[dict]:
+    def _get_emails(self, contact_id: int, tenant: str) -> list[dict]:
         rows = self.db.execute_query(
             "SELECT id, email, email_type, is_primary FROM contact_emails WHERE contact_id = %s AND administration = %s",
             (contact_id, tenant),
@@ -280,7 +282,7 @@ class ContactService(FieldConfigMixin):
         if not EMAIL_PATTERN.match(email.strip()):
             raise ValueError(f"Invalid email address: '{email}'")
 
-    def _save_emails(self, contact_id: int, emails: List[dict], tenant: str) -> None:
+    def _save_emails(self, contact_id: int, emails: list[dict], tenant: str) -> None:
         for em in emails:
             email = em.get("email", "").strip()
             if not email:
@@ -300,7 +302,7 @@ class ContactService(FieldConfigMixin):
                 commit=True,
             )
 
-    def _replace_emails(self, contact_id: int, emails: List[dict], tenant: str) -> None:
+    def _replace_emails(self, contact_id: int, emails: list[dict], tenant: str) -> None:
         """Delete existing emails and re-insert."""
         self.db.execute_query(
             "DELETE FROM contact_emails WHERE contact_id = %s AND administration = %s",

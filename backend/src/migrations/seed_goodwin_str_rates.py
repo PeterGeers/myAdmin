@@ -17,9 +17,9 @@ Usage:
     run_seed("ExampleTenant", db=my_db_instance)
 """
 
-import sys
-import os
 import logging
+import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from database import DatabaseManager

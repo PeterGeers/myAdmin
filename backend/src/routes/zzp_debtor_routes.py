@@ -10,13 +10,14 @@ Reference: .kiro/specs/zzp-module/design.md §12 (Debtor Management)
 
 import logging
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
-from services.module_registry import module_required
 from database import DatabaseManager
 from dialect_helpers import dialect
+from services.module_registry import module_required
 from services.parameter_service import ParameterService
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ def get_receivables(
                 "total_outstanding": round(total_outstanding, 2),
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_receivables error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -141,7 +142,7 @@ def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
                 "total_outstanding": round(total_outstanding, 2),
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_payables error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -234,7 +235,7 @@ def get_aging(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
                 },
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_aging error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -250,8 +251,8 @@ def send_reminder(
 ) -> ResponseReturnValue:
     """Send payment reminder for an overdue invoice."""
     try:
-        from services.zzp_invoice_service import ZZPInvoiceService
         from services.tax_rate_service import TaxRateService
+        from services.zzp_invoice_service import ZZPInvoiceService
 
         db = DatabaseManager(test_mode=_test_mode)
         tax_svc = TaxRateService(db)
@@ -268,10 +269,10 @@ def send_reminder(
                 {"success": False, "error": "Can only remind for sent/overdue invoices"}
             ), 400
 
-        from services.invoice_email_service import InvoiceEmailService
         from services.contact_service import ContactService
-        from services.ses_email_service import SESEmailService
         from services.email_verification_service import EmailVerificationService
+        from services.invoice_email_service import InvoiceEmailService
+        from services.ses_email_service import SESEmailService
 
         contact_svc = ContactService(db=db, parameter_service=param_svc)
         ses = SESEmailService()
@@ -284,7 +285,7 @@ def send_reminder(
         if result.get("success"):
             return jsonify(result)
         return jsonify(result), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("send_reminder error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -380,7 +381,7 @@ def validate_booking_param(
         )
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("validate_booking_param error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -433,6 +434,6 @@ def get_invoice_ledger_accounts(
                 ]
 
         return jsonify({"success": True, "data": accounts})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_invoice_ledger_accounts error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

@@ -10,7 +10,7 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from dialect_helpers import dialect
 
@@ -21,11 +21,7 @@ logger = logging.getLogger(__name__)
 # for backward compatibility.
 # ---------------------------------------------------------------------------
 
-from services.pivot_query_builder import (  # noqa: E402
-    ALLOWED_AGG_FUNCTIONS,
-    MAX_GROUP_COLUMNS,
-    MAX_AGGREGATE_MEASURES,
-    MAX_NEST_LEVELS,
+from services.pivot_query_builder import (
     TENANT_COLUMN,
 )
 
@@ -64,16 +60,16 @@ def derive_columns_from_schema(
     data_source: str,
     exclude_columns: set,
     force_groupable: set,
-) -> Tuple[List[str], List[str], Dict[str, str]]:
+) -> tuple[list[str], list[str], dict[str, str]]:
     """Introspect a view/table via DESCRIBE and classify columns.
 
     Returns ``(groupable, aggregatable, type_map)``.
     """
     rows = db.execute_query(dialect.describe_table(data_source), fetch=True)
 
-    groupable: List[str] = []
-    aggregatable: List[str] = []
-    type_map: Dict[str, str] = {}
+    groupable: list[str] = []
+    aggregatable: list[str] = []
+    type_map: dict[str, str] = {}
 
     for row in rows:
         col_name = row["Field"]
@@ -118,12 +114,12 @@ def _get_param_list(parameter_service, key: str) -> list:
         val = parameter_service.get_param(namespace="ui.pivot", key=key)
         if val and isinstance(val, list):
             return val
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     return []
 
 
-def _get_param_str(parameter_service, key: str) -> Optional[str]:
+def _get_param_str(parameter_service, key: str) -> str | None:
     """Read a string parameter from ui.pivot namespace, or return None."""
     if parameter_service is None:
         return None
@@ -131,7 +127,7 @@ def _get_param_str(parameter_service, key: str) -> Optional[str]:
         val = parameter_service.get_param(namespace="ui.pivot", key=key)
         if val and isinstance(val, str):
             return val
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     return None
 
@@ -146,11 +142,7 @@ def build_registry_from_db(db, parameter_service=None) -> None:
     Raises:
         RuntimeError: if any data source cannot be introspected.
     """
-    global \
-        SYSTEM_ALLOWED_COLUMNS, \
-        COLUMN_TYPE_MAP, \
-        DATA_SOURCE_LABELS, \
-        DATA_SOURCE_MODULES
+    global SYSTEM_ALLOWED_COLUMNS, COLUMN_TYPE_MAP, DATA_SOURCE_LABELS, DATA_SOURCE_MODULES  # noqa: PLW0602
     global _registry_initialised
 
     # Which views/tables to register
@@ -205,11 +197,12 @@ def ensure_registry(db=None, parameter_service=None) -> None:
     are ``None`` the function creates throwaway instances using the
     current ``TEST_MODE`` environment variable.
     """
-    global _registry_initialised
+    global _registry_initialised  # noqa: PLW0602
     if _registry_initialised:
         return
 
     import os
+
     from database import DatabaseManager
     from services.parameter_service import ParameterService
 
@@ -227,10 +220,10 @@ def ensure_registry(db=None, parameter_service=None) -> None:
 # Module-level dicts — populated by build_registry_from_db() at startup.
 # ---------------------------------------------------------------------------
 
-SYSTEM_ALLOWED_COLUMNS: Dict[str, Dict[str, List[str]]] = {}
-COLUMN_TYPE_MAP: Dict[str, Dict[str, str]] = {}
-DATA_SOURCE_LABELS: Dict[str, str] = {}
-DATA_SOURCE_MODULES: Dict[str, Optional[str]] = {}
+SYSTEM_ALLOWED_COLUMNS: dict[str, dict[str, list[str]]] = {}
+COLUMN_TYPE_MAP: dict[str, dict[str, str]] = {}
+DATA_SOURCE_LABELS: dict[str, str] = {}
+DATA_SOURCE_MODULES: dict[str, str | None] = {}
 _registry_initialised: bool = False
 
 
@@ -251,7 +244,7 @@ class AllowedColumnsRegistry:
     def __init__(self, parameter_service):
         self.parameter_service = parameter_service
 
-    def get_available_columns(self, data_source: str, tenant: str) -> Dict[str, list]:
+    def get_available_columns(self, data_source: str, tenant: str) -> dict[str, list]:
         ensure_registry()
         system_cols = SYSTEM_ALLOWED_COLUMNS.get(data_source)
         if system_cols is None:
@@ -281,7 +274,7 @@ class AllowedColumnsRegistry:
             ],
         }
 
-    def get_registered_sources(self) -> List[Dict[str, Any]]:
+    def get_registered_sources(self) -> list[dict[str, Any]]:
         ensure_registry()
         return [
             {
@@ -296,18 +289,18 @@ class AllowedColumnsRegistry:
         self,
         data_source: str,
         tenant: str,
-        group_columns: List[str],
-        aggregate_columns: List[str],
-        column_pivot: Optional[str] = None,
-        column_nest_levels: Optional[List[str]] = None,
+        group_columns: list[str],
+        aggregate_columns: list[str],
+        column_pivot: str | None = None,
+        column_nest_levels: list[str] | None = None,
     ) -> None:
         allowed = self.get_available_columns(data_source, tenant)
-        allowed_g = set(
+        allowed_g = {
             c["name"] if isinstance(c, dict) else c for c in allowed["groupable"]
-        )
-        allowed_a = set(
+        }
+        allowed_a = {
             c["name"] if isinstance(c, dict) else c for c in allowed["aggregatable"]
-        )
+        }
 
         for col in group_columns:
             if col not in allowed_g:
@@ -336,7 +329,7 @@ class AllowedColumnsRegistry:
 
     def _get_tenant_restriction(
         self, data_source: str, tenant: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         try:
             value = self.parameter_service.get_param(
                 namespace="ui.pivot",
@@ -345,7 +338,7 @@ class AllowedColumnsRegistry:
             )
             if value and isinstance(value, dict):
                 return value
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning(
                 "Failed to read tenant column restriction for %s / %s",
                 data_source,
@@ -381,15 +374,15 @@ class PivotService:
             column_type_map_getter=lambda: COLUMN_TYPE_MAP,
         )
 
-    def get_available_columns(self, data_source: str, tenant: str) -> Dict[str, list]:
+    def get_available_columns(self, data_source: str, tenant: str) -> dict[str, list]:
         return self.registry.get_available_columns(data_source, tenant)
 
-    def get_registered_sources(self) -> List[Dict[str, Any]]:
+    def get_registered_sources(self) -> list[dict[str, Any]]:
         return self.registry.get_registered_sources()
 
     def execute_pivot(
-        self, tenant: str, user_tenants: List[str], config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, tenant: str, user_tenants: list[str], config: dict[str, Any]
+    ) -> dict[str, Any]:
         ds = config.get("data_source", "")
         gc = config.get("group_columns", [])
         am = config.get("aggregate_measures", [])
@@ -439,13 +432,13 @@ class PivotService:
     # -- Delegated query building ------------------------------------------
 
     def build_pivot_query(
-        self, config: Dict[str, Any], tenant: str
-    ) -> Tuple[str, list]:
+        self, config: dict[str, Any], tenant: str
+    ) -> tuple[str, list]:
         return self._qb.build_pivot_query(config, tenant)
 
     def build_underlying_query(
-        self, config: Dict[str, Any], tenant: str
-    ) -> Tuple[str, list]:
+        self, config: dict[str, Any], tenant: str
+    ) -> tuple[str, list]:
         return self._qb.build_underlying_query(config, tenant)
 
     # -- Validation (delegated) --------------------------------------------
@@ -454,17 +447,15 @@ class PivotService:
         self,
         ds: str,
         tenant: str,
-        gc: List[str],
-        am: List[Dict[str, str]],
-        cp: Optional[str],
-        cnl: List[str],
+        gc: list[str],
+        am: list[dict[str, str]],
+        cp: str | None,
+        cnl: list[str],
     ) -> None:
         self._qb.validate_config(ds, tenant, gc, am, cp, cnl)
 
     @staticmethod
-    def _validate_column_roles(
-        gc: List[str], cp: Optional[str], cnl: List[str]
-    ) -> None:
+    def _validate_column_roles(gc: list[str], cp: str | None, cnl: list[str]) -> None:
         from services.pivot_query_builder import PivotQueryBuilder
 
         PivotQueryBuilder._validate_column_roles(gc, cp, cnl)

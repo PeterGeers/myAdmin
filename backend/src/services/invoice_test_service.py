@@ -10,16 +10,16 @@ Used by the SysAdmin Test Tool for diagnostics without database writes,
 Google Drive uploads, or S3 uploads.
 """
 
+import contextlib
 import io
 import os
 import time
-import contextlib
 import traceback
 from decimal import Decimal
 
-from pdf_processor import PDFProcessor
 from csv_rules import CsvRuleEngine
-from services.ai_model_registry import resolver, RegistryError
+from pdf_processor import PDFProcessor
+from services.ai_model_registry import RegistryError, resolver
 
 
 class InvoiceTestService:
@@ -46,7 +46,7 @@ class InvoiceTestService:
     MAX_EXECUTION_LOG_LENGTH = 10_000
 
     def process_file_dry_run(
-        self, file_path: str, folder_name: str, administration: str = None
+        self, file_path: str, folder_name: str, administration: str | None = None
     ) -> dict:
         """Execute full pipeline in dry-run mode with timing and log capture.
 
@@ -133,7 +133,7 @@ class InvoiceTestService:
 
                     pipeline_result["raw_text"] = raw_text
                     pipeline_result["raw_text_truncated"] = raw_text_truncated
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     errors.append(
                         {
                             "stage": "file_parsing",
@@ -198,7 +198,7 @@ class InvoiceTestService:
                     pipeline_result["extraction_result"] = extraction_result
                     pipeline_result["formatted_transactions"] = transactions
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     errors.append(
                         {
                             "stage": "transaction_formatting",
@@ -220,7 +220,7 @@ class InvoiceTestService:
                         pipeline_result["prepared_transactions"] = prepared
                     else:
                         pipeline_result["prepared_transactions"] = []
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     errors.append(
                         {
                             "stage": "transaction_preparation",
@@ -488,7 +488,7 @@ class InvoiceTestService:
         return get_prompt_template()
 
     def rerun_with_custom_prompt(
-        self, text_content: str, custom_prompt: str, vendor_hint: str = None
+        self, text_content: str, custom_prompt: str, vendor_hint: str | None = None
     ) -> dict:
         """Re-run AI extraction with a custom prompt against already-extracted text.
 
@@ -504,14 +504,16 @@ class InvoiceTestService:
         )
 
     def _call_ai_with_custom_prompt(
-        self, ai, text_content: str, custom_prompt: str, vendor_hint: str = None
+        self, ai, text_content: str, custom_prompt: str, vendor_hint: str | None = None
     ) -> dict:
         """Call OpenRouter API with a custom prompt. Delegates to module function."""
         from services.invoice_test_ai_rerun import _call_ai_with_custom_prompt
 
         return _call_ai_with_custom_prompt(ai, text_content, custom_prompt, vendor_hint)
 
-    def get_vendor_history(self, folder_name: str, administration: str = None) -> list:
+    def get_vendor_history(
+        self, folder_name: str, administration: str | None = None
+    ) -> list:
         """Retrieve previous transactions for a vendor (read-only).
 
         Delegates to invoice_test_ai_rerun module.

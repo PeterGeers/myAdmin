@@ -19,11 +19,12 @@ File Structure:
 """
 
 from flask import Blueprint
-from .sysadmin_tenants import sysadmin_tenants_bp
-from .sysadmin_tenant_actions import sysadmin_tenant_actions_bp
-from .sysadmin_roles import sysadmin_roles_bp
-from .sysadmin_provisioning import sysadmin_provisioning_bp
+
 from .sysadmin_pivot_routes import sysadmin_pivot_bp
+from .sysadmin_provisioning import sysadmin_provisioning_bp
+from .sysadmin_roles import sysadmin_roles_bp
+from .sysadmin_tenant_actions import sysadmin_tenant_actions_bp
+from .sysadmin_tenants import sysadmin_tenants_bp
 from .sysadmin_test_tool import sysadmin_test_tool_bp
 
 # Create main blueprint for sysadmin routes

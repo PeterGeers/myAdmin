@@ -10,7 +10,7 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,8 @@ class PivotQueryBuilder:
     # -- Public API --------------------------------------------------------
 
     def build_pivot_query(
-        self, config: Dict[str, Any], tenant: str
-    ) -> Tuple[str, list]:
+        self, config: dict[str, Any], tenant: str
+    ) -> tuple[str, list]:
         """Build the main pivot GROUP BY query.
 
         Returns:
@@ -101,8 +101,8 @@ class PivotQueryBuilder:
         return query, params
 
     def build_underlying_query(
-        self, config: Dict[str, Any], tenant: str
-    ) -> Tuple[str, list]:
+        self, config: dict[str, Any], tenant: str
+    ) -> tuple[str, list]:
         """Build a non-aggregated SELECT query for the underlying data.
 
         Returns:
@@ -130,10 +130,10 @@ class PivotQueryBuilder:
         self,
         ds: str,
         tenant: str,
-        gc: List[str],
-        am: List[Dict[str, str]],
-        cp: Optional[str],
-        cnl: List[str],
+        gc: list[str],
+        am: list[dict[str, str]],
+        cp: str | None,
+        cnl: list[str],
     ) -> None:
         """Validate pivot configuration constraints and column access."""
         if not gc or not am:
@@ -191,13 +191,9 @@ class PivotQueryBuilder:
                             dt = (
                                 "int"
                                 if func == "COUNT"
-                                else (
-                                    tm.get(col, "decimal") if col != "*" else "int"
-                                )
+                                else (tm.get(col, "decimal") if col != "*" else "int")
                             )
-                            nest_vals = {
-                                cnl[i]: combo[i] for i in range(len(cnl))
-                            }
+                            nest_vals = {cnl[i]: combo[i] for i in range(len(cnl))}
                             cols.append(
                                 {
                                     "name": alias,
@@ -301,9 +297,7 @@ class PivotQueryBuilder:
         )
         pv_rows = db.execute_query(pv_query, params, fetch=True) or []
         pivot_values = [
-            row[column_pivot]
-            for row in pv_rows
-            if row.get(column_pivot) is not None
+            row[column_pivot] for row in pv_rows if row.get(column_pivot) is not None
         ]
 
         # Fetch distinct nest level combinations
@@ -326,16 +320,13 @@ class PivotQueryBuilder:
     # -- Internal: validation ----------------------------------------------
 
     @staticmethod
-    def _validate_column_roles(
-        gc: List[str], cp: Optional[str], cnl: List[str]
-    ) -> None:
+    def _validate_column_roles(gc: list[str], cp: str | None, cnl: list[str]) -> None:
         """Ensure no column is used in conflicting roles."""
         gs, ns = set(gc), set(cnl)
         if cp:
             if cp in gs:
                 raise ValueError(
-                    f"Column '{cp}' cannot be used as both row group "
-                    f"and column pivot"
+                    f"Column '{cp}' cannot be used as both row group and column pivot"
                 )
             if cp in ns:
                 raise ValueError(
@@ -352,8 +343,8 @@ class PivotQueryBuilder:
     # -- Internal: WHERE clause --------------------------------------------
 
     def _build_where_clause(
-        self, data_source: str, filters: Dict[str, Any], tenant: str
-    ) -> Tuple[str, list]:
+        self, data_source: str, filters: dict[str, Any], tenant: str
+    ) -> tuple[str, list]:
         """Build WHERE clause filtering by the CURRENT tenant only."""
         parts, params = [], []
         # Filter by current tenant only

@@ -16,8 +16,13 @@ Endpoints:
 Based on spec: .kiro/specs/FIN/Chart of Accounts Management/
 """
 
-from flask import Blueprint, request, jsonify
+import json as json_lib
+import logging
+import os
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import (
     get_current_tenant,
@@ -27,9 +32,6 @@ from auth.tenant_context import (
 )
 from database import DatabaseManager
 from dialect_helpers import dialect
-import os
-import json as json_lib
-import logging
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ def has_fin_module(tenant: str) -> bool:
 
         return bool(result and result[0].get("is_active"))
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error checking FIN module for tenant {tenant}: {e}")
         return False
 
@@ -118,7 +120,7 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
 
         return result[0].get("count", 0) if result else 0
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error checking account usage for {account}: {e}")
         return 0
 
@@ -151,7 +153,7 @@ def lookup_accounts(
 
         return jsonify({"success": True, "accounts": accounts or []})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Account lookup failed for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to load accounts"}), 500
 
@@ -211,8 +213,7 @@ def list_accounts(user_email, user_roles) -> ResponseReturnValue:
             return jsonify({"error": "Invalid page or limit parameter"}), 400
 
         # Validate page and limit
-        if page < 1:
-            page = 1
+        page = max(page, 1)
         if limit < 1 or limit > 1000:
             limit = 50
 
@@ -294,7 +295,7 @@ def list_accounts(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error listing accounts for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to list accounts", "details": str(e)}), 500
 
@@ -364,7 +365,7 @@ def get_account(user_email, user_roles, account) -> ResponseReturnValue:
 
         return jsonify({"success": True, "account": result[0]})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting account {account} for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to get account", "details": str(e)}), 500
 
@@ -505,7 +506,7 @@ def create_account(user_email, user_roles) -> ResponseReturnValue:
             }
         ), 201
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error creating account for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to create account", "details": str(e)}), 500
 
@@ -691,7 +692,7 @@ def update_account(user_email, user_roles, account) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating account {account} for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to update account", "details": str(e)}), 500
 
@@ -779,6 +780,6 @@ def delete_account(user_email, user_roles, account) -> ResponseReturnValue:
 
         return jsonify({"success": True, "message": "Account deleted"})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error deleting account {account} for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to delete account", "details": str(e)}), 500

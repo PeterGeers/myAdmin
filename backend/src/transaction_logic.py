@@ -167,7 +167,9 @@ class TransactionLogic:
 
             # Use vendor data date if available
             transaction_date = (
-                vendor_data.get("date", datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"))
+                vendor_data.get(
+                    "date", datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+                )
                 if vendor_data
                 else datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
             )
@@ -182,13 +184,9 @@ class TransactionLogic:
 
             if vendor_data:
                 # For Booking.com, use accommodation name in Ref1 and invoice number in Ref2
-                if (
-                    vendor_data.get("accommodation_name")
-                ):
+                if vendor_data.get("accommodation_name"):
                     ref1 = vendor_data["accommodation_name"]
-                elif (
-                    vendor_data.get("accommodation_number")
-                ):
+                elif vendor_data.get("accommodation_number"):
                     ref1 = f"Accommodation {vendor_data['accommodation_number']}"
 
                 # Only set ref2 for Booking.com, not Amazon
@@ -207,9 +205,13 @@ class TransactionLogic:
                         description = f"{ref1} {ref2} {vendor_data['commission_type']} {transaction_date} BTW"
 
             # Resolve administration — must come from new_data or template, never a hardcoded fallback
-            administration = new_data.get("administration") or template.get("Administration")
+            administration = new_data.get("administration") or template.get(
+                "Administration"
+            )
             if not administration:
-                raise ValueError("Administration is required — neither new_data nor template provides it")
+                raise ValueError(
+                    "Administration is required — neither new_data nor template provides it"
+                )
 
             # Create new transaction based on template
             new_transaction = {

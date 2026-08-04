@@ -17,14 +17,16 @@ Key Features:
 6. Performance Monitoring and Alerting
 """
 
+import logging
 import threading
 import time
-from typing import Dict, Any, Optional, List, Callable
-import logging
-from datetime import datetime
-from dataclasses import dataclass
-from mysql.connector import pooling
+from collections.abc import Callable
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from mysql.connector import pooling
 
 from scalability_workers import AsyncProcessingManager, ResourceMonitor
 
@@ -69,7 +71,7 @@ class AdvancedConnectionPool:
     - Performance metrics collection
     """
 
-    def __init__(self, config: ScalabilityConfig, db_config: Dict[str, Any]):
+    def __init__(self, config: ScalabilityConfig, db_config: dict[str, Any]):
         self.config = config
         self.db_config = db_config
         self.pools = {}  # Multiple pools for different purposes
@@ -113,7 +115,7 @@ class AdvancedConnectionPool:
 
             self.pools["primary"] = pooling.MySQLConnectionPool(**pool_config)
             self.pool_stats["primary"] = {
-                "created_at": datetime.now(),
+                "created_at": datetime.now(),  # noqa: DTZ005
                 "connections_created": 0,
                 "connections_used": 0,
                 "avg_response_time": 0.0,
@@ -148,7 +150,7 @@ class AdvancedConnectionPool:
 
             self.pools["readonly"] = pooling.MySQLConnectionPool(**pool_config)
             self.pool_stats["readonly"] = {
-                "created_at": datetime.now(),
+                "created_at": datetime.now(),  # noqa: DTZ005
                 "connections_created": 0,
                 "connections_used": 0,
                 "avg_response_time": 0.0,
@@ -157,7 +159,7 @@ class AdvancedConnectionPool:
 
             logger.info("✅ Read-only connection pool created")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"⚠️ Failed to create read-only pool, will use primary: {e}")
 
     def _create_analytics_pool(self):
@@ -180,7 +182,7 @@ class AdvancedConnectionPool:
 
             self.pools["analytics"] = pooling.MySQLConnectionPool(**pool_config)
             self.pool_stats["analytics"] = {
-                "created_at": datetime.now(),
+                "created_at": datetime.now(),  # noqa: DTZ005
                 "connections_created": 0,
                 "connections_used": 0,
                 "avg_response_time": 0.0,
@@ -189,7 +191,7 @@ class AdvancedConnectionPool:
 
             logger.info("✅ Analytics connection pool created")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"⚠️ Failed to create analytics pool, will use primary: {e}")
 
     @contextmanager
@@ -231,7 +233,7 @@ class AdvancedConnectionPool:
             if connection:
                 try:
                     connection.close()
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass
 
             # Update response time statistics
@@ -251,7 +253,7 @@ class AdvancedConnectionPool:
             try:
                 time.sleep(self.config.monitoring_interval_seconds)
 
-                for pool_name, _pool in self.pools.items():
+                for pool_name in self.pools:
                     try:
                         # Get pool statistics (if available)
                         stats = self.pool_stats.get(pool_name, {})
@@ -271,13 +273,13 @@ class AdvancedConnectionPool:
                                 f"⚠️ Pool {pool_name} performance degraded: {avg_response:.3f}s"
                             )
 
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         logger.error(f"❌ Error monitoring pool {pool_name}: {e}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"❌ Pool monitoring error: {e}")
 
-    def get_pool_statistics(self) -> Dict[str, Any]:
+    def get_pool_statistics(self) -> dict[str, Any]:
         """Get comprehensive pool statistics"""
         with self.lock:
             return {
@@ -312,7 +314,7 @@ class ScalabilityManager:
     """
 
     def __init__(
-        self, db_config: Dict[str, Any], config: Optional[ScalabilityConfig] = None
+        self, db_config: dict[str, Any], config: ScalabilityConfig | None = None
     ):
         self.config = config or ScalabilityConfig()
         self.db_config = db_config
@@ -323,7 +325,7 @@ class ScalabilityManager:
         self.resource_monitor = ResourceMonitor(self.config)
 
         # Performance tracking
-        self.start_time = datetime.now()
+        self.start_time = datetime.now()  # noqa: DTZ005
         self.request_count = 0
         self.total_response_time = 0.0
         self.stats_lock = threading.Lock()
@@ -351,7 +353,7 @@ class ScalabilityManager:
             raise ValueError(f"Unknown task type: {task_type}")
 
     def batch_process_items(
-        self, items: List[Any], process_func: Callable, batch_size: Optional[int] = None
+        self, items: list[Any], process_func: Callable, batch_size: int | None = None
     ):
         """Process items in batches"""
         return self.async_manager.batch_process(items, process_func, batch_size)
@@ -362,7 +364,7 @@ class ScalabilityManager:
             self.request_count += 1
             self.total_response_time += response_time
 
-    def get_comprehensive_statistics(self) -> Dict[str, Any]:
+    def get_comprehensive_statistics(self) -> dict[str, Any]:
         """Get comprehensive scalability statistics"""
         with self.stats_lock:
             avg_response_time = (
@@ -370,7 +372,7 @@ class ScalabilityManager:
                 if self.request_count > 0
                 else 0.0
             )
-            uptime = datetime.now() - self.start_time
+            uptime = datetime.now() - self.start_time  # noqa: DTZ005
             requests_per_second = (
                 self.request_count / uptime.total_seconds()
                 if uptime.total_seconds() > 0
@@ -403,7 +405,7 @@ class ScalabilityManager:
             },
         }
 
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """Get overall system health status"""
         stats = self.get_comprehensive_statistics()
         current_resources = self.resource_monitor.get_current_metrics()
@@ -459,8 +461,8 @@ class ScalabilityManager:
         }
 
     def _get_health_recommendations(
-        self, health_score: int, issues: List[str]
-    ) -> List[str]:
+        self, health_score: int, issues: list[str]
+    ) -> list[str]:
         """Get health improvement recommendations"""
         recommendations = []
 
@@ -505,7 +507,7 @@ _scalability_manager = None
 _manager_lock = threading.Lock()
 
 
-def get_scalability_manager(db_config: Dict[str, Any]) -> ScalabilityManager:
+def get_scalability_manager(db_config: dict[str, Any]) -> ScalabilityManager:
     """
     Get singleton instance of scalability manager
 

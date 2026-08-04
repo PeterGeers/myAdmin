@@ -10,7 +10,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 
 import json
 import logging
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class TripQueryService:
         self.service = service
         self.db = service.db
 
-    def get_trip(self, tenant: str, trip_id: int) -> Optional[dict]:
+    def get_trip(self, tenant: str, trip_id: int) -> dict | None:
         """Get a single trip by ID, scoped to tenant."""
         rows = self.db.execute_query(
             "SELECT * FROM zzp_trips WHERE id = %s AND administration = %s",
@@ -41,7 +40,7 @@ class TripQueryService:
         self.enrich_with_contacts(tenant, [trip])
         return trip
 
-    def list_trips(self, tenant: str, filters: dict = None) -> dict:
+    def list_trips(self, tenant: str, filters: dict | None = None) -> dict:
         """List trips with filtering and pagination.
 
         Supported filters:
@@ -112,7 +111,7 @@ class TripQueryService:
             "total": total,
         }
 
-    def get_trip_history(self, tenant: str, trip_id: int) -> List[dict]:
+    def get_trip_history(self, tenant: str, trip_id: int) -> list[dict]:
         """Get the correction/audit history for a trip.
 
         Queries the zzp_trip_audit table for all entries related to the given
@@ -133,14 +132,17 @@ class TripQueryService:
         Returns:
             List of formatted audit entry dicts, ordered by changed_at ASC.
         """
-        rows = self.db.execute_query(
-            "SELECT version, action, changed_fields, correction_reason, "
-            "changed_by, changed_at "
-            "FROM zzp_trip_audit "
-            "WHERE trip_id = %s AND administration = %s "
-            "ORDER BY changed_at ASC",
-            (int(trip_id), tenant),
-        ) or []
+        rows = (
+            self.db.execute_query(
+                "SELECT version, action, changed_fields, correction_reason, "
+                "changed_by, changed_at "
+                "FROM zzp_trip_audit "
+                "WHERE trip_id = %s AND administration = %s "
+                "ORDER BY changed_at ASC",
+                (int(trip_id), tenant),
+            )
+            or []
+        )
 
         history = []
         for row in rows:
@@ -180,7 +182,9 @@ class TripQueryService:
 
         return history
 
-    def get_unresolved_gaps(self, tenant: str, vehicle_id: int = None) -> List[dict]:
+    def get_unresolved_gaps(
+        self, tenant: str, vehicle_id: int | None = None
+    ) -> list[dict]:
         """List gap-fill entries that are still unresolved.
 
         Unresolved gap-fill entries are trips where:
@@ -213,10 +217,13 @@ class TripQueryService:
 
         where_sql = " AND ".join(where_clauses)
 
-        rows = self.db.execute_query(
-            f"SELECT * FROM zzp_trips WHERE {where_sql} ORDER BY trip_date DESC",
-            tuple(params),
-        ) or []
+        rows = (
+            self.db.execute_query(
+                f"SELECT * FROM zzp_trips WHERE {where_sql} ORDER BY trip_date DESC",
+                tuple(params),
+            )
+            or []
+        )
 
         trips = [self.service._format_trip(r) for r in rows]
         self.enrich_with_contacts(tenant, trips)
@@ -224,7 +231,9 @@ class TripQueryService:
 
     # ── Odometer gap detection ─────────────────────────────
 
-    def detect_gap(self, tenant: str, vehicle_id: int, start_odometer: int) -> Optional[dict]:
+    def detect_gap(
+        self, tenant: str, vehicle_id: int, start_odometer: int
+    ) -> dict | None:
         """Detect an odometer gap between the previous trip and the new trip.
 
         Finds the most recent non-cancelled trip for the vehicle (ordered by
@@ -281,7 +290,7 @@ class TripQueryService:
 
     # ── Contact enrichment ──────────────────────────────────
 
-    def enrich_with_contacts(self, tenant: str, trips: List[dict]) -> List[dict]:
+    def enrich_with_contacts(self, tenant: str, trips: list[dict]) -> list[dict]:
         """Enrich trip dicts with contact information (company_name).
 
         Batch-queries the contacts table to avoid N+1.
@@ -292,10 +301,9 @@ class TripQueryService:
         the trip also gets contact=None.
         """
         # Collect unique non-null contact_ids
-        contact_ids = list({
-            t["contact_id"] for t in trips
-            if t.get("contact_id") is not None
-        })
+        contact_ids = list(
+            {t["contact_id"] for t in trips if t.get("contact_id") is not None}
+        )
 
         if not contact_ids:
             # No contacts to look up — set contact=None on all
@@ -330,7 +338,7 @@ class TripQueryService:
 
     # ── Billing ─────────────────────────────────────────────
 
-    def get_unbilled_trips(self, tenant: str, contact_id: int) -> List[dict]:
+    def get_unbilled_trips(self, tenant: str, contact_id: int) -> list[dict]:
         """Get unbilled billable trips for a specific client.
 
         Filters for trips that are:
@@ -350,13 +358,16 @@ class TripQueryService:
         Returns:
             List of formatted trip dicts enriched with contact info.
         """
-        rows = self.db.execute_query(
-            "SELECT * FROM zzp_trips "
-            "WHERE administration = %s AND contact_id = %s "
-            "AND is_billable = TRUE AND is_billed = FALSE AND is_cancelled = FALSE "
-            "ORDER BY trip_date ASC",
-            (tenant, int(contact_id)),
-        ) or []
+        rows = (
+            self.db.execute_query(
+                "SELECT * FROM zzp_trips "
+                "WHERE administration = %s AND contact_id = %s "
+                "AND is_billable = TRUE AND is_billed = FALSE AND is_cancelled = FALSE "
+                "ORDER BY trip_date ASC",
+                (tenant, int(contact_id)),
+            )
+            or []
+        )
 
         trips = [self.service._format_trip(r) for r in rows]
         self.enrich_with_contacts(tenant, trips)

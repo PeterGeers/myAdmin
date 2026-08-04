@@ -1,86 +1,86 @@
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
-from config import Config
-from flasgger import Swagger
-import yaml
 import os
-from dotenv import load_dotenv
-from pdf_processor import PDFProcessor
-from transaction_logic import TransactionLogic
-from database import DatabaseManager
-from dialect_helpers import dialect
-from reporting_routes import reporting_bp
-from routes.aangifte_ib_routes import aangifte_ib_bp
-from routes.financial_reporting_routes import financial_reporting_bp
-from actuals_routes import actuals_bp
-from bnb_routes import bnb_bp
-from str_channel_routes import str_channel_bp
-from str_invoice_routes import str_invoice_bp
-from routes.missing_invoices_routes import missing_invoices_bp
-from audit_routes import audit_bp
-from admin_routes import admin_bp
-from pattern_storage_routes import pattern_storage_bp
-from scalability_routes import scalability_bp
-from tenant_admin_routes import tenant_admin_bp
-from tenant_module_routes import tenant_module_bp
-from routes.sysadmin_routes import sysadmin_bp
-from routes.tenant_admin_users import tenant_admin_users_bp
-from routes.tenant_admin_roles import tenant_admin_roles_bp
-from routes.sysadmin_health import sysadmin_health_bp
-from routes.tenant_admin_credentials import tenant_admin_credentials_bp
-from routes.tenant_admin_storage import tenant_admin_storage_bp
-from routes.tenant_admin_settings import tenant_admin_settings_bp
-from routes.tenant_admin_config import tenant_admin_config_bp
-from routes.tenant_admin_templates import tenant_admin_templates_bp
-from routes.tenant_admin_template_ai_routes import tenant_admin_template_ai_bp
-from routes.tenant_admin_details import tenant_admin_details_bp
-from routes.tenant_admin_email import tenant_admin_email_bp
-from routes.email_log_routes import email_log_bp
-from routes.auth_routes import auth_bp
-from routes.static_routes import static_bp
-from routes.config_routes import config_bp
-from routes.system_health_routes import system_health_bp
-from routes.cache_routes import cache_bp
-from routes.folder_routes import folder_bp
-from routes.invoice_routes import invoice_bp
-from routes.banking_routes import banking_bp
-from routes.str_routes import str_bp
-from routes.tax_routes import tax_bp
-from routes.pdf_validation_routes import pdf_validation_bp
-from routes.duplicate_detection_routes import duplicate_detection_bp
-from routes.chart_of_accounts_routes import chart_of_accounts_bp
-from routes.chart_of_accounts_io_routes import chart_of_accounts_io_bp
-from routes.asset_routes import asset_bp
-from routes.pivot_routes import pivot_bp
-from routes.year_end_config_routes import year_end_config_bp
-from routes.year_end_routes import year_end_bp
-from routes.budget_routes import budget_bp
-from routes.budget_ai_routes import budget_ai_bp
-
-from routes.user_routes import user_bp
-from routes.signup_routes import signup_bp
-from routes.parameter_admin_routes import parameter_admin_bp
-from routes.tax_rate_admin_routes import tax_rate_admin_bp
-from routes.contact_routes import contact_bp
-from routes.product_routes import product_bp
-from routes.zzp_routes import zzp_bp
-from routes.zzp_time_routes import zzp_time_bp
-from routes.zzp_debtor_routes import zzp_debtor_bp
-from routes.zzp_trip_routes import zzp_trip_bp
-from routes.zzp_trip_import_export_routes import zzp_trip_io_bp
-from routes.storage import storage_bp
-from routes.verification_routes import verification_bp
-from routes.tenant_function_routes import tenant_function_bp
-
-from route_validator import check_route_conflicts
-from error_handlers import configure_logging, register_error_handlers
-from performance_optimizer import performance_middleware, register_performance_endpoints
-from security_audit import SecurityAudit, register_security_endpoints
-from services.function_registry import validate_function_registry
 
 # Load environment variables from .env file
 # Look in parent directory if .env not found in current directory (for when running from src/)
 from pathlib import Path
+
+import yaml
+from dotenv import load_dotenv
+from flasgger import Swagger
+from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS
+
+from actuals_routes import actuals_bp
+from admin_routes import admin_bp
+from audit_routes import audit_bp
+from bnb_routes import bnb_bp
+from config import Config
+from database import DatabaseManager
+from dialect_helpers import dialect
+from error_handlers import configure_logging, register_error_handlers
+from pattern_storage_routes import pattern_storage_bp
+from pdf_processor import PDFProcessor
+from performance_optimizer import performance_middleware, register_performance_endpoints
+from reporting_routes import reporting_bp
+from route_validator import check_route_conflicts
+from routes.aangifte_ib_routes import aangifte_ib_bp
+from routes.asset_routes import asset_bp
+from routes.auth_routes import auth_bp
+from routes.banking_routes import banking_bp
+from routes.budget_ai_routes import budget_ai_bp
+from routes.budget_routes import budget_bp
+from routes.cache_routes import cache_bp
+from routes.chart_of_accounts_io_routes import chart_of_accounts_io_bp
+from routes.chart_of_accounts_routes import chart_of_accounts_bp
+from routes.config_routes import config_bp
+from routes.contact_routes import contact_bp
+from routes.duplicate_detection_routes import duplicate_detection_bp
+from routes.email_log_routes import email_log_bp
+from routes.financial_reporting_routes import financial_reporting_bp
+from routes.folder_routes import folder_bp
+from routes.invoice_routes import invoice_bp
+from routes.missing_invoices_routes import missing_invoices_bp
+from routes.parameter_admin_routes import parameter_admin_bp
+from routes.pdf_validation_routes import pdf_validation_bp
+from routes.pivot_routes import pivot_bp
+from routes.product_routes import product_bp
+from routes.signup_routes import signup_bp
+from routes.static_routes import static_bp
+from routes.storage import storage_bp
+from routes.str_routes import str_bp
+from routes.sysadmin_health import sysadmin_health_bp
+from routes.sysadmin_routes import sysadmin_bp
+from routes.system_health_routes import system_health_bp
+from routes.tax_rate_admin_routes import tax_rate_admin_bp
+from routes.tax_routes import tax_bp
+from routes.tenant_admin_config import tenant_admin_config_bp
+from routes.tenant_admin_credentials import tenant_admin_credentials_bp
+from routes.tenant_admin_details import tenant_admin_details_bp
+from routes.tenant_admin_email import tenant_admin_email_bp
+from routes.tenant_admin_roles import tenant_admin_roles_bp
+from routes.tenant_admin_settings import tenant_admin_settings_bp
+from routes.tenant_admin_storage import tenant_admin_storage_bp
+from routes.tenant_admin_template_ai_routes import tenant_admin_template_ai_bp
+from routes.tenant_admin_templates import tenant_admin_templates_bp
+from routes.tenant_admin_users import tenant_admin_users_bp
+from routes.tenant_function_routes import tenant_function_bp
+from routes.user_routes import user_bp
+from routes.verification_routes import verification_bp
+from routes.year_end_config_routes import year_end_config_bp
+from routes.year_end_routes import year_end_bp
+from routes.zzp_debtor_routes import zzp_debtor_bp
+from routes.zzp_routes import zzp_bp
+from routes.zzp_time_routes import zzp_time_bp
+from routes.zzp_trip_import_export_routes import zzp_trip_io_bp
+from routes.zzp_trip_routes import zzp_trip_bp
+from scalability_routes import scalability_bp
+from security_audit import SecurityAudit, register_security_endpoints
+from services.function_registry import validate_function_registry
+from str_channel_routes import str_channel_bp
+from str_invoice_routes import str_invoice_bp
+from tenant_admin_routes import tenant_admin_bp
+from tenant_module_routes import tenant_module_bp
+from transaction_logic import TransactionLogic
 
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
@@ -94,7 +94,7 @@ app.config["BABEL_DEFAULT_LOCALE"] = "nl"
 app.config["BABEL_TRANSLATION_DIRECTORIES"] = "translations"
 
 # Initialize Flask-Babel
-from i18n import init_babel  # noqa: E402
+from i18n import init_babel
 
 babel = init_babel(app)
 
@@ -110,7 +110,7 @@ app.config["JSONIFY_PRETTYPRINT_REGULAR"] = (
 app.config["JSON_SORT_KEYS"] = False  # Disable key sorting for performance
 
 # Initialize rate limiter (used by signup routes)
-from shared_limiter import init_limiter  # noqa: E402
+from shared_limiter import init_limiter
 
 init_limiter(app)
 
@@ -125,7 +125,7 @@ try:
     scalability_manager = None
     print("⚠️ Scalability Manager disabled to avoid database pool issues", flush=True)
 
-except Exception as e:
+except Exception as e:  # noqa: BLE001
     print(f"⚠️ Scalability Manager initialization failed: {e}", flush=True)
     scalability_manager = None
 
@@ -228,18 +228,20 @@ def serve_docs(path="index.html"):
         response.headers["X-Frame-Options"] = "ALLOWALL"
         response.headers["Content-Security-Policy"] = ""
         return response
-    except Exception:
+    except Exception:  # noqa: BLE001
         return jsonify({"error": "Documentation not found"}), 404
 
 
 # Set scalability manager reference for system_health_bp
-from routes.system_health_routes import set_scalability_manager  # noqa: E402
+from routes.system_health_routes import set_scalability_manager
 
 set_scalability_manager(scalability_manager)
 
 # Set scalability manager and test mode for scalability_bp
-from scalability_routes import (  # noqa: E402
+from scalability_routes import (
     set_scalability_manager as set_scalability_bp_manager,
+)
+from scalability_routes import (
     set_test_mode as set_scalability_test_mode,
 )
 
@@ -247,7 +249,7 @@ set_scalability_bp_manager(scalability_manager)
 set_scalability_test_mode(flag)
 
 # Set test mode flag for cache_bp
-from routes.cache_routes import set_test_mode  # noqa: E402
+from routes.cache_routes import set_test_mode
 
 set_test_mode(flag)
 
@@ -255,33 +257,34 @@ set_test_mode(flag)
 # This is done later after config is created
 
 # Set test mode flag for invoice_bp
-from routes.invoice_routes import set_test_mode as set_invoice_test_mode  # noqa: E402
+from routes.invoice_routes import set_test_mode as set_invoice_test_mode
 
 set_invoice_test_mode(flag)
 
 # Set test mode flag for banking_bp
-from routes.banking_routes import set_test_mode as set_banking_test_mode  # noqa: E402
+from routes.banking_routes import set_test_mode as set_banking_test_mode
 
 set_banking_test_mode(flag)
 
 # Set test mode flag for budget_bp
-from routes.budget_routes import set_test_mode as set_budget_test_mode  # noqa: E402
+from routes.budget_routes import set_test_mode as set_budget_test_mode
 
 set_budget_test_mode(flag)
 
 # Set test mode flag for zzp_trip_bp
-from routes.zzp_trip_routes import set_test_mode as set_zzp_trip_test_mode  # noqa: E402
+from routes.zzp_trip_routes import set_test_mode as set_zzp_trip_test_mode
 
 set_zzp_trip_test_mode(flag)
 
 # Set test mode flag for zzp_trip_io_bp
-from routes.zzp_trip_import_export_routes import set_test_mode as set_zzp_trip_io_test_mode  # noqa: E402
+from routes.zzp_trip_import_export_routes import (
+    set_test_mode as set_zzp_trip_io_test_mode,
+)
 
 set_zzp_trip_io_test_mode(flag)
 
 # Set config for str_bp - import here, call later after UPLOAD_FOLDER is defined
-from routes.str_routes import set_config as set_str_config  # noqa: E402
-
+from routes.str_routes import set_config as set_str_config
 
 # Configure Swagger UI
 swagger_config = {
@@ -312,7 +315,7 @@ try:
         "openapi": "3.0.2",
     }
     swagger = Swagger(app, template=template)
-except Exception as e:
+except Exception as e:  # noqa: BLE001
     print(f"Warning: Could not load OpenAPI spec: {e}")
     swagger = Swagger(app, config=swagger_config)
 
@@ -376,7 +379,7 @@ processor = PDFProcessor(test_mode=flag)
 transaction_logic = TransactionLogic(test_mode=flag)
 
 # Set config and flag for folder_bp (must be after config is instantiated)
-from routes.folder_routes import set_config_and_flag  # noqa: E402
+from routes.folder_routes import set_config_and_flag
 
 set_config_and_flag(config, flag)
 
@@ -387,46 +390,60 @@ ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}
 set_str_config(UPLOAD_FOLDER, flag)
 
 # Set test mode and logger for tax_bp
-from routes.tax_routes import (  # noqa: E402
-    set_test_mode as set_tax_test_mode,
+from routes.tax_routes import (
     set_logger as set_tax_logger,
+)
+from routes.tax_routes import (
+    set_test_mode as set_tax_test_mode,
 )
 
 set_tax_test_mode(flag)
 set_tax_logger(logger)
 
 # Set test mode for pdf_validation_bp
-from routes.pdf_validation_routes import set_test_mode as set_pdf_test_mode  # noqa: E402
+from routes.pdf_validation_routes import (
+    set_test_mode as set_pdf_test_mode,
+)
 
 set_pdf_test_mode(flag)
 
 # Set test mode for duplicate_detection_bp
-from routes.duplicate_detection_routes import set_test_mode as set_duplicate_test_mode  # noqa: E402
+from routes.duplicate_detection_routes import (
+    set_test_mode as set_duplicate_test_mode,
+)
 
 set_duplicate_test_mode(flag)
 
 # Set test mode and logger for reporting_bp
-from reporting_routes import (  # noqa: E402
-    set_test_mode as set_reporting_test_mode,
+from reporting_routes import (
     set_logger as set_reporting_logger,
+)
+from reporting_routes import (
+    set_test_mode as set_reporting_test_mode,
 )
 
 set_reporting_test_mode(flag)
 set_reporting_logger(logger)
 
 # Set test mode and logger for aangifte_ib_bp
-from routes.aangifte_ib_routes import (  # noqa: E402
-    set_test_mode as set_aangifte_ib_test_mode,
+from routes.aangifte_ib_routes import (
     set_logger as set_aangifte_ib_logger,
+)
+from routes.aangifte_ib_routes import (
+    set_test_mode as set_aangifte_ib_test_mode,
 )
 
 set_aangifte_ib_test_mode(flag)
 set_aangifte_ib_logger(logger)
 
 # Set test mode and logger for financial_reporting_bp
-from routes.financial_reporting_routes import (  # noqa: E402
-    set_test_mode as set_fin_reporting_test_mode,
+import sys
+
+from routes.financial_reporting_routes import (
     set_logger as set_fin_reporting_logger,
+)
+from routes.financial_reporting_routes import (
+    set_test_mode as set_fin_reporting_test_mode,
 )
 
 set_fin_reporting_test_mode(flag)
@@ -437,8 +454,8 @@ set_fin_reporting_logger(logger)
 _pivot_registry_ok = False
 for _attempt in range(5):
     try:
-        from services.pivot_service import build_registry_from_db
         from services.parameter_service import ParameterService as _PivotParamService
+        from services.pivot_service import build_registry_from_db
 
         _pivot_db = DatabaseManager(test_mode=flag)
         _pivot_ps = _PivotParamService(_pivot_db)
@@ -446,7 +463,7 @@ for _attempt in range(5):
         print("✅ Pivot registry initialized from database schema", flush=True)
         _pivot_registry_ok = True
         break
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         if _attempt < 4:
             import time as _time
 
@@ -524,7 +541,7 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
             "duplicate_info": None,
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in early duplicate check: {e}", flush=True)
         # On error, allow processing to continue (graceful degradation)
         return {
@@ -641,7 +658,7 @@ if __name__ == "__main__":
     # Validate routes before starting
     if not check_route_conflicts(app):
         print("ERROR: Route conflicts detected. Fix before starting.")
-        exit(1)
+        sys.exit(1)
 
     # Add request logging
     @app.before_request
@@ -689,7 +706,7 @@ if __name__ == "__main__":
                 if expires:
                     from datetime import datetime
 
-                    if datetime.now() > expires:
+                    if datetime.now() > expires:  # noqa: DTZ005
                         return jsonify(
                             {
                                 "error": "Trial expired",
@@ -698,7 +715,7 @@ if __name__ == "__main__":
                                 "expired_at": expires.isoformat(),
                             }
                         ), 403
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Don't block requests if plan check fails
             print(f"Plan check error (non-blocking): {e}", flush=True)
 

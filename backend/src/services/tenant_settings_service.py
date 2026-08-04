@@ -7,8 +7,9 @@ Settings are stored in the tenants table settings column as JSON.
 
 import json
 import logging
-from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
+from typing import Any
+
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class TenantSettingsService:
         self.db = db_manager
         logger.info("TenantSettingsService initialized")
 
-    def get_settings(self, administration: str) -> Dict[str, Any]:
+    def get_settings(self, administration: str) -> dict[str, Any]:
         """
         Get all settings for a tenant.
 
@@ -58,10 +59,10 @@ class TenantSettingsService:
                 value = row["config_value"]
 
                 # Parse JSON values if they look like JSON
-                if value and (value.startswith("{") or value.startswith("[")):
+                if value and (value.startswith(("{", "["))):
                     try:
                         value = json.loads(value)
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass  # Keep as string if not valid JSON
 
                 # Build nested structure from dot notation (e.g., "storage.facturen_folder_id")
@@ -84,7 +85,7 @@ class TenantSettingsService:
             logger.error(f"Failed to get settings for {administration}: {e}")
             raise
 
-    def update_settings(self, administration: str, settings: Dict[str, Any]) -> bool:
+    def update_settings(self, administration: str, settings: dict[str, Any]) -> bool:
         """
         Update settings for a tenant.
 
@@ -132,7 +133,7 @@ class TenantSettingsService:
             logger.error(f"Failed to update settings for {administration}: {e}")
             raise
 
-    def _flatten_dict(self, d: Dict, parent_key: str = "", sep: str = ".") -> Dict:
+    def _flatten_dict(self, d: dict, parent_key: str = "", sep: str = ".") -> dict:
         """
         Flatten a nested dictionary using dot notation.
 
@@ -154,8 +155,8 @@ class TenantSettingsService:
         return dict(items)
 
     def get_activity(
-        self, administration: str, date_range: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        self, administration: str, date_range: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """
         Get activity statistics for a tenant.
 
@@ -176,8 +177,8 @@ class TenantSettingsService:
                 end_date = date_range.get("end_date")
             else:
                 # Default to last 30 days
-                end_date = datetime.now().isoformat()
-                start_date = (datetime.now() - timedelta(days=30)).isoformat()
+                end_date = datetime.now().isoformat()  # noqa: DTZ005
+                start_date = (datetime.now() - timedelta(days=30)).isoformat()  # noqa: DTZ005
 
             # Get activity from audit_log table
             activity_stats = {
@@ -267,7 +268,7 @@ class TenantSettingsService:
                     for row in results
                 ]
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # Audit log table might not exist or be accessible
                 logger.warning(f"Could not retrieve audit log data: {e}")
                 activity_stats["error"] = "Audit log not available"
@@ -280,7 +281,7 @@ class TenantSettingsService:
             logger.error(f"Failed to get activity for {administration}: {e}")
             raise
 
-    def _deep_merge(self, dict1: Dict, dict2: Dict) -> Dict:
+    def _deep_merge(self, dict1: dict, dict2: dict) -> dict:
         """
         Deep merge two dictionaries.
 

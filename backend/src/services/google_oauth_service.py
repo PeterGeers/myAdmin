@@ -9,8 +9,8 @@ Provides:
 - exchange_google_code_for_tokens(): Exchange OAuth code for tokens
 """
 
-import os
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -140,16 +140,16 @@ def test_google_drive_connectivity(
                                 logger.info(
                                     f"Refreshed token persisted for tenant {tenant}"
                                 )
-                            except Exception as persist_error:
+                            except Exception as persist_error:  # noqa: BLE001
                                 logger.warning(
                                     f"Token refresh succeeded but persistence failed: {persist_error}"
                                 )
 
-                    except Exception as refresh_error:
+                    except Exception as refresh_error:  # noqa: BLE001
                         logger.error(f"Token refresh failed: {refresh_error}")
                         return {
                             "success": False,
-                            "message": f"Token expired and refresh failed: {str(refresh_error)}",
+                            "message": f"Token expired and refresh failed: {refresh_error!s}",
                             "accessible": False,
                         }
             else:
@@ -186,14 +186,14 @@ def test_google_drive_connectivity(
             "message": "Google Drive libraries not installed",
             "accessible": False,
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Google Drive connectivity test failed: {e}")
         import traceback
 
         traceback.print_exc()
         return {
             "success": False,
-            "message": f"Connection failed: {str(e)}",
+            "message": f"Connection failed: {e!s}",
             "accessible": False,
         }
 
@@ -211,8 +211,9 @@ def exchange_google_code_for_tokens(code, client_id, client_secret) -> dict | No
         Credentials.from_authorized_user_info() or None if failed
     """
     try:
-        import requests
         from datetime import datetime, timedelta
+
+        import requests
 
         redirect_uri = os.getenv(
             "GOOGLE_REDIRECT_URI",
@@ -243,7 +244,7 @@ def exchange_google_code_for_tokens(code, client_id, client_secret) -> dict | No
 
         # Calculate expiry datetime
         expires_in = token_response.get("expires_in", 3600)  # Default 1 hour
-        expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+        expiry = datetime.utcnow() + timedelta(seconds=expires_in)  # noqa: DTZ003
 
         # Build complete token structure
         complete_token = {
@@ -262,7 +263,7 @@ def exchange_google_code_for_tokens(code, client_id, client_secret) -> dict | No
 
         return complete_token
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error exchanging code for tokens: {e}")
         import traceback
 

@@ -128,13 +128,13 @@ All sample data returns include:
 
 ```python
 {
-    'data': {...},  # Template data
-    'metadata': {
-        'source': 'database' | 'placeholder',
-        'record_date': '...',
-        'record_id': '...',
-        'message': '...'  # Helpful context
-    }
+    "data": {...},  # Template data
+    "metadata": {
+        "source": "database" | "placeholder",
+        "record_date": "...",
+        "record_id": "...",
+        "message": "...",  # Helpful context
+    },
 }
 ```
 

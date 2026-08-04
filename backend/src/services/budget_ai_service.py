@@ -7,13 +7,13 @@ registry's "text_generation" task profile.
 """
 
 import json
-import os
 import logging
+import os
 import re
 
 import requests
 
-from services.ai_model_registry import resolver, RegistryError
+from services.ai_model_registry import RegistryError, resolver
 from services.ai_usage_tracker import AIUsageTracker
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class BudgetAIService:
             except requests.exceptions.Timeout:
                 logger.warning(f"Budget AI: timeout for model {model.model_id}")
                 continue
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"Budget AI: error for model {model.model_id}: {e}")
                 continue
 

@@ -9,19 +9,20 @@ Public endpoints for trial signup flow:
 No JWT auth required. Protected by rate limiting, honeypot, and CSRF.
 """
 
-from flask import Blueprint, jsonify, request
-from flask.typing import ResponseReturnValue
 import logging
 
-from shared_limiter import limiter
+from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
+
 from services.signup_service import (
-    SignupService,
-    UsernameExistsError,
-    SignupNotFoundError,
     AlreadyVerifiedError,
     InvalidCodeError,
     ResendRateLimitError,
+    SignupNotFoundError,
+    SignupService,
+    UsernameExistsError,
 )
+from shared_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def create_signup() -> ResponseReturnValue:
 
     except UsernameExistsError:
         return jsonify({"error": "Email already registered"}), 409
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Signup failed: {e}")
         return jsonify({"error": "Signup failed. Please try again."}), 500
 
@@ -113,7 +114,7 @@ def verify_signup() -> ResponseReturnValue:
         return jsonify({"error": "Already verified"}), 410
     except InvalidCodeError as e:
         return jsonify({"error": str(e)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Verification failed: {e}")
         return jsonify({"error": "Verification failed. Please try again."}), 500
 
@@ -142,6 +143,6 @@ def resend_verification() -> ResponseReturnValue:
         return jsonify({"error": "Already verified"}), 410
     except ResendRateLimitError as e:
         return jsonify({"error": str(e)}), 429
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Resend failed: {e}")
         return jsonify({"error": "Resend failed. Please try again."}), 500

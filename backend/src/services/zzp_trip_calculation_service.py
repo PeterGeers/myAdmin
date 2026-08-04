@@ -15,7 +15,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 """
 
 import logging
-from typing import Dict, List, Optional
 
 from dialect_helpers import dialect
 
@@ -79,9 +78,10 @@ class TripCalculationService:
             f"AND {year_filter} = %s AND is_cancelled = FALSE "
             f"GROUP BY trip_category"
         )
-        category_rows = self.db.execute_query(
-            category_query, (tenant, int(vehicle_id), int(year))
-        ) or []
+        category_rows = (
+            self.db.execute_query(category_query, (tenant, int(vehicle_id), int(year)))
+            or []
+        )
 
         # Parse category totals
         zakelijk_km = 0
@@ -126,9 +126,10 @@ class TripCalculationService:
             f"GROUP BY {month_format}, trip_category "
             f"ORDER BY month"
         )
-        monthly_rows = self.db.execute_query(
-            monthly_query, (tenant, int(vehicle_id), int(year))
-        ) or []
+        monthly_rows = (
+            self.db.execute_query(monthly_query, (tenant, int(vehicle_id), int(year)))
+            or []
+        )
 
         # Build monthly breakdown dict
         monthly_map: dict = {}
@@ -139,7 +140,12 @@ class TripCalculationService:
             if odometer_unit == "miles":
                 km = round(km * MILES_TO_KM)
             if month not in monthly_map:
-                monthly_map[month] = {"month": month, "zakelijk": 0, "prive": 0, "woonwerk": 0}
+                monthly_map[month] = {
+                    "month": month,
+                    "zakelijk": 0,
+                    "prive": 0,
+                    "woonwerk": 0,
+                }
             if cat == "Zakelijk":
                 monthly_map[month]["zakelijk"] = km
             elif cat == "Privé":
@@ -194,9 +200,7 @@ class TripCalculationService:
             f"AND {year_filter} = %s AND is_cancelled = FALSE "
             f"AND trip_category IN ('Privé', 'Woon-werk')"
         )
-        rows = self.db.execute_query(
-            query, (tenant, int(vehicle_id), int(year))
-        ) or []
+        rows = self.db.execute_query(query, (tenant, int(vehicle_id), int(year))) or []
 
         bijtelling_km = int(rows[0]["total_km"] or 0) if rows else 0
 
@@ -221,7 +225,7 @@ class TripCalculationService:
 
     # ── Parameter and vehicle helpers ──────────────────────
 
-    def _get_vehicle_info(self, tenant: str, vehicle_id: int) -> Optional[dict]:
+    def _get_vehicle_info(self, tenant: str, vehicle_id: int) -> dict | None:
         """Fetch vehicle type and odometer_unit for summary calculations."""
         rows = self.db.execute_query(
             "SELECT id, vehicle_type, odometer_unit FROM zzp_vehicles "
@@ -255,7 +259,7 @@ class TripCalculationService:
 
         return default
 
-    def get_trip_categories(self, tenant: str) -> List[str]:
+    def get_trip_categories(self, tenant: str) -> list[str]:
         """Return configured trip categories from ParameterService or defaults."""
         if self.service.parameter_service:
             categories = self.service.parameter_service.get_param(
@@ -271,7 +275,7 @@ class TripCalculationService:
             ]
         )
 
-    def get_trip_purposes(self, tenant: str) -> List[str]:
+    def get_trip_purposes(self, tenant: str) -> list[str]:
         """Return configured trip purposes from ParameterService or defaults."""
         if self.service.parameter_service:
             purposes = self.service.parameter_service.get_param(

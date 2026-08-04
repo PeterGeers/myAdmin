@@ -6,9 +6,9 @@ including user-friendly error messages, error categorization, and recovery sugge
 """
 
 import logging
-from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 # Configure logger for error handling
 logger = logging.getLogger(__name__)
@@ -50,9 +50,9 @@ class DuplicateDetectionErrorHandler:
     def handle_duplicate_detection_error(
         self,
         error: Exception,
-        operation_context: Dict[str, Any],
-        user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        operation_context: dict[str, Any],
+        user_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Handle duplicate detection errors with comprehensive error processing.
 
@@ -86,7 +86,7 @@ class DuplicateDetectionErrorHandler:
             "technical_message": error_info["technical_message"],
             "recovery_suggestions": recovery_suggestions,
             "can_continue": can_continue,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "operation_id": operation_context.get("operation_id", "unknown"),
             "retry_recommended": error_info.get("retry_recommended", False),
             "contact_support": error_info["severity"]
@@ -94,8 +94,8 @@ class DuplicateDetectionErrorHandler:
         }
 
     def _analyze_error(
-        self, error: Exception, context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, error: Exception, context: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Analyze error and categorize it for appropriate handling.
 
@@ -181,7 +181,7 @@ class DuplicateDetectionErrorHandler:
             }
 
     def _generate_user_friendly_message(
-        self, error_info: Dict[str, Any], user_id: Optional[str] = None
+        self, error_info: dict[str, Any], user_id: str | None = None
     ) -> str:
         """
         Generate user-friendly error message based on error information.
@@ -227,7 +227,7 @@ class DuplicateDetectionErrorHandler:
 
         return base_message + guidance
 
-    def _get_recovery_suggestions(self, error_info: Dict[str, Any]) -> List[str]:
+    def _get_recovery_suggestions(self, error_info: dict[str, Any]) -> list[str]:
         """
         Get recovery suggestions based on error type.
 
@@ -281,7 +281,7 @@ class DuplicateDetectionErrorHandler:
             error_code, ["Try again later", "Contact support if the problem persists"]
         )
 
-    def _can_gracefully_degrade(self, error_info: Dict[str, Any]) -> bool:
+    def _can_gracefully_degrade(self, error_info: dict[str, Any]) -> bool:
         """
         Determine if the system can gracefully degrade for this error.
 
@@ -295,9 +295,9 @@ class DuplicateDetectionErrorHandler:
 
     def _log_error_with_context(
         self,
-        error_info: Dict[str, Any],
-        context: Dict[str, Any],
-        user_id: Optional[str] = None,
+        error_info: dict[str, Any],
+        context: dict[str, Any],
+        user_id: str | None = None,
     ) -> None:
         """
         Log error with full context information.
@@ -315,7 +315,7 @@ class DuplicateDetectionErrorHandler:
             "operation_id": context.get("operation_id", "unknown"),
             "operation_type": context.get("operation_type", "unknown"),
             "user_id": user_id,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "context": context,
         }
 
@@ -329,7 +329,7 @@ class DuplicateDetectionErrorHandler:
         else:
             logger.info(f"Low severity error in duplicate detection: {log_data}")
 
-    def _initialize_recovery_suggestions(self) -> Dict[ErrorCategory, List[str]]:
+    def _initialize_recovery_suggestions(self) -> dict[ErrorCategory, list[str]]:
         """Initialize recovery suggestions by category."""
         return {
             ErrorCategory.DATABASE: [
@@ -370,8 +370,8 @@ error_handler = DuplicateDetectionErrorHandler()
 
 
 def handle_duplicate_detection_error(
-    error: Exception, operation_context: Dict[str, Any], user_id: Optional[str] = None
-) -> Dict[str, Any]:
+    error: Exception, operation_context: dict[str, Any], user_id: str | None = None
+) -> dict[str, Any]:
     """
     Convenience function for handling duplicate detection errors.
 
@@ -399,8 +399,8 @@ def configure_logging(app):
         Configured logger instance
     """
     import logging
-    from logging.handlers import RotatingFileHandler
     import os
+    from logging.handlers import RotatingFileHandler
 
     # Create logs directory if it doesn't exist
     if not os.path.exists("logs"):

@@ -8,14 +8,16 @@ Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
 Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
-from flask import Blueprint, request, jsonify
+import logging
+import os
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from services.parameter_service import ParameterService
-import os
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +112,7 @@ def list_parameters(
             grouped[ns].append(p)
 
         return jsonify({"success": True, "tenant": tenant, "parameters": grouped})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error listing parameters: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -160,7 +162,7 @@ def create_parameter(
         )
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error creating parameter: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -214,7 +216,7 @@ def update_parameter(
         return jsonify({"success": True, "message": "Parameter updated"})
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error updating parameter %s: %s", param_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -256,7 +258,7 @@ def delete_parameter(
         if deleted:
             return jsonify({"success": True, "message": "Parameter deleted"})
         return jsonify({"success": False, "error": "Delete failed"}), 500
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error deleting parameter %s: %s", param_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -330,7 +332,7 @@ def get_parameter_default(
 
         # 3. No default
         return jsonify({"success": True, "has_default": False})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error fetching parameter default: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -343,8 +345,9 @@ def get_parameter_schema(
 ) -> ResponseReturnValue:
     """Return parameter schema filtered by tenant's active modules, with current values."""
     try:
-        from services.parameter_schema import get_schema_for_tenant
         import copy
+
+        from services.parameter_schema import get_schema_for_tenant
 
         db = DatabaseManager(test_mode=flag)
 
@@ -375,6 +378,6 @@ def get_parameter_schema(
                 "schema": result,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error getting parameter schema: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500

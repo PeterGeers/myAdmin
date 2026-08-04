@@ -16,37 +16,38 @@ Requirements addressed:
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
+
 from database import DatabaseManager
 from dialect_helpers import dialect
 from pattern_cache import get_pattern_cache
 from pattern_detection import (
-    extract_keywords,
+    analyze_credit_patterns,
+    analyze_debet_patterns,
+    analyze_reference_patterns,
     extract_company_name,
-    extract_reference_number_from_description,
     extract_compound_verb_from_description,
+    extract_keywords,
+    extract_reference_number_from_description,
     extract_verb_from_description,
     is_valid_verb,
-    analyze_debet_patterns,
-    analyze_credit_patterns,
-    analyze_reference_patterns,
 )
 from pattern_scoring import (
-    generate_pattern_statistics,
     calculate_statistics_from_db_patterns,
-    resolve_pattern_conflicts,
-    predict_debet,
+    generate_pattern_statistics,
     predict_credit,
+    predict_debet,
     predict_reference,
+    resolve_pattern_conflicts,
 )
 from pattern_storage import (
     build_cache_key,
-    store_verb_patterns_to_database,
+    get_cache_performance_stats,
+    get_incremental_update_stats,
+    get_pattern_storage_stats,
     load_patterns_from_database,
     should_refresh_patterns,
-    get_cache_performance_stats,
-    get_pattern_storage_stats,
-    get_incremental_update_stats,
+    store_verb_patterns_to_database,
 )
 
 
@@ -62,7 +63,7 @@ class PatternAnalyzer:
         # Initialize persistent cache
         self.persistent_cache = get_pattern_cache(self.db)
 
-    def get_bank_accounts(self) -> Dict[str, Dict]:
+    def get_bank_accounts(self) -> dict[str, dict]:
         """Get bank account lookup data with caching"""
         if self.bank_accounts_cache is None:
             bank_accounts = self.db.get_bank_account_lookups()
@@ -90,10 +91,10 @@ class PatternAnalyzer:
     def analyze_historical_patterns(
         self,
         administration: str,
-        reference_number: Optional[str] = None,
-        debet_account: Optional[str] = None,
-        credit_account: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        reference_number: str | None = None,
+        debet_account: str | None = None,
+        credit_account: str | None = None,
+    ) -> dict[str, Any]:
         """
         Analyze last 1 year of transaction data to discover patterns
 
@@ -117,7 +118,7 @@ class PatternAnalyzer:
         print(f"🔍 Analyzing historical patterns {filter_desc}...")
 
         # Get transactions from last 1 year with optional filtering
-        one_year_ago = datetime.now() - timedelta(days=365)
+        one_year_ago = datetime.now() - timedelta(days=365)  # noqa: DTZ005
 
         # Build dynamic query with filters
         query_conditions = [
@@ -191,10 +192,10 @@ class PatternAnalyzer:
             "credit_patterns": credit_patterns,
             "reference_patterns": reference_patterns_result,
             "statistics": statistics,
-            "analysis_date": datetime.now().isoformat(),
+            "analysis_date": datetime.now().isoformat(),  # noqa: DTZ005
             "date_range": {
                 "from": one_year_ago.strftime("%Y-%m-%d"),
-                "to": datetime.now().strftime("%Y-%m-%d"),
+                "to": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
             },
         }
 
@@ -218,8 +219,8 @@ class PatternAnalyzer:
         return result
 
     def apply_patterns_to_transactions(
-        self, transactions: List[Dict], administration: str
-    ) -> Tuple[List[Dict], Dict[str, Any]]:
+        self, transactions: list[dict], administration: str
+    ) -> tuple[list[dict], dict[str, Any]]:
         """
         Apply discovered patterns to predict missing values in transactions
 
@@ -315,7 +316,7 @@ class PatternAnalyzer:
         )
         return updated_transactions, results
 
-    def analyze_incremental_patterns(self, administration: str) -> Dict[str, Any]:
+    def analyze_incremental_patterns(self, administration: str) -> dict[str, Any]:
         """
         Analyze patterns incrementally — only new transactions since last analysis
 
@@ -383,12 +384,12 @@ class PatternAnalyzer:
             print(f"📊 Found {len(new_transactions)} new transactions to process")
 
             # Step 3: Apply existing patterns to new transactions
-            updated_transactions, application_results = (
+            _updated_transactions, application_results = (
                 self.apply_patterns_to_transactions(new_transactions, administration)
             )
 
             # Step 4: Analyze complete dataset to discover new patterns
-            two_years_ago = datetime.now() - timedelta(days=730)
+            two_years_ago = datetime.now() - timedelta(days=730)  # noqa: DTZ005
             all_transactions = self.db.execute_query(
                 """
                 SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
@@ -439,10 +440,10 @@ class PatternAnalyzer:
                 "credit_patterns": {},
                 "reference_patterns": patterns_to_store,
                 "statistics": statistics,
-                "analysis_date": datetime.now().isoformat(),
+                "analysis_date": datetime.now().isoformat(),  # noqa: DTZ005
                 "date_range": {
                     "from": last_analysis_date.strftime("%Y-%m-%d"),
-                    "to": datetime.now().strftime("%Y-%m-%d"),
+                    "to": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
                 },
             }
 
@@ -484,7 +485,7 @@ class PatternAnalyzer:
                     "patterns_discovered", 0
                 ),
                 "efficiency_gain": f"Analyzed {len(new_transactions)} new transactions vs {len(all_transactions)} total",
-                "time_range": f"{last_analysis_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}",
+                "time_range": f"{last_analysis_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}",  # noqa: DTZ005
                 "pattern_application_results": application_results,
             }
 
@@ -495,7 +496,7 @@ class PatternAnalyzer:
 
             return final_result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"❌ Error in incremental analysis: {e}")
             print("🔄 Falling back to full analysis...")
             return self.analyze_historical_patterns(administration)
@@ -503,10 +504,10 @@ class PatternAnalyzer:
     def get_filtered_patterns(
         self,
         administration: str,
-        reference_number: Optional[str] = None,
-        debet_account: Optional[str] = None,
-        credit_account: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        reference_number: str | None = None,
+        debet_account: str | None = None,
+        credit_account: str | None = None,
+    ) -> dict[str, Any]:
         """
         Get patterns with optional filtering — uses persistent cache with fallback to analysis.
 
@@ -540,7 +541,7 @@ class PatternAnalyzer:
 
         return patterns
 
-    def get_pattern_summary(self, administration: str) -> Dict[str, Any]:
+    def get_pattern_summary(self, administration: str) -> dict[str, Any]:
         """Get a summary of patterns for an administration"""
         patterns = self.get_filtered_patterns(administration)
 
@@ -558,17 +559,17 @@ class PatternAnalyzer:
             "storage_stats": get_pattern_storage_stats(self.db, administration),
         }
 
-    def get_cache_performance_stats(self, administration: str) -> Dict[str, Any]:
+    def get_cache_performance_stats(self, administration: str) -> dict[str, Any]:
         """Get comprehensive cache performance statistics"""
         return get_cache_performance_stats(
             self.db, administration, self.persistent_cache
         )
 
-    def get_pattern_storage_stats(self, administration: str) -> Dict[str, Any]:
+    def get_pattern_storage_stats(self, administration: str) -> dict[str, Any]:
         """Get statistics about pattern storage performance"""
         return get_pattern_storage_stats(self.db, administration)
 
-    def get_incremental_update_stats(self, administration: str) -> Dict[str, Any]:
+    def get_incremental_update_stats(self, administration: str) -> dict[str, Any]:
         """Get statistics about incremental pattern updates"""
         return get_incremental_update_stats(self.db, administration)
 
@@ -578,23 +579,23 @@ class PatternAnalyzer:
 
     def _extract_verb_from_description(
         self, description: str, reference_number: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Extract verb from description - delegates to pattern_detection module"""
         return extract_verb_from_description(description, reference_number)
 
     def _extract_compound_verb_from_description(
         self, description: str, reference_number: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Extract compound verb - delegates to pattern_detection module"""
         return extract_compound_verb_from_description(description, reference_number)
 
-    def _extract_company_name(self, description: str) -> Optional[str]:
+    def _extract_company_name(self, description: str) -> str | None:
         """Extract company name - delegates to pattern_detection module"""
         return extract_company_name(description)
 
     def _extract_reference_number_from_description(
         self, description: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Extract reference number - delegates to pattern_detection module"""
         return extract_reference_number_from_description(description)
 
@@ -602,29 +603,29 @@ class PatternAnalyzer:
         """Validate verb - delegates to pattern_detection module"""
         return is_valid_verb(verb)
 
-    def _extract_keywords(self, description: str) -> List[str]:
+    def _extract_keywords(self, description: str) -> list[str]:
         """Extract keywords - delegates to pattern_detection module"""
         return extract_keywords(description)
 
     def _analyze_debet_patterns(
-        self, transactions: List[Dict], administration: str
-    ) -> Dict[str, Any]:
+        self, transactions: list[dict], administration: str
+    ) -> dict[str, Any]:
         """Analyze debet patterns - delegates to pattern_detection module"""
         return analyze_debet_patterns(
             transactions, administration, self.is_bank_account
         )
 
     def _analyze_credit_patterns(
-        self, transactions: List[Dict], administration: str
-    ) -> Dict[str, Any]:
+        self, transactions: list[dict], administration: str
+    ) -> dict[str, Any]:
         """Analyze credit patterns - delegates to pattern_detection module"""
         return analyze_credit_patterns(
             transactions, administration, self.is_bank_account
         )
 
     def _analyze_reference_patterns(
-        self, transactions: List[Dict], administration: str
-    ) -> Dict[str, Any]:
+        self, transactions: list[dict], administration: str
+    ) -> dict[str, Any]:
         """Analyze reference patterns - delegates to pattern_detection module"""
         return analyze_reference_patterns(
             transactions, administration, self.is_bank_account
@@ -632,11 +633,11 @@ class PatternAnalyzer:
 
     def _generate_pattern_statistics(
         self,
-        transactions: List[Dict],
-        debet_patterns: Dict,
-        credit_patterns: Dict,
-        reference_patterns: Dict,
-    ) -> Dict[str, Any]:
+        transactions: list[dict],
+        debet_patterns: dict,
+        credit_patterns: dict,
+        reference_patterns: dict,
+    ) -> dict[str, Any]:
         """Generate statistics - delegates to pattern_scoring module"""
         return generate_pattern_statistics(
             transactions,
@@ -647,8 +648,8 @@ class PatternAnalyzer:
         )
 
     def _calculate_statistics_from_db_patterns(
-        self, debet_patterns: Dict, credit_patterns: Dict, reference_patterns: Dict
-    ) -> Dict:
+        self, debet_patterns: dict, credit_patterns: dict, reference_patterns: dict
+    ) -> dict:
         """Calculate stats from DB patterns - delegates to pattern_scoring module"""
         return calculate_statistics_from_db_patterns(
             debet_patterns, credit_patterns, reference_patterns
@@ -656,10 +657,10 @@ class PatternAnalyzer:
 
     def _resolve_pattern_conflicts(
         self,
-        matching_patterns: List[Tuple[str, Dict]],
-        transaction: Dict,
+        matching_patterns: list[tuple[str, dict]],
+        transaction: dict,
         administration: str,
-    ) -> Optional[Tuple[str, Dict]]:
+    ) -> tuple[str, dict] | None:
         """Resolve pattern conflicts - delegates to pattern_scoring module"""
         return resolve_pattern_conflicts(
             matching_patterns, transaction, administration, self.is_bank_account
@@ -668,8 +669,8 @@ class PatternAnalyzer:
     def _store_verb_patterns_to_database(
         self,
         administration: str,
-        verb_patterns: Dict,
-        analysis_metadata: Dict,
+        verb_patterns: dict,
+        analysis_metadata: dict,
         is_incremental: bool = False,
     ):
         """Store patterns to DB - delegates to pattern_storage module"""
@@ -677,7 +678,7 @@ class PatternAnalyzer:
             self.db, administration, verb_patterns, analysis_metadata, is_incremental
         )
 
-    def _load_patterns_from_database(self, administration: str) -> Dict[str, Any]:
+    def _load_patterns_from_database(self, administration: str) -> dict[str, Any]:
         """Load patterns from DB - delegates to pattern_storage module"""
         return load_patterns_from_database(self.db, administration)
 
@@ -688,9 +689,9 @@ class PatternAnalyzer:
     def _build_cache_key(
         self,
         administration: str,
-        reference_number: Optional[str] = None,
-        debet_account: Optional[str] = None,
-        credit_account: Optional[str] = None,
+        reference_number: str | None = None,
+        debet_account: str | None = None,
+        credit_account: str | None = None,
     ) -> str:
         """Build cache key - delegates to pattern_storage module"""
         return build_cache_key(

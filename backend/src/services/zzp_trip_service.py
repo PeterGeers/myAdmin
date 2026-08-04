@@ -20,7 +20,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 import logging
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
 from services.zzp_trip_calculation_service import TripCalculationService
@@ -38,7 +37,7 @@ class TripService(FieldConfigMixin):
     """
 
     FIELD_CONFIG_KEY = "trip_field_config"
-    ALWAYS_REQUIRED = [
+    ALWAYS_REQUIRED = [  # noqa: RUF012
         "vehicle_id",
         "trip_date",
         "start_address",
@@ -50,10 +49,21 @@ class TripService(FieldConfigMixin):
     ]
 
     # Fields that can be updated via update_trip (excludes distance_km which is generated)
-    UPDATABLE_FIELDS = [
-        "trip_date", "start_time", "end_time", "start_address", "end_address",
-        "start_odometer", "end_odometer", "trip_category", "trip_purpose",
-        "route_description", "contact_id", "project_name", "notes", "is_billable",
+    UPDATABLE_FIELDS = [  # noqa: RUF012
+        "trip_date",
+        "start_time",
+        "end_time",
+        "start_address",
+        "end_address",
+        "start_odometer",
+        "end_odometer",
+        "trip_category",
+        "trip_purpose",
+        "route_description",
+        "contact_id",
+        "project_name",
+        "notes",
+        "is_billable",
     ]
 
     # Miles-to-km conversion factor
@@ -75,11 +85,17 @@ class TripService(FieldConfigMixin):
         return self._crud.create_trip(tenant, data, created_by)
 
     def update_trip(
-        self, tenant: str, trip_id: int, data: dict,
-        correction_reason: str, updated_by: str
+        self,
+        tenant: str,
+        trip_id: int,
+        data: dict,
+        correction_reason: str,
+        updated_by: str,
     ) -> dict:
         """Update/correct a trip with version increment and audit logging."""
-        return self._crud.update_trip(tenant, trip_id, data, correction_reason, updated_by)
+        return self._crud.update_trip(
+            tenant, trip_id, data, correction_reason, updated_by
+        )
 
     def cancel_trip(
         self, tenant: str, trip_id: int, cancel_reason: str, cancelled_by: str
@@ -93,31 +109,35 @@ class TripService(FieldConfigMixin):
 
     # ── Query operations (delegated to TripQueryService) ───
 
-    def get_trip(self, tenant: str, trip_id: int) -> Optional[dict]:
+    def get_trip(self, tenant: str, trip_id: int) -> dict | None:
         """Get a single trip by ID, scoped to tenant."""
         return self._query.get_trip(tenant, trip_id)
 
-    def list_trips(self, tenant: str, filters: dict = None) -> dict:
+    def list_trips(self, tenant: str, filters: dict | None = None) -> dict:
         """List trips with filtering and pagination."""
         return self._query.list_trips(tenant, filters)
 
-    def get_trip_history(self, tenant: str, trip_id: int) -> List[dict]:
+    def get_trip_history(self, tenant: str, trip_id: int) -> list[dict]:
         """Get the correction/audit history for a trip."""
         return self._query.get_trip_history(tenant, trip_id)
 
-    def get_unresolved_gaps(self, tenant: str, vehicle_id: int = None) -> List[dict]:
+    def get_unresolved_gaps(
+        self, tenant: str, vehicle_id: int | None = None
+    ) -> list[dict]:
         """List gap-fill entries that are still unresolved."""
         return self._query.get_unresolved_gaps(tenant, vehicle_id)
 
-    def detect_gap(self, tenant: str, vehicle_id: int, start_odometer: int) -> Optional[dict]:
+    def detect_gap(
+        self, tenant: str, vehicle_id: int, start_odometer: int
+    ) -> dict | None:
         """Detect an odometer gap between the previous trip and the new trip."""
         return self._query.detect_gap(tenant, vehicle_id, start_odometer)
 
-    def enrich_with_contacts(self, tenant: str, trips: List[dict]) -> List[dict]:
+    def enrich_with_contacts(self, tenant: str, trips: list[dict]) -> list[dict]:
         """Enrich trip dicts with contact information (company_name)."""
         return self._query.enrich_with_contacts(tenant, trips)
 
-    def get_unbilled_trips(self, tenant: str, contact_id: int) -> List[dict]:
+    def get_unbilled_trips(self, tenant: str, contact_id: int) -> list[dict]:
         """Get unbilled billable trips for a specific client."""
         return self._query.get_unbilled_trips(tenant, contact_id)
 
@@ -135,17 +155,17 @@ class TripService(FieldConfigMixin):
         """Lightweight bijtelling status for a vehicle."""
         return self._calc.get_bijtelling_status(tenant, vehicle_id, year)
 
-    def get_trip_categories(self, tenant: str) -> List[str]:
+    def get_trip_categories(self, tenant: str) -> list[str]:
         """Return configured trip categories from ParameterService or defaults."""
         return self._calc.get_trip_categories(tenant)
 
-    def get_trip_purposes(self, tenant: str) -> List[str]:
+    def get_trip_purposes(self, tenant: str) -> list[str]:
         """Return configured trip purposes from ParameterService or defaults."""
         return self._calc.get_trip_purposes(tenant)
 
     # ── Internal helpers (kept on facade for sub-service access) ──
 
-    def _get_raw_trip(self, tenant: str, trip_id: int) -> Optional[dict]:
+    def _get_raw_trip(self, tenant: str, trip_id: int) -> dict | None:
         """Fetch raw trip row without formatting (for internal comparison)."""
         rows = self.db.execute_query(
             "SELECT * FROM zzp_trips WHERE id = %s AND administration = %s",
@@ -187,7 +207,7 @@ class TripService(FieldConfigMixin):
             return value.isoformat()
         return str(value)
 
-    def _get_vehicle_info(self, tenant: str, vehicle_id: int) -> Optional[dict]:
+    def _get_vehicle_info(self, tenant: str, vehicle_id: int) -> dict | None:
         """Fetch vehicle type and odometer_unit for summary calculations."""
         return self._calc._get_vehicle_info(tenant, vehicle_id)
 
@@ -237,7 +257,7 @@ class TripService(FieldConfigMixin):
             return value.date()
         if isinstance(value, str):
             try:
-                return datetime.strptime(value, "%Y-%m-%d").date()
+                return datetime.strptime(value, "%Y-%m-%d").date()  # noqa: DTZ007
             except (ValueError, TypeError):
                 raise ValueError(
                     f"Invalid trip_date format: '{value}'. Expected YYYY-MM-DD."
@@ -251,7 +271,11 @@ class TripService(FieldConfigMixin):
         # Convert date/datetime fields
         for key in ("trip_date", "created_at", "updated_at"):
             val = row.get(key)
-            if val is not None and hasattr(val, "isoformat") and not isinstance(val, str):
+            if (
+                val is not None
+                and hasattr(val, "isoformat")
+                and not isinstance(val, str)
+            ):
                 row[key] = val.isoformat()
 
         # Convert time/timedelta fields (MySQL returns TIME as timedelta)
@@ -292,11 +316,16 @@ class TripService(FieldConfigMixin):
         version: int,
         action: str,
         changed_by: str,
-        changed_fields: str = None,
-        correction_reason: str = None,
+        changed_fields: str | None = None,
+        correction_reason: str | None = None,
     ) -> None:
         """Insert an audit trail record into zzp_trip_audit."""
         self._crud._write_audit_entry(
-            tenant, trip_id, version, action, changed_by,
-            changed_fields, correction_reason,
+            tenant,
+            trip_id,
+            version,
+            action,
+            changed_by,
+            changed_fields,
+            correction_reason,
         )

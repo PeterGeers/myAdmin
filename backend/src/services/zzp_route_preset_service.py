@@ -18,7 +18,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.3
 """
 
 import logging
-from typing import List, Optional
 
 from dialect_helpers import dialect
 
@@ -32,7 +31,7 @@ class RoutePresetService:
         self.db = db
         self.parameter_service = parameter_service
 
-    def get_suggestions(self, tenant: str, limit: Optional[int] = None) -> List[dict]:
+    def get_suggestions(self, tenant: str, limit: int | None = None) -> list[dict]:
         """Return top X presets by use_count in last 6 months, plus all manual presets.
 
         The limit X comes from parameter `zzp_ritten.max_route_presets` (default 5),
@@ -42,7 +41,9 @@ class RoutePresetService:
         merged with all manual presets. Manual presets always appear even if they haven't
         been used recently.
         """
-        max_presets = limit if limit is not None else self._get_max_route_presets(tenant)
+        max_presets = (
+            limit if limit is not None else self._get_max_route_presets(tenant)
+        )
 
         # Query 1: Top X auto-learned presets by use_count in last 6 months
         six_months_ago = dialect.date_subtract(dialect.current_timestamp(), 6, "MONTH")
@@ -54,9 +55,7 @@ class RoutePresetService:
             ORDER BY use_count DESC
             LIMIT %s
         """
-        auto_rows = self.db.execute_query(
-            auto_query, (tenant, max_presets)
-        ) or []
+        auto_rows = self.db.execute_query(auto_query, (tenant, max_presets)) or []
 
         # Query 2: All manual presets (always shown regardless of usage)
         manual_query = """
@@ -128,8 +127,10 @@ class RoutePresetService:
             raise ValueError(f"Route preset {preset_id} not found")
 
         updatable_fields = [
-            "default_category", "default_purpose",
-            "typical_distance_km", "contact_id",
+            "default_category",
+            "default_purpose",
+            "typical_distance_km",
+            "contact_id",
         ]
         sets, params = [], []
         for field in updatable_fields:
@@ -168,9 +169,15 @@ class RoutePresetService:
         )
         return True
 
-    def increment_usage(self, tenant: str, from_address: str, to_address: str,
-                        default_category: str = None, default_purpose: str = None,
-                        typical_distance_km: int = None) -> int:
+    def increment_usage(
+        self,
+        tenant: str,
+        from_address: str,
+        to_address: str,
+        default_category: str | None = None,
+        default_purpose: str | None = None,
+        typical_distance_km: int | None = None,
+    ) -> int:
         """UPSERT route usage: increment use_count if exists, else create with use_count=1.
 
         This is called automatically when a trip is created to track route frequency.
@@ -201,19 +208,29 @@ class RoutePresetService:
                         default_purpose = COALESCE(%s, default_purpose),
                         typical_distance_km = COALESCE(%s, typical_distance_km)
                     WHERE id = %s AND administration = %s""",
-                (default_category, default_purpose, typical_distance_km,
-                 rows[0]["id"], tenant),
+                (
+                    default_category,
+                    default_purpose,
+                    typical_distance_km,
+                    rows[0]["id"],
+                    tenant,
+                ),
                 fetch=False,
                 commit=True,
             )
             return new_count
         else:
             # Insert: new auto-learned preset
-            columns = ["administration", "from_address", "to_address",
-                       "use_count", "is_manual", "last_used_at"]
+            columns = [
+                "administration",
+                "from_address",
+                "to_address",
+                "use_count",
+                "is_manual",
+                "last_used_at",
+            ]
             params = [tenant, from_addr, to_addr, 1, False]
-            placeholders = ["%s", "%s", "%s", "%s", "%s",
-                            dialect.current_timestamp()]
+            placeholders = ["%s", "%s", "%s", "%s", "%s", dialect.current_timestamp()]
 
             # Include optional metadata only when provided
             if default_category is not None:
@@ -231,8 +248,8 @@ class RoutePresetService:
 
             self.db.execute_query(
                 f"""INSERT INTO zzp_route_presets
-                    ({', '.join(columns)})
-                    VALUES ({', '.join(placeholders)})""",
+                    ({", ".join(columns)})
+                    VALUES ({", ".join(placeholders)})""",
                 tuple(params),
                 fetch=False,
                 commit=True,
@@ -241,7 +258,7 @@ class RoutePresetService:
 
     # ── Helper methods ──────────────────────────────────────
 
-    def get_preset(self, tenant: str, preset_id: int) -> Optional[dict]:
+    def get_preset(self, tenant: str, preset_id: int) -> dict | None:
         """Get a single preset by ID, scoped to tenant."""
         rows = self.db.execute_query(
             "SELECT * FROM zzp_route_presets WHERE id = %s AND administration = %s",
@@ -274,7 +291,11 @@ class RoutePresetService:
         row = dict(row)
         for key in ("last_used_at", "created_at", "updated_at"):
             val = row.get(key)
-            if val is not None and hasattr(val, "isoformat") and not isinstance(val, str):
+            if (
+                val is not None
+                and hasattr(val, "isoformat")
+                and not isinstance(val, str)
+            ):
                 row[key] = val.isoformat()
         # Ensure booleans
         if "is_manual" in row:
