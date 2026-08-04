@@ -59,7 +59,7 @@ class BankingService:
         Validate that an IBAN belongs to the specified tenant
 
         Uses get_bank_account_lookups() to resolve bank accounts from
-        rekeningschema with $.bank_account flag instead of vw_lookup_accounts.
+        rekeningschema with $.bank_account flag (canonical source).
 
         Args:
             iban (str): IBAN to validate

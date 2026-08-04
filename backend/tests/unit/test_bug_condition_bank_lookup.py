@@ -6,9 +6,13 @@ Property 1: Bug Condition — Inconsistent Bank Account Resolution
 CRITICAL: These tests MUST FAIL on unfixed code — failure confirms the bug exists.
 DO NOT attempt to fix the test or the code when it fails.
 
-Bug condition: Multiple code paths resolve bank accounts from inconsistent data sources
-(vw_rekeningnummers, vw_lookup_accounts) instead of using the canonical
-`rekeningschema` with `JSON_EXTRACT(parameters, '$.bank_account') = true`.
+Bug condition: Multiple code paths resolved bank accounts from inconsistent data sources
+(legacy views like vw_rekeningnummers) instead of using the canonical
+`rekeningschema` with `JSON_EXTRACT(parameters, '$.bank_account') = true`
+via `get_bank_account_lookups()`.
+
+NOTE: All production code paths have been fixed to use get_bank_account_lookups().
+These tests now serve as regression guards ensuring no code path reverts to legacy views.
 
 Validates: Requirements 1.1, 1.2, 1.4, 1.5, 1.6, 1.7, 1.8
 """
@@ -50,19 +54,17 @@ class TestCheckBankingAccountsWrongDataSource:
     """
     **Validates: Requirements 1.1, 1.2, 1.5**
 
-    check_banking_accounts() queries vw_rekeningnummers directly instead of
-    using self.db.get_bank_account_lookups(). When vw_rekeningnummers returns
-    empty but get_bank_account_lookups has accounts, the method returns [].
-
-    On UNFIXED code: the method queries vw_rekeningnummers (empty) → returns []
-    → test FAILS (confirms bug).
+    Regression guard: ensures check_banking_accounts() uses
+    self.db.get_bank_account_lookups() (canonical source) and not legacy views.
+    When legacy views return empty but get_bank_account_lookups has accounts,
+    the method must still return results.
     """
 
     def test_check_banking_accounts_uses_canonical_source(self):
         """
         Mock get_bank_account_lookups to return accounts, but mock the raw
-        cursor (vw_rekeningnummers) to return empty. On unfixed code, the
-        method uses the cursor → returns [] → assertion fails.
+        cursor to return empty. Ensures the method uses the canonical source
+        (get_bank_account_lookups) and not legacy views.
         """
         with patch('banking_processor.DatabaseManager') as MockDBClass:
             mock_db = MagicMock()
@@ -110,42 +112,33 @@ class TestCheckBankingAccountsWrongDataSource:
 
             result = processor.check_banking_accounts(administration='TestTenant')
 
-            # Expected: result should NOT be empty — it should contain the
-            # accounts from get_bank_account_lookups.
-            # On UNFIXED code: result IS empty because it queries
-            # vw_rekeningnummers (which returns []) → FAILS
+            # Result must NOT be empty — it should use get_bank_account_lookups.
             assert result is not None
             assert len(result) != 0, (
-                "BUG CONFIRMED: check_banking_accounts returned empty list. "
-                "It queries vw_rekeningnummers (empty) instead of using "
-                "get_bank_account_lookups() which has accounts."
+                "REGRESSION: check_banking_accounts returned empty list. "
+                "It must use get_bank_account_lookups() as the canonical source."
             )
 
 
 # ---------------------------------------------------------------------------
-# Test B: validate_iban_tenant uses wrong data source (vw_lookup_accounts)
+# Test B: validate_iban_tenant uses canonical source
 # ---------------------------------------------------------------------------
 
 class TestValidateIbanTenantWrongDataSource:
     """
     **Validates: Requirements 1.4**
 
-    validate_iban_tenant() queries vw_lookup_accounts directly instead of
-    using self.db.get_bank_account_lookups(). When the IBAN is not in
-    vw_lookup_accounts but IS in get_bank_account_lookups, the method
-    returns tenant=None.
-
-    On UNFIXED code: the method queries vw_lookup_accounts (returns None)
-    → returns {'valid': True, 'tenant': None, 'warning': ...}
-    → test FAILS because tenant is None, not 'TestTenant'.
+    Regression guard: ensures validate_iban_tenant() uses
+    self.db.get_bank_account_lookups() (canonical source) and not legacy views.
+    When legacy views return empty but get_bank_account_lookups has the IBAN,
+    the method must still resolve the correct tenant.
     """
 
     def test_validate_iban_tenant_uses_canonical_source(self):
         """
         Mock get_bank_account_lookups to return the IBAN for TestTenant,
-        but mock the raw cursor (vw_lookup_accounts) to return None.
-        On unfixed code, the method queries vw_lookup_accounts → returns
-        tenant=None → assertion fails.
+        but mock the raw cursor to return None. Ensures the method uses
+        the canonical source and not legacy views.
         """
         with patch('services.banking_service.DatabaseManager') as MockDBClass:
             mock_db = MagicMock()
@@ -160,13 +153,13 @@ class TestValidateIbanTenantWrongDataSource:
                 }
             ]
 
-            # Mock get_connection → cursor that returns None for vw_lookup_accounts
+            # Mock get_connection → cursor that returns None (simulating legacy view empty)
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn.cursor.return_value = mock_cursor
             mock_db.get_connection.return_value = mock_conn
 
-            # The cursor returns None (IBAN not found in vw_lookup_accounts)
+            # The cursor returns None (legacy views would not find this IBAN)
             mock_cursor.fetchone.return_value = None
 
             from services.banking_service import BankingService
@@ -176,15 +169,11 @@ class TestValidateIbanTenantWrongDataSource:
 
             result = service.validate_iban_tenant('NL99TEST1234567890', 'TestTenant')
 
-            # Expected: result should show valid=True with tenant='TestTenant'
-            # because the IBAN exists in get_bank_account_lookups for TestTenant.
-            # On UNFIXED code: result is {'valid': True, 'tenant': None, 'warning': ...}
-            # because it queries vw_lookup_accounts (returns None) → FAILS
+            # Result must resolve tenant from get_bank_account_lookups.
             assert result['valid'] is True
             assert result['tenant'] == 'TestTenant', (
-                f"BUG CONFIRMED: validate_iban_tenant returned tenant={result.get('tenant')}. "
-                f"It queries vw_lookup_accounts (returns None) instead of using "
-                f"get_bank_account_lookups() which has the IBAN for 'TestTenant'."
+                f"REGRESSION: validate_iban_tenant returned tenant={result.get('tenant')}. "
+                f"It must use get_bank_account_lookups() as the canonical source."
             )
 
 
@@ -197,10 +186,8 @@ class TestBankAccountResolutionProperty:
     **Validates: Requirements 1.1, 1.2, 1.4, 1.5**
 
     Property: For any tenant and IBAN, when get_bank_account_lookups returns
-    the account but the legacy views return empty, the functions should still
-    find the account (because they should use get_bank_account_lookups).
-
-    On UNFIXED code: functions use legacy views → return empty/None → FAILS.
+    the account but legacy views would return empty, the functions must still
+    find the account via get_bank_account_lookups (canonical source).
     """
 
     @given(
@@ -259,11 +246,9 @@ class TestBankAccountResolutionProperty:
 
             result = processor.check_banking_accounts(administration=tenant)
 
-            # On UNFIXED code: returns [] because vw_rekeningnummers is empty
             assert len(result) != 0, (
-                f"BUG: check_banking_accounts({tenant}) returned empty. "
-                f"Legacy vw_rekeningnummers is empty but "
-                f"get_bank_account_lookups has [{iban}, {account_code}]."
+                f"REGRESSION: check_banking_accounts({tenant}) returned empty. "
+                f"Must use get_bank_account_lookups() which has [{iban}, {account_code}]."
             )
 
     @given(
@@ -277,7 +262,7 @@ class TestBankAccountResolutionProperty:
     ):
         """
         Property: validate_iban_tenant should find the IBAN via
-        get_bank_account_lookups, not via vw_lookup_accounts.
+        get_bank_account_lookups (canonical source).
         """
         with patch('services.banking_service.DatabaseManager') as MockDBClass:
             mock_db = MagicMock()
@@ -305,11 +290,8 @@ class TestBankAccountResolutionProperty:
 
             result = service.validate_iban_tenant(iban, tenant)
 
-            # On UNFIXED code: returns tenant=None because vw_lookup_accounts
-            # returns None
             assert result['valid'] is True
             assert result['tenant'] == tenant, (
-                f"BUG: validate_iban_tenant({iban}, {tenant}) returned "
-                f"tenant={result.get('tenant')}. Legacy vw_lookup_accounts "
-                f"returns None but get_bank_account_lookups has the IBAN."
+                f"REGRESSION: validate_iban_tenant({iban}, {tenant}) returned "
+                f"tenant={result.get('tenant')}. Must use get_bank_account_lookups()."
             )

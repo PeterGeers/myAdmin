@@ -133,8 +133,9 @@ class TestValidateIbanTenantPreservation:
     """
     **Validates: Requirements 3.2**
 
-    Observe: validate_iban_tenant returns correct results when vw_lookup_accounts
-    finds the IBAN. Tests both correct-tenant and wrong-tenant scenarios.
+    Observe: validate_iban_tenant returns correct results when
+    get_bank_account_lookups finds the IBAN. Tests both correct-tenant
+    and wrong-tenant scenarios.
     """
 
     def test_validate_iban_correct_tenant_returns_valid(self):
@@ -280,7 +281,7 @@ class TestCrossTenantRejectionProperty:
     **Validates: Requirements 3.2**
 
     Property: for all cross-tenant IBAN/tenant pairs, rejection behavior
-    is preserved. When vw_lookup_accounts returns the IBAN belonging to
+    is preserved. When get_bank_account_lookups returns the IBAN belonging to
     tenantA, calling validate_iban_tenant(iban, tenantB) returns valid=False
     with access denied message containing both tenant names.
     """

@@ -150,9 +150,7 @@ class TransactionLogic:
                         ),
                     )
                 elif i == 1:  # Second transaction - VAT
-                    amount = vendor_data.get(
-                        "vat_amount", template.get("TransactionAmount", 0)
-                    )
+                    amount = vendor_data.get("vat_amount", 0)
                     description = vendor_data.get("description", "") + " BTW"
                 else:
                     amount = template.get("TransactionAmount", 0)

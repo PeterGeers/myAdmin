@@ -223,16 +223,14 @@ class BankingChecks:
         if opening_balance_date is not None:
             start_date = opening_balance_date
 
-        # If account_code and administration provided, get IBAN from lookup
+        # If account_code and administration provided, get IBAN from canonical source
         if account_code and administration:
-            cursor.execute(
-                """
-                SELECT rekeningNummer FROM vw_lookup_accounts
-                WHERE Account = %s AND administration = %s
-            """,
-                (account_code, administration),
+            bank_accounts = self.db.get_bank_account_lookups(
+                administration=administration
             )
-            lookup_result = cursor.fetchone()
+            lookup_result = next(
+                (ba for ba in bank_accounts if ba["Account"] == account_code), None
+            )
             if not lookup_result:
                 cursor.close()
                 conn.close()
