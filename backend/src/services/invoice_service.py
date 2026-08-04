@@ -405,8 +405,9 @@ class InvoiceService:
                     "date": first_tx.get("date"),
                     "total_amount": first_tx.get("amount", 0),
                     "description": first_tx.get("description", ""),
+                    "vat_amount": first_tx.get("vat_amount", 0),  # Always include vat_amount from parsed data
                 }
-                # Get VAT amount from second transaction if it's a VAT line
+                # Override with second transaction's amount if it's a VAT line
                 if len(transactions) > 1 and "VAT" in (
                     transactions[1].get("description") or ""
                 ):
