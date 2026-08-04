@@ -1,7 +1,12 @@
-# Grouping modules FIN, STR, ZZP, Admin
+## https://app.guesty.com/reservations?viewId=6a72237ce377681f84e3746c
+Add website data loading from guesty
+Strip fee can be found in stripe link reservation code
 
-Same colour for all functions within a module like the module title
-Reiorganize finance functions (Doing[import, Mutaties]  and Reporting
+What is this : https://report.guesty.com/apps/reservations?apiKey=89b048a6196d1b5fbcbc40f8cb6b75924419bce37cd1efa83af5d4c6b230e089ddb4caaaad87ab85a5444543e00bcd0c80e18d3bb037d66aca1a1f7513fea2ff
+
+checkin is between 2 months ago and 1 year into the future for Platform Manual
+
+
 
 # Time tracking
 
