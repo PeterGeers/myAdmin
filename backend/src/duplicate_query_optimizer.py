@@ -9,7 +9,6 @@ Requirements: 5.5, 6.4
 
 import hashlib
 import logging
-from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ class QueryCache:
 
     def get(
         self, reference_number: str, transaction_date: str, transaction_amount: float
-    ) -> Optional[List[Dict]]:
+    ) -> list[dict] | None:
         """
         Get cached duplicate check result.
 
@@ -76,7 +75,7 @@ class QueryCache:
             entry = self.cache[cache_key]
 
             # Check if entry has expired
-            if datetime.now() < entry["expires_at"]:
+            if datetime.now() < entry["expires_at"]:  # noqa: DTZ005
                 self.hits += 1
                 logger.debug(f"Cache hit for key: {cache_key}")
                 return entry["data"]
@@ -95,8 +94,8 @@ class QueryCache:
         reference_number: str,
         transaction_date: str,
         transaction_amount: float,
-        data: List[Dict],
-        ttl: Optional[int] = None,
+        data: list[dict],
+        ttl: int | None = None,
     ) -> None:
         """
         Store duplicate check result in cache.
@@ -123,11 +122,11 @@ class QueryCache:
             self._evict_oldest()
 
         ttl = ttl or self.default_ttl
-        expires_at = datetime.now() + timedelta(seconds=ttl)
+        expires_at = datetime.now() + timedelta(seconds=ttl)  # noqa: DTZ005
 
         self.cache[cache_key] = {
             "data": data,
-            "cached_at": datetime.now(),
+            "cached_at": datetime.now(),  # noqa: DTZ005
             "expires_at": expires_at,
             "ttl": ttl,
         }
@@ -150,9 +149,9 @@ class QueryCache:
 
     def invalidate(
         self,
-        reference_number: Optional[str] = None,
-        transaction_date: Optional[str] = None,
-        transaction_amount: Optional[float] = None,
+        reference_number: str | None = None,
+        transaction_date: str | None = None,
+        transaction_amount: float | None = None,
     ) -> int:
         """
         Invalidate cache entries.
@@ -192,7 +191,7 @@ class QueryCache:
         Returns:
             Number of entries removed
         """
-        now = datetime.now()
+        now = datetime.now()  # noqa: DTZ005
         expired_keys = [
             key for key, entry in self.cache.items() if now >= entry["expires_at"]
         ]
@@ -207,7 +206,7 @@ class QueryCache:
 
         return len(expired_keys)
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """
         Get cache statistics.
 

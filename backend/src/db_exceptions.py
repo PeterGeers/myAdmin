@@ -9,7 +9,10 @@ class DatabaseError(Exception):
     """Base exception for all database errors."""
 
     def __init__(
-        self, message: str, error_code: int = None, original_error: Exception = None
+        self,
+        message: str,
+        error_code: int | None = None,
+        original_error: Exception | None = None,
     ):
         super().__init__(message)
         self.error_code = error_code
@@ -21,19 +24,13 @@ class DatabaseError(Exception):
 class IntegrityError(DatabaseError):
     """Raised on constraint violations (unique, foreign key, check)."""
 
-    pass
-
 
 class ConnectionError(DatabaseError):
     """Raised when a database connection cannot be established or is lost."""
 
-    pass
-
 
 class OperationalError(DatabaseError):
     """Raised on operational issues (timeout, deadlock, server gone)."""
-
-    pass
 
 
 class ClosedPeriodError(DatabaseError):
@@ -44,7 +41,7 @@ class ClosedPeriodError(DatabaseError):
             identifying which transactions fall in closed periods.
     """
 
-    def __init__(self, offending_transactions: list, message: str = None):
+    def __init__(self, offending_transactions: list, message: str | None = None):
         if message is None:
             years = sorted({t["year"] for t in offending_transactions})
             year_str = ", ".join(str(y) for y in years)

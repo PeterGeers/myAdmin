@@ -19,7 +19,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.4
 
 import io
 import logging
-from typing import List, Optional
 
 import pandas as pd
 
@@ -78,7 +77,9 @@ class TripImportService:
         self.db = db
         self.parameter_service = parameter_service
 
-    def parse_file(self, file_stream, filename: str, column_mapping: dict = None) -> dict:
+    def parse_file(
+        self, file_stream, filename: str, column_mapping: dict | None = None
+    ) -> dict:
         """Parse a CSV or Excel file and apply column mapping.
 
         Detects file type by extension, reads via pandas, applies the
@@ -120,7 +121,7 @@ class TripImportService:
 
         try:
             df = self._read_dataframe(file_stream, ext)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Failed to parse import file '%s': %s", filename, e)
             return {
                 "success": False,
@@ -129,7 +130,7 @@ class TripImportService:
                 "columns_found": [],
                 "columns_mapped": [],
                 "unmapped_columns": [],
-                "error": f"Could not read file: {str(e)}",
+                "error": f"Could not read file: {e!s}",
             }
 
         if df.empty:
@@ -176,7 +177,7 @@ class TripImportService:
             "error": None,
         }
 
-    def validate_import(self, tenant: str, vehicle_id: int, rows: List[dict]) -> dict:
+    def validate_import(self, tenant: str, vehicle_id: int, rows: list[dict]) -> dict:
         """Validate parsed rows before import.
 
         Checks each row for:
@@ -223,11 +224,13 @@ class TripImportService:
             # Normalize date to string if it's a date object
             if hasattr(trip_date, "strftime"):
                 trip_date = trip_date.strftime("%Y-%m-%d")
-            existing_set.add((
-                str(trip_date),
-                int(trip.get("start_odometer", 0)),
-                int(trip.get("end_odometer", 0)),
-            ))
+            existing_set.add(
+                (
+                    str(trip_date),
+                    int(trip.get("start_odometer", 0)),
+                    int(trip.get("end_odometer", 0)),
+                )
+            )
 
         # Get the last odometer reading from existing trips
         last_existing_odometer = None
@@ -286,7 +289,7 @@ class TripImportService:
         }
 
     def commit_import(
-        self, tenant: str, vehicle_id: int, rows: List[dict], created_by: str
+        self, tenant: str, vehicle_id: int, rows: list[dict], created_by: str
     ) -> dict:
         """Bulk insert validated rows as trip records.
 
@@ -314,7 +317,9 @@ class TripImportService:
             logger.info(
                 "Import for tenant=%s vehicle_id=%d: no valid rows to import "
                 "(skipped=%d)",
-                tenant, vehicle_id, skipped,
+                tenant,
+                vehicle_id,
+                skipped,
             )
             return {
                 "success": True,
@@ -343,7 +348,7 @@ class TripImportService:
         errors = []
 
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 for row in valid_rows:
                     params = (
                         tenant,
@@ -360,10 +365,10 @@ class TripImportService:
                         row.get("contact_id"),
                         row.get("project_name"),
                         row.get("notes"),
-                        False,   # is_billable
-                        False,   # is_gap_fill
-                        False,   # is_cancelled
-                        1,       # version
+                        False,  # is_billable
+                        False,  # is_gap_fill
+                        False,  # is_cancelled
+                        1,  # version
                         created_by,
                     )
                     cursor.execute(insert_query, params)
@@ -376,9 +381,11 @@ class TripImportService:
                     imported += 1
 
             logger.info(
-                "Import committed for tenant=%s vehicle_id=%d: "
-                "imported=%d, skipped=%d",
-                tenant, vehicle_id, imported, skipped,
+                "Import committed for tenant=%s vehicle_id=%d: imported=%d, skipped=%d",
+                tenant,
+                vehicle_id,
+                imported,
+                skipped,
             )
             return {
                 "success": True,
@@ -390,13 +397,15 @@ class TripImportService:
         except DatabaseError as e:
             logger.error(
                 "Import failed for tenant=%s vehicle_id=%d: %s",
-                tenant, vehicle_id, e,
+                tenant,
+                vehicle_id,
+                e,
             )
             return {
                 "success": False,
                 "imported": 0,
                 "skipped": skipped,
-                "errors": [f"Database error during import: {str(e)}"],
+                "errors": [f"Database error during import: {e!s}"],
             }
 
     def get_template_csv(self) -> bytes:
@@ -473,7 +482,7 @@ class TripImportService:
                 if len(df.columns) <= 1:
                     file_stream.seek(0)
                     df = pd.read_csv(file_stream, sep=",", dtype=str)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 file_stream.seek(0)
                 df = pd.read_csv(file_stream, sep=",", dtype=str)
             return df
@@ -530,7 +539,7 @@ class TripImportService:
             logger.warning("Failed to fetch existing trips for validation: %s", e)
             return []
 
-    def _get_trip_categories(self, tenant: str) -> Optional[List[str]]:
+    def _get_trip_categories(self, tenant: str) -> list[str] | None:
         """Get configured trip categories from parameter_service."""
         if self.parameter_service:
             try:
@@ -539,11 +548,11 @@ class TripImportService:
                 )
                 if categories:
                     return categories
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
         return None
 
-    def _get_trip_purposes(self, tenant: str) -> Optional[List[str]]:
+    def _get_trip_purposes(self, tenant: str) -> list[str] | None:
         """Get configured trip purposes from parameter_service."""
         if self.parameter_service:
             try:
@@ -552,7 +561,7 @@ class TripImportService:
                 )
                 if purposes:
                     return purposes
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
         return None
 
@@ -566,7 +575,7 @@ class TripImportService:
                 row["_status"] = "error"
 
     @staticmethod
-    def _normalize_date(date_str: str) -> Optional[str]:
+    def _normalize_date(date_str: str) -> str | None:
         """Try to parse and normalize a date string to YYYY-MM-DD format.
 
         Accepts:
@@ -664,8 +673,8 @@ class TripImportService:
     @staticmethod
     def _validate_category_purpose(
         row: dict,
-        valid_categories: Optional[List[str]],
-        valid_purposes: Optional[List[str]],
+        valid_categories: list[str] | None,
+        valid_purposes: list[str] | None,
     ) -> None:
         """Warn if category or purpose not in configured lists."""
         if valid_categories:
@@ -698,7 +707,7 @@ class TripImportService:
         prev_end = None
         for row in rows:
             start = row.get("start_odometer")
-            if prev_end is not None and isinstance(start, (int, float)):
+            if prev_end is not None and isinstance(start, (int, float)):  # noqa: SIM102
                 if start != prev_end:
                     gap = start - prev_end
                     row["_messages"].append(
@@ -714,7 +723,7 @@ class TripImportService:
                 prev_end = end
 
     @staticmethod
-    def _check_db_continuity(rows: list, last_existing_odometer: Optional[int]) -> None:
+    def _check_db_continuity(rows: list, last_existing_odometer: int | None) -> None:
         """Check odometer continuity against existing DB trips.
 
         The first row's start_odometer should match the last existing trip's end_odometer.

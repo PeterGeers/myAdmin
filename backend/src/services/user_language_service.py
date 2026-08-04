@@ -6,6 +6,7 @@ The custom attribute 'custom:preferred_language' was added in Phase 2.1 of i18n 
 """
 
 import os
+
 import boto3
 
 # Initialize Cognito client
@@ -60,7 +61,7 @@ def get_user_language(user_email: str) -> str:
     except client.exceptions.UserNotFoundException:
         print(f"❌ User not found in Cognito: {user_email}")
         return "nl"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"❌ Error getting user language from Cognito: {e}")
         return "nl"
 
@@ -102,7 +103,7 @@ def update_user_language(user_email: str, language: str) -> bool:
     except client.exceptions.UserNotFoundException:
         print(f"❌ User not found in Cognito: {user_email}")
         return False
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"❌ Error updating user language in Cognito: {e}")
         return False
 

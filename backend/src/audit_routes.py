@@ -7,14 +7,16 @@ and managing audit data retention.
 Requirements: 6.4, 6.5
 """
 
-from flask import Blueprint, request, jsonify, send_file
-from audit_logger import AuditLogger
-from database import DatabaseManager
 import logging
-from datetime import datetime
 import os
 import tempfile
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request, send_file
+
+from audit_logger import AuditLogger
 from auth.cognito_utils import cognito_required
+from database import DatabaseManager
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -60,8 +62,7 @@ def get_audit_logs(user_email, user_roles):
         offset = int(request.args.get("offset", 0))
 
         # Validate limit
-        if limit > 1000:
-            limit = 1000  # Cap at 1000 for performance
+        limit = min(limit, 1000)  # Cap at 1000 for performance
 
         # Get audit logger and query logs
         audit_logger = get_audit_logger()
@@ -99,7 +100,7 @@ def get_audit_logs(user_email, user_roles):
             {"success": False, "error": "Invalid parameter value", "message": str(e)}
         ), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error retrieving audit logs: {e}")
         return jsonify(
             {
@@ -148,7 +149,7 @@ def get_audit_log_count(user_email, user_roles):
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting audit log count: {e}")
         return jsonify(
             {"success": False, "error": "Failed to get count", "message": str(e)}
@@ -194,7 +195,7 @@ def generate_compliance_report(user_email, user_roles):
 
         return jsonify({"success": True, "report": report}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error generating compliance report: {e}")
         return jsonify(
             {"success": False, "error": "Failed to generate report", "message": str(e)}
@@ -230,7 +231,7 @@ def get_user_activity_report(user_id, user_email, user_roles):
 
         return jsonify({"success": True, "report": report}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error generating user activity report: {e}")
         return jsonify(
             {
@@ -304,7 +305,7 @@ def get_transaction_audit_trail(user_email, user_roles):
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting transaction audit trail: {e}")
         return jsonify(
             {"success": False, "error": "Failed to get audit trail", "message": str(e)}
@@ -331,7 +332,7 @@ def export_logs_to_csv(user_email, user_roles):
         end_date = request.args.get("end_date")
 
         # Create temporary file for export
-        temp_file = tempfile.NamedTemporaryFile(
+        temp_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
             mode="w", delete=False, suffix=".csv", prefix="audit_logs_"
         )
         temp_file.close()
@@ -353,7 +354,7 @@ def export_logs_to_csv(user_email, user_roles):
             ), 500
 
         # Generate filename with date range
-        filename = f"audit_logs_{start_date or 'all'}_{end_date or 'all'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"audit_logs_{start_date or 'all'}_{end_date or 'all'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"  # noqa: DTZ005
 
         # Send file
         response = send_file(
@@ -368,12 +369,12 @@ def export_logs_to_csv(user_email, user_roles):
         def cleanup():
             try:
                 os.unlink(temp_file.name)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to delete temporary file: {e}")
 
         return response
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error exporting audit logs to CSV: {e}")
         return jsonify(
             {"success": False, "error": "Failed to export logs", "message": str(e)}
@@ -423,7 +424,7 @@ def cleanup_old_logs(user_email, user_roles):
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error cleaning up audit logs: {e}")
         return jsonify(
             {"success": False, "error": "Failed to cleanup logs", "message": str(e)}
@@ -450,18 +451,18 @@ def audit_health_check(user_email, user_roles):
                 "success": True,
                 "status": "healthy",
                 "total_logs": count,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Audit system health check failed: {e}")
         return jsonify(
             {
                 "success": False,
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             }
         ), 500
 

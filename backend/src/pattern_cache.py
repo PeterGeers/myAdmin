@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Persistent Pattern Cache System
 
@@ -14,12 +13,12 @@ REQ-PAT-006: Implement pattern caching for performance
 """
 
 import json
-import time
-import threading
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
-from pathlib import Path
 import logging
+import threading
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -96,17 +95,17 @@ class PersistentPatternCache:
                 f"✅ Cache warmed up in {self.stats['startup_time']:.3f}s with {len(self._memory_cache)} entries"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"❌ Cache initialization failed: {e}")
             self._memory_cache = {}
 
     def get_patterns(
         self,
         administration: str,
-        reference_number: Optional[str] = None,
-        debet_account: Optional[str] = None,
-        credit_account: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        reference_number: str | None = None,
+        debet_account: str | None = None,
+        credit_account: str | None = None,
+    ) -> dict[str, Any] | None:
         """
         Get patterns from cache with multi-level fallback
 
@@ -161,10 +160,10 @@ class PersistentPatternCache:
     def store_patterns(
         self,
         administration: str,
-        patterns: Dict[str, Any],
-        reference_number: Optional[str] = None,
-        debet_account: Optional[str] = None,
-        credit_account: Optional[str] = None,
+        patterns: dict[str, Any],
+        reference_number: str | None = None,
+        debet_account: str | None = None,
+        credit_account: str | None = None,
     ):
         """
         Store patterns in all cache levels for maximum persistence
@@ -199,7 +198,7 @@ class PersistentPatternCache:
             # Remove from memory cache
             keys_to_remove = [
                 key
-                for key in self._memory_cache.keys()
+                for key in self._memory_cache
                 if key.startswith(f"{administration}_")
             ]
             for key in keys_to_remove:
@@ -226,7 +225,7 @@ class PersistentPatternCache:
 
             logger.info("🗑️ Cleared all cache levels")
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get comprehensive cache statistics"""
         with self._cache_lock:
             total_hits = sum(self.stats["hits"].values())
@@ -260,9 +259,9 @@ class PersistentPatternCache:
     def _build_cache_key(
         self,
         administration: str,
-        reference_number: Optional[str] = None,
-        debet_account: Optional[str] = None,
-        credit_account: Optional[str] = None,
+        reference_number: str | None = None,
+        debet_account: str | None = None,
+        credit_account: str | None = None,
     ) -> str:
         """Build cache key for filtered patterns"""
         key_parts = [administration]
@@ -274,7 +273,7 @@ class PersistentPatternCache:
             key_parts.append(f"cred:{credit_account}")
         return "_".join(key_parts)
 
-    def _store_in_memory_cache(self, cache_key: str, patterns: Dict[str, Any]):
+    def _store_in_memory_cache(self, cache_key: str, patterns: dict[str, Any]):
         """Store patterns in memory cache with LRU eviction"""
         # Check if we need to evict entries
         if len(self._memory_cache) >= self.max_memory_entries:
@@ -308,7 +307,7 @@ class PersistentPatternCache:
                 del self._memory_access_times[cache_key]
             self.stats["evictions"] += 1
 
-    def _is_cache_entry_valid(self, entry: Dict[str, Any]) -> bool:
+    def _is_cache_entry_valid(self, entry: dict[str, Any]) -> bool:
         """Check if cache entry is still valid based on TTL"""
         if "timestamp" not in entry or "ttl_hours" not in entry:
             return False
@@ -316,9 +315,7 @@ class PersistentPatternCache:
         age_hours = (time.time() - entry["timestamp"]) / 3600
         return age_hours < entry["ttl_hours"]
 
-    def _load_from_database_cache(
-        self, administration: str
-    ) -> Optional[Dict[str, Any]]:
+    def _load_from_database_cache(self, administration: str) -> dict[str, Any] | None:
         """Load patterns from database cache (L2)"""
         try:
             # Check if patterns exist in database and are fresh
@@ -337,7 +334,7 @@ class PersistentPatternCache:
             last_analysis = metadata[0]["last_analysis_date"]
 
             # Check if analysis is recent (within 24 hours)
-            if datetime.now() - last_analysis > timedelta(hours=24):
+            if datetime.now() - last_analysis > timedelta(hours=24):  # noqa: DTZ005
                 return None
 
             # Load patterns from database
@@ -389,8 +386,8 @@ class PersistentPatternCache:
                 "patterns_discovered": len(reference_patterns),
                 "analysis_date": last_analysis.isoformat(),
                 "date_range": {
-                    "from": (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d"),
-                    "to": datetime.now().strftime("%Y-%m-%d"),
+                    "from": (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d"),  # noqa: DTZ005
+                    "to": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
                 },
                 "statistics": {
                     "patterns_by_type": {
@@ -401,7 +398,7 @@ class PersistentPatternCache:
                 },
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error loading from database cache: {e}")
             return None
 
@@ -424,10 +421,10 @@ class PersistentPatternCache:
 
             logger.info(f"📁 Loaded {loaded_count} entries from file cache")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error loading file cache: {e}")
 
-    def _load_from_file_cache_key(self, cache_key: str) -> Optional[Dict[str, Any]]:
+    def _load_from_file_cache_key(self, cache_key: str) -> dict[str, Any] | None:
         """Load specific key from file cache"""
         try:
             if not self.patterns_file.exists():
@@ -443,11 +440,11 @@ class PersistentPatternCache:
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error loading from file cache key {cache_key}: {e}")
             return None
 
-    def _store_in_file_cache(self, cache_key: str, patterns: Dict[str, Any]):
+    def _store_in_file_cache(self, cache_key: str, patterns: dict[str, Any]):
         """Store patterns in file cache (L3)"""
         try:
             # Load existing cache
@@ -472,14 +469,14 @@ class PersistentPatternCache:
 
             # Update metadata
             metadata = {
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": datetime.now().isoformat(),  # noqa: DTZ005
                 "total_entries": len(file_cache),
                 "cache_version": "1.0",
             }
             with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error storing in file cache: {e}")
 
     def _remove_from_file_cache(self, administration: str):
@@ -493,7 +490,7 @@ class PersistentPatternCache:
 
             # Remove entries for this administration
             keys_to_remove = [
-                key for key in file_cache.keys() if key.startswith(f"{administration}_")
+                key for key in file_cache if key.startswith(f"{administration}_")
             ]
             for key in keys_to_remove:
                 del file_cache[key]
@@ -502,7 +499,7 @@ class PersistentPatternCache:
             with open(self.patterns_file, "w", encoding="utf-8") as f:
                 json.dump(file_cache, f, indent=2, default=str)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error removing from file cache: {e}")
 
     def _validate_and_refresh_cache(self):
@@ -510,7 +507,7 @@ class PersistentPatternCache:
         try:
             # Check if we have any administrations in memory cache
             administrations = set()
-            for cache_key in self._memory_cache.keys():
+            for cache_key in self._memory_cache:
                 admin = cache_key.split("_")[0]
                 administrations.add(admin)
 
@@ -522,7 +519,7 @@ class PersistentPatternCache:
                     cache_key = self._build_cache_key(admin)
                     self._store_in_memory_cache(cache_key, db_patterns)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error validating cache: {e}")
 
 

@@ -12,17 +12,19 @@ Endpoints are public (no JWT required — user is locked out).
 Rate-limited by code expiry (10 minutes) and max 3 attempts.
 """
 
+import logging
 import os
 import secrets
-import logging
 from datetime import datetime, timedelta
-from flask import Blueprint, jsonify, request, make_response
-from flask.typing import ResponseReturnValue
+
 import boto3
 from botocore.exceptions import ClientError
-from database import DatabaseManager
+from flask import Blueprint, jsonify, make_response, request
+from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.rate_limiter import RateLimiter
+from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +118,12 @@ def forgot_password() -> ResponseReturnValue:
 
                     tenants = json.loads(attr["Value"])
                     administration = tenants[0] if tenants else None
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass
 
         # Generate code and store in password_reset_codes table
         code = _generate_code()
-        expires_at = datetime.utcnow() + timedelta(minutes=CODE_EXPIRY_MINUTES)
+        expires_at = datetime.utcnow() + timedelta(minutes=CODE_EXPIRY_MINUTES)  # noqa: DTZ003
         db = _get_db()
 
         # Upsert: delete any existing code for this email, then insert new one
@@ -140,8 +142,8 @@ def forgot_password() -> ResponseReturnValue:
         )
 
         # Send code via SES
-        from services.ses_email_service import SESEmailService
         from services.email_template_service import EmailTemplateService
+        from services.ses_email_service import SESEmailService
 
         ses = SESEmailService()
         email_service = EmailTemplateService(administration=administration)
@@ -157,7 +159,7 @@ def forgot_password() -> ResponseReturnValue:
                 },
                 format="html",
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             html_content = None
 
         text_content = (
@@ -185,7 +187,7 @@ def forgot_password() -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error in forgot-password: {e}")
         return jsonify(
             {
@@ -242,7 +244,7 @@ def confirm_reset_password() -> ResponseReturnValue:
         attempts = row["attempts"] if isinstance(row, dict) else row[2]
 
         # Check expiry
-        if datetime.utcnow() > expires_at:
+        if datetime.utcnow() > expires_at:  # noqa: DTZ003
             db.execute_query(
                 "DELETE FROM password_reset_codes WHERE email = %s",
                 (email,),
@@ -318,7 +320,7 @@ def confirm_reset_password() -> ResponseReturnValue:
             {"success": True, "message": "Password has been reset successfully."}
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error in confirm-reset: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 

@@ -7,10 +7,10 @@ including data that feeds into PDF generation pipelines.
 Extracted from template_preview_service.py for maintainability.
 """
 
-import re
 import logging
-from typing import Dict, Any, Optional
+import re
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class TemplatePdfRenderer:
         self.db = db_manager
         self.administration = administration
 
-    def fetch_str_invoice_sample(self) -> Optional[Dict[str, Any]]:
+    def fetch_str_invoice_sample(self) -> dict[str, Any] | None:
         """
         Fetch most recent STR booking for invoice preview.
 
@@ -104,11 +104,11 @@ class TemplatePdfRenderer:
                 },
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to fetch STR invoice sample: {e}")
             return self.get_placeholder_str_data()
 
-    def fetch_btw_sample(self) -> Optional[Dict[str, Any]]:
+    def fetch_btw_sample(self) -> dict[str, Any] | None:
         """
         Fetch most recent BTW (VAT) data for preview.
 
@@ -121,16 +121,17 @@ class TemplatePdfRenderer:
         """
         try:
             # Get most recent year and quarter with data
-            current_year = datetime.now().year
-            current_quarter = (datetime.now().month - 1) // 3 + 1
+            current_year = datetime.now().year  # noqa: DTZ005
+            current_quarter = (datetime.now().month - 1) // 3 + 1  # noqa: DTZ005
 
             # Try to generate report using the actual generator
             try:
+                from cache.mutaties_cache import MutatiesCache
+
                 from report_generators.btw_aangifte_generator import (
                     generate_btw_report,
                     prepare_template_data,
                 )
-                from cache.mutaties_cache import MutatiesCache
 
                 # Initialize cache
                 cache = MutatiesCache()
@@ -164,7 +165,7 @@ class TemplatePdfRenderer:
 
             except ImportError as ie:
                 logger.warning(f"Could not import BTW generator: {ie}")
-            except Exception as ge:
+            except Exception as ge:  # noqa: BLE001
                 logger.warning(f"BTW report generation error: {ge}")
 
             # Fallback to placeholder data
@@ -175,7 +176,7 @@ class TemplatePdfRenderer:
                 "balance_rows": '<tr><td>2010</td><td>BTW te betalen</td><td class="amount">€1,000.00</td></tr>',
                 "quarter_rows": '<tr><td>2020</td><td>BTW ontvangen</td><td class="amount">€500.00</td></tr>',
                 "payment_instruction": "€500 te betalen",
-                "generated_date": datetime.now().strftime("%d-%m-%Y"),
+                "generated_date": datetime.now().strftime("%d-%m-%Y"),  # noqa: DTZ005
             }
 
             return {
@@ -188,11 +189,11 @@ class TemplatePdfRenderer:
                 },
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to fetch BTW sample: {e}")
             return None
 
-    def fetch_aangifte_ib_sample(self) -> Optional[Dict[str, Any]]:
+    def fetch_aangifte_ib_sample(self) -> dict[str, Any] | None:
         """
         Fetch most recent Aangifte IB (income tax) data for preview.
 
@@ -204,12 +205,12 @@ class TemplatePdfRenderer:
         """
         try:
             # Use previous year as current year data may not be complete
-            current_year = datetime.now().year - 1
+            current_year = datetime.now().year - 1  # noqa: DTZ005
 
             # Try to generate report using the actual generator
             try:
-                from report_generators.aangifte_ib_generator import generate_table_rows
                 from mutaties_cache import MutatiesCache
+                from report_generators.aangifte_ib_generator import generate_table_rows
 
                 # Initialize cache
                 cache = MutatiesCache()
@@ -237,7 +238,7 @@ class TemplatePdfRenderer:
                         "year": str(current_year),
                         "administration": self.administration,
                         "table_rows": table_rows,
-                        "generated_date": datetime.now().strftime("%d-%m-%Y"),
+                        "generated_date": datetime.now().strftime("%d-%m-%Y"),  # noqa: DTZ005
                     }
 
                     return {
@@ -256,7 +257,7 @@ class TemplatePdfRenderer:
 
             except ImportError as ie:
                 logger.warning(f"Could not import Aangifte IB generator: {ie}")
-            except Exception as ge:
+            except Exception as ge:  # noqa: BLE001
                 logger.warning(f"Aangifte IB report generation error: {ge}")
 
             # Fallback to placeholder data
@@ -264,7 +265,7 @@ class TemplatePdfRenderer:
                 "year": str(current_year),
                 "administration": self.administration,
                 "table_rows": '<tr><td>8001</td><td>Omzet</td><td class="amount">€50,000.00</td></tr>',
-                "generated_date": datetime.now().strftime("%d-%m-%Y"),
+                "generated_date": datetime.now().strftime("%d-%m-%Y"),  # noqa: DTZ005
             }
 
             return {
@@ -277,11 +278,11 @@ class TemplatePdfRenderer:
                 },
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to fetch Aangifte IB sample: {e}")
             return None
 
-    def fetch_toeristenbelasting_sample(self) -> Optional[Dict[str, Any]]:
+    def fetch_toeristenbelasting_sample(self) -> dict[str, Any] | None:
         """
         Fetch most recent tourist tax data for preview.
 
@@ -293,15 +294,16 @@ class TemplatePdfRenderer:
             Dictionary with 'data' and 'metadata' keys, or None if no data found
         """
         try:
-            current_year = datetime.now().year
+            current_year = datetime.now().year  # noqa: DTZ005
 
             # Try to generate report using the actual generator
             try:
+                from cache.bnb_cache import BNBCache
+                from cache.mutaties_cache import MutatiesCache
+
                 from report_generators.toeristenbelasting_generator import (
                     generate_toeristenbelasting_report,
                 )
-                from cache.mutaties_cache import MutatiesCache
-                from cache.bnb_cache import BNBCache
 
                 # Initialize caches
                 cache = MutatiesCache()
@@ -332,7 +334,7 @@ class TemplatePdfRenderer:
 
             except ImportError as ie:
                 logger.warning(f"Could not import Toeristenbelasting generator: {ie}")
-            except Exception as ge:
+            except Exception as ge:  # noqa: BLE001
                 logger.warning(f"Toeristenbelasting report generation error: {ge}")
 
             # Fallback to placeholder data
@@ -343,7 +345,7 @@ class TemplatePdfRenderer:
                 "nights_total": "100",
                 "revenue_total": "€10,000.00",
                 "tourist_tax_total": "€300.00",
-                "generated_date": datetime.now().strftime("%d-%m-%Y"),
+                "generated_date": datetime.now().strftime("%d-%m-%Y"),  # noqa: DTZ005
             }
 
             return {
@@ -356,11 +358,11 @@ class TemplatePdfRenderer:
                 },
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to fetch tourist tax sample: {e}")
             return None
 
-    def fetch_generic_sample(self) -> Optional[Dict[str, Any]]:
+    def fetch_generic_sample(self) -> dict[str, Any] | None:
         """
         Fetch generic placeholder data for unknown template types.
 
@@ -377,8 +379,8 @@ class TemplatePdfRenderer:
 
         sample_data = {
             "administration": self.administration,
-            "generated_date": datetime.now().strftime("%d-%m-%Y"),
-            "year": str(datetime.now().year),
+            "generated_date": datetime.now().strftime("%d-%m-%Y"),  # noqa: DTZ005
+            "year": str(datetime.now().year),  # noqa: DTZ005
             "sample_text": "Sample Data",
             "sample_number": "1,234.56",
             "sample_currency": "€1,234.56",
@@ -390,13 +392,13 @@ class TemplatePdfRenderer:
             "data": sample_data,
             "metadata": {
                 "source": "placeholder",
-                "record_date": datetime.now().strftime("%Y-%m-%d"),
+                "record_date": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
                 "record_id": "GENERIC-SAMPLE",
                 "message": "Using generic placeholder data - template type not recognized",
             },
         }
 
-    def get_placeholder_str_data(self) -> Dict[str, Any]:
+    def get_placeholder_str_data(self) -> dict[str, Any]:
         """
         Get placeholder STR invoice data when no real data is available.
 
@@ -432,8 +434,8 @@ class TemplatePdfRenderer:
             "billing_name": "Sample Guest",
             "billing_address": "Via Booking.com",
             "billing_city": "Reservering: RES-SAMPLE-001",
-            "invoice_date": datetime.now().strftime("%d-%m-%Y"),
-            "due_date": datetime.now().strftime("%d-%m-%Y"),
+            "invoice_date": datetime.now().strftime("%d-%m-%Y"),  # noqa: DTZ005
+            "due_date": datetime.now().strftime("%d-%m-%Y"),  # noqa: DTZ005
             "company_name": "Jabaki a Goodwin Solutions Company",
             "company_address": "Beemsterstraat 3",
             "company_postal_city": "2131 ZA Hoofddorp",
@@ -448,14 +450,14 @@ class TemplatePdfRenderer:
             "metadata": {
                 "source": "placeholder",
                 "message": "No bookings found, using placeholder data",
-                "record_date": datetime.now().strftime("%Y-%m-%d"),
+                "record_date": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
                 "record_id": "PLACEHOLDER",
             },
         }
 
     def generate_default_field_mappings(
         self, template_type: str, template_content: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Auto-generate default field_mappings by extracting placeholders from template.
 
@@ -568,7 +570,7 @@ class TemplatePdfRenderer:
 
             return field_mappings
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to generate default field_mappings: {e}")
             # Return minimal fallback
             return {

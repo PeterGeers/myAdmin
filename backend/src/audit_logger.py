@@ -8,8 +8,8 @@ Requirements: 3.2, 6.4, 6.5
 """
 
 import logging
-from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
+
 from database import DatabaseManager
 
 # Configure logger
@@ -44,11 +44,11 @@ class AuditLogger:
         transaction_date: str,
         transaction_amount: float,
         decision: str,
-        existing_transaction_id: Optional[int] = None,
-        new_file_url: Optional[str] = None,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        operation_id: Optional[str] = None,
+        existing_transaction_id: int | None = None,
+        new_file_url: str | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        operation_id: str | None = None,
     ) -> bool:
         """
         Log a duplicate invoice decision to the audit trail.
@@ -80,7 +80,7 @@ class AuditLogger:
             self.db.execute_query(
                 query,
                 (
-                    datetime.now(),
+                    datetime.now(),  # noqa: DTZ005
                     reference_number,
                     transaction_date,
                     transaction_amount,
@@ -100,20 +100,20 @@ class AuditLogger:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to create audit log entry: {e}")
             return False
 
     def query_logs(
         self,
-        reference_number: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        decision: Optional[str] = None,
-        user_id: Optional[str] = None,
+        reference_number: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        decision: str | None = None,
+        user_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Query audit logs with flexible filtering options.
 
@@ -180,15 +180,15 @@ class AuditLogger:
             )
             return results if results else []
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to query audit logs: {e}")
             return []
 
     def get_decision_count(
         self,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        decision: Optional[str] = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        decision: str | None = None,
     ) -> int:
         """
         Get count of audit log entries matching filters.
@@ -236,13 +236,13 @@ class AuditLogger:
 
             return 0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to get decision count: {e}")
             return 0
 
     def generate_compliance_report(
         self, start_date: str, end_date: str, include_details: bool = True
-    ) -> Dict:
+    ) -> dict:
         """
         Generate a comprehensive compliance report for audit purposes.
 
@@ -261,7 +261,7 @@ class AuditLogger:
                 "report_period": {
                     "start_date": start_date,
                     "end_date": end_date,
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
                 },
                 "summary": {},
                 "details": [] if include_details else None,
@@ -360,23 +360,23 @@ class AuditLogger:
             logger.info(f"Compliance report generated for {start_date} to {end_date}")
             return report
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to generate compliance report: {e}")
             return {
                 "error": str(e),
                 "report_period": {
                     "start_date": start_date,
                     "end_date": end_date,
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
                 },
             }
 
     def get_user_activity_report(
         self,
         user_id: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> Dict:
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict:
         """
         Generate a user activity report for audit purposes.
 
@@ -396,7 +396,7 @@ class AuditLogger:
                 "report_period": {
                     "start_date": start_date or "all",
                     "end_date": end_date or "all",
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
                 },
                 "summary": {},
                 "recent_decisions": [],
@@ -453,7 +453,7 @@ class AuditLogger:
             logger.info(f"User activity report generated for user: {user_id}")
             return report
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to generate user activity report: {e}")
             return {
                 "error": str(e),
@@ -461,11 +461,11 @@ class AuditLogger:
                 "report_period": {
                     "start_date": start_date or "all",
                     "end_date": end_date or "all",
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
                 },
             }
 
-    def cleanup_old_logs(self, retention_days: int = 730) -> Tuple[bool, int]:
+    def cleanup_old_logs(self, retention_days: int = 730) -> tuple[bool, int]:
         """
         Clean up audit logs older than the retention period.
 
@@ -478,7 +478,7 @@ class AuditLogger:
         Requirements: 6.5
         """
         try:
-            cutoff_date = datetime.now() - timedelta(days=retention_days)
+            cutoff_date = datetime.now() - timedelta(days=retention_days)  # noqa: DTZ005
 
             # First, count how many records will be deleted
             count_query = f"""
@@ -509,15 +509,15 @@ class AuditLogger:
             )
             return True, delete_count
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to cleanup old audit logs: {e}")
             return False, 0
 
     def export_logs_to_csv(
         self,
         output_file: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> bool:
         """
         Export audit logs to CSV file for external analysis.
@@ -573,13 +573,13 @@ class AuditLogger:
             logger.info(f"Exported {len(logs)} audit log entries to {output_file}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to export audit logs to CSV: {e}")
             return False
 
     def get_audit_trail_for_transaction(
         self, reference_number: str, transaction_date: str, transaction_amount: float
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Get complete audit trail for a specific transaction.
 
@@ -613,6 +613,6 @@ class AuditLogger:
             )
             return results if results else []
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to get audit trail for transaction: {e}")
             return []

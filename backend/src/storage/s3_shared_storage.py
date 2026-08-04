@@ -13,9 +13,8 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
 import logging
-import uuid
 import os
-from typing import List, Optional
+import uuid
 
 import boto3
 from botocore.exceptions import ClientError
@@ -42,7 +41,7 @@ class S3SharedStorage(StorageProvider):
         self._client = boto3.client("s3")
 
     def _make_key(
-        self, path: str, metadata: dict = None, category: str = "invoices"
+        self, path: str, metadata: dict | None = None, category: str = "invoices"
     ) -> str:
         """Build S3 key: {tenant}/{category}/{reference}/{uuid}_{filename}"""
         metadata = metadata or {}
@@ -55,7 +54,7 @@ class S3SharedStorage(StorageProvider):
         self,
         file_data: bytes,
         path: str,
-        metadata: dict = None,
+        metadata: dict | None = None,
         category: str = "invoices",
     ) -> str:
         """Upload file to shared S3 bucket. Returns the S3 key as reference."""
@@ -81,7 +80,7 @@ class S3SharedStorage(StorageProvider):
             logger.error("Failed to delete s3://%s/%s: %s", self.bucket, reference, e)
             return False
 
-    def list_files(self, path: str, category: Optional[str] = None) -> List[dict]:
+    def list_files(self, path: str, category: str | None = None) -> list[dict]:
         """List files under a prefix.
 
         If category is provided, scopes the prefix to {tenant}/{category}/.

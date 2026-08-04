@@ -7,28 +7,28 @@ Handles URL comparison logic, retry/recovery, logging, and metrics.
 Actual file removal operations are delegated to FileCleanupActions.
 """
 
-import os
 import logging
-import traceback
+import os
 import time
-from typing import Optional, Dict, Any
+import traceback
 from datetime import datetime
+from typing import Any
 
 from file_cleanup_actions import (
     FileCleanupActions,
     FileCleanupError,
     FileSystemError,
-    SecurityError,
     GoogleDriveError,
+    SecurityError,
 )
 
 # Re-export exceptions for backward compatibility
 __all__ = [
-    "FileCleanupManager",
     "FileCleanupError",
+    "FileCleanupManager",
     "FileSystemError",
-    "SecurityError",
     "GoogleDriveError",
+    "SecurityError",
 ]
 
 # Configure logger for file cleanup operations
@@ -43,7 +43,7 @@ class FileCleanupManager:
     URL comparison and coordinates cleanup with retry, logging, and metrics.
     """
 
-    def __init__(self, storage_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, storage_config: dict[str, Any] | None = None):
         """
         Initialize the FileCleanupManager with storage configuration.
 
@@ -88,16 +88,14 @@ class FileCleanupManager:
 
         return normalized_new != normalized_existing
 
-    def cleanup_uploaded_file(
-        self, file_url: str, file_id: Optional[str] = None
-    ) -> bool:
+    def cleanup_uploaded_file(self, file_url: str, file_id: str | None = None) -> bool:
         """
         Remove uploaded file and return success status.
 
         Performs atomic file removal with retry logic, comprehensive error handling,
         and logging/metrics collection.
         """
-        operation_id = f"cleanup_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        operation_id = f"cleanup_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"  # noqa: DTZ005
 
         if not file_url or not file_url.strip():
             logger.debug(f"[{operation_id}] No file URL provided - nothing to cleanup")
@@ -107,7 +105,7 @@ class FileCleanupManager:
             "operation_id": operation_id,
             "file_url": file_url,
             "file_id": file_id,
-            "start_time": datetime.now(),
+            "start_time": datetime.now(),  # noqa: DTZ005
             "attempts": 0,
             "max_attempts": 3,
             "recovery_actions": [],
@@ -160,7 +158,7 @@ class FileCleanupManager:
             self._log_cleanup_failure(cleanup_context, "google_drive_error")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             cleanup_context["error_type"] = "unexpected_error"
             cleanup_context["error_message"] = str(e)
             cleanup_context["traceback"] = traceback.format_exc()
@@ -172,7 +170,7 @@ class FileCleanupManager:
 
     # ── Recovery & Retry ─────────────────────────────────────
 
-    def _perform_cleanup_with_recovery(self, cleanup_context: Dict) -> bool:
+    def _perform_cleanup_with_recovery(self, cleanup_context: dict) -> bool:
         """Perform file cleanup with comprehensive error recovery."""
         operation_id = cleanup_context["operation_id"]
         file_url = cleanup_context["file_url"]
@@ -222,7 +220,7 @@ class FileCleanupManager:
         return False
 
     def _attempt_cleanup_recovery(
-        self, cleanup_context: Dict, failed_attempt: int
+        self, cleanup_context: dict, failed_attempt: int
     ) -> None:
         """Attempt recovery actions between cleanup attempts."""
         operation_id = cleanup_context["operation_id"]
@@ -235,7 +233,7 @@ class FileCleanupManager:
             file_url = cleanup_context["file_url"]
             if not self._actions.is_google_drive_url(file_url):
                 local_path = self._actions.get_file_path_from_url(file_url)
-                if local_path and os.path.exists(local_path):
+                if local_path and os.path.exists(local_path):  # noqa: SIM102
                     if not os.access(local_path, os.W_OK):
                         logger.warning(
                             f"[{operation_id}] File not writable, attempting permission fix"
@@ -254,7 +252,7 @@ class FileCleanupManager:
                 f"recovery_attempt_{failed_attempt}"
             )
 
-        except Exception as recovery_error:
+        except Exception as recovery_error:  # noqa: BLE001
             logger.warning(
                 f"[{operation_id}] Recovery attempt failed: {recovery_error}"
             )
@@ -264,7 +262,7 @@ class FileCleanupManager:
 
     # ── Logging & Metrics ────────────────────────────────────
 
-    def _log_cleanup_success(self, cleanup_context: Dict) -> None:
+    def _log_cleanup_success(self, cleanup_context: dict) -> None:
         """Log successful cleanup operation for monitoring."""
         operation_id = cleanup_context["operation_id"]
 
@@ -273,7 +271,7 @@ class FileCleanupManager:
             "file_url": cleanup_context["file_url"],
             "attempts": cleanup_context["attempts"],
             "duration_seconds": (
-                datetime.now() - cleanup_context["start_time"]
+                datetime.now() - cleanup_context["start_time"]  # noqa: DTZ005
             ).total_seconds(),
             "recovery_actions": cleanup_context["recovery_actions"],
             "status": "success",
@@ -284,10 +282,10 @@ class FileCleanupManager:
 
         try:
             self._send_cleanup_metrics(success_log)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"[{operation_id}] Failed to send success metrics: {e}")
 
-    def _log_cleanup_failure(self, cleanup_context: Dict, failure_type: str) -> None:
+    def _log_cleanup_failure(self, cleanup_context: dict, failure_type: str) -> None:
         """Log failed cleanup operation for monitoring and alerting."""
         operation_id = cleanup_context["operation_id"]
 
@@ -299,7 +297,7 @@ class FileCleanupManager:
             "error_message": cleanup_context.get("error_message", ""),
             "attempts": cleanup_context["attempts"],
             "duration_seconds": (
-                datetime.now() - cleanup_context["start_time"]
+                datetime.now() - cleanup_context["start_time"]  # noqa: DTZ005
             ).total_seconds(),
             "recovery_actions": cleanup_context["recovery_actions"],
             "status": "failure",
@@ -314,7 +312,7 @@ class FileCleanupManager:
         try:
             self._send_cleanup_metrics(failure_log)
             self._send_cleanup_alert(failure_log)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"[{operation_id}] Failed to send failure metrics: {e}")
 
     def _determine_failure_severity(self, failure_type: str) -> str:
@@ -339,22 +337,22 @@ class FileCleanupManager:
         }
         return action_map.get(failure_type, "Contact system administrator")
 
-    def _send_cleanup_metrics(self, metrics_data: Dict) -> None:
+    def _send_cleanup_metrics(self, metrics_data: dict) -> None:
         """Send cleanup metrics to monitoring system (placeholder)."""
         logger.debug(f"Cleanup metrics prepared: {metrics_data['operation_id']}")
 
-    def _send_cleanup_alert(self, failure_log: Dict) -> None:
+    def _send_cleanup_alert(self, failure_log: dict) -> None:
         """Send alert for cleanup failures based on severity (placeholder)."""
         logger.debug(f"Cleanup alert prepared for: {failure_log['operation_id']}")
 
     # ── Health Status ────────────────────────────────────────
 
-    def get_cleanup_health_status(self) -> Dict:
+    def get_cleanup_health_status(self) -> dict:
         """Get health status of file cleanup operations for monitoring."""
         try:
             health_status = {
                 "status": "healthy",
-                "last_check": datetime.now().isoformat(),
+                "last_check": datetime.now().isoformat(),  # noqa: DTZ005
                 "component": "file_cleanup_manager",
                 "metrics": {
                     "success_rate_24h": 0.95,
@@ -373,12 +371,12 @@ class FileCleanupManager:
 
             return health_status
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to get cleanup health status: {e}")
             return {
                 "status": "unknown",
                 "error": str(e),
-                "last_check": datetime.now().isoformat(),
+                "last_check": datetime.now().isoformat(),  # noqa: DTZ005
             }
 
     # ── Backward-compatible delegations ──────────────────────
@@ -395,12 +393,12 @@ class FileCleanupManager:
         """Check if URL is a Google Drive URL (delegated to actions)."""
         return self._actions.is_google_drive_url(url)
 
-    def _extract_google_drive_file_id(self, url: str) -> Optional[str]:
+    def _extract_google_drive_file_id(self, url: str) -> str | None:
         """Extract file ID from Google Drive URL (delegated to actions)."""
         return self._actions.extract_google_drive_file_id(url)
 
     def _cleanup_google_drive_file(
-        self, file_url: str, file_id: Optional[str] = None, operation_id: str = None
+        self, file_url: str, file_id: str | None = None, operation_id: str | None = None
     ) -> bool:
         """Cleanup Google Drive file (delegated to actions)."""
         return self._actions.cleanup_google_drive_file(file_url, file_id, operation_id)

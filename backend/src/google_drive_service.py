@@ -1,11 +1,12 @@
-from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from googleapiclient.http import MediaFileUpload
-import os
 import json
 import logging
+import os
+
 from dotenv import load_dotenv
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 load_dotenv()
 
@@ -83,7 +84,7 @@ class GoogleDriveService:
             )
 
             if not oauth_creds:
-                raise Exception(
+                raise Exception(  # noqa: TRY002
                     f"Google Drive OAuth credentials not found for administration '{self.administration}'. "
                     "Please run the migration script to store credentials in the database."
                 )
@@ -115,7 +116,7 @@ class GoogleDriveService:
                     logger.info(
                         f"Loaded existing token for administration: {self.administration}"
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(f"Failed to load token: {e}")
                     creds = None
 
@@ -137,7 +138,7 @@ class GoogleDriveService:
                         logger.info(
                             f"✅ Refreshed token stored for administration: {self.administration}"
                         )
-                    except Exception as refresh_error:
+                    except Exception as refresh_error:  # noqa: BLE001
                         # Token refresh failed - likely the refresh token is invalid/expired
                         logger.error(
                             f"❌ Token refresh failed for {self.administration}: {refresh_error}"
@@ -257,7 +258,7 @@ class GoogleDriveService:
                 )
 
             return sorted(all_subfolders, key=lambda x: x["name"].lower())
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Could not access Facturen folder: {e}")
             return []
 
@@ -275,8 +276,9 @@ class GoogleDriveService:
 
     def upload_text_file(self, content, filename, folder_id, mime_type="text/html"):
         """Upload content directly to Google Drive. Supports both str and bytes."""
-        from googleapiclient.http import MediaIoBaseUpload
         import io
+
+        from googleapiclient.http import MediaIoBaseUpload
 
         if isinstance(content, bytes):
             stream = io.BytesIO(content)
@@ -318,7 +320,7 @@ class GoogleDriveService:
                     },
                 }
             return {"exists": False}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error checking file existence: {e}")
             return {"exists": False}
 
@@ -333,8 +335,9 @@ class GoogleDriveService:
             str: File content as string
         """
         try:
-            from googleapiclient.http import MediaIoBaseDownload
             import io
+
+            from googleapiclient.http import MediaIoBaseDownload
 
             request = self.service.files().get_media(fileId=file_id)
             file_buffer = io.BytesIO()
@@ -342,7 +345,7 @@ class GoogleDriveService:
 
             done = False
             while not done:
-                status, done = downloader.next_chunk()
+                _status, done = downloader.next_chunk()
 
             # Get content as string
             file_buffer.seek(0)
@@ -350,9 +353,9 @@ class GoogleDriveService:
 
             return content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error downloading file content: {e}", flush=True)
-            raise Exception(f"Failed to download file from Google Drive: {str(e)}")
+            raise Exception(f"Failed to download file from Google Drive: {e!s}")  # noqa: TRY002
 
     def create_folder(self, folder_name, parent_id):
         file_metadata = {

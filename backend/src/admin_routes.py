@@ -3,16 +3,18 @@ System Administration Routes
 Handles user and role management for SysAdmin users
 """
 
-from flask import Blueprint, jsonify, request
-import sys
 import os
+import sys
+
+from flask import Blueprint, jsonify, request
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from auth.cognito_utils import cognito_required
 import boto3
 from botocore.exceptions import ClientError
+
+from auth.cognito_utils import cognito_required
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
@@ -93,7 +95,7 @@ def list_users(user_email, user_roles):
                 user_data["groups"] = [
                     g["GroupName"] for g in groups_response.get("Groups", [])
                 ]
-            except Exception:
+            except Exception:  # noqa: BLE001
                 user_data["groups"] = []
 
             users.append(user_data)

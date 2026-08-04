@@ -5,12 +5,14 @@ Handles health check, status, and monitoring endpoints.
 Extracted from app.py during refactoring (Phase 1.2)
 """
 
+import os
+
+import psutil
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
-import os
-import psutil
 
 system_health_bp = Blueprint("system_health", __name__)
 
@@ -57,7 +59,7 @@ def get_status() -> ResponseReturnValue:
                 "folder": folder_name,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
@@ -92,7 +94,7 @@ def get_db_config() -> ResponseReturnValue:
         config["MYSQL_PASSWORD"] = "SET" if os.getenv("MYSQL_PASSWORD") else "NOT_SET"
 
         return jsonify(config)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
 
 
@@ -118,7 +120,7 @@ def test_db_connection() -> ResponseReturnValue:
                 "test_query_result": result,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify(
             {"status": "error", "message": str(e), "error_type": type(e).__name__}
         ), 500
@@ -178,6 +180,7 @@ def _collect_cache_stats() -> dict:
     # MutatiesCache stats
     try:
         from mutaties_cache import get_cache
+
         mutaties_cache = get_cache()
         stats = mutaties_cache.get_stats()
         caches["mutaties"] = {
@@ -185,12 +188,13 @@ def _collect_cache_stats() -> dict:
             "total_rows": stats.get("total_rows", 0),
             "memory_mb": stats.get("memory_mb", 0.0),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001
         caches["mutaties"] = {"error": "unavailable"}
 
     # BnbCache stats
     try:
         from bnb_cache import get_bnb_cache
+
         bnb_cache = get_bnb_cache()
         stats = bnb_cache.get_stats()
         caches["bnb"] = {
@@ -198,12 +202,13 @@ def _collect_cache_stats() -> dict:
             "total_rows": stats.get("total_rows", 0),
             "memory_mb": stats.get("memory_mb", 0.0),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001
         caches["bnb"] = {"error": "unavailable"}
 
     # QueryCache stats
     try:
         from duplicate_query_optimizer import get_query_optimizer
+
         optimizer = get_query_optimizer()
         stats = optimizer.cache.get_stats()
         caches["query_cache"] = {
@@ -211,7 +216,7 @@ def _collect_cache_stats() -> dict:
             "max_size": stats.get("max_size", 0),
             "hit_rate_percent": stats.get("hit_rate_percent", 0.0),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001
         caches["query_cache"] = {"error": "unavailable"}
 
     return caches
@@ -219,14 +224,12 @@ def _collect_cache_stats() -> dict:
 
 def _collect_process_stats() -> dict:
     """Collect process RSS and alert threshold."""
-    alert_threshold_mb = int(
-        os.environ.get("MEMORY_ALERT_THRESHOLD_MB", "512")
-    )
+    alert_threshold_mb = int(os.environ.get("MEMORY_ALERT_THRESHOLD_MB", "512"))
 
     try:
         rss_bytes = psutil.Process().memory_info().rss
         rss_mb = round(rss_bytes / 1024 / 1024, 1)
-    except Exception:
+    except Exception:  # noqa: BLE001
         rss_mb = 0.0
 
     result = {
@@ -245,6 +248,7 @@ def _collect_process_stats() -> dict:
 def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
     """Check Google Drive token health for all tenants"""
     from datetime import datetime
+
     from services.credential_service import CredentialService
 
     try:
@@ -254,7 +258,9 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
         tenants_result = db.execute_query(
             "SELECT DISTINCT administration FROM rekeningschema WHERE administration IS NOT NULL"
         )
-        tenants = [r["administration"] for r in tenants_result] if tenants_result else []
+        tenants = (
+            [r["administration"] for r in tenants_result] if tenants_result else []
+        )
         results = {}
 
         for tenant in tenants:
@@ -277,10 +283,10 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                     expiry_date = datetime.fromisoformat(
                         expiry_str.replace("Z", "+00:00")
                     )
-                except Exception:
+                except Exception:  # noqa: BLE001
                     try:
-                        expiry_date = datetime.strptime(expiry_str, "%d-%m-%Y %H:%M:%S")
-                    except Exception:
+                        expiry_date = datetime.strptime(expiry_str, "%d-%m-%Y %H:%M:%S")  # noqa: DTZ007
+                    except Exception:  # noqa: BLE001
                         results[tenant] = {
                             "status": "error",
                             "message": f"Invalid expiry format: {expiry_str}",
@@ -288,7 +294,7 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                         }
                         continue
 
-                now = datetime.now()
+                now = datetime.now()  # noqa: DTZ005
                 if expiry_date.tzinfo:
                     from datetime import timezone
 
@@ -324,7 +330,7 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                         "action_required": False,
                     }
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 results[tenant] = {
                     "status": "error",
                     "message": str(e),
@@ -344,9 +350,9 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
             {
                 "overall_status": overall_status,
                 "tenants": results,
-                "checked_at": datetime.now().isoformat(),
+                "checked_at": datetime.now().isoformat(),  # noqa: DTZ005
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"overall_status": "error", "message": str(e)}), 500

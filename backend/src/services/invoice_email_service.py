@@ -12,10 +12,9 @@ Reference: .kiro/specs/zzp-invoice-pdf-preview/design.md §5
 
 import logging
 from datetime import date
-from typing import List, Optional
 
-from babel.numbers import format_currency
 from babel.dates import format_date as babel_format_date
+from babel.numbers import format_currency
 
 from services.logo_resolver import resolve_tenant_logo
 
@@ -74,7 +73,11 @@ class InvoiceEmailService:
     _VERIFICATION_EXPIRED_ERRORS = ("MessageRejected", "MailFromDomainNotVerified")
 
     def send_invoice_email(
-        self, tenant: str, invoice: dict, attachments: List[dict], sent_by: str = None
+        self,
+        tenant: str,
+        invoice: dict,
+        attachments: list[dict],
+        sent_by: str | None = None,
     ) -> dict:
         """Send invoice email with PDF attachment(s).
 
@@ -137,7 +140,7 @@ class InvoiceEmailService:
         return result
 
     def send_reminder_email(
-        self, tenant: str, invoice: dict, sent_by: str = None
+        self, tenant: str, invoice: dict, sent_by: str | None = None
     ) -> dict:
         """Send payment reminder for an overdue invoice (no attachment).
 
@@ -376,7 +379,7 @@ class InvoiceEmailService:
         try:
             n = float(val or 0)
             return format_currency(n, currency_code, locale=locale)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return f"{currency_code} {val}"
 
     def _format_date(self, val, locale: str) -> str:
@@ -390,7 +393,7 @@ class InvoiceEmailService:
             else:
                 return s
             return babel_format_date(d, format="long", locale=locale)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return s
 
     # ── Legacy Helpers (existing send/reminder flow) ────────
@@ -450,7 +453,7 @@ class InvoiceEmailService:
 
         return body
 
-    def _get_bcc(self, tenant: str) -> List[str]:
+    def _get_bcc(self, tenant: str) -> list[str]:
         if self.parameter_service:
             bcc = self.parameter_service.get_param(
                 "zzp", "invoice_email_bcc", tenant=tenant
@@ -459,7 +462,7 @@ class InvoiceEmailService:
                 return [bcc] if isinstance(bcc, str) else bcc
         return []
 
-    def _get_bcc_email(self, tenant: str) -> Optional[str]:
+    def _get_bcc_email(self, tenant: str) -> str | None:
         """Get the tenant's admin/contact email for Reply-To header."""
         if self.parameter_service:
             # Try branding contact email first
@@ -531,10 +534,10 @@ class InvoiceEmailService:
         to_email: str,
         subject: str,
         html_body: str,
-        attachments: List[dict],
-        bcc: List[str],
+        attachments: list[dict],
+        bcc: list[str],
         email_type: str,
-        sent_by: Optional[str] = None,
+        sent_by: str | None = None,
     ) -> dict:
         """Handle SES send errors by retrying with fallback sender.
 
@@ -628,7 +631,7 @@ class InvoiceEmailService:
             company_name = self.parameter_service.get_param(
                 "zzp_branding", "company_name", tenant=tenant
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # ParameterService unavailable — skip signature entirely
             return ""
 
@@ -640,7 +643,7 @@ class InvoiceEmailService:
             contact_email = self.parameter_service.get_param(
                 "zzp_branding", "contact_email", tenant=tenant
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             contact_email = None
 
         # Resolve logo (returns base64 data URI or None)
@@ -649,7 +652,7 @@ class InvoiceEmailService:
             logo_data_uri = resolve_tenant_logo(
                 tenant, "zzp_branding", self.parameter_service
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Logo fetch failed — render without logo
             logo_data_uri = None
 

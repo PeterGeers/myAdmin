@@ -5,10 +5,12 @@ API endpoints for managing tenant-specific module access.
 Handles which modules (FIN, STR) are available for each tenant.
 """
 
-from flask import Blueprint, request, jsonify
+import logging
+
+from flask import Blueprint, jsonify, request
+
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ def get_user_tenants_from_jwt(request):
 
         return tenants_value if isinstance(tenants_value, list) else []
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to extract tenants from JWT: {e}")
         return []
 
@@ -111,7 +113,7 @@ def get_tenant_modules(user_email, user_roles):
             return jsonify({"error": "Access denied to tenant"}), 403
 
         # Get tenant's enabled modules from database
-        with db_manager.get_cursor() as (cursor, conn):
+        with db_manager.get_cursor() as (cursor, _conn):
             cursor.execute(
                 """
                 SELECT module_name
@@ -140,7 +142,7 @@ def get_tenant_modules(user_email, user_roles):
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting tenant modules: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
@@ -173,7 +175,7 @@ def get_all_tenant_modules(user_email, user_roles):
         # Get modules for each tenant
         tenant_modules_map = {}
 
-        with db_manager.get_cursor() as (cursor, conn):
+        with db_manager.get_cursor() as (cursor, _conn):
             for tenant in user_tenants:
                 cursor.execute(
                     """
@@ -199,7 +201,7 @@ def get_all_tenant_modules(user_email, user_roles):
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting all tenant modules: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
@@ -279,6 +281,6 @@ def update_tenant_module(user_email, user_roles):
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating tenant module: {e}")
         return jsonify({"error": "Internal server error"}), 500

@@ -11,7 +11,7 @@ Account Purposes:
 Note: Opening balances use equity_result account for balancing (no separate interim account needed).
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database import DatabaseManager
 
@@ -20,7 +20,7 @@ class YearEndConfigService:
     """Service for managing year-end closure configuration"""
 
     # Required account purposes for year-end closure
-    REQUIRED_PURPOSES = {
+    REQUIRED_PURPOSES = {  # noqa: RUF012
         "equity_result": {
             "description": "Equity result account (where net P&L is recorded)",
             "expected_vw": "N",  # Balance sheet account
@@ -36,9 +36,7 @@ class YearEndConfigService:
     def __init__(self, test_mode: bool = False) -> None:
         self.db = DatabaseManager(test_mode=test_mode)
 
-    def get_account_by_purpose(
-        self, administration: str, purpose: str
-    ) -> Optional[str]:
+    def get_account_by_purpose(self, administration: str, purpose: str) -> str | None:
         """
         Get account code by parameter purpose.
 
@@ -61,7 +59,7 @@ class YearEndConfigService:
 
     def set_account_purpose(
         self, administration: str, account_code: str, purpose: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Set purpose for an account.
 
@@ -122,7 +120,7 @@ class YearEndConfigService:
 
     def remove_account_purpose(
         self, administration: str, account_code: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Remove purpose from an account.
 
@@ -145,7 +143,7 @@ class YearEndConfigService:
         )
         return True
 
-    def get_all_configured_purposes(self, administration: str) -> List[Dict[str, Any]]:
+    def get_all_configured_purposes(self, administration: str) -> list[dict[str, Any]]:
         """
         Get all configured account purposes for an administration.
 
@@ -181,7 +179,7 @@ class YearEndConfigService:
 
         return configured
 
-    def validate_configuration(self, administration: str) -> Dict[str, Any]:
+    def validate_configuration(self, administration: str) -> dict[str, Any]:
         """
         Validate year-end closure configuration for an administration.
 
@@ -221,7 +219,7 @@ class YearEndConfigService:
 
         # Check for duplicate purpose assignments (shouldn't happen but validate anyway)
         purpose_counts = {}
-        for purpose in configured.keys():
+        for purpose in configured:
             purpose_counts[purpose] = purpose_counts.get(purpose, 0) + 1
 
         for purpose, count in purpose_counts.items():
@@ -235,7 +233,7 @@ class YearEndConfigService:
 
     def _get_account(
         self, administration: str, account_code: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get account details"""
         query = """
             SELECT Account, AccountName, VW, parameters
@@ -248,8 +246,8 @@ class YearEndConfigService:
         return result[0] if result else None
 
     def get_available_accounts(
-        self, administration: str, vw_filter: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, administration: str, vw_filter: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get available accounts for purpose assignment.
 
@@ -287,7 +285,7 @@ class YearEndConfigService:
 
         return results
 
-    def get_vat_netting_accounts(self, administration: str) -> List[Dict[str, Any]]:
+    def get_vat_netting_accounts(self, administration: str) -> list[dict[str, Any]]:
         """
         Get all accounts with VAT netting enabled.
 
@@ -335,7 +333,7 @@ class YearEndConfigService:
 
         return results
 
-    def get_vat_primary_account(self, administration: str) -> Optional[Dict[str, Any]]:
+    def get_vat_primary_account(self, administration: str) -> dict[str, Any] | None:
         """
         Get the primary VAT account code.
 
@@ -368,8 +366,8 @@ class YearEndConfigService:
         return None
 
     def configure_vat_netting(
-        self, administration: str, vat_accounts: List[str], primary_account: str
-    ) -> Dict[str, Any]:
+        self, administration: str, vat_accounts: list[str], primary_account: str
+    ) -> dict[str, Any]:
         """
         Configure VAT netting for specified accounts.
 
@@ -406,7 +404,7 @@ class YearEndConfigService:
 
         return True
 
-    def remove_vat_netting(self, administration: str) -> Dict[str, Any]:
+    def remove_vat_netting(self, administration: str) -> dict[str, Any]:
         """
         Remove VAT netting configuration from all accounts.
 

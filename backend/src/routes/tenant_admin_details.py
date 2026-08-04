@@ -9,10 +9,11 @@ Endpoints:
 - PUT /api/tenant-admin/details - Update tenant details
 """
 
+import logging
+import os
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
-import os
-import logging
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
@@ -76,7 +77,7 @@ def get_tenant_details(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant_details})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting tenant details: {e}")
         import traceback
 
@@ -192,7 +193,7 @@ def update_tenant_details(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating tenant details: {e}")
         import traceback
 

@@ -1,10 +1,12 @@
-from flask import Blueprint, request, jsonify
 import logging
-from database import DatabaseManager
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
+
+from flask import Blueprint, jsonify, request
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from database import DatabaseManager
 from utils.date_utils import normalize_dates
 
 logger = logging.getLogger(__name__)
@@ -29,7 +31,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         if start_date_param:
             start_date = start_date_param
         else:
-            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")  # noqa: DTZ005
 
         # Get endDate parameter (default to 14 days in future if not provided)
         end_date_param = request.args.get("endDate", "")
@@ -37,7 +39,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             end_date = end_date_param
         else:
             # Default to 14 days in the future
-            end_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
+            end_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")  # noqa: DTZ005
 
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
@@ -132,8 +134,8 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             }
         )
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -220,7 +222,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
         debug_file = os.path.join(os.path.dirname(__file__), "..", "invoice_debug.log")
         with open(debug_file, "a", encoding="utf-8") as f:
             f.write(f"\n{'=' * 80}\n")
-            f.write(f"INVOICE DATA DEBUG - {datetime.now().isoformat()}\n")
+            f.write(f"INVOICE DATA DEBUG - {datetime.now().isoformat()}\n")  # noqa: DTZ005
             f.write(f"Language: {language}\n")
             f.write(f"Reservation: {reservation_code}\n")
             f.write(f"{'=' * 80}\n")
@@ -249,7 +251,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
             metadata = template_service.get_template_metadata(
                 booking_admin, template_type
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not get template metadata from database: {e}")
 
         # Load template
@@ -261,7 +263,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
                     metadata["template_file_id"], booking_admin
                 )
                 field_mappings = metadata.get("field_mappings", {})
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
                 template_content = None
@@ -283,7 +285,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
             # Use default field mappings (simple placeholder replacement)
             field_mappings = {
                 "fields": {
-                    key: {"path": key, "format": "text"} for key in invoice_data.keys()
+                    key: {"path": key, "format": "text"} for key in invoice_data
                 },
                 "formatting": {
                     "locale": "nl_NL" if language == "nl" else "en_US",
@@ -363,8 +365,8 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
                 }
             )
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         import traceback
 
         traceback.print_exc()
@@ -427,8 +429,8 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
         else:
             return _upload_template_gdrive(tenant)
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -474,7 +476,7 @@ def _upload_template_s3(tenant):
                     }
                 )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(
                     f"S3 template upload error for {tenant_template_name}: {e}"
                 )
@@ -590,7 +592,7 @@ def _upload_template_gdrive(tenant):
                         }
                     )
 
-            except Exception:
+            except Exception:  # noqa: BLE001
                 results.append(
                     {
                         "template": tenant_template_name,

@@ -9,17 +9,17 @@ Reference: .kiro/specs/zzp-module/design.md §5.6
 """
 
 import logging
-from io import BytesIO
 from datetime import date
-from typing import Optional
+from io import BytesIO
 
-from babel.numbers import format_currency, format_decimal
 from babel.dates import format_date as babel_format_date
+from babel.numbers import format_currency, format_decimal
+
 from services.logo_resolver import resolve_tenant_logo
 
 logger = logging.getLogger(__name__)
 
-from dialect_helpers import dialect  # noqa: E402
+from dialect_helpers import dialect
 
 # Map ISO 3166-1 country codes/names to Babel locale identifiers
 COUNTRY_LOCALE_MAP = {
@@ -251,10 +251,10 @@ class PDFGeneratorService:
             else:
                 return s
             return babel_format_date(d, format="short", locale=locale)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return s
 
-    def _get_invoice_iban(self, tenant: str) -> Optional[str]:
+    def _get_invoice_iban(self, tenant: str) -> str | None:
         """Query rekeningschema for the IBAN of the ZZP invoice bank account.
 
         Looks for accounts flagged with zzp_invoice_ledger first (ZZP-specific),
@@ -279,11 +279,11 @@ class PDFGeneratorService:
                     if iban and isinstance(iban, str) and iban != "null":
                         return iban
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Could not fetch invoice IBAN from rekeningschema: %s", e)
             return None
 
-    def _load_full_contact(self, tenant: str, contact_id) -> Optional[dict]:
+    def _load_full_contact(self, tenant: str, contact_id) -> dict | None:
         """Load full contact record for PDF rendering."""
         if not contact_id or not self.db:
             return None
@@ -293,7 +293,7 @@ class PDFGeneratorService:
                 (contact_id, tenant),
             )
             return rows[0] if rows else None
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     def _html_to_pdf(self, html: str) -> BytesIO:
@@ -326,12 +326,12 @@ class PDFGeneratorService:
                     if os.path.exists(path):
                         with open(path, "r", encoding="utf-8") as f:
                             return f.read()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning("Failed to load tenant template, using default: %s", e)
 
         return self._default_template()
 
-    def _get_tenant_logo(self, tenant: str) -> Optional[str]:
+    def _get_tenant_logo(self, tenant: str) -> str | None:
         """Get logo as base64 data URI from tenant's branding config.
 
         Delegates to the shared resolve_tenant_logo helper which handles

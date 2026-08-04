@@ -1,10 +1,12 @@
+import gc
+import os
 import time
 import tracemalloc
 from datetime import datetime
-import gc
-import os
+
 import psutil
 from flask import request
+
 from database_migrations import QueryOptimizer
 
 
@@ -46,7 +48,7 @@ class PerformanceProfiler:
     ):
         """Log performance metrics"""
         log_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "function": function_name,
             "execution_time_seconds": execution_time,
             "memory_diff": memory_diff,
@@ -100,7 +102,7 @@ class PerformanceProfiler:
         """Detect potential N+1 query patterns"""
         n_plus_1_report = {
             "potential_issues": [],
-            "analysis_date": datetime.now().isoformat(),
+            "analysis_date": datetime.now().isoformat(),  # noqa: DTZ005
         }
 
         for pattern in query_patterns:
@@ -214,7 +216,7 @@ class PerformanceProfiler:
         top_stats = snapshot2.compare_to(snapshot1, "lineno")
 
         memory_leak_report = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "potential_leaks": [],
             "memory_usage_summary": self._get_memory_summary(),
         }
@@ -312,7 +314,7 @@ class PerformanceProfiler:
             "bottlenecks_found": len(bottlenecks),
             "slow_threshold_seconds": slow_threshold,
             "bottlenecks": bottlenecks,
-            "analysis_date": datetime.now().isoformat(),
+            "analysis_date": datetime.now().isoformat(),  # noqa: DTZ005
         }
 
 
@@ -367,7 +369,7 @@ class MemoryManager:
             mem_info = process.memory_info()
 
             return {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
                 "process_id": os.getpid(),
                 "rss_mb": mem_info.rss / (1024 * 1024),
                 "vms_mb": mem_info.vms / (1024 * 1024),
@@ -384,7 +386,7 @@ class MemoryManager:
         except ImportError:
             return {
                 "error": "psutil not available for detailed memory monitoring",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             }
 
 
@@ -405,7 +407,7 @@ def register_performance_endpoints(app):
             "success": True,
             "performance": report,
             "memory": memory_report,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
         }
 
     @app.route("/api/performance/analyze", methods=["POST"])

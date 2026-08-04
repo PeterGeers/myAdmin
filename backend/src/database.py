@@ -1,17 +1,19 @@
-import mysql.connector
-from mysql.connector import pooling
-import os
-from dotenv import load_dotenv
-from contextlib import contextmanager
-import time
 import logging
+import os
+import time
+from contextlib import contextmanager
+
+import mysql.connector
+from dotenv import load_dotenv
+from mysql.connector import pooling
+
+from database_banking_queries import DatabaseBankingQueriesMixin
 from db_exceptions import (
+    ConnectionError,
     DatabaseError,
     IntegrityError,
-    ConnectionError,
     OperationalError,
 )
-from database_banking_queries import DatabaseBankingQueriesMixin
 
 load_dotenv()
 
@@ -73,7 +75,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                     **pool_config
                 )
                 logger.info("✅ Legacy connection pool initialized with 20 connections")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"⚠️ Legacy connection pool failed, using direct connections: {e}"
                 )
@@ -95,7 +97,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 logger.info(
                     "🚀 Scalability Manager initialized for database connections"
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"⚠️ Scalability Manager initialization failed, using legacy pool: {e}"
                 )
@@ -113,7 +115,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 return DatabaseManager._scalability_manager.get_database_connection(
                     pool_type
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"⚠️ Scalability manager connection failed, falling back to legacy: {e}"
                 )
@@ -122,7 +124,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         if DatabaseManager._use_legacy_pool and DatabaseManager._legacy_pool:
             try:
                 return DatabaseManager._legacy_pool.get_connection()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"⚠️ Legacy pool connection failed, using direct connection: {e}"
                 )
@@ -193,9 +195,9 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                             error_code=getattr(e, "errno", None),
                             original_error=e,
                         ) from e
-                    except Exception as e:
+                    except Exception:
                         conn.rollback()
-                        raise e
+                        raise
                     finally:
                         cursor.close()
 
@@ -241,9 +243,9 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
             raise DatabaseError(
                 str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
-        except Exception as e:
+        except Exception:
             conn.rollback()
-            raise e
+            raise
         finally:
             cursor.close()
             conn.close()
@@ -253,16 +255,13 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
     ):
         """Execute query with automatic connection management and scalability improvements"""
         # Determine optimal pool type based on query
-        if pool_type == "primary":
-            if (
-                query.strip()
-                .upper()
-                .startswith(("SELECT", "SHOW", "DESCRIBE", "EXPLAIN"))
-            ):
-                if "pattern_" in query.lower() or "analytics" in query.lower():
-                    pool_type = "analytics"
-                else:
-                    pool_type = "readonly"
+        if pool_type == "primary" and (
+            query.strip().upper().startswith(("SELECT", "SHOW", "DESCRIBE", "EXPLAIN"))
+        ):
+            if "pattern_" in query.lower() or "analytics" in query.lower():
+                pool_type = "analytics"
+            else:
+                pool_type = "readonly"
 
         try:
             with self.get_cursor(pool_type=pool_type) as (cursor, conn):
@@ -354,7 +353,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                         conn.commit()
 
                 return results
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"⚠️ Batch processing failed, falling back to sequential: {e}"
                 )
@@ -434,9 +433,13 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
 
     def insert_transaction(self, transaction, table_name="mutaties"):
         """Insert a single transaction into the specified table"""
-        administration = transaction.get("Administration") or transaction.get("administration")
+        administration = transaction.get("Administration") or transaction.get(
+            "administration"
+        )
         if not administration:
-            raise ValueError("Administration is required for tenant-scoped insert into mutaties")
+            raise ValueError(
+                "Administration is required for tenant-scoped insert into mutaties"
+            )
 
         return self.execute_query(
             f"""INSERT INTO {table_name} 
@@ -612,7 +615,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 "scalability_impact": "2-3x improvement in concurrent performance",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"❌ Error checking database optimization: {e}")
             return {
                 "error": str(e),

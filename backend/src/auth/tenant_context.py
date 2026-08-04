@@ -7,14 +7,15 @@ for multi-tenant database operations.
 Based on the architecture at .kiro/specs/Common/Multitennant/architecture.md
 """
 
-import json
 import base64
-from typing import Optional, List, Dict, Any, Tuple
-from flask import request, jsonify
 import functools
+import json
+from typing import Any
+
+from flask import jsonify, request
 
 
-def get_user_tenants(jwt_token: str) -> List[str]:
+def get_user_tenants(jwt_token: str) -> list[str]:
     """
     Extract custom:tenants from JWT token
 
@@ -77,7 +78,7 @@ def get_user_tenants(jwt_token: str) -> List[str]:
         print(f"[Backend] Final tenants list: {tenants}", flush=True)
         return tenants
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error extracting tenants from JWT: {e}", flush=True)
         import traceback
 
@@ -85,7 +86,7 @@ def get_user_tenants(jwt_token: str) -> List[str]:
         return []
 
 
-def get_current_tenant(request_obj) -> Optional[str]:
+def get_current_tenant(request_obj) -> str | None:
     """
     Get tenant from request header or JWT token
 
@@ -117,7 +118,7 @@ def get_current_tenant(request_obj) -> Optional[str]:
 
 
 def is_tenant_admin(
-    user_roles: List[str], tenant: str, user_tenants: List[str]
+    user_roles: list[str], tenant: str, user_tenants: list[str]
 ) -> bool:
     """
     Check if user is admin for specific tenant
@@ -136,8 +137,8 @@ def is_tenant_admin(
 
 
 def validate_tenant_access(
-    user_tenants: List[str], requested_tenant: str
-) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    user_tenants: list[str], requested_tenant: str
+) -> tuple[bool, dict[str, Any] | None]:
     """
     Validate user has access to requested tenant
 
@@ -234,8 +235,8 @@ def tenant_required(allow_sysadmin: bool = False):
 
 
 def add_tenant_filter(
-    query: str, params: List[Any], tenant: str, table_alias: Optional[str] = None
-) -> Tuple[str, List[Any]]:
+    query: str, params: list[Any], tenant: str, table_alias: str | None = None
+) -> tuple[str, list[Any]]:
     """
     Add tenant filter to SQL query
 
@@ -285,7 +286,7 @@ def _map_config_key_to_param(config_key: str) -> tuple:
 
 def get_tenant_config(
     db, tenant: str, config_key: str, is_secret: bool = False
-) -> Optional[str]:
+) -> str | None:
     """
     Get tenant configuration value.
 
@@ -311,7 +312,7 @@ def get_tenant_config(
         if result and len(result) > 0:
             return result[0].get("config_value")
         return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error getting tenant config: {e}", flush=True)
         return None
 
@@ -322,7 +323,7 @@ def set_tenant_config(
     config_key: str,
     config_value: str,
     is_secret: bool = False,
-    created_by: str = None,
+    created_by: str | None = None,
 ) -> bool:
     """
     Set tenant configuration value.
@@ -361,6 +362,6 @@ def set_tenant_config(
             commit=True,
         )
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error setting tenant config: {e}", flush=True)
         return False

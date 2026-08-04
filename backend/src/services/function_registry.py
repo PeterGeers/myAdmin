@@ -12,7 +12,7 @@ Reference: .kiro/specs/tenant-optional-functions/design.md
 
 import logging
 import re
-from typing import Dict, TypedDict
+from typing import TypedDict
 
 from services.module_registry import MODULE_REGISTRY
 
@@ -27,7 +27,7 @@ class FunctionDefinition(TypedDict):
     default_enabled: bool
 
 
-FUNCTION_REGISTRY: Dict[str, FunctionDefinition] = {
+FUNCTION_REGISTRY: dict[str, FunctionDefinition] = {
     "assets": {
         "parent_module": "FIN",
         "label": "Activa beheer",

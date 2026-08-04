@@ -1,8 +1,9 @@
 """One-time script to apply tenant isolation migration to invoice_lines and contact_emails."""
 
-import mysql.connector
 import os
 import sys
+
+import mysql.connector
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -59,7 +60,7 @@ def run():
         try:
             cursor.execute(idx_sql)
             print(f"Created {idx_name} on invoice_lines")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Index {idx_name} on invoice_lines: {e}")
 
     # 5. contact_emails: add administration column
@@ -97,7 +98,7 @@ def run():
             "CREATE INDEX idx_administration ON contact_emails (administration)"
         )
         print("Created idx_administration on contact_emails")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Index idx_administration on contact_emails: {e}")
 
     # 9. Recreate view

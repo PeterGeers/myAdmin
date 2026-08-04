@@ -13,7 +13,6 @@ See .kiro/specs/FIN/Data Model/mutaties_ref_fields.md
 
 import logging
 from decimal import Decimal
-from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ class AssetService:
         )
 
         if not asset_id:
-            raise Exception("Failed to retrieve asset ID after insert")
+            raise Exception("Failed to retrieve asset ID after insert")  # noqa: TRY002
 
         logger.info(
             f"Asset {asset_id} created for '{administration}': "
@@ -87,10 +86,10 @@ class AssetService:
     def get_assets(
         self,
         administration: str,
-        status: Optional[str] = None,
-        category: Optional[str] = None,
-        ledger_account: Optional[str] = None,
-    ) -> List[dict]:
+        status: str | None = None,
+        category: str | None = None,
+        ledger_account: str | None = None,
+    ) -> list[dict]:
         """
         List assets with current book values.
 
@@ -150,7 +149,7 @@ class AssetService:
 
         return assets
 
-    def get_asset(self, administration: str, asset_id: int) -> Optional[dict]:
+    def get_asset(self, administration: str, asset_id: int) -> dict | None:
         """
         Get single asset with transaction history.
         """
@@ -197,7 +196,7 @@ class AssetService:
             if desc.startswith("Afschrijving:"):
                 t["type"] = "depreciation"
                 total_depreciation += abs(t["TransactionAmount"])
-            elif desc.startswith("Afboeking:") or desc.startswith("Verkoop:"):
+            elif desc.startswith(("Afboeking:", "Verkoop:")):
                 t["type"] = "disposal"
             else:
                 t["type"] = "other"
@@ -297,7 +296,7 @@ class AssetService:
         asset_id: int,
         disposal_date: str,
         disposal_amount: float,
-        credit_account: Optional[str] = None,
+        credit_account: str | None = None,
     ) -> dict:
         """
         Dispose an asset: mark as disposed and create write-off transaction.

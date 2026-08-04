@@ -6,12 +6,14 @@ API endpoints for provisioning verified trial signups into full tenants.
 - POST /api/sysadmin/provisioning/provision — Provision a verified signup into a tenant
 """
 
-import os
 import json
 import logging
+import os
+
 import boto3
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from dialect_helpers import dialect
@@ -66,7 +68,7 @@ def list_pending_signups(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "signups": signups, "count": len(signups)})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error listing pending signups: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -190,7 +192,7 @@ def provision_signup(user_email, user_roles) -> ResponseReturnValue:
         logger.info(f"Signup {email} provisioned as '{admin_name}' by {user_email}")
         return jsonify(response), 201
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error provisioning signup: {e}")
         import traceback
 
@@ -239,7 +241,7 @@ def _update_cognito_tenants(email: str, admin_name: str) -> str:
             f"Cognito updated for {email}: custom:tenants = {json.dumps(current_tenants)}"
         )
         return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Cognito update failed for {email}: {e}")
         return str(e)
 
@@ -256,7 +258,7 @@ def _send_admin_notification(email: str, admin_name: str, first_name: str) -> No
                 f"Tenant '{admin_name}' provisioned for {email}",
                 {"email": email, "administration": admin_name, "name": first_name},
             )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Admin notification failed (non-critical): {e}")
 
 
@@ -322,5 +324,5 @@ def _send_welcome_email(
             administration=admin_name,
         )
         logger.info(f"Welcome email sent to {email}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Welcome email failed (non-critical): {e}")

@@ -7,11 +7,11 @@ for the template preview system.
 Extracted from template_preview_service.py for maintainability.
 """
 
-import re
 import logging
-from typing import Dict, Any, List
+import re
 from datetime import datetime
 from html.parser import HTMLParser
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class TemplateHtmlProcessor:
     - Template rendering with placeholder replacement
     """
 
-    def validate_html_syntax(self, template_content: str) -> List[Dict[str, Any]]:
+    def validate_html_syntax(self, template_content: str) -> list[dict[str, Any]]:
         """
         Validate HTML is well-formed.
 
@@ -100,11 +100,11 @@ class TemplateHtmlProcessor:
                     }
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             errors.append(
                 {
                     "type": "syntax_error",
-                    "message": f"HTML parsing error: {str(e)}",
+                    "message": f"HTML parsing error: {e!s}",
                     "severity": "error",
                 }
             )
@@ -113,7 +113,7 @@ class TemplateHtmlProcessor:
 
     def validate_placeholders(
         self, template_type: str, template_content: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Check for required placeholders.
 
@@ -221,7 +221,7 @@ class TemplateHtmlProcessor:
 
         return errors
 
-    def validate_security(self, template_content: str) -> List[Dict[str, Any]]:
+    def validate_security(self, template_content: str) -> list[dict[str, Any]]:
         """
         Check for security issues.
 
@@ -281,8 +281,8 @@ class TemplateHtmlProcessor:
     def render_template(
         self,
         template_content: str,
-        sample_data: Dict[str, Any],
-        field_mappings: Dict[str, Any],
+        sample_data: dict[str, Any],
+        field_mappings: dict[str, Any],
     ) -> str:
         """
         Render template with sample data using simple placeholder replacement.
@@ -329,6 +329,6 @@ class TemplateHtmlProcessor:
 
             return rendered
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to render template: {e}")
             return template_content

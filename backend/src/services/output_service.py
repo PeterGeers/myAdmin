@@ -8,10 +8,10 @@ Supports multiple output destinations:
 - s3: Upload to AWS S3 (future implementation)
 """
 
-import os
 import logging
-from typing import Dict, Any, Optional
+import os
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,8 @@ class OutputService:
         destination: str,
         administration: str,
         content_type: str = "text/html",
-        folder_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        folder_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Handle output based on destination type.
 
@@ -98,7 +98,7 @@ class OutputService:
 
     def _handle_download(
         self, content: str, filename: str, content_type: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Handle download destination (return content to frontend).
 
@@ -122,9 +122,9 @@ class OutputService:
                 "message": f"Report ready for download: {filename}",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to prepare download: {e}")
-            raise Exception(f"Failed to prepare download: {str(e)}")
+            raise Exception(f"Failed to prepare download: {e!s}")  # noqa: TRY002
 
     def _handle_gdrive_upload(
         self,
@@ -132,8 +132,8 @@ class OutputService:
         filename: str,
         administration: str,
         content_type: str,
-        folder_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        folder_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Handle Google Drive upload destination.
 
@@ -174,7 +174,7 @@ class OutputService:
                     "Creating new version with timestamp."
                 )
                 # Add timestamp to filename to avoid overwrite
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
                 name_parts = filename.rsplit(".", 1)
                 if len(name_parts) == 2:
                     filename = f"{name_parts[0]}_{timestamp}.{name_parts[1]}"
@@ -201,13 +201,13 @@ class OutputService:
                 "message": f"Report uploaded to Google Drive: {filename}",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to upload to Google Drive: {e}")
-            raise Exception(f"Failed to upload to Google Drive: {str(e)}")
+            raise Exception(f"Failed to upload to Google Drive: {e!s}")  # noqa: TRY002
 
     def _handle_s3_upload(
         self, content, filename: str, administration: str, content_type: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Handle S3 upload destination using StorageProvider.
 
@@ -266,11 +266,11 @@ class OutputService:
                 "message": f"File uploaded to S3: {filename}",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to upload to S3: {e}")
-            raise Exception(f"Failed to upload to S3: {str(e)}")
+            raise Exception(f"Failed to upload to S3: {e!s}")  # noqa: TRY002
 
-    def check_health(self, destination: str, administration: str) -> Dict[str, Any]:
+    def check_health(self, destination: str, administration: str) -> dict[str, Any]:
         """
         Lightweight connectivity test for the configured storage provider.
 
@@ -305,7 +305,7 @@ class OutputService:
 
         return {"healthy": False, "reason": f"Unknown destination: {destination}"}
 
-    def _check_gdrive_health(self, administration: str) -> Dict[str, Any]:
+    def _check_gdrive_health(self, administration: str) -> dict[str, Any]:
         """Check Google Drive connectivity by listing the root folder."""
         try:
             from google_drive_service import GoogleDriveService
@@ -314,13 +314,13 @@ class OutputService:
             # Lightweight call: list 1 file to verify API access
             drive_service.service.files().list(pageSize=1, fields="files(id)").execute()
             return {"healthy": True, "reason": "Google Drive is accessible"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(
                 f"Google Drive health check failed for '{administration}': {e}"
             )
-            return {"healthy": False, "reason": f"Google Drive unavailable: {str(e)}"}
+            return {"healthy": False, "reason": f"Google Drive unavailable: {e!s}"}
 
-    def _check_s3_health(self, administration: str) -> Dict[str, Any]:
+    def _check_s3_health(self, administration: str) -> dict[str, Any]:
         """Check S3 connectivity by calling HeadBucket on the configured bucket."""
         try:
             from services.parameter_service import ParameterService
@@ -339,9 +339,9 @@ class OutputService:
 
             client.head_bucket(Bucket=bucket)
             return {"healthy": True, "reason": f"S3 bucket '{bucket}' is accessible"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"S3 health check failed for '{administration}': {e}")
-            return {"healthy": False, "reason": f"S3 unavailable: {str(e)}"}
+            return {"healthy": False, "reason": f"S3 unavailable: {e!s}"}
 
     def _get_or_create_reports_folder(self, drive_service, administration: str) -> str:
         """
@@ -369,7 +369,7 @@ class OutputService:
             )
 
             if not parent_folder_id:
-                raise Exception("Parent folder ID not configured in environment")
+                raise Exception("Parent folder ID not configured in environment")  # noqa: TRY002
 
             # Check if Reports folder exists
             reports_folder_name = f"Reports_{administration}"
@@ -389,6 +389,6 @@ class OutputService:
 
             return folder_result["id"]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to get or create Reports folder: {e}")
-            raise Exception(f"Failed to get or create Reports folder: {str(e)}")
+            raise Exception(f"Failed to get or create Reports folder: {e!s}")  # noqa: TRY002

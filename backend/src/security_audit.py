@@ -1,17 +1,31 @@
-import re
-import os
-from flask import request, jsonify, current_app
-from datetime import datetime
 import logging
+import os
+import re
+from datetime import datetime
+
+from flask import current_app, jsonify, request
+
 from database import DatabaseManager
 from security_validators import (
-    validate_input as _validate_input,
-    sanitize_input as _sanitize_input,
-    check_sql_injection as _check_sql_injection,
-    validate_file_upload as _validate_file_upload,
-    check_xss_vulnerabilities as _check_xss_vulnerabilities,
-    check_password_strength as _check_password_strength,
     INPUT_VALIDATION_RULES,
+)
+from security_validators import (
+    check_password_strength as _check_password_strength,
+)
+from security_validators import (
+    check_sql_injection as _check_sql_injection,
+)
+from security_validators import (
+    check_xss_vulnerabilities as _check_xss_vulnerabilities,
+)
+from security_validators import (
+    sanitize_input as _sanitize_input,
+)
+from security_validators import (
+    validate_file_upload as _validate_file_upload,
+)
+from security_validators import (
+    validate_input as _validate_input,
 )
 
 
@@ -27,7 +41,7 @@ class SecurityAudit:
     def audit_authentication_mechanisms(self):
         """Review and audit authentication mechanisms"""
         audit_report = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "authentication_methods": [],
             "security_issues": [],
             "recommendations": [],
@@ -53,7 +67,7 @@ class SecurityAudit:
                             content = f.read()
 
                             for auth_type, pattern in auth_patterns.items():
-                                if re.search(pattern, content):
+                                if re.search(pattern, content):  # noqa: SIM102
                                     if auth_type not in [
                                         a["type"]
                                         for a in audit_report["authentication_methods"]
@@ -65,7 +79,7 @@ class SecurityAudit:
                                                 "pattern": pattern,
                                             }
                                         )
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         self.logger.error(f"Error reading {filepath}: {e}")
 
         # Check for security issues
@@ -119,7 +133,7 @@ class SecurityAudit:
     def audit_security_headers(self, app):
         """Audit security-related HTTP headers"""
         headers_audit = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "headers_checked": [],
             "missing_headers": [],
             "security_issues": [],
@@ -166,7 +180,7 @@ class SecurityAudit:
     def generate_security_report(self):
         """Generate comprehensive security audit report"""
         report = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "authentication": self.audit_authentication_mechanisms(),
             "input_validation": {
                 "rules_defined": len(self.input_validation_rules),
@@ -373,7 +387,7 @@ class SecurityAudit:
                 return True
 
         # Check query parameters
-        for key, value in request.args.items():
+        for value in request.args.values():
             for pattern in suspicious_patterns:
                 if re.search(pattern, str(value), re.IGNORECASE):
                     return True
@@ -403,10 +417,7 @@ class SecurityAudit:
         # In a production environment, these should be validated by the proxy layer
 
         # Check content type for POST requests
-        if request.method == "POST" and "Content-Type" not in request.headers:
-            return False
-
-        return True
+        return not (request.method == "POST" and "Content-Type" not in request.headers)
 
 
 # Security endpoint registration

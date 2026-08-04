@@ -4,10 +4,8 @@ AI-powered invoice data extraction using OpenRouter API.
 Handles AI extraction calls and usage logging for the PDF processing pipeline.
 """
 
-from typing import Optional, List
 
-
-def extract_with_ai(lines: List[str], folder_name: str) -> Optional[dict]:
+def extract_with_ai(lines: list[str], folder_name: str) -> dict | None:
     """Extract invoice data using AI only. No vendor-specific fallback.
 
     Args:
@@ -28,7 +26,7 @@ def extract_with_ai(lines: List[str], folder_name: str) -> Optional[dict]:
 
             db = DatabaseManager()
             previous_transactions = db.get_previous_transactions(folder_name, limit=3)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Could not get previous transactions: {e}")
 
         text_content = "\n".join(lines)
@@ -49,13 +47,13 @@ def extract_with_ai(lines: List[str], folder_name: str) -> Optional[dict]:
             )
             return ai_result  # Return the zero-amount result
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"AI extraction error for {folder_name}: {e}", flush=True)
         return None
 
 
 def log_ai_usage(
-    folder_name: str, ai_result: Optional[dict], tenant: Optional[str] = None
+    folder_name: str, ai_result: dict | None, tenant: str | None = None
 ) -> None:
     """Log AI extraction usage to ai_usage_log with actual token counts.
 
@@ -86,6 +84,6 @@ def log_ai_usage(
             tokens_used=tokens_used,
             model_used=model_used,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Never fail the extraction because of logging
         print(f"Could not log AI usage: {e}")

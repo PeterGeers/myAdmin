@@ -10,7 +10,6 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md §2 PivotModelStore
 
 import json
 import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +154,7 @@ class PivotModelStore:
             "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
         }
 
-    def list_models(self, tenant: str) -> List[dict]:
+    def list_models(self, tenant: str) -> list[dict]:
         """
         List all models for a tenant (summary view).
 
@@ -244,12 +243,12 @@ class PivotModelStore:
             except (json.JSONDecodeError, TypeError) as e:
                 raise ValueError(f"Invalid JSON in model definition: {e}") from e
         else:
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004
                 f"Expected JSON string or dict, got {type(json_str).__name__}"
             )
 
         if not isinstance(definition, dict):
-            raise ValueError("Model definition must be a JSON object")
+            raise ValueError("Model definition must be a JSON object")  # noqa: TRY004
 
         # Validate required fields
         PivotModelStore.validate_definition(definition)
@@ -270,7 +269,7 @@ class PivotModelStore:
             ValueError: with a descriptive message if validation fails.
         """
         if not isinstance(definition, dict):
-            raise ValueError("Model definition must be a dict")
+            raise ValueError("Model definition must be a dict")  # noqa: TRY004
 
         # data_source
         ds = definition.get("data_source")

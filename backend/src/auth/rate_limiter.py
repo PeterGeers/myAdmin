@@ -5,10 +5,9 @@ Thread-safe via threading.Lock. Suitable for single-instance Railway deployment.
 """
 
 import math
-import time
 import threading
+import time
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -17,7 +16,7 @@ class RateLimitResult:
 
     allowed: bool
     retry_after_seconds: int
-    limit_type: Optional[str]
+    limit_type: str | None
 
 
 class RateLimiter:

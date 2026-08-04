@@ -68,7 +68,7 @@ The `common_formatters.py` module provides shared utilities used across all gene
 from report_generators.common_formatters import format_currency, format_amount
 
 # Format as currency with symbol
-formatted = format_currency(1234.56, currency='EUR')
+formatted = format_currency(1234.56, currency="EUR")
 # Returns: "€ 1,234.56"
 
 # Format as amount without symbol
@@ -82,11 +82,11 @@ formatted = format_amount(1234.56, decimals=2)
 from report_generators.common_formatters import format_date, format_datetime
 
 # Format date
-formatted = format_date('2025-01-31', format_type='DD-MM-YYYY')
+formatted = format_date("2025-01-31", format_type="DD-MM-YYYY")
 # Returns: "31-01-2025"
 
 # Format datetime
-formatted = format_datetime('2025-01-31 14:30:00')
+formatted = format_datetime("2025-01-31 14:30:00")
 # Returns: "31-01-2025 14:30:00"
 ```
 
@@ -96,11 +96,11 @@ formatted = format_datetime('2025-01-31 14:30:00')
 from report_generators.common_formatters import safe_float, safe_int
 
 # Safely convert to float
-value = safe_float('123.45', default=0.0)
+value = safe_float("123.45", default=0.0)
 # Returns: 123.45
 
 # Safely convert to int
-value = safe_int('invalid', default=0)
+value = safe_int("invalid", default=0)
 # Returns: 0
 ```
 
@@ -114,7 +114,7 @@ safe_text = escape_html('<script>alert("XSS")</script>')
 # Returns: "&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;"
 
 # Truncate long text
-short_text = truncate_text('This is a very long text', max_length=10)
+short_text = truncate_text("This is a very long text", max_length=10)
 # Returns: "This is..."
 ```
 
@@ -144,7 +144,7 @@ def generate_report_name(
     year: int,
     administration: str,
     user_tenants: List[str],
-    **kwargs
+    **kwargs,
 ) -> Dict[str, Any]:
     """
     Generate [Report Name] report data.
@@ -217,30 +217,34 @@ def _group_data(data: List[Dict]) -> Dict[str, List[Dict]]:
     """Group data by a specific key."""
     grouped = {}
     for item in data:
-        key = item.get('group_key')
+        key = item.get("group_key")
         if key not in grouped:
             grouped[key] = []
         grouped[key].append(item)
     return grouped
 
+
 def _calculate_totals(rows: List[Dict]) -> Dict[str, float]:
     """Calculate totals from rows."""
     totals = {}
     for row in rows:
-        amount = safe_float(row.get('amount', 0))
-        category = row.get('category', 'other')
+        amount = safe_float(row.get("amount", 0))
+        category = row.get("category", "other")
         totals[category] = totals.get(category, 0) + amount
     return totals
+
 
 def _format_rows(items: List[Dict]) -> List[Dict]:
     """Format items into table rows."""
     rows = []
     for item in items:
-        rows.append({
-            'description': escape_html(item.get('description', '')),
-            'amount': format_currency(item.get('amount', 0)),
-            'css_class': get_css_class_for_amount(item.get('amount', 0))
-        })
+        rows.append(
+            {
+                "description": escape_html(item.get("description", "")),
+                "amount": format_currency(item.get("amount", 0)),
+                "css_class": get_css_class_for_amount(item.get("amount", 0)),
+            }
+        )
     return rows
 ```
 
@@ -252,16 +256,17 @@ def _format_rows(items: List[Dict]) -> List[Dict]:
 from report_generators.aangifte_ib_generator import generate_aangifte_ib_report
 from services.template_service import TemplateService
 
-@app.route('/api/reports/aangifte-ib-export', methods=['POST'])
-@cognito_required(required_permissions=['reports_export'])
+
+@app.route("/api/reports/aangifte-ib-export", methods=["POST"])
+@cognito_required(required_permissions=["reports_export"])
 @tenant_required()
 def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
     """Generate Aangifte IB report."""
     try:
         data = request.get_json()
-        year = data.get('year')
-        administration = data.get('administration', tenant)
-        report_data = data.get('data', [])
+        year = data.get("year")
+        administration = data.get("administration", tenant)
+        report_data = data.get("data", [])
 
         # Get cache instance
         cache = get_cache()
@@ -274,7 +279,7 @@ def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
             cache=cache,
             year=year,
             administration=administration,
-            user_tenants=user_tenants
+            user_tenants=user_tenants,
         )
 
         # Step 2: Apply template and generate output
@@ -282,39 +287,37 @@ def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
 
         # Get template metadata
         template_metadata = template_service.get_template_metadata(
-            administration=administration,
-            template_type='aangifte_ib_html'
+            administration=administration, template_type="aangifte_ib_html"
         )
 
         # Fetch template from Google Drive
         template_content = template_service.fetch_template_from_drive(
-            file_id=template_metadata['template_file_id'],
-            administration=administration
+            file_id=template_metadata["template_file_id"], administration=administration
         )
 
         # Apply field mappings
         rendered_template = template_service.apply_field_mappings(
             template_xml=template_content,
             data=structured_data,
-            mappings=template_metadata['field_mappings']
+            mappings=template_metadata["field_mappings"],
         )
 
         # Generate final output
         html_output = template_service.generate_output(
-            template=rendered_template,
-            data=structured_data,
-            output_format='html'
+            template=rendered_template, data=structured_data, output_format="html"
         )
 
-        return jsonify({
-            'success': True,
-            'html': html_output,
-            'filename': f'Aangifte_IB_{administration}_{year}.html'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "html": html_output,
+                "filename": f"Aangifte_IB_{administration}_{year}.html",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Failed to generate Aangifte IB report: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 ```
 
 ## Best Practices
@@ -338,9 +341,7 @@ details = cache.query_aangifte_ib_details(
 )
 
 # Bad: No tenant filtering
-details = cache.query_aangifte_ib_details(
-    year, administration, parent, aangifte
-)
+details = cache.query_aangifte_ib_details(year, administration, parent, aangifte)
 ```
 
 ### 3. Error Handling
@@ -352,7 +353,7 @@ details = cache.query_aangifte_ib_details(
 
 ```python
 try:
-    amount = safe_float(item.get('amount', 0))
+    amount = safe_float(item.get("amount", 0))
     formatted = format_currency(amount)
 except Exception as e:
     logger.error(f"Failed to format amount for item {item.get('id')}: {e}")
@@ -369,8 +370,7 @@ except Exception as e:
 ```python
 # Filter zero amounts early
 non_zero_items = [
-    item for item in items
-    if abs(safe_float(item.get('amount', 0))) >= 0.01
+    item for item in items if abs(safe_float(item.get("amount", 0))) >= 0.01
 ]
 ```
 

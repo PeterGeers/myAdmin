@@ -22,16 +22,17 @@ Usage:
 """
 
 import logging
-from typing import List, Dict, Any, Optional
 from datetime import datetime
-from report_generators.common_formatters import format_currency, safe_float, escape_html
+from typing import Any
+
+from report_generators.common_formatters import escape_html, format_currency, safe_float
 
 logger = logging.getLogger(__name__)
 
 
 def generate_btw_report(
     cache: Any, db: Any, administration: str, year: int, quarter: int
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generate BTW Aangifte report data.
 
@@ -99,7 +100,7 @@ def generate_btw_report(
             "year": year,
             "quarter": quarter,
             "end_date": end_date,
-            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # noqa: DTZ005
         }
 
         # Step 7: Return structured data
@@ -111,7 +112,7 @@ def generate_btw_report(
             "success": True,
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to generate BTW report: {e}")
         return {"success": False, "error": str(e)}
 
@@ -149,7 +150,7 @@ def _calculate_quarter_end_date(year: int, quarter: int) -> str:
 
 def _get_balance_data(
     cache: Any, db: Any, administration: str, end_date: str
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Get balance data for BTW accounts up to end date.
 
@@ -200,7 +201,7 @@ def _get_balance_data(
         logger.info(f"Retrieved {len(results)} balance records for {administration}")
         return results
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting balance data: {e}")
         import traceback
 
@@ -210,7 +211,7 @@ def _get_balance_data(
 
 def _get_opening_balance_vat(
     cache: Any, db: Any, administration: str, year: int
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Get the opening balance for VAT accounts for the specified year.
 
@@ -244,14 +245,14 @@ def _get_opening_balance_vat(
         total = df_filtered["Amount"].sum()
 
         return {"amount": total}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting opening balance VAT: {e}")
         return None
 
 
 def _get_current_year_vat(
     cache: Any, db: Any, administration: str, year: int, end_date: str
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Get VAT transactions for the current year only (excluding opening balance).
 
@@ -289,14 +290,14 @@ def _get_current_year_vat(
         results = grouped.to_dict("records")
 
         return results
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting current year VAT: {e}")
         return []
 
 
 def _get_quarter_data(
     cache: Any, db: Any, administration: str, year: int, quarter: int
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Get quarter data for BTW and revenue accounts.
 
@@ -344,14 +345,14 @@ def _get_quarter_data(
         logger.info(f"Retrieved {len(results)} quarter records for {administration}")
         return results
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting quarter data: {e}")
         return []
 
 
 def _calculate_btw_amounts(
-    balance_data: List[Dict[str, Any]], quarter_data: List[Dict[str, Any]]
-) -> Dict[str, Any]:
+    balance_data: list[dict[str, Any]], quarter_data: list[dict[str, Any]]
+) -> dict[str, Any]:
     """
     Calculate BTW amounts based on balance and quarter data.
 
@@ -395,7 +396,7 @@ def _calculate_btw_amounts(
             "payment_instruction": payment_instruction,
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error calculating BTW amounts: {e}")
         return {
             "total_balance": 0,
@@ -405,7 +406,7 @@ def _calculate_btw_amounts(
         }
 
 
-def _format_table_rows(data: List[Dict[str, Any]]) -> str:
+def _format_table_rows(data: list[dict[str, Any]]) -> str:
     """
     Format data into HTML table rows.
 
@@ -437,7 +438,7 @@ def _format_table_rows(data: List[Dict[str, Any]]) -> str:
     return "\n".join(rows_html)
 
 
-def prepare_template_data(report_data: Dict[str, Any]) -> Dict[str, str]:
+def prepare_template_data(report_data: dict[str, Any]) -> dict[str, str]:
     """
     Prepare report data for template rendering.
 

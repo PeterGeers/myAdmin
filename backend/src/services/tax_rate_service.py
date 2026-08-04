@@ -11,7 +11,7 @@ import json
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +22,12 @@ class TaxRateService:
     """Looks up time-versioned tax rates with tenant -> _system_ fallback."""
 
     def __init__(self, db):
-        self._cache: Dict[tuple, Any] = {}
+        self._cache: dict[tuple, Any] = {}
         self.db = db
 
     def get_tax_rate(
         self, administration: str, tax_type: str, tax_code: str, reference_date: date
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Get applicable tax rate for a given date.
         Checks tenant-specific first, falls back to _system_ defaults.
@@ -48,7 +48,7 @@ class TaxRateService:
 
     def get_all_vat_codes(
         self, administration: str, reference_date: date
-    ) -> List[dict]:
+    ) -> list[dict]:
         """
         Get all active BTW codes for a tenant on a given date.
         Returns list of {code, rate, ledger_account, description},
@@ -93,12 +93,12 @@ class TaxRateService:
         tax_code: str,
         rate: float,
         effective_from: date,
-        ledger_account: str = None,
-        effective_to: date = None,
-        description: str = None,
+        ledger_account: str | None = None,
+        effective_to: date | None = None,
+        description: str | None = None,
         calc_method: str = "percentage",
-        calc_params: dict = None,
-        created_by: str = None,
+        calc_params: dict | None = None,
+        created_by: str | None = None,
     ) -> int:
         """
         Create a new tax rate. Auto-closes any existing rate whose date range
@@ -170,7 +170,7 @@ class TaxRateService:
 
     def _lookup_rate(
         self, administration: str, tax_type: str, tax_code: str, reference_date: date
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Query tax_rates for a specific administration + type + code + date."""
         query = """
             SELECT id, rate, ledger_account, description, calc_method, calc_params,

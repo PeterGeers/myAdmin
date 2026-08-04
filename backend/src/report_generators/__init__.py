@@ -22,15 +22,17 @@ Common Utilities:
 """
 
 # Import generators here as they are created
+from . import (
+    btw_aangifte_generator,
+    str_invoice_generator,
+    toeristenbelasting_generator,
+)
 from .aangifte_ib_generator import generate_table_rows
-from . import str_invoice_generator
-from . import btw_aangifte_generator
-from . import toeristenbelasting_generator
 
 __all__ = [
+    "btw_aangifte_generator",
     # Generators will be exported here as they are implemented
     "generate_table_rows",
     "str_invoice_generator",
-    "btw_aangifte_generator",
     "toeristenbelasting_generator",
 ]

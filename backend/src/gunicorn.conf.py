@@ -1,4 +1,4 @@
-# Gunicorn configuration optimized for 10x concurrent users
+# Gunicorn configuration optimized for 10x concurrent users  # noqa: N999
 import multiprocessing
 import os  # noqa: F401
 

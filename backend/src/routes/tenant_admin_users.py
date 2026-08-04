@@ -14,21 +14,20 @@ Endpoints:
 - GET /api/tenant-admin/roles - List available roles for tenant
 """
 
-from flask import Blueprint, jsonify, request
-from flask.typing import ResponseReturnValue
-import os
 import json
+import os
+
 import boto3
 from botocore.exceptions import ClientError
-
-from typing import Dict, List, Optional
+from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
 from services.cognito_service import CognitoService
-from services.invitation_service import InvitationService
 from services.email_template_service import EmailTemplateService
+from services.invitation_service import InvitationService
 
 # Create blueprint
 tenant_admin_users_bp = Blueprint(
@@ -47,7 +46,7 @@ cognito_service = CognitoService()
 # ============================================================================
 
 
-def get_user_attribute(user_attributes, attribute_name) -> Optional[str]:
+def get_user_attribute(user_attributes, attribute_name) -> str | None:
     """Extract attribute value from Cognito user attributes"""
     for attr in user_attributes:
         if attr["Name"] == attribute_name:
@@ -56,7 +55,7 @@ def get_user_attribute(user_attributes, attribute_name) -> Optional[str]:
             if attribute_name == "custom:tenants":
                 try:
                     return json.loads(value) if value else []
-                except Exception:
+                except Exception:  # noqa: BLE001
                     return [value] if value else []
             return value
     return None
@@ -67,7 +66,7 @@ def is_tenant_admin(user_roles) -> bool:
     return "Tenant_Admin" in user_roles
 
 
-def get_tenant_enabled_modules(tenant) -> List[str]:
+def get_tenant_enabled_modules(tenant) -> list[str]:
     """Get enabled modules for tenant from database"""
     try:
         test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
@@ -80,12 +79,12 @@ def get_tenant_enabled_modules(tenant) -> List[str]:
         """
         result = db.execute_query(query, [tenant], fetch=True)
         return [row["module_name"] for row in (result or [])]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error getting tenant modules: {e}", flush=True)
         return []
 
 
-def get_available_roles_for_tenant(tenant) -> List[Dict[str, str]]:
+def get_available_roles_for_tenant(tenant) -> list[dict[str, str]]:
     """Get list of roles available for tenant based on enabled modules.
 
     Reads required_roles from MODULE_REGISTRY so new modules are picked up
@@ -189,7 +188,7 @@ def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
                         fetch=True,
                     )
                     user_groups = [r["role"] for r in (role_rows or [])]
-                except Exception:
+                except Exception:  # noqa: BLE001
                     user_groups = []
 
                 tenant_users.append(
@@ -344,7 +343,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
                         fetch=False,
                         commit=True,
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     print(
                         f"Warning: Failed to add role {group_name} for user in tenant: {e}",
                         flush=True,
@@ -415,7 +414,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
                         flush=True,
                     )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # Don't fail the operation if email fails
                 print(
                     f"WARNING: Failed to send tenant-added notification to {email}: {e}",
@@ -510,7 +509,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
                         fetch=False,
                         commit=True,
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     print(
                         f"Warning: Failed to add role {group_name} for new user: {e}",
                         flush=True,
@@ -582,7 +581,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
                         error_message=f"SES send failed: {result.get('error')}",
                     )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # Don't fail user creation if email fails, but log it
                 print(
                     f"WARNING: Failed to send invitation email to {email}: {e}",
@@ -591,7 +590,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
                 invitation_service.mark_invitation_failed(
                     administration=tenant,
                     email=email,
-                    error_message=f"Email send failed: {str(e)}",
+                    error_message=f"Email send failed: {e!s}",
                 )
 
             print(
@@ -746,7 +745,7 @@ def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
         # Verify target user belongs to this tenant before proceeding
         try:
             target_tenants = cognito_service.get_user_tenants(username)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return jsonify({"error": f"User not found: {username}"}), 404
 
         if not target_tenants or tenant not in target_tenants:
@@ -758,7 +757,7 @@ def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
             ), 403
 
         # Delegate to CognitoService — single code path with safety guard
-        success, user_deleted = cognito_service.remove_tenant_from_user(
+        _success, user_deleted = cognito_service.remove_tenant_from_user(
             username, tenant
         )
 

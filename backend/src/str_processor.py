@@ -7,25 +7,25 @@ Orchestrates STR file processing across platforms by delegating to:
 """
 
 import os
+from datetime import date, datetime
+
 import pandas as pd
-from datetime import datetime, date
-from typing import Dict, List, Optional
 
 from country_detector import detect_country
-from str_utils import (
-    get_tax_rates,
-    calculate_str_taxes,
-    normalize_listing_name,
-    parse_amount,
-    parse_multilang_date,
-    parse_date,
-)
-from str_airbnb_parser import process_airbnb_multi, calculate_airbnb_row
+from str_airbnb_parser import calculate_airbnb_row, process_airbnb_multi
 from str_booking_parser import (
+    calculate_booking_row,
     process_booking,
     process_booking_multi,
-    calculate_booking_row,
     process_booking_payout,
+)
+from str_utils import (
+    calculate_str_taxes,
+    get_tax_rates,
+    normalize_listing_name,
+    parse_amount,
+    parse_date,
+    parse_multilang_date,
 )
 
 
@@ -33,7 +33,7 @@ class STRProcessor:
     """Dispatcher that delegates platform-specific parsing to dedicated modules."""
 
     def __init__(
-        self, test_mode: bool = False, tax_rate_service=None, tenant: str = None
+        self, test_mode: bool = False, tax_rate_service=None, tenant: str | None = None
     ):
         self.test_mode = test_mode
         self.platforms = ["airbnb", "booking", "direct"]
@@ -80,7 +80,7 @@ class STRProcessor:
 
     # File scanning
 
-    def scan_str_files(self, folder_path: str = None) -> Dict[str, List[str]]:
+    def scan_str_files(self, folder_path: str | None = None) -> dict[str, list[str]]:
         """Scan folder for STR files by platform."""
         if not folder_path:
             folder_path = self.download_folder
@@ -100,17 +100,17 @@ class STRProcessor:
                     ) and file.endswith((".xls", ".xlsx")):
                         files["booking"].append(file_path)
                     elif "jabakirechtstreeks" in file.lower() and file.endswith(
-                        (".xlsx")
+                        ".xlsx"
                     ):
                         files["direct"].append(file_path)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error scanning folder: {e}")
 
         return files
 
     # Multi-file dispatching
 
-    def process_str_files(self, file_paths: List[str], platform: str) -> List[Dict]:
+    def process_str_files(self, file_paths: list[str], platform: str) -> list[dict]:
         """Process multiple STR files for a platform."""
         if platform.lower() == "vrbo":
             return self._process_vrbo(file_paths)
@@ -126,12 +126,12 @@ class STRProcessor:
             try:
                 bookings = self._process_single_file(file_path, platform)
                 all_bookings.extend(bookings)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Error processing {file_path}: {e}")
 
         return all_bookings
 
-    def _process_single_file(self, file_path: str, platform: str) -> List[Dict]:
+    def _process_single_file(self, file_path: str, platform: str) -> list[dict]:
         """Process single STR file based on platform."""
         platform = platform.lower()
         print(f"Processing file: {file_path} as platform: {platform}")
@@ -149,13 +149,11 @@ class STRProcessor:
 
     # Airbnb delegation
 
-    def _process_airbnb_multi(self, file_paths: List[str]) -> List[Dict]:
+    def _process_airbnb_multi(self, file_paths: list[str]) -> list[dict]:
         """Process multiple Airbnb CSV files (delegated)."""
         return process_airbnb_multi(file_paths, self.tax_rate_service, self.tenant)
 
-    def _calculate_airbnb_row(
-        self, row, df_columns, source_file: str
-    ) -> Optional[Dict]:
+    def _calculate_airbnb_row(self, row, df_columns, source_file: str) -> dict | None:
         """Process a single Airbnb row (delegated)."""
         return calculate_airbnb_row(
             row, df_columns, source_file, self.tax_rate_service, self.tenant
@@ -163,29 +161,27 @@ class STRProcessor:
 
     # Booking.com delegation
 
-    def _process_booking(self, file_path: str) -> List[Dict]:
+    def _process_booking(self, file_path: str) -> list[dict]:
         """Process Booking.com export (delegated)."""
         return process_booking(file_path, self.tax_rate_service, self.tenant)
 
-    def _process_booking_multi(self, file_paths: List[str]) -> List[Dict]:
+    def _process_booking_multi(self, file_paths: list[str]) -> list[dict]:
         """Process multiple Booking.com files (delegated)."""
         return process_booking_multi(file_paths, self.tax_rate_service, self.tenant)
 
-    def _calculate_booking_row(
-        self, row, df_columns, source_file: str
-    ) -> Optional[Dict]:
+    def _calculate_booking_row(self, row, df_columns, source_file: str) -> dict | None:
         """Process a single Booking.com row (delegated)."""
         return calculate_booking_row(
             row, df_columns, source_file, self.tax_rate_service, self.tenant
         )
 
-    def _process_booking_payout(self, file_path: str) -> Dict:
+    def _process_booking_payout(self, file_path: str) -> dict:
         """Process Booking.com Payout CSV (delegated)."""
         return process_booking_payout(file_path, self.tax_rate_service, self.tenant)
 
     # Direct bookings (inline — small codepath)
 
-    def _process_direct(self, file_path: str) -> List[Dict]:
+    def _process_direct(self, file_path: str) -> list[dict]:
         """Process direct bookings Excel/CSV."""
         try:
             df = (
@@ -195,7 +191,7 @@ class STRProcessor:
             )
             transactions = []
             source_file = (
-                f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
+                f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"  # noqa: DTZ005
             )
 
             for _, row in df.iterrows():
@@ -206,13 +202,13 @@ class STRProcessor:
                     transactions.append(booking)
 
             return transactions
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"ERROR in _process_direct: {e}", flush=True)
             return []
 
     def _calculate_direct_row(
         self, row, file_path: str, source_file: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """Process a single direct booking row."""
         checkin_date = row.get("startDate", "")
         guest_name = row.get("guestName", "")
@@ -237,51 +233,51 @@ class STRProcessor:
         )
 
         # Booking status
-        today = date.today()
+        today = date.today()  # noqa: DTZ011
         try:
             checkin_str = str(checkin_date).strip()
             checkin_dt = None
             for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%Y-%m-%d %H:%M:%S"]:
                 try:
-                    checkin_dt = datetime.strptime(checkin_str.split()[0], fmt).date()
+                    checkin_dt = datetime.strptime(checkin_str.split()[0], fmt).date()  # noqa: DTZ007
                     break
                 except ValueError:
                     continue
             if checkin_dt is None:
                 checkin_dt = pd.to_datetime(checkin_str).date()
             booking_status = "planned" if checkin_dt > today else "realised"
-        except Exception:
+        except Exception:  # noqa: BLE001
             booking_status = "realised"
 
         # Checkout date
         try:
-            checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")
+            checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")  # noqa: DTZ007
             checkout_date = (checkin_dt + pd.Timedelta(days=int(nights))).strftime(
                 "%Y-%m-%d"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             try:
                 from datetime import timedelta
 
                 checkout_date = (
                     pd.to_datetime(checkin_date) + timedelta(days=int(nights))
                 ).strftime("%Y-%m-%d")
-            except Exception:
+            except Exception:  # noqa: BLE001
                 checkout_date = str(checkin_date)
 
         tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, channel_fee)
 
         # Dates and periods
         try:
-            checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")
+            checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")  # noqa: DTZ007
             reservation_dt = checkin_dt
             year, quarter, month = (
                 checkin_dt.year,
                 (checkin_dt.month - 1) // 3 + 1,
                 checkin_dt.month,
             )
-        except Exception:
-            reservation_dt = datetime.now()
+        except Exception:  # noqa: BLE001
+            reservation_dt = datetime.now()  # noqa: DTZ005
             year, quarter, month = (
                 reservation_dt.year,
                 (reservation_dt.month - 1) // 3 + 1,
@@ -300,7 +296,7 @@ class STRProcessor:
 
         try:
             checkin_date_clean = pd.to_datetime(checkin_date).strftime("%Y-%m-%d")
-        except Exception:
+        except Exception:  # noqa: BLE001
             checkin_date_clean = (
                 str(checkin_date).split()[0]
                 if " " in str(checkin_date)
@@ -336,7 +332,7 @@ class STRProcessor:
 
     # VRBO Processing
 
-    def _process_vrbo(self, file_paths: List[str]) -> List[Dict]:
+    def _process_vrbo(self, file_paths: list[str]) -> list[dict]:
         """Process VRBO CSV exports — merges Reservations + Payouts files."""
         reservation_files, payout_files = [], []
 
@@ -357,7 +353,7 @@ class STRProcessor:
                     print(
                         f"VRBO: Unknown file type (first column: '{first_col}'): {fp}"
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"VRBO: Error reading header of {fp}: {e}")
 
         reservations = {}
@@ -382,15 +378,15 @@ class STRProcessor:
         )
         return bookings
 
-    def _process_vrbo_single(self, file_path: str) -> List[Dict]:
+    def _process_vrbo_single(self, file_path: str) -> list[dict]:
         """Process a single VRBO file."""
         return self._process_vrbo([file_path])
 
-    def _parse_vrbo_reservations(self, file_path: str) -> List[Dict]:
+    def _parse_vrbo_reservations(self, file_path: str) -> list[dict]:
         """Parse a VRBO Reservations CSV."""
         try:
             df = pd.read_csv(file_path)
-            src = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
+            src = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"  # noqa: DTZ005
             col_map = {
                 "reservationCode": "Reservation ID",
                 "listingNumber": "Listing Number",
@@ -417,11 +413,11 @@ class STRProcessor:
                 )
                 results.append(rec)
             return results
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"VRBO: Error parsing reservations {file_path}: {e}")
             return []
 
-    def _parse_vrbo_payouts(self, file_path: str) -> List[tuple]:
+    def _parse_vrbo_payouts(self, file_path: str) -> list[tuple]:
         """Parse a VRBO Payouts CSV (multi-language headers)."""
         try:
             df = pd.read_csv(file_path)
@@ -449,26 +445,26 @@ class STRProcessor:
                     continue
                 results.append((code, parse_amount(str(row.get(amount_col, "0")))))
             return results
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"VRBO: Error parsing payouts {file_path}: {e}")
             return []
 
-    def _build_vrbo_booking(self, res: Dict, payout_amount: Optional[float]) -> Dict:
+    def _build_vrbo_booking(self, res: dict, payout_amount: float | None) -> dict:
         """Build a standard booking dict from VRBO reservation + payout data."""
-        today = date.today()
+        today = date.today()  # noqa: DTZ011
         checkin_date = parse_date(res["checkinDate"])
         checkout_date = parse_date(res["checkoutDate"])
         reservation_date = parse_date(res["reservationDate"])
 
         try:
-            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()
+            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()  # noqa: DTZ007
             if "cancel" in res["csvStatus"].lower():
                 booking_status = "cancelled"
             elif checkin_dt > today:
                 booking_status = "planned"
             else:
                 booking_status = "realised"
-        except Exception:
+        except Exception:  # noqa: BLE001
             booking_status = "realised"
 
         if payout_amount and payout_amount > 0:
@@ -482,16 +478,16 @@ class STRProcessor:
         )
 
         try:
-            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d")
-            reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d")
+            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d")  # noqa: DTZ007
+            reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d")  # noqa: DTZ007
             year, quarter, month = (
                 checkin_dt.year,
                 (checkin_dt.month - 1) // 3 + 1,
                 checkin_dt.month,
             )
             days_before = (checkin_dt - reservation_dt).days
-        except Exception:
-            year, quarter, month, days_before = datetime.now().year, 1, 1, 0
+        except Exception:  # noqa: BLE001
+            year, quarter, month, days_before = datetime.now().year, 1, 1, 0  # noqa: DTZ005
 
         nights = res["nights"] or 0
         guests = res["adults"] + res["children"]
@@ -529,7 +525,7 @@ class STRProcessor:
 
     # Summary / status helpers
 
-    def generate_summary(self, bookings: List[Dict]) -> Dict:
+    def generate_summary(self, bookings: list[dict]) -> dict:
         """Generate STR performance summary."""
         if not bookings:
             return {}
@@ -556,13 +552,13 @@ class STRProcessor:
             },
         }
 
-    def separate_by_status(self, bookings: List[Dict]) -> Dict[str, List[Dict]]:
+    def separate_by_status(self, bookings: list[dict]) -> dict[str, list[dict]]:
         """Separate bookings by status and check for duplicates."""
         try:
             from str_database import STRDatabase
 
             str_db = STRDatabase(test_mode=self.test_mode)
-            channels = set(b.get("channel", "") for b in bookings)
+            channels = {b.get("channel", "") for b in bookings}
             existing_codes_by_channel = {
                 ch: str_db.get_existing_reservation_codes_for_channel(ch)
                 for ch in channels
@@ -587,7 +583,7 @@ class STRProcessor:
                 "planned": planned,
                 "already_loaded": already_loaded,
             }
-        except Exception:
+        except Exception:  # noqa: BLE001
             return {
                 "realised": [
                     b for b in bookings if b.get("status") in ["realised", "cancelled"]
@@ -596,7 +592,7 @@ class STRProcessor:
                 "already_loaded": [],
             }
 
-    def generate_future_summary(self, planned_bookings: List[Dict]) -> List[Dict]:
+    def generate_future_summary(self, planned_bookings: list[dict]) -> list[dict]:
         """Generate future bookings summary by channel and listing."""
         if not planned_bookings:
             return []
@@ -607,5 +603,5 @@ class STRProcessor:
             .reset_index()
         )
         summary.columns = ["channel", "listing", "amount", "items"]
-        summary["date"] = date.today().strftime("%Y-%m-%d")
+        summary["date"] = date.today().strftime("%Y-%m-%d")  # noqa: DTZ011
         return summary.to_dict("records")

@@ -1,21 +1,22 @@
 """
 ZZPInvoiceService: Core invoice lifecycle management.
 
-Handles invoice CRUD, numbering, line calculations, totals,
-send flow, credit notes, copy-last, and time entry invoicing.
-
-Delivery (send, PDF, email) is delegated to ZZPInvoiceDeliveryHelper.
+Handles invoice CRUD, numbering, line calculations, and totals.
+Delegates delivery (send, PDF, email) to ZZPInvoiceDeliveryHelper,
+factory methods (time entries, trips, copy-last, credit notes) to ZZPInvoiceFactoryHelper,
+and numbering to ZZPInvoiceNumberingHelper.
 
 Reference: .kiro/specs/zzp-module/design.md §5.3
 """
 
 import logging
 from datetime import date, timedelta
-from typing import Optional
 
+from dialect_helpers import dialect
 from services.field_config_mixin import FieldConfigMixin
 from services.zzp_invoice_delivery import ZZPInvoiceDeliveryHelper
-from dialect_helpers import dialect
+from services.zzp_invoice_factory import ZZPInvoiceFactoryHelper
+from services.zzp_invoice_numbering import ZZPInvoiceNumberingHelper
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class ZZPInvoiceService(FieldConfigMixin):
     """Invoice lifecycle: create, calculate, number, send, credit, copy."""
 
     FIELD_CONFIG_KEY = "invoice_field_config"
-    ALWAYS_REQUIRED = ["contact_id", "invoice_date"]
+    ALWAYS_REQUIRED = ["contact_id", "invoice_date"]  # noqa: RUF012
 
     def __init__(
         self,
@@ -48,78 +49,23 @@ class ZZPInvoiceService(FieldConfigMixin):
             pdf_generator=pdf_generator,
             email_service=email_service,
         )
+        self._factory = ZZPInvoiceFactoryHelper(
+            db=db, parameter_service=parameter_service
+        )
+        self._numbering = ZZPInvoiceNumberingHelper(
+            db=db, parameter_service=parameter_service
+        )
 
-    # ── Invoice Numbering (Req 5) ───────────────────────────
+    # ── Invoice Numbering (delegated to numbering helper) ───
 
     def _generate_invoice_number(self, tenant: str, prefix: str, year: int) -> str:
-        """Generate next invoice number with database-level row locking.
-
-        Uses SELECT ... FOR UPDATE on invoice_number_sequences to prevent
-        concurrent duplicate numbers for the same tenant/prefix/year.
-        """
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute("START TRANSACTION")
-            cursor.execute(
-                """SELECT last_sequence FROM invoice_number_sequences
-                   WHERE administration = %s AND prefix = %s AND year = %s
-                   FOR UPDATE""",
-                (tenant, prefix, year),
-            )
-            row = cursor.fetchone()
-
-            if row:
-                next_seq = row["last_sequence"] + 1
-                cursor.execute(
-                    """UPDATE invoice_number_sequences SET last_sequence = %s
-                       WHERE administration = %s AND prefix = %s AND year = %s""",
-                    (next_seq, tenant, prefix, year),
-                )
-            else:
-                next_seq = 1
-                cursor.execute(
-                    """INSERT INTO invoice_number_sequences
-                       (administration, prefix, year, last_sequence)
-                       VALUES (%s, %s, %s, %s)""",
-                    (tenant, prefix, year, next_seq),
-                )
-
-            conn.commit()
-
-            padding = 4
-            if self.parameter_service:
-                p = self.parameter_service.get_param(
-                    "zzp", "invoice_number_padding", tenant=tenant
-                )
-                if p is not None:
-                    padding = int(p)
-
-            return f"{prefix}-{year}-{str(next_seq).zfill(padding)}"
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            cursor.close()
-            conn.close()
+        return self._numbering.generate_invoice_number(tenant, prefix, year)
 
     def _get_invoice_prefix(self, tenant: str) -> str:
-        """Read invoice prefix from parameters, default 'INV'."""
-        if self.parameter_service:
-            p = self.parameter_service.get_param("zzp", "invoice_prefix", tenant=tenant)
-            if p:
-                return p
-        return "INV"
+        return self._numbering.get_invoice_prefix(tenant)
 
     def _get_credit_note_prefix(self, tenant: str) -> str:
-        """Read credit note prefix from parameters, default 'CN'."""
-        if self.parameter_service:
-            p = self.parameter_service.get_param(
-                "zzp", "credit_note_prefix", tenant=tenant
-            )
-            if p:
-                return p
-        return "CN"
+        return self._numbering.get_credit_note_prefix(tenant)
 
     # ── Line & Total Calculations (Req 4.3–4.5) ────────────
 
@@ -128,10 +74,7 @@ class ZZPInvoiceService(FieldConfigMixin):
         vat_rate = 0.0
         if self.tax_rate_service:
             rate_info = self.tax_rate_service.get_tax_rate(
-                tenant,
-                "btw",
-                line["vat_code"],
-                invoice_date,
+                tenant, "btw", line["vat_code"], invoice_date
             )
             if rate_info:
                 vat_rate = rate_info["rate"]
@@ -340,7 +283,7 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         return self.get_invoice(tenant, invoice_id)
 
-    def get_invoice(self, tenant: str, invoice_id: int) -> Optional[dict]:
+    def get_invoice(self, tenant: str, invoice_id: int) -> dict | None:
         """Get invoice with lines, VAT summary, and contact info."""
         inv = self._get_invoice_raw(tenant, invoice_id)
         if not inv:
@@ -379,7 +322,7 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         return inv
 
-    def list_invoices(self, tenant: str, filters: dict = None) -> list:
+    def list_invoices(self, tenant: str, filters: dict | None = None) -> list:
         """List invoices with optional filters and pagination."""
         filters = filters or {}
         query = """SELECT i.*, c.client_id, c.company_name
@@ -425,9 +368,7 @@ class ZZPInvoiceService(FieldConfigMixin):
             results.append(r)
         return results
 
-    # ── Private helpers ─────────────────────────────────────
-
-    def _get_invoice_raw(self, tenant: str, invoice_id: int) -> Optional[dict]:
+    def _get_invoice_raw(self, tenant: str, invoice_id: int) -> dict | None:
         """Get raw invoice row without joins."""
         rows = self.db.execute_query(
             "SELECT * FROM invoices WHERE id = %s AND administration = %s",
@@ -464,8 +405,8 @@ class ZZPInvoiceService(FieldConfigMixin):
                 return p
         return "EUR"
 
-    def _get_default_revenue_account(self, tenant: str) -> Optional[str]:
-        """Return tenant-configured default revenue account from zzp.revenue_account parameter."""
+    def _get_default_revenue_account(self, tenant: str) -> str | None:
+        """Return tenant-configured default revenue account."""
         if self.parameter_service:
             p = self.parameter_service.get_param(
                 "zzp", "revenue_account", tenant=tenant
@@ -474,106 +415,15 @@ class ZZPInvoiceService(FieldConfigMixin):
                 return str(p)
         return None
 
-    # ── PDF Preview (Req 1) ─────────────────────────────────
+    # ── Delegated: Delivery (PDF, Email, Send) ────────────────
 
     def preview_invoice(self, tenant: str, invoice_id: int):
-        """Generate a preview PDF for a draft invoice.
-
-        Fetches the invoice with tenant isolation, validates draft status,
-        and delegates to PDFGeneratorService for watermarked PDF generation.
-
-        Returns:
-            BytesIO containing the preview PDF bytes.
-
-        Raises:
-            ValueError: If invoice not found or not in draft status.
-            RuntimeError: If PDF generation fails.
-        """
-        invoice = self.get_invoice(tenant, invoice_id)
-        if not invoice:
-            raise ValueError("Invoice not found")
-        if invoice["status"] != "draft":
-            raise ValueError("Only draft invoices can be previewed")
-
-        if not self.pdf_generator:
-            raise RuntimeError("PDFGeneratorService not configured")
-
-        try:
-            return self.pdf_generator.generate_preview_pdf(tenant, invoice)
-        except Exception as e:
-            raise RuntimeError(f"PDF generation failed: {e}")
+        """Generate a preview PDF for a draft invoice (delegated to delivery helper)."""
+        return self._delivery.preview_invoice(tenant, invoice_id, self.get_invoice)
 
     def get_email_preview(self, tenant: str, invoice_id: int) -> dict:
         """Compose an email preview without sending (delegated to delivery helper)."""
         return self._delivery.get_email_preview(tenant, invoice_id, self.get_invoice)
-
-    # ── Credit Notes (Req 10) ──────────────────────────────
-
-    def create_credit_note(
-        self, tenant: str, original_invoice_id: int, created_by: str
-    ) -> dict:
-        """Create a credit note linked to an original invoice with negated lines."""
-        original = self.get_invoice(tenant, original_invoice_id)
-        if not original:
-            raise ValueError(f"Invoice {original_invoice_id} not found")
-        if original["status"] not in ("sent", "paid", "overdue"):
-            raise ValueError("Can only credit invoices that have been sent")
-        if original.get("invoice_type") == "credit_note":
-            raise ValueError("Cannot credit a credit note")
-
-        invoice_date = date.today()
-        cn_prefix = self._get_credit_note_prefix(tenant)
-        cn_number = self._generate_invoice_number(tenant, cn_prefix, invoice_date.year)
-
-        payment_terms = original.get("payment_terms_days", 30)
-        due_date = invoice_date + timedelta(days=payment_terms)
-
-        # Insert credit note header
-        cn_id = self.db.execute_query(
-            """INSERT INTO invoices
-               (administration, invoice_number, invoice_type, contact_id,
-                invoice_date, due_date, payment_terms_days, currency,
-                exchange_rate, revenue_account, status, notes, original_invoice_id, created_by)
-               VALUES (%s,%s,'credit_note',%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s,%s)""",
-            (
-                tenant,
-                cn_number,
-                original["contact_id"],
-                invoice_date,
-                due_date,
-                payment_terms,
-                original.get("currency", "EUR"),
-                original.get("exchange_rate", 1.0),
-                original.get("revenue_account"),
-                f"Creditnota voor {original['invoice_number']}",
-                original_invoice_id,
-                created_by,
-            ),
-            fetch=False,
-            commit=True,
-        )
-
-        # Copy lines with negated amounts
-        original_lines = original.get("lines", [])
-        negated_lines = []
-        for line in original_lines:
-            neg = {
-                "product_id": line.get("product_id"),
-                "description": line["description"],
-                "quantity": -abs(float(line["quantity"])),
-                "unit_price": float(line["unit_price"]),
-                "vat_code": line["vat_code"],
-                "sort_order": line.get("sort_order", 0),
-            }
-            negated_lines.append(neg)
-
-        if negated_lines:
-            calculated = self._save_lines(cn_id, negated_lines, tenant, invoice_date)
-            self._update_totals(cn_id, calculated, tenant)
-
-        return self.get_invoice(tenant, cn_id)
-
-    # ── Send Flow (Req 6, 8, 9) ─────────────────────────────
 
     def send_invoice(
         self, tenant: str, invoice_id: int, options: dict, output_service=None
@@ -583,18 +433,11 @@ class ZZPInvoiceService(FieldConfigMixin):
             tenant, invoice_id, options, self.get_invoice, output_service
         )
 
-    def get_invoice_pdf(self, tenant: str, invoice_id: int) -> Optional[dict]:
+    def get_invoice_pdf(self, tenant: str, invoice_id: int) -> dict | None:
         """Retrieve stored PDF or regenerate as copy (delegated to delivery helper)."""
         return self._delivery.get_invoice_pdf(tenant, invoice_id, self.get_invoice)
 
-    def _store_pdf(
-        self,
-        tenant: str,
-        invoice: dict,
-        pdf_bytes,
-        destination: str,
-        output_service=None,
-    ) -> dict:
+    def _store_pdf(self, tenant, invoice, pdf_bytes, destination, output_service=None):
         """Store PDF via OutputService (delegated to delivery helper)."""
         return self._delivery._store_pdf(
             tenant, invoice, pdf_bytes, destination, output_service
@@ -604,13 +447,82 @@ class ZZPInvoiceService(FieldConfigMixin):
         """Update invoice status (delegated to delivery helper)."""
         self._delivery._update_status(tenant, invoice_id, status, sent_at)
 
+    # ── Delegated: Factory (Credit Notes, Time Entries, Trips, Copy) ──
+
+    def create_credit_note(
+        self, tenant: str, original_invoice_id: int, created_by: str
+    ) -> dict:
+        """Create a credit note linked to an original invoice (delegated to factory helper)."""
+        return self._factory.create_credit_note(
+            tenant,
+            original_invoice_id,
+            created_by,
+            get_invoice_fn=self.get_invoice,
+            generate_invoice_number_fn=self._generate_invoice_number,
+            get_credit_note_prefix_fn=self._get_credit_note_prefix,
+            save_lines_fn=self._save_lines,
+            update_totals_fn=self._update_totals,
+        )
+
+    def create_invoice_from_time_entries(
+        self,
+        tenant: str,
+        contact_id: int,
+        entry_ids: list,
+        data: dict,
+        created_by: str,
+        time_tracking_service=None,
+    ) -> dict:
+        """Create a draft invoice from selected time entries (delegated to factory helper)."""
+        return self._factory.create_invoice_from_time_entries(
+            tenant,
+            contact_id,
+            entry_ids,
+            data,
+            created_by,
+            create_invoice_fn=self.create_invoice,
+            time_tracking_service=time_tracking_service,
+        )
+
+    def create_invoice_from_trips(
+        self,
+        tenant: str,
+        contact_id: int,
+        trip_ids: list,
+        km_rate: float,
+        data: dict,
+        created_by: str,
+        trip_service=None,
+    ) -> dict:
+        """Create a draft invoice from selected trips (delegated to factory helper)."""
+        return self._factory.create_invoice_from_trips(
+            tenant,
+            contact_id,
+            trip_ids,
+            km_rate,
+            data,
+            created_by,
+            create_invoice_fn=self.create_invoice,
+            trip_service=trip_service,
+        )
+
+    def copy_last_invoice(self, tenant: str, contact_id: int, created_by: str) -> dict:
+        """Create a new draft by copying the most recent invoice (delegated to factory helper)."""
+        return self._factory.copy_last_invoice(
+            tenant,
+            contact_id,
+            created_by,
+            create_invoice_fn=self.create_invoice,
+        )
+
+    def _advance_date(self, tenant: str, contact_id: int, last_date) -> date:
+        """Calculate next invoice date (delegated to factory helper)."""
+        return self._factory._advance_date(tenant, contact_id, last_date)
+
     # ── Overdue Detection (Req 12.3) ────────────────────────
 
     def mark_overdue(self, tenant: str) -> int:
-        """Batch update all sent invoices past due date to overdue.
-
-        Returns count of invoices updated.
-        """
+        """Batch update all sent invoices past due date to overdue. Returns count updated."""
         result = self.db.execute_query(
             f"""UPDATE invoices SET status = 'overdue'
                WHERE administration = %s
@@ -624,257 +536,3 @@ class ZZPInvoiceService(FieldConfigMixin):
         if count:
             logger.info("Marked %d invoice(s) as overdue for tenant %s", count, tenant)
         return count
-
-    # ── Invoice from Time Entries (Req 11.5–11.6) ───────────
-
-    def create_invoice_from_time_entries(
-        self,
-        tenant: str,
-        contact_id: int,
-        entry_ids: list,
-        data: dict,
-        created_by: str,
-        time_tracking_service=None,
-    ) -> dict:
-        """Create a draft invoice from selected time entries.
-
-        Maps each time entry to an invoice line:
-        product_id, description, quantity=hours, unit_price=hourly_rate, vat_code from product.
-        Marks entries as billed after invoice creation.
-        """
-        if not time_tracking_service:
-            raise RuntimeError("TimeTrackingService required")
-
-        entries = []
-        for eid in entry_ids:
-            entry = time_tracking_service.get_entry(tenant, eid)
-            if not entry:
-                raise ValueError(f"Time entry {eid} not found")
-            if entry.get("is_billed"):
-                raise ValueError(f"Time entry {eid} is already billed")
-            if entry["contact_id"] != contact_id:
-                raise ValueError(f"Time entry {eid} belongs to a different contact")
-            entries.append(entry)
-
-        # Build invoice lines from time entries
-        lines = []
-        for entry in entries:
-            vat_code = "high"  # default
-            if entry.get("product_id"):
-                product = self.db.execute_query(
-                    "SELECT vat_code FROM products WHERE id = %s AND administration = %s",
-                    (entry["product_id"], tenant),
-                )
-                if product:
-                    vat_code = product[0]["vat_code"]
-
-            lines.append(
-                {
-                    "product_id": entry.get("product_id"),
-                    "description": entry.get("description")
-                    or f"Uren {entry['entry_date']}",
-                    "quantity": float(entry["hours"]),
-                    "unit_price": float(entry["hourly_rate"]),
-                    "vat_code": vat_code,
-                }
-            )
-
-        invoice_data = {
-            "contact_id": contact_id,
-            "invoice_date": data.get("invoice_date", date.today().isoformat()),
-            "payment_terms_days": data.get("payment_terms_days"),
-            "currency": data.get("currency"),
-            "notes": data.get("notes"),
-            "lines": lines,
-        }
-        # Remove None values
-        invoice_data = {k: v for k, v in invoice_data.items() if v is not None}
-
-        invoice = self.create_invoice(tenant, invoice_data, created_by=created_by)
-
-        # Mark entries as billed
-        time_tracking_service.mark_as_billed(tenant, entry_ids, invoice["id"])
-
-        return invoice
-
-    # ── Invoice from Trips (Rittenregistratie Req 6) ────────
-
-    def create_invoice_from_trips(
-        self,
-        tenant: str,
-        contact_id: int,
-        trip_ids: list,
-        km_rate: float,
-        data: dict,
-        created_by: str,
-        trip_service=None,
-    ) -> dict:
-        """Create a draft invoice from selected trips.
-
-        Maps each trip to an invoice line:
-        description = "{trip_date} {start_address} → {end_address}",
-        quantity = distance_km, unit_price = km_rate.
-        Marks trips as billed after invoice creation.
-
-        Args:
-            tenant: Administration/tenant identifier.
-            contact_id: The client contact to invoice.
-            trip_ids: List of trip IDs to include.
-            km_rate: Price per km (unit_price for each line).
-            data: Additional invoice data (invoice_date, payment_terms_days, etc.).
-            created_by: User email creating the invoice.
-            trip_service: TripService instance for fetching and marking trips.
-
-        Raises:
-            RuntimeError: If trip_service is not provided.
-            ValueError: If a trip is not found, already billed, cancelled,
-                        or belongs to a different contact.
-        """
-        if not trip_service:
-            raise RuntimeError("TripService required")
-
-        trips = []
-        for tid in trip_ids:
-            trip = trip_service.get_trip(tenant, int(tid))
-            if not trip:
-                raise ValueError(f"Trip {tid} not found")
-            if trip.get("is_billed"):
-                raise ValueError(f"Trip {tid} is already billed")
-            if trip.get("is_cancelled"):
-                raise ValueError(f"Trip {tid} is cancelled")
-            if trip.get("contact_id") != contact_id:
-                raise ValueError(f"Trip {tid} belongs to a different contact")
-            trips.append(trip)
-
-        # Build invoice lines from trips
-        lines = []
-        for trip in trips:
-            trip_date = trip.get("trip_date", "")
-            if hasattr(trip_date, "isoformat"):
-                trip_date = trip_date.isoformat()
-            start_addr = trip.get("start_address", "")
-            end_addr = trip.get("end_address", "")
-            description = f"{trip_date} {start_addr} → {end_addr}"
-
-            lines.append(
-                {
-                    "description": description,
-                    "quantity": float(trip.get("distance_km", 0)),
-                    "unit_price": float(km_rate),
-                    "vat_code": "high",
-                }
-            )
-
-        invoice_data = {
-            "contact_id": contact_id,
-            "invoice_date": data.get("invoice_date", date.today().isoformat()),
-            "payment_terms_days": data.get("payment_terms_days"),
-            "currency": data.get("currency"),
-            "notes": data.get("notes"),
-            "lines": lines,
-        }
-        # Remove None values
-        invoice_data = {k: v for k, v in invoice_data.items() if v is not None}
-
-        invoice = self.create_invoice(tenant, invoice_data, created_by=created_by)
-
-        # Mark trips as billed
-        trip_service.mark_as_billed(tenant, trip_ids, invoice["id"])
-
-        return invoice
-
-    # ── Copy Last Invoice / Recurring (Req 13) ──────────────
-
-    def copy_last_invoice(self, tenant: str, contact_id: int, created_by: str) -> dict:
-        """Create a new draft by copying the most recent invoice for a contact."""
-        last = self.db.execute_query(
-            """SELECT * FROM invoices
-               WHERE administration = %s AND contact_id = %s
-                 AND invoice_type = 'invoice'
-               ORDER BY invoice_date DESC LIMIT 1""",
-            (tenant, contact_id),
-        )
-        if not last:
-            raise ValueError("No previous invoice found for this contact")
-
-        last_invoice = last[0]
-        last_lines = (
-            self.db.execute_query(
-                "SELECT * FROM invoice_lines WHERE invoice_id = %s AND administration = %s ORDER BY sort_order",
-                (last_invoice["id"], tenant),
-            )
-            or []
-        )
-
-        new_date = self._advance_date(tenant, contact_id, last_invoice["invoice_date"])
-        payment_terms = last_invoice.get("payment_terms_days", 30)
-
-        lines = [
-            {
-                "product_id": line.get("product_id"),
-                "description": line["description"],
-                "quantity": float(line["quantity"]),
-                "unit_price": float(line["unit_price"]),
-                "vat_code": line["vat_code"],
-                "sort_order": line.get("sort_order", 0),
-            }
-            for line in last_lines
-        ]
-
-        invoice_data = {
-            "contact_id": contact_id,
-            "invoice_date": new_date.isoformat(),
-            "payment_terms_days": payment_terms,
-            "currency": last_invoice.get("currency", "EUR"),
-            "revenue_account": last_invoice.get("revenue_account"),
-            "notes": last_invoice.get("notes"),
-            "lines": lines,
-        }
-        invoice_data = {k: v for k, v in invoice_data.items() if v is not None}
-
-        new_invoice = self.create_invoice(tenant, invoice_data, created_by=created_by)
-        new_invoice["copied_from_invoice_id"] = last_invoice["id"]
-        return new_invoice
-
-    def _advance_date(self, tenant: str, contact_id: int, last_date) -> date:
-        """Calculate next invoice date based on gap between last two invoices.
-
-        If only one invoice exists, defaults to +1 month.
-        """
-        if isinstance(last_date, str):
-            last_date = date.fromisoformat(last_date)
-
-        prev_two = (
-            self.db.execute_query(
-                """SELECT invoice_date FROM invoices
-               WHERE administration = %s AND contact_id = %s
-                 AND invoice_type = 'invoice'
-               ORDER BY invoice_date DESC LIMIT 2""",
-                (tenant, contact_id),
-            )
-            or []
-        )
-
-        if len(prev_two) >= 2:
-            d1 = prev_two[0]["invoice_date"]
-            d2 = prev_two[1]["invoice_date"]
-            if isinstance(d1, str):
-                d1 = date.fromisoformat(d1)
-            if isinstance(d2, str):
-                d2 = date.fromisoformat(d2)
-            gap = d1 - d2
-            return last_date + gap
-
-        # Default: +1 month
-        month = last_date.month % 12 + 1
-        year = last_date.year + (1 if month == 1 else 0)
-        try:
-            return last_date.replace(year=year, month=month)
-        except ValueError:
-            # Handle end-of-month (e.g., Jan 31 → Feb 28)
-            import calendar
-
-            last_day = calendar.monthrange(year, month)[1]
-            return last_date.replace(
-                year=year, month=month, day=min(last_date.day, last_day)
-            )

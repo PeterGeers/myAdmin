@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Pattern Scoring and Ranking Module for Banking Transactions
 
@@ -13,17 +12,18 @@ These functions score/rank patterns to make predictions.
 They do NOT detect patterns or manage caching.
 """
 
-from datetime import datetime, date
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from collections.abc import Callable
+from datetime import date, datetime
+from typing import Any
 
 
 def generate_pattern_statistics(
-    transactions: List[Dict],
-    debet_patterns: Dict,
-    credit_patterns: Dict,
-    reference_patterns: Dict,
+    transactions: list[dict],
+    debet_patterns: dict,
+    credit_patterns: dict,
+    reference_patterns: dict,
     is_bank_account_fn: Callable[[str, str], bool],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate comprehensive statistics about discovered patterns"""
     total_transactions = len(transactions)
 
@@ -77,8 +77,8 @@ def generate_pattern_statistics(
 
 
 def calculate_statistics_from_db_patterns(
-    debet_patterns: Dict, credit_patterns: Dict, reference_patterns: Dict
-) -> Dict:
+    debet_patterns: dict, credit_patterns: dict, reference_patterns: dict
+) -> dict:
     """Calculate statistics from database-loaded patterns"""
     return {
         "patterns_by_type": {
@@ -104,11 +104,11 @@ def calculate_statistics_from_db_patterns(
 
 
 def resolve_pattern_conflicts(
-    matching_patterns: List[Tuple[str, Dict]],
-    transaction: Dict,
+    matching_patterns: list[tuple[str, dict]],
+    transaction: dict,
     administration: str,
     is_bank_account_fn: Callable[[str, str], bool],
-) -> Optional[Tuple[str, Dict]]:
+) -> tuple[str, dict] | None:
     """
     Resolve conflicts when multiple patterns match the same verb
 
@@ -136,14 +136,14 @@ def resolve_pattern_conflicts(
         if last_seen:
             if isinstance(last_seen, str):
                 try:
-                    last_seen = datetime.strptime(last_seen, "%Y-%m-%d").date()
+                    last_seen = datetime.strptime(last_seen, "%Y-%m-%d").date()  # noqa: DTZ007
                 except (ValueError, TypeError):
                     last_seen = None
 
             if last_seen:
                 if isinstance(last_seen, datetime):
                     last_seen = last_seen.date()
-                days_ago = (date.today() - last_seen).days
+                days_ago = (date.today() - last_seen).days  # noqa: DTZ011
                 # More recent = higher score (max 40 points)
                 recency_score = max(0, 40 - (days_ago / 30))  # Decay over months
                 score += recency_score
@@ -182,19 +182,19 @@ def resolve_pattern_conflicts(
     scored_patterns.sort(key=lambda x: x[0], reverse=True)
 
     # Return the best match
-    best_score, best_key, best_pattern = scored_patterns[0]
+    _best_score, best_key, best_pattern = scored_patterns[0]
 
     return (best_key, best_pattern)
 
 
 def predict_debet(
-    transaction: Dict,
-    debet_patterns: Dict,
+    transaction: dict,
+    debet_patterns: dict,
     administration: str,
     is_bank_account_fn: Callable[[str, str], bool],
-    extract_verb_fn: Callable[[str, str], Optional[str]],
-    get_filtered_patterns_fn: Callable[[str], Dict[str, Any]],
-) -> Optional[Dict]:
+    extract_verb_fn: Callable[[str, str], str | None],
+    get_filtered_patterns_fn: Callable[[str], dict[str, Any]],
+) -> dict | None:
     """
     Predict Debet account number using verb patterns
 
@@ -270,16 +270,18 @@ def predict_debet(
     for key, pattern in reference_patterns.items():
         if pattern.get("_ambiguous"):
             continue
-        if (
+        if (  # noqa: SIM102
             pattern.get("credit_account") == credit
             and pattern.get("administration") == administration
             and pattern.get("confidence", 0) > 0
             and pattern.get("occurrences", 0) >= 1
         ):
             # Match on full verb or company
-            if pattern.get("verb") == verb:
-                matching_patterns.append((key, pattern))
-            elif pattern.get("verb_company") == verb_company and not is_compound:
+            if (
+                pattern.get("verb") == verb
+                or pattern.get("verb_company") == verb_company
+                and not is_compound
+            ):
                 matching_patterns.append((key, pattern))
 
     if matching_patterns:
@@ -302,13 +304,13 @@ def predict_debet(
 
 
 def predict_credit(
-    transaction: Dict,
-    credit_patterns: Dict,
+    transaction: dict,
+    credit_patterns: dict,
     administration: str,
     is_bank_account_fn: Callable[[str, str], bool],
-    extract_verb_fn: Callable[[str, str], Optional[str]],
-    get_filtered_patterns_fn: Callable[[str], Dict[str, Any]],
-) -> Optional[Dict]:
+    extract_verb_fn: Callable[[str, str], str | None],
+    get_filtered_patterns_fn: Callable[[str], dict[str, Any]],
+) -> dict | None:
     """
     Predict Credit account number using verb patterns
 
@@ -384,16 +386,18 @@ def predict_credit(
     for key, pattern in reference_patterns.items():
         if pattern.get("_ambiguous"):
             continue
-        if (
+        if (  # noqa: SIM102
             pattern.get("debet_account") == debet
             and pattern.get("administration") == administration
             and pattern.get("confidence", 0) > 0
             and pattern.get("occurrences", 0) >= 1
         ):
             # Match on full verb or company
-            if pattern.get("verb") == verb:
-                matching_patterns.append((key, pattern))
-            elif pattern.get("verb_company") == verb_company and not is_compound:
+            if (
+                pattern.get("verb") == verb
+                or pattern.get("verb_company") == verb_company
+                and not is_compound
+            ):
                 matching_patterns.append((key, pattern))
 
     if matching_patterns:
@@ -416,11 +420,11 @@ def predict_credit(
 
 
 def predict_reference(
-    transaction: Dict,
-    reference_patterns: Dict,
+    transaction: dict,
+    reference_patterns: dict,
     is_bank_account_fn: Callable[[str, str], bool],
-    extract_verb_fn: Callable[[str, str], Optional[str]],
-) -> Optional[Dict]:
+    extract_verb_fn: Callable[[str, str], str | None],
+) -> dict | None:
     """
     Predict ReferenceNumber using verb patterns
 
@@ -508,7 +512,7 @@ def predict_reference(
         # Only exact verb matches or very close company matches
         if pattern.get("verb") == verb:
             matching_patterns.append((key, pattern, "exact_verb", 1.0))
-        elif (
+        elif (  # noqa: SIM102
             is_compound
             and pattern.get("verb_company") == verb_company
             and pattern.get("is_compound")

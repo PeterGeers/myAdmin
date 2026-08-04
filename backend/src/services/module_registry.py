@@ -12,13 +12,12 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 import functools
 import logging
 import os
-from typing import Dict
 
 from flask import jsonify
 
 logger = logging.getLogger(__name__)
 
-MODULE_REGISTRY: Dict[str, dict] = {
+MODULE_REGISTRY: dict[str, dict] = {
     "FIN": {
         "description": "Financial Administration",
         "required_params": {
@@ -188,7 +187,7 @@ def has_module(db, tenant: str, module_name: str) -> bool:
         """
         result = db.execute_query(query, (tenant, module_name))
         return bool(result and result[0].get("is_active"))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(
             "Error checking module %s for tenant %s: %s", module_name, tenant, e
         )

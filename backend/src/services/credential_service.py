@@ -7,15 +7,16 @@ storing encrypted credentials in the database using AES-256 encryption with
 per-tenant key derivation via PBKDF2-SHA256.
 """
 
-import os
-import json
 import base64
+import json
 import logging
-from typing import Optional, Any
+import os
+from typing import Any
+
 from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class CredentialService:
     (PBKDF2-SHA256) for encryption isolation between tenants.
     """
 
-    def __init__(self, db_manager, encryption_key: Optional[str] = None):
+    def __init__(self, db_manager, encryption_key: str | None = None):
         """
         Initialize the credential service.
 
@@ -120,7 +121,7 @@ class CredentialService:
         derived_key = base64.urlsafe_b64encode(kdf.derive(master_key.encode()))
         return Fernet(derived_key)
 
-    def encrypt_credential(self, value: Any, tenant: Optional[str] = None) -> str:
+    def encrypt_credential(self, value: Any, tenant: str | None = None) -> str:
         """
         Encrypt a credential value.
 
@@ -157,12 +158,12 @@ class CredentialService:
             # Return as base64 string for database storage
             return base64.b64encode(encrypted_bytes).decode("utf-8")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Encryption failed: {type(e).__name__}")
-            raise Exception(f"Failed to encrypt credential: {type(e).__name__}")
+            raise Exception(f"Failed to encrypt credential: {type(e).__name__}")  # noqa: TRY002
 
     def decrypt_credential(
-        self, encrypted_value: str, tenant: Optional[str] = None
+        self, encrypted_value: str, tenant: str | None = None
     ) -> Any:
         """
         Decrypt an encrypted credential value.
@@ -212,11 +213,11 @@ class CredentialService:
 
         except CredentialDecryptionError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             if tenant:
                 raise CredentialDecryptionError(tenant, "unknown")
             logger.error(f"Decryption failed: {type(e).__name__}")
-            raise Exception(f"Failed to decrypt credential: {type(e).__name__}")
+            raise Exception(f"Failed to decrypt credential: {type(e).__name__}")  # noqa: TRY002
 
     def store_credential(
         self, administration: str, credential_type: str, value: Any
@@ -263,13 +264,11 @@ class CredentialService:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to store credential: {type(e).__name__}")
-            raise Exception(f"Failed to store credential: {type(e).__name__}")
+            raise Exception(f"Failed to store credential: {type(e).__name__}")  # noqa: TRY002
 
-    def get_credential(
-        self, administration: str, credential_type: str
-    ) -> Optional[Any]:
+    def get_credential(self, administration: str, credential_type: str) -> Any | None:
         """
         Retrieve and decrypt a credential from the database.
 
@@ -339,7 +338,7 @@ class CredentialService:
 
         except CredentialDecryptionError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to get credential: {type(e).__name__}")
             raise CredentialDecryptionError(administration, credential_type)
 
@@ -381,7 +380,7 @@ class CredentialService:
                 f"Migrated credential to tenant-derived key for "
                 f"administration '{administration}', type '{credential_type}'"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Migration failure is non-fatal — credential was already decrypted
             logger.warning(
                 f"Failed to migrate credential for administration '{administration}', "
@@ -423,9 +422,9 @@ class CredentialService:
                 )
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to delete credential: {type(e).__name__}")
-            raise Exception(f"Failed to delete credential: {type(e).__name__}")
+            raise Exception(f"Failed to delete credential: {type(e).__name__}")  # noqa: TRY002
 
     def list_credential_types(self, administration: str) -> list:
         """
@@ -463,9 +462,9 @@ class CredentialService:
                 for row in results
             ]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to list credentials: {type(e).__name__}")
-            raise Exception(f"Failed to list credentials: {type(e).__name__}")
+            raise Exception(f"Failed to list credentials: {type(e).__name__}")  # noqa: TRY002
 
     def credential_exists(self, administration: str, credential_type: str) -> bool:
         """
@@ -489,6 +488,6 @@ class CredentialService:
 
             return results[0]["count"] > 0 if results else False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to check credential existence: {type(e).__name__}")
             return False

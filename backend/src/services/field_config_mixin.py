@@ -12,7 +12,7 @@ Reference: .kiro/specs/zzp-module/design.md §2 (Field Visibility & Validation)
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,9 @@ class FieldConfigMixin:
 
     # Subclasses must define these
     FIELD_CONFIG_KEY: str = ""
-    ALWAYS_REQUIRED: List[str] = []
+    ALWAYS_REQUIRED: list[str] = []  # noqa: RUF012
 
-    def get_field_config(self, tenant: str) -> Dict[str, str]:
+    def get_field_config(self, tenant: str) -> dict[str, str]:
         """Get field config for tenant, merging defaults with overrides.
 
         Resolution: ParameterService tenant override → MODULE_REGISTRY default.
@@ -51,7 +51,7 @@ class FieldConfigMixin:
 
         return config
 
-    def validate_fields(self, tenant: str, data: Dict[str, Any]) -> None:
+    def validate_fields(self, tenant: str, data: dict[str, Any]) -> None:
         """Validate data against field config.
 
         Raises ValueError listing all missing required fields.
@@ -63,7 +63,7 @@ class FieldConfigMixin:
         if missing:
             raise ValueError(f"Required fields missing: {', '.join(missing)}")
 
-    def strip_hidden_fields(self, tenant: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def strip_hidden_fields(self, tenant: str, data: dict[str, Any]) -> dict[str, Any]:
         """Remove hidden fields from response data."""
         config = self.get_field_config(tenant)
         hidden = {f for f, level in config.items() if level == "hidden"}

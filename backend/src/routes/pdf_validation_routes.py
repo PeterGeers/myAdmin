@@ -3,12 +3,14 @@ PDF Validation Routes Blueprint
 Handles PDF URL validation and Google Drive integration
 """
 
-from flask import Blueprint, request, jsonify, Response
+import json
+
+from flask import Blueprint, Response, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from pdf_validation import PDFValidator
-import json
 
 # Create blueprint
 pdf_validation_bp = Blueprint("pdf_validation", __name__)
@@ -57,7 +59,7 @@ def pdf_validate_urls_stream(
                 if progress_data.get("validation_results") is not None:
                     validation_results = progress_data["validation_results"]
                     for result in validation_results:
-                        if "record" in result and "TransactionDate" in result["record"]:
+                        if "record" in result and "TransactionDate" in result["record"]:  # noqa: SIM102
                             if result["record"]["TransactionDate"]:
                                 date_obj = result["record"]["TransactionDate"]
                                 if hasattr(date_obj, "strftime"):
@@ -73,7 +75,7 @@ def pdf_validate_urls_stream(
                 else:
                     yield f"data: {json.dumps({'type': 'progress', **progress_data}, default=str)}\n\n"
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
     return Response(
@@ -126,7 +128,7 @@ def pdf_validate_urls(
         # Format dates in validation results
         validation_results = results.get("validation_results", [])
         for result in validation_results:
-            if "record" in result and "TransactionDate" in result["record"]:
+            if "record" in result and "TransactionDate" in result["record"]:  # noqa: SIM102
                 if result["record"]["TransactionDate"]:
                     # Convert datetime to YYYY-MM-DD format
                     date_obj = result["record"]["TransactionDate"]
@@ -147,14 +149,16 @@ def pdf_validate_urls(
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 @pdf_validation_bp.route("/api/pdf/update-record", methods=["POST"])
 @cognito_required(required_permissions=["invoices_update"])
 @tenant_required()
-def pdf_update_record(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def pdf_update_record(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Update all records with matching Ref3/Ref4"""
     try:
         data = request.get_json()
@@ -174,7 +178,9 @@ def pdf_update_record(user_email, user_roles, tenant, user_tenants) -> ResponseR
             ), 400
 
         validator = PDFValidator(test_mode=flag)
-        success = validator.update_record(old_ref3, reference_number, ref3, ref4, tenant)
+        success = validator.update_record(
+            old_ref3, reference_number, ref3, ref4, tenant
+        )
 
         if success:
             return jsonify({"success": True, "message": "Records updated successfully"})
@@ -186,7 +192,7 @@ def pdf_update_record(user_email, user_roles, tenant, user_tenants) -> ResponseR
                 }
             ), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Update error: {e}")
         import traceback
 
@@ -211,7 +217,7 @@ def pdf_get_administrations(
 
         return jsonify({"success": True, "administrations": filtered})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -245,5 +251,5 @@ def pdf_validate_single_url(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "status": result["status"]})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500

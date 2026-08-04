@@ -15,8 +15,9 @@ Permissions:
 - finance_write: Close fiscal years (Finance_CRUD role)
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.year_end_service import YearEndClosureService
@@ -49,7 +50,7 @@ def get_available_years(
         # Format as list of year objects
         return jsonify([{"year": year} for year in years]), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify(
             {"error": str(e), "message": "Failed to get available years"}
         ), 500
@@ -91,7 +92,7 @@ def validate_year(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 
         return jsonify(validation), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e), "message": "Failed to validate year"}), 500
 
 
@@ -140,7 +141,7 @@ def close_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
 
         return jsonify(result), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify(
             {
                 "success": False,
@@ -177,7 +178,7 @@ def get_closed_years(
 
         return jsonify(closed_years), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e), "message": "Failed to get closed years"}), 500
 
 
@@ -213,7 +214,7 @@ def get_year_status(
                 {"year": year, "closed": False, "message": f"Year {year} is not closed"}
             ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify(
             {"error": str(e), "message": f"Failed to get status for year {year}"}
         ), 500
@@ -255,7 +256,7 @@ def reopen_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
 
         return jsonify(result), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify(
             {
                 "success": False,

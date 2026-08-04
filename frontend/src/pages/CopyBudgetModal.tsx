@@ -8,7 +8,7 @@ import {
   ModalCloseButton, ModalFooter, VStack,
   Input, Select, Button, FormControl, FormLabel, FormErrorMessage,
 } from '@chakra-ui/react';
-import { Formik, Form, Field } from 'formik';
+import { Formik, Form, Field, FieldInputProps, FieldMetaProps } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { BudgetVersion } from '../types/budget';
@@ -60,7 +60,7 @@ const CopyBudgetModal: React.FC<CopyBudgetModalProps> = ({
               <ModalBody>
                 <VStack spacing={4}>
                   <Field name="source_version_id">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: { field: FieldInputProps<number>; meta: FieldMetaProps<number> }) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.sourceVersion')}</FormLabel>
                         <Select
@@ -76,7 +76,7 @@ const CopyBudgetModal: React.FC<CopyBudgetModalProps> = ({
                     )}
                   </Field>
                   <Field name="target_fiscal_year">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: { field: FieldInputProps<number>; meta: FieldMetaProps<number> }) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.targetYear')}</FormLabel>
                         <Input
@@ -91,7 +91,7 @@ const CopyBudgetModal: React.FC<CopyBudgetModalProps> = ({
                     )}
                   </Field>
                   <Field name="version_name">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: { field: FieldInputProps<string>; meta: FieldMetaProps<string> }) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.versionName')}</FormLabel>
                         <Input
