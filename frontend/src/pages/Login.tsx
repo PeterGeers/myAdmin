@@ -84,8 +84,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       } else {
         toast({ title: t('auth:forgotPassword.sendFailed'), description: data.error || '', status: 'error', duration: 5000, isClosable: true });
       }
-    } catch (error: any) {
-      toast({ title: t('auth:forgotPassword.sendFailed'), description: error?.message || '', status: 'error', duration: 5000, isClosable: true });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      toast({ title: t('auth:forgotPassword.sendFailed'), description: message, status: 'error', duration: 5000, isClosable: true });
     } finally {
       setIsResetLoading(false);
     }
@@ -113,8 +114,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       } else {
         toast({ title: t('auth:forgotPassword.resetFailed'), description: data.error || '', status: 'error', duration: 5000, isClosable: true });
       }
-    } catch (error: any) {
-      toast({ title: t('auth:forgotPassword.resetFailed'), description: error?.message || '', status: 'error', duration: 5000, isClosable: true });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      toast({ title: t('auth:forgotPassword.resetFailed'), description: message, status: 'error', duration: 5000, isClosable: true });
     } finally {
       setIsResetLoading(false);
     }
@@ -139,8 +141,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         setNewPassword('');
         setConfirmNewPassword('');
       }
-    } catch (error: any) {
-      const code = error?.name || '';
+    } catch (error: unknown) {
+      const code = (error instanceof Error && 'name' in error) ? error.name : '';
       let description = t('auth:login.loginFailedDescription');
 
       if (code === 'NotAuthorizedException' || code === 'UserNotFoundException') {
@@ -181,13 +183,14 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       if (result.isSignedIn) {
         onLoginSuccess?.();
       }
-    } catch (error: any) {
-      const code = error?.name || '';
+    } catch (error: unknown) {
+      const errorName = (error instanceof Error && 'name' in error) ? error.name : '';
+      const errorMessage = error instanceof Error ? error.message : '';
       let description = t('auth:login.passkeyFailed');
 
-      if (code === 'NotAuthorizedException') {
+      if (errorName === 'NotAuthorizedException') {
         description = t('auth:login.noPasskeyRegistered');
-      } else if (error?.message?.includes('cancelled') || error?.message?.includes('AbortError')) {
+      } else if (errorMessage.includes('cancelled') || errorMessage.includes('AbortError')) {
         description = t('auth:login.passkeyCancelled');
       }
 
@@ -233,10 +236,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         });
         onLoginSuccess?.();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
       toast({
         title: t('auth:newPassword.failed'),
-        description: error?.message || '',
+        description: message,
         status: 'error',
         duration: 5000,
         isClosable: true,

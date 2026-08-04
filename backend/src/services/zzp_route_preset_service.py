@@ -170,11 +170,13 @@ class RoutePresetService:
 
     def increment_usage(self, tenant: str, from_address: str, to_address: str,
                         default_category: str = None, default_purpose: str = None,
-                        typical_distance_km: int = None) -> None:
+                        typical_distance_km: int = None) -> int:
         """UPSERT route usage: increment use_count if exists, else create with use_count=1.
 
         This is called automatically when a trip is created to track route frequency.
         Auto-learned presets have is_manual=False.
+
+        Returns the new use_count value after the operation.
         """
         from_addr = from_address.strip()
         to_addr = to_address.strip()
@@ -190,6 +192,7 @@ class RoutePresetService:
 
         if rows:
             # Update: increment use_count, refresh last_used_at, update category/purpose/distance
+            new_count = rows[0]["use_count"] + 1
             self.db.execute_query(
                 f"""UPDATE zzp_route_presets
                     SET use_count = use_count + 1,
@@ -203,19 +206,38 @@ class RoutePresetService:
                 fetch=False,
                 commit=True,
             )
+            return new_count
         else:
-            # Insert: new auto-learned preset with all metadata
+            # Insert: new auto-learned preset
+            columns = ["administration", "from_address", "to_address",
+                       "use_count", "is_manual", "last_used_at"]
+            params = [tenant, from_addr, to_addr, 1, False]
+            placeholders = ["%s", "%s", "%s", "%s", "%s",
+                            dialect.current_timestamp()]
+
+            # Include optional metadata only when provided
+            if default_category is not None:
+                columns.append("default_category")
+                params.append(default_category)
+                placeholders.append("%s")
+            if default_purpose is not None:
+                columns.append("default_purpose")
+                params.append(default_purpose)
+                placeholders.append("%s")
+            if typical_distance_km is not None:
+                columns.append("typical_distance_km")
+                params.append(typical_distance_km)
+                placeholders.append("%s")
+
             self.db.execute_query(
                 f"""INSERT INTO zzp_route_presets
-                    (administration, from_address, to_address, default_category,
-                     default_purpose, typical_distance_km, use_count,
-                     last_used_at, is_manual)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, {dialect.current_timestamp()}, %s)""",
-                (tenant, from_addr, to_addr, default_category, default_purpose,
-                 typical_distance_km, 1, False),
+                    ({', '.join(columns)})
+                    VALUES ({', '.join(placeholders)})""",
+                tuple(params),
                 fetch=False,
                 commit=True,
             )
+            return 1
 
     # ── Helper methods ──────────────────────────────────────
 

@@ -68,16 +68,22 @@ def client(mock_budget_service, mock_budget_ai_service):
          patch('auth.tenant_context.tenant_required', side_effect=_passthrough_tenant):
         import importlib
         import routes.budget_routes as br
+        import routes.budget_ai_routes as bar
         importlib.reload(br)
+        importlib.reload(bar)
 
-        # Inject mock services
+        # Inject mock services into core budget routes
         br.budget_service = mock_budget_service
-        br.budget_ai_service = mock_budget_ai_service
+
+        # Inject mock services into AI/copy routes
+        bar.budget_service = mock_budget_service
+        bar.budget_ai_service = mock_budget_ai_service
 
         from flask import Flask
         app = Flask(__name__)
         app.config['TESTING'] = True
         app.register_blueprint(br.budget_bp)
+        app.register_blueprint(bar.budget_ai_bp)
 
         with app.test_client() as c:
             with app.app_context():

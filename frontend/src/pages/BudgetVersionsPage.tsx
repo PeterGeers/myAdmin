@@ -22,7 +22,7 @@ import {
   FormErrorMessage,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
-import { Formik, Form, Field } from 'formik';
+import { Formik, Form, Field, FieldInputProps, FieldMetaProps } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { useFilterableTable } from '../hooks/useFilterableTable';
@@ -438,7 +438,7 @@ const BudgetVersionsPage: React.FC = () => {
                 <ModalBody>
                   <VStack spacing={4}>
                     <Field name="name">
-                      {({ field, meta }: { field: any; meta: any }) => (
+                      {({ field, meta }: { field: FieldInputProps<string>; meta: FieldMetaProps<string> }) => (
                         <FormControl isInvalid={!!(meta.touched && meta.error)}>
                           <FormLabel>{t('labels.versionName')}</FormLabel>
                           <Input
@@ -451,7 +451,7 @@ const BudgetVersionsPage: React.FC = () => {
                       )}
                     </Field>
                     <Field name="fiscal_year">
-                      {({ field, meta }: { field: any; meta: any }) => (
+                      {({ field, meta }: { field: FieldInputProps<number>; meta: FieldMetaProps<number> }) => (
                         <FormControl isInvalid={!!(meta.touched && meta.error)}>
                           <FormLabel>{t('labels.fiscalYear')}</FormLabel>
                           <Input

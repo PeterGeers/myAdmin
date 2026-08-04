@@ -55,6 +55,7 @@ from routes.pivot_routes import pivot_bp
 from routes.year_end_config_routes import year_end_config_bp
 from routes.year_end_routes import year_end_bp
 from routes.budget_routes import budget_bp
+from routes.budget_ai_routes import budget_ai_bp
 
 from routes.user_routes import user_bp
 from routes.signup_routes import signup_bp
@@ -66,6 +67,7 @@ from routes.zzp_routes import zzp_bp
 from routes.zzp_time_routes import zzp_time_bp
 from routes.zzp_debtor_routes import zzp_debtor_bp
 from routes.zzp_trip_routes import zzp_trip_bp
+from routes.zzp_trip_import_export_routes import zzp_trip_io_bp
 from routes.storage import storage_bp
 from routes.verification_routes import verification_bp
 from routes.tenant_function_routes import tenant_function_bp
@@ -167,6 +169,7 @@ app.register_blueprint(zzp_bp)  # ZZP module routes
 app.register_blueprint(zzp_time_bp)  # ZZP time tracking routes
 app.register_blueprint(zzp_debtor_bp)  # ZZP debtor/creditor routes
 app.register_blueprint(zzp_trip_bp)  # ZZP trip/vehicle routes
+app.register_blueprint(zzp_trip_io_bp)  # ZZP trip import/export/billing routes
 app.register_blueprint(
     storage_bp
 )  # S3 storage endpoints (pre-signed URLs, logo upload)
@@ -189,6 +192,7 @@ app.register_blueprint(pivot_bp)  # Pivot Views endpoints
 app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
 app.register_blueprint(year_end_bp)  # Year-end closure endpoints
 app.register_blueprint(budget_bp)  # Budget management endpoints
+app.register_blueprint(budget_ai_bp)  # Budget AI & copy endpoints
 
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(signup_bp)  # Public trial signup endpoints
@@ -269,6 +273,11 @@ set_budget_test_mode(flag)
 from routes.zzp_trip_routes import set_test_mode as set_zzp_trip_test_mode  # noqa: E402
 
 set_zzp_trip_test_mode(flag)
+
+# Set test mode flag for zzp_trip_io_bp
+from routes.zzp_trip_import_export_routes import set_test_mode as set_zzp_trip_io_test_mode  # noqa: E402
+
+set_zzp_trip_io_test_mode(flag)
 
 # Set config for str_bp - import here, call later after UPLOAD_FOLDER is defined
 from routes.str_routes import set_config as set_str_config  # noqa: E402

@@ -218,6 +218,33 @@ class ZZPInvoiceDeliveryHelper:
 
         return None
 
+    def preview_invoice(self, tenant: str, invoice_id: int, get_invoice_fn):
+        """Generate a preview PDF for a draft invoice.
+
+        Fetches the invoice with tenant isolation, validates draft status,
+        and delegates to PDFGeneratorService for watermarked PDF generation.
+
+        Returns:
+            BytesIO containing the preview PDF bytes.
+
+        Raises:
+            ValueError: If invoice not found or not in draft status.
+            RuntimeError: If PDF generation fails.
+        """
+        invoice = get_invoice_fn(tenant, invoice_id)
+        if not invoice:
+            raise ValueError("Invoice not found")
+        if invoice["status"] != "draft":
+            raise ValueError("Only draft invoices can be previewed")
+
+        if not self.pdf_generator:
+            raise RuntimeError("PDFGeneratorService not configured")
+
+        try:
+            return self.pdf_generator.generate_preview_pdf(tenant, invoice)
+        except Exception as e:
+            raise RuntimeError(f"PDF generation failed: {e}")
+
     def get_email_preview(self, tenant: str, invoice_id: int, get_invoice_fn) -> dict:
         """Compose an email preview without sending.
 

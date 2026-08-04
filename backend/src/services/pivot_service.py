@@ -1,23 +1,8 @@
 """
-Pivot Service — AllowedColumnsRegistry and PivotService query builder.
+Pivot Service — AllowedColumnsRegistry, schema introspection, and PivotService.
 
-AllowedColumnsRegistry manages two-tier column access control
-(system max + tenant restrictions).
-
-PivotService constructs and executes dynamic GROUP BY queries with
-tenant isolation, column validation, and optional column pivoting
-via conditional aggregation.
-
-**Zero hardcoded column definitions.** Everything is derived at startup:
-  - Column names and types: introspected via ``dialect.describe_table(<view>)``
-  - Excluded columns:       parameter ``ui.pivot / exclude_columns.<ds>``
-  - Force-groupable cols:   parameter ``ui.pivot / force_groupable.<ds>``
-  - Allowed columns:        parameter ``ui.pivot / allowed_columns.<ds>``
-  - Data source labels:     parameter ``ui.pivot / datasource_label.<ds>``
-  - Registered sources:     parameter ``ui.pivot / registered_sources``
-
-The only constant in code is the tenant isolation column (``administration``)
-which is the same across all views in this application.
+Query construction is delegated to ``pivot_query_builder.py``.
+Column definitions are introspected at startup via parameters in ``ui.pivot``.
 
 Requirements: 1.5–1.8, 2.4, 3.1–3.3, 3.9, 6.1–6.6, 7.4, 9.1–9.11
 Reference: .kiro/specs/dynamic-pivot-views/design.md
@@ -32,17 +17,17 @@ from dialect_helpers import dialect
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Constants
+# Constants — canonical definitions in pivot_query_builder.py; re-exported here
+# for backward compatibility.
 # ---------------------------------------------------------------------------
 
-ALLOWED_AGG_FUNCTIONS = {"SUM", "COUNT", "AVG", "MIN", "MAX"}
-
-MAX_GROUP_COLUMNS = 5
-MAX_AGGREGATE_MEASURES = 10
-MAX_NEST_LEVELS = 5
-
-# Tenant isolation column — same across all views in this application.
-TENANT_COLUMN = "administration"
+from services.pivot_query_builder import (  # noqa: E402
+    ALLOWED_AGG_FUNCTIONS,
+    MAX_GROUP_COLUMNS,
+    MAX_AGGREGATE_MEASURES,
+    MAX_NEST_LEVELS,
+    TENANT_COLUMN,
+)
 
 # SQL types that are treated as numeric (→ aggregatable by default).
 _NUMERIC_TYPE_PATTERN = re.compile(
@@ -80,17 +65,9 @@ def derive_columns_from_schema(
     exclude_columns: set,
     force_groupable: set,
 ) -> Tuple[List[str], List[str], Dict[str, str]]:
-    """
-    Introspect a view/table via ``DESCRIBE`` and classify columns.
+    """Introspect a view/table via DESCRIBE and classify columns.
 
-    Args:
-        db: DatabaseManager instance.
-        data_source: view or table name.
-        exclude_columns: column names to skip entirely.
-        force_groupable: numeric column names to classify as groupable.
-
-    Returns:
-        ``(groupable, aggregatable, type_map)``
+    Returns ``(groupable, aggregatable, type_map)``.
     """
     rows = db.execute_query(dialect.describe_table(data_source), fetch=True)
 
@@ -160,22 +137,11 @@ def _get_param_str(parameter_service, key: str) -> Optional[str]:
 
 
 def build_registry_from_db(db, parameter_service=None) -> None:
-    """
-    Populate the module-level lookup dicts by introspecting the database.
+    """Populate module-level lookup dicts by introspecting the database.
 
-    Called at application startup (e.g. in ``app.py``).  If the database
-    is unreachable or a view is missing this will raise — but the
-    registry can be lazily initialised on first request via
-    :func:`ensure_registry`.
-
-    The list of data sources to register is read from the parameter
-    ``ui.pivot / registered_sources`` (a JSON list of view/table names).
-    Defaults to ``['vw_mutaties', 'vw_bnb_total']`` via CODE_DEFAULTS.
-
-    For each data source, reads from ``ui.pivot``:
-      - ``exclude_columns.<ds>``   → columns to hide
-      - ``force_groupable.<ds>``   → numeric columns to treat as groupable
-      - ``datasource_label.<ds>``  → human-readable label
+    Reads ``ui.pivot / registered_sources`` for view names (defaults to
+    ``['vw_mutaties', 'vw_bnb_total']``), then introspects each and
+    populates SYSTEM_ALLOWED_COLUMNS, COLUMN_TYPE_MAP, etc.
 
     Raises:
         RuntimeError: if any data source cannot be introspected.
@@ -394,7 +360,12 @@ class AllowedColumnsRegistry:
 
 
 class PivotService:
-    """Builds and executes dynamic pivot queries with tenant isolation."""
+    """Builds and executes dynamic pivot queries with tenant isolation.
+
+    Query construction is delegated to PivotQueryBuilder
+    (services/pivot_query_builder.py). This class orchestrates
+    validation, execution, and result assembly.
+    """
 
     COLUMN_QUOTE = "`"
 
@@ -402,6 +373,13 @@ class PivotService:
         self.db = db
         self.parameter_service = parameter_service
         self.registry = AllowedColumnsRegistry(parameter_service)
+
+        from services.pivot_query_builder import PivotQueryBuilder
+
+        self._qb = PivotQueryBuilder(
+            registry=self.registry,
+            column_type_map_getter=lambda: COLUMN_TYPE_MAP,
+        )
 
     def get_available_columns(self, data_source: str, tenant: str) -> Dict[str, list]:
         return self.registry.get_available_columns(data_source, tenant)
@@ -458,69 +436,19 @@ class PivotService:
             "row_count": len(rows) if rows else 0,
         }
 
+    # -- Delegated query building ------------------------------------------
+
     def build_pivot_query(
         self, config: Dict[str, Any], tenant: str
     ) -> Tuple[str, list]:
-        ds = config.get("data_source", "")
-        gc = config.get("group_columns", [])
-        am = config.get("aggregate_measures", [])
-        filters = config.get("filters", {})
-        cp = config.get("column_pivot")
-        rollup = config.get("include_rollup", False)
-
-        q = self._quote_col
-        select_parts, params = [], []
-
-        for col in gc:
-            select_parts.append(q(col))
-
-        if cp:
-            ps, pp = self._build_pivot_select(config, am)
-            select_parts.extend(ps)
-            params.extend(pp)
-        else:
-            for m in am:
-                func, col = m["function"].upper(), m["column"]
-                alias = self._agg_alias(func, col)
-                select_parts.append(
-                    f"{func}(*) AS {q(alias)}"
-                    if col == "*"
-                    else f"{func}({q(col)}) AS {q(alias)}"
-                )
-
-        where_clause, wp = self._build_where_clause(ds, filters, tenant)
-        # SELECT params (pivot CASE WHEN) come before WHERE params in the SQL
-        params = params + wp
-
-        group_by = ", ".join(q(c) for c in gc)
-        if rollup:
-            group_by += " WITH ROLLUP"
-
-        query = f"SELECT {', '.join(select_parts)} FROM {q(ds)} WHERE {where_clause} GROUP BY {group_by}"
-        return query, params
+        return self._qb.build_pivot_query(config, tenant)
 
     def build_underlying_query(
         self, config: Dict[str, Any], tenant: str
     ) -> Tuple[str, list]:
-        ds = config.get("data_source", "")
-        filters = config.get("filters", {})
-        q = self._quote_col
-        where_clause, params = self._build_where_clause(ds, filters, tenant)
+        return self._qb.build_underlying_query(config, tenant)
 
-        # Select only allowed columns (groupable + aggregatable) instead of
-        # SELECT * — this excludes noisy/sensitive columns like addInfo,
-        # guestName, phone, sourceFile that are in the exclude list.
-        allowed = self.registry.get_available_columns(ds, tenant)
-        col_names = [c["name"] for c in allowed["groupable"]] + [
-            c["name"] for c in allowed["aggregatable"]
-        ]
-        if not col_names:
-            raise ValueError(f"No allowed columns for data source '{ds}'")
-
-        select_clause = ", ".join(q(c) for c in col_names)
-        return f"SELECT {select_clause} FROM {q(ds)} WHERE {where_clause}", params
-
-    # -- Validation --------------------------------------------------------
+    # -- Validation (delegated) --------------------------------------------
 
     def _validate_config(
         self,
@@ -531,315 +459,35 @@ class PivotService:
         cp: Optional[str],
         cnl: List[str],
     ) -> None:
-        if not gc or not am:
-            raise ValueError(
-                "At least one group column and one aggregate measure are required"
-            )
-        if len(gc) > MAX_GROUP_COLUMNS:
-            raise ValueError(f"Maximum {MAX_GROUP_COLUMNS} group columns allowed")
-        if len(am) > MAX_AGGREGATE_MEASURES:
-            raise ValueError(
-                f"Maximum {MAX_AGGREGATE_MEASURES} aggregate measures allowed"
-            )
-        if len(cnl) > MAX_NEST_LEVELS:
-            raise ValueError(f"Maximum {MAX_NEST_LEVELS} column nest levels allowed")
-        for m in am:
-            func = m.get("function", "").upper()
-            if func not in ALLOWED_AGG_FUNCTIONS:
-                raise ValueError(
-                    f"Aggregation function '{func}' is not allowed. Allowed: {', '.join(sorted(ALLOWED_AGG_FUNCTIONS))}"
-                )
-        self._validate_column_roles(gc, cp, cnl)
-        self.registry.validate_columns(
-            ds, tenant, gc, [m["column"] for m in am], cp, cnl
-        )
+        self._qb.validate_config(ds, tenant, gc, am, cp, cnl)
 
     @staticmethod
     def _validate_column_roles(
         gc: List[str], cp: Optional[str], cnl: List[str]
     ) -> None:
-        gs, ns = set(gc), set(cnl)
-        if cp:
-            if cp in gs:
-                raise ValueError(
-                    f"Column '{cp}' cannot be used as both row group and column pivot"
-                )
-            if cp in ns:
-                raise ValueError(
-                    f"Column '{cp}' cannot be used as both column pivot and column nest level"
-                )
-        overlap = gs & ns
-        if overlap:
-            raise ValueError(
-                f"Column '{next(iter(overlap))}' cannot be used as both row group and column nest level"
-            )
+        from services.pivot_query_builder import PivotQueryBuilder
 
-    # -- WHERE clause (generic) --------------------------------------------
+        PivotQueryBuilder._validate_column_roles(gc, cp, cnl)
 
-    def _build_where_clause(
-        self, data_source: str, filters: Dict[str, Any], tenant: str
-    ) -> Tuple[str, list]:
-        """Build WHERE clause filtering by the CURRENT tenant only."""
-        parts, params = [], []
-        # Filter by current tenant only — never expose data from other tenants
-        parts.append(f"{self._quote_col(TENANT_COLUMN)} = %s")
-        params.append(tenant)
-
-        known = set(COLUMN_TYPE_MAP.get(data_source, {}).keys())
-        for col, val in filters.items():
-            if val is None or val == "" or val == "all" or col not in known:
-                continue
-            if isinstance(val, list) and val:
-                # Check if any list item contains a wildcard
-                like_items = [v for v in val if isinstance(v, str) and "%" in v]
-                exact_items = [v for v in val if v not in like_items]
-                sub_parts = []
-                if exact_items:
-                    ph = ", ".join(["%s"] * len(exact_items))
-                    sub_parts.append(f"{self._quote_col(col)} IN ({ph})")
-                    params.extend(exact_items)
-                for lv in like_items:
-                    sub_parts.append(f"{self._quote_col(col)} LIKE %s")
-                    params.append(lv)
-                if sub_parts:
-                    parts.append(f"({' OR '.join(sub_parts)})")
-            elif isinstance(val, str) and "%" in val:
-                parts.append(f"{self._quote_col(col)} LIKE %s")
-                params.append(val)
-            else:
-                parts.append(f"{self._quote_col(col)} = %s")
-                params.append(val)
-
-        return " AND ".join(parts) if parts else "1=1", params
-
-    # -- Column pivot ------------------------------------------------------
-
-    def _build_pivot_select(self, config, am):
-        cp = config.get("column_pivot", "")
-        pvs = config.get("pivot_values", [])
-        cnl = config.get("column_nest_levels", [])
-        q = self._quote_col
-        parts, params = [], []
-
-        if not pvs:
-            for m in am:
-                func, col = m["function"].upper(), m["column"]
-                alias = self._agg_alias(func, col)
-                parts.append(
-                    f"{func}(*) AS {q(alias)}"
-                    if col == "*"
-                    else f"{func}({q(col)}) AS {q(alias)}"
-                )
-            return parts, params
-
-        for pv in pvs:
-            if cnl:
-                combos = config.get("nest_combinations", [])
-                if combos:
-                    for combo in combos:
-                        for m in am:
-                            func, col = m["function"].upper(), m["column"]
-                            nl = "_".join(str(v) for v in combo)
-                            alias = f"{pv}_{nl}_{func}_{col}"
-                            conds = [f"{q(cp)} = %s"]
-                            cp_params = [pv]
-                            for i, lc in enumerate(cnl):
-                                conds.append(f"{q(lc)} = %s")
-                                cp_params.append(combo[i])
-                            then = "1" if col == "*" else q(col)
-                            parts.append(
-                                f"{func}(CASE WHEN {' AND '.join(conds)} THEN {then} ELSE 0 END) AS {q(alias)}"
-                            )
-                            params.extend(cp_params)
-                else:
-                    for m in am:
-                        func, col = m["function"].upper(), m["column"]
-                        alias = f"{pv}_{func}_{col}"
-                        then = "1" if col == "*" else q(col)
-                        parts.append(
-                            f"{func}(CASE WHEN {q(cp)} = %s THEN {then} ELSE 0 END) AS {q(alias)}"
-                        )
-                        params.append(pv)
-            else:
-                for m in am:
-                    func, col = m["function"].upper(), m["column"]
-                    alias = f"{pv}_{func}_{col}"
-                    then = "1" if col == "*" else q(col)
-                    parts.append(
-                        f"{func}(CASE WHEN {q(cp)} = %s THEN {then} ELSE 0 END) AS {q(alias)}"
-                    )
-                    params.append(pv)
-
-        for m in am:
-            func, col = m["function"].upper(), m["column"]
-            alias = f"TOTAL_{func}_{col}"
-            parts.append(
-                f"{func}(*) AS {q(alias)}"
-                if col == "*"
-                else f"{func}({q(col)}) AS {q(alias)}"
-            )
-
-        return parts, params
-
-    # -- Column metadata ---------------------------------------------------
+    # -- Column metadata (delegated) ---------------------------------------
 
     def _build_columns_meta(
         self, ds, gc, am, cp, cnl, pivot_values=None, nest_combinations=None
     ):
-        """Build column metadata for the pivot result.
+        return self._qb.build_columns_meta(
+            ds, gc, am, cp, cnl, pivot_values, nest_combinations
+        )
 
-        When ``cp`` (column_pivot) is set, returns pivoted column metadata
-        with ``pivotValue``, ``nestValues``, and ``pivotGroup`` fields so
-        the frontend can render multi-row ``<thead>`` headers.
-        """
-        tm = COLUMN_TYPE_MAP.get(ds, {})
-        cols = []
-
-        # Group columns (row axis)
-        for col in gc:
-            cols.append(
-                {"name": col, "type": "group", "dataType": tm.get(col, "varchar")}
-            )
-
-        if cp and pivot_values:
-            # Pivoted aggregate columns — one per (pivot_value, [nest_combo], measure)
-            for pv in pivot_values:
-                if cnl and nest_combinations:
-                    for combo in nest_combinations:
-                        for m in am:
-                            func = m["function"].upper()
-                            col = m["column"]
-                            nl = "_".join(str(v) for v in combo)
-                            alias = f"{pv}_{nl}_{func}_{col}"
-                            dt = (
-                                "int"
-                                if func == "COUNT"
-                                else (tm.get(col, "decimal") if col != "*" else "int")
-                            )
-                            nest_vals = {cnl[i]: combo[i] for i in range(len(cnl))}
-                            cols.append(
-                                {
-                                    "name": alias,
-                                    "type": "aggregate",
-                                    "function": func,
-                                    "sourceColumn": col,
-                                    "dataType": dt,
-                                    "pivotValue": pv,
-                                    "pivotColumn": cp,
-                                    "nestValues": nest_vals,
-                                    "pivotGroup": "pivot",
-                                }
-                            )
-                else:
-                    for m in am:
-                        func = m["function"].upper()
-                        col = m["column"]
-                        alias = f"{pv}_{func}_{col}"
-                        dt = (
-                            "int"
-                            if func == "COUNT"
-                            else (tm.get(col, "decimal") if col != "*" else "int")
-                        )
-                        cols.append(
-                            {
-                                "name": alias,
-                                "type": "aggregate",
-                                "function": func,
-                                "sourceColumn": col,
-                                "dataType": dt,
-                                "pivotValue": pv,
-                                "pivotColumn": cp,
-                                "pivotGroup": "pivot",
-                            }
-                        )
-
-            # Grand total columns — one per measure
-            for m in am:
-                func = m["function"].upper()
-                col = m["column"]
-                alias = f"TOTAL_{func}_{col}"
-                dt = (
-                    "int"
-                    if func == "COUNT"
-                    else (tm.get(col, "decimal") if col != "*" else "int")
-                )
-                cols.append(
-                    {
-                        "name": alias,
-                        "type": "aggregate",
-                        "function": func,
-                        "sourceColumn": col,
-                        "dataType": dt,
-                        "pivotGroup": "total",
-                    }
-                )
-        else:
-            # Non-pivoted: simple aggregate columns
-            for m in am:
-                func = m["function"].upper()
-                col = m["column"]
-                alias = self._agg_alias(func, col)
-                dt = (
-                    "int"
-                    if func == "COUNT"
-                    else (tm.get(col, "decimal") if col != "*" else "int")
-                )
-                cols.append(
-                    {
-                        "name": alias,
-                        "type": "aggregate",
-                        "function": func,
-                        "sourceColumn": col,
-                        "dataType": dt,
-                    }
-                )
-
-        return cols
-
-    # -- Fetch distinct pivot values ----------------------------------------
+    # -- Fetch distinct pivot values (delegated) ----------------------------
 
     def _fetch_pivot_values(
         self, data_source, column_pivot, nest_levels, filters, tenant
     ):
-        """Fetch distinct values for the pivot column (and nest level combinations).
+        return self._qb.fetch_pivot_values(
+            self.db, data_source, column_pivot, nest_levels, filters, tenant
+        )
 
-        Runs a lightweight SELECT DISTINCT query against the data source,
-        applying the same tenant isolation and user filters as the main query.
-
-        Returns:
-            (pivot_values, nest_combinations) where pivot_values is a sorted
-            list of distinct values for column_pivot, and nest_combinations
-            is a sorted list of tuples of distinct value combinations for
-            the nest levels (empty list when no nest levels).
-        """
-        q = self._quote_col
-        where_clause, params = self._build_where_clause(data_source, filters, tenant)
-
-        # Fetch distinct pivot values
-        pv_query = f"SELECT DISTINCT {q(column_pivot)} FROM {q(data_source)} WHERE {where_clause} ORDER BY {q(column_pivot)}"
-        pv_rows = self.db.execute_query(pv_query, params, fetch=True) or []
-        pivot_values = [
-            row[column_pivot] for row in pv_rows if row.get(column_pivot) is not None
-        ]
-
-        # Fetch distinct nest level combinations
-        nest_combinations = []
-        if nest_levels:
-            nl_cols = ", ".join(q(c) for c in nest_levels)
-            nl_query = (
-                f"SELECT DISTINCT {nl_cols} FROM {q(data_source)} "
-                f"WHERE {where_clause} ORDER BY {nl_cols}"
-            )
-            nl_rows = self.db.execute_query(nl_query, list(params), fetch=True) or []
-            nest_combinations = [
-                tuple(row[c] for c in nest_levels)
-                for row in nl_rows
-                if all(row.get(c) is not None for c in nest_levels)
-            ]
-
-        return pivot_values, nest_combinations
-
-    # -- Helpers -----------------------------------------------------------
+    # -- Helpers (kept for backward compat) --------------------------------
 
     def _quote_col(self, name):
         return AllowedColumnsRegistry._quote_column(name, self.COLUMN_QUOTE)
