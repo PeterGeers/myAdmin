@@ -36,27 +36,11 @@ logger = logging.getLogger(__name__)
 # Create blueprint
 tenant_admin_templates_bp = Blueprint("tenant_admin_templates", __name__)
 
-# Canonical list of valid template types used across all template endpoints.
-VALID_TEMPLATE_TYPES = [
-    "str_invoice_nl",
-    "str_invoice_en",
-    "btw_aangifte",
-    "aangifte_ib",
-    "toeristenbelasting",
-    "financial_report",
-    "zzp_invoice",
-]
-
-# Mapping from VALID_TEMPLATE_TYPES keys to TemplateService._LOCAL_DEFAULTS keys.
-_TEMPLATE_TYPE_TO_LOCAL_KEY = {
-    "str_invoice_nl": "str_invoice_nl",
-    "str_invoice_en": "str_invoice_en",
-    "btw_aangifte": "btw_aangifte_html",
-    "aangifte_ib": "aangifte_ib_html_report",
-    "toeristenbelasting": "toeristenbelasting_html",
-    "financial_report": "financial_report_xlsx",
-    "zzp_invoice": "zzp_invoice",
-}
+# Import from shared constants to avoid circular imports
+from routes.tenant_admin_template_constants import (
+    VALID_TEMPLATE_TYPES,
+    TEMPLATE_TYPE_TO_LOCAL_KEY as _TEMPLATE_TYPE_TO_LOCAL_KEY,
+)
 
 
 # ============================================================================
@@ -498,5 +482,11 @@ def reject_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 
-# Re-export for backward compatibility with tests
-from routes.tenant_admin_template_ai_routes import _get_generic_help  # noqa: F401
+# Lazy re-export for backward compatibility with tests.
+# Using __getattr__ avoids the circular import at module load time.
+def __getattr__(name):
+    if name == "_get_generic_help":
+        from routes.tenant_admin_template_ai_routes import _get_generic_help
+        return _get_generic_help
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
