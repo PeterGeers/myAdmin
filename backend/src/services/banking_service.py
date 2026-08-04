@@ -11,10 +11,10 @@ Handles banking transaction processing business logic including:
 Extracted from app.py during refactoring (Phase 3.1)
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from database import DatabaseManager
 from banking_processor import BankingProcessor
+from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 
 
@@ -32,7 +32,7 @@ class BankingService:
         self.db = DatabaseManager(test_mode=test_mode)
         self.processor = BankingProcessor(test_mode=test_mode)
 
-    def scan_banking_files(self, folder_path: Optional[str] = None) -> Dict[str, Any]:
+    def scan_banking_files(self, folder_path: str | None = None) -> dict[str, Any]:
         """
         Scan download folder for CSV files
 
@@ -50,11 +50,11 @@ class BankingService:
             files = self.processor.get_csv_files(folder_path)
 
             return {"success": True, "files": files, "folder": folder_path}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Banking scan files error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
-    def validate_iban_tenant(self, iban: str, tenant: str) -> Dict[str, Any]:
+    def validate_iban_tenant(self, iban: str, tenant: str) -> dict[str, Any]:
         """
         Validate that an IBAN belongs to the specified tenant
 
@@ -100,13 +100,13 @@ class BankingService:
                     "tenant": None,
                     "warning": f"IBAN {iban} not found in lookup table",
                 }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error validating IBAN: {e}", flush=True)
             return {"valid": False, "error": str(e)}
 
     def process_banking_files(
-        self, file_paths: List[str], tenant: str, test_mode: Optional[bool] = None
-    ) -> Dict[str, Any]:
+        self, file_paths: list[str], tenant: str, test_mode: bool | None = None
+    ) -> dict[str, Any]:
         """
         Process selected CSV banking files
 
@@ -155,17 +155,17 @@ class BankingService:
                 "test_mode": test_mode,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Banking process files error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
     def check_sequences(
         self,
         iban: str,
-        sequences: List[Dict[str, Any]],
-        test_mode: Optional[bool] = None,
-        administration: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        sequences: list[dict[str, Any]],
+        test_mode: bool | None = None,
+        administration: str | None = None,
+    ) -> dict[str, Any]:
         """
         Check sequence numbers against database for duplicates
 
@@ -197,17 +197,17 @@ class BankingService:
                 "duplicates": duplicates,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Check sequences error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
     def apply_patterns(
         self,
-        transactions: List[Dict[str, Any]],
+        transactions: list[dict[str, Any]],
         tenant: str,
         use_enhanced: bool = True,
-        test_mode: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+        test_mode: bool | None = None,
+    ) -> dict[str, Any]:
         """
         Apply pattern matching to predict debet/credit accounts
 
@@ -336,7 +336,7 @@ class BankingService:
                     "method": "legacy",
                 }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Pattern matching error: {e}", flush=True)
             import traceback
 
@@ -345,10 +345,10 @@ class BankingService:
 
     def save_transactions(
         self,
-        transactions: List[Dict[str, Any]],
+        transactions: list[dict[str, Any]],
         tenant: str,
-        test_mode: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+        test_mode: bool | None = None,
+    ) -> dict[str, Any]:
         """
         Save approved transactions to database with duplicate filtering
 
@@ -372,7 +372,7 @@ class BankingService:
             table_name = "mutaties"  # Always use 'mutaties' table
 
             # Group transactions by IBAN (Ref1)
-            ibans = list(set([t.get("Ref1") for t in transactions if t.get("Ref1")]))
+            ibans = list({t.get("Ref1") for t in transactions if t.get("Ref1")})
             transactions_to_save = []
 
             for iban in ibans:
@@ -421,14 +421,14 @@ class BankingService:
         except ClosedPeriodError:
             raise
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Banking save transactions error: {e}", flush=True)
             import traceback
 
             traceback.print_exc()
             return {"success": False, "error": str(e)}
 
-    def get_lookups(self, tenant: str) -> Dict[str, Any]:
+    def get_lookups(self, tenant: str) -> dict[str, Any]:
         """
         Get mapping data for account codes and descriptions
 
@@ -469,8 +469,8 @@ class BankingService:
 
             return {
                 "success": True,
-                "accounts": sorted(list(accounts)),
-                "descriptions": sorted(list(descriptions)),
+                "accounts": sorted(accounts),
+                "descriptions": sorted(descriptions),
                 "bank_accounts": bank_accounts,
                 "credit_card_accounts": credit_card_accounts,
                 "exchange_rate_account": exchange_rate_accounts[0]["Account"]
@@ -478,13 +478,13 @@ class BankingService:
                 else None,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Banking lookups error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
     def get_mutaties(
-        self, filters: Dict[str, Any], tenant: str, user_tenants: List[str]
-    ) -> Dict[str, Any]:
+        self, filters: dict[str, Any], tenant: str, user_tenants: list[str]
+    ) -> dict[str, Any]:
         """Get mutaties with filters. Delegates to BankingMutatieService."""
         from services.banking_mutatie_service import BankingMutatieService
 
@@ -492,8 +492,8 @@ class BankingService:
         return svc.get_mutaties(filters, tenant, user_tenants)
 
     def update_mutatie(
-        self, mutatie_id: int, data: Dict[str, Any], tenant: str
-    ) -> Dict[str, Any]:
+        self, mutatie_id: int, data: dict[str, Any], tenant: str
+    ) -> dict[str, Any]:
         """Update a mutatie record. Delegates to BankingMutatieService."""
         from services.banking_mutatie_service import BankingMutatieService
 
@@ -501,8 +501,8 @@ class BankingService:
         return svc.update_mutatie(mutatie_id, data, tenant)
 
     def check_accounts(
-        self, tenant: str, end_date: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, tenant: str, end_date: str | None = None
+    ) -> dict[str, Any]:
         """
         Check banking account balances
 
@@ -523,7 +523,7 @@ class BankingService:
 
             return {"success": True, "balances": balances}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Banking check accounts error: {e}", flush=True)
             import traceback
 
@@ -532,7 +532,7 @@ class BankingService:
 
     def check_revolut_balance(
         self, iban: str, account_code: str, start_date: str, expected_balance: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Check Revolut balance gaps by comparing calculated vs Ref3 balance
 
@@ -573,7 +573,7 @@ class BankingService:
             else:
                 return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Check Revolut balance error: {e}", flush=True)
             import traceback
 

@@ -7,14 +7,14 @@ This module provides functions to detect guest country of origin from various da
 - Other channels (fallback to None)
 """
 
-import phonenumbers
-from typing import Optional
 import logging
+
+import phonenumbers
 
 logger = logging.getLogger(__name__)
 
 
-def extract_country_from_phone(phone: str) -> Optional[str]:
+def extract_country_from_phone(phone: str) -> str | None:
     """
     Extract ISO 3166-1 alpha-2 country code from international phone number.
 
@@ -63,12 +63,12 @@ def extract_country_from_phone(phone: str) -> Optional[str]:
     except phonenumbers.NumberParseException as e:
         logger.debug(f"Could not parse phone number '{phone}': {e}")
         return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Unexpected error parsing phone number '{phone}': {e}")
         return None
 
 
-def extract_country_from_booking_addinfo(addinfo: str) -> Optional[str]:
+def extract_country_from_booking_addinfo(addinfo: str) -> str | None:
     """
     Extract country code from Booking.com addInfo field.
 
@@ -120,14 +120,14 @@ def extract_country_from_booking_addinfo(addinfo: str) -> Optional[str]:
 
         return None
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Error parsing Booking.com addInfo: {e}")
         return None
 
 
 def detect_country(
-    channel: str, phone: str = None, addinfo: str = None
-) -> Optional[str]:
+    channel: str, phone: str | None = None, addinfo: str | None = None
+) -> str | None:
     """
     Detect guest country based on booking channel and available data.
 
@@ -180,7 +180,7 @@ def detect_country(
     return None
 
 
-def get_country_name(country_code: str) -> Optional[str]:
+def get_country_name(country_code: str) -> str | None:
     """
     Get full country name from ISO country code.
 
@@ -205,7 +205,7 @@ def get_country_name(country_code: str) -> Optional[str]:
 
         country = pycountry.countries.get(alpha_2=country_code.upper())
         return country.name if country else None
-    except Exception:
+    except Exception:  # noqa: BLE001
         # Fallback: basic mapping for common countries
         country_names = {
             "AE": "United Arab Emirates",

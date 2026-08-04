@@ -283,10 +283,11 @@ const BudgetLinesPage: React.FC = () => {
         onDraftClose();
         loadVersions();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const description = err instanceof Error ? err.message : t('messages.unknownError');
       toast({
         title: t('messages.error'),
-        description: err.message || t('messages.unknownError'),
+        description,
         status: 'error',
         duration: 5000,
       });

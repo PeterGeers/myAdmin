@@ -1,4 +1,3 @@
-from typing import List, Dict
 from database import DatabaseManager
 from db_exceptions import DatabaseError
 from dialect_helpers import dialect
@@ -10,7 +9,7 @@ class STRDatabase(DatabaseManager):
         self.connection = self.get_connection()
         # Uses existing tables: bnb, bnbplanned, bnbfuture
 
-    def insert_realised_bookings(self, bookings: List[Dict]) -> int:
+    def insert_realised_bookings(self, bookings: list[dict]) -> int:
         """Insert realised bookings into bnb table"""
         if not bookings:
             return 0
@@ -82,7 +81,7 @@ class STRDatabase(DatabaseManager):
         except DatabaseError:
             return 0
 
-    def insert_planned_bookings(self, bookings: List[Dict]) -> int:
+    def insert_planned_bookings(self, bookings: list[dict]) -> int:
         """Insert planned bookings into bnbplanned table (delete by channel/listing first)"""
         try:
             cursor = self.connection.cursor()
@@ -92,10 +91,10 @@ class STRDatabase(DatabaseManager):
                 return 0
 
             # Get unique channel/listing combinations from new bookings
-            channel_listings = set(
+            channel_listings = {
                 (booking.get("channel", ""), booking.get("listing", ""))
                 for booking in bookings
-            )
+            }
 
             # Delete existing records for these channel/listing combinations
             for channel, listing in channel_listings:
@@ -152,7 +151,7 @@ class STRDatabase(DatabaseManager):
         except DatabaseError:
             return 0
 
-    def insert_future_summary(self, summary_data: List[Dict]) -> int:
+    def insert_future_summary(self, summary_data: list[dict]) -> int:
         """Insert future summary into bnbfuture table"""
         if not summary_data:
             return 0
@@ -211,7 +210,7 @@ class STRDatabase(DatabaseManager):
         except DatabaseError:
             return []
 
-    def write_bnb_future_summary(self) -> Dict:
+    def write_bnb_future_summary(self) -> dict:
         """Write current planned BNB data summary to bnbfuture table"""
         try:
             # First ensure the table structure is correct
@@ -240,7 +239,7 @@ class STRDatabase(DatabaseManager):
             # Get current date
             from datetime import date
 
-            current_date = date.today().strftime("%Y-%m-%d")
+            current_date = date.today().strftime("%Y-%m-%d")  # noqa: DTZ011
 
             # Check for existing records with same date and delete them
             delete_query = "DELETE FROM bnbfuture WHERE date = %s"
@@ -316,7 +315,9 @@ class STRDatabase(DatabaseManager):
             if cursor:
                 cursor.close()
 
-    def get_str_summary(self, start_date: str = None, end_date: str = None) -> Dict:
+    def get_str_summary(
+        self, start_date: str | None = None, end_date: str | None = None
+    ) -> dict:
         """Get STR performance summary from bnb table"""
         where_clause = ""
         params = []
@@ -357,7 +358,7 @@ class STRDatabase(DatabaseManager):
         except DatabaseError:
             return {}
 
-    def update_from_payout(self, payout_updates: List[Dict]) -> Dict:
+    def update_from_payout(self, payout_updates: list[dict]) -> dict:
         """
         Update existing bookings with Payout CSV data
 
@@ -426,5 +427,5 @@ class STRDatabase(DatabaseManager):
             return results
 
         except DatabaseError as e:
-            results["errors"].append(f"Database error: {str(e)}")
+            results["errors"].append(f"Database error: {e!s}")
             return results

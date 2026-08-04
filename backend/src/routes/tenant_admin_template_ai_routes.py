@@ -10,12 +10,13 @@ Endpoints:
 - DELETE /api/tenant-admin/templates/<template_type>  - Delete (deactivate) template
 """
 
-import os
 import logging
-from typing import Dict, Any, List
+import os
+from typing import Any
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import (
     get_current_tenant,
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 tenant_admin_template_ai_bp = Blueprint("tenant_admin_template_ai", __name__)
 
 # Import valid types from main module
-from routes.tenant_admin_templates import VALID_TEMPLATE_TYPES  # noqa: E402
+from routes.tenant_admin_templates import VALID_TEMPLATE_TYPES
 
 
 @tenant_admin_template_ai_bp.route(
@@ -109,7 +110,7 @@ def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting AI help: {e}")
 
         try:
@@ -124,7 +125,7 @@ def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
                     "message": "Error occurred, showing generic help",
                 }
             ), 200
-        except Exception:
+        except Exception:  # noqa: BLE001
             return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 
@@ -187,7 +188,7 @@ def apply_ai_fixes_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(response), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error applying AI fixes: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -266,7 +267,7 @@ def delete_tenant_template_endpoint(
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error deleting tenant template: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -277,8 +278,8 @@ def delete_tenant_template_endpoint(
 
 
 def _get_generic_help(
-    validation_errors: List[Dict], required_placeholders: List[str]
-) -> Dict[str, Any]:
+    validation_errors: list[dict], required_placeholders: list[str]
+) -> dict[str, Any]:
     """Generate generic help when AI service is unavailable."""
     fixes = []
 

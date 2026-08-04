@@ -10,7 +10,6 @@ Reference: .kiro/specs/provider-aware-folder-routes/design.md
 """
 
 import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ def resolve_storage_provider(tenant: str, parameter_service=None) -> str:
 
         return "s3_shared"
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(
             "Failed to resolve storage provider for tenant '%s': %s. "
             "Defaulting to 's3_shared'.",
@@ -77,8 +76,8 @@ def get_s3_storage(tenant: str, parameter_service=None):
 
         parameter_service = ParameterService(db)
 
-    import sys
     import os
+    import sys
 
     src_storage = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
     logger.info(
@@ -96,7 +95,7 @@ def get_s3_storage(tenant: str, parameter_service=None):
 
 def list_s3_folders(
     tenant: str, parameter_service=None, category: str = "invoices"
-) -> List[str]:
+) -> list[str]:
     """List folder names under {tenant}/{category}/ in S3.
 
     Uses list_objects_v2 with Delimiter='/' to extract unique reference
@@ -159,7 +158,7 @@ def list_s3_folders(
 
         return sorted(folder_names)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(
             "Failed to list S3 folders for tenant '%s', category '%s': %s",
             tenant,
@@ -199,7 +198,7 @@ def create_s3_folder(tenant: str, folder_name: str, parameter_service=None) -> d
         logger.info("Created S3 folder marker: s3://%s/%s", storage.bucket, key)
         return {"id": key, "name": folder_name, "url": key}
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(
             "Failed to create S3 folder '%s' for tenant '%s': %s",
             folder_name,

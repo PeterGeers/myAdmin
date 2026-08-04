@@ -8,7 +8,6 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
 import logging
-from typing import List
 
 from storage.storage_provider import StorageProvider
 
@@ -33,10 +32,10 @@ class GoogleDriveStorage(StorageProvider):
             )
         return self._service
 
-    def upload(self, file_data: bytes, path: str, metadata: dict = None) -> str:
+    def upload(self, file_data: bytes, path: str, metadata: dict | None = None) -> str:
         """Upload file to Google Drive. Returns the file ID as reference."""
-        import tempfile
         import os
+        import tempfile
 
         metadata = metadata or {}
         folder_id = metadata.get("folder_id", "")
@@ -71,11 +70,11 @@ class GoogleDriveStorage(StorageProvider):
             svc = self._get_service()
             svc.service.files().delete(fileId=reference).execute()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error("Failed to delete Google Drive file %s: %s", reference, e)
             return False
 
-    def list_files(self, path: str) -> List[dict]:
+    def list_files(self, path: str) -> list[dict]:
         """List files in a Google Drive folder (path = folder ID)."""
         try:
             svc = self._get_service()
@@ -97,6 +96,6 @@ class GoogleDriveStorage(StorageProvider):
                 }
                 for f in results.get("files", [])
             ]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error("Failed to list Google Drive folder %s: %s", path, e)
             return []

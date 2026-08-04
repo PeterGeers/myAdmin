@@ -8,7 +8,7 @@ import {
   ModalCloseButton, ModalFooter, VStack,
   Input, Select, Button, FormControl, FormLabel, FormErrorMessage,
 } from '@chakra-ui/react';
-import { Formik, Form, Field } from 'formik';
+import { Formik, Form, Field, FieldInputProps, FieldMetaProps } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { BudgetTemplate } from '../types/budget';
@@ -60,7 +60,7 @@ const GenerateDraftModal: React.FC<GenerateDraftModalProps> = ({
               <ModalBody>
                 <VStack spacing={4}>
                   <Field name="template_id">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: { field: FieldInputProps<number>; meta: FieldMetaProps<number> }) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.template')}</FormLabel>
                         <Select
@@ -77,7 +77,7 @@ const GenerateDraftModal: React.FC<GenerateDraftModalProps> = ({
                     )}
                   </Field>
                   <Field name="fiscal_year">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: { field: FieldInputProps<number>; meta: FieldMetaProps<number> }) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.fiscalYear')}</FormLabel>
                         <Input
@@ -92,7 +92,7 @@ const GenerateDraftModal: React.FC<GenerateDraftModalProps> = ({
                     )}
                   </Field>
                   <Field name="version_name">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: { field: FieldInputProps<string>; meta: FieldMetaProps<string> }) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.versionName')}</FormLabel>
                         <Input

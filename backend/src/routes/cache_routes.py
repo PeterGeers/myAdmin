@@ -8,11 +8,12 @@ Extracted from app.py during refactoring (Phase 1.3)
 
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from bnb_cache import get_bnb_cache
 from database import DatabaseManager
 from mutaties_cache import get_cache, invalidate_cache
-from bnb_cache import get_bnb_cache
 
 cache_bp = Blueprint("cache", __name__)
 
@@ -66,7 +67,7 @@ def cache_warmup(user_email, user_roles) -> ResponseReturnValue:
                 else None,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in cache_warmup: {e}", flush=True)
         import traceback
 
@@ -94,7 +95,7 @@ def cache_status(user_email, user_roles) -> ResponseReturnValue:
                 "refresh_threshold_minutes": 30,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -123,7 +124,7 @@ def cache_refresh(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
                 else None,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in cache_refresh: {e}", flush=True)
         import traceback
 
@@ -142,7 +143,7 @@ def cache_invalidate_endpoint(
         invalidate_cache()
 
         return jsonify({"success": True, "message": "Cache invalidated successfully"})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in cache_invalidate: {e}", flush=True)
         import traceback
 
@@ -160,7 +161,7 @@ def bnb_cache_status(user_email, user_roles) -> ResponseReturnValue:
         status = bnb_cache.get_stats()
 
         return jsonify({"success": True, **status})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -179,7 +180,7 @@ def bnb_cache_refresh(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(
             {"success": True, "message": "BNB cache refreshed successfully", **status}
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -194,5 +195,5 @@ def bnb_cache_invalidate(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(
             {"success": True, "message": "BNB cache invalidated successfully"}
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500

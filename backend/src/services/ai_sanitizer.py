@@ -29,7 +29,7 @@ class AISanitizer:
     MAX_TEXT_LENGTH = 10000
     REJECTION_THRESHOLD = 0.50  # Reject if >50% of content stripped
 
-    INJECTION_PATTERNS = [
+    INJECTION_PATTERNS = [  # noqa: RUF012
         re.compile(r"(?i)\b(you are now|act as|pretend to be|assume the role)\b"),
         re.compile(
             r"(?i)\b(ignore previous|disregard above|forget all|override instructions)\b"
@@ -91,8 +91,8 @@ class AISanitizer:
     def build_extraction_prompt(
         self,
         sanitized_text: str,
-        vendor_hint: str = None,
-        previous_transactions: list = None,
+        vendor_hint: str | None = None,
+        previous_transactions: list | None = None,
     ) -> list[dict]:
         """Build messages array with system/user role separation.
 
@@ -199,10 +199,11 @@ class AISanitizer:
             if not isinstance(value, expected_type):
                 return False
             # Reject booleans masquerading as int (bool is subclass of int in Python)
-            if isinstance(expected_type, tuple) and (
-                int in expected_type or float in expected_type
+            if (
+                isinstance(expected_type, tuple)
+                and (int in expected_type or float in expected_type)
+                and isinstance(value, bool)
             ):
-                if isinstance(value, bool):
-                    return False
+                return False
 
         return True

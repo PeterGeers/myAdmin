@@ -14,7 +14,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.1
 """
 
 import logging
-from typing import List, Optional
 
 from db_exceptions import IntegrityError
 
@@ -105,7 +104,10 @@ class VehicleService:
             raise ValueError(f"Vehicle {vehicle_id} not found")
 
         # Block start_odometer change if trips exist
-        if "start_odometer" in data and int(data["start_odometer"]) != existing["start_odometer"]:
+        if (  # noqa: SIM102
+            "start_odometer" in data
+            and int(data["start_odometer"]) != existing["start_odometer"]
+        ):
             if self._has_trips(tenant, vehicle_id):
                 raise ValueError(
                     "Cannot change start_odometer: trips already exist for this vehicle"
@@ -121,15 +123,23 @@ class VehicleService:
                 )
 
         # Validate odometer_unit if being changed
-        if "odometer_unit" in data:
+        if "odometer_unit" in data:  # noqa: SIM102
             if data["odometer_unit"] not in ("km", "miles"):
                 raise ValueError("odometer_unit must be 'km' or 'miles'")
 
         # Build dynamic update
         updatable_fields = [
-            "license_plate", "make", "model", "year_built", "vin",
-            "vehicle_type", "odometer_unit", "owner_lease_company",
-            "start_odometer", "start_date", "is_active",
+            "license_plate",
+            "make",
+            "model",
+            "year_built",
+            "vin",
+            "vehicle_type",
+            "odometer_unit",
+            "owner_lease_company",
+            "start_odometer",
+            "start_date",
+            "is_active",
         ]
         sets, params = [], []
         for field in updatable_fields:
@@ -185,7 +195,7 @@ class VehicleService:
         )
         return True
 
-    def get_vehicle(self, tenant: str, vehicle_id: int) -> Optional[dict]:
+    def get_vehicle(self, tenant: str, vehicle_id: int) -> dict | None:
         """Get a single vehicle by ID, scoped to tenant."""
         rows = self.db.execute_query(
             "SELECT * FROM zzp_vehicles WHERE id = %s AND administration = %s",
@@ -193,7 +203,7 @@ class VehicleService:
         )
         return self._format_vehicle(rows[0]) if rows else None
 
-    def list_vehicles(self, tenant: str, active_only: bool = True) -> List[dict]:
+    def list_vehicles(self, tenant: str, active_only: bool = True) -> list[dict]:
         """List vehicles for the tenant, optionally filtered by active status."""
         if active_only:
             query = (
@@ -253,7 +263,11 @@ class VehicleService:
         row = dict(row)
         for key in ("start_date", "created_at", "updated_at"):
             val = row.get(key)
-            if val is not None and hasattr(val, "isoformat") and not isinstance(val, str):
+            if (
+                val is not None
+                and hasattr(val, "isoformat")
+                and not isinstance(val, str)
+            ):
                 row[key] = val.isoformat()
         # Ensure start_odometer is int
         if "start_odometer" in row and row["start_odometer"] is not None:

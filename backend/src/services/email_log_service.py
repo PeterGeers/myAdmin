@@ -6,7 +6,7 @@ Provides query interface for SysAdmin (all tenants) and Tenant Admin (own tenant
 """
 
 import logging
-from typing import Optional, List, Dict
+
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -22,11 +22,11 @@ class EmailLogService:
         self,
         recipient: str,
         email_type: str,
-        administration: Optional[str],
-        ses_message_id: Optional[str],
-        subject: Optional[str] = None,
-        sent_by: Optional[str] = None,
-    ) -> Optional[int]:
+        administration: str | None,
+        ses_message_id: str | None,
+        subject: str | None = None,
+        sent_by: str | None = None,
+    ) -> int | None:
         """Log an email that was successfully handed to SES."""
         try:
             return self.db.execute_query(
@@ -45,7 +45,7 @@ class EmailLogService:
                 fetch=False,
                 commit=True,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to log email send: {e}")
             return None
 
@@ -53,10 +53,10 @@ class EmailLogService:
         self,
         recipient: str,
         email_type: str,
-        administration: Optional[str],
+        administration: str | None,
         error_message: str,
-        sent_by: Optional[str] = None,
-    ) -> Optional[int]:
+        sent_by: str | None = None,
+    ) -> int | None:
         """Log an email that failed to send."""
         try:
             return self.db.execute_query(
@@ -68,7 +68,7 @@ class EmailLogService:
                 fetch=False,
                 commit=True,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to log email failure: {e}")
             return None
 
@@ -76,7 +76,7 @@ class EmailLogService:
         self,
         ses_message_id: str,
         status: str,
-        error_message: Optional[str] = None,
+        error_message: str | None = None,
     ) -> bool:
         """Update delivery status from SNS notification (delivered/bounced/complained)."""
         try:
@@ -89,16 +89,16 @@ class EmailLogService:
                 commit=True,
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to update email status: {e}")
             return False
 
     def get_logs(
         self,
-        administration: Optional[str] = None,
-        recipient: Optional[str] = None,
+        administration: str | None = None,
+        recipient: str | None = None,
         limit: int = 100,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Query email logs.
 
@@ -132,6 +132,6 @@ class EmailLogService:
                 fetch=True,
             )
             return rows or []
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to query email logs: {e}")
             return []

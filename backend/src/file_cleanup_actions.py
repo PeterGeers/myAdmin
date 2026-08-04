@@ -7,10 +7,9 @@ Includes URL parsing/normalization, security validation, and file system operati
 Extracted from file_cleanup_manager.py to separate actions from orchestration/logging.
 """
 
+import logging
 import os
 import re
-import logging
-from typing import Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -19,25 +18,17 @@ logger = logging.getLogger(__name__)
 class FileCleanupError(Exception):
     """Custom exception for file cleanup errors."""
 
-    pass
-
 
 class FileSystemError(FileCleanupError):
     """Exception for file system operation failures."""
-
-    pass
 
 
 class SecurityError(FileCleanupError):
     """Exception for security-related file operation failures."""
 
-    pass
-
 
 class GoogleDriveError(FileCleanupError):
     """Exception for Google Drive operation failures."""
-
-    pass
 
 
 class FileCleanupActions:
@@ -76,7 +67,7 @@ class FileCleanupActions:
                 if path_parts and path_parts[0]:
                     local_path = os.path.join(self.base_storage_path, *path_parts)
                     return os.path.normpath(local_path)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error parsing URL {url}: {e}")
 
         return ""
@@ -100,7 +91,7 @@ class FileCleanupActions:
             parsed = urlparse(url.lower())
             normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
             return normalized.rstrip("/")
-        except Exception:
+        except Exception:  # noqa: BLE001
             return url.lower()
 
     def is_google_drive_url(self, url: str) -> bool:
@@ -116,7 +107,7 @@ class FileCleanupActions:
 
         return any(pattern in url.lower() for pattern in google_drive_patterns)
 
-    def extract_google_drive_file_id(self, url: str) -> Optional[str]:
+    def extract_google_drive_file_id(self, url: str) -> str | None:
         """Extract file ID from Google Drive URL."""
         if not url:
             return None
@@ -143,7 +134,7 @@ class FileCleanupActions:
     # ── Cleanup Actions ──────────────────────────────────────
 
     def cleanup_google_drive_file(
-        self, file_url: str, file_id: Optional[str] = None, operation_id: str = None
+        self, file_url: str, file_id: str | None = None, operation_id: str | None = None
     ) -> bool:
         """
         Cleanup Google Drive file.
@@ -177,7 +168,7 @@ class FileCleanupActions:
         except GoogleDriveError:
             raise
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             raise GoogleDriveError(f"Unexpected error in Google Drive cleanup: {e}")
 
     def cleanup_local_file(self, file_path: str, operation_id: str) -> bool:
@@ -251,7 +242,7 @@ class FileCleanupActions:
         except OSError as ose:
             raise FileSystemError(f"OS error removing file {file_path}: {ose}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             raise FileSystemError(f"Unexpected error removing file {file_path}: {e}")
 
     def cleanup_empty_parent_directory(self, file_path: str, operation_id: str) -> None:
@@ -276,7 +267,7 @@ class FileCleanupActions:
 
         except OSError as ose:
             logger.debug(f"[{operation_id}] Could not remove parent directory: {ose}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug(
                 f"[{operation_id}] Unexpected error in parent directory cleanup: {e}"
             )
@@ -299,7 +290,7 @@ class FileCleanupActions:
                     f"Path traversal attempt detected in URL: {file_url}"
                 )
 
-        if file_url.startswith(("file://", "ftp://", "sftp://")):
+        if file_url.startswith(("file://", "ftp://", "sftp://")):  # noqa: SIM102
             if not file_url.startswith("file://") or not self._is_development_mode():
                 raise SecurityError(f"Suspicious protocol in URL: {file_url}")
 
@@ -314,8 +305,8 @@ class FileCleanupActions:
             abs_storage = os.path.abspath(self.base_storage_path)
             abs_temp = os.path.abspath(self.temp_storage_path)
 
-            return abs_path.startswith(abs_storage) or abs_path.startswith(abs_temp)
-        except Exception:
+            return abs_path.startswith((abs_storage, abs_temp))
+        except Exception:  # noqa: BLE001
             return False
 
     def _is_development_mode(self) -> bool:

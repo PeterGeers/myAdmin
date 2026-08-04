@@ -64,22 +64,22 @@ Implemented the `AITemplateAssistant` service that provides AI-powered assistanc
 
 ```python
 {
-    'success': bool,
-    'ai_suggestions': {
-        'analysis': str,
-        'fixes': [
+    "success": bool,
+    "ai_suggestions": {
+        "analysis": str,
+        "fixes": [
             {
-                'issue': str,
-                'suggestion': str,
-                'code_example': str,
-                'location': str,
-                'auto_fixable': bool
+                "issue": str,
+                "suggestion": str,
+                "code_example": str,
+                "location": str,
+                "auto_fixable": bool,
             }
         ],
-        'auto_fix_available': bool,
-        'confidence': 'high' | 'medium' | 'low'
+        "auto_fix_available": bool,
+        "confidence": "high" | "medium" | "low",
     },
-    'error': str  # Only if success is False
+    "error": str,  # Only if success is False
 }
 ```
 
@@ -341,32 +341,31 @@ assistant = AITemplateAssistant()
 
 # Get fix suggestions
 result = assistant.get_fix_suggestions(
-    template_type='str_invoice_nl',
-    template_content='<html><body>...</body></html>',
+    template_type="str_invoice_nl",
+    template_content="<html><body>...</body></html>",
     validation_errors=[
         {
-            'type': 'missing_placeholder',
-            'message': "Required placeholder '{{ invoice_number }}' not found",
-            'severity': 'error'
+            "type": "missing_placeholder",
+            "message": "Required placeholder '{{ invoice_number }}' not found",
+            "severity": "error",
         }
     ],
-    required_placeholders=['invoice_number', 'guest_name', 'amount']
+    required_placeholders=["invoice_number", "guest_name", "amount"],
 )
 
-if result['success']:
-    suggestions = result['ai_suggestions']
+if result["success"]:
+    suggestions = result["ai_suggestions"]
     print(f"Analysis: {suggestions['analysis']}")
 
-    for fix in suggestions['fixes']:
+    for fix in suggestions["fixes"]:
         print(f"Issue: {fix['issue']}")
         print(f"Suggestion: {fix['suggestion']}")
         print(f"Code: {fix['code_example']}")
 
     # Apply auto-fixes if available
-    if suggestions['auto_fix_available']:
+    if suggestions["auto_fix_available"]:
         fixed_template = assistant.apply_auto_fixes(
-            template_content,
-            suggestions['fixes']
+            template_content, suggestions["fixes"]
         )
 else:
     print(f"Error: {result['error']}")
@@ -397,37 +396,25 @@ else:
 ### API Key Not Set
 
 ```python
-{
-    'success': False,
-    'error': 'AI service not configured - OPENROUTER_API_KEY not set'
-}
+{"success": False, "error": "AI service not configured - OPENROUTER_API_KEY not set"}
 ```
 
 ### API Error (500)
 
 ```python
-{
-    'success': False,
-    'error': 'AI service returned error: 500'
-}
+{"success": False, "error": "AI service returned error: 500"}
 ```
 
 ### Timeout
 
 ```python
-{
-    'success': False,
-    'error': 'AI service request timed out'
-}
+{"success": False, "error": "AI service request timed out"}
 ```
 
 ### Network Error
 
 ```python
-{
-    'success': False,
-    'error': 'AI service request failed: <error message>'
-}
+{"success": False, "error": "AI service request failed: <error message>"}
 ```
 
 ---

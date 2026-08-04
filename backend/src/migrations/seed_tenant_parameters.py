@@ -106,11 +106,10 @@ def seed_tenant(db, tenant):
             if use_test
             else os.getenv("FACTUREN_FOLDER_ID", "")
         )
-    if gd_folder:
-        if set_param(
-            db, "tenant", tenant, "storage", "google_drive_folder_id", gd_folder
-        ):
-            seeded += 1
+    if gd_folder and set_param(
+        db, "tenant", tenant, "storage", "google_drive_folder_id", gd_folder
+    ):
+        seeded += 1
 
     return seeded
 

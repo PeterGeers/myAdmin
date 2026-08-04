@@ -3,16 +3,18 @@ Tax Processing Routes Blueprint
 Handles BTW (VAT) and Toeristenbelasting (Tourist Tax) declaration routes
 """
 
-from flask import Blueprint, request, jsonify
+import os
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
-from database import DatabaseManager
 from btw_processor import BTWProcessor
-from toeristenbelasting_processor import ToeristenbelastingProcessor
+from database import DatabaseManager
 from mutaties_cache import get_cache
 from services.template_service import TemplateService
-import os
+from toeristenbelasting_processor import ToeristenbelastingProcessor
 
 # Create blueprint
 tax_bp = Blueprint("tax", __name__)
@@ -96,7 +98,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
             metadata = template_service.get_template_metadata(
                 administration, template_type
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             if logger:
                 logger.warning(f"Could not get template metadata from database: {e}")
 
@@ -109,7 +111,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
                     metadata["template_file_id"], administration
                 )
                 field_mappings = metadata.get("field_mappings", {})
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 if logger:
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
@@ -137,7 +139,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
             # Use default field mappings (simple placeholder replacement)
             field_mappings = {
                 "fields": {
-                    key: {"path": key, "format": "text"} for key in template_data.keys()
+                    key: {"path": key, "format": "text"} for key in template_data
                 },
                 "formatting": {
                     "locale": "nl_NL",
@@ -202,7 +204,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
                 }
             )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Check if it's a Google Drive authentication error
         from google_drive_service import GoogleDriveAuthenticationError
 
@@ -239,7 +241,7 @@ def btw_save_transaction(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -274,7 +276,7 @@ def btw_upload_report(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -282,7 +284,9 @@ def btw_upload_report(user_email, user_roles) -> ResponseReturnValue:
 @tax_bp.route("/api/toeristenbelasting/generate-report", methods=["POST"])
 @cognito_required(required_permissions=["str_read", "reports_read"])
 @tenant_required()
-def toeristenbelasting_generate_report(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def toeristenbelasting_generate_report(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Generate Toeristenbelasting declaration report
 
     Supports multiple output destinations:
@@ -344,7 +348,7 @@ def toeristenbelasting_generate_report(user_email, user_roles, tenant, user_tena
 
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -355,12 +359,12 @@ def toeristenbelasting_available_years(user_email, user_roles) -> ResponseReturn
     try:
         from datetime import datetime
 
-        current_year = datetime.now().year
+        current_year = datetime.now().year  # noqa: DTZ005
 
         # Generate years: current year and 3 years back
         years = [str(current_year - i) for i in range(4)]
 
         return jsonify({"success": True, "years": years})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500

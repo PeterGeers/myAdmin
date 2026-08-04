@@ -8,7 +8,7 @@ single source of truth validated at import time.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Literal, Optional
+from typing import Literal
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -26,8 +26,6 @@ _VALID_COST_TIERS = ("free", "cheap", "paid")
 
 class RegistryError(Exception):
     """Raised for registry validation or resolution errors."""
-
-    pass
 
 
 # ---------------------------------------------------------------------------
@@ -50,8 +48,8 @@ class ModelEntry:
 class ModelOverride:
     """Per-model parameter overrides within a profile."""
 
-    timeout: Optional[int] = None  # 1–600 if specified
-    max_tokens: Optional[int] = None  # 1–16384 if specified
+    timeout: int | None = None  # 1–600 if specified
+    max_tokens: int | None = None  # 1–16384 if specified
 
 
 @dataclass(frozen=True)
@@ -60,7 +58,7 @@ class TaskProfile:
 
     name: str
     fallback_chain: tuple  # Ordered tuple of model_id strings (1–10)
-    overrides: Dict[str, ModelOverride] = field(default_factory=dict)
+    overrides: dict[str, ModelOverride] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -106,7 +104,7 @@ def _validate_model_entry(entry: ModelEntry) -> None:
         )
 
 
-def _validate_profile(profile: TaskProfile, models: Dict[str, ModelEntry]) -> None:
+def _validate_profile(profile: TaskProfile, models: dict[str, ModelEntry]) -> None:
     """Validate a TaskProfile against registered models.
 
     Raises RegistryError for:
@@ -182,7 +180,7 @@ def _validate_profile(profile: TaskProfile, models: Dict[str, ModelEntry]) -> No
 class ProfileResolver:
     """Resolves task profiles into ordered lists of fully-configured models."""
 
-    def __init__(self, models: Dict[str, ModelEntry], profiles: Dict[str, TaskProfile]):
+    def __init__(self, models: dict[str, ModelEntry], profiles: dict[str, TaskProfile]):
         self._models = models
         self._profiles = profiles
 
@@ -299,7 +297,7 @@ class ProfileResolver:
 # Model Definitions
 # ---------------------------------------------------------------------------
 
-MODELS: Dict[str, ModelEntry] = {}
+MODELS: dict[str, ModelEntry] = {}
 
 
 def _register_model(
@@ -341,7 +339,7 @@ _register_model("anthropic/claude-3.5-sonnet", "paid", 4096, 15, False)
 # Profile Definitions
 # ---------------------------------------------------------------------------
 
-PROFILES: Dict[str, TaskProfile] = {}
+PROFILES: dict[str, TaskProfile] = {}
 
 PROFILES["structured_extraction"] = TaskProfile(
     name="structured_extraction",

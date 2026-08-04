@@ -10,12 +10,13 @@ Reference: .kiro/specs/zzp-module/design.md §2 (Field Config API)
 
 import logging
 
-from flask import Blueprint, request, jsonify, make_response, send_file
+from flask import Blueprint, jsonify, make_response, request, send_file
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
-from services.module_registry import module_required, MODULE_REGISTRY
 from database import DatabaseManager
+from services.module_registry import MODULE_REGISTRY, module_required
 from services.parameter_service import ParameterService
 from services.tax_rate_service import TaxRateService
 from services.zzp_invoice_service import ZZPInvoiceService
@@ -103,7 +104,7 @@ def get_field_config(
 
         return jsonify({"success": True, "data": config})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_field_config error for %s/%s: %s", tenant, entity, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -168,7 +169,7 @@ def update_field_config(
             {"success": True, "message": f"Field config updated for {entity}"}
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("update_field_config error for %s/%s: %s", tenant, entity, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -188,7 +189,7 @@ def _get_invoice_service() -> ZZPInvoiceService:
 
         txn_logic = TransactionLogic(test_mode=_test_mode)
         booking_helper = InvoiceBookingHelper(db, txn_logic, tax_svc, param_svc)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Could not initialize InvoiceBookingHelper: %s", e)
         booking_helper = None
 
@@ -196,15 +197,15 @@ def _get_invoice_service() -> ZZPInvoiceService:
         from services.pdf_generator_service import PDFGeneratorService
 
         pdf_generator = PDFGeneratorService(db, parameter_service=param_svc)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Could not initialize PDFGeneratorService: %s", e)
         pdf_generator = None
 
     try:
-        from services.invoice_email_service import InvoiceEmailService
-        from services.ses_email_service import SESEmailService
         from services.contact_service import ContactService
         from services.email_verification_service import EmailVerificationService
+        from services.invoice_email_service import InvoiceEmailService
+        from services.ses_email_service import SESEmailService
 
         ses_svc = SESEmailService()
         contact_svc = ContactService(db, param_svc)
@@ -212,7 +213,7 @@ def _get_invoice_service() -> ZZPInvoiceService:
         email_service = InvoiceEmailService(
             ses_svc, contact_svc, param_svc, email_verification_service=verification_svc
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Could not initialize InvoiceEmailService: %s", e)
         email_service = None
 
@@ -250,7 +251,7 @@ def list_invoices(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         filters = {k: v for k, v in filters.items() if v is not None}
         invoices = svc.list_invoices(tenant, filters)
         return jsonify({"success": True, "data": invoices})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("list_invoices error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -269,7 +270,7 @@ def get_invoice(
         if not invoice:
             return jsonify({"success": False, "error": "Invoice not found"}), 404
         return jsonify({"success": True, "data": invoice})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_invoice error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -289,7 +290,7 @@ def create_invoice(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         return jsonify({"success": True, "data": invoice}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("create_invoice error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -311,7 +312,7 @@ def update_invoice(
         return jsonify({"success": True, "data": invoice})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("update_invoice error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -361,7 +362,7 @@ def create_invoice_from_time_entries(
         return jsonify({"success": True, "data": invoice}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("create_invoice_from_time_entries error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -386,7 +387,7 @@ def send_invoice(
         return jsonify(result), 400
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("send_invoice error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -419,7 +420,7 @@ def get_invoice_pdf(
             )
 
         return jsonify({"success": False, "error": "PDF not available"}), 404
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_invoice_pdf error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -462,7 +463,7 @@ def preview_invoice_pdf(
             "preview_invoice_pdf generation error for %s/%s: %s", tenant, invoice_id, re
         )
         return jsonify({"success": False, "error": "PDF generation failed"}), 500
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("preview_invoice_pdf error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -486,7 +487,7 @@ def preview_invoice_email(
         if "not found" in error_msg.lower():
             return jsonify({"success": False, "error": error_msg}), 404
         return jsonify({"success": False, "error": error_msg}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("preview_invoice_email error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -508,7 +509,7 @@ def create_credit_note(
         return jsonify({"success": True, "data": credit_note}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("create_credit_note error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -531,7 +532,7 @@ def run_payment_check(
         helper = PaymentCheckHelper(db)
         result = helper.run_payment_check(tenant)
         return jsonify(result)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("run_payment_check error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -565,7 +566,7 @@ def get_payment_check_status(
                 "paid_invoices": paid_count[0]["cnt"] if paid_count else 0,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("get_payment_check_status error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -591,7 +592,7 @@ def mark_overdue_invoices(
                 "message": f"{count} invoice(s) marked as overdue",
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("mark_overdue error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -657,7 +658,7 @@ def upload_supporting_document(
             }
         ), 201
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(
             "upload_supporting_document error for %s/%s: %s", tenant, invoice_id, e
         )
@@ -681,7 +682,7 @@ def copy_last_invoice(
         return jsonify({"success": True, "data": invoice}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(
             "copy_last_invoice error for %s/contact %s: %s", tenant, contact_id, e
         )

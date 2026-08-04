@@ -13,12 +13,11 @@ Extracted from pdf_decision_handler.py for clarity and maintainability.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional
 
 
 def validate_duplicate_decision_inputs(
-    decision: str, duplicate_info: Dict, transactions: List[Dict], file_data: Dict
-) -> Dict:
+    decision: str, duplicate_info: dict, transactions: list[dict], file_data: dict
+) -> dict:
     """
     Validate inputs for duplicate decision handling with comprehensive error messages.
 
@@ -106,19 +105,19 @@ def validate_duplicate_decision_inputs(
 
         return {"valid": True}
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "valid": False,
             "error_response": create_error_response(
                 "validation_error",
-                f"Error during input validation: {str(e)}",
-                errors=[f"Validation error: {str(e)}"],
+                f"Error during input validation: {e!s}",
+                errors=[f"Validation error: {e!s}"],
                 user_message="Error validating input. Please refresh and try again.",
             ),
         }
 
 
-def initialize_duplicate_components() -> Dict:
+def initialize_duplicate_components() -> dict:
     """
     Initialize duplicate detection components with comprehensive error handling.
 
@@ -136,18 +135,18 @@ def initialize_duplicate_components() -> Dict:
             if test_connection:
                 test_connection.close()
             else:
-                raise Exception("Could not establish database connection")
+                raise Exception("Could not establish database connection")  # noqa: TRY002
 
         except ImportError as e:
             return {
                 "success": False,
-                "error": f"DatabaseManager not available: {str(e)}",
+                "error": f"DatabaseManager not available: {e!s}",
                 "component": "database_manager",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "success": False,
-                "error": f"Database initialization failed: {str(e)}",
+                "error": f"Database initialization failed: {e!s}",
                 "component": "database_manager",
             }
 
@@ -159,13 +158,13 @@ def initialize_duplicate_components() -> Dict:
         except ImportError as e:
             return {
                 "success": False,
-                "error": f"DuplicateChecker not available: {str(e)}",
+                "error": f"DuplicateChecker not available: {e!s}",
                 "component": "duplicate_checker",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "success": False,
-                "error": f"DuplicateChecker initialization failed: {str(e)}",
+                "error": f"DuplicateChecker initialization failed: {e!s}",
                 "component": "duplicate_checker",
             }
 
@@ -177,13 +176,13 @@ def initialize_duplicate_components() -> Dict:
         except ImportError as e:
             return {
                 "success": False,
-                "error": f"FileCleanupManager not available: {str(e)}",
+                "error": f"FileCleanupManager not available: {e!s}",
                 "component": "file_cleanup_manager",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "success": False,
-                "error": f"FileCleanupManager initialization failed: {str(e)}",
+                "error": f"FileCleanupManager initialization failed: {e!s}",
                 "component": "file_cleanup_manager",
             }
 
@@ -194,10 +193,10 @@ def initialize_duplicate_components() -> Dict:
             "file_cleanup_manager": file_cleanup_manager,
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "success": False,
-            "error": f"Unexpected error during component initialization: {str(e)}",
+            "error": f"Unexpected error during component initialization: {e!s}",
             "component": "unknown",
         }
 
@@ -205,10 +204,10 @@ def initialize_duplicate_components() -> Dict:
 def log_duplicate_decision_with_retry(
     duplicate_checker,
     decision: str,
-    duplicate_info: Dict,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> Dict:
+    duplicate_info: dict,
+    user_id: str | None = None,
+    session_id: str | None = None,
+) -> dict:
     """
     Log duplicate decision with retry logic and comprehensive error handling.
 
@@ -252,8 +251,8 @@ def log_duplicate_decision_with_retry(
                         "error_type": "audit_logging_failed",
                     }
 
-        except Exception as e:
-            error_msg = f"Audit logging attempt {attempt + 1} error: {str(e)}"
+        except Exception as e:  # noqa: BLE001
+            error_msg = f"Audit logging attempt {attempt + 1} error: {e!s}"
             print(error_msg)
 
             if attempt < max_retries - 1:
@@ -279,13 +278,13 @@ def log_duplicate_decision_with_retry(
 
 
 def handle_continue_decision_enhanced(
-    duplicate_info: Dict,
-    transactions: List[Dict],
-    file_data: Dict,
+    duplicate_info: dict,
+    transactions: list[dict],
+    file_data: dict,
     audit_success: bool,
-    errors: List[str],
-    warnings: List[str],
-) -> Dict:
+    errors: list[str],
+    warnings: list[str],
+) -> dict:
     """Enhanced continue decision handling with comprehensive error management."""
     try:
         validation_errors = validate_transaction_data(transactions)
@@ -306,8 +305,8 @@ def handle_continue_decision_enhanced(
                     k: v for k, v in transaction.items() if k != "duplicate_info"
                 }
                 clean_transactions.append(clean_transaction)
-            except Exception as e:
-                errors.append(f"Error cleaning transaction data: {str(e)}")
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"Error cleaning transaction data: {e!s}")
 
         if not clean_transactions and transactions:
             errors.append("Failed to clean transaction data")
@@ -341,8 +340,8 @@ def handle_continue_decision_enhanced(
             "audit_logged": audit_success,
         }
 
-    except Exception as e:
-        error_msg = f"Error in enhanced continue decision handling: {str(e)}"
+    except Exception as e:  # noqa: BLE001
+        error_msg = f"Error in enhanced continue decision handling: {e!s}"
         errors.append(error_msg)
         print(error_msg)
 
@@ -356,14 +355,14 @@ def handle_continue_decision_enhanced(
 
 
 def handle_cancel_decision_enhanced(
-    duplicate_info: Dict,
-    transactions: List[Dict],
-    file_data: Dict,
+    duplicate_info: dict,
+    transactions: list[dict],
+    file_data: dict,
     file_cleanup_manager,
     audit_success: bool,
-    errors: List[str],
-    warnings: List[str],
-) -> Dict:
+    errors: list[str],
+    warnings: list[str],
+) -> dict:
     """Enhanced cancel decision handling with comprehensive error management."""
     try:
         cleanup_performed = False
@@ -378,8 +377,8 @@ def handle_cancel_decision_enhanced(
                 warnings.append("No file URL found for cleanup")
                 cleanup_details.append("No file URL available for cleanup.")
 
-        except Exception as e:
-            error_msg = f"Error extracting file information: {str(e)}"
+        except Exception as e:  # noqa: BLE001
+            error_msg = f"Error extracting file information: {e!s}"
             errors.append(error_msg)
             cleanup_errors.append(error_msg)
 
@@ -409,8 +408,8 @@ def handle_cancel_decision_enhanced(
                                 cleanup_details.append(
                                     "File cleanup attempted but may have failed."
                                 )
-                        except Exception as cleanup_error:
-                            error_msg = f"File cleanup error: {str(cleanup_error)}"
+                        except Exception as cleanup_error:  # noqa: BLE001
+                            error_msg = f"File cleanup error: {cleanup_error!s}"
                             cleanup_errors.append(error_msg)
                             warnings.append("File cleanup failed")
                             cleanup_details.append(
@@ -421,8 +420,8 @@ def handle_cancel_decision_enhanced(
                             "File URLs match - no cleanup performed."
                         )
 
-                except Exception as comparison_error:
-                    error_msg = f"URL comparison error: {str(comparison_error)}"
+                except Exception as comparison_error:  # noqa: BLE001
+                    error_msg = f"URL comparison error: {comparison_error!s}"
                     cleanup_errors.append(error_msg)
                     warnings.append("Could not compare file URLs")
                     cleanup_details.append("Could not determine if cleanup is needed.")
@@ -440,16 +439,16 @@ def handle_cancel_decision_enhanced(
                         cleanup_details.append(
                             "File cleanup attempted but may have failed."
                         )
-                except Exception as cleanup_error:
-                    error_msg = f"File cleanup error: {str(cleanup_error)}"
+                except Exception as cleanup_error:  # noqa: BLE001
+                    error_msg = f"File cleanup error: {cleanup_error!s}"
                     cleanup_errors.append(error_msg)
                     warnings.append("File cleanup failed")
                     cleanup_details.append(
                         "File cleanup failed - manual cleanup may be required."
                     )
 
-        except Exception as e:
-            error_msg = f"Error processing existing transactions: {str(e)}"
+        except Exception as e:  # noqa: BLE001
+            error_msg = f"Error processing existing transactions: {e!s}"
             errors.append(error_msg)
             cleanup_errors.append(error_msg)
 
@@ -479,8 +478,8 @@ def handle_cancel_decision_enhanced(
             "cleanup_details": cleanup_details,
         }
 
-    except Exception as e:
-        error_msg = f"Error in enhanced cancel decision handling: {str(e)}"
+    except Exception as e:  # noqa: BLE001
+        error_msg = f"Error in enhanced cancel decision handling: {e!s}"
         errors.append(error_msg)
         print(error_msg)
 
@@ -493,7 +492,7 @@ def handle_cancel_decision_enhanced(
         )
 
 
-def validate_transaction_data(transactions: List[Dict]) -> List[str]:
+def validate_transaction_data(transactions: list[dict]) -> list[str]:
     """
     Validate transaction data for required fields and proper formatting.
 
@@ -542,10 +541,10 @@ def validate_transaction_data(transactions: List[Dict]) -> List[str]:
 def create_error_response(
     error_code: str,
     error_message: str,
-    errors: Optional[List[str]] = None,
-    warnings: Optional[List[str]] = None,
-    user_message: Optional[str] = None,
-) -> Dict:
+    errors: list[str] | None = None,
+    warnings: list[str] | None = None,
+    user_message: str | None = None,
+) -> dict:
     """Create standardized error response with comprehensive error information."""
     return {
         "success": False,
@@ -554,7 +553,7 @@ def create_error_response(
         "errors": errors or [],
         "warnings": warnings or [],
         "user_message": user_message or "An error occurred. Please try again.",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
         "action_taken": "error",
         "transactions": [],
         "cleanup_performed": False,

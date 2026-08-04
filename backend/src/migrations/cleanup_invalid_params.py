@@ -1,8 +1,8 @@
 """Remove invalid parameters: default_administration, download_folder, vendor_folder_mappings."""
 
-import sys
-import os
 import logging
+import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from database import DatabaseManager

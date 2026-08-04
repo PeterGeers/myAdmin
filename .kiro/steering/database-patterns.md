@@ -87,3 +87,13 @@ These table types do NOT need `administration`:
 - Generic/reference tables (e.g., `countries`, `database_migrations`)
 - System tables only accessible to SysAdmin
 - Tables explicitly documented as tenant-agnostic
+
+## Data Ownership
+
+Transaction data belongs to the business owner, not the system.
+
+- **Never modify, correct, or override existing data** unless the user explicitly requests it
+- **Never hardcode tenant names** in code — the `administration` value must always flow from the authenticated session (`@tenant_required()`) or be an explicit required parameter
+- **No silent defaults for `administration`** — if a tenant value is missing, raise an error rather than falling back to a hardcoded name
+- **Algorithms must work with data as-is** — pattern detection, predictions, and analytics interpret data but never alter it
+- **Docstring examples** should use generic placeholders (e.g., `"ExampleTenant"`) not real tenant names

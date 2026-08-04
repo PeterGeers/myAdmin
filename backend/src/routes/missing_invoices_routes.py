@@ -1,17 +1,19 @@
-from flask import Blueprint, request, jsonify
-from flask.typing import ResponseReturnValue
 import os
-from database import DatabaseManager
-from google_drive_service import GoogleDriveService
+
+from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from database import DatabaseManager
+from google_drive_service import GoogleDriveService
+from services.function_guard import function_guard
 from services.storage_resolver import (
-    resolve_storage_provider,
-    list_s3_folders,
     create_s3_folder,
     get_s3_storage,
+    list_s3_folders,
+    resolve_storage_provider,
 )
-from services.function_guard import function_guard
 
 missing_invoices_bp = Blueprint("missing_invoices", __name__)
 db = DatabaseManager()
@@ -130,7 +132,7 @@ def upload_receipt(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
             os.unlink(temp_path)
 
             return jsonify({"driveUrl": drive_result["url"]})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
 
 

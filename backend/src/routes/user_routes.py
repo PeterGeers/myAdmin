@@ -8,6 +8,7 @@ including language preference management.
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 from flask_babel import gettext as _
+
 from auth.cognito_utils import cognito_required
 from services.user_language_service import (
     get_user_language,
@@ -38,7 +39,7 @@ def get_user_language_preference(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"language": language}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"❌ Error in get_user_language_preference: {e}")
         return jsonify(
             {"error": _("Failed to retrieve language preference"), "details": str(e)}
@@ -96,7 +97,7 @@ def update_user_language_preference(user_email, user_roles) -> ResponseReturnVal
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"❌ Error in update_user_language_preference: {e}")
         return jsonify(
             {"error": _("Failed to update language preference"), "details": str(e)}

@@ -11,11 +11,11 @@ Responsibilities delegated to:
 """
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database import DatabaseManager
-from services.budget_query_service import BudgetQueryService
 from services.budget_mutation_service import BudgetMutationService
+from services.budget_query_service import BudgetQueryService
 
 
 class BudgetService:
@@ -74,7 +74,7 @@ class BudgetService:
         return BudgetMutationService.round_monetary(amount)
 
     @staticmethod
-    def divide_annual(annual_amount: Decimal, months: int = 12) -> List[Decimal]:
+    def divide_annual(annual_amount: Decimal, months: int = 12) -> list[Decimal]:
         """
         Divide an annual amount into equal monthly amounts with banker's rounding.
 
@@ -94,12 +94,12 @@ class BudgetService:
     # -------------------------------------------------------------------------
 
     def list_versions(
-        self, administration: str, year: Optional[int] = None
-    ) -> Dict[str, Any]:
+        self, administration: str, year: int | None = None
+    ) -> dict[str, Any]:
         """List budget versions for a tenant, optionally filtered by fiscal year."""
         return self._query.list_versions(administration, year)
 
-    def list_lines(self, administration: str, version_id: int) -> Dict[str, Any]:
+    def list_lines(self, administration: str, version_id: int) -> dict[str, Any]:
         """List all budget lines for a version."""
         return self._query.list_lines(administration, version_id)
 
@@ -108,10 +108,10 @@ class BudgetService:
         administration: str,
         version_id: int,
         level: str,
-        parent_code: Optional[str] = None,
-        subparent_code: Optional[str] = None,
-        months: Optional[List[int]] = None,
-    ) -> Dict[str, Any]:
+        parent_code: str | None = None,
+        subparent_code: str | None = None,
+        months: list[int] | None = None,
+    ) -> dict[str, Any]:
         """Compute hierarchy rollup for budget lines at the requested level."""
         return self._query.get_rollup(
             administration, version_id, level, parent_code, subparent_code, months
@@ -122,12 +122,12 @@ class BudgetService:
         administration: str,
         level: str,
         period: str,
-        version_id: Optional[int] = None,
-        year: Optional[int] = None,
-        parent_code: Optional[str] = None,
-        subparent_code: Optional[str] = None,
-        reference_number: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        version_id: int | None = None,
+        year: int | None = None,
+        parent_code: str | None = None,
+        subparent_code: str | None = None,
+        reference_number: str | None = None,
+    ) -> dict[str, Any]:
         """Dashboard budget vs actuals comparison."""
         return self._query.get_dashboard(
             administration,
@@ -146,23 +146,23 @@ class BudgetService:
 
     def create_version(
         self, administration: str, name: str, fiscal_year: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a new budget version with status Draft."""
         return self._mutation.create_version(administration, name, fiscal_year)
 
-    def delete_version(self, administration: str, version_id: int) -> Dict[str, Any]:
+    def delete_version(self, administration: str, version_id: int) -> dict[str, Any]:
         """Delete a budget version. Only Draft versions can be deleted."""
         return self._mutation.delete_version(administration, version_id)
 
     def transition_status(
         self, administration: str, version_id: int, action: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Transition a budget version's status (approve/revise)."""
         return self._mutation.transition_status(administration, version_id, action)
 
     def activate_version(
         self, administration: str, version_id: int, active: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Toggle the active flag on a budget version."""
         return self._mutation.activate_version(administration, version_id, active)
 
@@ -172,12 +172,12 @@ class BudgetService:
         version_id: int,
         account_code: str,
         period_mode: str,
-        amounts: Optional[List[float]] = None,
-        annual_amount: Optional[float] = None,
-        detail_dimension_type: Optional[str] = None,
-        detail_dimension_value: Optional[str] = None,
-        notes: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        amounts: list[float] | None = None,
+        annual_amount: float | None = None,
+        detail_dimension_type: str | None = None,
+        detail_dimension_value: str | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
         """Create a new budget line for a version."""
         return self._mutation.create_line(
             administration,
@@ -195,15 +195,15 @@ class BudgetService:
         self,
         administration: str,
         line_id: int,
-        amounts: Optional[List[float]] = None,
-        annual_amount: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        amounts: list[float] | None = None,
+        annual_amount: float | None = None,
+    ) -> dict[str, Any]:
         """Update a budget line's monthly amounts."""
         return self._mutation.update_line(
             administration, line_id, amounts, annual_amount
         )
 
-    def delete_line(self, administration: str, line_id: int) -> Dict[str, Any]:
+    def delete_line(self, administration: str, line_id: int) -> dict[str, Any]:
         """Delete a budget line."""
         return self._mutation.delete_line(administration, line_id)
 
@@ -213,7 +213,7 @@ class BudgetService:
         source_version_id: int,
         target_fiscal_year: int,
         version_name: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Copy a budget version to a new fiscal year."""
         return self._mutation.copy_budget(
             administration, source_version_id, target_fiscal_year, version_name
@@ -224,16 +224,16 @@ class BudgetService:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def _sum_months(row: Dict[str, Any], months: Optional[List[int]] = None) -> Decimal:
+    def _sum_months(row: dict[str, Any], months: list[int] | None = None) -> Decimal:
         """Sum the specified months from a row dict containing m01..m12 keys."""
         return BudgetQueryService._sum_months(row, months)
 
     def _compute_monthly_amounts(
-        self, monthly_actuals: Dict[int, Decimal]
-    ) -> List[Decimal]:
+        self, monthly_actuals: dict[int, Decimal]
+    ) -> list[Decimal]:
         """Compute 12 monthly budget amounts from prior-year actuals."""
         return self._mutation._compute_monthly_amounts(monthly_actuals)
 
-    def _parse_period(self, period: str) -> List[int]:
+    def _parse_period(self, period: str) -> list[int]:
         """Convert a period string to a list of month numbers (1-12)."""
         return self._query._parse_period(period)

@@ -21,6 +21,7 @@
 				"username": "peter",
 				"password": "REDACTED"
 			}
-		]
+		],
+		"typescript.autoClosingTags": false
 	}
 }

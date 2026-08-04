@@ -1,13 +1,15 @@
-import requests
 import json
 import os
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from database import DatabaseManager
-from business_pricing_model import BusinessPricingModel
-from services.ai_model_registry import resolver, RegistryError
-from services.ai_usage_tracker import AIUsageTracker
 import warnings
+from datetime import datetime, timedelta
+
+import requests
+from dotenv import load_dotenv
+
+from business_pricing_model import BusinessPricingModel
+from database import DatabaseManager
+from services.ai_model_registry import RegistryError, resolver
+from services.ai_usage_tracker import AIUsageTracker
 
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
 
@@ -145,7 +147,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                         print(f"Raw content: {content[:500]}...")
                         continue
 
-            except (requests.exceptions.Timeout, Exception) as e:
+            except (requests.exceptions.Timeout, Exception) as e:  # noqa: BLE001
                 print(f"{model.model_id} request failed: {e}")
                 continue
 
@@ -187,7 +189,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             return rates_analysis
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Rate calculation error: {e}")
             return {"error": "Could not calculate historical rates"}
 
@@ -204,7 +206,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 f"AI daily recommendations loaded: {len(ai_daily_recommendations)} days"
             )
 
-        start_date = datetime.now().date()
+        start_date = datetime.now().date()  # noqa: DTZ005
 
         for i in range(days):
             current_date = start_date + timedelta(days=i)
@@ -347,7 +349,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 "listing": f"All listings ({len(listings)})",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error generating all listings pricing: {e}")
             return {
                 "daily_prices_count": 0,
@@ -377,7 +379,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             valid_prices = []
             for price in daily_prices:
                 try:
-                    datetime.strptime(price["date"], "%Y-%m-%d")
+                    datetime.strptime(price["date"], "%Y-%m-%d")  # noqa: DTZ007
                     valid_prices.append(price)
                 except ValueError:
                     continue
@@ -411,7 +413,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             print(f"Saved {len(valid_prices)} pricing recommendations for {listing}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error saving pricing: {e}")
             conn.rollback()
             return False
@@ -435,7 +437,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             valid_prices = []
             for price in daily_prices:
                 try:
-                    datetime.strptime(price["date"], "%Y-%m-%d")
+                    datetime.strptime(price["date"], "%Y-%m-%d")  # noqa: DTZ007
                     valid_prices.append(price)
                 except ValueError:
                     continue
@@ -469,7 +471,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             print(f"Saved {len(valid_prices)} pricing recommendations for {listing}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error saving pricing: {e}")
             conn.rollback()
             return False
@@ -493,7 +495,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                         os.remove(os.path.join(insights_dir, file))
                         print(f"Removed old AI insights file: {file}")
 
-            filename = f"ai_insights_{listing.replace(' ', '_') if listing else 'general'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            filename = f"ai_insights_{listing.replace(' ', '_') if listing else 'general'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"  # noqa: DTZ005
             filepath = os.path.join(insights_dir, filename)
 
             print(f"Attempting to save to: {filepath}")
@@ -503,7 +505,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             # Add metadata
             insights_with_metadata = {
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
                 "listing": listing,
                 "insights": insights,
             }
@@ -514,7 +516,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             print(f"AI insights saved successfully to: {filename}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error saving AI insights: {e}")
             import traceback
 
@@ -550,7 +552,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             return {"events": events_list}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Events data error: {e}")
             return {"events": []}
         finally:
@@ -583,7 +585,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             else:
                 return {"base_weekday_price": 85.0, "base_weekend_price": 110.0}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Listing data error: {e}")
             return {"base_weekday_price": 85.0, "base_weekend_price": 110.0}
         finally:
@@ -691,7 +693,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                     else 95.0,
                 }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Historical data error: {e}")
             return {"avg_adr": 95.0}
         finally:
@@ -733,7 +735,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             else:
                 return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Last year ADR lookup error: {e}")
             return None
         finally:
@@ -762,7 +764,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             return None
 
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
         finally:
             conn.close()

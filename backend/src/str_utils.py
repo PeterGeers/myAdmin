@@ -6,11 +6,14 @@ and listing name normalization used across all STR platform parsers.
 """
 
 import re
+from datetime import date, datetime
+
 import pandas as pd
-from datetime import datetime, date
 
 
-def get_tax_rates(checkin_date: str, tax_rate_service=None, tenant: str = None) -> dict:
+def get_tax_rates(
+    checkin_date: str, tax_rate_service=None, tenant: str | None = None
+) -> dict:
     """Get VAT and tourist tax rates based on check-in date from TaxRateService.
 
     Args:
@@ -24,7 +27,7 @@ def get_tax_rates(checkin_date: str, tax_rate_service=None, tenant: str = None) 
     try:
         # Parse check-in date
         if isinstance(checkin_date, str):
-            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()
+            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()  # noqa: DTZ007
         else:
             checkin_dt = checkin_date
 
@@ -62,7 +65,7 @@ def get_tax_rates(checkin_date: str, tax_rate_service=None, tenant: str = None) 
             "tourist_tax_base": 100 + tourist_rate,
             "price_uplift": 0.054409,
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error getting tax rates for {checkin_date}: {e}")
         return {
             "vat_rate": 9.0,
@@ -78,7 +81,7 @@ def calculate_str_taxes(
     checkin_date: str,
     channel_fee: float = 0.0,
     tax_rate_service=None,
-    tenant: str = None,
+    tenant: str | None = None,
 ) -> dict:
     """
     Generic tax calculation function for all STR channels.
@@ -101,7 +104,7 @@ def calculate_str_taxes(
 
             for fmt in date_formats:
                 try:
-                    checkin_dt = datetime.strptime(checkin_date, fmt)
+                    checkin_dt = datetime.strptime(checkin_date, fmt)  # noqa: DTZ007
                     checkin_date_iso = checkin_dt.strftime("%Y-%m-%d")
                     break
                 except ValueError:
@@ -109,7 +112,7 @@ def calculate_str_taxes(
 
             if not checkin_date_iso:
                 # Fallback to current date if parsing fails
-                checkin_date_iso = datetime.now().strftime("%Y-%m-%d")
+                checkin_date_iso = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
         else:
             checkin_date_iso = checkin_date.strftime("%Y-%m-%d")
 
@@ -144,7 +147,7 @@ def calculate_str_taxes(
             "vat_exclusive_amount": round(vat_exclusive_amount, 2),
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in tax calculation: {e}")
         # Return zero amounts if calculation fails
         return {
@@ -152,7 +155,9 @@ def calculate_str_taxes(
             "amount_tourist_tax": 0.0,
             "amount_nett": float(gross_amount) - float(channel_fee),
             "tax_rates_used": get_tax_rates(
-                datetime.now().strftime("%Y-%m-%d"), tax_rate_service, tenant
+                datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+                tax_rate_service,
+                tenant,
             ),
             "total_tax_base": 115.0,  # Fallback
         }
@@ -226,7 +231,7 @@ def parse_multilang_date(date_str: str) -> str:
         Date in YYYY-MM-DD format
     """
     if not date_str:
-        return datetime.now().strftime("%Y-%m-%d")
+        return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
 
     month_map = {
         # Dutch
@@ -313,15 +318,15 @@ def parse_date(date_str: str) -> str:
         Date in YYYY-MM-DD format, or today's date if parsing fails
     """
     if not date_str:
-        return datetime.now().strftime("%Y-%m-%d")
+        return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
 
     # Try common date formats
     formats = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]
 
     for fmt in formats:
         try:
-            return datetime.strptime(str(date_str), fmt).strftime("%Y-%m-%d")
+            return datetime.strptime(str(date_str), fmt).strftime("%Y-%m-%d")  # noqa: DTZ007
         except ValueError:
             continue
 
-    return datetime.now().strftime("%Y-%m-%d")
+    return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005

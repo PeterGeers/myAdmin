@@ -13,13 +13,15 @@ Route endpoints have been extracted to focused modules:
 Based on the architecture at .kiro/specs/Common/Multitennant/architecture.md
 """
 
-from flask import Blueprint
-from database import DatabaseManager
-import os
 import json
-import boto3
 import logging
-from typing import Dict, Any, List
+import os
+from typing import Any
+
+import boto3
+from flask import Blueprint
+
+from database import DatabaseManager
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -121,7 +123,7 @@ def has_fin_module(tenant: str) -> bool:
 
         return bool(result and result[0].get("is_active"))
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error checking FIN module for tenant {tenant}: {e}")
         return False
 
@@ -202,14 +204,14 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
 
         return result[0].get("count", 0) if result else 0
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(
             f"Error checking account usage for {account} in tenant {tenant}: {e}"
         )
         return 0
 
 
-def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
+def get_user_attribute(user: dict[str, Any], attribute_name: str) -> Any:
     """Extract attribute value from Cognito user object"""
     for attr in user.get("Attributes", []):
         if attr["Name"] == attribute_name:
@@ -217,19 +219,19 @@ def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
             if attribute_name == "custom:tenants":
                 try:
                     return json.loads(value)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     return [value] if value else []
             return value
     return None
 
 
-def get_user_groups(username: str) -> List[str]:
+def get_user_groups(username: str) -> list[str]:
     """Get Cognito groups for a user"""
     try:
         response = cognito_client.admin_list_groups_for_user(
             UserPoolId=USER_POOL_ID, Username=username
         )
         return [group["GroupName"] for group in response.get("Groups", [])]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error getting user groups: {e}", flush=True)
         return []

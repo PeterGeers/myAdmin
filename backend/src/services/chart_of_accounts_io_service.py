@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import datetime
 from io import BytesIO
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from database import DatabaseManager
 from dialect_helpers import dialect
@@ -35,7 +35,7 @@ class ChartOfAccountsIOService:
     def __init__(self, db: DatabaseManager) -> None:
         self.db = db
 
-    def export_to_excel(self, tenant: str) -> Tuple[BytesIO, str, int]:
+    def export_to_excel(self, tenant: str) -> tuple[BytesIO, str, int]:
         """
         Export all accounts for a tenant to an Excel BytesIO stream.
 
@@ -88,11 +88,11 @@ class ChartOfAccountsIOService:
         output.seek(0)
 
         filename = (
-            f"chart_of_accounts_{tenant}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            f"chart_of_accounts_{tenant}_{datetime.now().strftime('%Y%m%d')}.xlsx"  # noqa: DTZ005
         )
         return output, filename, len(accounts)
 
-    def import_from_excel(self, tenant: str, file_stream) -> Dict[str, Any]:
+    def import_from_excel(self, tenant: str, file_stream) -> dict[str, Any]:
         """
         Import accounts from an Excel file stream (upsert logic).
 
@@ -108,7 +108,7 @@ class ChartOfAccountsIOService:
         try:
             wb = openpyxl.load_workbook(file_stream)
             ws = wb.active
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "success": False,
                 "error": "Failed to parse Excel file",
@@ -126,8 +126,8 @@ class ChartOfAccountsIOService:
             }
 
         # Parse rows
-        accounts_to_import: List[Dict[str, Any]] = []
-        errors: List[str] = []
+        accounts_to_import: list[dict[str, Any]] = []
+        errors: list[str] = []
 
         for row_num, row in enumerate(
             ws.iter_rows(min_row=2, values_only=True), start=2
@@ -170,7 +170,7 @@ class ChartOfAccountsIOService:
         updated = 0
 
         for acc in accounts_to_import:
-            params_dict: Dict[str, Any] = {}
+            params_dict: dict[str, Any] = {}
             if acc["bank_account"]:
                 params_dict["bank_account"] = True
             if acc["iban"]:

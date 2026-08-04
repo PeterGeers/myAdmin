@@ -9,11 +9,12 @@ Endpoints:
 - POST /api/tenant-admin/chart-of-accounts/import - Import from Excel
 """
 
-import os
 import logging
+import os
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, jsonify, request, send_file
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin
 from database import DatabaseManager
@@ -80,7 +81,7 @@ def export_accounts(user_email, user_roles) -> ResponseReturnValue:
             download_name=filename,
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error exporting accounts: {e}")
         return jsonify({"error": "Failed to export accounts", "details": str(e)}), 500
 
@@ -151,6 +152,6 @@ def import_accounts(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error importing accounts: {e}")
         return jsonify({"error": "Failed to import accounts", "details": str(e)}), 500

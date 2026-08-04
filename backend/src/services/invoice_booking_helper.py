@@ -9,7 +9,6 @@ Reference: .kiro/specs/zzp-module/design.md §5.4
 """
 
 import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +18,14 @@ class InvoiceBookingHelper:
 
     # Mapping from booking param key to the rekeningschema.parameters JSON flag.
     # The flag marks which account in the chart of accounts serves this role.
-    LEDGER_FLAG_MAP = {
+    LEDGER_FLAG_MAP = {  # noqa: RUF012
         "debtor_account": "zzp_debtor_account",
         "creditor_account": "zzp_creditor_account",
         "revenue_account": "zzp_revenue_ledger",
     }
 
     # Required parameters that must be configured per tenant — no hardcoded defaults.
-    REQUIRED_BOOKING_PARAMS = {
+    REQUIRED_BOOKING_PARAMS = {  # noqa: RUF012
         "debtor_account": "zzp.debtor_account",
         "creditor_account": "zzp.creditor_account",
         "revenue_account": "zzp.revenue_account",
@@ -43,8 +42,8 @@ class InvoiceBookingHelper:
     # ── Outgoing Invoice (Req 6.3) ──────────────────────────
 
     def book_outgoing_invoice(
-        self, tenant: str, invoice: dict, storage_result: dict = None
-    ) -> List[dict]:
+        self, tenant: str, invoice: dict, storage_result: dict | None = None
+    ) -> list[dict]:
         """Book an outgoing invoice: debit debtor, credit revenue + VAT entries.
 
         VAT entries: debit revenue account, credit received-BTW ledger account
@@ -122,8 +121,8 @@ class InvoiceBookingHelper:
     # ── Incoming Invoice (Req 6.4) ──────────────────────────
 
     def book_incoming_invoice(
-        self, tenant: str, invoice: dict, storage_result: dict = None
-    ) -> List[dict]:
+        self, tenant: str, invoice: dict, storage_result: dict | None = None
+    ) -> list[dict]:
         """Book an incoming invoice: debit expense, credit creditor + VAT."""
         contact = invoice.get("contact", {})
         client_id = contact.get("client_id", "")
@@ -186,8 +185,8 @@ class InvoiceBookingHelper:
         tenant: str,
         credit_note: dict,
         original_invoice: dict,
-        storage_result: dict = None,
-    ) -> List[dict]:
+        storage_result: dict | None = None,
+    ) -> list[dict]:
         """Book a credit note: reversal entries offsetting the original booking.
 
         A credit note reverses an outgoing invoice. The outgoing invoice entries were:
@@ -328,7 +327,7 @@ class InvoiceBookingHelper:
                 )
                 if rows and rows[0].get("Account"):
                     return str(rows[0]["Account"])
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     "Ledger flag lookup failed for %s/%s: %s", tenant, key, e
                 )

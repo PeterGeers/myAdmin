@@ -8,8 +8,8 @@ Handles write operations for budget management:
 """
 
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_EVEN
-from typing import Any, Dict, List, Optional
+from decimal import ROUND_HALF_EVEN, Decimal
+from typing import Any
 
 from database import DatabaseManager
 from db_exceptions import IntegrityError
@@ -57,7 +57,7 @@ class BudgetMutationService:
         return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
     @staticmethod
-    def divide_annual(annual_amount: Decimal, months: int = 12) -> List[Decimal]:
+    def divide_annual(annual_amount: Decimal, months: int = 12) -> list[Decimal]:
         """
         Divide an annual amount into equal monthly amounts with banker's rounding.
 
@@ -88,7 +88,7 @@ class BudgetMutationService:
 
     def create_version(
         self, administration: str, name: str, fiscal_year: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a new budget version with status Draft.
 
@@ -129,7 +129,7 @@ class BudgetMutationService:
             },
         }
 
-    def delete_version(self, administration: str, version_id: int) -> Dict[str, Any]:
+    def delete_version(self, administration: str, version_id: int) -> dict[str, Any]:
         """
         Delete a budget version. Only Draft versions can be deleted.
 
@@ -172,7 +172,7 @@ class BudgetMutationService:
 
     def transition_status(
         self, administration: str, version_id: int, action: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Transition a budget version's status following the Draft→Approved→Revised sequence.
 
@@ -241,7 +241,7 @@ class BudgetMutationService:
                 ),
             }
 
-        now = datetime.now()
+        now = datetime.now()  # noqa: DTZ005
 
         if action == "approve":
             # Simple status update: Draft → Approved
@@ -283,7 +283,7 @@ class BudgetMutationService:
             count = existing[0]["cnt"] + 1
             revised_name = f"{version['name']} (Revised {count})"
 
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _conn):
             insert_version_query = """
                 INSERT INTO budget_versions
                     (administration, name, fiscal_year, status, is_active, status_changed_at)
@@ -334,7 +334,7 @@ class BudgetMutationService:
 
     def activate_version(
         self, administration: str, version_id: int, active: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Toggle the active flag on a budget version.
 
@@ -403,12 +403,12 @@ class BudgetMutationService:
         version_id: int,
         account_code: str,
         period_mode: str,
-        amounts: Optional[List[float]] = None,
-        annual_amount: Optional[float] = None,
-        detail_dimension_type: Optional[str] = None,
-        detail_dimension_value: Optional[str] = None,
-        notes: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        amounts: list[float] | None = None,
+        annual_amount: float | None = None,
+        detail_dimension_type: str | None = None,
+        detail_dimension_value: str | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a new budget line for a version.
 
@@ -499,9 +499,9 @@ class BudgetMutationService:
         self,
         administration: str,
         line_id: int,
-        amounts: Optional[List[float]] = None,
-        annual_amount: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        amounts: list[float] | None = None,
+        annual_amount: float | None = None,
+    ) -> dict[str, Any]:
         """
         Update a budget line's monthly amounts.
 
@@ -570,7 +570,7 @@ class BudgetMutationService:
             },
         }
 
-    def delete_line(self, administration: str, line_id: int) -> Dict[str, Any]:
+    def delete_line(self, administration: str, line_id: int) -> dict[str, Any]:
         """
         Delete a budget line.
 
@@ -614,7 +614,7 @@ class BudgetMutationService:
         source_version_id: int,
         target_fiscal_year: int,
         version_name: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Copy a budget version to a new fiscal year.
 
@@ -673,8 +673,8 @@ class BudgetMutationService:
         source_lines = source_lines if source_lines else []
 
         # 4. For each line, check if account_code still exists in rekeningschema
-        excluded_accounts: List[str] = []
-        lines_to_copy: List[Dict[str, Any]] = []
+        excluded_accounts: list[str] = []
+        lines_to_copy: list[dict[str, Any]] = []
 
         for line in source_lines:
             account_code = line["account_code"]
@@ -690,7 +690,7 @@ class BudgetMutationService:
 
         # 5. Create new version and copy lines atomically
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 # Create new budget version with status Draft
                 cursor.execute(
                     """
@@ -757,8 +757,8 @@ class BudgetMutationService:
     # -------------------------------------------------------------------------
 
     def _compute_monthly_amounts(
-        self, monthly_actuals: Dict[int, Decimal]
-    ) -> List[Decimal]:
+        self, monthly_actuals: dict[int, Decimal]
+    ) -> list[Decimal]:
         """
         Compute 12 monthly budget amounts from prior-year actuals.
 

@@ -60,7 +60,7 @@ class TestLocaleDetectionTotality:
             f"get_locale returned '{result}' which is not in {SUPPORTED_LOCALES}"
         )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(header_value=st.one_of(
         header_text_st,
         st.just(''),

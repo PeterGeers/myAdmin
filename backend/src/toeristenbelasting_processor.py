@@ -1,10 +1,11 @@
+import logging
+import os
+
+from bnb_cache import get_bnb_cache
 from database import DatabaseManager
 from mutaties_cache import get_cache
-from bnb_cache import get_bnb_cache
 from report_generators import toeristenbelasting_generator
 from services.template_service import TemplateService
-import os
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,11 @@ class ToeristenbelastingProcessor:
             # Generate report data using the generator
             report_result = (
                 toeristenbelasting_generator.generate_toeristenbelasting_report(
-                    cache=cache, bnb_cache=bnb_cache, db=self.db, year=year,
-                    tenant=tenant
+                    cache=cache,
+                    bnb_cache=bnb_cache,
+                    db=self.db,
+                    year=year,
+                    tenant=tenant,
                 )
             )
 
@@ -53,7 +57,7 @@ class ToeristenbelastingProcessor:
                     metadata = template_service.get_template_metadata(
                         administration, template_type
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(
                         f"Could not get template metadata from database: {e}"
                     )
@@ -70,7 +74,7 @@ class ToeristenbelastingProcessor:
                         metadata["template_file_id"], administration
                     )
                     field_mappings = metadata.get("field_mappings", {})
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                     # Fallback to filesystem
                     metadata = None
@@ -95,8 +99,7 @@ class ToeristenbelastingProcessor:
                 # Use default field mappings (simple placeholder replacement)
                 field_mappings = {
                     "fields": {
-                        key: {"path": key, "format": "text"}
-                        for key in template_data.keys()
+                        key: {"path": key, "format": "text"} for key in template_data
                     },
                     "formatting": {
                         "locale": "nl_NL",
@@ -113,7 +116,7 @@ class ToeristenbelastingProcessor:
 
             return {"success": True, "html_report": html_report, "data": raw_data}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error generating toeristenbelasting report: {e}", flush=True)
             import traceback
 

@@ -35,6 +35,8 @@ Edge cases handled by callers (verified in Task 3.7):
 
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 def get_closure_aware_start_year(db, administration):
     """Determine the first year to include in balance sheet cumulation.
@@ -71,8 +73,8 @@ def get_closure_aware_start_year(db, administration):
 
         return None
 
-    except Exception as e:
-        logging.warning(
+    except Exception as e:  # noqa: BLE001
+        logger.warning(
             f"Could not determine closure-aware start year for {administration}: {e}. "
             f"Falling back to full cumulation (no lower bound)."
         )

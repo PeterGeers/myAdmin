@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify
 import logging
-from database import DatabaseManager
+
+from flask import Blueprint, jsonify, request
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from database import DatabaseManager
 from utils.date_utils import normalize_dates
 
 logger = logging.getLogger(__name__)
@@ -80,8 +82,8 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -155,8 +157,8 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -205,8 +207,8 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -260,8 +262,8 @@ def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
             }
         )
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -351,8 +353,8 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -388,8 +390,8 @@ def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -430,8 +432,8 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
         normalize_dates(results, ["checkinDate", "checkoutDate"])
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -447,8 +449,8 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
 
-        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
-        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
+        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))  # noqa: DTZ005
+        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
 
         conditions = {
             "channel": request.args.get("channel", "all"),
@@ -488,8 +490,8 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
 
         normalize_dates(results, ["checkinDate", "checkoutDate"])
         return jsonify({"success": True, "data": results})
-    except Exception as e:
-        logger.error(f"Error in endpoint: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -500,8 +502,8 @@ def generate_country_report(user_email, user_roles, tenant, user_tenants):
     """Generate HTML report of bookings by country"""
     try:
         from services.country_report_service import (
-            get_country_report_data,
             generate_country_report_html,
+            get_country_report_data,
         )
 
         # Get data from service
@@ -526,6 +528,6 @@ def generate_country_report(user_email, user_roles, tenant, user_tenants):
         )
         return response
 
-    except Exception as e:
-        logger.error(f"Error generating country report: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error generating country report: {e!s}")
         return jsonify({"success": False, "error": str(e)}), 500

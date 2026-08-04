@@ -13,8 +13,7 @@ Provides:
 import time
 from decimal import Decimal
 
-from services.ai_model_registry import resolver, RegistryError
-
+from services.ai_model_registry import RegistryError, resolver
 
 # The standard extraction prompt template
 EXTRACTION_PROMPT_TEMPLATE = """Extract these 5 fields from this invoice/receipt text:
@@ -49,7 +48,10 @@ def get_prompt_template() -> str:
 
 
 def rerun_with_custom_prompt(
-    text_content: str, custom_prompt: str, vendor_hint: str = None, call_ai_fn=None
+    text_content: str,
+    custom_prompt: str,
+    vendor_hint: str | None = None,
+    call_ai_fn=None,
 ) -> dict:
     """Re-run AI extraction with a custom prompt against already-extracted text.
 
@@ -178,7 +180,7 @@ def rerun_with_custom_prompt(
         # Override feature to match the expected format
         ai_usage_preview["feature"] = "invoice_extraction_rerun"
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         errors.append(
             {
                 "stage": "ai_extraction",
@@ -199,7 +201,7 @@ def rerun_with_custom_prompt(
 
 
 def _call_ai_with_custom_prompt(
-    ai, text_content: str, custom_prompt: str, vendor_hint: str = None
+    ai, text_content: str, custom_prompt: str, vendor_hint: str | None = None
 ) -> dict:
     """Call OpenRouter API with a custom prompt, using the registry fallback chain.
 
@@ -223,8 +225,10 @@ def _call_ai_with_custom_prompt(
     Raises:
         RuntimeError: If all models fail to produce a response at all.
     """
-    import requests as req
     import json
+
+    import requests as req
+
     from services.ai_sanitizer import AISanitizer
 
     sanitizer = AISanitizer()
@@ -354,7 +358,7 @@ Return ONLY valid JSON in this exact format:
             )
             print(f"Custom prompt re-run: {model.model_id} timeout")
             continue
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             model_failures.append(
                 {
                     "model": model.model_id,
@@ -370,7 +374,7 @@ Return ONLY valid JSON in this exact format:
     return {"error": "AI extraction failed: invalid response format"}
 
 
-def get_vendor_history(folder_name: str, administration: str = None) -> list:
+def get_vendor_history(folder_name: str, administration: str | None = None) -> list:
     """Retrieve previous transactions for a vendor (read-only).
 
     Looks up the most recent transactions for the given vendor to provide
@@ -425,7 +429,7 @@ def get_vendor_history(folder_name: str, administration: str = None) -> list:
 
         return result
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Handle vendor not found or any other error gracefully
         print(f"Error retrieving vendor history for '{folder_name}': {e}")
         return []

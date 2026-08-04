@@ -12,46 +12,94 @@ Run the "Full Test Suite" GitHub Actions workflow for both backend and frontend.
 
 ```bash
 cd /home/peter/projects/myAdmin
-gh workflow run "Full Test Suite" --field scope=both
+gh workflow run "Full Test Suite" --field scope=both --ref $(git branch --show-current)
 ```
 
-Wait for completion and download the reports:
+Wait for completion:
 
 ```bash
-gh run list --workflow="Full Test Suite" --limit 1 --json databaseId -q ".[0].databaseId" | xargs -I{} gh run download {} --dir /tmp/test-reports
+# Poll until completed
+gh run list --workflow=full-test-suite.yml --limit=1 --json status,conclusion,databaseId 2>&1 | head -5
 ```
 
-### Step 2: Analyze test failures
+Download the artifacts:
 
-Read the downloaded reports (`/tmp/test-reports/backend-test-reports/test-output.txt` and `/tmp/test-reports/frontend-test-reports/test-output.txt`). Extract:
+```bash
+RUN_ID=$(gh run list --workflow=full-test-suite.yml --limit=1 --json databaseId --jq '.[0].databaseId' 2>&1 | head -1)
+gh run download $RUN_ID --dir /tmp/test-reports
+```
+
+### Step 2: Analyze test failures from downloaded reports
+
+Read the actual report files — do NOT parse log streams or use `--log`:
+
+```bash
+# Backend test summary
+cat /tmp/test-reports/backend-test-reports/test-output.txt | grep -E "(FAILED|PASSED|ERROR|passed|failed)" | tail -20
+
+# Frontend test summary
+cat /tmp/test-reports/frontend-test-reports/SUMMARY.md
+
+# Backend failures detail
+cat /tmp/test-reports/backend-test-reports/test-output.txt | grep "FAILED"
+```
+
+Extract:
 
 - Total tests passed / failed / errored per suite
-- List of each failing test file with the error type (import error, assertion failure, missing fixture, env var)
+- List of each failing test with error type (Flaky, AssertionError, ImportError, etc.)
 - Group failures by root cause
 
-### Step 3: Local code quality scan
+### Step 3: Analyze Backend Lint & Static Analysis
+
+The CI now generates a downloadable `backend-lint-reports` artifact. Read it:
+
+```bash
+# Reports are in /tmp/test-reports/backend-lint-reports/
+cat /tmp/test-reports/backend-lint-reports/SUMMARY.md
+cat /tmp/test-reports/backend-lint-reports/ruff-lint.md
+cat /tmp/test-reports/backend-lint-reports/ruff-format.md
+cat /tmp/test-reports/backend-lint-reports/vulture.md
+```
+
+If the lint artifact is missing (older workflow version), fall back to log parsing:
+
+```bash
+LINT_JOB_ID=$(gh run view $RUN_ID --json jobs --jq '.jobs[] | select(.name=="Backend Lint & Static Analysis") | .databaseId' 2>&1 | head -1)
+gh run view $RUN_ID --log --job=$LINT_JOB_ID 2>&1 | grep "##\[error\]" | sed 's/.*##\[error\]//' | cut -d: -f4 | sort | uniq -c | sort -rn > /tmp/test-reports/ruff-summary.txt
+cat /tmp/test-reports/ruff-summary.txt
+```
+
+Include in the spec:
+
+- Total ruff errors by rule code
+- Which rules are auto-fixable vs manual
+- Whether it's a version mismatch (local vs CI ruff version)
+
+### Step 4: Local code quality scan
 
 Run these locally and capture output:
 
 1. **File length**: Find all `.py` files in `backend/src/`, `backend/src/routes/`, `backend/src/services/` and all `.ts`/`.tsx` files in `frontend/src/` exceeding 500 lines. Flag files over 1000 lines as critical.
 
-2. **Dead code**: Run `vulture backend/src/ --min-confidence 80 --exclude validate_pattern/` and capture findings.
+2. **Dead code**: Run `vulture backend/src/ backend/vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/` and capture findings.
 
 3. **Missing tests**: Find backend modules (`backend/src/*.py`, `backend/src/routes/*.py`, `backend/src/services/*.py`) without corresponding test files. Find frontend components without matching test files.
 
 4. **Type safety**: Check for Python functions in services/routes missing type hints. Check for TypeScript `any` usage in `frontend/src/`.
 
-5. **Stale documentation**: Check if `Manuals/` and `manualsSysAdm/` files reference removed features or outdated workflows. Check for code comments referencing removed functionality or old file paths.
+5. **Ruff version alignment**: Compare local `ruff --version` with CI version (check workflow file or CI logs). If mismatched, note in findings.
 
 Exclude: test files, `.venv/`, `node_modules/`, `__pycache__/`, `build/`, `dist/`, `.hypothesis/`, `mysql_data/`.
 
-### Step 4: Generate the spec
+### Step 5: Generate the spec
 
-Create a new spec at `.kiro/specs/code-quality-fixes-YYYY-MM-DD/` (use today's date) containing:
+Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YYYY-MM-DD/` (use today's date) containing:
 
 **requirements.md**: Summary of all findings with counts:
 
 - Test failures: X backend, Y frontend (grouped by root cause)
+- Lint failures: N ruff errors (grouped by rule code, auto-fixable vs manual)
 - File length violations: N files over 500 lines, M over 1000
 - Dead code: N items
 - Missing test coverage: N modules without tests
@@ -61,7 +109,7 @@ Create a new spec at `.kiro/specs/code-quality-fixes-YYYY-MM-DD/` (use today's d
 **tasks.md**: Actionable fix tasks grouped by priority:
 
 1. **Critical** — test import errors and broken fixtures (tests that can't even collect)
-2. **High** — test assertion failures (tests that run but fail)
+2. **High** — test assertion failures (tests that run but fail), ruff lint errors (CI-blocking)
 3. **Medium** — file length violations over 1000 lines, dead code removal
 4. **Low** — missing test coverage, type hints, stale documentation, files 500-1000 lines
 
@@ -69,7 +117,7 @@ Each task should have: file path, specific action, estimated effort (S/M/L).
 
 Do NOT fix the issues — only generate the spec with the analysis and task list.
 
-### Step 5: Compare with previous run
+### Step 6: Compare with previous run
 
 Check `.kiro/specs/code-quality-maintenance/` for the most recent previous spec (e.g. `code-quality-fixes-YYYY-MM-DD/`). If one exists:
 
@@ -78,9 +126,30 @@ Check `.kiro/specs/code-quality-maintenance/` for the most recent previous spec 
 3. Identify **new failures introduced by the previous fix sprint** (regression from refactoring).
 4. Add a "Lessons / Recurring Issues" section to requirements.md noting patterns that keep coming back.
 
+### Step 7: Clean up downloaded reports
+
+After generating the spec, remove temporary files:
+
+```bash
+rm -rf /tmp/test-reports
+```
+
 ---
 
-## Lessons Learned (from 2026-06-27 → 2026-06-29 cycle)
+## Terminal Rules
+
+**CRITICAL: All terminal commands must use bash/Linux syntax.**
+
+- The workspace runs on WSL Ubuntu at `/home/peter/projects/myAdmin`
+- Use `cat`, `grep`, `wc -l`, `head`, `tail`, `sed`, `find`, `sort`, `uniq` — standard Linux tools
+- Use `2>&1 | head -N` or `2>&1 | tail -N` to limit output (avoids pager issues)
+- NEVER use PowerShell cmdlets, Windows paths, or `Get-Content`
+- Always pipe through `head`/`tail` to prevent `less`/pager from blocking the terminal
+- Set `GH_PAGER=""` if `gh` commands hang on output
+
+---
+
+## Lessons Learned (from 2026-06-27 → 2026-06-29 → 2026-08-03 cycles)
 
 These rules must be followed when executing the generated tasks:
 
@@ -105,10 +174,11 @@ When changing a default value (e.g. storage provider, API endpoint, response for
 The final implicit task of any quality spec is: "Full Test Suite passes with 0 failures." If CI still shows failures after all tasks are checked off, the spec is not done. Add a verification step:
 
 ```bash
-gh workflow run "Full Test Suite" --field scope=both
+gh workflow run "Full Test Suite" --field scope=both --ref $(git branch --show-current)
 # Wait for completion, then verify:
 # Backend: 0 failures
 # Frontend: 0 failures
+# Lint: 0 errors
 ```
 
 Only then close the spec.
@@ -123,3 +193,65 @@ Verify: npx vitest run src/components/TenantAdmin/ChartOfAccounts.test.tsx (expe
 ```
 
 This prevents marking tasks done without confirming the fix works.
+
+### Rule 7: Always run the Full Test Suite on the feature branch — not main
+
+When triggering `gh workflow run`, always specify `--ref <feature-branch>`. Running on main tests code that doesn't include your changes.
+
+### Rule 8: Pin ruff version — or check CI version first
+
+The CI installs ruff via `pip install ruff` (latest). Before running local lint checks, verify your local ruff version matches CI. If there's a mismatch:
+
+```bash
+# Check CI version from workflow logs or install the same:
+pip install ruff==<ci-version>
+```
+
+A ruff version upgrade can introduce hundreds of new rules. The fix strategy is:
+
+1. `ruff check src/ --fix --unsafe-fixes` (auto-fix what's possible)
+2. `ruff check src/ --add-noqa` (suppress intentional patterns)
+3. `ruff format src/` (fix formatting)
+4. Manually fix remaining misplaced `noqa` comments
+
+### Rule 9: Read CI artifacts (zip reports) — don't scrape log streams
+
+The CI generates downloadable report artifacts (test-output.txt, SUMMARY.md, junit-results.xml). Always download and read these with `cat`/`grep` rather than parsing raw log output with `gh run view --log`. Log streams are noisy, paginated, and unreliable.
+
+### Rule 10: Commit and push before triggering CI
+
+The Full Test Suite runs against committed code on GitHub. Local changes that haven't been pushed will NOT be tested. Always:
+
+1. Fix the issues locally
+2. Verify locally (ruff check, pytest, etc.)
+3. `git add -A && git commit && git push`
+4. THEN trigger the workflow on the feature branch
+
+### Rule 11: Hypothesis flaky tests are chronic — fix aggressively
+
+Every Hypothesis property test in CI should have `@settings(derandomize=True, deadline=None)`. CI timing variability means:
+
+- `deadline=200ms` will fail randomly (tests take 300-600ms on CI runners)
+- Without `derandomize=True`, tests falsify non-deterministically
+
+When a Hypothesis test fails as "Flaky", add BOTH `derandomize=True` AND `deadline=None` — not just one.
+
+### Rule 12: Clean up junk files before committing
+
+After terminal issues or pager problems, check for garbage files in the repo root:
+
+```bash
+find . -maxdepth 1 -name "*2>*" -o -name "*cat*" | grep -v .git
+```
+
+Remove them before committing to avoid pre-push hook failures (gitguardian scans all staged files).
+
+### Rule 13: Include Lint & Static Analysis as a blocking task
+
+Ruff lint failures block the CI workflow just like test failures. The tasks.md must include a task for "Ruff lint passes" with the same priority as test failures. The verification is:
+
+```bash
+ruff check src/ --exclude src/validate_pattern/
+ruff format --check src/ --exclude src/validate_pattern/
+vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
+```

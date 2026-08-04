@@ -5,12 +5,14 @@ API endpoints for managing year-end closure configuration including
 account purposes and VAT netting parameters.
 """
 
-from flask import Blueprint, request, jsonify
+import os
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.year_end_config import YearEndConfigService
-import os
 
 year_end_config_bp = Blueprint("year_end_config", __name__)
 
@@ -52,7 +54,7 @@ def validate_tenant_config(
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -80,7 +82,7 @@ def get_tenant_purposes(
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -120,7 +122,7 @@ def set_tenant_account_purpose(
 
         return jsonify({"success": True, "message": message}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -153,7 +155,7 @@ def get_tenant_available_accounts(
 
         return jsonify({"success": True, "accounts": accounts}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -190,7 +192,7 @@ def get_vat_netting_config(
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -239,7 +241,7 @@ def configure_vat_netting(
             {"success": True, "message": "VAT netting configured successfully"}
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -261,7 +263,7 @@ def remove_vat_netting(
             {"success": True, "message": "VAT netting configuration removed"}
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -283,5 +285,5 @@ def get_balance_sheet_accounts(
 
         return jsonify({"success": True, "accounts": accounts}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500

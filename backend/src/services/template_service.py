@@ -7,13 +7,13 @@ This service provides template management for multi-tenant applications,
 supporting XML templates with flexible field mappings stored in the database.
 """
 
-import os
 import json
 import logging
+import os
 import xml.etree.ElementTree as ET
-from typing import Optional, Dict, Any
 from datetime import datetime
 from io import BytesIO
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class TemplateService:
     """
 
     # Mapping of template_type to local default files
-    _LOCAL_DEFAULTS = {
+    _LOCAL_DEFAULTS = {  # noqa: RUF012
         "aangifte_ib_html_report": {
             "template": "html/aangifte_ib_template.html",
             "field_mappings": "html/aangifte_ib_field_mappings.json",
@@ -78,7 +78,7 @@ class TemplateService:
 
     def get_template_metadata(
         self, administration: str, template_type: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get template metadata including field mappings.
 
@@ -132,13 +132,11 @@ class TemplateService:
             # Fall back to local default
             return self._get_local_default_metadata(template_type)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to get template metadata: {e}")
-            raise Exception(f"Failed to retrieve template metadata: {str(e)}")
+            raise Exception(f"Failed to retrieve template metadata: {e!s}")  # noqa: TRY002
 
-    def _get_local_default_metadata(
-        self, template_type: str
-    ) -> Optional[Dict[str, Any]]:
+    def _get_local_default_metadata(self, template_type: str) -> dict[str, Any] | None:
         """
         Return metadata for a local default template.
         Returns None if no local default exists for this template_type.
@@ -167,7 +165,7 @@ class TemplateService:
             try:
                 with open(mappings_path, encoding="utf-8") as f:
                     field_mappings = json.load(f)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"Failed to load local field mappings from {mappings_path}: {e}"
                 )
@@ -185,7 +183,7 @@ class TemplateService:
         }
 
     def fetch_template_from_drive(
-        self, file_id: str, administration: str, local_path: str = None
+        self, file_id: str, administration: str, local_path: str | None = None
     ) -> str:
         """
         Fetch template content from Google Drive or local file.
@@ -205,9 +203,9 @@ class TemplateService:
                     content = f.read()
                 logger.info(f"Loaded local default template from {local_path}")
                 return content
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to read local template {local_path}: {e}")
-                raise Exception(f"Failed to read local template: {str(e)}")
+                raise Exception(f"Failed to read local template: {e!s}")  # noqa: TRY002
 
         # Google Drive path
         try:
@@ -246,12 +244,12 @@ class TemplateService:
 
             return template_content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to fetch template from Google Drive: {e}")
-            raise Exception(f"Failed to fetch template: {str(e)}")
+            raise Exception(f"Failed to fetch template: {e!s}")  # noqa: TRY002
 
     def apply_field_mappings(
-        self, template_xml: str, data: Dict[str, Any], mappings: Dict[str, Any]
+        self, template_xml: str, data: dict[str, Any], mappings: dict[str, Any]
     ) -> str:
         """
         Apply field mappings to template XML.
@@ -295,7 +293,7 @@ class TemplateService:
                         placeholder, str(formatted_value)
                     )
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(
                         f"Failed to apply field mapping for '{field_name}': {e}"
                     )
@@ -312,19 +310,19 @@ class TemplateService:
                     result_template = self._apply_conditional(
                         result_template, data, conditional, fields
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(f"Failed to apply conditional: {e}")
 
             logger.info("Successfully applied field mappings to template")
 
             return result_template
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to apply field mappings: {e}")
-            raise Exception(f"Failed to apply field mappings: {str(e)}")
+            raise Exception(f"Failed to apply field mappings: {e!s}")  # noqa: TRY002
 
     def generate_output(
-        self, template: str, data: Dict[str, Any], output_format: str
+        self, template: str, data: dict[str, Any], output_format: str
     ) -> Any:
         """
         Generate output in specified format from template and data.
@@ -360,14 +358,14 @@ class TemplateService:
             else:
                 raise ValueError(f"Unsupported output format: {output_format}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to generate output: {e}")
-            raise Exception(f"Failed to generate output: {str(e)}")
+            raise Exception(f"Failed to generate output: {e!s}")  # noqa: TRY002
 
     # Helper methods
 
     def _get_field_value(
-        self, data: Dict[str, Any], field_config: Dict[str, Any]
+        self, data: dict[str, Any], field_config: dict[str, Any]
     ) -> Any:
         """
         Get field value from data using path from field config.
@@ -403,15 +401,15 @@ class TemplateService:
 
             return value
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to get field value for path '{path}': {e}")
             return default
 
     def _format_value(
         self,
         value: Any,
-        field_config: Dict[str, Any],
-        global_formatting: Dict[str, Any],
+        field_config: dict[str, Any],
+        global_formatting: dict[str, Any],
     ) -> str:
         """
         Format value according to field config and global formatting rules.
@@ -471,11 +469,11 @@ class TemplateService:
                 return str(value).lower()
             else:
                 return value
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to apply transform '{transform}': {e}")
             return value
 
-    def _format_currency(self, value: Any, formatting: Dict[str, Any]) -> str:
+    def _format_currency(self, value: Any, formatting: dict[str, Any]) -> str:
         """
         Format value as currency.
 
@@ -506,11 +504,11 @@ class TemplateService:
             else:
                 return f"{currency} {formatted}"
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to format currency: {e}")
             return str(value)
 
-    def _format_date(self, value: Any, formatting: Dict[str, Any]) -> str:
+    def _format_date(self, value: Any, formatting: dict[str, Any]) -> str:
         """
         Format value as date.
 
@@ -529,7 +527,7 @@ class TemplateService:
                 # Try common date formats
                 for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y", "%Y/%m/%d"]:
                     try:
-                        date_obj = datetime.strptime(value, fmt)
+                        date_obj = datetime.strptime(value, fmt)  # noqa: DTZ007
                         break
                     except ValueError:
                         continue
@@ -551,11 +549,11 @@ class TemplateService:
             else:
                 return date_obj.strftime("%d-%m-%Y")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to format date: {e}")
             return str(value)
 
-    def _format_number(self, value: Any, formatting: Dict[str, Any]) -> str:
+    def _format_number(self, value: Any, formatting: dict[str, Any]) -> str:
         """
         Format value as number.
 
@@ -577,16 +575,16 @@ class TemplateService:
                 # Format with decimals
                 decimals = formatting.get("number_decimals", 2)
                 return f"{numeric_value:,.{decimals}f}"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to format number: {e}")
             return str(value)
 
     def _apply_conditional(
         self,
         template: str,
-        data: Dict[str, Any],
-        conditional: Dict[str, Any],
-        fields: Dict[str, Any],
+        data: dict[str, Any],
+        conditional: dict[str, Any],
+        fields: dict[str, Any],
     ) -> str:
         """
         Apply conditional logic to template.
@@ -626,7 +624,7 @@ class TemplateService:
 
             return template
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to apply conditional: {e}")
             return template
 
@@ -662,13 +660,13 @@ class TemplateService:
             else:
                 logger.warning(f"Unknown operator: {operator}")
                 return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to evaluate condition: {e}")
             return False
 
     # Output generation methods
 
-    def _generate_html(self, template: str, data: Dict[str, Any]) -> str:
+    def _generate_html(self, template: str, data: dict[str, Any]) -> str:
         """
         Generate HTML output from template.
 
@@ -683,7 +681,7 @@ class TemplateService:
         # Just return as HTML
         return template
 
-    def _generate_xml(self, template: str, data: Dict[str, Any]) -> str:
+    def _generate_xml(self, template: str, data: dict[str, Any]) -> str:
         """
         Generate XML output from template.
 
@@ -705,7 +703,7 @@ class TemplateService:
             # Return anyway, might be partial XML
             return template
 
-    def _generate_excel(self, template: str, data: Dict[str, Any]) -> BytesIO:
+    def _generate_excel(self, template: str, data: dict[str, Any]) -> BytesIO:
         """
         Generate Excel output from template.
 
@@ -721,7 +719,7 @@ class TemplateService:
         logger.warning("Excel generation not yet implemented")
         raise NotImplementedError("Excel generation not yet implemented")
 
-    def _generate_pdf(self, template: str, data: Dict[str, Any]) -> BytesIO:
+    def _generate_pdf(self, template: str, data: dict[str, Any]) -> BytesIO:
         """
         Generate PDF output from template.
 

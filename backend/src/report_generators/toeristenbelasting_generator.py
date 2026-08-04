@@ -23,20 +23,21 @@ Usage:
 """
 
 import logging
-from typing import Dict, Any, List
 from datetime import datetime
+from typing import Any
+
 from report_generators.common_formatters import (
-    format_currency,
-    format_amount,
     escape_html,
+    format_amount,
+    format_currency,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def generate_toeristenbelasting_report(
-    cache: Any, bnb_cache: Any, db: Any, year: int, tenant: str = None
-) -> Dict[str, Any]:
+    cache: Any, bnb_cache: Any, db: Any, year: int, tenant: str | None = None
+) -> dict[str, Any]:
     """
     Generate Toeristenbelasting (Tourist Tax) declaration report data.
 
@@ -142,12 +143,12 @@ def generate_toeristenbelasting_report(
 
         return {"success": True, "template_data": template_data, "raw_data": raw_data}
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to generate Toeristenbelasting report: {e}")
         return {"success": False, "error": str(e)}
 
 
-def _get_configuration() -> Dict[str, Any]:
+def _get_configuration() -> dict[str, Any]:
     """
     Get fixed configuration values for the report.
 
@@ -166,8 +167,8 @@ def _get_configuration() -> Dict[str, Any]:
 
 
 def _get_bnb_data(
-    bnb_cache: Any, db: Any, year: int, tenant: str = None
-) -> Dict[str, List[Dict[str, Any]]]:
+    bnb_cache: Any, db: Any, year: int, tenant: str | None = None
+) -> dict[str, list[dict[str, Any]]]:
     """
     Get BNB booking data for the year.
 
@@ -206,14 +207,14 @@ def _get_bnb_data(
             "realised_bookings": realised_bookings,
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting BNB data: {e}")
         return {"all_bookings": [], "cancelled_bookings": [], "realised_bookings": []}
 
 
 def _calculate_rental_statistics(
-    bnb_data: Dict[str, List[Dict[str, Any]]], aantal_kamers: int
-) -> Dict[str, float]:
+    bnb_data: dict[str, list[dict[str, Any]]], aantal_kamers: int
+) -> dict[str, float]:
     """
     Calculate rental statistics from booking data.
 
@@ -272,10 +273,10 @@ def _get_financial_data(
     cache: Any,
     db: Any,
     year: int,
-    bnb_data: Dict[str, List[Dict[str, Any]]],
+    bnb_data: dict[str, list[dict[str, Any]]],
     tax_rate_service=None,
-    tenant: str = None,
-) -> Dict[str, float]:
+    tenant: str | None = None,
+) -> dict[str, float]:
     """
     Get financial data for the report.
 
@@ -315,7 +316,9 @@ def _get_financial_data(
     ontvangsten_logies_inwoners = 0
 
     # Get service fees from account 4007 (make positive)
-    kortingen_provisie_commissie = abs(_get_service_fees(cache, db, year, tenant=tenant))
+    kortingen_provisie_commissie = abs(
+        _get_service_fees(cache, db, year, tenant=tenant)
+    )
 
     # Calculate no-show revenue: amountGross - amountVat for cancelled bookings
     no_show_omzet = sum(
@@ -334,7 +337,7 @@ def _get_financial_data(
 
 
 def _get_tourist_tax_from_account(
-    cache: Any, db: Any, year: int, tax_rate_service=None, tenant: str = None
+    cache: Any, db: Any, year: int, tax_rate_service=None, tenant: str | None = None
 ) -> float:
     """
     Calculate tourist tax from account 8003 using rate from TaxRateService.
@@ -374,12 +377,14 @@ def _get_tourist_tax_from_account(
 
         return tourist_tax
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error calculating tourist tax: {e}")
         return 0
 
 
-def _get_total_revenue_8003(cache: Any, db: Any, year: int, tenant: str = None) -> float:
+def _get_total_revenue_8003(
+    cache: Any, db: Any, year: int, tenant: str | None = None
+) -> float:
     """
     Get total revenue from account 8003.
 
@@ -400,12 +405,14 @@ def _get_total_revenue_8003(cache: Any, db: Any, year: int, tenant: str = None) 
 
         return df_filtered["Amount"].sum()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting total revenue 8003: {e}")
         return 0
 
 
-def _get_service_fees(cache: Any, db: Any, year: int, tenant: str = None) -> float:
+def _get_service_fees(
+    cache: Any, db: Any, year: int, tenant: str | None = None
+) -> float:
     """
     Get service fees from account 4007 (Service Fee bookingssites).
 
@@ -426,12 +433,12 @@ def _get_service_fees(cache: Any, db: Any, year: int, tenant: str = None) -> flo
 
         return df_filtered["Amount"].sum()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting service fees 4007: {e}")
         return 0
 
 
-def _calculate_taxable_revenue(financial_data: Dict[str, float]) -> Dict[str, float]:
+def _calculate_taxable_revenue(financial_data: dict[str, float]) -> dict[str, float]:
     """
     Calculate taxable revenue components.
 
@@ -470,13 +477,13 @@ def _calculate_taxable_revenue(financial_data: Dict[str, float]) -> Dict[str, fl
 
 def _prepare_template_data(
     year: int,
-    config: Dict[str, Any],
+    config: dict[str, Any],
     periode_van: str,
     periode_tm: str,
-    rental_stats: Dict[str, float],
-    financial_data: Dict[str, float],
-    taxable_revenue: Dict[str, float],
-) -> Dict[str, str]:
+    rental_stats: dict[str, float],
+    financial_data: dict[str, float],
+    taxable_revenue: dict[str, float],
+) -> dict[str, str]:
     """
     Prepare data for template rendering.
 
@@ -496,7 +503,7 @@ def _prepare_template_data(
         Dictionary with template placeholders as keys and formatted values
     """
     next_year = int(year) + 1
-    datum = datetime.now().strftime("%d-%m-%Y")
+    datum = datetime.now().strftime("%d-%m-%Y")  # noqa: DTZ005
 
     return {
         "year": str(year),

@@ -10,7 +10,7 @@ Reference: .kiro/specs/tenant-optional-functions/design.md
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from database import DatabaseManager
 from services.function_registry import FUNCTION_REGISTRY
@@ -59,7 +59,7 @@ class TenantFunctionService:
             if result:
                 return bool(result[0]["is_active"])
             return default
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "DB read failed for function '%s', tenant '%s': %s. "
                 "Falling back to registry default.",
@@ -69,7 +69,7 @@ class TenantFunctionService:
             )
             return default
 
-    def get_all_functions(self, tenant: str) -> List[Dict[str, Any]]:
+    def get_all_functions(self, tenant: str) -> list[dict[str, Any]]:
         """
         Returns all functions with effective state, respecting module activation.
 
@@ -98,7 +98,7 @@ class TenantFunctionService:
             if rows:
                 for row in rows:
                     overrides[row["function_name"]] = bool(row["is_active"])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "DB read failed for tenant '%s' functions: %s. "
                 "Using registry defaults only.",
@@ -135,7 +135,7 @@ class TenantFunctionService:
 
     def set_function_state(
         self, tenant: str, function_name: str, is_active: bool, user_email: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Persists toggle state using INSERT ... ON DUPLICATE KEY UPDATE.
 
@@ -181,7 +181,7 @@ class TenantFunctionService:
                     "is_active": is_active,
                 },
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "DB write failed for function '%s', tenant '%s': %s",
                 function_name,
@@ -195,7 +195,7 @@ class TenantFunctionService:
 
     def is_function_enabled(
         self, tenant: str, function_name: str, module_name: str
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Checks module + function state.
 

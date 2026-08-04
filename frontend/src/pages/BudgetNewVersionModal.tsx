@@ -238,7 +238,7 @@ const BudgetNewVersionModal: React.FC<BudgetNewVersionModalProps> = ({
                   {/* Copy: version selector */}
                   {values.method === 'copy' && (
                     <Field name="source_version_id">
-                      {({ meta }: any) => (
+                      {({ meta }: FieldProps<number>) => (
                         <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                           <FormLabel>{t('labels.sourceVersion')}</FormLabel>
                           <Select

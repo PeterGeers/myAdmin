@@ -8,12 +8,14 @@ API endpoints for tenant provisioning actions:
 Split from sysadmin_tenants.py to keep files under 500 lines.
 """
 
-from flask import Blueprint, request, jsonify
+import logging
+import os
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
-import os
-import logging
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -112,7 +114,7 @@ def reprovision_tenant(user_email, user_roles, administration) -> ResponseReturn
 
         return jsonify(response), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error re-provisioning tenant {administration}: {e}")
         import traceback
 
@@ -176,8 +178,8 @@ def resend_invitation(user_email, user_roles, administration) -> ResponseReturnV
 
         # ── Service instances ───────────────────────────────────────
         from services.cognito_service import CognitoService
-        from services.invitation_service import InvitationService
         from services.email_template_service import EmailTemplateService
+        from services.invitation_service import InvitationService
         from services.ses_email_service import SESEmailService
         from utils.frontend_url import get_frontend_url
 
@@ -305,7 +307,7 @@ def resend_invitation(user_email, user_roles, administration) -> ResponseReturnV
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error resending invitation for {administration}: {e}")
         import traceback
 

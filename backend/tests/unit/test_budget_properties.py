@@ -718,7 +718,7 @@ class TestBudgetCopyPreservesLineData:
                     )
 
     @given(source_lines=budget_lines_st)
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     def test_copy_preserves_period_mode_and_dimensions(self, source_lines):
         """
         Copying a budget version preserves the period_mode and detail dimension

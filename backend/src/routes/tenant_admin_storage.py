@@ -11,16 +11,17 @@ Endpoints:
 - GET /api/tenant-admin/storage/usage - Get storage usage statistics
 """
 
+import logging
+import os
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
-import os
-import logging
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
-from services.storage_resolver import resolve_storage_provider, get_s3_storage
+from services.storage_resolver import get_s3_storage, resolve_storage_provider
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ def list_folders(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error listing folders: {e}")
         import traceback
 
@@ -147,7 +148,7 @@ def get_storage_config(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant, "config": storage_config})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting storage config: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -205,9 +206,9 @@ def update_storage_config(user_email, user_roles) -> ResponseReturnValue:
                         Bucket=storage.bucket,
                         Key=test_key,
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     return jsonify(
-                        {"error": f"S3 storage validation failed: {str(e)}"}
+                        {"error": f"S3 storage validation failed: {e!s}"}
                     ), 400
             elif folder_ids:
                 # Google Drive validation: test folder accessibility
@@ -220,10 +221,8 @@ def update_storage_config(user_email, user_roles) -> ResponseReturnValue:
                             pageSize=1,
                             fields="files(id)",
                         ).execute()
-                except Exception as e:
-                    return jsonify(
-                        {"error": f"Folder validation failed: {str(e)}"}
-                    ), 400
+                except Exception as e:  # noqa: BLE001
+                    return jsonify({"error": f"Folder validation failed: {e!s}"}), 400
 
         # Update configuration in tenant_config table
         test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
@@ -273,7 +272,7 @@ def update_storage_config(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating storage config: {e}")
         import traceback
 
@@ -323,7 +322,7 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
                 # Test read access via head_bucket
                 storage._client.head_bucket(Bucket=storage.bucket)
                 read_access = True
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 read_error = str(e)
 
             # Test write access via put_object/delete_object cycle
@@ -340,7 +339,7 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
                         Key=test_key,
                     )
                     write_access = True
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     write_error = str(e)
 
             # Build response
@@ -381,7 +380,7 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
             files = results.get("files", [])
             read_access = True
             file_count = len(files)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             read_access = False
             file_count = 0
             read_error = str(e)
@@ -405,10 +404,10 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
             # Clean up - delete test file
             try:
                 drive_service.service.files().delete(fileId=test_file_id).execute()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass  # Ignore cleanup errors
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             write_error = str(e)
 
         # Build response
@@ -432,7 +431,7 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant, "test_result": test_result})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error testing folder access: {e}")
         import traceback
 
@@ -587,7 +586,7 @@ def get_storage_usage(user_email, user_roles) -> ResponseReturnValue:
                     "accessible": True,
                 }
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Error getting usage for folder {config_key}: {e}")
                 usage_stats[config_key] = {
                     "folder_id": folder_id,
@@ -602,7 +601,7 @@ def get_storage_usage(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant, "usage": usage_stats})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting storage usage: {e}")
         import traceback
 

@@ -8,9 +8,8 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
 import logging
-import uuid
 import os
-from typing import List
+import uuid
 
 import boto3
 from botocore.exceptions import ClientError
@@ -57,7 +56,7 @@ class S3TenantStorage(StorageProvider):
             region_name=creds.get("region", "eu-west-1"),
         )
 
-    def upload(self, file_data: bytes, path: str, metadata: dict = None) -> str:
+    def upload(self, file_data: bytes, path: str, metadata: dict | None = None) -> str:
         """Upload file to tenant's S3 bucket. Returns the S3 key."""
         metadata = metadata or {}
         ref = metadata.get("reference_number", "general")
@@ -84,7 +83,7 @@ class S3TenantStorage(StorageProvider):
             logger.error("Failed to delete s3://%s/%s: %s", self.bucket, reference, e)
             return False
 
-    def list_files(self, path: str) -> List[dict]:
+    def list_files(self, path: str) -> list[dict]:
         """List files under a prefix in tenant's bucket."""
         prefix = path if path.endswith("/") else path + "/"
         try:

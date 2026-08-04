@@ -4,8 +4,7 @@ Provides reusable style definitions and cell formatting functions
 used by the XLSX export processor.
 """
 
-from openpyxl.styles import Font, Border, Side
-
+from openpyxl.styles import Border, Font, Side
 
 # --- Style Definitions ---
 

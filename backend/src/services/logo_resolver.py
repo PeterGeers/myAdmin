@@ -10,13 +10,12 @@ duplicating logo fetch logic across multiple modules.
 Reference: .kiro/specs/s3-shared-bucket-infrastructure/design.md §Provider-Aware Logo Resolution
 """
 
-import os
 import base64
 import logging
-from typing import Optional
+import os
 
-import requests
 import boto3
+import requests
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def resolve_tenant_logo(
     tenant: str, branding_namespace: str, parameter_service, db=None
-) -> Optional[str]:
+) -> str | None:
     """
     Resolve company logo as base64 data URI based on storage provider.
 
@@ -46,7 +45,7 @@ def resolve_tenant_logo(
         provider = parameter_service.get_param(
             "storage", "invoice_provider", tenant=tenant
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(
             "Could not read storage.invoice_provider for tenant %s: %s", tenant, e
         )
@@ -68,7 +67,7 @@ def resolve_tenant_logo(
 
 def _resolve_google_drive_logo(
     tenant: str, branding_namespace: str, parameter_service
-) -> Optional[str]:
+) -> str | None:
     """Fetch logo from Google Drive via lh3.googleusercontent.com."""
     logo_file_id = parameter_service.get_param(
         branding_namespace, "company_logo_file_id", tenant=tenant
@@ -90,14 +89,14 @@ def _resolve_google_drive_logo(
                 tenant,
             )
             return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Could not fetch Google Drive logo for tenant %s: %s", tenant, e)
         return None
 
 
 def _resolve_s3_logo(
     tenant: str, branding_namespace: str, parameter_service
-) -> Optional[str]:
+) -> str | None:
     """Fetch logo from S3 bucket using company_logo_s3_key parameter."""
     s3_key = parameter_service.get_param(
         branding_namespace, "company_logo_s3_key", tenant=tenant
@@ -124,6 +123,6 @@ def _resolve_s3_logo(
             "S3 ClientError fetching logo for tenant %s (key=%s): %s", tenant, s3_key, e
         )
         return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Could not fetch S3 logo for tenant %s: %s", tenant, e)
         return None

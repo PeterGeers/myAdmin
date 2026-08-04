@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Pattern Storage Module for Banking Transactions
 
@@ -15,18 +14,19 @@ They do NOT detect patterns or score/rank them.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Any
+
 from database import DatabaseManager
 from dialect_helpers import dialect
-from pattern_scoring import calculate_statistics_from_db_patterns
 from pattern_detection import MAJORITY_VOTING_THRESHOLD
+from pattern_scoring import calculate_statistics_from_db_patterns
 
 
 def build_cache_key(
     administration: str,
-    reference_number: Optional[str] = None,
-    debet_account: Optional[str] = None,
-    credit_account: Optional[str] = None,
+    reference_number: str | None = None,
+    debet_account: str | None = None,
+    credit_account: str | None = None,
 ) -> str:
     """Build cache key for filtered patterns"""
     key_parts = [administration]
@@ -42,8 +42,8 @@ def build_cache_key(
 def store_verb_patterns_to_database(
     db: DatabaseManager,
     administration: str,
-    verb_patterns: Dict,
-    analysis_metadata: Dict,
+    verb_patterns: dict,
+    analysis_metadata: dict,
     is_incremental: bool = False,
 ) -> None:
     """
@@ -70,10 +70,12 @@ def store_verb_patterns_to_database(
                 # Log the exclusion with competing account info
                 variants_info = pattern.get("_variants", {})
                 if variants_info:
-                    competing = {str(k): v["occurrences"] for k, v in variants_info.items()}
+                    competing = {
+                        str(k): v["occurrences"] for k, v in variants_info.items()
+                    }
                     print(
                         f"⚠️ Skipping ambiguous pattern '{pattern_key}': "
-                        f"no combination exceeds {MAJORITY_VOTING_THRESHOLD*100:.0f}% threshold. "
+                        f"no combination exceeds {MAJORITY_VOTING_THRESHOLD * 100:.0f}% threshold. "
                         f"Competing accounts: {competing}"
                     )
                 else:
@@ -198,7 +200,7 @@ def store_verb_patterns_to_database(
 
 def load_patterns_from_database(
     db: DatabaseManager, administration: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Load patterns from database storage using unified pattern_verb_patterns table
 
@@ -286,7 +288,7 @@ def load_patterns_from_database(
         print(f"✅ Loaded {result['patterns_discovered']} patterns from database")
         return result
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"❌ Error loading patterns from database: {e}")
         # Fallback to empty patterns
         return {
@@ -322,16 +324,16 @@ def should_refresh_patterns(db: DatabaseManager, administration: str) -> bool:
             return True
 
         # Refresh if last analysis was more than 24 hours ago
-        return datetime.now() - last_analysis > timedelta(hours=24)
+        return datetime.now() - last_analysis > timedelta(hours=24)  # noqa: DTZ005
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Warning: Could not check pattern refresh status: {e}")
         return True  # Default to refresh on error
 
 
 def get_cache_performance_stats(
     db: DatabaseManager, administration: str, persistent_cache
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get comprehensive cache performance statistics
 
@@ -364,7 +366,7 @@ def get_cache_performance_stats(
 
 def get_incremental_update_stats(
     db: DatabaseManager, administration: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get statistics about incremental pattern updates
 
@@ -475,7 +477,7 @@ def get_incremental_update_stats(
             },
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "administration": administration,
             "incremental_updates_available": False,
@@ -485,7 +487,7 @@ def get_incremental_update_stats(
 
 def get_pattern_storage_stats(
     db: DatabaseManager, administration: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get statistics about pattern storage performance using unified pattern_verb_patterns table
 
@@ -553,7 +555,7 @@ def get_pattern_storage_stats(
             "unified_table_approach": True,
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "error": f"Could not retrieve storage stats: {e}",
             "database_storage_active": False,

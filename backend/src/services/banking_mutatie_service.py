@@ -9,7 +9,7 @@ Provides:
 - update_mutatie(): Single record update with tenant validation
 """
 
-from typing import Dict, Any, List
+from typing import Any
 
 from database import DatabaseManager
 
@@ -21,8 +21,8 @@ class BankingMutatieService:
         self.test_mode = test_mode
 
     def get_mutaties(
-        self, filters: Dict[str, Any], tenant: str, user_tenants: List[str]
-    ) -> Dict[str, Any]:
+        self, filters: dict[str, Any], tenant: str, user_tenants: list[str]
+    ) -> dict[str, Any]:
         """Get mutaties with filters.
 
         Args:
@@ -40,7 +40,7 @@ class BankingMutatieService:
             table_name = "mutaties_test" if self.test_mode else "mutaties"
 
             # Get filter parameters
-            years = filters.get("years", [str(datetime.now().year)])
+            years = filters.get("years", [str(datetime.now().year)])  # noqa: DTZ005
             administration = filters.get("administration", "all")
             limit = int(filters.get("limit", 1000))
             offset = int(filters.get("offset", 0))
@@ -129,13 +129,13 @@ class BankingMutatieService:
                 "table": table_name,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Get mutaties error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
     def update_mutatie(
-        self, mutatie_id: int, data: Dict[str, Any], tenant: str
-    ) -> Dict[str, Any]:
+        self, mutatie_id: int, data: dict[str, Any], tenant: str
+    ) -> dict[str, Any]:
         """Update a mutatie record.
 
         Args:
@@ -195,7 +195,7 @@ class BankingMutatieService:
             # Convert date to proper format
             transaction_date = data.get("TransactionDate")
             if transaction_date and "GMT" in str(transaction_date):
-                transaction_date = datetime.strptime(
+                transaction_date = datetime.strptime(  # noqa: DTZ007
                     transaction_date, "%a, %d %b %Y %H:%M:%S %Z"
                 ).strftime("%Y-%m-%d")
 
@@ -232,7 +232,7 @@ class BankingMutatieService:
                 "message": f"Record {mutatie_id} updated successfully",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Update error: {e}", flush=True)
             import traceback
 

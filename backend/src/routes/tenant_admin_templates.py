@@ -15,11 +15,12 @@ Endpoints:
 - DELETE /api/tenant-admin/templates/<template_type> - Delete (deactivate) template
 """
 
-from flask import Blueprint, request, jsonify
-from flask.typing import ResponseReturnValue
-import os
 import json
 import logging
+import os
+
+from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import (
@@ -125,8 +126,8 @@ def get_current_template_endpoint(
         # Fetch template content from configured storage backend
         try:
             from services.storage_resolver import (
-                resolve_storage_provider,
                 get_s3_storage,
+                resolve_storage_provider,
             )
 
             provider = resolve_storage_provider(tenant)
@@ -141,7 +142,7 @@ def get_current_template_endpoint(
 
                 drive_service = GoogleDriveService(administration=tenant)
                 template_content = drive_service.download_file_content(file_id)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error fetching template content: {e}")
             return jsonify(
                 {
@@ -156,7 +157,7 @@ def get_current_template_endpoint(
         if isinstance(field_mappings, str):
             try:
                 field_mappings = json.loads(field_mappings)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 field_mappings = {}
 
         logger.info(
@@ -183,7 +184,7 @@ def get_current_template_endpoint(
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting current template: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -262,7 +263,7 @@ def get_default_template_endpoint(
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting default template: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -322,7 +323,7 @@ def preview_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error generating template preview: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -379,7 +380,7 @@ def validate_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error validating template: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -451,7 +452,7 @@ def approve_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
         else:
             return jsonify(result), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error approving template: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -492,10 +493,10 @@ def reject_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "message": "Template rejection logged"}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error rejecting template: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 
 # Re-export for backward compatibility with tests
-from routes.tenant_admin_template_ai_routes import _get_generic_help  # noqa: F401, E402
+from routes.tenant_admin_template_ai_routes import _get_generic_help  # noqa: F401

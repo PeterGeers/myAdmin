@@ -22,19 +22,20 @@ Usage:
 """
 
 import logging
-from typing import List, Dict, Any
-from report_generators.common_formatters import format_amount, safe_float, escape_html
+from typing import Any
+
+from report_generators.common_formatters import escape_html, format_amount, safe_float
 
 logger = logging.getLogger(__name__)
 
 
 def generate_table_rows(
-    report_data: List[Dict[str, Any]],
+    report_data: list[dict[str, Any]],
     cache: Any,
     year: int,
     administration: str,
-    user_tenants: List[str],
-) -> List[Dict[str, Any]]:
+    user_tenants: list[str],
+) -> list[dict[str, Any]]:
     """
     Generate hierarchical table rows for Aangifte IB report.
 
@@ -159,8 +160,8 @@ def generate_table_rows(
 
 
 def _group_by_parent(
-    report_data: List[Dict[str, Any]],
-) -> Dict[str, List[Dict[str, Any]]]:
+    report_data: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
     """
     Group report data by Parent code.
 
@@ -179,7 +180,7 @@ def _group_by_parent(
     return grouped
 
 
-def _create_parent_row(parent: str, amount: float) -> Dict[str, Any]:
+def _create_parent_row(parent: str, amount: float) -> dict[str, Any]:
     """
     Create a parent-level row.
 
@@ -202,7 +203,7 @@ def _create_parent_row(parent: str, amount: float) -> Dict[str, Any]:
     }
 
 
-def _create_aangifte_row(aangifte: str, amount: float) -> Dict[str, Any]:
+def _create_aangifte_row(aangifte: str, amount: float) -> dict[str, Any]:
     """
     Create an aangifte-level row.
 
@@ -227,7 +228,7 @@ def _create_aangifte_row(aangifte: str, amount: float) -> Dict[str, Any]:
 
 def _create_account_row(
     reknum: str, account_name: str, amount: float
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Create an account-level row.
 
@@ -251,7 +252,7 @@ def _create_account_row(
     }
 
 
-def _create_resultaat_row(amount: float) -> Dict[str, Any]:
+def _create_resultaat_row(amount: float) -> dict[str, Any]:
     """
     Create the resultaat (result) row.
 
@@ -275,7 +276,7 @@ def _create_resultaat_row(amount: float) -> Dict[str, Any]:
     }
 
 
-def _create_grand_total_row(amount: float) -> Dict[str, Any]:
+def _create_grand_total_row(amount: float) -> dict[str, Any]:
     """
     Create the grand total row.
 
@@ -303,8 +304,8 @@ def _fetch_and_create_account_rows(
     administration: str,
     parent: str,
     aangifte: str,
-    user_tenants: List[str],
-) -> List[Dict[str, Any]]:
+    user_tenants: list[str],
+) -> list[dict[str, Any]]:
     """
     Fetch account details from cache and create account rows.
 
@@ -345,7 +346,7 @@ def _fetch_and_create_account_rows(
             account_row = _create_account_row(reknum, account_name, detail_amount)
             account_rows.append(account_row)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error fetching details for {parent}-{aangifte}: {e}")
         # Continue processing - don't fail the entire report for one error
 

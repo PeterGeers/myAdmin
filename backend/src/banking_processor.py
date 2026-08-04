@@ -7,15 +7,17 @@ for bank statement files (Rabobank, Revolut, generic).
 Banking account checks (balance verification, sequence gaps) are in banking_checks.py.
 """
 
-import pandas as pd
 import glob
 import os
+import unicodedata
 from datetime import datetime
+
+import pandas as pd
+
+from banking_checks import BankingChecks, _get_opening_balance_date  # noqa: F401
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 from pattern_analyzer import PatternAnalyzer
-from banking_checks import BankingChecks, _get_opening_balance_date  # noqa: F401
-import unicodedata
 
 
 class BankingProcessor:
@@ -59,13 +61,13 @@ class BankingProcessor:
 
             # Map Rabobank columns to standard format
             standard_columns = {
-                "TransactionNumber": f"Rabo {datetime.now().strftime('%Y-%m-%d')}",
+                "TransactionNumber": f"Rabo {datetime.now().strftime('%Y-%m-%d')}",  # noqa: DTZ005
                 "TransactionDate": df.iloc[:, 4] if len(df.columns) > 4 else "",
                 "TransactionDescription": "",
                 "TransactionAmount": df.iloc[:, 6] if len(df.columns) > 6 else "",
                 "Debet": "",
                 "Credit": "",
-                "ReferenceNumber": f"Rabo {datetime.now().strftime('%Y-%m-%d')}",
+                "ReferenceNumber": f"Rabo {datetime.now().strftime('%Y-%m-%d')}",  # noqa: DTZ005
                 "Ref1": df.iloc[:, 0] if len(df.columns) > 0 else "",
                 "Ref2": df.iloc[:, 3] if len(df.columns) > 3 else "",
                 "Ref3": "",
@@ -103,7 +105,7 @@ class BankingProcessor:
 
             return pd.DataFrame(standard_columns)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error reading Rabo CSV {file_path}: {e}")
             return pd.DataFrame()
 
@@ -119,13 +121,13 @@ class BankingProcessor:
             desc_col = self.find_column(df, ["description", "omschrijving", "memo"])
 
             standard_data = {
-                "TransactionNumber": f"Import {datetime.now().strftime('%Y-%m-%d')}",
+                "TransactionNumber": f"Import {datetime.now().strftime('%Y-%m-%d')}",  # noqa: DTZ005
                 "TransactionDate": df[date_col] if date_col else "",
                 "TransactionDescription": df[desc_col] if desc_col else "",
                 "TransactionAmount": df[amount_col] if amount_col else 0,
                 "Debet": "",
                 "Credit": "",
-                "ReferenceNumber": f"Import {datetime.now().strftime('%Y-%m-%d')}",
+                "ReferenceNumber": f"Import {datetime.now().strftime('%Y-%m-%d')}",  # noqa: DTZ005
                 "Ref1": "",
                 "Ref2": "",
                 "Ref3": "",
@@ -135,7 +137,7 @@ class BankingProcessor:
 
             return pd.DataFrame(standard_data)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error reading generic CSV {file_path}: {e}")
             return pd.DataFrame()
 
@@ -301,7 +303,7 @@ class BankingProcessor:
                 self.db.insert_transaction(transaction, table_name)
                 saved_count += 1
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Error saving transaction: {e}")
 
         cursor.close()
@@ -377,7 +379,7 @@ class BankingProcessor:
 
         except Exception as e:
             print(f"❌ Pattern analysis failed: {e}")
-            raise e
+            raise
 
     def apply_enhanced_patterns(self, transactions, administration):
         """Apply enhanced pattern matching to predict missing values."""
@@ -407,7 +409,7 @@ class BankingProcessor:
 
         except Exception as e:
             print(f"❌ Enhanced pattern application failed: {e}")
-            raise e
+            raise
 
     def get_pattern_summary(self, administration):
         """Get a summary of discovered patterns for an administration"""
@@ -415,4 +417,4 @@ class BankingProcessor:
             return self.pattern_analyzer.get_pattern_summary(administration)
         except Exception as e:
             print(f"❌ Failed to get pattern summary: {e}")
-            raise e
+            raise

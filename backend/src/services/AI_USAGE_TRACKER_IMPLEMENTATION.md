@@ -58,12 +58,11 @@ Implemented the `AIUsageTracker` service to track AI API usage and associated co
 
 ```python
 # Extract from API response
-tokens_used = ai_response['usage']['total_tokens']
+tokens_used = ai_response["usage"]["total_tokens"]
 
 # Fallback calculation if total_tokens not provided
 tokens_used = (
-    ai_response['usage']['prompt_tokens'] +
-    ai_response['usage']['completion_tokens']
+    ai_response["usage"]["prompt_tokens"] + ai_response["usage"]["completion_tokens"]
 )
 ```
 
@@ -170,14 +169,14 @@ tracker = AIUsageTracker(db)
 
 # Log AI request
 tracker.log_ai_request(
-    administration='GoodwinSolutions',
-    template_type='str_invoice_nl',
+    administration="GoodwinSolutions",
+    template_type="str_invoice_nl",
     tokens_used=1500,
-    model_used='google/gemini-flash-1.5'
+    model_used="google/gemini-flash-1.5",
 )
 
 # Get usage summary
-summary = tracker.get_usage_summary('GoodwinSolutions', days=30)
+summary = tracker.get_usage_summary("GoodwinSolutions", days=30)
 print(f"Total requests: {summary['total_requests']}")
 print(f"Total tokens: {summary['total_tokens']}")
 print(f"Total cost: ${summary['total_cost']}")
@@ -193,11 +192,11 @@ assistant = AITemplateAssistant(db=db)
 
 # Get fix suggestions (usage is logged automatically)
 result = assistant.get_fix_suggestions(
-    template_type='str_invoice_nl',
+    template_type="str_invoice_nl",
     template_content=template_html,
     validation_errors=errors,
-    required_placeholders=['invoice_number', 'guest_name'],
-    administration='GoodwinSolutions'  # Required for tracking
+    required_placeholders=["invoice_number", "guest_name"],
+    administration="GoodwinSolutions",  # Required for tracking
 )
 
 # Check tokens used

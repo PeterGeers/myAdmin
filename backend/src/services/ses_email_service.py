@@ -5,14 +5,14 @@ Sends user-facing emails (invitations, password resets) via AWS SES.
 Admin/system notifications remain on SNS (aws_notifications.py).
 """
 
-import os
-import boto3
 import logging
+import os
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+
+import boto3
 from botocore.exceptions import ClientError
-from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def _get_email_log():
 class SESEmailService:
     """Send emails directly to recipients via AWS SES"""
 
-    def __init__(self, region: Optional[str] = None):
+    def __init__(self, region: str | None = None):
         self.region = region or os.getenv("AWS_REGION", "eu-west-1")
         self.sender = os.getenv("SES_SENDER_EMAIL", "support@jabaki.nl")
         self.reply_to = os.getenv("SES_REPLY_TO_EMAIL", self.sender)
@@ -52,12 +52,12 @@ class SESEmailService:
         self,
         to_email: str,
         subject: str,
-        html_body: Optional[str] = None,
-        text_body: Optional[str] = None,
-        email_type: Optional[str] = None,
-        administration: Optional[str] = None,
-        sent_by: Optional[str] = None,
-    ) -> Dict:
+        html_body: str | None = None,
+        text_body: str | None = None,
+        email_type: str | None = None,
+        administration: str | None = None,
+        sent_by: str | None = None,
+    ) -> dict:
         """
         Send email to a specific recipient.
 
@@ -114,7 +114,7 @@ class SESEmailService:
                         subject=subject,
                         sent_by=sent_by,
                     )
-                except Exception as log_err:
+                except Exception as log_err:  # noqa: BLE001
                     logger.warning(f"Email sent but logging failed: {log_err}")
 
             return {"success": True, "message_id": message_id}
@@ -134,12 +134,12 @@ class SESEmailService:
                         error_message=f"{error_code}: {error_msg}",
                         sent_by=sent_by,
                     )
-                except Exception as log_err:
+                except Exception as log_err:  # noqa: BLE001
                     logger.warning(f"Email failed and logging also failed: {log_err}")
 
             return {"success": False, "error": f"{error_code}: {error_msg}"}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Unexpected error sending email to {to_email}: {e}")
             return {"success": False, "error": str(e)}
 
@@ -147,11 +147,11 @@ class SESEmailService:
         self,
         to_email: str,
         subject: str,
-        html_body: Optional[str] = None,
-        text_body: Optional[str] = None,
-        administration: Optional[str] = None,
-        sent_by: Optional[str] = None,
-    ) -> Dict:
+        html_body: str | None = None,
+        text_body: str | None = None,
+        administration: str | None = None,
+        sent_by: str | None = None,
+    ) -> dict:
         """Send invitation email with invitation-specific logging."""
         logger.info(f"Sending invitation email to {to_email}")
         result = self.send_email(
@@ -174,15 +174,15 @@ class SESEmailService:
         to_email: str,
         subject: str,
         html_body: str,
-        attachments: List[Dict],
-        bcc: Optional[List[str]] = None,
+        attachments: list[dict],
+        bcc: list[str] | None = None,
         reply_to=_NOT_PROVIDED,
-        from_name: Optional[str] = None,
-        source_email: Optional[str] = None,
-        email_type: Optional[str] = None,
-        administration: Optional[str] = None,
-        sent_by: Optional[str] = None,
-    ) -> Dict:
+        from_name: str | None = None,
+        source_email: str | None = None,
+        email_type: str | None = None,
+        administration: str | None = None,
+        sent_by: str | None = None,
+    ) -> dict:
         """
         Send email with file attachments via SES send_raw_email.
 
@@ -274,7 +274,7 @@ class SESEmailService:
                         subject=subject,
                         sent_by=sent_by,
                     )
-                except Exception as log_err:
+                except Exception as log_err:  # noqa: BLE001
                     logger.warning(f"Email sent but logging failed: {log_err}")
 
             return {"success": True, "message_id": message_id}
@@ -293,12 +293,12 @@ class SESEmailService:
                         error_message=f"{error_code}: {error_msg}",
                         sent_by=sent_by,
                     )
-                except Exception as log_err:
+                except Exception as log_err:  # noqa: BLE001
                     logger.warning(f"Email failed and logging also failed: {log_err}")
 
             return {"success": False, "error": f"{error_code}: {error_msg}"}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 f"Unexpected error sending email with attachments to {to_email}: {e}"
             )

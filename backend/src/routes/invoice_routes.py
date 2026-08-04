@@ -5,15 +5,17 @@ Handles invoice upload, processing, and approval endpoints.
 Extracted from app.py during refactoring (Phase 2.2)
 """
 
+import os
+import uuid
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 from werkzeug.utils import secure_filename
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
-from services.invoice_service import InvoiceService
 from db_exceptions import ClosedPeriodError
-import os
-import uuid
+from services.invoice_service import InvoiceService
 
 invoice_bp = Blueprint("invoices", __name__)
 
@@ -124,7 +126,7 @@ def upload_file_authenticated(
                 invoice_service.move_file_to_folder(
                     temp_path, filename, result["folder"]
                 )
-            except Exception as move_error:
+            except Exception as move_error:  # noqa: BLE001
                 print(f"Error moving file: {move_error}", flush=True)
                 # Continue even if move fails - file is already processed
 
@@ -159,18 +161,16 @@ def upload_file_authenticated(
 
         return jsonify({"success": False, "error": "Invalid file type"}), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print("\n=== UPLOAD ERROR ===", flush=True)
         print(f"Error type: {type(e).__name__}", flush=True)
-        print(f"Error message: {str(e)}", flush=True)
+        print(f"Error message: {e!s}", flush=True)
         import traceback
 
         print("Full traceback:", flush=True)
         traceback.print_exc()
         print("=== END ERROR ===", flush=True)
-        return jsonify(
-            {"success": False, "error": f"{type(e).__name__}: {str(e)}"}
-        ), 500
+        return jsonify({"success": False, "error": f"{type(e).__name__}: {e!s}"}), 500
 
 
 @invoice_bp.route("/api/approve-transactions", methods=["POST"])
@@ -209,6 +209,6 @@ def approve_transactions(
     except ClosedPeriodError as e:
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Approval error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500

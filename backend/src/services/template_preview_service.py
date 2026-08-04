@@ -10,11 +10,11 @@ Delegates to:
 - TemplatePdfRenderer: Sample data fetching and field mapping generation
 """
 
-import os
 import json
 import logging
-from typing import Dict, Any, Optional
+import os
 from datetime import datetime
+from typing import Any
 
 from services.template_html_processor import TemplateHtmlProcessor
 from services.template_pdf_renderer import TemplatePdfRenderer
@@ -58,8 +58,8 @@ class TemplatePreviewService:
         )
 
     def generate_preview(
-        self, template_type: str, template_content: str, field_mappings: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, template_type: str, template_content: str, field_mappings: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Generate preview with sample data.
 
@@ -131,7 +131,7 @@ class TemplatePreviewService:
                 "sample_data_info": sample_data_info,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to generate preview: {e}")
             return {
                 "success": False,
@@ -140,7 +140,7 @@ class TemplatePreviewService:
                     "errors": [
                         {
                             "type": "preview_generation_error",
-                            "message": f"Failed to generate preview: {str(e)}",
+                            "message": f"Failed to generate preview: {e!s}",
                             "severity": "error",
                         }
                     ],
@@ -150,7 +150,7 @@ class TemplatePreviewService:
 
     def validate_template(
         self, template_type: str, template_content: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Validate template syntax and structure.
 
@@ -237,14 +237,14 @@ class TemplatePreviewService:
                 ],
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Template validation failed: {e}")
             return {
                 "is_valid": False,
                 "errors": [
                     {
                         "type": "validation_error",
-                        "message": f"Validation failed: {str(e)}",
+                        "message": f"Validation failed: {e!s}",
                         "severity": "error",
                     }
                 ],
@@ -252,7 +252,7 @@ class TemplatePreviewService:
                 "checks_performed": [],
             }
 
-    def fetch_sample_data(self, template_type: str) -> Optional[Dict[str, Any]]:
+    def fetch_sample_data(self, template_type: str) -> dict[str, Any] | None:
         """
         Fetch most recent data for template type.
 
@@ -284,7 +284,7 @@ class TemplatePreviewService:
             else:
                 return self.renderer.fetch_generic_sample()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to fetch sample data: {e}")
             return None
 
@@ -292,10 +292,10 @@ class TemplatePreviewService:
         self,
         template_type: str,
         template_content: str,
-        field_mappings: Dict[str, Any],
+        field_mappings: dict[str, Any],
         user_email: str,
         notes: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Approve and save template.
 
@@ -393,16 +393,16 @@ class TemplatePreviewService:
             if previous_file_id:
                 result["previous_version"] = {
                     "file_id": previous_file_id,
-                    "archived_at": datetime.now().isoformat(),
+                    "archived_at": datetime.now().isoformat(),  # noqa: DTZ005
                 }
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to approve template: {e}")
             return {
                 "success": False,
-                "message": f"Failed to approve template: {str(e)}",
+                "message": f"Failed to approve template: {e!s}",
             }
 
     # Template approval helper methods
@@ -425,9 +425,11 @@ class TemplatePreviewService:
             Exception: If save fails
         """
         try:
-            from google_drive_service import GoogleDriveService
             from io import BytesIO
+
             from googleapiclient.http import MediaIoBaseUpload
+
+            from google_drive_service import GoogleDriveService
 
             # Initialize Google Drive service for this tenant
             drive_service = GoogleDriveService(self.administration)
@@ -455,18 +457,18 @@ class TemplatePreviewService:
 
             return file_id
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to save template to Google Drive: {e}")
-            raise Exception(f"Failed to save template to Google Drive: {str(e)}")
+            raise Exception(f"Failed to save template to Google Drive: {e!s}")  # noqa: TRY002
 
     def _update_template_metadata(
         self,
         template_type: str,
         file_id: str,
-        field_mappings: Dict[str, Any],
+        field_mappings: dict[str, Any],
         user_email: str,
         notes: str,
-        previous_file_id: Optional[str],
+        previous_file_id: str | None,
         version: int,
     ):
         """
@@ -552,16 +554,16 @@ class TemplatePreviewService:
 
             logger.info(f"Updated template metadata for type '{template_type}'")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to update template metadata: {e}")
-            raise Exception(f"Failed to update template metadata: {str(e)}")
+            raise Exception(f"Failed to update template metadata: {e!s}")  # noqa: TRY002
 
     def _log_template_approval(
         self,
         template_type: str,
         user_email: str,
         notes: str,
-        validation: Dict[str, Any],
+        validation: dict[str, Any],
     ) -> None:
         """
         Log template approval in validation log.
@@ -598,6 +600,6 @@ class TemplatePreviewService:
 
             logger.info(f"Logged template approval for type '{template_type}'")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to log template approval: {e}")
             # Don't raise - logging failure shouldn't block approval

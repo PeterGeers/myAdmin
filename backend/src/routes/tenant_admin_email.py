@@ -4,15 +4,16 @@ Tenant Admin Email Routes
 Endpoints for Tenant Admins to send emails to users using templates.
 """
 
+import logging
+import os
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
-import os
-import logging
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
-from services.email_template_service import EmailTemplateService
 from services.cognito_service import CognitoService
+from services.email_template_service import EmailTemplateService
 from services.invitation_service import InvitationService
 
 # Initialize logger
@@ -100,7 +101,7 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
                         user_data["name"] = attr["Value"]
                         break
 
-            except (ClientError, Exception) as e:
+            except (ClientError, Exception) as e:  # noqa: BLE001
                 logger.warning(f"Could not fetch user details: {e}")
                 user_data["name"] = recipient_email.split("@")[0]
 
@@ -176,7 +177,7 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error sending email: {e}")
         import traceback
 
@@ -216,7 +217,7 @@ def list_email_templates(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "templates": templates})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error listing email templates: {e}")
         return jsonify({"error": "Failed to list templates", "message": str(e)}), 500
 
@@ -301,7 +302,7 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
             invitation_service.mark_invitation_failed(
                 administration=tenant,
                 email=recipient_email,
-                error_message=f"Cognito update failed: {str(e)}",
+                error_message=f"Cognito update failed: {e!s}",
             )
             return jsonify(
                 {"error": "Failed to update user password", "message": str(e)}
@@ -318,7 +319,7 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                 if attr["Name"] == "name":
                     user_name = attr["Value"]
                     break
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         # Resolve frontend URL from request context
@@ -403,7 +404,7 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 500
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error resending invitation: {e}")
         import traceback
 

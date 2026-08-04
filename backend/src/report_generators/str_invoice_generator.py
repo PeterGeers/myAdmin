@@ -9,12 +9,12 @@ the TemplateService to generate complete invoice HTML.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def generate_table_rows(invoice_data: Dict[str, Any], language: str = "nl") -> str:
+def generate_table_rows(invoice_data: dict[str, Any], language: str = "nl") -> str:
     """
     Generate HTML table rows for STR invoice line items.
 
@@ -118,15 +118,15 @@ def generate_table_rows(invoice_data: Dict[str, Any], language: str = "nl") -> s
 
         return table_rows_html
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to generate STR invoice table rows: {e}")
         # Return minimal fallback
         return '                <tr><td colspan="4">Error generating invoice details</td></tr>'
 
 
 def prepare_invoice_data(
-    booking_data: Dict[str, Any], custom_billing: Dict[str, Any] = None
-) -> Dict[str, Any]:
+    booking_data: dict[str, Any], custom_billing: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Prepare invoice data from booking data for template rendering.
 
@@ -166,18 +166,18 @@ def prepare_invoice_data(
         checkin_date = booking_data.get("checkinDate", "")
         if isinstance(checkin_date, str):
             try:
-                checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d")
-            except Exception:
-                checkin_dt = datetime.now()
+                checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d")  # noqa: DTZ007
+            except Exception:  # noqa: BLE001
+                checkin_dt = datetime.now()  # noqa: DTZ005
         else:
             checkin_dt = checkin_date
 
         checkout_date = booking_data.get("checkoutDate", "")
         if isinstance(checkout_date, str):
             try:
-                checkout_dt = datetime.strptime(checkout_date, "%Y-%m-%d")
-            except Exception:
-                checkout_dt = datetime.now()
+                checkout_dt = datetime.strptime(checkout_date, "%Y-%m-%d")  # noqa: DTZ007
+            except Exception:  # noqa: BLE001
+                checkout_dt = datetime.now()  # noqa: DTZ005
         else:
             checkout_dt = checkout_date
 
@@ -191,8 +191,8 @@ def prepare_invoice_data(
         company_info = {}
         try:
             from database import DatabaseManager
-            from services.parameter_service import ParameterService
             from services.logo_resolver import resolve_tenant_logo
+            from services.parameter_service import ParameterService
 
             db = DatabaseManager(test_mode=False)
             ps = ParameterService(db)
@@ -214,7 +214,7 @@ def prepare_invoice_data(
             # Resolve company logo as base64 data URI via provider-aware resolver
             company_logo = resolve_tenant_logo(tenant, "str_branding", ps) or ""
             company_info["company_logo"] = company_logo
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not resolve tenant company info: {e}")
             company_info = {
                 "company_name": "",
@@ -278,6 +278,6 @@ def prepare_invoice_data(
 
         return invoice_data
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to prepare invoice data: {e}")
-        raise Exception(f"Failed to prepare invoice data: {str(e)}")
+        raise Exception(f"Failed to prepare invoice data: {e!s}")  # noqa: TRY002

@@ -146,8 +146,9 @@ const BudgetPage: React.FC = () => {
       await transitionVersionStatus(selectedVersionId, { action: 'approve' });
       toast({ title: t('messages.versionApproved'), status: 'success', duration: 3000 });
       loadVersions();
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: message, status: 'error', duration: 4000 });
     }
   };
 
@@ -157,8 +158,9 @@ const BudgetPage: React.FC = () => {
       await transitionVersionStatus(selectedVersionId, { action: 'revise' });
       toast({ title: t('messages.versionRevised'), status: 'success', duration: 3000 });
       loadVersions();
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: message, status: 'error', duration: 4000 });
     }
   };
 
@@ -168,8 +170,9 @@ const BudgetPage: React.FC = () => {
       await activateVersion(selectedVersionId);
       toast({ title: t('messages.versionActivated'), status: 'success', duration: 3000 });
       loadVersions();
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: message, status: 'error', duration: 4000 });
     }
   };
 
@@ -181,8 +184,9 @@ const BudgetPage: React.FC = () => {
       setSelectedVersionId(null);
       setLines([]);
       loadVersions();
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: message, status: 'error', duration: 4000 });
     }
   };
 
@@ -237,8 +241,9 @@ const BudgetPage: React.FC = () => {
       }
       onLineClose();
       loadLines(selectedVersionId);
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: message, status: 'error', duration: 4000 });
     }
   };
 
@@ -248,8 +253,9 @@ const BudgetPage: React.FC = () => {
       toast({ title: t('messages.lineDeleted'), status: 'success', duration: 3000 });
       if (selectedVersionId) loadLines(selectedVersionId);
       onLineClose();
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: message, status: 'error', duration: 4000 });
     }
   };
 

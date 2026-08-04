@@ -5,12 +5,12 @@ Centralized service for AWS Cognito operations.
 Provides methods for user and group management with proper error handling.
 """
 
-import os
 import json
+import logging
+import os
+
 import boto3
 from botocore.exceptions import ClientError
-import logging
-from typing import List, Dict, Optional, Tuple
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -36,11 +36,11 @@ class CognitoService:
     def create_user(
         self,
         email: str,
-        name: Optional[str] = None,
-        tenant: Optional[str] = None,
-        password: Optional[str] = None,
+        name: str | None = None,
+        tenant: str | None = None,
+        password: str | None = None,
         suppress_email: bool = True,
-    ) -> Dict:
+    ) -> dict:
         """
         Create a new user in Cognito
 
@@ -95,7 +95,7 @@ class CognitoService:
             )
             raise
 
-    def get_user(self, username: str) -> Optional[Dict]:
+    def get_user(self, username: str) -> dict | None:
         """
         Get user details from Cognito
 
@@ -116,7 +116,7 @@ class CognitoService:
             logger.error(f"Failed to get user {username}: {e}")
             raise
 
-    def list_users(self, tenant: Optional[str] = None, limit: int = 60) -> List[Dict]:
+    def list_users(self, tenant: str | None = None, limit: int = 60) -> list[dict]:
         """
         List users from Cognito, optionally filtered by tenant
 
@@ -161,7 +161,7 @@ class CognitoService:
             raise
 
     def update_user(
-        self, username: str, name: Optional[str] = None, enabled: Optional[bool] = None
+        self, username: str, name: str | None = None, enabled: bool | None = None
     ) -> bool:
         """
         Update user attributes
@@ -267,7 +267,7 @@ class CognitoService:
             logger.error(f"Failed to remove role {role} from user {username}: {e}")
             raise
 
-    def list_user_groups(self, username: str) -> List[str]:
+    def list_user_groups(self, username: str) -> list[str]:
         """
         Get list of groups (roles) for a user
 
@@ -286,7 +286,7 @@ class CognitoService:
             logger.error(f"Failed to list groups for user {username}: {e}")
             raise
 
-    def list_groups(self, limit: int = 60) -> List[Dict]:
+    def list_groups(self, limit: int = 60) -> list[dict]:
         """
         List all Cognito groups (roles)
 
@@ -319,7 +319,7 @@ class CognitoService:
             logger.error(f"Failed to list groups: {e}")
             raise
 
-    def create_group(self, name: str, description: str = "") -> Dict:
+    def create_group(self, name: str, description: str = "") -> dict:
         """
         Create a new Cognito group (role)
 
@@ -343,9 +343,9 @@ class CognitoService:
     def update_group(
         self,
         name: str,
-        description: Optional[str] = None,
-        precedence: Optional[int] = None,
-    ) -> Dict:
+        description: str | None = None,
+        precedence: int | None = None,
+    ) -> dict:
         """
         Update Cognito group (role)
 
@@ -455,7 +455,7 @@ class CognitoService:
             logger.error(f"Failed to add tenant {tenant} to user {username}: {e}")
             raise
 
-    def remove_tenant_from_user(self, username: str, tenant: str) -> Tuple[bool, bool]:
+    def remove_tenant_from_user(self, username: str, tenant: str) -> tuple[bool, bool]:
         """
         Remove tenant from user's custom:tenants attribute.
 
@@ -490,7 +490,7 @@ class CognitoService:
                     f"(type={type(current_tenants).__name__}, value={current_tenants!r}). "
                     f"Refusing to delete. Manual intervention required."
                 )
-                raise ValueError(
+                raise ValueError(  # noqa: TRY004
                     f"Malformed tenants attribute for {username}. "
                     f"Cannot safely remove tenant. Contact SysAdmin."
                 )
@@ -532,7 +532,7 @@ class CognitoService:
             logger.error(f"Failed to remove tenant {tenant} from user {username}: {e}")
             raise
 
-    def get_user_tenants(self, username: str) -> List[str]:
+    def get_user_tenants(self, username: str) -> list[str]:
         """
         Get list of tenants for a user
 
@@ -629,7 +629,7 @@ Login URL: {self._get_frontend_url()}
                 )
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to send invitation to {email}: {e}")
             import traceback
 
@@ -646,11 +646,11 @@ Login URL: {self._get_frontend_url()}
             from utils.frontend_url import get_frontend_url
 
             return get_frontend_url()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     def _get_user_attribute(
-        self, user_attributes: List[Dict], attribute_name: str
+        self, user_attributes: list[dict], attribute_name: str
     ) -> any:
         """
         Extract attribute value from Cognito user attributes

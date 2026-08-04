@@ -127,7 +127,7 @@ service = CredentialService(db)
 google_creds = {
     "client_id": "123.apps.googleusercontent.com",
     "client_secret": "secret_key",
-    "refresh_token": "refresh_token_value"
+    "refresh_token": "refresh_token_value",
 }
 service.store_credential("GoodwinSolutions", "google_drive", google_creds)
 

@@ -5,9 +5,8 @@ Handles rendering of email templates with variable substitution.
 Supports both local file templates (defaults) and Google Drive templates (tenant-specific).
 """
 
-import os
-from typing import Dict, Optional
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 class EmailTemplateService:
     """Service for rendering email templates"""
 
-    def __init__(self, administration: Optional[str] = None):
+    def __init__(self, administration: str | None = None):
         """
         Initialize the email template service
 
@@ -30,7 +29,7 @@ class EmailTemplateService:
 
     def _load_from_google_drive(
         self, template_name: str, format: str = "html"
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Load template from storage backend (tenant-specific).
 
@@ -51,8 +50,8 @@ class EmailTemplateService:
         try:
             from database import DatabaseManager
             from services.storage_resolver import (
-                resolve_storage_provider,
                 get_s3_storage,
+                resolve_storage_provider,
             )
 
             # Get active template from database
@@ -122,17 +121,17 @@ class EmailTemplateService:
             )
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error loading template from storage backend: {e}")
             return None
 
     def render_template(
         self,
         template_name: str,
-        variables: Dict[str, str],
+        variables: dict[str, str],
         format: str = "html",
-        language: Optional[str] = None,
-    ) -> Optional[str]:
+        language: str | None = None,
+    ) -> str | None:
         """
         Render an email template with variable substitution
 
@@ -200,7 +199,7 @@ class EmailTemplateService:
 
             return rendered_content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error rendering template {template_name}: {e}")
             return None
 
@@ -209,10 +208,10 @@ class EmailTemplateService:
         email: str,
         temporary_password: str,
         tenant: str,
-        login_url: Optional[str] = None,
+        login_url: str | None = None,
         format: str = "html",
-        language: Optional[str] = None,
-    ) -> Optional[str]:
+        language: str | None = None,
+    ) -> str | None:
         """
         Render user invitation email template
 
@@ -269,7 +268,7 @@ class EmailTemplateService:
             if user_lang and user_lang in ["nl", "en"]:
                 logger.debug(f"Using user language: {user_lang}")
                 return user_lang
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug(f"Could not get user language: {e}")
 
         try:
@@ -280,16 +279,14 @@ class EmailTemplateService:
             if tenant_lang and tenant_lang in ["nl", "en"]:
                 logger.debug(f"Using tenant language: {tenant_lang}")
                 return tenant_lang
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug(f"Could not get tenant language: {e}")
 
         # Default to Dutch
         logger.debug("Using default language: nl")
         return "nl"
 
-    def get_invitation_subject(
-        self, tenant: str, language: Optional[str] = None
-    ) -> str:
+    def get_invitation_subject(self, tenant: str, language: str | None = None) -> str:
         """
         Get subject line for invitation email
 

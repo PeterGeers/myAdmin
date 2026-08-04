@@ -7,26 +7,24 @@ including validation, audit logging, file cleanup, and error management.
 Internal helpers (validation, retry logic, enhanced processing) are in pdf_decision_helpers.py.
 """
 
-from typing import Dict, List, Optional
-
 from pdf_decision_helpers import (
-    validate_duplicate_decision_inputs,
+    create_error_response,
+    handle_cancel_decision_enhanced,
+    handle_continue_decision_enhanced,
     initialize_duplicate_components,
     log_duplicate_decision_with_retry,
-    handle_continue_decision_enhanced,
-    handle_cancel_decision_enhanced,
-    create_error_response,
+    validate_duplicate_decision_inputs,
 )
 
 
 def handle_duplicate_decision(
     decision: str,
-    duplicate_info: Dict,
-    transactions: List[Dict],
-    file_data: Dict,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> Dict:
+    duplicate_info: dict,
+    transactions: list[dict],
+    file_data: dict,
+    user_id: str | None = None,
+    session_id: str | None = None,
+) -> dict:
     """
     Handle user decision regarding duplicate transactions with comprehensive error handling.
 
@@ -108,15 +106,15 @@ def handle_duplicate_decision(
             )
 
     except ImportError as e:
-        error_msg = f"Required modules not available: {str(e)}"
+        error_msg = f"Required modules not available: {e!s}"
         return create_error_response(
             "import_error",
             error_msg,
             errors=[error_msg],
             user_message="System components not available. Please contact support.",
         )
-    except Exception as e:
-        error_msg = f"Unexpected error in duplicate decision handling: {str(e)}"
+    except Exception as e:  # noqa: BLE001
+        error_msg = f"Unexpected error in duplicate decision handling: {e!s}"
         print(error_msg)
         return create_error_response(
             "unexpected_error",
@@ -127,8 +125,8 @@ def handle_duplicate_decision(
 
 
 def handle_continue_decision(
-    duplicate_info: Dict, transactions: List[Dict], file_data: Dict, log_success: bool
-) -> Dict:
+    duplicate_info: dict, transactions: list[dict], file_data: dict, log_success: bool
+) -> dict:
     """
     Handle the "Continue" decision for duplicate imports.
 
@@ -169,24 +167,24 @@ def handle_continue_decision(
             "message": " ".join(message_parts),
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in continue decision handling: {e}")
         return {
             "success": False,
             "action_taken": "continue_error",
             "transactions": [],
             "cleanup_performed": False,
-            "message": f"Error processing continue decision: {str(e)}",
+            "message": f"Error processing continue decision: {e!s}",
         }
 
 
 def handle_cancel_decision(
-    duplicate_info: Dict,
-    transactions: List[Dict],
-    file_data: Dict,
+    duplicate_info: dict,
+    transactions: list[dict],
+    file_data: dict,
     file_cleanup_manager,
     log_success: bool,
-) -> Dict:
+) -> dict:
     """
     Handle the "Cancel" decision for duplicate imports.
 
@@ -258,12 +256,12 @@ def handle_cancel_decision(
             "message": " ".join(message_parts),
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in cancel decision handling: {e}")
         return {
             "success": False,
             "action_taken": "cancel_error",
             "transactions": [],
             "cleanup_performed": False,
-            "message": f"Error processing cancel decision: {str(e)}",
+            "message": f"Error processing cancel decision: {e!s}",
         }

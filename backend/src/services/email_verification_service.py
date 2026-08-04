@@ -6,11 +6,10 @@ checking status, resending verification emails, updating email addresses, and
 providing fast DB lookups for verified sender resolution during invoice sending.
 """
 
+import logging
 import os
 import re
-import logging
 from datetime import datetime
-from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -29,8 +28,8 @@ class EmailVerificationService:
 
     def __init__(
         self,
-        db_manager: Optional[DatabaseManager] = None,
-        region: str = None,
+        db_manager: DatabaseManager | None = None,
+        region: str | None = None,
         test_mode: bool = False,
     ):
         """Initialize the service with database manager and SES client.
@@ -109,7 +108,7 @@ class EmailVerificationService:
                 "status": "failed",
                 "error": f"{error_code}: {error_msg}",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 f"Unexpected error calling SES for {email} "
                 f"(tenant: {administration}): {e}"
@@ -154,7 +153,7 @@ class EmailVerificationService:
             status = self._map_ses_status(ses_status)
 
             # Update DB with new status and last_checked timestamp
-            now = datetime.utcnow()
+            now = datetime.utcnow()  # noqa: DTZ003
             self._update_verification_status(administration, email, status, now)
 
             last_checked_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -184,7 +183,7 @@ class EmailVerificationService:
                 "status": record["status"],
                 "last_checked": last_checked_str,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 f"Unexpected error checking status for {email} "
                 f"(tenant: {administration}): {e}"
@@ -216,7 +215,7 @@ class EmailVerificationService:
         # Rate limiting check
         last_resend = record.get("last_resend_at")
         if last_resend:
-            elapsed = (datetime.utcnow() - last_resend).total_seconds()
+            elapsed = (datetime.utcnow() - last_resend).total_seconds()  # noqa: DTZ003
             if elapsed < RESEND_COOLDOWN_SECONDS:
                 return {
                     "success": False,
@@ -238,7 +237,7 @@ class EmailVerificationService:
                 f"(tenant: {administration}): [{error_code}] {error_msg}"
             )
             return {"success": False, "error": f"{error_code}: {error_msg}"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 f"Unexpected error resending for {email} "
                 f"(tenant: {administration}): {e}"
@@ -246,7 +245,7 @@ class EmailVerificationService:
             return {"success": False, "error": str(e)}
 
         # Update record: set status to pending, update last_resend_at
-        now = datetime.utcnow()
+        now = datetime.utcnow()  # noqa: DTZ003
         try:
             self.db.execute_query(
                 """UPDATE email_verifications
@@ -378,7 +377,7 @@ class EmailVerificationService:
             email: Email address.
             status: Verification status to set.
         """
-        now = datetime.utcnow()
+        now = datetime.utcnow()  # noqa: DTZ003
         verified_at = now if status == "verified" else None
 
         try:
@@ -396,7 +395,7 @@ class EmailVerificationService:
                 f"(tenant: {administration}): {e}"
             )
 
-    def _get_active_record(self, administration: str) -> Optional[dict]:
+    def _get_active_record(self, administration: str) -> dict | None:
         """Get the most recent active verification record for a tenant.
 
         Active means status is not 'replaced'.
@@ -475,7 +474,7 @@ class EmailVerificationService:
         }
         return mapping.get(ses_status, "failed")
 
-    def _get_company_name(self, administration: str) -> Optional[str]:
+    def _get_company_name(self, administration: str) -> str | None:
         """Get the company name for a tenant from parameters.
 
         Attempts to read zzp_branding.company_name from the parameters table.

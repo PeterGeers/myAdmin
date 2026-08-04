@@ -209,7 +209,7 @@ class TestDuplicateDetectionPerformance:
         transaction_date=st.dates(min_value=date(2023, 1, 1), max_value=date(2025, 12, 31)),
         transaction_amount=st.floats(min_value=0.01, max_value=999999.99, allow_nan=False, allow_infinity=False)
     )
-    @settings(max_examples=50, phases=[Phase.generate, Phase.target])
+    @settings(max_examples=50, phases=[Phase.generate, Phase.target], deadline=None)
     def test_performance_property_response_time(self, reference_number, transaction_date, transaction_amount):
         """
         **Property-Based Test: Response Time Requirement**

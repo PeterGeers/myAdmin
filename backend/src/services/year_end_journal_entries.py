@@ -9,7 +9,7 @@ Handles the creation and deletion of journal entries for year-end closure:
 Extracted from year_end_service.py for clarity and maintainability.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from services.year_end_config import YearEndConfigService
 
@@ -32,7 +32,7 @@ class YearEndJournalEntryHelper:
         year: int,
         net_result: float,
         cursor,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Create year-end closure transaction (P&L to equity).
 
@@ -133,7 +133,7 @@ class YearEndJournalEntryHelper:
         administration: str,
         year: int,
         cursor,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Create opening balance transactions for the new year.
 
@@ -307,7 +307,7 @@ class YearEndJournalEntryHelper:
 
     def _get_ending_balances(
         self, administration: str, year: int, cursor
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get ending balances for all balance sheet accounts.
 
@@ -443,7 +443,7 @@ class YearEndJournalEntryHelper:
 
         return False
 
-    def _get_vat_primary_account(self, administration: str, cursor) -> Optional[str]:
+    def _get_vat_primary_account(self, administration: str, cursor) -> str | None:
         """
         Get the primary VAT account that receives the net balance.
 

@@ -1,11 +1,12 @@
-import requests
 import json
 import os
 from datetime import datetime
+
+import requests
 from dotenv import load_dotenv
 
+from services.ai_model_registry import RegistryError, resolver
 from services.ai_sanitizer import AISanitizer
-from services.ai_model_registry import resolver, RegistryError
 
 # Load environment variables
 load_dotenv()
@@ -135,7 +136,7 @@ class AIExtractor:
                     f"{model.model_id} timeout after {model.timeout} seconds, trying next model"
                 )
                 continue
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"{model.model_id} error: {e}, trying next model")
                 continue
 
@@ -146,26 +147,26 @@ class AIExtractor:
     def _validate_date(self, date_str):
         """Validate and format date"""
         if not date_str:
-            return datetime.now().strftime("%Y-%m-%d")
+            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
 
         try:
             # Try to parse various date formats
             for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
                 try:
-                    parsed = datetime.strptime(date_str, fmt)
+                    parsed = datetime.strptime(date_str, fmt)  # noqa: DTZ007
                     return parsed.strftime("%Y-%m-%d")
                 except ValueError:
                     continue
 
             # If no format matches, return current date
-            return datetime.now().strftime("%Y-%m-%d")
-        except Exception:
-            return datetime.now().strftime("%Y-%m-%d")
+            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+        except Exception:  # noqa: BLE001
+            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
 
     def _fallback_data(self, vendor_hint):
         """Return fallback data when AI fails"""
         return {
-            "date": datetime.now().strftime("%Y-%m-%d"),
+            "date": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
             "total_amount": 0.0,
             "vat_amount": 0.0,
             "description": f"{vendor_hint or 'Unknown'} invoice",

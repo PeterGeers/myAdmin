@@ -1,6 +1,7 @@
-from flask import jsonify, request
 from functools import wraps
+
 import jsonschema
+from flask import jsonify, request
 from jsonschema import validate
 
 
@@ -93,9 +94,9 @@ def validate_schema(schema_name):
                     success=False,
                     status_code=400,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 return standard_response(
-                    error=f"Schema validation failed: {str(e)}",
+                    error=f"Schema validation failed: {e!s}",
                     success=False,
                     status_code=400,
                 )
@@ -119,6 +120,6 @@ def validate_response_schema(data, schema_name):
     except jsonschema.ValidationError as e:
         print(f"Response validation error for {schema_name}: {e.message}")
         return False
-    except Exception as e:
-        print(f"Response validation failed: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        print(f"Response validation failed: {e!s}")
         return False

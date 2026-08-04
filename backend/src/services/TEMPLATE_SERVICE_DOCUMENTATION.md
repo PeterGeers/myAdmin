@@ -97,9 +97,9 @@ def get_template_metadata(
 **Example:**
 
 ```python
-metadata = service.get_template_metadata('GoodwinSolutions', 'financial_report')
-print(metadata['template_file_id'])  # Google Drive file ID
-print(metadata['field_mappings'])    # Field mapping configuration
+metadata = service.get_template_metadata("GoodwinSolutions", "financial_report")
+print(metadata["template_file_id"])  # Google Drive file ID
+print(metadata["field_mappings"])  # Field mapping configuration
 ```
 
 **Status**: ✅ Fully implemented and tested
@@ -136,10 +136,7 @@ def fetch_template_from_drive(
 **Example:**
 
 ```python
-template_xml = service.fetch_template_from_drive(
-    'abc123xyz',
-    'GoodwinSolutions'
-)
+template_xml = service.fetch_template_from_drive("abc123xyz", "GoodwinSolutions")
 print(template_xml)  # XML template content
 ```
 
@@ -186,14 +183,7 @@ def apply_field_mappings(
 ```python
 template = "<invoice><guest>{{ guest_name }}</guest></invoice>"
 data = {"guest": {"name": "john doe"}}
-mappings = {
-    "fields": {
-        "guest_name": {
-            "path": "guest.name",
-            "transform": "uppercase"
-        }
-    }
-}
+mappings = {"fields": {"guest_name": {"path": "guest.name", "transform": "uppercase"}}}
 
 result = service.apply_field_mappings(template, data, mappings)
 # Result: "<invoice><guest>JOHN DOE</guest></invoice>"
@@ -242,8 +232,8 @@ def generate_output(
 **Example:**
 
 ```python
-html_output = service.generate_output(processed_template, data, 'html')
-xml_output = service.generate_output(processed_template, data, 'xml')
+html_output = service.generate_output(processed_template, data, "html")
+xml_output = service.generate_output(processed_template, data, "xml")
 ```
 
 **Status**: ✅ Core functionality implemented (HTML/XML complete)
@@ -258,25 +248,20 @@ xml_output = service.generate_output(processed_template, data, 'xml')
 {
     "fields": {
         "field_name": {
-            "path": "nested.data.path",      # Dot notation for nested data
-            "format": "currency",             # Format type
-            "transform": "abs",               # Optional transformation
-            "default": "0.00"                 # Default value if missing
+            "path": "nested.data.path",  # Dot notation for nested data
+            "format": "currency",  # Format type
+            "transform": "abs",  # Optional transformation
+            "default": "0.00",  # Default value if missing
         }
     },
     "formatting": {
-        "currency": "EUR",                    # Currency symbol
-        "date_format": "DD-MM-YYYY",         # Date format
-        "locale": "nl-NL"                    # Locale for formatting
+        "currency": "EUR",  # Currency symbol
+        "date_format": "DD-MM-YYYY",  # Date format
+        "locale": "nl-NL",  # Locale for formatting
     },
     "conditionals": [
-        {
-            "field": "invoice_total",
-            "operator": "gt",
-            "value": 100,
-            "action": "show"
-        }
-    ]
+        {"field": "invoice_total", "operator": "gt", "value": 100, "action": "show"}
+    ],
 }
 ```
 
@@ -293,10 +278,7 @@ xml_output = service.generate_output(processed_template, data, 'xml')
 **Example:**
 
 ```python
-{
-    "path": "invoice.total",
-    "format": "currency"
-}
+{"path": "invoice.total", "format": "currency"}
 # Input: 150.50
 # Output: "€ 150.50" (with EUR formatting)
 ```
@@ -312,10 +294,7 @@ xml_output = service.generate_output(processed_template, data, 'xml')
 **Example:**
 
 ```python
-{
-    "path": "invoice.date",
-    "format": "date"
-}
+{"path": "invoice.date", "format": "date"}
 # Input: "2026-01-30"
 # Output: "30-01-2026" (with DD-MM-YYYY formatting)
 ```
@@ -331,10 +310,7 @@ xml_output = service.generate_output(processed_template, data, 'xml')
 **Example:**
 
 ```python
-{
-    "path": "quantity",
-    "format": "number"
-}
+{"path": "quantity", "format": "number"}
 # Input: 1234.56
 # Output: "1,234.56"
 ```
@@ -349,11 +325,7 @@ xml_output = service.generate_output(processed_template, data, 'xml')
 **Example:**
 
 ```python
-{
-    "path": "guest.name",
-    "format": "text",
-    "transform": "uppercase"
-}
+{"path": "guest.name", "format": "text", "transform": "uppercase"}
 # Input: "john doe"
 # Output: "JOHN DOE"
 ```
@@ -405,12 +377,7 @@ xml_output = service.generate_output(processed_template, data, 'xml')
 **Example:**
 
 ```python
-{
-    "field": "invoice_total",
-    "operator": "gt",
-    "value": 100,
-    "action": "show"
-}
+{"field": "invoice_total", "operator": "gt", "value": 100, "action": "show"}
 # Shows content only if invoice_total > 100
 ```
 
@@ -641,38 +608,30 @@ template_service = TemplateService(db)
 
 # Step 1: Get template metadata
 metadata = template_service.get_template_metadata(
-    'GoodwinSolutions',
-    'financial_report'
+    "GoodwinSolutions", "financial_report"
 )
 
 # Step 2: Fetch template from Google Drive
 template_xml = template_service.fetch_template_from_drive(
-    metadata['template_file_id'],
-    'GoodwinSolutions'
+    metadata["template_file_id"], "GoodwinSolutions"
 )
 
 # Step 3: Prepare data
 data = {
-    'company_name': 'Goodwin Solutions',
-    'report_date': '2026-01-30',
-    'total_revenue': 150000.00,
-    'total_expenses': 95000.00,
-    'net_profit': 55000.00
+    "company_name": "Goodwin Solutions",
+    "report_date": "2026-01-30",
+    "total_revenue": 150000.00,
+    "total_expenses": 95000.00,
+    "net_profit": 55000.00,
 }
 
 # Step 4: Apply field mappings
 processed_template = template_service.apply_field_mappings(
-    template_xml,
-    data,
-    metadata['field_mappings']
+    template_xml, data, metadata["field_mappings"]
 )
 
 # Step 5: Generate output
-html_output = template_service.generate_output(
-    processed_template,
-    data,
-    'html'
-)
+html_output = template_service.generate_output(processed_template, data, "html")
 
 # Use the output
 print(html_output)  # Display or send via email
@@ -683,34 +642,28 @@ print(html_output)  # Display or send via email
 ```python
 # Prepare STR invoice data
 invoice_data = {
-    'guest': {
-        'name': 'John Doe',
-        'email': 'john@example.com'
+    "guest": {"name": "John Doe", "email": "john@example.com"},
+    "invoice": {
+        "number": "INV-2026-001",
+        "date": "2026-01-30",
+        "total": 450.00,
+        "tax": 81.00,
     },
-    'invoice': {
-        'number': 'INV-2026-001',
-        'date': '2026-01-30',
-        'total': 450.00,
-        'tax': 81.00
-    },
-    'items': [
-        {'description': 'Accommodation', 'amount': 350.00},
-        {'description': 'Tourist Tax', 'amount': 19.00}
-    ]
+    "items": [
+        {"description": "Accommodation", "amount": 350.00},
+        {"description": "Tourist Tax", "amount": 19.00},
+    ],
 }
 
 # Get template and process
-metadata = template_service.get_template_metadata('GoodwinSolutions', 'str_invoice')
+metadata = template_service.get_template_metadata("GoodwinSolutions", "str_invoice")
 template_xml = template_service.fetch_template_from_drive(
-    metadata['template_file_id'],
-    'GoodwinSolutions'
+    metadata["template_file_id"], "GoodwinSolutions"
 )
 
 # Apply mappings
 processed = template_service.apply_field_mappings(
-    template_xml,
-    invoice_data,
-    metadata['field_mappings']
+    template_xml, invoice_data, metadata["field_mappings"]
 )
 
 # Generate PDF (when implemented)
@@ -723,8 +676,7 @@ processed = template_service.apply_field_mappings(
 try:
     # Attempt to get template
     metadata = template_service.get_template_metadata(
-        'GoodwinSolutions',
-        'unknown_template'
+        "GoodwinSolutions", "unknown_template"
     )
 
     if metadata is None:

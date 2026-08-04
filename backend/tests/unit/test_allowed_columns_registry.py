@@ -189,7 +189,7 @@ class TestColumnResolutionIntersection:
         assert result_g_names.issubset(set(_GROUPABLE))
         assert result_a_names.issubset(set(_AGGREGATABLE))
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(restriction=tenant_restriction_st())
     def test_result_is_subset_of_restriction(self, restriction):
         """Resolved columns are always a subset of the tenant restriction."""

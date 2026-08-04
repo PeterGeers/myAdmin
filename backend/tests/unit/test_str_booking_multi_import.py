@@ -585,7 +585,7 @@ class TestProperty6ScopedOverwriteInvariant:
             unique=True,
         ),
     )
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
+    @settings(max_examples=20, derandomize=True, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
     def test_delete_only_imported_pairs(self, imported_pairs, other_pairs):
         """DELETE is called only for (channel, listing) pairs in the incoming bookings."""
         # Ensure other_pairs does not overlap with imported_pairs

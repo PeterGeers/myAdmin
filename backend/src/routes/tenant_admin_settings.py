@@ -10,11 +10,12 @@ Endpoints:
 - GET /api/tenant-admin/activity - Get tenant activity statistics
 """
 
+import logging
+import os
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 from flask_babel import gettext as _
-import os
-import logging
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
@@ -57,7 +58,7 @@ def get_settings(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant, "settings": settings})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting settings: {e}")
         import traceback
 
@@ -120,7 +121,7 @@ def update_settings(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error updating settings: {e}")
         import traceback
 
@@ -171,7 +172,7 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant, "activity": activity})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting activity: {e}")
         import traceback
 
@@ -183,7 +184,7 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
 # Tenant Language Endpoints (i18n)
 # ============================================================================
 
-from services.tenant_language_service import (  # noqa: E402
+from services.tenant_language_service import (
     get_tenant_language,
     update_tenant_language,
     validate_language_code,
@@ -216,7 +217,7 @@ def get_tenant_language_preference(user_email, user_roles) -> ResponseReturnValu
 
         return jsonify({"default_language": language}), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error in get_tenant_language_preference: {e}")
         return jsonify(
             {
@@ -287,7 +288,7 @@ def update_tenant_language_preference(user_email, user_roles) -> ResponseReturnV
             }
         ), 200
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error in update_tenant_language_preference: {e}")
         return jsonify(
             {"error": "Failed to update tenant language preference", "details": str(e)}

@@ -1,5 +1,6 @@
-from database import DatabaseManager
 import re
+
+from database import DatabaseManager
 
 
 class PDFValidator:
@@ -21,7 +22,7 @@ class PDFValidator:
 
                 self.drive_service = GoogleDriveService(administration)
                 self.administration = administration
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(
                     f"Warning: Could not initialize Google Drive service for {administration}: {e}"
                 )
@@ -230,7 +231,7 @@ class PDFValidator:
 
                 return {"status": "missing", "record": record}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"status": "error", "record": record, "error": str(e)}
 
     def _extract_file_id(self, url):
@@ -284,7 +285,7 @@ class PDFValidator:
             result = self.drive_service.service.files().get(fileId=file_id).execute()
             print(f"File exists: {result.get('name', 'Unknown')}, ID: {file_id}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"File not found or error for ID {file_id}: {e}")
             return False
 
@@ -311,14 +312,14 @@ class PDFValidator:
                     return f"https://drive.google.com/file/d/{file_item['id']}/view"
 
             return None
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     def _find_folder_by_reference(self, reference_number):
         """Find folder by reference number (placeholder - implement based on your folder structure)"""
         # This would need to be implemented based on how folders are organized
         # For now, return None
-        return None
+        return
 
     def _extract_gmail_message_id(self, url):
         """Extract message ID from Gmail URL"""
@@ -350,7 +351,7 @@ class PDFValidator:
             ).execute()
             print(f"Gmail message exists: {message_id}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Gmail message not found or error for ID {message_id}: {e}")
             print(f"Error type: {type(e).__name__}")
             return False
@@ -369,7 +370,9 @@ class PDFValidator:
             cursor.close()
             conn.close()
 
-    def update_record(self, old_ref3, reference_number=None, ref3=None, ref4=None, administration=None):
+    def update_record(
+        self, old_ref3, reference_number=None, ref3=None, ref4=None, administration=None
+    ):
         """Update all records with matching Ref3, scoped to tenant administration.
 
         Args:
@@ -406,13 +409,15 @@ class PDFValidator:
                 cursor.execute(query, all_params)
                 affected_rows = cursor.rowcount
                 conn.commit()
-                print(f"Updated {affected_rows} records with Ref3={old_ref3}, administration={administration}")
+                print(
+                    f"Updated {affected_rows} records with Ref3={old_ref3}, administration={administration}"
+                )
                 return affected_rows > 0
 
             print(f"No updates for Ref3={old_ref3}")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error updating records with Ref3={old_ref3}: {e}")
             conn.rollback()
             return False

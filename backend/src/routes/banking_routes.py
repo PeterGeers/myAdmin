@@ -11,11 +11,12 @@ Handles all banking transaction processing endpoints including:
 Extracted from app.py during refactoring (Phase 3.2)
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
-from db_exceptions import ClosedPeriodError
 from auth.tenant_context import tenant_required
+from db_exceptions import ClosedPeriodError
 from services.banking_service import BankingService
 
 # Create blueprint
@@ -46,7 +47,7 @@ def banking_scan_files(
             return jsonify(result)
         else:
             return jsonify(result), 500
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Banking scan files error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -71,7 +72,7 @@ def banking_process_files(
             status_code = 403 if "Access denied" in result.get("error", "") else 400
             return jsonify(result), status_code
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Banking process files error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -92,7 +93,7 @@ def banking_check_sequences(
         result = banking_service.check_sequences(iban, sequences, test_mode, tenant)
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -114,7 +115,7 @@ def banking_apply_patterns(
         )
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Pattern matching error: {e}", flush=True)
         import traceback
 
@@ -141,7 +142,7 @@ def banking_save_transactions(
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Banking save transactions error: {e}", flush=True)
         import traceback
 
@@ -164,7 +165,7 @@ def banking_lookups(
         else:
             return jsonify(result), 500
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Banking lookups error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -202,7 +203,7 @@ def banking_mutaties(
             status_code = 403 if "Access denied" in result.get("error", "") else 500
             return jsonify(result), status_code
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -254,7 +255,7 @@ def banking_filter_options(
             {"success": True, "years": years, "administrations": administrations}
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -310,7 +311,7 @@ def banking_update_mutatie(
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Update error: {e}", flush=True)
         import traceback
 
@@ -335,8 +336,8 @@ def banking_insert_mutatie(
         data["Administration"] = tenant
 
         # --- Closed-period guard ---
-        from db_exceptions import ClosedPeriodError
         from database import DatabaseManager
+        from db_exceptions import ClosedPeriodError
 
         db = DatabaseManager(test_mode=False)
 
@@ -368,7 +369,7 @@ def banking_insert_mutatie(
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Insert error: {e}", flush=True)
         import traceback
 
@@ -392,7 +393,7 @@ def banking_check_accounts(
         else:
             return jsonify(result), 500
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Banking check accounts error: {e}", flush=True)
         import traceback
 
@@ -429,7 +430,7 @@ def banking_check_sequence(
         )
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Check sequence error: {e}", flush=True)
         import traceback
 
@@ -455,7 +456,7 @@ def banking_check_revolut_balance(
         )
         return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Check Revolut balance error: {e}", flush=True)
         import traceback
 
@@ -499,7 +500,7 @@ def banking_check_revolut_balance_debug(user_email, user_roles) -> ResponseRetur
         else:
             return jsonify(result)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Check Revolut balance debug error: {e}", flush=True)
         import traceback
 
@@ -515,8 +516,8 @@ def banking_opening_balance_date(
 ) -> ResponseReturnValue:
     """Get the opening balance date based on the last annual closure"""
     try:
-        from database import DatabaseManager
         from banking_processor import _get_opening_balance_date
+        from database import DatabaseManager
 
         db = DatabaseManager(test_mode=banking_service.test_mode)
         opening_balance_date = _get_opening_balance_date(db, tenant)
@@ -540,7 +541,7 @@ def banking_opening_balance_date(
                 }
             )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Opening balance date error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -554,7 +555,7 @@ def banking_migrate_revolut_ref2(user_email, user_roles) -> ResponseReturnValue:
 
         result = migrate_revolut_ref2(test_mode=banking_service.test_mode)
         return jsonify(result)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Migration error: {e}", flush=True)
         import traceback
 

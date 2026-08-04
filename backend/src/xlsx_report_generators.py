@@ -5,10 +5,12 @@ XLSXExportProcessor infrastructure. File-download helpers are in
 xlsx_download_helpers.py.
 """
 
-import os
-import pandas as pd
-from xlsx_download_helpers import XLSXDownloadHelpersMixin
 import logging
+import os
+
+import pandas as pd
+
+from xlsx_download_helpers import XLSXDownloadHelpersMixin
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +132,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
                                 )
                 else:
                     print("Could not get Google Drive service")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Error downloading files: {e}")
                 import traceback
 
@@ -275,8 +277,8 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
                         "result": result,
                     }
 
-                except Exception as e:
-                    print(f"Error processing {administration} {year}: {str(e)}")
+                except Exception as e:  # noqa: BLE001
+                    print(f"Error processing {administration} {year}: {e!s}")
                     import traceback
 
                     traceback.print_exc()
@@ -295,7 +297,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
                         "total_combinations": total_combinations,
                         "current_administration": administration,
                         "current_year": year,
-                        "status": f"Error processing {administration} {year}: {str(e)}",
+                        "status": f"Error processing {administration} {year}: {e!s}",
                         "result": result,
                     }
 
@@ -391,7 +393,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
         if len(df_drive) > 0:
             try:
                 service = self._get_drive_service(administration)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Error initializing Drive service: {e}")
 
         for index, (_, row) in enumerate(combined_df.iterrows()):
@@ -548,7 +550,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
         if len(df_drive) > 0:
             try:
                 service = self._get_drive_service(administration)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Error initializing Drive service: {e}")
 
         for index, (_, row) in enumerate(combined_df.iterrows()):

@@ -10,16 +10,18 @@ Handles all STR and pricing endpoints including:
 Extracted from app.py during refactoring (Phase 4.1)
 """
 
-from flask import Blueprint, request, jsonify
+import os
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 from werkzeug.utils import secure_filename
+
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
-from str_processor import STRProcessor
-from str_database import STRDatabase
 from database import DatabaseManager
 from dialect_helpers import dialect
-import os
+from str_database import STRDatabase
+from str_processor import STRProcessor
 
 # Create blueprint
 str_bp = Blueprint("str", __name__)
@@ -116,7 +118,7 @@ def str_upload_authenticated(
 
         return jsonify(response_data)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -164,7 +166,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -174,8 +176,9 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
 def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
     """Generate pricing recommendations using hybrid optimizer"""
     try:
-        from hybrid_pricing_optimizer import HybridPricingOptimizer
         from datetime import datetime
+
+        from hybrid_pricing_optimizer import HybridPricingOptimizer
 
         data = request.get_json()
         months = data.get("months", 14)
@@ -189,11 +192,11 @@ def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
                 "success": True,
                 "result": result,
                 "listing": listing,
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -249,7 +252,7 @@ def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
             {"success": True, "recommendations": results, "count": len(results)}
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -324,7 +327,7 @@ def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -353,7 +356,7 @@ def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -411,7 +414,7 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "multipliers": results, "listing": listing})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -446,7 +449,7 @@ def str_write_future(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 400
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -541,8 +544,8 @@ def str_import_payout_authenticated(user_email, user_roles) -> ResponseReturnVal
 
         return jsonify(response)
 
-    except Exception as e:
-        print(f"Error in Payout import: {str(e)}", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"Error in Payout import: {e!s}", flush=True)
         import traceback
 
         traceback.print_exc()
@@ -562,7 +565,7 @@ def str_summary(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "summary": summary})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -596,7 +599,7 @@ def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -636,5 +639,5 @@ def str_calculate_taxes(user_email, user_roles) -> ResponseReturnValue:
                 "taxRates": result.get("tax_rates_used", {}),
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500

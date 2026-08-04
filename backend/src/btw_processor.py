@@ -1,10 +1,11 @@
+import html
+import os
+import tempfile
+from datetime import datetime
+
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
 from mutaties_cache import get_cache
-import os
-from datetime import datetime
-import tempfile
-import html
 
 
 class BTWProcessor:
@@ -113,7 +114,7 @@ class BTWProcessor:
                 "quarter_end_date": quarter_end_date,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"success": False, "error": str(e)}
 
     def _get_balance_data(self, administration, end_date):
@@ -156,7 +157,7 @@ class BTWProcessor:
             results.extend(current_year_data)
 
             return results
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error getting balance data: {e}", flush=True)
             import traceback
 
@@ -193,7 +194,7 @@ class BTWProcessor:
             total = df_filtered["Amount"].sum()
 
             return {"amount": total}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error getting opening balance VAT: {e}", flush=True)
             return None
 
@@ -235,7 +236,7 @@ class BTWProcessor:
             results = grouped.to_dict("records")
 
             return results
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error getting current year VAT: {e}", flush=True)
             return []
 
@@ -273,7 +274,7 @@ class BTWProcessor:
             results = grouped.to_dict("records")
 
             return results
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error getting quarter data: {e}", flush=True)
             return []
 
@@ -310,7 +311,7 @@ class BTWProcessor:
                 "prepaid_btw": prepaid_btw,
                 "payment_instruction": payment_instruction,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error calculating BTW amounts: {e}", flush=True)
             return {
                 "total_balance": 0,
@@ -417,7 +418,7 @@ class BTWProcessor:
             <p><em>Gegenereerd op: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</em></p>
         </body>
         </html>
-        """
+        """  # noqa: DTZ005
 
         return html_content
 
@@ -427,7 +428,7 @@ class BTWProcessor:
         _last_btw = self._get_last_btw_transaction(administration)
 
         total_balance = calculations["total_balance"]
-        transaction_date = datetime.now().strftime("%Y-%m-%d")
+        transaction_date = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
 
         # Determine debet/credit based on amount
         primary_vat = self._get_primary_vat_account(administration, transaction_date)
@@ -477,7 +478,7 @@ class BTWProcessor:
             result = cursor.fetchone()
 
             return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error getting last BTW transaction: {e}", flush=True)
             return None
         finally:
@@ -551,7 +552,7 @@ class BTWProcessor:
 
             return {"success": True, "transaction_id": transaction_id}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             if conn:
                 conn.rollback()
             return {"success": False, "error": str(e)}
@@ -621,5 +622,5 @@ class BTWProcessor:
                     # Clean up temp file
                     os.unlink(temp_path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"success": False, "error": str(e)}

@@ -10,8 +10,8 @@ This service logs all AI API requests to the ai_usage_log table, enabling:
 """
 
 import logging
-from typing import Dict, Any, Optional
 from decimal import Decimal
+from typing import Any
 
 from dialect_helpers import dialect
 
@@ -30,7 +30,7 @@ class AIUsageTracker:
 
     # Model pricing per 1M tokens (input/output average)
     # Source: OpenRouter pricing as of January 2026
-    MODEL_PRICING = {
+    MODEL_PRICING = {  # noqa: RUF012
         "google/gemini-flash-1.5": 0.0,  # FREE
         "meta-llama/llama-3.2-3b-instruct:free": 0.0,  # FREE
         "deepseek/deepseek-chat": 0.685,  # Average of $0.27 input + $1.10 output
@@ -53,7 +53,7 @@ class AIUsageTracker:
         administration: str,
         template_type: str,
         tokens_used: int,
-        model_used: Optional[str] = None,
+        model_used: str | None = None,
     ) -> bool:
         """
         Log an AI API request with token usage and cost estimate.
@@ -95,13 +95,13 @@ class AIUsageTracker:
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to log AI usage: {e}")
             # Don't fail the main operation if logging fails
             return False
 
     def _calculate_cost(
-        self, tokens_used: int, model_used: Optional[str] = None
+        self, tokens_used: int, model_used: str | None = None
     ) -> Decimal:
         """
         Calculate cost estimate based on token usage and model.
@@ -136,12 +136,12 @@ class AIUsageTracker:
 
             return cost
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to calculate cost: {e}")
             # Return 0 if calculation fails
             return Decimal("0.000000")
 
-    def get_usage_summary(self, administration: str, days: int = 30) -> Dict[str, Any]:
+    def get_usage_summary(self, administration: str, days: int = 30) -> dict[str, Any]:
         """
         Get usage summary for a tenant over specified period.
 
@@ -216,7 +216,7 @@ class AIUsageTracker:
                 "by_feature": by_feature,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to get usage summary: {e}")
             return {
                 "total_requests": 0,

@@ -11,7 +11,6 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 
 import logging
 from datetime import date
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class TouristTaxCalculator:
         base_amount_excl_vat: float,
         number_of_nights: int = 1,
         number_of_guests: int = 1,
-        room_price: float = None,
+        room_price: float | None = None,
     ) -> dict:
         """
         Calculate tourist tax using the municipality-specific method.
@@ -69,7 +68,7 @@ class TouristTaxCalculator:
         base_amount_excl_vat: float,
         nights: int,
         guests: int,
-        room_price: Optional[float],
+        room_price: float | None,
     ) -> float:
         """Route to the correct formula based on calc_method."""
         if method == "percentage":

@@ -13,10 +13,9 @@ Implements:
 - Graceful degradation when JWKS endpoint is unreachable
 """
 
-import time
 import logging
+import time
 from dataclasses import dataclass, field
-from typing import Dict
 
 import jwt
 import requests
@@ -62,7 +61,7 @@ class ServiceUnavailableError(Exception):
 class JWKSCache:
     """In-memory cache for JWKS public keys."""
 
-    keys: Dict[str, dict] = field(default_factory=dict)  # kid -> JWK dict
+    keys: dict[str, dict] = field(default_factory=dict)  # kid -> JWK dict
     fetched_at: float = 0.0
     ttl: int = 3600
 
@@ -175,7 +174,7 @@ class JWTVerifier:
         except jwt.DecodeError:
             raise InvalidTokenError("Invalid token signature")
         except jwt.InvalidTokenError as e:
-            raise InvalidTokenError(f"Invalid token: {str(e)}")
+            raise InvalidTokenError(f"Invalid token: {e!s}")
 
         # Validate audience (aud) or client_id claim
         self._validate_audience(payload)

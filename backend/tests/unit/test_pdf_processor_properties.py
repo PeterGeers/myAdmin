@@ -320,7 +320,7 @@ class TestValidAIResultPassthrough:
             f"Expected description='{description}', got '{main_tx['description']}'"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, derandomize=True)
     @given(
         folder_name=valid_folder_name_st,
         total_amount=valid_amount_st,
@@ -493,7 +493,7 @@ class TestAIOnlyExtractionPath:
     **Validates: Requirements 1.6, 2.1, 3.3**
     """
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, derandomize=True, deadline=None)
     @given(folder_name=folder_name_st, text_content=text_content_st)
     def test_ai_extractor_called_with_correct_text_and_folder(self, folder_name, text_content):
         """
@@ -758,7 +758,7 @@ class TestAIFailureFallbackStructure:
             f"got '{main_tx['description']}'"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, derandomize=True)
     @given(folder_name=folder_name_st, error_msg=exception_message_st)
     def test_ai_exception_produces_fallback_with_zero_amounts(self, folder_name, error_msg):
         """

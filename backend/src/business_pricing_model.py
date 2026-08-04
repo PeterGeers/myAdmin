@@ -1,6 +1,8 @@
-import pandas as pd
-from database import DatabaseManager
 import warnings
+
+import pandas as pd
+
+from database import DatabaseManager
 
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
 
@@ -82,7 +84,7 @@ class BusinessPricingModel:
             is_weekend = date.weekday() in [4, 5]
             return 110 if is_weekend else 85
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Base rate error: {e}")
             is_weekend = date.weekday() in [4, 5]
             return 110 if is_weekend else 85
@@ -136,7 +138,7 @@ class BusinessPricingModel:
 
             return 1.0  # Default if no historical data
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Historical multiplier error: {e}")
             return 1.0
         finally:
@@ -182,7 +184,7 @@ class BusinessPricingModel:
 
             return 1.0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Occupancy multiplier error: {e}")
             return 1.0
         finally:
@@ -292,7 +294,7 @@ class BusinessPricingModel:
 
             return 1.0  # Default for no data or stable revenue
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Monthly revenue trend error for {listing}: {e}")
             return 1.0
         finally:
@@ -320,7 +322,7 @@ class BusinessPricingModel:
 
             return 1.0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Event multiplier error: {e}")
             return 1.0
         finally:

@@ -10,27 +10,31 @@ Delegates to:
 
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
-from csv_rules import CsvRuleEngine
+
 from config import Config
-from pdf_parsing_strategies import (
-    process_pdf,
-    process_image,
-    process_csv,
-    process_mhtml,
-    process_eml,
-    generic_parse,
-)
+from csv_rules import CsvRuleEngine
 from pdf_ai_extraction import extract_with_ai, log_ai_usage
 from pdf_decision_handler import (
-    handle_duplicate_decision as _handle_duplicate_decision_func,
-    handle_continue_decision as _handle_continue_decision_func,
     handle_cancel_decision as _handle_cancel_decision_func,
+)
+from pdf_decision_handler import (
+    handle_continue_decision as _handle_continue_decision_func,
+)
+from pdf_decision_handler import (
+    handle_duplicate_decision as _handle_duplicate_decision_func,
+)
+from pdf_parsing_strategies import (
+    generic_parse,
+    process_csv,
+    process_eml,
+    process_image,
+    process_mhtml,
+    process_pdf,
 )
 
 
 class PDFProcessor:
-    def __init__(self, test_mode: bool = False, tenant: str = None):
+    def __init__(self, test_mode: bool = False, tenant: str | None = None):
         self.csv_rule_engine = CsvRuleEngine()
         self.config = Config(test_mode=test_mode)
         self._current_tenant = tenant
@@ -90,7 +94,7 @@ class PDFProcessor:
             ai_result
             if ai_result
             else {
-                "date": datetime.now().strftime("%Y-%m-%d"),
+                "date": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
                 "total_amount": 0.0,
                 "vat_amount": 0.0,
                 "description": f"{folder_name} invoice",
@@ -146,7 +150,7 @@ class PDFProcessor:
                 if len(last_transactions) > 1
                 else main_debet
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error getting last transactions: {e}")
             main_debet, main_credit = "4000", "1300"
             vat_debet, vat_credit = "2010", "4000"
@@ -216,7 +220,7 @@ class PDFProcessor:
                 print(
                     f"Duplicate detected for {reference_number}: {duplicate_info['duplicate_count']} matches found"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error during duplicate detection: {e}")
 
         return transactions
@@ -248,8 +252,8 @@ class PDFProcessor:
             return None
 
         try:
-            from duplicate_checker import DuplicateChecker
             from database import DatabaseManager
+            from duplicate_checker import DuplicateChecker
 
             db = DatabaseManager()
             duplicate_checker = DuplicateChecker(db)
@@ -295,7 +299,7 @@ class PDFProcessor:
         except ImportError as e:
             print(f"Duplicate checker not available: {e}")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error during duplicate detection: {e}")
             return None
 
@@ -304,12 +308,12 @@ class PDFProcessor:
     def handle_duplicate_decision(
         self,
         decision: str,
-        duplicate_info: Dict,
-        transactions: List[Dict],
-        file_data: Dict,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-    ) -> Dict:
+        duplicate_info: dict,
+        transactions: list[dict],
+        file_data: dict,
+        user_id: str | None = None,
+        session_id: str | None = None,
+    ) -> dict:
         """
         Handle user decision regarding duplicate transactions.
         Delegates to pdf_decision_handler module.
@@ -320,11 +324,11 @@ class PDFProcessor:
 
     def _handle_continue_decision(
         self,
-        duplicate_info: Dict,
-        transactions: List[Dict],
-        file_data: Dict,
+        duplicate_info: dict,
+        transactions: list[dict],
+        file_data: dict,
         log_success: bool,
-    ) -> Dict:
+    ) -> dict:
         """Handle the 'Continue' decision for duplicate imports."""
         return _handle_continue_decision_func(
             duplicate_info, transactions, file_data, log_success
@@ -332,12 +336,12 @@ class PDFProcessor:
 
     def _handle_cancel_decision(
         self,
-        duplicate_info: Dict,
-        transactions: List[Dict],
-        file_data: Dict,
+        duplicate_info: dict,
+        transactions: list[dict],
+        file_data: dict,
         file_cleanup_manager,
         log_success: bool,
-    ) -> Dict:
+    ) -> dict:
         """Handle the 'Cancel' decision for duplicate imports."""
         return _handle_cancel_decision_func(
             duplicate_info, transactions, file_data, file_cleanup_manager, log_success

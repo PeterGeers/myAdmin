@@ -4,15 +4,17 @@ SysAdmin Health Check Endpoints
 API endpoints for monitoring system health and service status
 """
 
+import logging
+import os
+import time
+from datetime import datetime
+
+import boto3
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
+
 from auth.cognito_utils import cognito_required
-import os
-import boto3
-import logging
-import time
 from database import DatabaseManager
-from datetime import datetime
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -66,22 +68,22 @@ def check_database_health() -> dict:
             "status": "healthy",
             "responseTime": response_time,
             "message": f"Connected to MySQL {version}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
             "details": {
                 "host": os.getenv("DB_HOST", "localhost"),
                 "database": os.getenv("DB_NAME", "finance"),
                 "connections": connections,
             },
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"Database health check failed: {e}")
         return {
             "service": "database",
             "status": "unhealthy",
             "responseTime": response_time,
-            "message": f"Database connection failed: {str(e)}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "message": f"Database connection failed: {e!s}",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
         }
 
 
@@ -107,21 +109,21 @@ def check_cognito_health() -> dict:
             "status": status,
             "responseTime": response_time,
             "message": "AWS Cognito accessible",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
             "details": {
                 "userPoolId": USER_POOL_ID,
                 "userPoolName": response["UserPool"].get("Name", "Unknown"),
             },
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"Cognito health check failed: {e}")
         return {
             "service": "cognito",
             "status": "unhealthy",
             "responseTime": response_time,
-            "message": f"AWS Cognito error: {str(e)}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "message": f"AWS Cognito error: {e!s}",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
         }
 
 
@@ -141,7 +143,7 @@ def check_sns_health() -> dict:
             "status": "healthy",
             "responseTime": 0,
             "message": "AWS SNS not configured (optional)",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
         }
 
     try:
@@ -158,7 +160,7 @@ def check_sns_health() -> dict:
             "status": status,
             "responseTime": response_time,
             "message": "AWS SNS accessible",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
             "details": {
                 "topicArn": SNS_TOPIC_ARN,
                 "subscriptions": response["Attributes"].get(
@@ -166,15 +168,15 @@ def check_sns_health() -> dict:
                 ),
             },
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"SNS health check failed: {e}")
         return {
             "service": "sns",
             "status": "unhealthy",
             "responseTime": response_time,
-            "message": f"AWS SNS error: {str(e)}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "message": f"AWS SNS error: {e!s}",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
         }
 
 
@@ -195,7 +197,7 @@ def check_openrouter_health() -> dict:
             "status": "healthy",
             "responseTime": 0,
             "message": "OpenRouter not configured (optional)",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
         }
 
     try:
@@ -222,17 +224,17 @@ def check_openrouter_health() -> dict:
             "status": status,
             "responseTime": response_time,
             "message": message,
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"OpenRouter health check failed: {e}")
         return {
             "service": "openrouter",
             "status": "unhealthy",
             "responseTime": response_time,
-            "message": f"OpenRouter error: {str(e)}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",
+            "message": f"OpenRouter error: {e!s}",
+            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
         }
 
 
@@ -276,11 +278,11 @@ def get_system_health(user_email, user_roles) -> ResponseReturnValue:
             {
                 "overall": overall,
                 "services": services,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting system health: {e}")
         import traceback
 

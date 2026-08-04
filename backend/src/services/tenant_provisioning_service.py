@@ -16,11 +16,11 @@ Returns a results dict with created/skipped status per step so callers
 can report exactly what happened.
 """
 
-import os
 import json
 import logging
+import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
 from services.parameter_service import ParameterService
 
@@ -44,12 +44,12 @@ class TenantProvisioningService:
         modules: list,
         created_by: str,
         locale: str = "nl",
-        phone_number: Optional[str] = None,
-        street: Optional[str] = None,
-        city: Optional[str] = None,
-        zipcode: Optional[str] = None,
+        phone_number: str | None = None,
+        street: str | None = None,
+        city: str | None = None,
+        zipcode: str | None = None,
         country: str = "Netherlands",
-        initial_admin_email: Optional[str] = None,
+        initial_admin_email: str | None = None,
     ) -> dict:
         """
         Create and provision a new tenant.
@@ -165,7 +165,7 @@ class TenantProvisioningService:
                     f"'{contact_email}' (tenant: {administration}): "
                     f"{verification_result.get('error')}"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(
                 f"Email verification initiation failed for '{contact_email}' "
                 f"(tenant: {administration}): {e} — provisioning continues"
@@ -193,7 +193,7 @@ class TenantProvisioningService:
                     locale=locale,
                 )
                 results["initial_admin"] = admin_result
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"Initial admin user creation failed for '{administration}': {e}"
                 )
@@ -222,7 +222,7 @@ class TenantProvisioningService:
         email: str,
         created_by: str,
         locale: str = "nl",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create an initial admin user for a newly provisioned tenant.
 
@@ -276,8 +276,8 @@ class TenantProvisioningService:
 
             # ── Service instances ───────────────────────────────────
             from services.cognito_service import CognitoService
-            from services.invitation_service import InvitationService
             from services.email_template_service import EmailTemplateService
+            from services.invitation_service import InvitationService
             from services.ses_email_service import SESEmailService
             from utils.frontend_url import get_frontend_url
 
@@ -318,7 +318,7 @@ class TenantProvisioningService:
                     login_url,
                 )
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             msg = (
                 f"Failed to create initial admin user {email} "
                 f"for '{administration}': {exc}"
@@ -341,7 +341,7 @@ class TenantProvisioningService:
         email_template,
         ses,
         login_url: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a brand-new Cognito user and grant Tenant_Admin."""
 
         # 1. Create invitation record (generates temp password)
@@ -422,7 +422,7 @@ class TenantProvisioningService:
         email_template,
         ses,
         login_url: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Grant Tenant_Admin to an existing Cognito user."""
 
         # 1. Add tenant to Cognito custom:tenants
@@ -515,7 +515,7 @@ class TenantProvisioningService:
                     email=email,
                     error_message=f"SES send failed: {result.get('error')}",
                 )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(f"Failed to send invitation email to {email}: {exc}")
             invitation_service.mark_invitation_failed(
                 administration=administration,
@@ -586,7 +586,7 @@ class TenantProvisioningService:
                     f"Failed to send tenant-added notification to {email}: "
                     f"{result.get('error')}"
                 )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 f"Failed to send tenant-added notification to {email}: {exc}"
             )
@@ -750,7 +750,7 @@ class TenantProvisioningService:
             )
             return {"status": "created", "rows": inserted}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             msg = (
                 f"Failed to load chart of accounts for '{administration}': {e}. "
                 f"Add chart manually."

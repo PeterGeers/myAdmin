@@ -1,6 +1,7 @@
-import os
 import json
+import os
 from datetime import datetime
+
 from database import DatabaseManager
 from dialect_helpers import dialect
 
@@ -57,7 +58,7 @@ class DatabaseMigration:
         if not migration_name:
             raise ValueError("Migration name is required")
 
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")  # noqa: DTZ005
         filename = f"{timestamp}_{migration_name}.json"
         filepath = os.path.join(self.migrations_dir, filename)
 
@@ -101,7 +102,7 @@ class DatabaseMigration:
             return True
 
         except Exception as e:
-            error_msg = f"Migration failed: {str(e)}"
+            error_msg = f"Migration failed: {e!s}"
             print(error_msg)
             self._record_migration(migration["name"], status="failed", notes=error_msg)
             raise
@@ -143,7 +144,7 @@ class DatabaseMigration:
             return True
 
         except Exception as e:
-            error_msg = f"Rollback failed: {str(e)}"
+            error_msg = f"Rollback failed: {e!s}"
             print(error_msg)
             raise
 
@@ -169,7 +170,7 @@ class DatabaseMigration:
                 try:
                     self.apply_migration(filepath)
                     applied_count += 1
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     print(f"Failed to apply {migration['name']}: {e}")
                     break
 
@@ -227,7 +228,7 @@ class DatabaseMigration:
             try:
                 result = self.db.execute_query(query)
                 results.append({"query": query, "success": True, "result": result})
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 results.append({"query": query, "success": False, "error": str(e)})
 
         return results
@@ -259,7 +260,7 @@ class DatabaseMigration:
                         "index_count": len(indexes) if indexes else 0,
                     }
                     index_report.append(table_report)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 index_report.append({"table": table, "error": str(e)})
 
         return index_report
@@ -312,7 +313,7 @@ class DatabaseMigration:
                             "status": "exists",
                         }
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 results.append(
                     {
                         "table": table,
@@ -355,7 +356,7 @@ class DatabaseMigration:
                         "success": True,
                     }
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 results.append(
                     {"query": query[:50] + "...", "success": False, "error": str(e)}
                 )
@@ -375,13 +376,13 @@ class QueryOptimizer:
     def cached_query(self, query, params=None, cache_key=None, ttl=None):
         """Execute query with caching"""
         if not cache_key:
-            cache_key = f"{query}_{str(params)}"
+            cache_key = f"{query}_{params!s}"
 
         # Check cache first
         cached_result = self.query_cache.get(cache_key)
         if cached_result and (
             "timestamp" not in cached_result
-            or (datetime.now() - cached_result["timestamp"]).seconds
+            or (datetime.now() - cached_result["timestamp"]).seconds  # noqa: DTZ005
             < (ttl or self.cache_ttl)
         ):
             return cached_result["data"]
@@ -392,7 +393,7 @@ class QueryOptimizer:
         # Cache result
         self.query_cache[cache_key] = {
             "data": result,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now(),  # noqa: DTZ005
             "query": query,
             "params": params,
         }
@@ -444,7 +445,7 @@ class QueryOptimizer:
 
             return analysis
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"query": query, "error": str(e)}
 
     def optimize_query(self, query):

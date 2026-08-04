@@ -9,14 +9,16 @@ Business logic for trial signup flow:
 Uses a separate myadmin_promo database for signup data isolation.
 """
 
+import html
+import logging
 import os
 import re
-import html
-import boto3
-import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
+from typing import Any
+
+import boto3
 from botocore.exceptions import ClientError
+
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -59,8 +61,8 @@ class SignupService:
     # ========================================================================
 
     def validate_signup_input(
-        self, data: Dict[str, Any]
-    ) -> Tuple[bool, Optional[Dict[str, str]]]:
+        self, data: dict[str, Any]
+    ) -> tuple[bool, dict[str, str] | None]:
         """
         Validate signup input fields.
         Returns (is_valid, errors_dict or None)
@@ -135,7 +137,7 @@ class SignupService:
         # In production, use HMAC-based tokens with timestamps
         return token == self.csrf_secret
 
-    def is_honeypot_filled(self, data: Dict[str, Any]) -> bool:
+    def is_honeypot_filled(self, data: dict[str, Any]) -> bool:
         """Check if honeypot field is filled (indicates bot)"""
         honeypot = data.get("honeypot", "")
         return bool(honeypot)
@@ -145,8 +147,11 @@ class SignupService:
     # ========================================================================
 
     def create_signup(
-        self, data: Dict[str, Any], ip_address: str = None, user_agent: str = None
-    ) -> Dict[str, Any]:
+        self,
+        data: dict[str, Any],
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a new trial signup:
         1. Create Cognito user
@@ -233,12 +238,12 @@ class SignupService:
                     "locale": locale,
                 },
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Admin notification failed (non-critical): {e}")
 
         return {"userId": cognito_user_id}
 
-    def verify_signup(self, email: str, code: str) -> Dict[str, Any]:
+    def verify_signup(self, email: str, code: str) -> dict[str, Any]:
         """
         Verify email with Cognito confirmation code.
         Updates pending_signups status to 'verified'.
@@ -296,12 +301,12 @@ class SignupService:
                     "name": f"{signup['first_name']} {signup['last_name']}",
                 },
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Admin notification failed (non-critical): {e}")
 
         return {"redirectUrl": self.redirect_url}
 
-    def resend_verification(self, email: str) -> Dict[str, Any]:
+    def resend_verification(self, email: str) -> dict[str, Any]:
         """
         Resend Cognito verification code.
         Rate limited: 1 per 60 seconds per email.
@@ -318,7 +323,7 @@ class SignupService:
         # Rate limit: 60 seconds between resends
         last_resend = signup.get("last_resend_at")
         if last_resend:
-            elapsed = (datetime.utcnow() - last_resend).total_seconds()
+            elapsed = (datetime.utcnow() - last_resend).total_seconds()  # noqa: DTZ003
             if elapsed < 60:
                 raise ResendRateLimitError(
                     f"Please wait {int(60 - elapsed)} seconds before resending"
@@ -343,7 +348,7 @@ class SignupService:
                 (email,),
             )
             conn.commit()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"DB update for last_resend_at failed: {e}")
         finally:
             cursor.close()
@@ -355,7 +360,7 @@ class SignupService:
     # Helpers
     # ========================================================================
 
-    def _get_pending_signup(self, email: str) -> Optional[Dict[str, Any]]:
+    def _get_pending_signup(self, email: str) -> dict[str, Any] | None:
         """Look up a pending signup by email"""
         try:
             conn = self._get_connection()
@@ -371,7 +376,7 @@ class SignupService:
             conn.close()
 
     def _send_admin_notification(
-        self, title: str, message: str, data: Dict[str, Any] = None
+        self, title: str, message: str, data: dict[str, Any] | None = None
     ):
         """Send admin notification via SNS (reuses existing pattern)"""
         try:
@@ -382,7 +387,7 @@ class SignupService:
                 service.send_business_notification(title, message, data)
             else:
                 logger.info(f"SNS disabled — would send: {title}: {message}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Notification send failed: {e}")
 
 
@@ -394,28 +399,18 @@ class SignupService:
 class UsernameExistsError(Exception):
     """Email already registered in Cognito"""
 
-    pass
-
 
 class SignupNotFoundError(Exception):
     """No pending signup found for email"""
-
-    pass
 
 
 class AlreadyVerifiedError(Exception):
     """Signup already verified"""
 
-    pass
-
 
 class InvalidCodeError(Exception):
     """Invalid or expired verification code"""
 
-    pass
-
 
 class ResendRateLimitError(Exception):
     """Resend attempted too soon"""
-
-    pass

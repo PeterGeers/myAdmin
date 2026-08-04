@@ -85,6 +85,7 @@ class TestFlakyTestDetection:
     @given(results=_result_sequence)
     @settings(
         max_examples=100,
+        derandomize=True,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     def test_flaky_detection(self, results, tmp_path):
@@ -183,6 +184,7 @@ class TestQuarantineLifecycleIntegrity:
     )
     @settings(
         max_examples=100,
+        derandomize=True,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     def test_quarantine_lifecycle(

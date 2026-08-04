@@ -16,10 +16,10 @@ Key Concepts:
 Journal entry creation is delegated to YearEndJournalEntryHelper.
 """
 
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any
 
 from database import DatabaseManager
-from datetime import datetime
 from services.year_end_config import YearEndConfigService
 from services.year_end_journal_entries import YearEndJournalEntryHelper
 
@@ -38,7 +38,7 @@ class YearEndClosureService:
         self.config_service = YearEndConfigService(test_mode=test_mode)
         self.journal_helper = YearEndJournalEntryHelper(self.config_service)
 
-    def get_available_years(self, administration: str) -> Dict[str, Any]:
+    def get_available_years(self, administration: str) -> dict[str, Any]:
         """
         Get years that have transactions and are not yet closed.
 
@@ -68,7 +68,7 @@ class YearEndClosureService:
         results = self.db.execute_query(query, [administration, administration])
         return [row["year"] for row in results] if results else []
 
-    def get_closed_years(self, administration: str) -> Dict[str, Any]:
+    def get_closed_years(self, administration: str) -> dict[str, Any]:
         """
         Get list of closed years with closure information.
 
@@ -93,7 +93,7 @@ class YearEndClosureService:
 
         return self.db.execute_query(query, [administration])
 
-    def get_year_status(self, administration: str, year: int) -> Dict[str, Any]:
+    def get_year_status(self, administration: str, year: int) -> dict[str, Any]:
         """
         Get closure status for a specific year.
 
@@ -120,7 +120,7 @@ class YearEndClosureService:
         result = self.db.execute_query(query, [administration, year])
         return result[0] if result else None
 
-    def validate_year_closure(self, administration: str, year: int) -> Dict[str, Any]:
+    def validate_year_closure(self, administration: str, year: int) -> dict[str, Any]:
         """
         Validate if year is ready to be closed.
 
@@ -148,7 +148,7 @@ class YearEndClosureService:
 
         # Check if previous year is closed (except for first year)
         first_year = self._get_first_year(administration)
-        if first_year and year > first_year:
+        if first_year and year > first_year:  # noqa: SIM102
             if not self._is_year_closed(administration, year - 1):
                 validation["can_close"] = False
                 validation["errors"].append(
@@ -191,7 +191,7 @@ class YearEndClosureService:
         result = self.db.execute_query(query, [administration, year])
         return result[0]["count"] > 0 if result else False
 
-    def _get_first_year(self, administration: str) -> Optional[int]:
+    def _get_first_year(self, administration: str) -> int | None:
         """Get first year with transactions"""
         query = """
             SELECT MIN(TransactionDate) as first_date
@@ -283,7 +283,7 @@ class YearEndClosureService:
 
     def close_year(
         self, administration: str, year: int, user_email: str, notes: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Close a fiscal year.
 
@@ -312,7 +312,7 @@ class YearEndClosureService:
         validation = self.validate_year_closure(administration, year)
         if not validation["can_close"]:
             error_msg = "; ".join(validation["errors"])
-            raise Exception(f"Cannot close year {year}: {error_msg}")
+            raise Exception(f"Cannot close year {year}: {error_msg}")  # noqa: TRY002
 
         # Get database connection
         conn = self.db.get_connection()
@@ -361,10 +361,10 @@ class YearEndClosureService:
                 "message": f"Year {year} closed successfully",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Rollback on any error
             conn.rollback()
-            raise Exception(f"Failed to close year {year}: {str(e)}")
+            raise Exception(f"Failed to close year {year}: {e!s}")  # noqa: TRY002
 
         finally:
             cursor.close()
@@ -415,7 +415,7 @@ class YearEndClosureService:
             [
                 administration,
                 year,
-                datetime.now(),
+                datetime.now(),  # noqa: DTZ005
                 user_email,
                 closure_transaction_number,
                 opening_transaction_number,
@@ -425,7 +425,7 @@ class YearEndClosureService:
 
     def reopen_year(
         self, administration: str, year: int, user_email: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Reopen a closed fiscal year.
 
@@ -451,18 +451,18 @@ class YearEndClosureService:
         """
         # Step 1: Validate year can be reopened
         if not self._is_year_closed(administration, year):
-            raise Exception(f"Year {year} is not closed")
+            raise Exception(f"Year {year} is not closed")  # noqa: TRY002
 
         # Check if next year is closed (can't reopen if next year is closed)
         if self._is_year_closed(administration, year + 1):
-            raise Exception(
+            raise Exception(  # noqa: TRY002
                 f"Cannot reopen year {year} because year {year + 1} is already closed"
             )
 
         # Get closure information
         closure_info = self.get_year_status(administration, year)
         if not closure_info:
-            raise Exception(f"No closure information found for year {year}")
+            raise Exception(f"No closure information found for year {year}")  # noqa: TRY002
 
         closure_txn = closure_info.get("closure_transaction_number")
         opening_txn = closure_info.get("opening_balance_transaction_number")
@@ -507,10 +507,10 @@ class YearEndClosureService:
                 "message": f"Year {year} reopened successfully",
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Rollback on any error
             conn.rollback()
-            raise Exception(f"Failed to reopen year {year}: {str(e)}")
+            raise Exception(f"Failed to reopen year {year}: {e!s}")  # noqa: TRY002
 
         finally:
             cursor.close()

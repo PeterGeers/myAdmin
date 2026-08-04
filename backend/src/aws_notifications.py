@@ -3,11 +3,12 @@ AWS User Notifications Service
 Handles sending notifications via AWS SNS (Simple Notification Service)
 """
 
-import boto3
 import logging
 import os
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any
+
+import boto3
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class AWSNotificationService:
     - Error handling and retry logic
     """
 
-    def __init__(self, topic_arn: Optional[str] = None, region: str = "eu-west-1"):
+    def __init__(self, topic_arn: str | None = None, region: str = "eu-west-1"):
         """
         Initialize AWS SNS client
 
@@ -45,7 +46,7 @@ class AWSNotificationService:
             try:
                 self.sns_client = boto3.client("sns", region_name=self.region)
                 logger.info(f"AWS SNS client initialized for region: {self.region}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Failed to initialize SNS client: {e}")
                 self.sns_client = None
 
@@ -57,7 +58,7 @@ class AWSNotificationService:
         self,
         subject: str,
         message: str,
-        message_attributes: Optional[Dict[str, Any]] = None,
+        message_attributes: dict[str, Any] | None = None,
     ) -> bool:
         """
         Send a notification via SNS
@@ -86,7 +87,7 @@ class AWSNotificationService:
             # Add timestamp
             sns_attributes["timestamp"] = {
                 "DataType": "String",
-                "StringValue": datetime.now().isoformat(),
+                "StringValue": datetime.now().isoformat(),  # noqa: DTZ005
             }
 
             # Publish to SNS
@@ -107,7 +108,7 @@ class AWSNotificationService:
             logger.error(f"AWS SNS Error [{error_code}]: {error_message}")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to send notification: {e}")
             return False
 
@@ -116,7 +117,7 @@ class AWSNotificationService:
         alert_type: str,
         message: str,
         severity: str = "INFO",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> bool:
         """
         Send an alert notification
@@ -143,7 +144,7 @@ Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 Message:
 {message}
-"""
+"""  # noqa: DTZ005
 
         if details:
             formatted_message += "\n\nDetails:\n"
@@ -164,7 +165,7 @@ Message:
         metric_name: str,
         current_value: float,
         threshold: float,
-        details: Optional[str] = None,
+        details: str | None = None,
     ) -> bool:
         """Send performance degradation alert"""
         message = f"""
@@ -185,7 +186,7 @@ Exceeded by: {((current_value / threshold - 1) * 100):.1f}%
         )
 
     def send_error_notification(
-        self, error_type: str, error_message: str, stack_trace: Optional[str] = None
+        self, error_type: str, error_message: str, stack_trace: str | None = None
     ) -> bool:
         """Send error notification"""
         message = f"""
@@ -208,8 +209,8 @@ Error Message: {error_message}
         self,
         event_type: str,
         description: str,
-        source_ip: Optional[str] = None,
-        user: Optional[str] = None,
+        source_ip: str | None = None,
+        user: str | None = None,
     ) -> bool:
         """Send security alert"""
         details = {}
@@ -226,7 +227,7 @@ Error Message: {error_message}
         )
 
     def send_business_notification(
-        self, title: str, message: str, data: Optional[Dict[str, Any]] = None
+        self, title: str, message: str, data: dict[str, Any] | None = None
     ) -> bool:
         """
         Send business-related notification
@@ -262,13 +263,13 @@ If you received this email, your AWS SNS notification system is working correctl
 Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 Region: {self.region}
 Topic ARN: {self.topic_arn}
-""",
+""",  # noqa: DTZ005
             message_attributes={"type": "test"},
         )
 
 
 # Global instance
-_notification_service: Optional[AWSNotificationService] = None
+_notification_service: AWSNotificationService | None = None
 
 
 def get_notification_service() -> AWSNotificationService:

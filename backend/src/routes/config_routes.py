@@ -5,9 +5,10 @@ Public endpoints for application configuration:
 - GET /api/config/ledger-parameters — Predefined ledger account parameter definitions
 """
 
-import os
 import json
 import logging
+import os
+
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
@@ -30,7 +31,7 @@ def _get_ledger_parameters() -> dict:
         try:
             with open(config_path, encoding="utf-8") as f:
                 _ledger_parameters = json.load(f)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to load ledger_parameters.json: {e}")
             _ledger_parameters = []
     return _ledger_parameters

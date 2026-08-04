@@ -13,7 +13,8 @@ Extracted from app.py during refactoring (Phase 2.1)
 import os
 import shutil
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any
+
 from database import DatabaseManager
 from dialect_helpers import dialect
 from google_drive_service import GoogleDriveService
@@ -24,7 +25,7 @@ from transaction_logic import TransactionLogic
 class InvoiceService:
     """Service class for invoice processing operations"""
 
-    ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}
+    ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}  # noqa: RUF012
 
     def __init__(self, test_mode=False):
         """
@@ -55,8 +56,12 @@ class InvoiceService:
         )
 
     def check_early_duplicates(
-        self, filename: str, folder_name: str, drive_result: dict, tenant: str = None
-    ) -> Dict[str, Any]:
+        self,
+        filename: str,
+        folder_name: str,
+        drive_result: dict,
+        tenant: str | None = None,
+    ) -> dict[str, Any]:
         """
         Check for duplicate files before processing to prevent unnecessary work.
         This is an early check based on filename and folder, scoped to the tenant.
@@ -135,7 +140,7 @@ class InvoiceService:
                 "duplicate_info": None,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error in early duplicate check: {e}", flush=True)
             # On error, allow processing to continue (graceful degradation)
             return {
@@ -146,7 +151,7 @@ class InvoiceService:
 
     def upload_to_drive(
         self, temp_path: str, filename: str, folder_name: str, tenant: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Upload file to storage (Google Drive or S3 depending on tenant provider)
 
@@ -164,7 +169,7 @@ class InvoiceService:
             return {"id": filename, "url": f"http://localhost:5000/uploads/{filename}"}
 
         # Resolve storage provider for this tenant
-        from services.storage_resolver import resolve_storage_provider, get_s3_storage
+        from services.storage_resolver import get_s3_storage, resolve_storage_provider
 
         provider = resolve_storage_provider(tenant)
 
@@ -181,9 +186,9 @@ class InvoiceService:
                 )
                 print(f"File uploaded to S3: {s3_key}", flush=True)
                 return {"id": s3_key, "url": s3_key}
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(
-                    f"S3 upload failed for tenant {tenant}: {type(e).__name__}: {str(e)}",
+                    f"S3 upload failed for tenant {tenant}: {type(e).__name__}: {e!s}",
                     flush=True,
                 )
                 import traceback
@@ -254,9 +259,9 @@ class InvoiceService:
                         "id": filename,
                         "url": f"http://localhost:5000/uploads/{filename}",
                     }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(
-                    f"Google Drive upload failed for tenant {tenant}: {type(e).__name__}: {str(e)}",
+                    f"Google Drive upload failed for tenant {tenant}: {type(e).__name__}: {e!s}",
                     flush=True,
                 )
                 import traceback
@@ -270,7 +275,7 @@ class InvoiceService:
 
     def process_invoice_file(
         self, temp_path: str, drive_result: dict, folder_name: str, tenant: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process invoice file and extract transaction data
 
@@ -328,7 +333,7 @@ class InvoiceService:
                 ):
                     vendor_data["vat_amount"] = transactions[1].get("amount", 0)
 
-            transaction_date = vendor_data.get("date") or datetime.now().strftime(
+            transaction_date = vendor_data.get("date") or datetime.now().strftime(  # noqa: DTZ005
                 "%Y-%m-%d"
             )
             description = vendor_data.get("description", f"Invoice from {folder_name}")
@@ -519,5 +524,5 @@ class InvoiceService:
             try:
                 os.remove(temp_path)
                 print(f"Cleaned up temp file: {temp_path}", flush=True)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Error cleaning up temp file: {e}", flush=True)

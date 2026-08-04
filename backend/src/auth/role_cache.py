@@ -6,15 +6,14 @@ The cache is keyed by email:tenant and invalidated when roles change.
 """
 
 import time
-from typing import Dict, List, Tuple
 
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 # Cache structure: { "email:tenant": (roles_list, timestamp) }
-_role_cache: Dict[str, Tuple[List[str], float]] = {}
+_role_cache: dict[str, tuple[list[str], float]] = {}
 
 
-def get_tenant_roles(email: str, tenant: str, db) -> List[str]:
+def get_tenant_roles(email: str, tenant: str, db) -> list[str]:
     """
     Get per-tenant roles for a user, using cache when available.
 

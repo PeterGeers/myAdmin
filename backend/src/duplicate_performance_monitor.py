@@ -7,13 +7,12 @@ and optimization capabilities specifically for the duplicate invoice detection s
 Requirements: 5.5, 6.4
 """
 
-import time
-import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple
-from collections import defaultdict
-from functools import wraps
 import json
+import logging
+import time
+from collections import defaultdict
+from datetime import datetime
+from functools import wraps
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class DuplicateDetectionMetrics:
     def __init__(self):
         self.metrics = defaultdict(list)
         self.aggregated_metrics = {}
-        self.start_time = datetime.now()
+        self.start_time = datetime.now()  # noqa: DTZ005
 
         # Performance thresholds (from requirements)
         self.query_time_threshold = 2.0  # 2 seconds max (Requirement 5.5)
@@ -44,7 +43,7 @@ class DuplicateDetectionMetrics:
         execution_time: float,
         duplicates_found: int,
         cache_hit: bool = False,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         """
         Record metrics for a duplicate check operation.
@@ -56,7 +55,7 @@ class DuplicateDetectionMetrics:
             error: Error message if operation failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "execution_time": execution_time,
             "duplicates_found": duplicates_found,
             "cache_hit": cache_hit,
@@ -76,8 +75,8 @@ class DuplicateDetectionMetrics:
         self,
         execution_time: float,
         success: bool,
-        file_size_bytes: Optional[int] = None,
-        error: Optional[str] = None,
+        file_size_bytes: int | None = None,
+        error: str | None = None,
     ) -> None:
         """
         Record metrics for file cleanup operations.
@@ -89,7 +88,7 @@ class DuplicateDetectionMetrics:
             error: Error message if operation failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "execution_time": execution_time,
             "success": success,
             "file_size_bytes": file_size_bytes,
@@ -107,7 +106,7 @@ class DuplicateDetectionMetrics:
         decision: str,
         success: bool,
         retry_count: int = 0,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         """
         Record metrics for decision logging operations.
@@ -120,7 +119,7 @@ class DuplicateDetectionMetrics:
             error: Error message if operation failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "execution_time": execution_time,
             "decision": decision,
             "success": success,
@@ -136,7 +135,7 @@ class DuplicateDetectionMetrics:
         execution_time: float,
         rows_returned: int,
         cache_hit: bool = False,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         """
         Record metrics for database query operations.
@@ -149,7 +148,7 @@ class DuplicateDetectionMetrics:
             error: Error message if query failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "query_type": query_type,
             "execution_time": execution_time,
             "rows_returned": rows_returned,
@@ -166,7 +165,7 @@ class DuplicateDetectionMetrics:
                 f"Slow database query detected: {query_type} took {execution_time:.3f}s"
             )
 
-    def get_summary_statistics(self) -> Dict:
+    def get_summary_statistics(self) -> dict:
         """
         Calculate summary statistics for all collected metrics.
 
@@ -176,8 +175,8 @@ class DuplicateDetectionMetrics:
         summary = {
             "collection_period": {
                 "start": self.start_time.isoformat(),
-                "end": datetime.now().isoformat(),
-                "duration_hours": (datetime.now() - self.start_time).total_seconds()
+                "end": datetime.now().isoformat(),  # noqa: DTZ005
+                "duration_hours": (datetime.now() - self.start_time).total_seconds()  # noqa: DTZ005
                 / 3600,
             },
             "duplicate_checks": self._summarize_duplicate_checks(),
@@ -189,7 +188,7 @@ class DuplicateDetectionMetrics:
 
         return summary
 
-    def _summarize_duplicate_checks(self) -> Dict:
+    def _summarize_duplicate_checks(self) -> dict:
         """Summarize duplicate check metrics."""
         checks = self.metrics.get("duplicate_checks", [])
 
@@ -217,7 +216,7 @@ class DuplicateDetectionMetrics:
             "avg_duplicates_per_check": duplicates_found / len(checks) if checks else 0,
         }
 
-    def _summarize_file_cleanups(self) -> Dict:
+    def _summarize_file_cleanups(self) -> dict:
         """Summarize file cleanup metrics."""
         cleanups = self.metrics.get("file_cleanups", [])
 
@@ -236,7 +235,7 @@ class DuplicateDetectionMetrics:
             "avg_file_size_mb": total_size_mb / len(cleanups) if cleanups else 0,
         }
 
-    def _summarize_decision_logs(self) -> Dict:
+    def _summarize_decision_logs(self) -> dict:
         """Summarize decision logging metrics."""
         logs = self.metrics.get("decision_logs", [])
 
@@ -261,7 +260,7 @@ class DuplicateDetectionMetrics:
             "avg_retries_per_decision": total_retries / len(logs) if logs else 0,
         }
 
-    def _summarize_database_queries(self) -> Dict:
+    def _summarize_database_queries(self) -> dict:
         """Summarize database query metrics."""
         queries = self.metrics.get("database_queries", [])
 
@@ -298,7 +297,7 @@ class DuplicateDetectionMetrics:
             "by_query_type": type_stats,
         }
 
-    def _calculate_performance_health(self) -> Dict:
+    def _calculate_performance_health(self) -> dict:
         """
         Calculate overall performance health score.
 
@@ -369,8 +368,8 @@ class DuplicateDetectionMetrics:
         }
 
     def _get_health_recommendations(
-        self, factors: List[Tuple[str, float, float]]
-    ) -> List[str]:
+        self, factors: list[tuple[str, float, float]]
+    ) -> list[str]:
         """Generate recommendations based on health factors."""
         recommendations = []
 
@@ -414,7 +413,7 @@ class DuplicateDetectionMetrics:
         """
         try:
             export_data = {
-                "export_timestamp": datetime.now().isoformat(),
+                "export_timestamp": datetime.now().isoformat(),  # noqa: DTZ005
                 "summary": self.get_summary_statistics(),
                 "raw_metrics": dict(self.metrics),
             }
@@ -425,7 +424,7 @@ class DuplicateDetectionMetrics:
             logger.info(f"Metrics exported to {filepath}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to export metrics: {e}")
             return False
 
@@ -433,7 +432,7 @@ class DuplicateDetectionMetrics:
         """Reset all collected metrics."""
         self.metrics.clear()
         self.aggregated_metrics.clear()
-        self.start_time = datetime.now()
+        self.start_time = datetime.now()  # noqa: DTZ005
         logger.info("Metrics reset")
 
 

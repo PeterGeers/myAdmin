@@ -35,17 +35,109 @@ jobs:
           pip install -r requirements.txt
           pip install ruff vulture
 
+      - name: Create reports directory
+        working-directory: backend
+        run: mkdir -p reports/lint
+
       - name: Ruff lint
         working-directory: backend
-        run: ruff check src/ --exclude src/validate_pattern/ --output-format=github
+        run: |
+          echo "## Ruff Lint Report" > reports/lint/ruff-lint.md
+          echo "" >> reports/lint/ruff-lint.md
+          echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/lint/ruff-lint.md
+          echo "Ruff version: $(ruff --version)" >> reports/lint/ruff-lint.md
+          echo "" >> reports/lint/ruff-lint.md
+          ruff check src/ --exclude src/validate_pattern/ --output-format=concise > reports/lint/ruff-errors.txt 2>&1 || true
+          if [ -s reports/lint/ruff-errors.txt ] && ! grep -q "^All checks passed" reports/lint/ruff-errors.txt; then
+            echo "### Summary by Rule" >> reports/lint/ruff-lint.md
+            echo '```' >> reports/lint/ruff-lint.md
+            cat reports/lint/ruff-errors.txt | grep -oP ':\s+\K[A-Z]+[0-9]+' | sort | uniq -c | sort -rn >> reports/lint/ruff-lint.md
+            echo '```' >> reports/lint/ruff-lint.md
+            echo "" >> reports/lint/ruff-lint.md
+            echo "### Total Errors" >> reports/lint/ruff-lint.md
+            TOTAL=$(wc -l < reports/lint/ruff-errors.txt)
+            echo "Found $TOTAL errors" >> reports/lint/ruff-lint.md
+            echo "" >> reports/lint/ruff-lint.md
+            echo "### All Errors" >> reports/lint/ruff-lint.md
+            echo '```' >> reports/lint/ruff-lint.md
+            cat reports/lint/ruff-errors.txt >> reports/lint/ruff-lint.md
+            echo '```' >> reports/lint/ruff-lint.md
+          else
+            echo "✅ All checks passed!" >> reports/lint/ruff-lint.md
+          fi
+          # Run again with github format for annotations
+          ruff check src/ --exclude src/validate_pattern/ --output-format=github
 
       - name: Ruff format check
+        if: always()
         working-directory: backend
-        run: ruff format --check src/ --exclude src/validate_pattern/
+        run: |
+          echo "## Ruff Format Report" > reports/lint/ruff-format.md
+          echo "" >> reports/lint/ruff-format.md
+          ruff format --check src/ --exclude src/validate_pattern/ > reports/lint/ruff-format-output.txt 2>&1 || true
+          if grep -q "would be reformatted" reports/lint/ruff-format-output.txt; then
+            echo "### Files needing reformatting" >> reports/lint/ruff-format.md
+            echo '```' >> reports/lint/ruff-format.md
+            grep "would be reformatted" reports/lint/ruff-format-output.txt >> reports/lint/ruff-format.md
+            echo '```' >> reports/lint/ruff-format.md
+            # Fail the step
+            ruff format --check src/ --exclude src/validate_pattern/
+          else
+            echo "✅ All files already formatted!" >> reports/lint/ruff-format.md
+          fi
 
       - name: Vulture dead code check
+        if: always()
         working-directory: backend
-        run: vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
+        run: |
+          echo "## Vulture Dead Code Report" > reports/lint/vulture.md
+          echo "" >> reports/lint/vulture.md
+          vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/ > reports/lint/vulture-output.txt 2>&1 || true
+          if [ -s reports/lint/vulture-output.txt ]; then
+            echo "### Dead Code Found" >> reports/lint/vulture.md
+            echo '```' >> reports/lint/vulture.md
+            cat reports/lint/vulture-output.txt >> reports/lint/vulture.md
+            echo '```' >> reports/lint/vulture.md
+            # Fail the step
+            vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
+          else
+            echo "✅ No dead code found!" >> reports/lint/vulture.md
+          fi
+
+      - name: Generate lint summary
+        if: always()
+        working-directory: backend
+        run: |
+          echo "## Backend Lint & Static Analysis Summary" > reports/lint/SUMMARY.md
+          echo "" >> reports/lint/SUMMARY.md
+          echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/lint/SUMMARY.md
+          echo "Ruff version: $(ruff --version)" >> reports/lint/SUMMARY.md
+          echo "" >> reports/lint/SUMMARY.md
+          echo "| Check | Result |" >> reports/lint/SUMMARY.md
+          echo "|-------|--------|" >> reports/lint/SUMMARY.md
+          if grep -q "All checks passed" reports/lint/ruff-lint.md 2>/dev/null; then
+            echo "| Ruff Lint | ✅ Pass |" >> reports/lint/SUMMARY.md
+          else
+            echo "| Ruff Lint | ❌ Fail |" >> reports/lint/SUMMARY.md
+          fi
+          if grep -q "All files already formatted" reports/lint/ruff-format.md 2>/dev/null; then
+            echo "| Ruff Format | ✅ Pass |" >> reports/lint/SUMMARY.md
+          else
+            echo "| Ruff Format | ❌ Fail |" >> reports/lint/SUMMARY.md
+          fi
+          if grep -q "No dead code found" reports/lint/vulture.md 2>/dev/null; then
+            echo "| Vulture | ✅ Pass |" >> reports/lint/SUMMARY.md
+          else
+            echo "| Vulture | ❌ Fail |" >> reports/lint/SUMMARY.md
+          fi
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-lint-reports
+          path: backend/reports/lint/
+          retention-days: 30
 
   backend-tests:
     name: Backend Full Test Suite

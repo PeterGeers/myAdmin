@@ -15,10 +15,10 @@ Usage:
   python -m src.migrations.migrate_tenant_config_to_parameters [--dry-run]
 """
 
-import os
-import sys
 import json
 import logging
+import os
+import sys
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -107,7 +107,7 @@ def migrate(dry_run: bool = False):
             )
             migrated += 1
             logger.info(f"  OK {tenant}: {config_key} -> {namespace}.{key}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"  FAIL {tenant}: {config_key} -> {e}")
             skipped += 1
 

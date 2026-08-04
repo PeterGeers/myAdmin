@@ -9,17 +9,17 @@ Handles processing of Booking.com exports including:
 """
 
 import os
+from datetime import date, datetime
+
 import pandas as pd
-from datetime import datetime, date
-from typing import Dict, List, Optional
 
 from country_detector import detect_country
 from str_utils import calculate_str_taxes, get_tax_rates, normalize_listing_name
 
 
 def process_booking(
-    file_path: str, tax_rate_service=None, tenant: str = None
-) -> List[Dict]:
+    file_path: str, tax_rate_service=None, tenant: str | None = None
+) -> list[dict]:
     """Process Booking.com Excel/CSV export.
 
     Args:
@@ -53,7 +53,7 @@ def process_booking(
 
         # Source file info for single-file import: "{date} {filename}"
         source_file = (
-            f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
+            f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"  # noqa: DTZ005
         )
 
         transactions = []
@@ -67,8 +67,8 @@ def process_booking(
 
         print(f"Booking.com processing completed: {len(transactions)} transactions")
         return transactions
-    except Exception as e:
-        print(f"Error processing booking.com file: {str(e)}")
+    except Exception as e:  # noqa: BLE001
+        print(f"Error processing booking.com file: {e!s}")
         import traceback
 
         traceback.print_exc()
@@ -76,8 +76,8 @@ def process_booking(
 
 
 def process_booking_multi(
-    file_paths: List[str], tax_rate_service=None, tenant: str = None
-) -> List[Dict]:
+    file_paths: list[str], tax_rate_service=None, tenant: str | None = None
+) -> list[dict]:
     """
     Process multiple Booking.com files: read, concatenate, deduplicate, calculate.
 
@@ -107,7 +107,7 @@ def process_booking_multi(
             print(
                 f"Booking multi-import: loaded {len(df)} rows from {os.path.basename(fp)}"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failed_files.append(os.path.basename(fp))
             print(f"Booking multi-import: failed to parse {os.path.basename(fp)}: {e}")
 
@@ -133,7 +133,7 @@ def process_booking_multi(
         )
 
     # Determine sourceFile label
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
     if len(file_paths) > 1:
         source_file = f"{today_str} multi-import ({len(file_paths)} files)"
     else:
@@ -160,8 +160,8 @@ def process_booking_multi(
 
 
 def calculate_booking_row(
-    row, df_columns, source_file: str, tax_rate_service=None, tenant: str = None
-) -> Optional[Dict]:
+    row, df_columns, source_file: str, tax_rate_service=None, tenant: str | None = None
+) -> dict | None:
     """
     Process a single Booking.com row into a booking dict.
 
@@ -244,16 +244,16 @@ def calculate_booking_row(
     price = amount_gross
 
     # Determine status based on check-in date and booking status
-    today = date.today()
+    today = date.today()  # noqa: DTZ011
     try:
-        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d").date()
+        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d").date()  # noqa: DTZ007
         if status == "cancelled_by_guest":
             booking_status = "cancelled"
         elif checkin_dt > today:
             booking_status = "planned"
         else:
             booking_status = "realised"
-    except Exception:
+    except Exception:  # noqa: BLE001
         booking_status = "realised"
 
     # Use generic tax calculation function
@@ -272,9 +272,9 @@ def calculate_booking_row(
 
     # Calculate dates and periods
     try:
-        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")
-        _checkout_dt = datetime.strptime(str(checkout_date), "%Y-%m-%d")
-        reservation_dt = datetime.strptime(
+        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")  # noqa: DTZ007
+        _checkout_dt = datetime.strptime(str(checkout_date), "%Y-%m-%d")  # noqa: DTZ007
+        reservation_dt = datetime.strptime(  # noqa: DTZ007
             str(row.get("Booked on", "")).split(" ")[0], "%Y-%m-%d"
         )
 
@@ -282,12 +282,12 @@ def calculate_booking_row(
         quarter = (checkin_dt.month - 1) // 3 + 1
         month = checkin_dt.month
         days_before_reservation = (checkin_dt - reservation_dt).days
-    except Exception:
-        year = datetime.now().year
+    except Exception:  # noqa: BLE001
+        year = datetime.now().year  # noqa: DTZ005
         quarter = 1
         month = 1
         days_before_reservation = 0
-        reservation_dt = datetime.now()
+        reservation_dt = datetime.now()  # noqa: DTZ005
 
     # Price per night based on net amount
     price_per_night = amount_nett / nights if nights > 0 else 0
@@ -327,8 +327,8 @@ def calculate_booking_row(
 
 
 def process_booking_payout(
-    file_path: str, tax_rate_service=None, tenant: str = None
-) -> Dict:
+    file_path: str, tax_rate_service=None, tenant: str | None = None
+) -> dict:
     """
     Process Booking.com Payout CSV file to update financial figures.
 
@@ -475,7 +475,7 @@ def process_booking_payout(
                     "checkinDate": checkin_date,
                     "checkoutDate": checkout_date,
                     "nights": nights,
-                    "sourceFile": f"PAYOUT_{datetime.now().strftime('%Y-%m-%d')}_{os.path.basename(file_path)}",
+                    "sourceFile": f"PAYOUT_{datetime.now().strftime('%Y-%m-%d')}_{os.path.basename(file_path)}",  # noqa: DTZ005
                 }
 
                 updates.append(update_record)
@@ -487,9 +487,9 @@ def process_booking_payout(
                     f"VAT={amount_vat}, TouristTax={amount_tourist_tax}, Net={amount_nett}"
                 )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_msg = (
-                    f"Error processing row for reservation {reservation_code}: {str(e)}"
+                    f"Error processing row for reservation {reservation_code}: {e!s}"
                 )
                 print(error_msg)
                 results["errors"].append(error_msg)
@@ -507,8 +507,8 @@ def process_booking_payout(
 
         return results
 
-    except Exception as e:
-        error_msg = f"Error processing Payout CSV file: {str(e)}"
+    except Exception as e:  # noqa: BLE001
+        error_msg = f"Error processing Payout CSV file: {e!s}"
         print(error_msg)
         import traceback
 

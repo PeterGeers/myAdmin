@@ -4,11 +4,12 @@ SysAdmin Helper Functions
 Shared utility functions for SysAdmin routes
 """
 
-import os
 import json
-import boto3
 import logging
-from typing import Dict, Any, List, Optional
+import os
+from typing import Any
+
+import boto3
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ cognito_client = boto3.client(
 USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 
 
-def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
+def get_user_attribute(user: dict[str, Any], attribute_name: str) -> Any:
     """Extract attribute value from Cognito user object"""
     for attr in user.get("Attributes", []):
         if attr["Name"] == attribute_name:
@@ -32,20 +33,20 @@ def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
                     if "\\" in value:
                         value = value.replace("\\", "")
                     return json.loads(value)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     return [value] if value else []
             return value
     return None
 
 
-def get_user_groups(username: str) -> List[str]:
+def get_user_groups(username: str) -> list[str]:
     """Get Cognito groups for a user"""
     try:
         response = cognito_client.admin_list_groups_for_user(
             UserPoolId=USER_POOL_ID, Username=username
         )
         return [group["GroupName"] for group in response.get("Groups", [])]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting user groups: {e}")
         return []
 
@@ -78,12 +79,12 @@ def get_tenant_user_count(administration: str) -> int:
                     count += 1
 
         return count
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting tenant user count: {e}")
         return 0
 
 
-def get_tenant_users(administration: str) -> List[Dict[str, Any]]:
+def get_tenant_users(administration: str) -> list[dict[str, Any]]:
     """Get all users with access to a tenant"""
     try:
         # List all users
@@ -112,12 +113,12 @@ def get_tenant_users(administration: str) -> List[Dict[str, Any]]:
                     users.append({"email": email, "groups": groups})
 
         return users
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error getting tenant users: {e}")
         return []
 
 
-def validate_administration_name(administration: str) -> tuple[bool, Optional[str]]:
+def validate_administration_name(administration: str) -> tuple[bool, str | None]:
     """
     Validate administration name format
 

@@ -4,14 +4,16 @@ Extracted from reporting_routes.py for file size management.
 All endpoints are prefixed with /api/reports via blueprint registration.
 """
 
-from flask import Blueprint, request, jsonify
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
+
+from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from mutaties_cache import get_cache
 from utils.closure_helpers import get_closure_aware_start_year
-from datetime import datetime
-from auth.cognito_utils import cognito_required
-from auth.tenant_context import tenant_required
 
 aangifte_ib_bp = Blueprint("aangifte_ib", __name__)
 
@@ -65,7 +67,11 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
 
         # Query from cache (much faster than SQL)
         summary_data = cache.query_aangifte_ib(
-            year, administration, tenant=tenant, user_tenants=user_tenants, start_year=start_year
+            year,
+            administration,
+            tenant=tenant,
+            user_tenants=user_tenants,
+            start_year=start_year,
         )
         # Get ALL available years from database (not just cached years)
         available_years = cache.get_available_years(db, tenant=tenant)
@@ -85,7 +91,7 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -128,7 +134,13 @@ def aangifte_ib_details(
 
         # Query from cache (much faster than SQL) with tenant filtering
         details_data = cache.query_aangifte_ib_details(
-            year, administration, parent, aangifte, user_tenants, tenant=tenant, start_year=start_year
+            year,
+            administration,
+            parent,
+            aangifte,
+            user_tenants,
+            tenant=tenant,
+            start_year=start_year,
         )
 
         return jsonify(
@@ -140,7 +152,7 @@ def aangifte_ib_details(
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         import traceback
 
         error_details = traceback.format_exc()
@@ -224,7 +236,7 @@ def aangifte_ib_export(
         template_data = {
             "year": str(year),
             "administration": administration if administration != "all" else "All",
-            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # noqa: DTZ005
             "table_rows": table_rows_html,
         }
 
@@ -236,7 +248,7 @@ def aangifte_ib_export(
             metadata = template_service.get_template_metadata(
                 administration, template_type
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             if logger:
                 logger.warning(f"Could not get template metadata from database: {e}")
 
@@ -249,7 +261,7 @@ def aangifte_ib_export(
                     metadata["template_file_id"], administration
                 )
                 field_mappings = metadata.get("field_mappings", {})
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 if logger:
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
@@ -279,7 +291,7 @@ def aangifte_ib_export(
             # Use default field mappings (simple placeholder replacement)
             field_mappings = {
                 "fields": {
-                    key: {"path": key, "format": "text"} for key in template_data.keys()
+                    key: {"path": key, "format": "text"} for key in template_data
                 },
                 "formatting": {
                     "locale": "nl_NL",
@@ -331,7 +343,7 @@ def aangifte_ib_export(
                 }
             )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error in aangifte_ib_export: {e}", flush=True)
         import traceback
 
@@ -438,7 +450,7 @@ def aangifte_ib_xlsx_export(
             }
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -449,8 +461,9 @@ def aangifte_ib_xlsx_export_stream(
     user_email, user_roles, tenant, user_tenants
 ) -> ResponseReturnValue:
     """Generate XLSX export for Aangifte IB with streaming progress and tenant filtering"""
-    from flask import Response
     import json
+
+    from flask import Response
 
     print("STREAMING ENDPOINT CALLED!")
 
@@ -494,7 +507,7 @@ def aangifte_ib_xlsx_export_stream(
                 ):
                     yield f"data: {json.dumps(progress_data, default=str)}\n\n"
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 import traceback
 
                 traceback.print_exc()
@@ -510,7 +523,7 @@ def aangifte_ib_xlsx_export_stream(
             },
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         import traceback
 
         traceback.print_exc()
@@ -528,8 +541,9 @@ def aangifte_ib_xlsx_download(
     This endpoint generates just the Excel workbook (no file downloads from
     Google Drive/S3) and returns it directly as a file download.
     """
-    from flask import send_file
     import os
+
+    from flask import send_file
 
     try:
         data = request.get_json()
@@ -592,7 +606,7 @@ def aangifte_ib_xlsx_download(
 
             atexit.register(lambda: os.path.exists(tmp_path) and os.remove(tmp_path))
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         import traceback
 
         traceback.print_exc()

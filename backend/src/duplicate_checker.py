@@ -7,8 +7,8 @@ by checking for existing transactions with matching ReferenceNumber, Transaction
 
 import logging
 import traceback
-from typing import List, Dict, Optional
 from datetime import datetime
+
 from database import DatabaseManager
 from dialect_helpers import dialect
 from duplicate_performance_monitor import get_performance_monitor
@@ -23,25 +23,17 @@ _performance_monitor = get_performance_monitor()
 class DuplicateDetectionError(Exception):
     """Custom exception for duplicate detection errors."""
 
-    pass
-
 
 class DatabaseConnectionError(DuplicateDetectionError):
     """Exception for database connection failures."""
-
-    pass
 
 
 class ValidationError(DuplicateDetectionError):
     """Exception for data validation failures."""
 
-    pass
-
 
 class SessionTimeoutError(DuplicateDetectionError):
     """Exception for session timeout scenarios."""
-
-    pass
 
 
 class DuplicateChecker:
@@ -69,7 +61,7 @@ class DuplicateChecker:
         transaction_date: str,
         transaction_amount: float,
         table_name: str = "mutaties",
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Check for duplicate transactions in the database.
 
@@ -88,7 +80,7 @@ class DuplicateChecker:
 
         Requirements: 1.1, 1.3, 6.1, 6.4
         """
-        operation_id = f"dup_check_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        operation_id = f"dup_check_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"  # noqa: DTZ005
 
         try:
             # Validate input parameters
@@ -126,7 +118,7 @@ class DuplicateChecker:
         except ValidationError as ve:
             logger.error(f"[{operation_id}] Validation error in duplicate check: {ve}")
             # For validation errors, we should not proceed with graceful degradation
-            raise ve
+            raise
 
         except DatabaseConnectionError as dce:
             logger.error(
@@ -138,7 +130,7 @@ class DuplicateChecker:
             )
             return []
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_details = {
                 "operation_id": operation_id,
                 "reference_number": reference_number,
@@ -164,7 +156,7 @@ class DuplicateChecker:
             self._log_graceful_degradation(operation_id, "unexpected_error", str(e))
             return []
 
-    def format_duplicate_info(self, duplicates: List[Dict]) -> Dict:
+    def format_duplicate_info(self, duplicates: list[dict]) -> dict:
         """
         Format duplicate information for frontend display.
 
@@ -222,10 +214,10 @@ class DuplicateChecker:
     def log_duplicate_decision(
         self,
         decision: str,
-        duplicate_info: Dict,
-        new_transaction_data: Dict,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        duplicate_info: dict,
+        new_transaction_data: dict,
+        user_id: str | None = None,
+        session_id: str | None = None,
     ) -> bool:
         """
         Log user decision regarding duplicate transaction for audit trail.
@@ -245,7 +237,7 @@ class DuplicateChecker:
 
         Requirements: 3.2, 6.4, 6.5
         """
-        operation_id = f"dup_log_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        operation_id = f"dup_log_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"  # noqa: DTZ005
 
         try:
             # Validate decision parameter
@@ -296,7 +288,7 @@ class DuplicateChecker:
                     self.db.execute_query(
                         log_query,
                         (
-                            datetime.now(),
+                            datetime.now(),  # noqa: DTZ005
                             reference_number,
                             transaction_date,
                             transaction_amount,
@@ -323,7 +315,7 @@ class DuplicateChecker:
                         )
                         continue
                     else:
-                        raise retry_error
+                        raise
 
         except ValidationError as ve:
             logger.error(f"[{operation_id}] Validation error in decision logging: {ve}")
@@ -341,7 +333,7 @@ class DuplicateChecker:
             )
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_details = {
                 "operation_id": operation_id,
                 "decision": decision,
@@ -387,7 +379,7 @@ class DuplicateChecker:
 
         # Validate date format
         try:
-            datetime.strptime(transaction_date, "%Y-%m-%d")
+            datetime.strptime(transaction_date, "%Y-%m-%d")  # noqa: DTZ007
         except ValueError:
             raise ValidationError(
                 f"Invalid transaction date format: {transaction_date}. Expected YYYY-MM-DD"
@@ -398,9 +390,7 @@ class DuplicateChecker:
                 f"Transaction amount must be positive: {transaction_amount}"
             )
 
-    def _check_session_timeout(
-        self, session_id: Optional[str], operation_id: str
-    ) -> None:
+    def _check_session_timeout(self, session_id: str | None, operation_id: str) -> None:
         """
         Check if session has timed out for duplicate decision operations.
 
@@ -435,7 +425,7 @@ class DuplicateChecker:
             # Re-raise session timeout errors
             raise
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # If session manager is not available or fails, log warning but don't fail operation
             logger.warning(
                 f"[{operation_id}] Could not validate session {session_id}: {e}"
@@ -505,7 +495,7 @@ class DuplicateChecker:
             "operation_id": operation_id,
             "error_type": error_type,
             "error_message": error_message,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
             "component": "duplicate_checker",
             "action": "graceful_degradation",
             "severity": "warning",
@@ -528,13 +518,13 @@ class DuplicateChecker:
             # Store degradation event for analysis
             self._store_degradation_event(degradation_log)
 
-        except Exception as monitoring_error:
+        except Exception as monitoring_error:  # noqa: BLE001
             # Don't let monitoring failures affect the main operation
             logger.error(
                 f"[{operation_id}] Failed to send monitoring alert: {monitoring_error}"
             )
 
-    def _send_monitoring_alert(self, degradation_log: Dict) -> None:
+    def _send_monitoring_alert(self, degradation_log: dict) -> None:
         """
         Send alert to monitoring systems for graceful degradation events.
 
@@ -599,10 +589,10 @@ class DuplicateChecker:
                 f"Health metrics updated for error_type: {error_type}, event: {event_type}"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to update health metrics: {e}")
 
-    def _store_degradation_event(self, degradation_log: Dict) -> None:
+    def _store_degradation_event(self, degradation_log: dict) -> None:
         """
         Store degradation event for analysis and trending.
 
@@ -627,5 +617,5 @@ class DuplicateChecker:
 
             logger.debug(f"Degradation event stored: {degradation_log['operation_id']}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Failed to store degradation event: {e}")
