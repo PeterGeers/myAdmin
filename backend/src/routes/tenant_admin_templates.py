@@ -29,18 +29,18 @@ from auth.tenant_context import (
     is_tenant_admin,
 )
 from database import DatabaseManager
+from routes.tenant_admin_template_constants import (
+    TEMPLATE_TYPE_TO_LOCAL_KEY as _TEMPLATE_TYPE_TO_LOCAL_KEY,
+)
+from routes.tenant_admin_template_constants import (
+    VALID_TEMPLATE_TYPES,
+)
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 
 # Create blueprint
 tenant_admin_templates_bp = Blueprint("tenant_admin_templates", __name__)
-
-# Import from shared constants to avoid circular imports
-from routes.tenant_admin_template_constants import (
-    VALID_TEMPLATE_TYPES,
-    TEMPLATE_TYPE_TO_LOCAL_KEY as _TEMPLATE_TYPE_TO_LOCAL_KEY,
-)
 
 
 # ============================================================================
@@ -487,6 +487,6 @@ def reject_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 def __getattr__(name):
     if name == "_get_generic_help":
         from routes.tenant_admin_template_ai_routes import _get_generic_help
+
         return _get_generic_help
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-

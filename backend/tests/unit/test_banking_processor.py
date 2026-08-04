@@ -312,7 +312,9 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         """Test successful sequence number checking"""
         mock_conn, mock_cursor = mock_connection
 
-        mock_cursor.fetchone.return_value = {'rekeningNummer': 'NL80RABO0107936917'}
+        banking_processor.db.get_bank_account_lookups.return_value = [
+            {'Account': '1600', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'GoodwinSolutions'}
+        ]
         mock_cursor.fetchall.return_value = [
             {'TransactionDate': '2025-01-15', 'TransactionDescription': 'Test 1', 'Ref2': '1', 'TransactionAmount': 100.00},
             {'TransactionDate': '2025-01-16', 'TransactionDescription': 'Test 2', 'Ref2': '2', 'TransactionAmount': 150.00},
@@ -347,7 +349,9 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
     def test_check_sequence_numbers_no_transactions(self, mock_opening_date, banking_processor, mock_connection):
         """Test sequence checking with no transactions"""
         mock_conn, mock_cursor = mock_connection
-        mock_cursor.fetchone.return_value = {'rekeningNummer': 'NL80RABO0107936917'}
+        banking_processor.db.get_bank_account_lookups.return_value = [
+            {'Account': '1600', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'GoodwinSolutions'}
+        ]
         mock_cursor.fetchall.return_value = []
 
         with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
@@ -366,7 +370,9 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         and the result reports success with check_type='balance_comparison'.
         """
         mock_conn, mock_cursor = mock_connection
-        mock_cursor.fetchone.return_value = {'rekeningNummer': 'NL80RABO0107936917'}
+        banking_processor.db.get_bank_account_lookups.return_value = [
+            {'Account': '1600', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'GoodwinSolutions'}
+        ]
         mock_cursor.fetchall.return_value = [
             {'TransactionDate': '2025-01-15', 'TransactionDescription': 'Test', 'Ref2': 'INVALID', 'TransactionAmount': 100.00}
         ]

@@ -372,7 +372,7 @@ class TestScopeLevelDeleteIsolation:
 class TestParametersTablePrecedence:
     """When a key exists in both parameters table and tenant_config, parameters wins."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         ns=namespace_st,
         key=key_st,

@@ -152,7 +152,9 @@ class TestCheckSequenceNumbers:
         mock_db.get_connection.return_value = mock_conn
 
         # IBAN lookup succeeds
-        mock_cursor.fetchone.return_value = {'rekeningNummer': 'NL80RABO0107936917'}
+        mock_db.get_bank_account_lookups.return_value = [
+            {'Account': '1100', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'TenantA'}
+        ]
         # Sequence query returns consecutive numbers
         mock_cursor.fetchall.return_value = [
             {'Ref2': '1', 'TransactionDate': date(2026, 1, 1)},
