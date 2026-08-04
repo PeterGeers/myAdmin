@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 tenant_admin_template_ai_bp = Blueprint("tenant_admin_template_ai", __name__)
 
-# Import valid types from main module
-from routes.tenant_admin_templates import VALID_TEMPLATE_TYPES
+# Import valid types from shared constants (avoids circular import)
+from routes.tenant_admin_template_constants import VALID_TEMPLATE_TYPES
 
 
 @tenant_admin_template_ai_bp.route(
