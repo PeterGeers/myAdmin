@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Pattern Scoring and Ranking Module for Banking Transactions
 

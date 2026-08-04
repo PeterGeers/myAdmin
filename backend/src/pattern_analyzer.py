@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Enhanced Pattern Analysis System for Banking Processor
 

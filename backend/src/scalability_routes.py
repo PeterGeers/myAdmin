@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Scalability Monitoring and Management Routes
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Pattern Storage Module for Banking Transactions
 

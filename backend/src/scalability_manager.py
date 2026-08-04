@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Scalability Manager for Banking Processor System
 

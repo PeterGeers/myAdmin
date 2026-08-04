@@ -49,7 +49,7 @@ Code quality maintenance sprint based on CI test results (2026-08-03, run #30856
 
 ### Phase 7: Final CI Verification
 
-- [ ] 16. Run `gh workflow run "Full Test Suite" --field scope=both` after all tasks complete. Verify: 0 backend failures, 0 frontend failures. Spec is not done until this passes.
+- [x] 16. Run `gh workflow run "Full Test Suite" --field scope=both` after all tasks complete. Verify: 0 backend failures, 0 frontend failures. Spec is not done until this passes.
 
 ## Task Dependency Graph
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Pattern Detection Module for Banking Transactions
 

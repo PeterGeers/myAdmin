@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Persistent Pattern Cache System
 
