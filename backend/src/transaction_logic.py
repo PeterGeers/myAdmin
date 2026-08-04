@@ -1,6 +1,8 @@
-from datetime import datetime
 import os
+from datetime import datetime, timezone
+
 from dotenv import load_dotenv
+
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 
@@ -53,7 +55,7 @@ class TransactionLogic:
         else:
             params = (f"{transaction_number}%", f"{transaction_number}%")
 
-        with self.db.get_cursor() as (cursor, conn):
+        with self.db.get_cursor() as (cursor, _conn):
             cursor.execute(query, params)
             results = cursor.fetchall()
 
@@ -67,7 +69,7 @@ class TransactionLogic:
                 ref3_groups[ref3].append(row)
 
             # Take the first Ref3 group (most recent or first found)
-            first_ref3 = list(ref3_groups.keys())[0]
+            first_ref3 = next(iter(ref3_groups.keys()))
             results = ref3_groups[first_ref3]
             print(f"Multiple transactions found, using Ref3: {first_ref3}")
 
@@ -93,7 +95,7 @@ class TransactionLogic:
                 tax_svc = TaxRateService(self.db)
                 admin = administration or results[0].get("Administration", "")
                 rate_info = tax_svc.get_tax_rate(
-                    admin, "btw", "high", datetime.now().date()
+                    admin, "btw", "high", datetime.now(tz=timezone.utc).date()
                 )
                 vat_account = (
                     rate_info["ledger_account"] if rate_info else "2010"
@@ -126,7 +128,7 @@ class TransactionLogic:
 
         # Add timestamp to make unique
         name, ext = os.path.splitext(original_filename)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
         return f"{name}_{timestamp}{ext}"
 
     def prepare_new_transactions(self, template_transactions, new_data):
@@ -165,9 +167,9 @@ class TransactionLogic:
 
             # Use vendor data date if available
             transaction_date = (
-                vendor_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+                vendor_data.get("date", datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"))
                 if vendor_data
-                else datetime.now().strftime("%Y-%m-%d")
+                else datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
             )
             print(
                 f"Transaction {i}: Using date {transaction_date} from vendor_data: {vendor_data.get('date') if vendor_data else 'None'}",
@@ -181,13 +183,11 @@ class TransactionLogic:
             if vendor_data:
                 # For Booking.com, use accommodation name in Ref1 and invoice number in Ref2
                 if (
-                    "accommodation_name" in vendor_data
-                    and vendor_data["accommodation_name"]
+                    vendor_data.get("accommodation_name")
                 ):
                     ref1 = vendor_data["accommodation_name"]
                 elif (
-                    "accommodation_number" in vendor_data
-                    and vendor_data["accommodation_number"]
+                    vendor_data.get("accommodation_number")
                 ):
                     ref1 = f"Accommodation {vendor_data['accommodation_number']}"
 
@@ -200,7 +200,7 @@ class TransactionLogic:
                     ref2 = vendor_data["invoice_number"]
 
                 # Update description to include commission type if available
-                if "commission_type" in vendor_data and vendor_data["commission_type"]:
+                if vendor_data.get("commission_type"):
                     if i == 0:  # First transaction
                         description = f"{ref1} {ref2} {vendor_data['commission_type']} {transaction_date}"
                     elif i == 1:  # Second transaction (VAT)
@@ -290,7 +290,7 @@ class TransactionLogic:
         saved_transactions = []
         skipped_count = 0
 
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _conn):
             for transaction in transactions:
                 # Skip transactions with zero amount (e.g. zero-VAT invoice lines)
                 amount = float(transaction.get("TransactionAmount", 0))

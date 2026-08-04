@@ -14,7 +14,6 @@ Usage:
 import re
 from typing import Any
 
-
 # Patterns that indicate a key name holds sensitive data.
 # Case-insensitive matching is applied at check time.
 SENSITIVE_KEY_PATTERNS = [

@@ -7,13 +7,14 @@ Handles downloading from Google Drive and S3, with logging and error handling.
 Extracted from xlsx_report_generators.py to keep files under 500 lines.
 """
 
-import os
 import io
 import logging
+import os
+
+from googleapiclient.http import MediaIoBaseDownload
 
 from google_drive_service import GoogleDriveService
-from googleapiclient.http import MediaIoBaseDownload
-from services.storage_resolver import resolve_storage_provider, get_s3_storage
+from services.storage_resolver import get_s3_storage, resolve_storage_provider
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +68,11 @@ class XLSXDownloadHelpersMixin:
             files = results.get("files", [])
 
             for file_item in files:
-                if file_item["mimeType"] != "application/vnd.google-apps.folder":
-                    if file_item["name"] == document_name:
-                        print(f"Found exact match: {file_item['name']}")
-                        return self._download_single_file(
-                            service, file_item["id"], file_item["name"], dest_folder
-                        )
+                if file_item["mimeType"] != "application/vnd.google-apps.folder" and file_item["name"] == document_name:
+                    print(f"Found exact match: {file_item['name']}")
+                    return self._download_single_file(
+                        service, file_item["id"], file_item["name"], dest_folder
+                    )
 
             if not hasattr(self, "folder_search_log"):
                 self.folder_search_log = []
@@ -92,7 +92,7 @@ class XLSXDownloadHelpersMixin:
             print(f"Document '{document_name}' not found in folder")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error searching folder: {e}")
             return False
 
@@ -106,12 +106,12 @@ class XLSXDownloadHelpersMixin:
                 downloader = MediaIoBaseDownload(fh, request)
                 done = False
                 while done is False:
-                    status, done = downloader.next_chunk()
+                    _status, done = downloader.next_chunk()
 
             print(f"Successfully downloaded: {filename}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error downloading file {filename}: {e}")
             return False
 
@@ -130,7 +130,7 @@ class XLSXDownloadHelpersMixin:
                 return None
             drive_service = GoogleDriveService(administration)
             return drive_service.service
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Could not initialize Google Drive service: {e}")
         return None
 
@@ -154,7 +154,7 @@ class XLSXDownloadHelpersMixin:
                 f.write(file_data)
             print(f"Successfully downloaded S3 file: {filename}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error downloading S3 file {key}: {e}")
             return False
 
@@ -208,11 +208,11 @@ class XLSXDownloadHelpersMixin:
                 downloader = MediaIoBaseDownload(fh, request)
                 done = False
                 while done is False:
-                    status, done = downloader.next_chunk()
+                    _status, done = downloader.next_chunk()
 
             print(f"Successfully downloaded: {filename}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error downloading file {doc_url}: {e}")
             return False

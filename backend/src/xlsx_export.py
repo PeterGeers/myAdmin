@@ -8,17 +8,19 @@ File-download helpers and progress-aware export methods are provided
 by the XLSXProgressExportMixin in xlsx_report_generators.
 """
 
+import logging
 import os
 import shutil
-from database import DatabaseManager
+
 import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
+
+from database import DatabaseManager
 from services.template_service import TemplateService
-from xlsx_styles import apply_worksheet_formatting
-from xlsx_report_generators import XLSXProgressExportMixin
 from utils.closure_helpers import get_closure_aware_start_year
-import logging
+from xlsx_report_generators import XLSXProgressExportMixin
+from xlsx_styles import apply_worksheet_formatting
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
     from XLSXProgressExportMixin.
     """
 
-    def __init__(self, test_mode=False, parameter_service=None, tenant: str = None):
+    def __init__(self, test_mode=False, parameter_service=None, tenant: str | None = None):
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
         self.template_service = TemplateService(self.db)
@@ -74,7 +76,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                         f"Template path from database not found: {template_path}, "
                         f"using default"
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not get template path from TemplateService: {e}")
 
         logger.info(f"Using default template path for {administration}")
@@ -96,7 +98,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                         f"{output_path}"
                     )
                     return output_path
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not get output path from TemplateService: {e}")
 
         logger.info(f"Using default output path for {administration}")
@@ -317,8 +319,8 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                         }
                     )
 
-                except Exception as e:
-                    print(f"Error processing {administration} {year}: {str(e)}")
+                except Exception as e:  # noqa: BLE001
+                    print(f"Error processing {administration} {year}: {e!s}")
                     import traceback
 
                     traceback.print_exc()

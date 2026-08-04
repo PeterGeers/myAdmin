@@ -493,7 +493,7 @@ class TestAIOnlyExtractionPath:
     **Validates: Requirements 1.6, 2.1, 3.3**
     """
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, derandomize=True)
     @given(folder_name=folder_name_st, text_content=text_content_st)
     def test_ai_extractor_called_with_correct_text_and_folder(self, folder_name, text_content):
         """
