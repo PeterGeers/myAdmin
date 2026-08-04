@@ -186,7 +186,20 @@
       "budgetVersions": "Budget Versions",
       "budgetTemplates": "Budget Templates",
       "budgetLines": "Budget Lines",
-      "budgetDashboard": "Budget Dashboard"
+      "budgetDashboard": "Budget Dashboard",
+      "banking": "Banking",
+      "strChannelRevenue": "STR Channel Revenue",
+      "checkAccounts": "Check Accounts",
+      "checkReference": "Check Reference",
+      "transactions": "Transactions"
+    },
+    "groups": {
+      "import": "Import",
+      "transactions": "Transactions",
+      "validation": "Validation",
+      "administration": "Administration",
+      "invoices": "Invoices",
+      "tripRegistration": "Trip Registration"
     },
     "moduleGroups": {
       "fin": "Financial",
