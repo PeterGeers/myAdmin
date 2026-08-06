@@ -1,0 +1,21 @@
+export { HeroBlock } from './HeroBlock';
+export { AboutBlock } from './AboutBlock';
+export { GalleryBlock } from './GalleryBlock';
+export { TestimonialsBlock } from './TestimonialsBlock';
+export { FaqBlock } from './FaqBlock';
+export { PricingBlock } from './PricingBlock';
+export { CtaBlock } from './CtaBlock';
+export { EmbedBlock } from './EmbedBlock';
+export { ContactBlock } from './ContactBlock';
+export { ServicesBlock } from './ServicesBlock';
+
+export type { HeroBlockProps } from './HeroBlock';
+export type { AboutBlockProps } from './AboutBlock';
+export type { GalleryBlockProps } from './GalleryBlock';
+export type { TestimonialsBlockProps } from './TestimonialsBlock';
+export type { FaqBlockProps } from './FaqBlock';
+export type { PricingBlockProps } from './PricingBlock';
+export type { CtaBlockProps } from './CtaBlock';
+export type { EmbedBlockProps } from './EmbedBlock';
+export type { ContactBlockProps } from './ContactBlock';
+export type { ServicesBlockProps } from './ServicesBlock';

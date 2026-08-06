@@ -39,6 +39,7 @@ from routes.email_log_routes import email_log_bp
 from routes.financial_reporting_routes import financial_reporting_bp
 from routes.folder_routes import folder_bp
 from routes.invoice_routes import invoice_bp
+from routes.landing_page_routes import landing_page_bp
 from routes.missing_invoices_routes import missing_invoices_bp
 from routes.parameter_admin_routes import parameter_admin_bp
 from routes.pdf_validation_routes import pdf_validation_bp
@@ -197,6 +198,7 @@ app.register_blueprint(budget_ai_bp)  # Budget AI & copy endpoints
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(signup_bp)  # Public trial signup endpoints
 app.register_blueprint(config_bp)  # Public configuration endpoints
+app.register_blueprint(landing_page_bp)  # Landing page CMS + public endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
 # Validate function registry at startup (fails fast if misconfigured)

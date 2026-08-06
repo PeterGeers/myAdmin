@@ -10,6 +10,7 @@ Handles all STR and pricing endpoints including:
 Extracted from app.py during refactoring (Phase 4.1)
 """
 
+import logging
 import os
 
 from flask import Blueprint, jsonify, request
@@ -22,6 +23,8 @@ from database import DatabaseManager
 from dialect_helpers import dialect
 from str_database import STRDatabase
 from str_processor import STRProcessor
+
+logger = logging.getLogger(__name__)
 
 # Create blueprint
 str_bp = Blueprint("str", __name__)
