@@ -271,6 +271,33 @@ resource "aws_iam_policy" "s3_public_pages_write" {
   }
 }
 
+# CloudFront invalidation access for instant publish/unpublish visibility
+resource "aws_iam_policy" "cloudfront_invalidation" {
+  name        = "myadmin-cloudfront-invalidation-${var.environment}"
+  description = "CloudFront invalidation access for landing page publish/unpublish"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowInvalidation"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation"
+        ]
+        Resource = aws_cloudfront_distribution.public_pages.arn
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "myAdmin-CloudFront-Invalidation"
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "terraform"
+  }
+}
+
 # ============================================================================
 # Outputs
 # ============================================================================

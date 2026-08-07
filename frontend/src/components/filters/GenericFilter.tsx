@@ -273,7 +273,7 @@ export function GenericFilter<T>({
           {error}
         </Alert>
       )}
-      <Menu isOpen={isOpen} onClose={onClose} closeOnSelect={false}>
+      <Menu isOpen={isOpen} onClose={onClose}>
         <MenuButton
           as={Button}
           ref={menuButtonRef}
@@ -319,15 +319,16 @@ export function GenericFilter<T>({
                 <MenuItem
                   key={value}
                   onClick={() => handleMultiSelectToggle(option)}
-                  closeOnSelect={false}
                   aria-checked={selected}
                   role="menuitemcheckbox"
                 >
                   <HStack spacing={2} width="100%">
                     <Checkbox
                       isChecked={selected}
+                      readOnly
                       pointerEvents="none"
                       aria-hidden="true"
+                      onChange={() => {}}
                     />
                     {renderOption ? (
                       renderOption(option)

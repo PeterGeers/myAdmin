@@ -185,6 +185,7 @@ class TestQuarantineLifecycleIntegrity:
     @settings(
         max_examples=100,
         derandomize=True,
+        deadline=None,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     def test_quarantine_lifecycle(

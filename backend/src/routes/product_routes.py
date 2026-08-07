@@ -141,6 +141,28 @@ def delete_product(
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
+@product_bp.route("/api/products/<int:product_id>/toggle-public", methods=["PATCH"])
+@cognito_required(required_permissions=["zzp_crud"])
+@tenant_required()
+@module_required("ZZP")
+def toggle_product_public(
+    user_email, user_roles, tenant, user_tenants, product_id
+) -> ResponseReturnValue:
+    """Toggle is_public flag for landing page visibility (Task 3.13)."""
+    try:
+        data = request.get_json()
+        if data is None or "is_public" not in data:
+            return jsonify({"success": False, "error": "is_public field required"}), 400
+        svc = _get_service()
+        product = svc.toggle_public(tenant, product_id, bool(data["is_public"]))
+        return jsonify({"success": True, "data": product})
+    except ValueError as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
+    except Exception as e:  # noqa: BLE001
+        logger.error("toggle_product_public error for %s/%s: %s", tenant, product_id, e)
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
+
+
 @product_bp.route("/api/products/types", methods=["GET"])
 @cognito_required(required_permissions=["zzp_read"])
 @tenant_required()

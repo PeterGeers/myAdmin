@@ -2,16 +2,20 @@
  * Tenant Details Component - Redesigned
  * 
  * Grid layout: 2 columns wide, 1 column small screen.
- * Sections: General Info, Contact, Address, Bank Details, Metadata.
+ * Sections: General Info, Landing Page, Contact, Address, Bank Details, Metadata.
  * Matches BankingProcessor form style.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, VStack, HStack, FormControl, FormLabel, Input,
   Button, useToast, Spinner, Text, SimpleGrid, Divider,
+  InputGroup, InputRightElement, FormHelperText,
 } from '@chakra-ui/react';
+import { CheckIcon, WarningIcon } from '@chakra-ui/icons';
 import { getTenantDetails, updateTenantDetails, TenantDetails as TenantDetailsType } from '../../services/tenantAdminApi';
+import { getSlug, setSlug, validateSlug } from '../../services/landingPageApi';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 interface TenantDetailsProps {
   tenant: string;
@@ -23,9 +27,19 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
   const [details, setDetails] = useState<TenantDetailsType | null>(null);
   const [formData, setFormData] = useState<Partial<TenantDetailsType>>({});
   const toast = useToast();
+  const { t } = useTypedTranslation('admin');
+
+  // Landing page slug state
+  const [slugValue, setSlugValue] = useState('');
+  const [savedSlug, setSavedSlug] = useState<string | null>(null);
+  const [slugValidation, setSlugValidation] = useState<{ valid: boolean; error?: string } | null>(null);
+  const [slugValidating, setSlugValidating] = useState(false);
+  const [slugSaving, setSlugSaving] = useState(false);
+  const slugDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadDetails();
+    loadSlug();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant]);
 
@@ -39,6 +53,99 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
       toast({ title: 'Error loading tenant details', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 5000 });
     } finally { setLoading(false); }
   };
+
+  const loadSlug = async () => {
+    try {
+      const response = await getSlug();
+      const currentSlug = response.data?.slug || '';
+      setSavedSlug(response.data?.slug ?? null);
+      setSlugValue(currentSlug);
+    } catch {
+      // Slug endpoint may not exist yet — ignore gracefully
+    }
+  };
+
+  const handleSlugValidation = useCallback(async (value: string) => {
+    if (!value) {
+      setSlugValidation(null);
+      return;
+    }
+    // Quick client-side format check
+    const formatRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+    if (!formatRegex.test(value)) {
+      setSlugValidation({ valid: false, error: t('landingPage.slug.invalidFormat') });
+      return;
+    }
+    if (value.length < 3) {
+      setSlugValidation({ valid: false, error: t('landingPage.slug.tooShort') });
+      return;
+    }
+    if (value.length > 60) {
+      setSlugValidation({ valid: false, error: t('landingPage.slug.tooLong') });
+      return;
+    }
+    // If it's the same as the saved slug, mark as valid without API call
+    if (value === savedSlug) {
+      setSlugValidation({ valid: true });
+      return;
+    }
+    // Call backend validation
+    setSlugValidating(true);
+    try {
+      const result = await validateSlug(value);
+      setSlugValidation(result.data);
+    } catch {
+      setSlugValidation({ valid: false, error: t('landingPage.slug.validationError') });
+    } finally {
+      setSlugValidating(false);
+    }
+  }, [savedSlug, t]);
+
+  const handleSlugChange = (value: string) => {
+    // Normalize: lowercase, replace spaces with hyphens, strip invalid chars
+    const normalized = value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    setSlugValue(normalized);
+    setSlugValidation(null);
+
+    // Debounce validation
+    if (slugDebounceRef.current) {
+      clearTimeout(slugDebounceRef.current);
+    }
+    if (normalized) {
+      slugDebounceRef.current = setTimeout(() => {
+        handleSlugValidation(normalized);
+      }, 300);
+    }
+  };
+
+  const handleSlugBlur = () => {
+    if (slugDebounceRef.current) {
+      clearTimeout(slugDebounceRef.current);
+    }
+    if (slugValue) {
+      handleSlugValidation(slugValue);
+    }
+  };
+
+  const handleSlugSave = async () => {
+    if (!slugValue || !slugValidation?.valid) return;
+    setSlugSaving(true);
+    try {
+      const result = await setSlug(slugValue);
+      if (result.success) {
+        setSavedSlug(result.data?.slug || slugValue);
+        toast({ title: t('landingPage.slug.saved'), status: 'success', duration: 3000 });
+      } else {
+        toast({ title: t('landingPage.slug.saveError'), description: result.error, status: 'error', duration: 5000 });
+      }
+    } catch (error) {
+      toast({ title: t('landingPage.slug.saveError'), description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 5000 });
+    } finally {
+      setSlugSaving(false);
+    }
+  };
+
+  const slugHasChanges = slugValue !== (savedSlug || '') && slugValidation?.valid;
 
   const handleSave = async () => {
     setSaving(true);
@@ -111,6 +218,82 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
             <FormLabel color="gray.300" fontSize="sm" mb={0}>Status</FormLabel>
             <Input value={details?.status || ''} {...readOnlyProps} />
           </FormControl>
+        </SimpleGrid>
+      </Box>
+
+      <Divider borderColor="gray.700" />
+
+      {/* Landing Page */}
+      <Box>
+        <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>
+          {t('landingPage.slug.sectionTitle')}
+        </Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+          <FormControl gridColumn={{ md: 'span 2' }}>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>
+              {t('landingPage.slug.label')}
+            </FormLabel>
+            <InputGroup size="sm">
+              <Input
+                value={slugValue}
+                onChange={e => handleSlugChange(e.target.value)}
+                onBlur={handleSlugBlur}
+                placeholder="acme-rentals"
+                {...inputProps}
+                borderColor={
+                  slugValidation
+                    ? slugValidation.valid
+                      ? 'green.400'
+                      : 'red.400'
+                    : 'gray.600'
+                }
+              />
+              <InputRightElement>
+                {slugValidating && <Spinner size="xs" color="orange.400" />}
+                {!slugValidating && slugValidation?.valid && (
+                  <CheckIcon color="green.400" boxSize={3} />
+                )}
+                {!slugValidating && slugValidation && !slugValidation.valid && (
+                  <WarningIcon color="red.400" boxSize={3} />
+                )}
+              </InputRightElement>
+            </InputGroup>
+            {slugValidation && !slugValidation.valid && slugValidation.error && (
+              <Text color="red.300" fontSize="xs" mt={1}>
+                {slugValidation.error}
+              </Text>
+            )}
+            {slugValidation?.valid && slugValue !== savedSlug && (
+              <Text color="green.300" fontSize="xs" mt={1}>
+                {t('landingPage.slug.available')}
+              </Text>
+            )}
+            {!slugValidation && (
+              <FormHelperText color="gray.500" fontSize="xs">
+                {t('landingPage.slug.formatHint')}
+              </FormHelperText>
+            )}
+          </FormControl>
+          {savedSlug && (
+            <FormControl gridColumn={{ md: 'span 2' }}>
+              <Text color="gray.500" fontSize="xs">{t('landingPage.slug.publicUrl')}</Text>
+              <Text color="orange.300" fontSize="sm">
+                https://myadmin.app/p/{savedSlug}
+              </Text>
+            </FormControl>
+          )}
+          <Box gridColumn={{ md: 'span 2' }}>
+            <Button
+              size="sm"
+              colorScheme="orange"
+              variant="outline"
+              onClick={handleSlugSave}
+              isLoading={slugSaving}
+              isDisabled={!slugHasChanges}
+            >
+              {t('landingPage.slug.saveSlug')}
+            </Button>
+          </Box>
         </SimpleGrid>
       </Box>
 

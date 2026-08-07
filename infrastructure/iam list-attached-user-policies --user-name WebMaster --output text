@@ -1,0 +1,20 @@
+{
+    "AttachedPolicies": [
+        {
+            "PolicyName": "myadmin-s3-shared-access-production",
+            "PolicyArn": "arn:aws:iam::344561557829:policy/myadmin-s3-shared-access-production"
+        },
+        {
+            "PolicyName": "myadmin-s3-public-pages-write-production",
+            "PolicyArn": "arn:aws:iam::344561557829:policy/myadmin-s3-public-pages-write-production"
+        },
+        {
+            "PolicyName": "myadmin-dynamodb-landing-pages-production",
+            "PolicyArn": "arn:aws:iam::344561557829:policy/myadmin-dynamodb-landing-pages-production"
+        },
+        {
+            "PolicyName": "IAMUserChangePassword",
+            "PolicyArn": "arn:aws:iam::aws:policy/IAMUserChangePassword"
+        }
+    ]
+}

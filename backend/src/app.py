@@ -326,7 +326,7 @@ except Exception as e:  # noqa: BLE001
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
-        "ALLOWED_ORIGINS", "https://myadmin.jabaki.nl,https://petergeers.github.io"
+        "ALLOWED_ORIGINS", "https://myadmin.jabaki.nl,https://petergeers.github.io,https://d3afn46os9e9nc.cloudfront.net"
     ).split(",")
     if origin.strip()
 ]

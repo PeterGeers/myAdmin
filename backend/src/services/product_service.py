@@ -115,6 +115,7 @@ class ProductService(FieldConfigMixin):
             "unit_price",
             "vat_code",
             "unit_of_measure",
+            "is_public",
         ]
         sets = []
         params = []
@@ -132,6 +133,32 @@ class ProductService(FieldConfigMixin):
                 commit=True,
             )
 
+        return self.get_product(tenant, product_id)
+
+    def toggle_public(self, tenant: str, product_id: int, is_public: bool) -> dict:
+        """Toggle the is_public flag for a product (landing page visibility).
+
+        Args:
+            tenant: Administration identifier
+            product_id: Product to update
+            is_public: New value for is_public flag
+
+        Returns:
+            Updated product dict.
+
+        Raises:
+            ValueError: If product not found.
+        """
+        existing = self.get_product(tenant, product_id)
+        if not existing:
+            raise ValueError(f"Product {product_id} not found")
+
+        self.db.execute_query(
+            "UPDATE products SET is_public = %s WHERE id = %s AND administration = %s",
+            (is_public, product_id, tenant),
+            fetch=False,
+            commit=True,
+        )
         return self.get_product(tenant, product_id)
 
     def soft_delete_product(self, tenant: str, product_id: int) -> bool:

@@ -171,7 +171,7 @@ export default function BrandingSettings() {
   }
 
   return (
-    <VStack spacing={6} align="stretch">
+    <VStack spacing={6} align="stretch" color="gray.100">
       {/* Company & Branding */}
       <SectionHeading title={t('landingPage.branding.companyInfo')} />
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>

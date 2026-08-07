@@ -80,7 +80,7 @@ Add these to the Railway backend service:
 - [x] Landing page routes registered and responding (tested via Docker backend)
 - [x] Public endpoint `/api/public/landing/resolve/<slug>` returns proper 404 for unknown slugs
 - [x] Auth-protected endpoints (`/api/landing/draft`, `/api/landing/slug/validate`) return 401 without JWT
-- [ ] Test slug creation via API: `PUT /api/landing/slug` with body `{"slug": "test-tenant"}` (requires auth token)
+- [x] Test slug creation via API — verified via UI (slug "myadmin" created for PeterPrive)
 
 ---
 
@@ -88,10 +88,10 @@ Add these to the Railway backend service:
 
 ### 4.1 Environment Variables
 
-Add to frontend `.env.production` / Vercel/GH Pages config:
+Add to frontend `.env` (local dev — done) and production config:
 
-- [ ] `VITE_CLOUDFRONT_PUBLIC_PAGES_URL=https://<cloudfront-domain>.cloudfront.net`
-- [ ] `VITE_CLOUDFRONT_DOMAIN=<cloudfront-domain>.cloudfront.net`
+- [x] `VITE_CLOUDFRONT_PUBLIC_PAGES_URL=https://d3afn46os9e9nc.cloudfront.net` (local .env)
+- [x] `VITE_CLOUDFRONT_DOMAIN=d3afn46os9e9nc.cloudfront.net` (local .env)
 
 ### 4.2 PublicLandingPage Route (App.tsx)
 
@@ -152,22 +152,50 @@ Add to frontend `.env.production` / Vercel/GH Pages config:
 
 ### 7.1 Happy Path
 
-- [ ] As Tenant_Admin: set slug "test-rental"
-- [ ] Add Hero block, About block, Contact block
-- [ ] Configure branding (company name, colors, social links)
-- [ ] Configure SEO (title, description, OG image)
-- [ ] Publish
-- [ ] Visit `/p/test-rental` — verify page renders with correct branding
-- [ ] Submit contact form — verify submission stored + email sent
-- [ ] Verify OG tags with Facebook Sharing Debugger: `https://developers.facebook.com/tools/debug/?q=https://myadmin.app/p/test-rental`
+- [x] As Tenant_Admin: set slug "myadmin"
+- [x] Add Hero block, About block
+- [ ] Configure branding (company name, colors, social links) — UI exists, not yet filled
+- [ ] Configure SEO (title, description, OG image) — UI exists, not yet filled
+- [x] Publish
+- [x] Visit `/myadmin` — page renders with correct content and images
+- [x] Submit contact form — submission stored in MySQL ✓
+- [ ] Verify OG tags with Facebook Sharing Debugger (needs SEO settings filled first)
 
 ### 7.2 Edge Cases
 
-- [ ] Visit `/p/nonexistent` — verify 404 page
-- [ ] Unpublish — verify `/p/test-rental` returns 404
-- [ ] Try invalid slug formats — verify validation errors
-- [ ] Test rate limiting on contact form (6 rapid submissions)
-- [ ] Test honeypot field (submit with value → silently accepted, not stored)
+- [x] Visit `/nonexistent` — shows 404 page ✓
+- [x] Unpublish — page returns 404 immediately (CloudFront invalidation works) ✓
+- [x] Slug validation — invalid/unknown slugs properly rejected ✓
+- [x] Test rate limiting on contact form — blocks after 5 submissions per email/hour ✓
+- [x] Test honeypot field — bot submission silently discarded, not stored ✓
+
+---
+
+## 8. Production Deployment
+
+### 8.1 Push to main
+
+- [ ] Merge `feature/landing-page-deployment` branch into `main`
+- [ ] Railway auto-deploys backend from `main`
+
+### 8.2 Frontend Production Env Vars
+
+Add to your frontend production build config (wherever the React SPA is hosted):
+
+- [ ] `VITE_CLOUDFRONT_PUBLIC_PAGES_URL=https://d3afn46os9e9nc.cloudfront.net`
+- [ ] `VITE_CLOUDFRONT_DOMAIN=d3afn46os9e9nc.cloudfront.net`
+
+### 8.3 Verify Production Backend
+
+- [ ] Backend redeploys successfully on Railway
+- [ ] Landing page routes respond (test `/api/public/landing/resolve/myadmin`)
+- [ ] DynamoDB + S3 accessible from Railway
+
+### 8.4 Verify Production Frontend
+
+- [ ] Landing Page tab visible in Tenant Admin
+- [ ] Image previews work in the editor
+- [ ] Publish/unpublish works end-to-end
 
 ---
 

@@ -16,6 +16,7 @@ import SenderSettingsTab from './SenderSettingsTab';
 import AdvancedTab from './AdvancedTab';
 import FunctionsTab from './FunctionsTab';
 import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
+import { LandingPageEditor } from './LandingPage';
 
 interface TenantInfo {
   name: string;
@@ -205,6 +206,9 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               📊 {t('tenantAdmin.tabs.pivotViews')}
             </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              🌐 {t('tenantAdmin.tabs.landingPage')}
+            </Tab>
             {isSysAdmin && (
               <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
                 🔧 {t('tenantAdmin.tabs.advanced')}
@@ -238,6 +242,9 @@ export function TenantAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <PivotBuilderWithPreview />
+            </TabPanel>
+            <TabPanel>
+              <LandingPageEditor tenant={currentTenant} tenantModules={tenantModules} />
             </TabPanel>
             {isSysAdmin && (
               <TabPanel>
