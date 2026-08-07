@@ -1074,15 +1074,15 @@ def _send_contact_notification(
         import html as html_module
 
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        subject = f"New contact form message from {visitor_name}"
+        subject = f"Nieuw contactformulier bericht van {visitor_name}"
 
         text_body = (
-            f"New contact form submission\n"
+            f"Nieuw bericht via contactformulier\n"
             f"{'=' * 40}\n\n"
-            f"Name:    {visitor_name}\n"
+            f"Naam:    {visitor_name}\n"
             f"Email:   {visitor_email}\n"
-            f"Date:    {timestamp}\n\n"
-            f"Message:\n{message}\n"
+            f"Datum:   {timestamp}\n\n"
+            f"Bericht:\n{message}\n"
         )
 
         safe_name = html_module.escape(visitor_name)
@@ -1090,16 +1090,16 @@ def _send_contact_notification(
         safe_message = html_module.escape(message)
 
         html_body = (
-            f"<h2>New contact form submission</h2>"
+            f"<h2>Nieuw bericht via contactformulier</h2>"
             f"<table style='border-collapse:collapse;'>"
-            f"<tr><td style='padding:4px 12px 4px 0;font-weight:bold;'>Name:</td>"
+            f"<tr><td style='padding:4px 12px 4px 0;font-weight:bold;'>Naam:</td>"
             f"<td>{safe_name}</td></tr>"
             f"<tr><td style='padding:4px 12px 4px 0;font-weight:bold;'>Email:</td>"
             f"<td><a href='mailto:{safe_email}'>{safe_email}</a></td></tr>"
-            f"<tr><td style='padding:4px 12px 4px 0;font-weight:bold;'>Date:</td>"
+            f"<tr><td style='padding:4px 12px 4px 0;font-weight:bold;'>Datum:</td>"
             f"<td>{timestamp}</td></tr>"
             f"</table>"
-            f"<h3>Message:</h3>"
+            f"<h3>Bericht:</h3>"
             f"<p style='white-space:pre-wrap;'>{safe_message}</p>"
         )
 
