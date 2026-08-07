@@ -59,6 +59,9 @@ const SysAdminDashboard = lazy(() =>
 // Admin pages (default exports)
 const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
 
+// Public pages (no auth required)
+const PublicLandingPage = lazy(() => import('./pages/public/PublicLandingPage'));
+
 type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-trips' | 'zzp-trip-quick' | 'zzp-trip-import' | 'zzp-debtors' | 'budget' | 'transactions' | 'check-accounts' | 'check-reference' | 'str-channel-revenue';
 
 function AppContent() {
@@ -728,6 +731,36 @@ function AppContent() {
 }
 
 function App() {
+  // Detect public landing page route: /p/:tenantSlug (no auth required)
+  const basePath = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
+  const pathname = window.location.pathname;
+  const path = pathname.startsWith(basePath)
+    ? pathname.slice(basePath.length)
+    : pathname;
+  const isPublicLandingPage = /^\/p\/[a-z0-9-]+\/?$/.test(path);
+
+  if (isPublicLandingPage) {
+    return (
+      <ChakraProvider theme={theme}>
+        <Suspense
+          fallback={
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              minH="100vh"
+              bg="white"
+            >
+              <Spinner size="xl" color="orange.400" thickness="4px" />
+            </Box>
+          }
+        >
+          <PublicLandingPage />
+        </Suspense>
+      </ChakraProvider>
+    );
+  }
+
   return (
     <ChakraProvider theme={theme}>
       <AuthProvider>

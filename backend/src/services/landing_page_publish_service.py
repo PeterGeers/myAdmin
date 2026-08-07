@@ -50,8 +50,10 @@ class LandingPagePublishService:
             "LANDING_PAGES_BUCKET", f"myadmin-public-pages-{env}"
         )
         self.cloudfront_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
+        self.cloudfront_distribution_id = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", "")
         self.base_url = os.environ.get("LANDING_PAGE_BASE_URL", "https://myadmin.app")
         self._s3 = boto3.client("s3", region_name=region)
+        self._cloudfront = boto3.client("cloudfront", region_name=region)
 
     # ========================================================================
     # Publish (Task 1.11)
@@ -165,7 +167,10 @@ class LandingPagePublishService:
         if not version_result.get("success"):
             logger.warning("Failed to save version snapshot for slug=%s version=%d", slug, version)
 
-        # Step 9: Return success
+        # Step 9: Invalidate CloudFront cache for immediate visibility
+        self._invalidate_cache(slug)
+
+        # Step 10: Return success
         return {
             "success": True,
             "version": version,
@@ -216,7 +221,44 @@ class LandingPagePublishService:
             tenant, slug, unpublished_by,
         )
 
+        # Invalidate CloudFront cache so page goes offline immediately
+        self._invalidate_cache(slug)
+
         return {"success": True, "message": "Landing page is now offline."}
+
+    # ========================================================================
+    # CloudFront Cache Invalidation
+    # ========================================================================
+
+    def _invalidate_cache(self, slug: str) -> None:
+        """
+        Invalidate CloudFront cache for a tenant's landing page files.
+
+        This ensures publish/unpublish changes are visible immediately
+        instead of waiting for the default TTL (5 minutes) to expire.
+
+        Args:
+            slug: Tenant slug (used as S3 key prefix)
+        """
+        if not self.cloudfront_distribution_id:
+            logger.warning("CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID not set — skipping cache invalidation")
+            return
+
+        try:
+            self._cloudfront.create_invalidation(
+                DistributionId=self.cloudfront_distribution_id,
+                InvalidationBatch={
+                    "Paths": {
+                        "Quantity": 2,
+                        "Items": [f"/{slug}/*", f"/{slug}"],
+                    },
+                    "CallerReference": f"{slug}-{datetime.now(timezone.utc).isoformat()}",
+                },
+            )
+            logger.info("CloudFront invalidation created for slug=%s", slug)
+        except ClientError as e:
+            # Non-fatal — page will update after TTL expires
+            logger.warning("CloudFront invalidation failed for slug=%s: %s", slug, e)
 
     # ========================================================================
     # Branding Resolution (Task 1.15)
@@ -430,7 +472,19 @@ class LandingPagePublishService:
         img_base = f"https://{cf_domain}" if cf_domain else ""
 
         # Render sections to HTML
-        sections_html = self._render_sections_html(sections, img_base, color_accent)
+        sections_html = self._render_sections_html(sections, img_base, color_accent, slug)
+
+        # Render header with logo
+        logo_url = html.escape(branding.get("logo_url", ""))
+        tagline = html.escape(branding.get("tagline", ""))
+        header_html = ""
+        if logo_url or site_name:
+            logo_img = f'<img src="{logo_url}" alt="{site_name}" style="max-height:60px;width:auto;margin:0 auto;">' if logo_url else ""
+            tagline_html = f'<p style="color:#666;margin-top:0.5rem;font-size:1.1rem;">{tagline}</p>' if tagline else ""
+            header_html = f"""<header style="padding:1.5rem;text-align:center;border-bottom:1px solid #eee;display:flex;flex-direction:column;align-items:center;">
+  {logo_img}
+  {tagline_html}
+</header>"""
 
         # Render footer
         footer_html = self._render_footer_html(footer, branding)
@@ -519,24 +573,25 @@ class LandingPagePublishService:
   </style>
 </head>
 <body>
+{header_html}
 {sections_html}
 {footer_html}
 </body>
 </html>"""
 
-    def _render_sections_html(self, sections: list, img_base: str, color_accent: str) -> str:
+    def _render_sections_html(self, sections: list, img_base: str, color_accent: str, slug: str) -> str:
         """Render all sections to static HTML."""
         parts = []
         for section in sections:
             section_type = section.get("type", "")
             props = section.get("properties", {})
             layout = section.get("layout", "")
-            rendered = self._render_section(section_type, props, layout, img_base, color_accent)
+            rendered = self._render_section(section_type, props, layout, img_base, color_accent, slug)
             if rendered:
                 parts.append(rendered)
         return "\n".join(parts)
 
-    def _render_section(self, section_type: str, props: dict, layout: str, img_base: str, color_accent: str) -> str:
+    def _render_section(self, section_type: str, props: dict, layout: str, img_base: str, color_accent: str, slug: str) -> str:
         """Render a single section to HTML."""
         if section_type == "hero":
             return self._render_hero(props, layout, img_base, color_accent)
@@ -551,7 +606,7 @@ class LandingPagePublishService:
         elif section_type == "testimonials":
             return self._render_testimonials(props)
         elif section_type == "contact":
-            return self._render_contact(props)
+            return self._render_contact(props, slug)
         elif section_type == "embed":
             return self._render_embed(props)
         elif section_type == "pricing":
@@ -686,11 +741,17 @@ class LandingPagePublishService:
   </div>
 </section>"""
 
-    def _render_contact(self, props: dict) -> str:
+    def _render_contact(self, props: dict, slug: str) -> str:
         title = html.escape(props.get("title", ""))
         subtitle = html.escape(props.get("subtitle", ""))
         title_html = f"<h2>{title}</h2>" if title else "<h2>Contact</h2>"
         sub_html = f"<p style=\"text-align:center;color:#555;margin-bottom:1.5rem;\">{subtitle}</p>" if subtitle else ""
+        api_base = html.escape(self.base_url)
+
+        safe_slug = html.escape(slug)
+        # Contact form needs the backend API URL (not the CloudFront URL)
+        backend_url = html.escape(os.environ.get("CONTACT_FORM_API_URL", self.base_url).rstrip("/"))
+        api_url = f"{backend_url}/api/public/landing/{safe_slug}/contact"
 
         return f"""<section class="section contact">
   <div class="container">
@@ -712,7 +773,7 @@ function submitContact(e) {{
   var f = e.target;
   var data = {{name: f.name.value, email: f.email.value, message: f.message.value, honeypot: f.website.value}};
   document.getElementById('form-status').textContent = 'Verzenden...';
-  fetch('/api/public/landing/' + window.__SLUG__ + '/contact', {{
+  fetch('{api_url}', {{
     method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(data)
   }}).then(function(r){{ return r.json(); }}).then(function(d){{
     document.getElementById('form-status').textContent = d.success ? 'Bedankt! Bericht verzonden.' : (d.error || 'Er ging iets mis.');

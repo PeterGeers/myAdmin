@@ -10,9 +10,28 @@ Contains all database interaction for cache population:
 """
 
 import logging
+import warnings
 from datetime import datetime
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+def _read_sql_safe(query, conn, params=None):
+    """Wrapper around pd.read_sql that suppresses the SQLAlchemy connection warning.
+
+    We use mysql-connector-python directly via DatabaseManager — switching to
+    SQLAlchemy is not warranted for read-only cache loading.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="pandas only supports SQLAlchemy connectable",
+            category=UserWarning,
+        )
+        return pd.read_sql(query, conn, params=params)
+
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +152,7 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                     WHERE administration = %s AND ({year_filter})
                 """
-                data = pd.read_sql(query, conn, params=[tenant])
+                data = _read_sql_safe(query, conn, params=[tenant])
             else:
                 query = """
                     SELECT 
@@ -144,7 +163,7 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                     WHERE administration = %s
                 """
-                data = pd.read_sql(query, conn, params=[tenant])
+                data = _read_sql_safe(query, conn, params=[tenant])
 
             conn.close()
 
@@ -213,7 +232,7 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                 """
 
-            data = pd.read_sql(query, conn)
+            data = _read_sql_safe(query, conn)
             conn.close()
 
             if "TransactionDate" in data.columns:
@@ -305,7 +324,7 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                     WHERE administration = %s AND ({year_filter})
                 """
-                new_data = pd.read_sql(query, conn, params=[tenant])
+                new_data = _read_sql_safe(query, conn, params=[tenant])
                 conn.close()
 
                 if not new_data.empty:
@@ -371,7 +390,7 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                     WHERE jaar = %s
                 """
-                year_data = pd.read_sql(query, conn, params=[int(year)])
+                year_data = _read_sql_safe(query, conn, params=[int(year)])
                 conn.close()
 
                 if "TransactionDate" in year_data.columns:

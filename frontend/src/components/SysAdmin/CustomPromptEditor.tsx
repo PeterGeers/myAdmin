@@ -121,7 +121,8 @@ export function CustomPromptEditor({
           </FormLabel>
           <Textarea
             value={originalPrompt}
-            isReadOnly
+            readOnly
+            onChange={() => {}}
             size="sm"
             bg="gray.800"
             color="gray.300"

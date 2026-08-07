@@ -91,8 +91,7 @@ function ErrorItem({ error }: { error: PipelineError }) {
       borderRadius="md"
       borderWidth="1px"
       borderColor="red.700"
-      borderLeftWidth="4px"
-      borderLeftColor="red.400"
+      sx={{ borderLeftWidth: '4px', borderLeftColor: 'var(--chakra-colors-red-400)' }}
     >
       <HStack spacing={2} mb={1}>
         <Icon as={WarningIcon} color="red.300" boxSize={3} />

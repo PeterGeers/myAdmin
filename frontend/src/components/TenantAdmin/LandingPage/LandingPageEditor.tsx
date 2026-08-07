@@ -17,6 +17,8 @@ import BlockListItem from './BlockListItem';
 import AddBlockModal from './AddBlockModal';
 import BlockConfigurator from './BlockConfigurator';
 import PreviewPanel from './PreviewPanel';
+import BrandingSettings from './BrandingSettings';
+import SeoSettings from './SeoSettings';
 
 interface LandingPageEditorProps {
   tenant: string;
@@ -47,7 +49,7 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
   const [publishing, setPublishing] = useState(false);
   const [addBlockOpen, setAddBlockOpen] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [view, setView] = useState<'blocks-edit' | 'blocks-preview' | 'branding' | 'seo'>('blocks-edit');
 
   // Auto-save refs
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -343,37 +345,55 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
 
   return (
     <Box>
-      {/* Toolbar */}
+      {/* Toolbar — single row */}
       <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
         <HStack spacing={3}>
-          <Tooltip label={t('landingPage.tooltips.addBlock')} placement="bottom" hasArrow>
+          <ButtonGroup size="sm" isAttached>
             <Button
-              leftIcon={<AddIcon />}
-              size="sm"
               colorScheme="orange"
-              onClick={() => setAddBlockOpen(true)}
-            >
-              {t('landingPage.editor.addBlock')}
-            </Button>
-          </Tooltip>
-          <ButtonGroup size="sm" isAttached variant="outline">
-            <Button
               leftIcon={<EditIcon />}
-              colorScheme={mode === 'edit' ? 'orange' : 'gray'}
-              variant={mode === 'edit' ? 'solid' : 'outline'}
-              onClick={() => setMode('edit')}
+              opacity={view === 'blocks-edit' ? 1 : 0.7}
+              onClick={() => setView('blocks-edit')}
             >
               Edit
             </Button>
             <Button
+              colorScheme="orange"
               leftIcon={<ViewIcon />}
-              colorScheme={mode === 'preview' ? 'purple' : 'gray'}
-              variant={mode === 'preview' ? 'solid' : 'outline'}
-              onClick={() => setMode('preview')}
+              opacity={view === 'blocks-preview' ? 1 : 0.7}
+              onClick={() => setView('blocks-preview')}
             >
               Preview
             </Button>
+            <Button
+              colorScheme="orange"
+              opacity={view === 'branding' ? 1 : 0.7}
+              onClick={() => setView('branding')}
+            >
+              Branding
+            </Button>
+            <Button
+              colorScheme="orange"
+              opacity={view === 'seo' ? 1 : 0.7}
+              onClick={() => setView('seo')}
+            >
+              SEO
+            </Button>
           </ButtonGroup>
+
+          {view === 'blocks-edit' && (
+            <Tooltip label={t('landingPage.tooltips.addBlock')} placement="bottom" hasArrow>
+              <Button
+                leftIcon={<AddIcon />}
+                size="sm"
+                colorScheme="orange"
+                onClick={() => setAddBlockOpen(true)}
+              >
+                {t('landingPage.editor.addBlock')}
+              </Button>
+            </Tooltip>
+          )}
+
           <SaveStatusBadge status={saveStatus} />
         </HStack>
 
@@ -400,11 +420,9 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
         </HStack>
       </HStack>
 
-      {/* Content area: Edit mode or Preview mode */}
-      {mode === 'edit' ? (
-        /* Block list + configurator side-by-side */
+      {/* Content area */}
+      {view === 'blocks-edit' && (
         <HStack align="start" spacing={4}>
-          {/* Block list */}
           <VStack flex="1" spacing={2} align="stretch" minW="0">
             {sections.length === 0 ? (
               <Box
@@ -442,7 +460,6 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
             )}
           </VStack>
 
-          {/* Block configurator panel */}
           {editingBlock && (
             <Box w="380px" flexShrink={0}>
               <BlockConfigurator
@@ -453,9 +470,22 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
             </Box>
           )}
         </HStack>
-      ) : (
-        /* Preview mode */
+      )}
+
+      {view === 'blocks-preview' && (
         <PreviewPanel sections={sections} />
+      )}
+
+      {view === 'branding' && (
+        <Box color="white">
+          <BrandingSettings />
+        </Box>
+      )}
+
+      {view === 'seo' && (
+        <Box color="white">
+          <SeoSettings />
+        </Box>
       )}
 
       {/* Add Block Modal */}

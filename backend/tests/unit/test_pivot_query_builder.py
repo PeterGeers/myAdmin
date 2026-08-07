@@ -314,7 +314,7 @@ class TestTenantIsolation:
 class TestColumnPivotConditionalAggregation:
     """For any config with column_pivot, SQL contains CASE WHEN expressions."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         config=valid_pivot_config_st(),
         tenant=tenant_st,

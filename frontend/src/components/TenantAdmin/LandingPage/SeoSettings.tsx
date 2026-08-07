@@ -98,7 +98,7 @@ export default function SeoSettings() {
   }
 
   return (
-    <VStack spacing={6} align="stretch">
+    <VStack spacing={6} align="stretch" color="gray.100">
       {/* SEO Title */}
       <FormControl>
         <FormLabel color="gray.300" fontSize="xs" mb={1}>
