@@ -173,6 +173,18 @@ export default function BrandingSettings() {
 
   return (
     <VStack spacing={6} align="stretch" color="gray.100">
+      {/* Save button — top right */}
+      <HStack justify="flex-end">
+        <Button
+          colorScheme="orange"
+          size="sm"
+          onClick={handleSave}
+          isLoading={saving}
+        >
+          {t('landingPage.branding.save')}
+        </Button>
+      </HStack>
+
       {/* Company & Branding */}
       <SectionHeading title={t('landingPage.branding.companyInfo')} />
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
@@ -334,18 +346,6 @@ export default function BrandingSettings() {
       </Text>
 
       <Divider borderColor="gray.600" />
-
-      {/* Save button */}
-      <HStack justify="flex-end">
-        <Button
-          colorScheme="orange"
-          size="sm"
-          onClick={handleSave}
-          isLoading={saving}
-        >
-          {t('landingPage.branding.save')}
-        </Button>
-      </HStack>
     </VStack>
   );
 }
