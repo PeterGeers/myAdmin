@@ -93,7 +93,7 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
     setSlugValidating(true);
     try {
       const result = await validateSlug(value);
-      setSlugValidation(result.data);
+      setSlugValidation(result);
     } catch {
       setSlugValidation({ valid: false, error: t('landingPage.slug.validationError') });
     } finally {

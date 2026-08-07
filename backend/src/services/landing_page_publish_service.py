@@ -521,7 +521,7 @@ class LandingPagePublishService:
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
     body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333; line-height: 1.6; }}
     img {{ max-width: 100%; height: auto; display: block; }}
-    .section {{ padding: 3rem 1.5rem; }}
+    .section {{ padding: 2rem 1.5rem; }}
     .container {{ max-width: 1100px; margin: 0 auto; }}
     .hero {{ display: flex; flex-wrap: wrap; align-items: center; gap: 2rem; }}
     .hero-text {{ flex: 1; min-width: 280px; }}
@@ -539,17 +539,44 @@ class LandingPagePublishService:
     .about-img img {{ border-radius: 8px; }}
     .gallery {{ text-align: center; }}
     .gallery h2 {{ font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: {color_primary}; }}
-    .gallery-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }}
-    .gallery-grid img {{ border-radius: 8px; width: 100%; height: 200px; object-fit: cover; }}
+    .gallery-grid-3 {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }}
+    .gallery-grid-4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }}
+    .gallery-masonry {{ columns: 3; column-gap: 1rem; }}
+    .gallery-masonry img {{ break-inside: avoid; margin-bottom: 1rem; }}
+    .gallery-grid-3 img, .gallery-grid-4 img {{ border-radius: 8px; width: 100%; height: auto; object-fit: contain; }}
+    .gallery-masonry img {{ border-radius: 8px; width: 100%; height: auto; }}
+    .carousel {{ position: relative; overflow: hidden; border-radius: 8px; max-width: 800px; margin: 0 auto; }}
+    .carousel-track {{ display: flex; transition: transform 0.4s ease; }}
+    .carousel-slide {{ min-width: 100%; }}
+    .carousel-slide img {{ width: 100%; height: auto; max-height: 500px; object-fit: contain; display: block; margin: 0 auto; }}
+    .carousel-btn {{ position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: #fff; border: none; padding: 0.8rem 1rem; font-size: 1.2rem; cursor: pointer; border-radius: 4px; z-index: 2; }}
+    .carousel-btn:hover {{ background: rgba(0,0,0,0.8); }}
+    .carousel-prev {{ left: 0.5rem; }}
+    .carousel-next {{ right: 0.5rem; }}
+    .carousel-dots {{ text-align: center; padding: 0.8rem 0; }}
+    .carousel-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ccc; margin: 0 4px; cursor: pointer; transition: background 0.3s; }}
+    .carousel-dot.active {{ background: {color_primary}; }}
+    @media (max-width: 768px) {{
+      .gallery-grid-3, .gallery-grid-4 {{ grid-template-columns: repeat(2, 1fr); }}
+      .gallery-masonry {{ columns: 2; }}
+    }}
+    @media (max-width: 480px) {{
+      .gallery-grid-3, .gallery-grid-4 {{ grid-template-columns: 1fr; }}
+      .gallery-masonry {{ columns: 1; }}
+    }}
     .cta {{ background: {color_primary}; color: #fff; text-align: center; padding: 4rem 1.5rem; }}
     .cta h2 {{ font-size: 2rem; margin-bottom: 0.5rem; }}
     .cta p {{ font-size: 1.1rem; margin-bottom: 1.5rem; opacity: 0.9; }}
     .cta .btn {{ background: {color_accent}; }}
     .faq {{ background: #f9f9f9; }}
     .faq h2 {{ font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: {color_primary}; text-align: center; }}
-    .faq-item {{ border-bottom: 1px solid #ddd; padding: 1rem 0; }}
-    .faq-item summary {{ font-weight: 600; cursor: pointer; font-size: 1.05rem; }}
-    .faq-item p {{ margin-top: 0.5rem; color: #555; }}
+    .faq-grid {{ display: grid; grid-template-columns: 1fr; gap: 0 2rem; }}
+    @media (min-width: 769px) {{ .faq-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
+    .faq-item {{ border-bottom: 1px solid #ddd; padding: 0.4rem 0; margin: 0; display: block; }}
+    .faq-item:last-child {{ border-bottom: none; padding-bottom: 0; }}
+    .faq-item summary {{ font-weight: 600; cursor: pointer; font-size: 1.05rem; margin: 0; padding: 0; }}
+    .faq-item p {{ margin: 0.2rem 0 0.2rem 0; padding: 0; color: #555; line-height: 1.4; }}
+    .faq-item[open] summary {{ margin-bottom: 0; }}
     .testimonials {{ text-align: center; }}
     .testimonials h2 {{ font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: {color_primary}; }}
     .testimonial-cards {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }}
@@ -572,7 +599,7 @@ class LandingPagePublishService:
     footer a {{ color: {color_accent}; text-decoration: none; }}
     @media (max-width: 768px) {{
       .hero h1 {{ font-size: 1.8rem; }}
-      .section {{ padding: 2rem 1rem; }}
+      .section {{ padding: 1.5rem 1rem; }}
     }}
   </style>
 </head>
@@ -602,7 +629,7 @@ class LandingPagePublishService:
         elif section_type == "about":
             return self._render_about(props, layout, img_base)
         elif section_type == "gallery":
-            return self._render_gallery(props, img_base)
+            return self._render_gallery(props, layout, img_base)
         elif section_type == "cta":
             return self._render_cta(props)
         elif section_type == "faq":
@@ -671,24 +698,91 @@ class LandingPagePublishService:
   </div>
 </section>"""
 
-    def _render_gallery(self, props: dict, img_base: str) -> str:
+    def _render_gallery(self, props: dict, layout: str, img_base: str) -> str:
         title = html.escape(props.get("title", ""))
         images = props.get("images", [])
         if not images:
             return ""
 
+        title_html = f"<h2>{title}</h2>" if title else ""
+
+        if layout == "carousel":
+            return self._render_gallery_carousel(images, title_html, img_base)
+
         imgs_html = "".join(
             f'<img src="{self._img_url(img.get("image_key", ""), img_base)}" alt="{html.escape(img.get("alt", ""))}">'
             for img in images if img.get("image_key")
         )
-        title_html = f"<h2>{title}</h2>" if title else ""
+
+        # Map layout to CSS class
+        layout_class = "gallery-grid-3"
+        if layout == "grid-4":
+            layout_class = "gallery-grid-4"
+        elif layout == "masonry":
+            layout_class = "gallery-masonry"
+        else:
+            layout_class = "gallery-grid-3"
 
         return f"""<section class="section gallery">
   <div class="container">
     {title_html}
-    <div class="gallery-grid">{imgs_html}</div>
+    <div class="{layout_class}">{imgs_html}</div>
   </div>
 </section>"""
+
+    def _render_gallery_carousel(self, images: list, title_html: str, img_base: str) -> str:
+        """Render gallery as a carousel/slider with prev/next buttons."""
+        imgs_html = "".join(
+            f'<div class="carousel-slide"><img src="{self._img_url(img.get("image_key", ""), img_base)}" alt="{html.escape(img.get("alt", ""))}"></div>'
+            for img in images if img.get("image_key")
+        )
+        carousel_id = f"carousel-{id(images)}"
+
+        return f"""<section class="section gallery">
+  <div class="container">
+    {title_html}
+    <div class="carousel" id="{carousel_id}">
+      <div class="carousel-track">{imgs_html}</div>
+      <button class="carousel-btn carousel-prev" onclick="carouselNav('{carousel_id}', -1)">&#10094;</button>
+      <button class="carousel-btn carousel-next" onclick="carouselNav('{carousel_id}', 1)">&#10095;</button>
+      <div class="carousel-dots" id="{carousel_id}-dots"></div>
+    </div>
+  </div>
+</section>
+<script>
+(function() {{
+  var c = document.getElementById('{carousel_id}');
+  var track = c.querySelector('.carousel-track');
+  var slides = track.querySelectorAll('.carousel-slide');
+  var dots = c.querySelector('.carousel-dots');
+  for (var i = 0; i < slides.length; i++) {{
+    var dot = document.createElement('span');
+    dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('data-index', i);
+    dot.onclick = function() {{ goToSlide('{carousel_id}', parseInt(this.getAttribute('data-index'))); }};
+    dots.appendChild(dot);
+  }}
+}})();
+function carouselNav(id, dir) {{
+  var c = document.getElementById(id);
+  var track = c.querySelector('.carousel-track');
+  var slides = track.querySelectorAll('.carousel-slide');
+  var current = parseInt(track.getAttribute('data-index') || '0');
+  var next = (current + dir + slides.length) % slides.length;
+  goToSlide(id, next);
+}}
+function goToSlide(id, index) {{
+  var c = document.getElementById(id);
+  var track = c.querySelector('.carousel-track');
+  var slides = track.querySelectorAll('.carousel-slide');
+  track.setAttribute('data-index', index);
+  track.style.transform = 'translateX(-' + (index * 100) + '%)';
+  var dots = c.querySelectorAll('.carousel-dot');
+  for (var i = 0; i < dots.length; i++) {{
+    dots[i].className = 'carousel-dot' + (i === index ? ' active' : '');
+  }}
+}}
+</script>"""
 
     def _render_cta(self, props: dict) -> str:
         title = html.escape(props.get("title", ""))
@@ -714,7 +808,7 @@ class LandingPagePublishService:
             return ""
 
         items_html = "".join(
-            f'<details class="faq-item"><summary>{html.escape(item.get("question", ""))}</summary><p>{html.escape(item.get("answer", ""))}</p></details>'
+            f'<details class="faq-item"><summary>{html.escape(item.get("question", "").strip())}</summary><p>{html.escape(item.get("answer", "").strip())}</p></details>'
             for item in items
         )
         title_html = f"<h2>{title}</h2>" if title else ""
@@ -722,7 +816,7 @@ class LandingPagePublishService:
         return f"""<section class="section faq">
   <div class="container">
     {title_html}
-    {items_html}
+    <div class="faq-grid">{items_html}</div>
   </div>
 </section>"""
 
@@ -733,7 +827,7 @@ class LandingPagePublishService:
             return ""
 
         cards_html = "".join(
-            f'<div class="testimonial-card"><blockquote>"{html.escape(item.get("quote", ""))}"</blockquote><cite>— {html.escape(item.get("author", ""))}</cite></div>'
+            f'<div class="testimonial-card"><blockquote>"{html.escape(item.get("quote", ""))}"</blockquote><cite>— {html.escape(item.get("author", ""))}{", " + html.escape(item.get("role", "")) if item.get("role") else ""}</cite></div>'
             for item in items
         )
         title_html = f"<h2>{title}</h2>" if title else ""
@@ -806,10 +900,17 @@ function submitContact(e) {{
         if not items:
             return ""
 
-        cards_html = "".join(
-            f'<div class="pricing-card"><h3>{html.escape(item.get("name", ""))}</h3><div class="price">{html.escape(item.get("price", ""))}</div><p>{html.escape(item.get("description", ""))}</p></div>'
-            for item in items
-        )
+        cards_html = ""
+        for item in items:
+            name = html.escape(item.get("name", ""))
+            price = html.escape(item.get("price", ""))
+            desc = html.escape(item.get("description", ""))
+            features = item.get("features", [])
+            features_html = ""
+            if features:
+                features_li = "".join(f"<li>{html.escape(f)}</li>" for f in features if f)
+                features_html = f"<ul class=\"pricing-features\">{features_li}</ul>"
+            cards_html += f'<div class="pricing-card"><h3>{name}</h3><div class="price">{price}</div><p>{desc}</p>{features_html}</div>'
         title_html = f"<h2>{title}</h2>" if title else ""
 
         return f"""<section class="section pricing">

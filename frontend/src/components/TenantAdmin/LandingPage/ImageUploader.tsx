@@ -166,8 +166,8 @@ export default function ImageUploader({ onUpload, currentImageKey, label }: Imag
             src={previewUrl || (currentImageKey ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN || ''}/${currentImageKey}` : undefined)}
             alt="Uploaded image"
             maxH="120px"
-            w="100%"
-            objectFit="cover"
+            maxW="100%"
+            objectFit="contain"
             borderRadius="md"
             fallback={
               <HStack bg="gray.700" p={3} borderRadius="md" justify="center">

@@ -738,6 +738,7 @@
       "grid-3": "Grid (3 columns)",
       "grid-4": "Grid (4 columns)",
       "masonry": "Masonry",
+      "carousel": "Carousel",
       "cards": "Cards",
       "slider": "Slider",
       "accordion": "Accordion",
@@ -817,6 +818,62 @@
     },
     "fieldHelp": {
       "embedUrl": "Only HTTPS URLs are supported. Non-HTTPS content will not be displayed."
+    },
+    "faqEditor": {
+      "addItem": "+ Add Question",
+      "removeItem": "Remove question",
+      "removeTitle": "Remove Question",
+      "removeConfirm": "Are you sure you want to remove this FAQ item? This cannot be undone.",
+      "noItems": "No questions yet. Add your first FAQ item.",
+      "question": "Question",
+      "answer": "Answer",
+      "questionPlaceholder": "e.g., What are your opening hours?",
+      "answerPlaceholder": "Type the answer here...",
+      "titlePlaceholder": "e.g., Frequently Asked Questions",
+      "untitledQuestion": "(Untitled question)"
+    },
+    "testimonialsEditor": {
+      "addItem": "+ Add Testimonial",
+      "removeItem": "Remove testimonial",
+      "removeTitle": "Remove Testimonial",
+      "removeConfirm": "Are you sure you want to remove this testimonial? This cannot be undone.",
+      "noItems": "No testimonials yet. Add your first customer review.",
+      "quote": "Quote",
+      "author": "Author",
+      "role": "Role / Company (optional)",
+      "quotePlaceholder": "e.g., Great service, highly recommended!",
+      "authorPlaceholder": "e.g., John Smith",
+      "rolePlaceholder": "e.g., CEO, Acme Corp",
+      "titlePlaceholder": "e.g., What Our Customers Say",
+      "untitledItem": "(No author)"
+    },
+    "galleryEditor": {
+      "addImage": "Add Image",
+      "removeImage": "Remove image",
+      "removeTitle": "Remove Image",
+      "removeConfirm": "Are you sure you want to remove this image? This cannot be undone.",
+      "noItems": "No images yet. Upload your first gallery image below.",
+      "altPlaceholder": "Alt text (accessibility)",
+      "titlePlaceholder": "e.g., Photo Gallery",
+      "imageCount": "{{count}} image(s)"
+    },
+    "pricingEditor": {
+      "addItem": "+ Add Package",
+      "removeItem": "Remove package",
+      "removeTitle": "Remove Package",
+      "removeConfirm": "Are you sure you want to remove this pricing package? This cannot be undone.",
+      "noItems": "No packages yet. Add your first pricing tier.",
+      "name": "Package Name",
+      "price": "Price",
+      "description": "Description",
+      "features": "Features (optional)",
+      "namePlaceholder": "e.g., Basic",
+      "pricePlaceholder": "e.g., €49/month",
+      "descriptionPlaceholder": "Brief description of this package",
+      "featuresPlaceholder": "One feature per line\ne.g., Unlimited storage\n24/7 support",
+      "featuresHelp": "One feature per line",
+      "titlePlaceholder": "e.g., Our Pricing Plans",
+      "untitledItem": "(Unnamed package)"
     }
   },
   "pivotDataSources": {

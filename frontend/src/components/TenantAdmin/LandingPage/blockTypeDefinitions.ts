@@ -31,7 +31,7 @@ export const BLOCK_TYPE_DEFINITIONS: BlockTypeDefinition[] = [
     type: 'gallery',
     icon: '🎨',
     defaultLayout: 'grid-3',
-    layouts: ['grid-3', 'grid-4', 'masonry'],
+    layouts: ['grid-3', 'grid-4', 'masonry', 'carousel'],
   },
   {
     type: 'testimonials',

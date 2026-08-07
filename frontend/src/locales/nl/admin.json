@@ -734,6 +734,7 @@
       "grid-3": "Raster (3 kolommen)",
       "grid-4": "Raster (4 kolommen)",
       "masonry": "Masonry",
+      "carousel": "Carousel",
       "cards": "Kaarten",
       "slider": "Slider",
       "accordion": "Accordion",
@@ -813,6 +814,62 @@
     },
     "fieldHelp": {
       "embedUrl": "Alleen HTTPS-URL's worden ondersteund. Niet-HTTPS-content wordt niet weergegeven."
+    },
+    "faqEditor": {
+      "addItem": "+ Vraag toevoegen",
+      "removeItem": "Vraag verwijderen",
+      "removeTitle": "Vraag verwijderen",
+      "removeConfirm": "Weet je zeker dat je deze FAQ-vraag wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "noItems": "Nog geen vragen. Voeg je eerste FAQ-item toe.",
+      "question": "Vraag",
+      "answer": "Antwoord",
+      "questionPlaceholder": "bijv. Wat zijn de openingstijden?",
+      "answerPlaceholder": "Typ hier het antwoord...",
+      "titlePlaceholder": "bijv. Veelgestelde vragen",
+      "untitledQuestion": "(Naamloze vraag)"
+    },
+    "testimonialsEditor": {
+      "addItem": "+ Testimonial toevoegen",
+      "removeItem": "Testimonial verwijderen",
+      "removeTitle": "Testimonial verwijderen",
+      "removeConfirm": "Weet je zeker dat je deze testimonial wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "noItems": "Nog geen testimonials. Voeg je eerste klantervaring toe.",
+      "quote": "Citaat",
+      "author": "Auteur",
+      "role": "Rol / Bedrijf (optioneel)",
+      "quotePlaceholder": "bijv. Uitstekende service, een aanrader!",
+      "authorPlaceholder": "bijv. Jan Jansen",
+      "rolePlaceholder": "bijv. Directeur, Bedrijf BV",
+      "titlePlaceholder": "bijv. Wat onze klanten zeggen",
+      "untitledItem": "(Geen auteur)"
+    },
+    "galleryEditor": {
+      "addImage": "Afbeelding toevoegen",
+      "removeImage": "Afbeelding verwijderen",
+      "removeTitle": "Afbeelding verwijderen",
+      "removeConfirm": "Weet je zeker dat je deze afbeelding wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "noItems": "Nog geen afbeeldingen. Upload hieronder je eerste galerij-afbeelding.",
+      "altPlaceholder": "Alt-tekst (toegankelijkheid)",
+      "titlePlaceholder": "bijv. Fotogalerij",
+      "imageCount": "{{count}} afbeelding(en)"
+    },
+    "pricingEditor": {
+      "addItem": "+ Pakket toevoegen",
+      "removeItem": "Pakket verwijderen",
+      "removeTitle": "Pakket verwijderen",
+      "removeConfirm": "Weet je zeker dat je dit prijspakket wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "noItems": "Nog geen pakketten. Voeg je eerste prijspakket toe.",
+      "name": "Pakketnaam",
+      "price": "Prijs",
+      "description": "Beschrijving",
+      "features": "Kenmerken (optioneel)",
+      "namePlaceholder": "bijv. Basis",
+      "pricePlaceholder": "bijv. €49/maand",
+      "descriptionPlaceholder": "Korte beschrijving van dit pakket",
+      "featuresPlaceholder": "Eén kenmerk per regel\nbijv. Onbeperkte opslag\n24/7 ondersteuning",
+      "featuresHelp": "Eén kenmerk per regel",
+      "titlePlaceholder": "bijv. Onze Prijzen",
+      "untitledItem": "(Naamloos pakket)"
     }
   },
   "pivotDataSources": {
