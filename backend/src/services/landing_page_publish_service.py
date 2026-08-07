@@ -29,7 +29,9 @@ class LandingPagePublishService:
     TenantSlugService (slug resolution), and S3 (public delivery).
     """
 
-    def __init__(self, landing_page_service, parameter_service, slug_service, db_manager=None):
+    def __init__(
+        self, landing_page_service, parameter_service, slug_service, db_manager=None
+    ):
         """
         Initialize the publish service.
 
@@ -50,7 +52,9 @@ class LandingPagePublishService:
             "LANDING_PAGES_BUCKET", f"myadmin-public-pages-{env}"
         )
         self.cloudfront_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
-        self.cloudfront_distribution_id = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", "")
+        self.cloudfront_distribution_id = os.environ.get(
+            "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", ""
+        )
         self.base_url = os.environ.get("LANDING_PAGE_BASE_URL", "https://myadmin.app")
         self._s3 = boto3.client("s3", region_name=region)
         self._cloudfront = boto3.client("cloudfront", region_name=region)
@@ -84,12 +88,18 @@ class LandingPagePublishService:
         # Step 1: Resolve slug
         slug = self.slug_svc.get_slug(tenant)
         if not slug:
-            return {"success": False, "error": "No slug configured for this tenant. Set a slug first."}
+            return {
+                "success": False,
+                "error": "No slug configured for this tenant. Set a slug first.",
+            }
 
         # Step 2: Read draft from DynamoDB
         draft = self.landing_page_svc.get_draft(slug)
         if not draft:
-            return {"success": False, "error": "No draft found. Create a landing page draft first."}
+            return {
+                "success": False,
+                "error": "No draft found. Create a landing page draft first.",
+            }
 
         # Step 3: Resolve branding
         branding = self.resolve_branding(tenant)
@@ -141,7 +151,10 @@ class LandingPagePublishService:
             )
         except ClientError as e:
             logger.error("S3 put_object landing.json failed for slug=%s: %s", slug, e)
-            return {"success": False, "error": "Failed to publish landing page data to S3."}
+            return {
+                "success": False,
+                "error": "Failed to publish landing page data to S3.",
+            }
 
         # Step 7: Generate and write index.html to S3
         try:
@@ -165,7 +178,9 @@ class LandingPagePublishService:
             published_by=published_by,
         )
         if not version_result.get("success"):
-            logger.warning("Failed to save version snapshot for slug=%s version=%d", slug, version)
+            logger.warning(
+                "Failed to save version snapshot for slug=%s version=%d", slug, version
+            )
 
         # Step 9: Invalidate CloudFront cache for immediate visibility
         self._invalidate_cache(slug)
@@ -218,7 +233,9 @@ class LandingPagePublishService:
 
         logger.info(
             "Unpublished landing page for tenant=%s slug=%s by=%s",
-            tenant, slug, unpublished_by,
+            tenant,
+            slug,
+            unpublished_by,
         )
 
         # Invalidate CloudFront cache so page goes offline immediately
@@ -241,7 +258,9 @@ class LandingPagePublishService:
             slug: Tenant slug (used as S3 key prefix)
         """
         if not self.cloudfront_distribution_id:
-            logger.warning("CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID not set — skipping cache invalidation")
+            logger.warning(
+                "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID not set — skipping cache invalidation"
+            )
             return
 
         try:
@@ -369,13 +388,15 @@ class LandingPagePublishService:
         if not title:
             title = branding.get("company_name", "")
 
-        description = self.param_svc.get_param(
-            "landing_page", "seo_description", tenant=tenant
-        ) or ""
+        description = (
+            self.param_svc.get_param("landing_page", "seo_description", tenant=tenant)
+            or ""
+        )
 
-        og_image = self.param_svc.get_param(
-            "landing_page", "og_image_url", tenant=tenant
-        ) or ""
+        og_image = (
+            self.param_svc.get_param("landing_page", "og_image_url", tenant=tenant)
+            or ""
+        )
 
         canonical_url = f"{self.base_url}/p/{slug}"
 
@@ -457,7 +478,6 @@ class LandingPagePublishService:
         branding = published_data.get("branding", {})
         footer = published_data.get("footer", {})
         sections = published_data.get("sections", [])
-        settings = published_data.get("settings", {})
 
         title = html.escape(seo.get("title", branding.get("name", "")))
         description = html.escape(seo.get("description", ""))
@@ -472,7 +492,9 @@ class LandingPagePublishService:
         img_base = f"https://{cf_domain}" if cf_domain else ""
 
         # Render sections to HTML
-        sections_html = self._render_sections_html(sections, img_base, color_accent, slug)
+        sections_html = self._render_sections_html(
+            sections, img_base, color_accent, slug
+        )
 
         # Render header with logo
         logo_url = branding.get("logo_url", "")
@@ -483,8 +505,16 @@ class LandingPagePublishService:
         tagline = html.escape(branding.get("tagline", ""))
         header_html = ""
         if logo_url or site_name:
-            logo_img = f'<img src="{logo_url}" alt="{site_name}" style="max-height:60px;width:auto;margin:0 auto;">' if logo_url else ""
-            tagline_html = f'<p style="color:#666;margin-top:0.5rem;font-size:1.1rem;">{tagline}</p>' if tagline else ""
+            logo_img = (
+                f'<img src="{logo_url}" alt="{site_name}" style="max-height:60px;width:auto;margin:0 auto;">'
+                if logo_url
+                else ""
+            )
+            tagline_html = (
+                f'<p style="color:#666;margin-top:0.5rem;font-size:1.1rem;">{tagline}</p>'
+                if tagline
+                else ""
+            )
             header_html = f"""<header style="padding:1.5rem;text-align:center;border-bottom:1px solid #eee;display:flex;flex-direction:column;align-items:center;">
   {logo_img}
   {tagline_html}
@@ -610,19 +640,31 @@ class LandingPagePublishService:
 </body>
 </html>"""
 
-    def _render_sections_html(self, sections: list, img_base: str, color_accent: str, slug: str) -> str:
+    def _render_sections_html(
+        self, sections: list, img_base: str, color_accent: str, slug: str
+    ) -> str:
         """Render all sections to static HTML."""
         parts = []
         for section in sections:
             section_type = section.get("type", "")
             props = section.get("properties", {})
             layout = section.get("layout", "")
-            rendered = self._render_section(section_type, props, layout, img_base, color_accent, slug)
+            rendered = self._render_section(
+                section_type, props, layout, img_base, color_accent, slug
+            )
             if rendered:
                 parts.append(rendered)
         return "\n".join(parts)
 
-    def _render_section(self, section_type: str, props: dict, layout: str, img_base: str, color_accent: str, slug: str) -> str:
+    def _render_section(
+        self,
+        section_type: str,
+        props: dict,
+        layout: str,
+        img_base: str,
+        color_accent: str,
+        slug: str,
+    ) -> str:
         """Render a single section to HTML."""
         if section_type == "hero":
             return self._render_hero(props, layout, img_base, color_accent)
@@ -652,7 +694,9 @@ class LandingPagePublishService:
             return image_key
         return f"{img_base}/{image_key}" if img_base else image_key
 
-    def _render_hero(self, props: dict, layout: str, img_base: str, color_accent: str) -> str:
+    def _render_hero(
+        self, props: dict, layout: str, img_base: str, color_accent: str
+    ) -> str:
         title = html.escape(props.get("title", ""))
         subtitle = html.escape(props.get("subtitle", ""))
         cta_text = html.escape(props.get("cta_text", ""))
@@ -660,11 +704,17 @@ class LandingPagePublishService:
         image_key = props.get("image_key", "")
         img_url = self._img_url(image_key, img_base)
 
-        img_html = f'<div class="hero-img"><img src="{img_url}" alt="{title}"></div>' if img_url else ""
+        img_html = (
+            f'<div class="hero-img"><img src="{img_url}" alt="{title}"></div>'
+            if img_url
+            else ""
+        )
         btn_html = f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
         sub_html = f"<p>{subtitle}</p>" if subtitle else ""
 
-        direction = "" if layout != "image-left" else ' style="flex-direction: row-reverse;"'
+        direction = (
+            "" if layout != "image-left" else ' style="flex-direction: row-reverse;"'
+        )
 
         return f"""<section class="section">
   <div class="container hero"{direction}>
@@ -686,7 +736,11 @@ class LandingPagePublishService:
         paragraphs = [html.escape(p) for p in content.split("\n") if p.strip()]
         text_html = "".join(f"<p>{p}</p>" for p in paragraphs)
         title_html = f"<h2>{title}</h2>" if title else ""
-        img_html = f'<div class="about-img"><img src="{img_url}" alt="{title}"></div>' if img_url else ""
+        img_html = (
+            f'<div class="about-img"><img src="{img_url}" alt="{title}"></div>'
+            if img_url
+            else ""
+        )
 
         return f"""<section class="section about">
   <div class="container about-content">
@@ -711,7 +765,8 @@ class LandingPagePublishService:
 
         imgs_html = "".join(
             f'<img src="{self._img_url(img.get("image_key", ""), img_base)}" alt="{html.escape(img.get("alt", ""))}">'
-            for img in images if img.get("image_key")
+            for img in images
+            if img.get("image_key")
         )
 
         # Map layout to CSS class
@@ -730,11 +785,14 @@ class LandingPagePublishService:
   </div>
 </section>"""
 
-    def _render_gallery_carousel(self, images: list, title_html: str, img_base: str) -> str:
+    def _render_gallery_carousel(
+        self, images: list, title_html: str, img_base: str
+    ) -> str:
         """Render gallery as a carousel/slider with prev/next buttons."""
         imgs_html = "".join(
             f'<div class="carousel-slide"><img src="{self._img_url(img.get("image_key", ""), img_base)}" alt="{html.escape(img.get("alt", ""))}"></div>'
-            for img in images if img.get("image_key")
+            for img in images
+            if img.get("image_key")
         )
         carousel_id = f"carousel-{id(images)}"
 
@@ -843,12 +901,17 @@ function goToSlide(id, index) {{
         title = html.escape(props.get("title", ""))
         subtitle = html.escape(props.get("subtitle", ""))
         title_html = f"<h2>{title}</h2>" if title else "<h2>Contact</h2>"
-        sub_html = f"<p style=\"text-align:center;color:#555;margin-bottom:1.5rem;\">{subtitle}</p>" if subtitle else ""
-        api_base = html.escape(self.base_url)
+        sub_html = (
+            f'<p style="text-align:center;color:#555;margin-bottom:1.5rem;">{subtitle}</p>'
+            if subtitle
+            else ""
+        )
 
         safe_slug = html.escape(slug)
         # Contact form needs the backend API URL (not the CloudFront URL)
-        backend_url = html.escape(os.environ.get("CONTACT_FORM_API_URL", self.base_url).rstrip("/"))
+        backend_url = html.escape(
+            os.environ.get("CONTACT_FORM_API_URL", self.base_url).rstrip("/")
+        )
         api_url = f"{backend_url}/api/public/landing/{safe_slug}/contact"
 
         return f"""<section class="section contact">
@@ -908,8 +971,10 @@ function submitContact(e) {{
             features = item.get("features", [])
             features_html = ""
             if features:
-                features_li = "".join(f"<li>{html.escape(f)}</li>" for f in features if f)
-                features_html = f"<ul class=\"pricing-features\">{features_li}</ul>"
+                features_li = "".join(
+                    f"<li>{html.escape(f)}</li>" for f in features if f
+                )
+                features_html = f'<ul class="pricing-features">{features_li}</ul>'
             cards_html += f'<div class="pricing-card"><h3>{name}</h3><div class="price">{price}</div><p>{desc}</p>{features_html}</div>'
         title_html = f"<h2>{title}</h2>" if title else ""
 
@@ -938,7 +1003,9 @@ function submitContact(e) {{
             links = []
             for platform, url in social_links.items():
                 if url:
-                    links.append(f'<a href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">{html.escape(platform.replace("_", " ").title())}</a>')
+                    links.append(
+                        f'<a href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">{html.escape(platform.replace("_", " ").title())}</a>'
+                    )
             if links:
                 social_html = f'<p style="margin-top:0.5rem;">{"  ·  ".join(links)}</p>'
 

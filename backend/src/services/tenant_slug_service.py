@@ -15,18 +15,20 @@ from db_exceptions import DatabaseError, IntegrityError
 logger = logging.getLogger(__name__)
 
 # Slugs reserved for system use — cannot be claimed by tenants
-RESERVED_SLUGS = frozenset({
-    "admin",
-    "api",
-    "www",
-    "app",
-    "test",
-    "staging",
-    "landing",
-    "public",
-    "static",
-    "assets",
-})
+RESERVED_SLUGS = frozenset(
+    {
+        "admin",
+        "api",
+        "www",
+        "app",
+        "test",
+        "staging",
+        "landing",
+        "public",
+        "static",
+        "assets",
+    }
+)
 
 # Slug format: lowercase alphanumeric with single hyphens, no leading/trailing hyphens
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -141,9 +143,7 @@ class TenantSlugService:
                 query, (administration, slug), fetch=False, commit=True
             )
 
-            logger.info(
-                f"Set slug '{slug}' for administration '{administration}'"
-            )
+            logger.info(f"Set slug '{slug}' for administration '{administration}'")
             return {"success": True, "slug": slug}
 
         except IntegrityError as e:
@@ -221,9 +221,7 @@ class TenantSlugService:
                     FROM tenant_slugs
                     WHERE slug = %s AND administration != %s
                 """
-                results = self.db.execute_query(
-                    query, (slug, current_administration)
-                )
+                results = self.db.execute_query(query, (slug, current_administration))
             else:
                 query = """
                     SELECT administration

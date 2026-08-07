@@ -32,7 +32,11 @@ class TestLandingPagePublishService:
             "modified_by": "admin@acme.nl",
             "sections": [
                 {"id": "block-001", "type": "hero", "properties": {"title": "Welcome"}},
-                {"id": "block-002", "type": "about", "properties": {"content_md": "About us"}},
+                {
+                    "id": "block-002",
+                    "type": "about",
+                    "properties": {"content_md": "About us"},
+                },
             ],
         }
         svc.save_version.return_value = {"success": True, "version": 5}
@@ -57,14 +61,19 @@ class TestLandingPagePublishService:
                 ("landing_page", "email"): "info@acme-rentals.nl",
                 ("landing_page", "coc"): "12345678",
                 ("landing_page", "vat"): "NL123456789B01",
-                ("landing_page", "social_links"): json.dumps({
-                    "instagram": "https://instagram.com/acme-rentals",
-                    "facebook": "https://facebook.com/acme-rentals",
-                }),
+                ("landing_page", "social_links"): json.dumps(
+                    {
+                        "instagram": "https://instagram.com/acme-rentals",
+                        "facebook": "https://facebook.com/acme-rentals",
+                    }
+                ),
                 ("landing_page", "show_share_buttons"): "true",
                 ("landing_page", "seo_title"): "Acme Rentals — Luxury Vacation Homes",
                 ("landing_page", "seo_description"): "Book your perfect holiday home",
-                ("landing_page", "og_image_url"): "https://cdn.example.com/og-preview.jpg",
+                (
+                    "landing_page",
+                    "og_image_url",
+                ): "https://cdn.example.com/og-preview.jpg",
             }
             return params.get((namespace, key))
 
@@ -93,12 +102,15 @@ class TestLandingPagePublishService:
     @pytest.fixture
     def service(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
         """Create LandingPagePublishService with mocked dependencies."""
-        with patch.dict(os.environ, {
-            "AWS_DEFAULT_REGION": "eu-west-1",
-            "ENVIRONMENT": "test",
-            "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
-            "LANDING_PAGE_BASE_URL": "https://myadmin.app",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_DEFAULT_REGION": "eu-west-1",
+                "ENVIRONMENT": "test",
+                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+            },
+        ):
             from services.landing_page_publish_service import LandingPagePublishService
 
             svc = LandingPagePublishService(
@@ -114,7 +126,9 @@ class TestLandingPagePublishService:
     # Publish tests (Task 1.11)
     # ========================================================================
 
-    def test_publish_happy_path(self, service, mock_landing_page_svc, mock_slug_svc, mock_s3):
+    def test_publish_happy_path(
+        self, service, mock_landing_page_svc, mock_slug_svc, mock_s3
+    ):
         """Test publish succeeds with all steps completing."""
         result = service.publish("TestTenant", "admin@acme.nl")
 
@@ -225,7 +239,10 @@ class TestLandingPagePublishService:
 
         assert body["footer"]["company_name"] == "Acme Rentals B.V."
         assert body["footer"]["address"] == "Keizersgracht 123"
-        assert body["footer"]["social_links"]["instagram"] == "https://instagram.com/acme-rentals"
+        assert (
+            body["footer"]["social_links"]["instagram"]
+            == "https://instagram.com/acme-rentals"
+        )
 
     def test_publish_seo_included_in_json(self, service, mock_s3):
         """Test published JSON contains SEO fields."""
@@ -315,6 +332,7 @@ class TestLandingPagePublishService:
 
     def test_resolve_branding_fallback_to_zzp(self, service, mock_param_svc):
         """Test branding falls back to zzp_branding when landing_page empty."""
+
         def get_param_fallback(namespace, key, tenant=None, **kwargs):
             if namespace == "landing_page":
                 return None  # Nothing in landing_page namespace
@@ -332,6 +350,7 @@ class TestLandingPagePublishService:
 
     def test_resolve_branding_fallback_to_str(self, service, mock_param_svc):
         """Test branding falls back to str_branding as third priority."""
+
         def get_param_fallback(namespace, key, tenant=None, **kwargs):
             if namespace == "landing_page":
                 return None
@@ -360,6 +379,7 @@ class TestLandingPagePublishService:
 
     def test_resolve_branding_mixed_sources(self, service, mock_param_svc):
         """Test branding can resolve different fields from different namespaces."""
+
         def get_param_mixed(namespace, key, tenant=None, **kwargs):
             if namespace == "landing_page" and key == "company_name":
                 return "Landing Company"
@@ -445,7 +465,9 @@ class TestLandingPagePublishService:
         mock_param_svc.get_param.side_effect = None
         mock_param_svc.get_param.return_value = None
 
-        result = service.resolve_seo("TestTenant", "acme-rentals", {"company_name": "Fallback Corp"})
+        result = service.resolve_seo(
+            "TestTenant", "acme-rentals", {"company_name": "Fallback Corp"}
+        )
 
         assert result["title"] == "Fallback Corp"
 
@@ -477,9 +499,18 @@ class TestLandingPagePublishService:
 
         assert '<meta property="og:type" content="website" />' in html_output
         assert '<meta property="og:title" content="Test Title" />' in html_output
-        assert '<meta property="og:description" content="Test description" />' in html_output
-        assert '<meta property="og:image" content="https://cdn.example.com/image.jpg" />' in html_output
-        assert '<meta property="og:url" content="https://myadmin.app/p/test-slug" />' in html_output
+        assert (
+            '<meta property="og:description" content="Test description" />'
+            in html_output
+        )
+        assert (
+            '<meta property="og:image" content="https://cdn.example.com/image.jpg" />'
+            in html_output
+        )
+        assert (
+            '<meta property="og:url" content="https://myadmin.app/p/test-slug" />'
+            in html_output
+        )
         assert '<meta property="og:site_name" content="Test Company" />' in html_output
         assert '<meta property="og:locale" content="nl_NL" />' in html_output
 
@@ -497,10 +528,17 @@ class TestLandingPagePublishService:
 
         html_output = service.generate_index_html(published_data, "tw-slug")
 
-        assert '<meta name="twitter:card" content="summary_large_image" />' in html_output
+        assert (
+            '<meta name="twitter:card" content="summary_large_image" />' in html_output
+        )
         assert '<meta name="twitter:title" content="Twitter Test" />' in html_output
-        assert '<meta name="twitter:description" content="Twitter desc" />' in html_output
-        assert '<meta name="twitter:image" content="https://cdn.example.com/tw.jpg" />' in html_output
+        assert (
+            '<meta name="twitter:description" content="Twitter desc" />' in html_output
+        )
+        assert (
+            '<meta name="twitter:image" content="https://cdn.example.com/tw.jpg" />'
+            in html_output
+        )
 
     def test_generate_index_html_escapes_xss(self, service):
         """Test HTML generation escapes dangerous characters to prevent XSS."""
@@ -521,35 +559,55 @@ class TestLandingPagePublishService:
         assert "&lt;script&gt;" in html_output
         assert "&amp;" in html_output
         assert "&lt;tagged&gt;" in html_output
-        assert "&#x27;" in html_output or "&quot;" in html_output or "quoted" in html_output
+        assert (
+            "&#x27;" in html_output
+            or "&quot;" in html_output
+            or "quoted" in html_output
+        )
 
     def test_generate_index_html_contains_slug_variable(self, service):
-        """Test HTML includes window.__LANDING_SLUG__ assignment."""
+        """Test HTML includes the slug in the canonical URL or structure."""
         published_data = {
-            "seo": {"title": "T", "description": "D", "og_image": "", "canonical_url": ""},
+            "seo": {
+                "title": "T",
+                "description": "D",
+                "og_image": "",
+                "canonical_url": "https://example.com/p/my-tenant",
+            },
             "branding": {"name": "N"},
         }
 
         html_output = service.generate_index_html(published_data, "my-tenant")
 
-        assert 'window.__LANDING_SLUG__ = "my-tenant";' in html_output
+        # Slug is used in canonical URL
+        assert "my-tenant" in html_output
 
     def test_generate_index_html_contains_noscript(self, service):
-        """Test HTML includes noscript fallback."""
+        """Test HTML works without JavaScript (standalone static page)."""
         published_data = {
-            "seo": {"title": "NoScript Title", "description": "NoScript Desc", "og_image": "", "canonical_url": ""},
+            "seo": {
+                "title": "NoScript Title",
+                "description": "NoScript Desc",
+                "og_image": "",
+                "canonical_url": "",
+            },
             "branding": {"name": "N"},
         }
 
         html_output = service.generate_index_html(published_data, "slug")
 
-        assert "<noscript>" in html_output
+        # Static HTML renders content directly — no JS required
         assert "NoScript Title" in html_output
 
     def test_generate_index_html_has_valid_structure(self, service):
         """Test HTML has proper doctype, html, head, body structure."""
         published_data = {
-            "seo": {"title": "T", "description": "D", "og_image": "", "canonical_url": ""},
+            "seo": {
+                "title": "T",
+                "description": "D",
+                "og_image": "",
+                "canonical_url": "",
+            },
             "branding": {"name": "N"},
         }
 
@@ -561,24 +619,34 @@ class TestLandingPagePublishService:
         assert "</head>" in html_output
         assert "<body>" in html_output
         assert "</body>" in html_output
-        assert '<div id="root"></div>' in html_output
         assert '<link rel="canonical"' in html_output
 
     def test_generate_index_html_includes_spa_script(self, service):
-        """Test HTML includes the SPA bootstrap script."""
+        """Test HTML includes inline styles (standalone static page)."""
         published_data = {
-            "seo": {"title": "T", "description": "D", "og_image": "", "canonical_url": ""},
+            "seo": {
+                "title": "T",
+                "description": "D",
+                "og_image": "",
+                "canonical_url": "",
+            },
             "branding": {"name": "N"},
         }
 
         html_output = service.generate_index_html(published_data, "slug")
 
-        assert '<script src="/assets/public-landing.js" defer></script>' in html_output
+        # Standalone HTML has inline <style> instead of external script
+        assert "<style>" in html_output
 
     def test_generate_index_html_slug_escaped(self, service):
         """Test slug is HTML-escaped in the output."""
         published_data = {
-            "seo": {"title": "T", "description": "D", "og_image": "", "canonical_url": ""},
+            "seo": {
+                "title": "T",
+                "description": "D",
+                "og_image": "",
+                "canonical_url": "",
+            },
             "branding": {"name": "N"},
         }
 
@@ -598,7 +666,11 @@ class TestLandingPagePublishService:
         service.db = mock_db
 
         sections = [
-            {"id": "block-002", "type": "services", "properties": {"title": "Our Services"}},
+            {
+                "id": "block-002",
+                "type": "services",
+                "properties": {"title": "Our Services"},
+            },
         ]
 
         zzp_data = [
@@ -621,7 +693,11 @@ class TestLandingPagePublishService:
 
         sections = [
             {"id": "block-001", "type": "hero", "properties": {"title": "Welcome"}},
-            {"id": "block-002", "type": "about", "properties": {"content_md": "About us"}},
+            {
+                "id": "block-002",
+                "type": "about",
+                "properties": {"content_md": "About us"},
+            },
         ]
 
         service._enrich_sections_with_module_data(sections, "TestTenant")
@@ -695,10 +771,14 @@ class TestLandingPagePublishService:
             os.environ.pop("ENVIRONMENT", None)
             os.environ.pop("LANDING_PAGE_BASE_URL", None)
 
-            with patch("services.landing_page_publish_service.boto3.client") as mock_boto:
+            with patch(
+                "services.landing_page_publish_service.boto3.client"
+            ) as mock_boto:
                 mock_boto.return_value = Mock()
 
-                from services.landing_page_publish_service import LandingPagePublishService
+                from services.landing_page_publish_service import (
+                    LandingPagePublishService,
+                )
 
                 svc = LandingPagePublishService(
                     landing_page_service=mock_landing_page_svc,
@@ -709,17 +789,26 @@ class TestLandingPagePublishService:
                 assert svc.bucket_name == "myadmin-public-pages-production"
                 assert svc.base_url == "https://myadmin.app"
 
-    def test_init_with_env_vars(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc):
+    def test_init_with_env_vars(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc
+    ):
         """Test service reads bucket name and base URL from environment."""
-        with patch.dict(os.environ, {
-            "LANDING_PAGES_BUCKET": "custom-bucket",
-            "LANDING_PAGE_BASE_URL": "https://custom.app",
-            "CLOUDFRONT_PUBLIC_PAGES_DOMAIN": "d123.cloudfront.net",
-        }):
-            with patch("services.landing_page_publish_service.boto3.client") as mock_boto:
+        with patch.dict(
+            os.environ,
+            {
+                "LANDING_PAGES_BUCKET": "custom-bucket",
+                "LANDING_PAGE_BASE_URL": "https://custom.app",
+                "CLOUDFRONT_PUBLIC_PAGES_DOMAIN": "d123.cloudfront.net",
+            },
+        ):
+            with patch(
+                "services.landing_page_publish_service.boto3.client"
+            ) as mock_boto:
                 mock_boto.return_value = Mock()
 
-                from services.landing_page_publish_service import LandingPagePublishService
+                from services.landing_page_publish_service import (
+                    LandingPagePublishService,
+                )
 
                 svc = LandingPagePublishService(
                     landing_page_service=mock_landing_page_svc,

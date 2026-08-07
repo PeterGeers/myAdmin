@@ -46,12 +46,14 @@ def load_zzp_public_services(db: DatabaseManager, tenant: str) -> list[dict]:
                 "id": row["id"],
                 "name": row.get("name", ""),
                 "description": row.get("description", ""),
-                "price": _format_price(row.get("unit_price"), row.get("unit_of_measure")),
+                "price": _format_price(
+                    row.get("unit_price"), row.get("unit_of_measure")
+                ),
                 "category": row.get("product_type", ""),
             }
             for row in (results or [])
         ]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Failed to load ZZP services for %s: %s", tenant, e)
         return []
 
