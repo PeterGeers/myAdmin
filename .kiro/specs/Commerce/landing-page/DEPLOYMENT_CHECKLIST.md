@@ -72,7 +72,10 @@ Add these to the Railway backend service:
 
 - [x] `LANDING_PAGES_BUCKET=myadmin-public-pages-production`
 - [x] `CLOUDFRONT_PUBLIC_PAGES_DOMAIN=d3afn46os9e9nc.cloudfront.net`
-- [x] `LANDING_PAGE_BASE_URL=https://pgeers.nl`
+- [x] `LANDING_PAGE_BASE_URL=https://d3afn46os9e9nc.cloudfront.net`
+- [x] `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID=E28OSWC7A9O9K2`
+- [x] `CONTACT_FORM_API_URL=https://invigorating-celebration-production.up.railway.app`
+- [x] `ALLOWED_ORIGINS` includes CloudFront domain
 - [x] `ENVIRONMENT=production` (already set)
 
 ### 3.3 Verify Connectivity
@@ -128,18 +131,10 @@ Add to frontend `.env` (local dev — done) and production config:
 
 ### 6.1 End-User Manual
 
-- [ ] Create `docs/docs/nl/landing-page/index.md` — Dutch user guide
-- [ ] Create `docs/docs/en/landing-page/index.md` — English user guide
-- [ ] Sections to cover:
-  - Setting up your slug
-  - Adding and editing blocks
-  - Uploading images
-  - Branding & social links
-  - SEO settings & OG image
-  - Publishing & unpublishing
-  - Contact form submissions
-  - Share buttons
-- [ ] Add to `docs/mkdocs.yml` nav section
+- [x] Create `docs/docs/landing-page/index.md` — Dutch user guide
+- [x] Create `docs/docs/landing-page/index.en.md` — English user guide
+- [x] Sections covered: slug setup, blocks, images, branding, SEO, publishing, contact form, share buttons
+- [x] Add to `docs/mkdocs.yml` nav section
 
 ### 6.2 Build & Verify
 
@@ -154,12 +149,12 @@ Add to frontend `.env` (local dev — done) and production config:
 
 - [x] As Tenant_Admin: set slug "myadmin"
 - [x] Add Hero block, About block
-- [ ] Configure branding (company name, colors, social links) — UI exists, not yet filled
-- [ ] Configure SEO (title, description, OG image) — UI exists, not yet filled
+- [x] Configure branding (company name, logo, tagline, contact info, social links) ✓
+- [x] Configure SEO (title, description, OG image) ✓
 - [x] Publish
-- [x] Visit `/myadmin` — page renders with correct content and images
-- [x] Submit contact form — submission stored in MySQL ✓
-- [ ] Verify OG tags with Facebook Sharing Debugger (needs SEO settings filled first)
+- [x] Visit `/myadmin` — page renders with correct content, images, branding, logo ✓
+- [x] Submit contact form — submission stored in MySQL + email sent via SES ✓
+- [x] Verify OG tags present in HTML (title, description, image, url) — verified via curl ✓
 
 ### 7.2 Edge Cases
 
@@ -175,27 +170,27 @@ Add to frontend `.env` (local dev — done) and production config:
 
 ### 8.1 Push to main
 
-- [ ] Merge `feature/landing-page-deployment` branch into `main`
-- [ ] Railway auto-deploys backend from `main`
+- [x] Merge `feature/landing-page-deployment` branch into `main`
+- [x] Railway auto-deploys backend from `main`
 
 ### 8.2 Frontend Production Env Vars
 
 Add to your frontend production build config (wherever the React SPA is hosted):
 
-- [ ] `VITE_CLOUDFRONT_PUBLIC_PAGES_URL=https://d3afn46os9e9nc.cloudfront.net`
-- [ ] `VITE_CLOUDFRONT_DOMAIN=d3afn46os9e9nc.cloudfront.net`
+- [x] `VITE_CLOUDFRONT_PUBLIC_PAGES_URL=https://d3afn46os9e9nc.cloudfront.net` (in deploy-frontend.yml)
+- [x] `VITE_CLOUDFRONT_DOMAIN=d3afn46os9e9nc.cloudfront.net` (in deploy-frontend.yml)
 
 ### 8.3 Verify Production Backend
 
-- [ ] Backend redeploys successfully on Railway
-- [ ] Landing page routes respond (test `/api/public/landing/resolve/myadmin`)
-- [ ] DynamoDB + S3 accessible from Railway
+- [x] Backend redeploys successfully on Railway
+- [x] Landing page routes respond (`/api/public/landing/resolve/myadmin`)
+- [x] DynamoDB + S3 accessible from Railway
 
 ### 8.4 Verify Production Frontend
 
-- [ ] Landing Page tab visible in Tenant Admin
-- [ ] Image previews work in the editor
-- [ ] Publish/unpublish works end-to-end
+- [x] Landing Page tab visible in Tenant Admin
+- [x] Image previews work in the editor
+- [x] Publish/unpublish works end-to-end
 
 ---
 

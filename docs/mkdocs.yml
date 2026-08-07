@@ -119,6 +119,8 @@ nav:
       - Sjabloonbeheer: tenant-admin/template-management.md
       - Gebruikers: tenant-admin/user-management.md
       - Audit logging: tenant-admin/audit-logging.md
+  - Landing Page:
+      - Overzicht: landing-page/index.md
   - Changelog: changelog.md
   - FAQ: faq.md
   - Woordenlijst: glossary.md
