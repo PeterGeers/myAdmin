@@ -99,6 +99,18 @@ export default function SeoSettings() {
 
   return (
     <VStack spacing={6} align="stretch" color="gray.100">
+      {/* Save button — top right */}
+      <HStack justify="flex-end">
+        <Button
+          colorScheme="orange"
+          size="sm"
+          onClick={handleSave}
+          isLoading={saving}
+        >
+          {t('landingPage.seo.save')}
+        </Button>
+      </HStack>
+
       {/* SEO Title */}
       <FormControl>
         <FormLabel color="gray.300" fontSize="xs" mb={1}>
@@ -161,18 +173,6 @@ export default function SeoSettings() {
           imageUrl={ogImageUrl}
         />
       </Box>
-
-      {/* Save button */}
-      <HStack justify="flex-end">
-        <Button
-          colorScheme="orange"
-          size="sm"
-          onClick={handleSave}
-          isLoading={saving}
-        >
-          {t('landingPage.seo.save')}
-        </Button>
-      </HStack>
     </VStack>
   );
 }
