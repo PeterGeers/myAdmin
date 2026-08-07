@@ -475,7 +475,11 @@ class LandingPagePublishService:
         sections_html = self._render_sections_html(sections, img_base, color_accent, slug)
 
         # Render header with logo
-        logo_url = html.escape(branding.get("logo_url", ""))
+        logo_url = branding.get("logo_url", "")
+        # If logo_url is an image_key (not a full URL), build the CloudFront URL
+        if logo_url and not logo_url.startswith("http"):
+            logo_url = f"{img_base}/{logo_url}" if img_base else logo_url
+        logo_url = html.escape(logo_url)
         tagline = html.escape(branding.get("tagline", ""))
         header_html = ""
         if logo_url or site_name:

@@ -18,6 +18,7 @@ import {
   FaTiktok, FaXTwitter, FaHotel,
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
+import ImageUploader from './ImageUploader';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import {
   getBrandingSettings, saveBrandingSettings,
@@ -186,11 +187,10 @@ export default function BrandingSettings() {
           onChange={(v) => updateField('tagline', v)}
         />
       </SimpleGrid>
-      <BrandingField
+      <ImageUploader
         label={t('landingPage.branding.logoUrl')}
-        value={settings.logo_url}
-        onChange={(v) => updateField('logo_url', v)}
-        placeholder="https://..."
+        currentImageKey={settings.logo_url}
+        onUpload={(imageKey) => updateField('logo_url', imageKey)}
       />
 
       {/* Colors */}
