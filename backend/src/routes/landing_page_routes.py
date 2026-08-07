@@ -97,9 +97,7 @@ def _record_audit_event(
 @landing_page_bp.route("/api/landing/slug", methods=["GET"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def get_slug(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def get_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get the current slug for the authenticated tenant.
 
@@ -122,9 +120,7 @@ def get_slug(
 @landing_page_bp.route("/api/landing/slug", methods=["PUT"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def set_slug(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def set_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Set or update the slug for the authenticated tenant.
 
@@ -147,17 +143,13 @@ def set_slug(
         slug = data["slug"].strip()
 
         if not slug:
-            return jsonify(
-                {"success": False, "error": "Slug cannot be empty"}
-            ), 400
+            return jsonify({"success": False, "error": "Slug cannot be empty"}), 400
 
         service = _get_slug_service()
         result = service.set_slug(tenant, slug)
 
         if result["success"]:
-            logger.info(
-                f"Slug set to '{slug}' for tenant {tenant} by {user_email}"
-            )
+            logger.info(f"Slug set to '{slug}' for tenant {tenant} by {user_email}")
             return jsonify(result)
         else:
             return jsonify(result), 400
@@ -170,9 +162,7 @@ def set_slug(
 @landing_page_bp.route("/api/landing/slug/validate", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def validate_slug(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def validate_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Validate a slug for format correctness and availability.
 
@@ -219,9 +209,7 @@ def _get_landing_page_service():
 @landing_page_bp.route("/api/landing/draft", methods=["GET"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def get_draft(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def get_draft(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get the current draft for the authenticated tenant.
 
@@ -252,9 +240,7 @@ def get_draft(
 @landing_page_bp.route("/api/landing/draft", methods=["PUT"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def save_draft(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def save_draft(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Save/update the draft for the authenticated tenant (auto-save support).
 
@@ -336,9 +322,7 @@ def _get_publish_service():
 @landing_page_bp.route("/api/landing/versions", methods=["GET"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def list_versions(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def list_versions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     List all published version snapshots for the tenant's landing page.
 
@@ -519,9 +503,7 @@ def unpublish_landing_page(
             return jsonify(result), 400
 
     except Exception as e:  # noqa: BLE001
-        logger.error(
-            f"Error unpublishing landing page for tenant {tenant}: {e}"
-        )
+        logger.error(f"Error unpublishing landing page for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -543,9 +525,7 @@ MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
 @landing_page_bp.route("/api/landing/images/upload", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def upload_image(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Upload an image to the public S3 bucket under the tenant's slug prefix.
 
@@ -560,16 +540,12 @@ def upload_image(
     try:
         # Validate file is present
         if "file" not in request.files:
-            return jsonify(
-                {"success": False, "error": "No file provided"}
-            ), 400
+            return jsonify({"success": False, "error": "No file provided"}), 400
 
         file = request.files["file"]
 
         if not file.filename:
-            return jsonify(
-                {"success": False, "error": "No file selected"}
-            ), 400
+            return jsonify({"success": False, "error": "No file selected"}), 400
 
         # Validate file extension
         filename = file.filename.lower()
@@ -608,7 +584,10 @@ def upload_image(
 
         if not slug:
             return jsonify(
-                {"success": False, "error": "No slug configured for this tenant. Set a slug first."}
+                {
+                    "success": False,
+                    "error": "No slug configured for this tenant. Set a slug first.",
+                }
             ), 400
 
         # Generate unique filename
@@ -641,17 +620,17 @@ def upload_image(
         else:
             url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{image_key}"
 
-        logger.info(
-            f"Image uploaded by {user_email} for tenant {tenant}: {image_key}"
-        )
+        logger.info(f"Image uploaded by {user_email} for tenant {tenant}: {image_key}")
 
-        return jsonify({
-            "success": True,
-            "data": {
-                "image_key": image_key,
-                "url": url,
-            },
-        })
+        return jsonify(
+            {
+                "success": True,
+                "data": {
+                    "image_key": image_key,
+                    "url": url,
+                },
+            }
+        )
 
     except ClientError as e:
         logger.error(f"S3 upload error for tenant {tenant}: {e}")
@@ -712,10 +691,18 @@ def _sanitize_input(value: str) -> str:
 
 # All landing page settings keys stored in ParameterService (landing_page namespace)
 BRANDING_KEYS = [
-    "company_name", "tagline", "logo_url",
-    "color_primary", "color_accent",
-    "address", "postal_city", "country",
-    "phone", "email", "coc", "vat",
+    "company_name",
+    "tagline",
+    "logo_url",
+    "color_primary",
+    "color_accent",
+    "address",
+    "postal_city",
+    "country",
+    "phone",
+    "email",
+    "coc",
+    "vat",
 ]
 SEO_KEYS = ["seo_title", "seo_description", "og_image_url"]
 SETTINGS_KEYS = ["social_links", "show_share_buttons"]
@@ -774,7 +761,9 @@ def get_branding_settings(
             result["social_links"] = {}
 
         # Load show_share_buttons
-        show_share = param_svc.get_param("landing_page", "show_share_buttons", tenant=tenant)
+        show_share = param_svc.get_param(
+            "landing_page", "show_share_buttons", tenant=tenant
+        )
         result["show_share_buttons"] = show_share in ("true", "True", True)
 
         return jsonify({"success": True, "data": result})
@@ -922,9 +911,7 @@ def resolve_slug(slug: str) -> ResponseReturnValue:
                 {"success": True, "data": {"administration": administration}}
             )
         else:
-            return jsonify(
-                {"success": False, "error": "Slug not found"}
-            ), 404
+            return jsonify({"success": False, "error": "Slug not found"}), 404
 
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error resolving slug '{slug}': {e}")
@@ -932,9 +919,7 @@ def resolve_slug(slug: str) -> ResponseReturnValue:
 
 
 # Basic email regex for server-side validation
-_EMAIL_PATTERN = re.compile(
-    r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
-)
+_EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
 
 def _get_client_ip() -> str | None:
@@ -946,7 +931,9 @@ def _get_client_ip() -> str | None:
     return request.remote_addr
 
 
-def _check_rate_limit(db: DatabaseManager, email: str, ip_address: str | None) -> str | None:
+def _check_rate_limit(
+    db: DatabaseManager, email: str, ip_address: str | None
+) -> str | None:
     """
     Check rate limits for contact form submissions.
 
@@ -997,8 +984,8 @@ def _verify_recaptcha(token: str, client_ip: str | None) -> str | None:
     Returns:
         None if verification passes (or is skipped), error message string if failed.
     """
-    import urllib.request
     import urllib.parse
+    import urllib.request
 
     secret_key = os.environ.get("RECAPTCHA_SECRET_KEY")
     if not secret_key:
@@ -1008,26 +995,33 @@ def _verify_recaptcha(token: str, client_ip: str | None) -> str | None:
 
     try:
         verify_url = "https://www.google.com/recaptcha/api/siteverify"
-        payload = urllib.parse.urlencode({
-            "secret": secret_key,
-            "response": token,
-            **({"remoteip": client_ip} if client_ip else {}),
-        }).encode("utf-8")
+        payload = urllib.parse.urlencode(
+            {
+                "secret": secret_key,
+                "response": token,
+                **({"remoteip": client_ip} if client_ip else {}),
+            }
+        ).encode("utf-8")
 
         req = urllib.request.Request(verify_url, data=payload, method="POST")
         with urllib.request.urlopen(req, timeout=5) as resp:
             import json as json_module
+
             result = json_module.loads(resp.read().decode("utf-8"))
 
         if not result.get("success"):
-            logger.warning("reCAPTCHA verification failed: %s", result.get("error-codes"))
+            logger.warning(
+                "reCAPTCHA verification failed: %s", result.get("error-codes")
+            )
             return "CAPTCHA verification failed. Please try again."
 
         # Check score threshold (reCAPTCHA v3 returns 0.0–1.0)
         score = result.get("score", 0.0)
         min_score = float(os.environ.get("RECAPTCHA_MIN_SCORE", "0.5"))
         if score < min_score:
-            logger.warning("reCAPTCHA score too low: %.2f (min: %.2f)", score, min_score)
+            logger.warning(
+                "reCAPTCHA score too low: %.2f (min: %.2f)", score, min_score
+            )
             return "CAPTCHA verification failed. Please try again."
 
         return None
@@ -1130,9 +1124,7 @@ def _send_contact_notification(
         )
 
 
-@landing_page_bp.route(
-    "/api/public/landing/<slug>/contact", methods=["POST"]
-)
+@landing_page_bp.route("/api/public/landing/<slug>/contact", methods=["POST"])
 def submit_contact(slug: str) -> ResponseReturnValue:
     """
     Submit a contact form inquiry for a public landing page.
@@ -1157,42 +1149,32 @@ def submit_contact(slug: str) -> ResponseReturnValue:
         data = request.get_json(silent=True)
 
         if not data:
-            return jsonify(
-                {"success": False, "error": "Invalid request body"}
-            ), 400
+            return jsonify({"success": False, "error": "Invalid request body"}), 400
 
         # Honeypot check — if filled, silently return success (don't reveal to bots)
         honeypot = data.get("honeypot", "")
         if honeypot:
-            return jsonify(
-                {"success": True, "message": "Your message has been sent."}
-            )
+            return jsonify({"success": True, "message": "Your message has been sent."})
 
         # Validate and sanitize required fields (Task 4.11 — strip HTML to prevent stored XSS)
         name = _sanitize_input((data.get("name") or "").strip())
-        email = (data.get("email") or "").strip()  # Email validated by regex, no HTML expected
+        email = (
+            data.get("email") or ""
+        ).strip()  # Email validated by regex, no HTML expected
         message = _sanitize_input((data.get("message") or "").strip())
 
         if not name:
-            return jsonify(
-                {"success": False, "error": "Name is required"}
-            ), 400
+            return jsonify({"success": False, "error": "Name is required"}), 400
 
         if not email:
-            return jsonify(
-                {"success": False, "error": "Email is required"}
-            ), 400
+            return jsonify({"success": False, "error": "Email is required"}), 400
 
         if not message:
-            return jsonify(
-                {"success": False, "error": "Message is required"}
-            ), 400
+            return jsonify({"success": False, "error": "Message is required"}), 400
 
         # Validate email format
         if not _EMAIL_PATTERN.match(email):
-            return jsonify(
-                {"success": False, "error": "Invalid email address"}
-            ), 400
+            return jsonify({"success": False, "error": "Invalid email address"}), 400
 
         # Validate field lengths
         if len(name) > 200:
@@ -1210,9 +1192,7 @@ def submit_contact(slug: str) -> ResponseReturnValue:
         administration = service.resolve_slug(slug)
 
         if not administration:
-            return jsonify(
-                {"success": False, "error": "Page not found"}
-            ), 404
+            return jsonify({"success": False, "error": "Page not found"}), 404
 
         # Rate limiting
         client_ip = _get_client_ip()
@@ -1221,18 +1201,14 @@ def submit_contact(slug: str) -> ResponseReturnValue:
 
         rate_limit_msg = _check_rate_limit(db, email, client_ip)
         if rate_limit_msg:
-            return jsonify(
-                {"success": False, "error": rate_limit_msg}
-            ), 429
+            return jsonify({"success": False, "error": rate_limit_msg}), 429
 
         # CAPTCHA verification (Task 4.9 — optional reCAPTCHA v3)
         captcha_token = data.get("captcha_token")
         if captcha_token:
             captcha_error = _verify_recaptcha(captcha_token, client_ip)
             if captcha_error:
-                return jsonify(
-                    {"success": False, "error": captcha_error}
-                ), 400
+                return jsonify({"success": False, "error": captcha_error}), 400
 
         # Store submission
         insert_query = """
@@ -1255,12 +1231,13 @@ def submit_contact(slug: str) -> ResponseReturnValue:
         # Send notification to tenant (non-blocking — errors are logged, not raised)
         _send_contact_notification(administration, name, email, message)
 
-        return jsonify(
-            {"success": True, "message": "Your message has been sent."}
-        )
+        return jsonify({"success": True, "message": "Your message has been sent."})
 
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error processing contact form for slug '{slug}': {e}")
         return jsonify(
-            {"success": False, "error": "Failed to send message. Please try again later."}
+            {
+                "success": False,
+                "error": "Failed to send message. Please try again later.",
+            }
         ), 500

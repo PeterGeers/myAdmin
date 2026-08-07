@@ -12,7 +12,6 @@ Table: myadmin-landing-pages
 import logging
 import os
 from datetime import datetime, timezone
-from decimal import Decimal
 
 import boto3
 from botocore.exceptions import ClientError
