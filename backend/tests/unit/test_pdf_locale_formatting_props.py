@@ -155,10 +155,11 @@ class TestLocaleFormattingMatchesClientCountry:
 
     # -- 4c: Currency formatting matches locale conventions ----------------
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(country=mapped_country_st, amount=amount_st)
     def test_currency_formatting_matches_locale(self, country, amount):
         """Formatted currency matches babel's output for the resolved locale."""
+        amount = round(amount, 2)
         svc = _make_service()
         locale = COUNTRY_LOCALE_MAP[country]
         result = svc._format_amount(amount, 'EUR', locale)

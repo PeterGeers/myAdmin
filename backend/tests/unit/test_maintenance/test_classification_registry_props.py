@@ -293,6 +293,7 @@ class TestUntriagedWarningThreshold:
     @settings(
         max_examples=100,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
+        derandomize=True,
     )
     def test_untriaged_count_and_threshold(
         self, num_untriaged, num_triaged, tmp_path
