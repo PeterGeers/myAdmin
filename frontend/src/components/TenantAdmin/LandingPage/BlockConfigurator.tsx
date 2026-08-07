@@ -14,6 +14,10 @@ import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import { Section } from '../../../services/landingPageApi';
 import { getLayoutsForType } from './blockTypeDefinitions';
 import ImageUploader from './ImageUploader';
+import FaqItemEditor from './FaqItemEditor';
+import TestimonialsItemEditor from './TestimonialsItemEditor';
+import GalleryItemEditor from './GalleryItemEditor';
+import PricingItemEditor from './PricingItemEditor';
 
 interface BlockConfiguratorProps {
   section: Section;
@@ -163,14 +167,52 @@ function renderFieldsForType(
         </>
       );
 
-    case 'gallery':
-    case 'testimonials':
     case 'faq':
+      return (
+        <FaqItemEditor
+          items={(props.items as Array<{ question: string; answer: string }>) || []}
+          title={(props.title as string) || ''}
+          onUpdate={(updates) => {
+            if (updates.items !== undefined) updateProperty('items', updates.items);
+            if (updates.title !== undefined) updateProperty('title', updates.title);
+          }}
+        />
+      );
+
+    case 'testimonials':
+      return (
+        <TestimonialsItemEditor
+          items={(props.items as Array<{ quote: string; author: string; role?: string }>) || []}
+          title={(props.title as string) || ''}
+          onUpdate={(updates) => {
+            if (updates.items !== undefined) updateProperty('items', updates.items);
+            if (updates.title !== undefined) updateProperty('title', updates.title);
+          }}
+        />
+      );
+
+    case 'gallery':
+      return (
+        <GalleryItemEditor
+          images={(props.images as Array<{ image_key: string; alt?: string }>) || []}
+          title={(props.title as string) || ''}
+          onUpdate={(updates) => {
+            if (updates.images !== undefined) updateProperty('images', updates.images);
+            if (updates.title !== undefined) updateProperty('title', updates.title);
+          }}
+        />
+      );
+
     case 'pricing':
       return (
-        <Text color="gray.400" fontSize="xs" fontStyle="italic">
-          {t('landingPage.editor.itemEditorComingSoon')}
-        </Text>
+        <PricingItemEditor
+          items={(props.items as Array<{ name: string; price: string; description: string; features?: string[] }>) || []}
+          title={(props.title as string) || ''}
+          onUpdate={(updates) => {
+            if (updates.items !== undefined) updateProperty('items', updates.items);
+            if (updates.title !== undefined) updateProperty('title', updates.title);
+          }}
+        />
       );
 
     case 'services':
