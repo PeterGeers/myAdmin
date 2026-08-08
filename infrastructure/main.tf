@@ -24,6 +24,12 @@ provider "aws" {
   region = var.aws_region
 }
 
+# us-east-1 provider alias — required for ACM certificates used by CloudFront
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
 # Variables
 variable "aws_region" {
   description = "AWS region for resources"

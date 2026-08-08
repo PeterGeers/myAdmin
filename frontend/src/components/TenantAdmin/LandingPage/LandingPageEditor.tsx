@@ -19,6 +19,7 @@ import BlockConfigurator from './BlockConfigurator';
 import PreviewPanel from './PreviewPanel';
 import BrandingSettings from './BrandingSettings';
 import SeoSettings from './SeoSettings';
+import DomainSettings from './DomainSettings';
 import PublishControls from './PublishControls';
 
 interface LandingPageEditorProps {
@@ -50,7 +51,7 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
   const [publishing, setPublishing] = useState(false);
   const [addBlockOpen, setAddBlockOpen] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [view, setView] = useState<'blocks-edit' | 'blocks-preview' | 'branding' | 'seo' | 'versions'>('blocks-edit');
+  const [view, setView] = useState<'blocks-edit' | 'blocks-preview' | 'branding' | 'seo' | 'versions' | 'domains'>('blocks-edit');
 
   // Auto-save refs
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -387,6 +388,13 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
             >
               Versions
             </Button>
+            <Button
+              colorScheme="orange"
+              opacity={view === 'domains' ? 1 : 0.7}
+              onClick={() => setView('domains')}
+            >
+              Domains
+            </Button>
           </ButtonGroup>
 
           {view === 'blocks-edit' && (
@@ -505,6 +513,12 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
               loadDraft();
             }}
           />
+        </Box>
+      )}
+
+      {view === 'domains' && (
+        <Box maxW="600px">
+          <DomainSettings />
         </Box>
       )}
 

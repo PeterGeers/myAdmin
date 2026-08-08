@@ -3,12 +3,19 @@ Landing Page Routes
 
 This module provides API endpoints for managing tenant landing page slugs,
 draft editing, publishing/unpublishing landing pages, version history,
-rollback, image uploads, and resolving slugs for public delivery.
+rollback, image uploads, resolving slugs for public delivery, and domain
+configuration.
 
 Endpoints:
 - GET  /api/landing/slug              - Get current tenant's slug
 - PUT  /api/landing/slug              - Set/update tenant's slug
 - POST /api/landing/slug/validate     - Validate slug format + availability
+- GET  /api/landing/domains           - Get Jabaki + custom domain status
+- POST /api/landing/domains/jabaki/enable  - Enable Jabaki subdomain
+- POST /api/landing/domains/jabaki/disable - Disable Jabaki subdomain
+- POST /api/landing/domains/custom         - Register custom domain
+- POST /api/landing/domains/custom/verify  - Verify custom domain cert status
+- DELETE /api/landing/domains/custom        - Remove custom domain
 - GET  /api/landing/draft             - Load current draft from DynamoDB
 - PUT  /api/landing/draft             - Save draft to DynamoDB (auto-save)
 - POST /api/landing/publish           - Publish current draft to S3
@@ -37,6 +44,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from services.domain_service import DomainService
 from services.tenant_slug_service import TenantSlugService
 
 logger = logging.getLogger(__name__)
@@ -49,6 +57,13 @@ def _get_slug_service() -> TenantSlugService:
     test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
     db = DatabaseManager(test_mode=test_mode)
     return TenantSlugService(db)
+
+
+def _get_domain_service() -> DomainService:
+    """Create a DomainService instance with current DB config."""
+    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
+    db = DatabaseManager(test_mode=test_mode)
+    return DomainService(db)
 
 
 def _record_audit_event(
@@ -192,6 +207,232 @@ def validate_slug(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error validating slug for tenant {tenant}: {e}")
         return jsonify({"valid": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# Domain Endpoints (Cognito auth + tenant_required)
+# ============================================================================
+
+
+@landing_page_bp.route("/api/landing/domains", methods=["GET"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def get_domains(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+    """
+    Get domain configuration for the authenticated tenant.
+
+    Returns the Jabaki subdomain status and custom domain status
+    including verification state and DNS instructions if applicable.
+
+    Authorization: Tenant_Admin role required
+
+    Returns:
+        JSON with success status and domain data
+    """
+    try:
+        service = _get_domain_service()
+        result = service.get_domains(tenant)
+
+        return jsonify({"success": True, "data": result}), 200
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error getting domains for tenant {tenant}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@landing_page_bp.route("/api/landing/domains/jabaki/enable", methods=["POST"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def enable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+    """
+    Enable the Jabaki subdomain for the authenticated tenant.
+
+    Sets jabaki_enabled = true and jabaki_enabled_at = NOW() in
+    tenant_slugs. The slug must already exist.
+
+    Authorization: Tenant_Admin role required
+
+    Returns:
+        JSON with success status, domain URL, and message
+    """
+    try:
+        service = _get_domain_service()
+        result = service.enable_jabaki(tenant)
+
+        if result["success"]:
+            logger.info(
+                f"Jabaki subdomain enabled for tenant {tenant} by {user_email}"
+            )
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error enabling Jabaki for tenant {tenant}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@landing_page_bp.route("/api/landing/domains/jabaki/disable", methods=["POST"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def disable_jabaki(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """
+    Disable the Jabaki subdomain for the authenticated tenant.
+
+    Sets jabaki_enabled = false in tenant_slugs.
+
+    Authorization: Tenant_Admin role required
+
+    Returns:
+        JSON with success status and message
+    """
+    try:
+        service = _get_domain_service()
+        result = service.disable_jabaki(tenant)
+
+        if result["success"]:
+            logger.info(
+                f"Jabaki subdomain disabled for tenant {tenant} by {user_email}"
+            )
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error disabling Jabaki for tenant {tenant}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@landing_page_bp.route("/api/landing/domains/custom", methods=["POST"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def register_custom_domain(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """
+    Register a custom domain for the authenticated tenant.
+
+    Validates domain format, requests an ACM certificate, stores the
+    registration, and returns DNS instructions for the tenant to
+    configure at their DNS provider.
+
+    Authorization: Tenant_Admin role required
+
+    Request body:
+        { "domain": "www.acme-rentals.nl" }
+
+    Returns:
+        JSON with domain, status, and dns_instructions on success
+    """
+    try:
+        data = request.get_json()
+
+        if not data or "domain" not in data:
+            return jsonify(
+                {"success": False, "error": "Missing required field: domain"}
+            ), 400
+
+        domain = data["domain"].strip().lower()
+
+        if not domain:
+            return jsonify(
+                {"success": False, "error": "Domain cannot be empty"}
+            ), 400
+
+        service = _get_domain_service()
+        result = service.register_custom_domain(tenant, domain)
+
+        if result["success"]:
+            logger.info(
+                f"Custom domain '{domain}' registered for tenant "
+                f"{tenant} by {user_email}"
+            )
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(
+            f"Error registering custom domain for tenant {tenant}: {e}"
+        )
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@landing_page_bp.route("/api/landing/domains/custom/verify", methods=["POST"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def verify_custom_domain(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """
+    Verify the custom domain certificate and activate if issued.
+
+    Checks ACM certificate status. If ISSUED, adds domain to CloudFront
+    distribution, updates KeyValueStore mapping, and marks domain active.
+    If still pending, returns current status with helpful message.
+
+    Authorization: Tenant_Admin role required
+
+    Returns:
+        JSON with domain, status, is_active, and message
+    """
+    try:
+        service = _get_domain_service()
+        result = service.verify_custom_domain(tenant)
+
+        if result["success"]:
+            logger.info(
+                f"Custom domain verification checked for tenant "
+                f"{tenant} by {user_email}"
+            )
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(
+            f"Error verifying custom domain for tenant {tenant}: {e}"
+        )
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@landing_page_bp.route("/api/landing/domains/custom", methods=["DELETE"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def delete_custom_domain(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """
+    Remove the custom domain for the authenticated tenant.
+
+    Removes domain from CloudFront distribution CNAMEs, deletes
+    ACM certificate, removes KeyValueStore mapping, and deletes
+    the database record.
+
+    Authorization: Tenant_Admin role required
+
+    Returns:
+        JSON with success status and message
+    """
+    try:
+        service = _get_domain_service()
+        result = service.remove_custom_domain(tenant)
+
+        if result["success"]:
+            logger.info(
+                f"Custom domain removed for tenant {tenant} by {user_email}"
+            )
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(
+            f"Error removing custom domain for tenant {tenant}: {e}"
+        )
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
@@ -1336,3 +1577,42 @@ def submit_contact(slug: str) -> ResponseReturnValue:
                 "error": "Failed to send message. Please try again later.",
             }
         ), 500
+
+
+# ============================================================================
+# SysAdmin Endpoints
+# ============================================================================
+
+
+@landing_page_bp.route("/api/sysadmin/domains/verify-pending", methods=["POST"])
+@cognito_required(required_roles=["SysAdmin"])
+@tenant_required(allow_sysadmin=True)
+def run_verification_check(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """
+    Manually trigger the domain verification background job.
+
+    Checks all pending custom domains and auto-activates those
+    with issued certificates. Designed to be triggered by a
+    sysadmin or scheduled daily via an external scheduler.
+
+    Authorization: SysAdmin role required
+
+    Returns:
+        JSON with processed, activated, failed, and pending counts
+    """
+    try:
+        from services.domain_verification_job import run_domain_verification_check
+
+        result = run_domain_verification_check()
+
+        logger.info(
+            f"Domain verification check triggered by {user_email}: {result}"
+        )
+
+        return jsonify({"success": True, "data": result}), 200
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error running domain verification check: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

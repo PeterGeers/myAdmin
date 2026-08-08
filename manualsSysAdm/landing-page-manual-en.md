@@ -140,4 +140,110 @@ To take your page offline:
 
 ---
 
-_Last updated: 2025-01_
+## Connecting Your Own Domain
+
+You can make your landing page accessible on your own domain name, such as `www.yourbusiness.nl`. This gives a professional appearance and improves discoverability.
+
+### What do you need?
+
+- A published landing page (with slug)
+- Access to the DNS settings at your domain registrar (e.g., TransIP, Hostnet, Cloudflare)
+
+### Option A: Connect a subdomain (e.g. www.yourbusiness.nl)
+
+This is the simplest option and works with **all** DNS providers.
+
+1. Go to **Tenant Admin** → **Landing Page** → **Domains**
+2. Enter your domain under **Custom domain**, e.g. `www.yourbusiness.nl`
+3. Click **Register Domain**
+4. The system displays the DNS settings you need to configure:
+
+| Type  | Name | Value                         |
+| ----- | ---- | ----------------------------- |
+| CNAME | www  | _(value shown in the system)_ |
+
+5. Log in to your domain registrar and go to DNS management
+6. Add a **CNAME record** with the values shown
+7. Wait 5–30 minutes for DNS propagation
+8. Return to myAdmin and click **Verify**
+9. Once verification succeeds, your page is live at `www.yourbusiness.nl`
+
+### Option B: Connect a root domain (e.g. yourbusiness.nl — without www)
+
+Root domains (also called "apex domains") **cannot** use a standard CNAME record. You need a special ALIAS or ANAME record.
+
+**Providers that support ALIAS/ANAME:**
+
+- Route 53 (AWS)
+- Cloudflare
+- DNSimple
+- NS1
+- Constellix
+
+If your provider supports ALIAS:
+
+1. Go to **Tenant Admin** → **Landing Page** → **Domains**
+2. Enter your root domain, e.g. `yourbusiness.nl`
+3. Click **Register Domain**
+4. The system displays the required DNS settings
+5. At your provider, create an **ALIAS record** (or ANAME) on `@` with the value shown
+6. Wait for DNS propagation and click **Verify**
+
+**Providers WITHOUT ALIAS support:**
+
+- TransIP (basic plan)
+- Hostnet
+- Antagonist
+
+### Alternative: Redirect from root domain to www
+
+If your provider does not support ALIAS, use this approach:
+
+1. First connect `www.yourbusiness.nl` via a CNAME (Option A above)
+2. Set up a **301 redirect** at your provider from `yourbusiness.nl` → `www.yourbusiness.nl`
+   - Most providers offer this under "Forwarding" or "Redirects"
+3. Visitors who go to `yourbusiness.nl` will automatically be redirected to `www.yourbusiness.nl`
+
+> 💡 _Tip: the combination of a CNAME on www + redirect from the root domain is the most reliable approach when your provider doesn't support ALIAS._
+
+---
+
+## Using Your jabaki.nl Subdomain
+
+Every tenant gets a free subdomain on `jabaki.nl`. This is useful when you don't (yet) have your own domain, or to quickly share a link.
+
+### How to enable it
+
+1. Go to **Tenant Admin** → **Landing Page** → **Domains**
+2. You'll see your Jabaki subdomain: `your-slug.jabaki.nl`
+3. Click the toggle to **activate** the subdomain
+4. Your page is immediately accessible at `https://your-slug.jabaki.nl`
+
+### Preview URL
+
+Once activated, a clickable link to your subdomain appears. You can copy it directly and share it with customers or on social media.
+
+### When is it useful?
+
+- You don't (yet) have your own domain name
+- You want to quickly share a professional link
+- You want to test your page before connecting a custom domain
+- As a temporary solution while waiting for DNS propagation of your own domain
+
+> 💡 _Tip: if you connect a custom domain later, the jabaki subdomain will continue to work as well. Visitors can use both URLs._
+
+---
+
+## Troubleshooting — Domains
+
+| Issue                                   | Cause & Solution                                                                                                                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **My domain shows a certificate error** | Your DNS records have probably not propagated yet, or the CNAME record points to the wrong value. Check at your provider that the record is correctly configured. Wait up to 30 minutes and try again. |
+| **My page doesn't load on my domain**   | Verification may not have completed yet. Go to Domains in myAdmin and click **Verify**. Make sure the DNS record is correctly configured.                                                              |
+| **How long does verification take?**    | After setting up your DNS record, it typically takes 5–30 minutes. In rare cases, it can take up to 24 hours with slow providers.                                                                      |
+| **My jabaki subdomain isn't working**   | Check that your subdomain is activated in the Domains panel. Your page must also be published.                                                                                                         |
+| **I want to change my domain**          | First remove the current domain via the Domains panel, then register the new domain.                                                                                                                   |
+
+---
+
+_Last updated: 2025-08_

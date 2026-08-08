@@ -1,0 +1,12 @@
+{
+  "name": "create_tenant_custom_domains_table",
+  "description": "Create tenant_custom_domains table for managing custom domain and Jabaki subdomain mappings per tenant slug, including SSL certificate tracking and DNS validation status.",
+  "timestamp": "20260808160100",
+  "up": [
+    "CREATE TABLE tenant_custom_domains (id INT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(50) NOT NULL, slug VARCHAR(100) NOT NULL, domain_type ENUM('custom', 'jabaki') NOT NULL, domain VARCHAR(255) NOT NULL UNIQUE, acm_certificate_arn VARCHAR(512) NULL, dns_validation_name VARCHAR(255) NULL, dns_validation_value VARCHAR(255) NULL, verification_status ENUM('pending_dns', 'validating', 'issued', 'failed', 'revoked') DEFAULT 'pending_dns', is_active BOOLEAN DEFAULT FALSE, activated_at TIMESTAMP NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_administration (administration), INDEX idx_domain (domain), INDEX idx_slug (slug), INDEX idx_verification_status (verification_status))"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS tenant_custom_domains"
+  ],
+  "version": "1.0"
+}
