@@ -1,0 +1,14 @@
+{
+  "name": "add_jabaki_enabled_to_tenant_slugs",
+  "description": "Add jabaki_enabled and jabaki_enabled_at columns to tenant_slugs table for tracking Jabaki subdomain opt-in per tenant slug.",
+  "timestamp": "20260808160000",
+  "up": [
+    "ALTER TABLE tenant_slugs ADD COLUMN jabaki_enabled BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE tenant_slugs ADD COLUMN jabaki_enabled_at TIMESTAMP NULL"
+  ],
+  "down": [
+    "ALTER TABLE tenant_slugs DROP COLUMN jabaki_enabled_at",
+    "ALTER TABLE tenant_slugs DROP COLUMN jabaki_enabled"
+  ],
+  "version": "1.0"
+}

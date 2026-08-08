@@ -401,14 +401,91 @@ class LandingPagePublishService:
             or ""
         )
 
-        canonical_url = f"{self.base_url}/p/{slug}"
+        # Determine canonical URL by priority:
+        # 1. Custom domain (if active)
+        # 2. Jabaki subdomain (if enabled)
+        # 3. Default CloudFront path
+        custom_domain = self._get_active_custom_domain(tenant)
+        jabaki_enabled = self._is_jabaki_enabled(tenant)
+
+        if custom_domain:
+            canonical_url = f"https://{custom_domain}/"
+        elif jabaki_enabled:
+            canonical_url = f"https://{slug}.jabaki.nl/"
+        else:
+            canonical_url = f"{self.base_url}/p/{slug}"
+
+        # Build alternate_urls list (all URLs except the canonical)
+        alternate_urls = []
+        if custom_domain:
+            alternate_urls.append(f"https://{custom_domain}/")
+        if jabaki_enabled:
+            alternate_urls.append(f"https://{slug}.jabaki.nl/")
+        alternate_urls.append(f"{self.base_url}/p/{slug}")
+        # Remove the canonical from alternates (don't duplicate)
+        alternate_urls = [u for u in alternate_urls if u != canonical_url]
 
         return {
             "title": title,
             "description": description,
             "og_image": og_image,
             "canonical_url": canonical_url,
+            "alternate_urls": alternate_urls,
         }
+
+    def _get_active_custom_domain(self, tenant: str) -> str | None:
+        """
+        Get the active custom domain for a tenant.
+
+        Args:
+            tenant: Administration identifier
+
+        Returns:
+            The custom domain string if found and active, None otherwise.
+            Returns None if db is unavailable (graceful degradation).
+        """
+        if not self.db:
+            return None
+
+        try:
+            result = self.db.execute_query(
+                "SELECT domain FROM tenant_custom_domains "
+                "WHERE administration = %s AND domain_type = 'custom' "
+                "AND is_active = TRUE LIMIT 1",
+                (tenant,),
+            )
+            if result and result[0].get("domain"):
+                return result[0]["domain"]
+        except Exception:
+            pass
+
+        return None
+
+    def _is_jabaki_enabled(self, tenant: str) -> bool:
+        """
+        Check if Jabaki subdomain is enabled for a tenant.
+
+        Args:
+            tenant: Administration identifier
+
+        Returns:
+            True if jabaki_enabled is truthy, False otherwise.
+            Returns False if db is unavailable (graceful degradation).
+        """
+        if not self.db:
+            return False
+
+        try:
+            result = self.db.execute_query(
+                "SELECT jabaki_enabled FROM tenant_slugs WHERE administration = %s",
+                (tenant,),
+            )
+            if result and result[0].get("jabaki_enabled"):
+                return True
+        except Exception:
+            pass
+
+        return False
 
     # ========================================================================
     # Module Data Enrichment (Task 3.14)

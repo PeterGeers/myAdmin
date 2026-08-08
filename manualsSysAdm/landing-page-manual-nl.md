@@ -140,4 +140,110 @@ Om je pagina offline te halen:
 
 ---
 
-_Laatst bijgewerkt: 2025-01_
+## Je eigen domein koppelen
+
+Je kunt je landingspagina bereikbaar maken op je eigen domeinnaam, zoals `www.jouwbedrijf.nl`. Dit zorgt voor een professionele uitstraling en is goed voor vindbaarheid.
+
+### Wat heb je nodig?
+
+- Een gepubliceerde landingspagina (met slug)
+- Toegang tot de DNS-instellingen bij je domeinprovider (bijv. TransIP, Hostnet, Cloudflare)
+
+### Optie A: Een subdomein koppelen (bijv. www.jouwbedrijf.nl)
+
+Dit is de eenvoudigste optie en werkt bij **alle** DNS-providers.
+
+1. Ga naar **Tenant Admin** → **Landingspagina** → **Domeinen**
+2. Voer je domein in bij **Eigen domein**, bijv. `www.jouwbedrijf.nl`
+3. Klik op **Domein registreren**
+4. Het systeem toont de DNS-instellingen die je moet invoeren:
+
+| Type  | Naam | Waarde                            |
+| ----- | ---- | --------------------------------- |
+| CNAME | www  | _(waarde getoond in het systeem)_ |
+
+5. Log in bij je domeinprovider en ga naar DNS-beheer
+6. Voeg een **CNAME-record** toe met de getoonde waarden
+7. Wacht 5–30 minuten tot de DNS-wijziging is doorgevoerd
+8. Ga terug naar myAdmin en klik op **Verifiëren**
+9. Als de verificatie slaagt, is je pagina live op `www.jouwbedrijf.nl`
+
+### Optie B: Een hoofddomein koppelen (bijv. jouwbedrijf.nl — zonder www)
+
+Hoofddomeinen (ook wel "root domain" of "apex domain" genoemd) kunnen **geen** gewoon CNAME-record gebruiken. Je hebt een speciaal ALIAS- of ANAME-record nodig.
+
+**Providers die ALIAS/ANAME ondersteunen:**
+
+- Route 53 (AWS)
+- Cloudflare
+- DNSimple
+- NS1
+- Constellix
+
+Als je provider ALIAS ondersteunt:
+
+1. Ga naar **Tenant Admin** → **Landingspagina** → **Domeinen**
+2. Voer je hoofddomein in, bijv. `jouwbedrijf.nl`
+3. Klik op **Domein registreren**
+4. Het systeem toont de benodigde DNS-instellingen
+5. Maak bij je provider een **ALIAS-record** (of ANAME) aan op `@` met de getoonde waarde
+6. Wacht op DNS-propagatie en klik op **Verifiëren**
+
+**Providers ZONDER ALIAS-ondersteuning:**
+
+- TransIP (basispakket)
+- Hostnet
+- Antagonist
+
+### Alternatief: Redirect van hoofddomein naar www
+
+Als je provider geen ALIAS ondersteunt, gebruik dan deze werkwijze:
+
+1. Koppel eerst `www.jouwbedrijf.nl` via een CNAME (Optie A hierboven)
+2. Stel bij je provider een **301-redirect** in van `jouwbedrijf.nl` → `www.jouwbedrijf.nl`
+   - Bij de meeste providers vind je dit onder "Doorsturen" of "Redirects"
+3. Bezoekers die `jouwbedrijf.nl` bezoeken worden automatisch doorgestuurd naar `www.jouwbedrijf.nl`
+
+> 💡 _Tip: de combinatie van CNAME op www + redirect van het hoofddomein is de meest betrouwbare aanpak als je provider geen ALIAS ondersteunt._
+
+---
+
+## Het jabaki.nl subdomein gebruiken
+
+Elke tenant krijgt gratis een subdomein op `jabaki.nl`. Dit is handig als je (nog) geen eigen domeinnaam hebt, of om snel een link te delen.
+
+### Hoe schakel je het in?
+
+1. Ga naar **Tenant Admin** → **Landingspagina** → **Domeinen**
+2. Je ziet het Jabaki-subdomein: `jouw-slug.jabaki.nl`
+3. Klik op de schakelaar om het subdomein te **activeren**
+4. Je pagina is direct bereikbaar op `https://jouw-slug.jabaki.nl`
+
+### Preview-URL
+
+Zodra geactiveerd, verschijnt er een klikbare link naar je subdomein. Je kunt deze direct kopiëren en delen met klanten of op social media.
+
+### Wanneer is het handig?
+
+- Je hebt (nog) geen eigen domeinnaam
+- Je wilt snel een professionele link delen
+- Je wilt je pagina testen voordat je een eigen domein koppelt
+- Als tijdelijke oplossing terwijl je wacht op DNS-propagatie van je eigen domein
+
+> 💡 _Tip: als je later een eigen domein koppelt, blijft het jabaki-subdomein ook gewoon werken. Bezoekers kunnen beide URL's gebruiken._
+
+---
+
+## Probleemoplossing — Domeinen
+
+| Probleem                                  | Oorzaak & Oplossing                                                                                                                                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Mijn domein toont een certificaatfout** | Je DNS-records zijn waarschijnlijk nog niet doorgevoerd, of het CNAME-record wijst naar de verkeerde waarde. Controleer bij je provider of het record correct is ingesteld. Wacht maximaal 30 minuten en probeer opnieuw. |
+| **Mijn pagina laadt niet op mijn domein** | De verificatie is mogelijk nog niet afgerond. Ga naar Domeinen in myAdmin en klik op **Verifiëren**. Zorg dat het DNS-record correct is ingesteld.                                                                        |
+| **Hoe lang duurt de verificatie?**        | Na het instellen van je DNS-record duurt het meestal 5–30 minuten. In zeldzame gevallen kan het tot 24 uur duren bij trage providers.                                                                                     |
+| **Mijn jabaki-subdomein werkt niet**      | Controleer of je subdomein is geactiveerd in het Domeinen-paneel. Je pagina moet ook gepubliceerd zijn.                                                                                                                   |
+| **Ik wil mijn domein wijzigen**           | Verwijder eerst het huidige domein via het Domeinen-paneel, en registreer daarna het nieuwe domein.                                                                                                                       |
+
+---
+
+_Laatst bijgewerkt: 2025-08_

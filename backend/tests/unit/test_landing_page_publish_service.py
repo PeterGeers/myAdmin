@@ -459,6 +459,7 @@ class TestLandingPagePublishService:
         assert result["description"] == "Book your perfect holiday home"
         assert result["og_image"] == "https://cdn.example.com/og-preview.jpg"
         assert result["canonical_url"] == "https://myadmin.app/p/acme-rentals"
+        assert result["alternate_urls"] == []
 
     def test_resolve_seo_fallback_title_to_company_name(self, service, mock_param_svc):
         """Test SEO title falls back to branding company_name."""
@@ -478,6 +479,210 @@ class TestLandingPagePublishService:
         result = service.resolve_seo("TestTenant", "my-slug", {})
 
         assert result["canonical_url"] == "https://myadmin.app/p/my-slug"
+
+    def test_resolve_seo_canonical_url_jabaki_enabled(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+        """Test canonical URL uses Jabaki subdomain when jabaki_enabled is true."""
+        mock_param_svc.get_param.return_value = None
+        mock_db = Mock()
+
+        def execute_query_side_effect(query, params, **kwargs):
+            if "tenant_custom_domains" in query:
+                return []
+            if "tenant_slugs" in query:
+                return [{"jabaki_enabled": True}]
+            return []
+
+        mock_db.execute_query.side_effect = execute_query_side_effect
+
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_DEFAULT_REGION": "eu-west-1",
+                "ENVIRONMENT": "test",
+                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+            },
+        ):
+            from services.landing_page_publish_service import LandingPagePublishService
+
+            svc = LandingPagePublishService(
+                landing_page_service=mock_landing_page_svc,
+                parameter_service=mock_param_svc,
+                slug_service=mock_slug_svc,
+                db_manager=mock_db,
+            )
+            svc._s3 = mock_s3
+
+            result = svc.resolve_seo("TestTenant", "acme-rentals", {})
+
+        assert result["canonical_url"] == "https://acme-rentals.jabaki.nl/"
+        assert result["alternate_urls"] == ["https://myadmin.app/p/acme-rentals"]
+
+    def test_resolve_seo_canonical_url_jabaki_disabled(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+        """Test canonical URL falls back to default when jabaki_enabled is false."""
+        mock_param_svc.get_param.return_value = None
+        mock_db = Mock()
+
+        def execute_query_side_effect(query, params, **kwargs):
+            if "tenant_custom_domains" in query:
+                return []
+            if "tenant_slugs" in query:
+                return [{"jabaki_enabled": False}]
+            return []
+
+        mock_db.execute_query.side_effect = execute_query_side_effect
+
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_DEFAULT_REGION": "eu-west-1",
+                "ENVIRONMENT": "test",
+                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+            },
+        ):
+            from services.landing_page_publish_service import LandingPagePublishService
+
+            svc = LandingPagePublishService(
+                landing_page_service=mock_landing_page_svc,
+                parameter_service=mock_param_svc,
+                slug_service=mock_slug_svc,
+                db_manager=mock_db,
+            )
+            svc._s3 = mock_s3
+
+            result = svc.resolve_seo("TestTenant", "acme-rentals", {})
+
+        assert result["canonical_url"] == "https://myadmin.app/p/acme-rentals"
+        assert result["alternate_urls"] == []
+
+    def test_resolve_seo_canonical_url_no_db(self, service, mock_param_svc):
+        """Test canonical URL falls back to default when no db_manager is available."""
+        mock_param_svc.get_param.return_value = None
+        # service fixture has no db_manager (None)
+        assert service.db is None
+
+        result = service.resolve_seo("TestTenant", "my-slug", {})
+
+        assert result["canonical_url"] == "https://myadmin.app/p/my-slug"
+        assert result["alternate_urls"] == []
+
+    def test_resolve_seo_custom_domain_takes_priority(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+        """Test custom domain takes highest priority for canonical URL."""
+        mock_param_svc.get_param.return_value = None
+        mock_db = Mock()
+
+        def execute_query_side_effect(query, params, **kwargs):
+            if "tenant_custom_domains" in query:
+                return [{"domain": "www.acme-rentals.nl"}]
+            if "tenant_slugs" in query:
+                return [{"jabaki_enabled": True}]
+            return []
+
+        mock_db.execute_query.side_effect = execute_query_side_effect
+
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_DEFAULT_REGION": "eu-west-1",
+                "ENVIRONMENT": "test",
+                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+            },
+        ):
+            from services.landing_page_publish_service import LandingPagePublishService
+
+            svc = LandingPagePublishService(
+                landing_page_service=mock_landing_page_svc,
+                parameter_service=mock_param_svc,
+                slug_service=mock_slug_svc,
+                db_manager=mock_db,
+            )
+            svc._s3 = mock_s3
+
+            result = svc.resolve_seo("TestTenant", "acme-rentals", {})
+
+        assert result["canonical_url"] == "https://www.acme-rentals.nl/"
+        assert "https://acme-rentals.jabaki.nl/" in result["alternate_urls"]
+        assert "https://myadmin.app/p/acme-rentals" in result["alternate_urls"]
+        assert "https://www.acme-rentals.nl/" not in result["alternate_urls"]
+
+    def test_resolve_seo_custom_domain_without_jabaki(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+        """Test custom domain as canonical with jabaki disabled."""
+        mock_param_svc.get_param.return_value = None
+        mock_db = Mock()
+
+        def execute_query_side_effect(query, params, **kwargs):
+            if "tenant_custom_domains" in query:
+                return [{"domain": "www.acme-rentals.nl"}]
+            if "tenant_slugs" in query:
+                return [{"jabaki_enabled": False}]
+            return []
+
+        mock_db.execute_query.side_effect = execute_query_side_effect
+
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_DEFAULT_REGION": "eu-west-1",
+                "ENVIRONMENT": "test",
+                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+            },
+        ):
+            from services.landing_page_publish_service import LandingPagePublishService
+
+            svc = LandingPagePublishService(
+                landing_page_service=mock_landing_page_svc,
+                parameter_service=mock_param_svc,
+                slug_service=mock_slug_svc,
+                db_manager=mock_db,
+            )
+            svc._s3 = mock_s3
+
+            result = svc.resolve_seo("TestTenant", "acme-rentals", {})
+
+        assert result["canonical_url"] == "https://www.acme-rentals.nl/"
+        assert result["alternate_urls"] == ["https://myadmin.app/p/acme-rentals"]
+
+    def test_resolve_seo_custom_domain_db_error_graceful(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+        """Test graceful degradation when custom domain query fails."""
+        mock_param_svc.get_param.return_value = None
+        mock_db = Mock()
+
+        def execute_query_side_effect(query, params, **kwargs):
+            if "tenant_custom_domains" in query:
+                raise Exception("DB connection lost")
+            if "tenant_slugs" in query:
+                return [{"jabaki_enabled": True}]
+            return []
+
+        mock_db.execute_query.side_effect = execute_query_side_effect
+
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_DEFAULT_REGION": "eu-west-1",
+                "ENVIRONMENT": "test",
+                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+            },
+        ):
+            from services.landing_page_publish_service import LandingPagePublishService
+
+            svc = LandingPagePublishService(
+                landing_page_service=mock_landing_page_svc,
+                parameter_service=mock_param_svc,
+                slug_service=mock_slug_svc,
+                db_manager=mock_db,
+            )
+            svc._s3 = mock_s3
+
+            result = svc.resolve_seo("TestTenant", "acme-rentals", {})
+
+        # Falls through to jabaki since custom domain query failed
+        assert result["canonical_url"] == "https://acme-rentals.jabaki.nl/"
+        assert result["alternate_urls"] == ["https://myadmin.app/p/acme-rentals"]
 
     # ========================================================================
     # HTML generation tests (Task 1.16)

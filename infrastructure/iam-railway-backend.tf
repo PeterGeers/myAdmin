@@ -185,6 +185,12 @@ resource "aws_iam_user_policy_attachment" "railway_cloudfront_invalidation" {
   policy_arn = aws_iam_policy.cloudfront_invalidation.arn
 }
 
+# Custom domains management (ACM certificates, CloudFront distribution updates, KVS)
+resource "aws_iam_user_policy_attachment" "railway_custom_domains" {
+  user       = aws_iam_user.railway_backend.name
+  policy_arn = aws_iam_policy.custom_domains_management.arn
+}
+
 # ============================================================================
 # Outputs
 # ============================================================================
