@@ -18,6 +18,7 @@ Je bent Tenant Admin geworden doordat de SysAdmin je heeft uitgenodigd als eerst
 | [Sjabloonbeheer](template-management.md) | Sjablonen downloaden, uploaden, bewerken en verwijderen  |
 | [Gebruikersbeheer](user-management.md)   | Gebruikers toevoegen, rollen toewijzen en verwijderen    |
 | [Audit logging](audit-logging.md)        | Activiteiten bijhouden en compliance rapporten           |
+| [Landing Page](../landing-page/index.md) | Publieke landingspagina aanmaken, bewerken en publiceren |
 
 ## Jouw rol vs SysAdmin
 

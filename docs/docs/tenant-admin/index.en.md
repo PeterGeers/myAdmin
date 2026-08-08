@@ -18,6 +18,7 @@ You became Tenant Admin because the SysAdmin invited you as the first administra
 | [Template management](template-management.md) | Download, upload, edit, and delete templates           |
 | [User management](user-management.md)         | Add users, assign and remove roles                     |
 | [Audit logging](audit-logging.md)             | Track activities and compliance reports                |
+| [Landing Page](../landing-page/index.md)      | Create, edit, and publish your public landing page     |
 
 ## Your role vs SysAdmin
 
