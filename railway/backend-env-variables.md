@@ -25,6 +25,30 @@ TEST_MODE=false
 FLASK_ENV=production
 ```
 
+## AWS & Landing Page Variables
+
+```
+AWS_ACCESS_KEY_ID=<from terraform output railway_backend_access_key_id>
+AWS_SECRET_ACCESS_KEY=<from terraform output -raw railway_backend_secret_access_key>
+AWS_DEFAULT_REGION=eu-west-1
+
+# Landing Pages
+CLOUDFRONT_PUBLIC_PAGES_DOMAIN=<from terraform output cloudfront_public_pages_domain_name>
+CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID=<from terraform output cloudfront_public_pages_distribution_id>
+LANDING_PAGES_BUCKET=<from terraform output s3_public_pages_bucket_name>
+LANDING_PAGE_BASE_URL=https://<cloudfront-domain>
+
+# Custom Domains (KVS for domain→slug mapping at CloudFront edge)
+CLOUDFRONT_KVS_ARN=<from terraform output cloudfront_kvs_domain_mapping_arn>
+
+# SES Email
+SES_SENDER_EMAIL=<from terraform output ses_sender_email>
+SES_CONFIGURATION_SET=<from terraform output ses_configuration_set_name>
+
+# Contact Form
+CONTACT_FORM_API_URL=<railway-backend-public-url>
+```
+
 ## After Setting Variables
 
 1. The backend service should automatically redeploy
