@@ -351,6 +351,101 @@ def list_versions(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@landing_page_bp.route("/api/landing/version/<int:version>", methods=["GET"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def get_version_detail(
+    version, user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """
+    Get a specific version snapshot including sections (for preview).
+
+    Authorization: Tenant_Admin role required
+
+    Response (200):
+        { "success": true, "data": { "version": 5, "published_at": "...",
+          "published_by": "...", "sections": [...] } }
+    """
+    try:
+        slug_service = _get_slug_service()
+        slug = slug_service.get_slug(tenant)
+
+        if not slug:
+            return jsonify(
+                {"success": False, "error": "No slug configured for this tenant"}
+            ), 400
+
+        service = _get_landing_page_service()
+        version_data = service.get_version(slug, version)
+
+        if not version_data:
+            return jsonify(
+                {"success": False, "error": f"Version {version} not found"}
+            ), 404
+
+        return jsonify({"success": True, "data": version_data})
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error getting version {version} for tenant {tenant}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@landing_page_bp.route("/api/landing/version/<int:version>", methods=["DELETE"])
+@cognito_required(required_roles=["Tenant_Admin"])
+@tenant_required()
+def delete_version(
+    version, user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """
+    Delete a specific version snapshot from DynamoDB.
+
+    Authorization: Tenant_Admin role required
+
+    Response (200):
+        { "success": true, "message": "Version 5 deleted." }
+    """
+    try:
+        slug_service = _get_slug_service()
+        slug = slug_service.get_slug(tenant)
+
+        if not slug:
+            return jsonify(
+                {"success": False, "error": "No slug configured for this tenant"}
+            ), 400
+
+        service = _get_landing_page_service()
+
+        # Verify version exists
+        version_data = service.get_version(slug, version)
+        if not version_data:
+            return jsonify(
+                {"success": False, "error": f"Version {version} not found"}
+            ), 404
+
+        # Delete the version item
+        success = service.delete_version(slug, version)
+        if not success:
+            return jsonify(
+                {"success": False, "error": f"Failed to delete version {version}"}
+            ), 500
+
+        _record_audit_event(
+            tenant=tenant,
+            action="delete_version",
+            version=version,
+            performed_by=user_email,
+            details=f"Deleted version {version}",
+        )
+
+        return jsonify(
+            {"success": True, "message": f"Version {version} deleted."}
+        )
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error deleting version {version} for tenant {tenant}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @landing_page_bp.route("/api/landing/rollback", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()

@@ -54,10 +54,10 @@ The BlockConfigurator currently shows "Item editor coming in next phase" for blo
 
 ## Shared Components
 
-- [ ] 5.1 Extract `ItemListEditor` — reusable wrapper for add/remove/reorder pattern
+- [x] 5.1 Extract `ItemListEditor` — reusable wrapper for add/remove/reorder pattern
   - Props: items array, renderItem function, onAdd, onRemove, onReorder
   - Provides move up/down buttons, remove with confirmation, add button
-- [ ] 5.2 Use `ItemListEditor` in all 4 editors above (refactor after Phase 1)
+- [x] 5.2 Use `ItemListEditor` in all 4 editors above (refactor after Phase 1)
 
 ## Design Notes
 

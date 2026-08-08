@@ -224,6 +224,106 @@ class LandingPageService:
             )
             return {"success": False, "error": "Failed to save version"}
 
+    def delete_version(self, slug: str, version: int) -> bool:
+        """
+        Delete a specific version snapshot from DynamoDB.
+
+        Args:
+            slug: Tenant slug
+            version: Version number to delete
+
+        Returns:
+            True if deleted successfully, False otherwise.
+        """
+        try:
+            self._table.delete_item(
+                Key={"PK": f"TENANT#{slug}", "SK": f"VERSION#{version}"}
+            )
+            logger.info("Deleted version %d for slug=%s", version, slug)
+            return True
+
+        except ClientError as e:
+            logger.error(
+                "DynamoDB delete_version failed for slug=%s version=%d: %s",
+                slug,
+                version,
+                e.response["Error"]["Message"],
+            )
+            return False
+
+    # Maximum number of version snapshots to retain per tenant.
+    # Older versions are pruned automatically during publish.
+    MAX_VERSIONS = 10
+
+    def prune_old_versions(self, slug: str) -> int:
+        """
+        Delete version snapshots exceeding MAX_VERSIONS (oldest first).
+
+        Called automatically after save_version during publish.
+        Keeps the most recent MAX_VERSIONS snapshots and removes the rest.
+
+        Args:
+            slug: Tenant slug
+
+        Returns:
+            Number of versions deleted.
+        """
+        try:
+            # Query all version items (just keys + version number)
+            response = self._table.query(
+                KeyConditionExpression="PK = :pk AND begins_with(SK, :sk_prefix)",
+                ExpressionAttributeValues={
+                    ":pk": f"TENANT#{slug}",
+                    ":sk_prefix": "VERSION#",
+                },
+                ProjectionExpression="PK, SK, #v",
+                ExpressionAttributeNames={"#v": "version"},
+            )
+
+            items = response.get("Items", [])
+
+            if len(items) <= self.MAX_VERSIONS:
+                return 0
+
+            # Sort by version ascending (oldest first)
+            items.sort(key=lambda x: int(x.get("version", 0)))
+
+            # Delete all except the last MAX_VERSIONS
+            to_delete = items[: len(items) - self.MAX_VERSIONS]
+            deleted_count = 0
+
+            for item in to_delete:
+                try:
+                    self._table.delete_item(
+                        Key={"PK": item["PK"], "SK": item["SK"]}
+                    )
+                    deleted_count += 1
+                except ClientError as e:
+                    logger.warning(
+                        "Failed to delete old version PK=%s SK=%s: %s",
+                        item["PK"],
+                        item["SK"],
+                        e.response["Error"]["Message"],
+                    )
+
+            if deleted_count > 0:
+                logger.info(
+                    "Pruned %d old version(s) for slug=%s (kept last %d)",
+                    deleted_count,
+                    slug,
+                    self.MAX_VERSIONS,
+                )
+
+            return deleted_count
+
+        except ClientError as e:
+            logger.error(
+                "DynamoDB prune_old_versions failed for slug=%s: %s",
+                slug,
+                e.response["Error"]["Message"],
+            )
+            return 0
+
     def list_versions(self, slug: str) -> list[dict]:
         """
         Query all version snapshots for a tenant, sorted descending.
