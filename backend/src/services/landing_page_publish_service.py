@@ -181,6 +181,9 @@ class LandingPagePublishService:
             logger.warning(
                 "Failed to save version snapshot for slug=%s version=%d", slug, version
             )
+        else:
+            # Prune old versions beyond retention limit
+            self.landing_page_svc.prune_old_versions(slug)
 
         # Step 9: Invalidate CloudFront cache for immediate visibility
         self._invalidate_cache(slug)

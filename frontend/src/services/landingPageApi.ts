@@ -4,7 +4,7 @@
  * API functions for managing the tenant landing page slug, draft content, and publishing.
  */
 
-import { authenticatedGet, authenticatedPut, authenticatedPost, authenticatedFormData } from './apiService';
+import { authenticatedGet, authenticatedPut, authenticatedPost, authenticatedFormData, authenticatedDelete } from './apiService';
 
 // ============================================================================
 // Types
@@ -205,6 +205,45 @@ export async function getVersions(): Promise<VersionEntry[]> {
  */
 export async function rollbackToVersion(version: number): Promise<RollbackResponse> {
   const response = await authenticatedPost('/api/landing/rollback', { version });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/** Version detail response including sections for preview */
+export interface VersionDetailResponse {
+  success: boolean;
+  data: {
+    version: number;
+    published_at: string;
+    published_by: string;
+    sections: Section[];
+  };
+}
+
+/**
+ * Get a specific version's full data including sections (for preview).
+ */
+export async function getVersionDetail(version: number): Promise<VersionDetailResponse['data']> {
+  const response = await authenticatedGet(`/api/landing/version/${version}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+  const result: VersionDetailResponse = await response.json();
+  if (!result.success) {
+    throw new Error('Failed to load version detail');
+  }
+  return result.data;
+}
+
+/**
+ * Delete a specific version snapshot.
+ */
+export async function deleteVersion(version: number): Promise<{ success: boolean; message: string }> {
+  const response = await authenticatedDelete(`/api/landing/version/${version}`);
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
     throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);

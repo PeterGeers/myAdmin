@@ -138,8 +138,8 @@ Add to frontend `.env` (local dev — done) and production config:
 
 ### 6.2 Build & Verify
 
-- [ ] `cd docs && pip install mkdocs-material mkdocs-static-i18n mkdocs-print-site-plugin && mkdocs build`
-- [ ] Verify landing page docs render correctly
+- [x] `cd docs && pip install mkdocs-material mkdocs-static-i18n mkdocs-print-site-plugin && mkdocs build`
+- [x] Verify landing page docs render correctly
 
 ---
 

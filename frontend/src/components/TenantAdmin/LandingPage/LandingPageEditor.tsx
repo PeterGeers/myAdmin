@@ -19,6 +19,7 @@ import BlockConfigurator from './BlockConfigurator';
 import PreviewPanel from './PreviewPanel';
 import BrandingSettings from './BrandingSettings';
 import SeoSettings from './SeoSettings';
+import PublishControls from './PublishControls';
 
 interface LandingPageEditorProps {
   tenant: string;
@@ -49,7 +50,7 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
   const [publishing, setPublishing] = useState(false);
   const [addBlockOpen, setAddBlockOpen] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [view, setView] = useState<'blocks-edit' | 'blocks-preview' | 'branding' | 'seo'>('blocks-edit');
+  const [view, setView] = useState<'blocks-edit' | 'blocks-preview' | 'branding' | 'seo' | 'versions'>('blocks-edit');
 
   // Auto-save refs
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -379,6 +380,13 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
             >
               SEO
             </Button>
+            <Button
+              colorScheme="orange"
+              opacity={view === 'versions' ? 1 : 0.7}
+              onClick={() => setView('versions')}
+            >
+              Versions
+            </Button>
           </ButtonGroup>
 
           {view === 'blocks-edit' && (
@@ -485,6 +493,18 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
       {view === 'seo' && (
         <Box color="white">
           <SeoSettings />
+        </Box>
+      )}
+
+      {view === 'versions' && (
+        <Box maxW="500px">
+          <PublishControls
+            onVersionChange={(newVersion) => {
+              setVersion(newVersion);
+              // Reload the draft after rollback to reflect restored sections
+              loadDraft();
+            }}
+          />
         </Box>
       )}
 
