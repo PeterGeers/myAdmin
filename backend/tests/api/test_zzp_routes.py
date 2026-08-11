@@ -403,10 +403,22 @@ class TestUploadSupportingDocument:
         mock_invoice_service.get_invoice.return_value = {
             'id': 1, 'invoice_number': 'INV-2026-0001', 'status': 'draft',
         }
-        with patch('storage.storage_provider.get_storage_provider') as mock_storage:
-            mock_provider = Mock()
-            mock_provider.upload.return_value = 'https://drive.google.com/file/doc123'
-            mock_storage.return_value = mock_provider
+        with patch('services.media_asset_service.MediaAssetService') as mock_asset_cls:
+            mock_svc = Mock()
+            mock_asset_cls.return_value = mock_svc
+            mock_svc.store_and_register.return_value = {
+                'success': True,
+                'asset': {
+                    'id': 'ast_TEST01',
+                    's3_key': 'TestTenant/invoices/ast_TEST01_receipt.pdf',
+                    'mime_type': 'application/pdf',
+                    'file_size': 1024,
+                    'category': 'invoices',
+                    'media_type': 'document',
+                    'status': 'ACTIVE',
+                },
+                'duplicate_of': None,
+            }
 
             data = {
                 'file': (BytesIO(b'test file content'), 'receipt.pdf'),
@@ -420,7 +432,7 @@ class TestUploadSupportingDocument:
         body = resp.get_json()
         assert body['success'] is True
         assert body['data']['filename'] == 'receipt.pdf'
-        assert body['data']['url'] == 'https://drive.google.com/file/doc123'
+        assert body['data']['url'] == 'TestTenant/invoices/ast_TEST01_receipt.pdf'
 
     def test_upload_document_invoice_not_found_returns_404(
         self, zzp_client, mock_invoice_service

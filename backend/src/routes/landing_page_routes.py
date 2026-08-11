@@ -34,9 +34,7 @@ Note: Register this blueprint in app.py:
 import logging
 import os
 import re
-import uuid
 
-import boto3
 from botocore.exceptions import ClientError
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
@@ -45,6 +43,8 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from services.domain_service import DomainService
+from services.media_asset_service import MediaAssetService
+from services.parameter_service import ParameterService
 from services.tenant_slug_service import TenantSlugService
 
 logger = logging.getLogger(__name__)
@@ -847,28 +847,18 @@ def unpublish_landing_page(
 # Image Upload Endpoints (Cognito auth + tenant_required)
 # ============================================================================
 
-# Allowed image extensions and MIME types
-ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".svg"}
-ALLOWED_IMAGE_MIMETYPES = {
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/svg+xml",
-}
-MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
-
 
 @landing_page_bp.route("/api/landing/images/upload", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
 def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
-    Upload an image to the public S3 bucket under the tenant's slug prefix.
+    Upload an image to the public S3 bucket via MediaAssetService.
 
     Authorization: Tenant_Admin role required
 
     Accepts multipart/form-data with a 'file' field.
-    Validates file type (jpg, jpeg, png, webp, svg) and size (max 5MB).
+    MediaAssetService validates file type (extension + magic bytes) and size.
 
     Returns:
         JSON with image_key and public URL on success, or error on failure.
@@ -883,38 +873,10 @@ def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         if not file.filename:
             return jsonify({"success": False, "error": "No file selected"}), 400
 
-        # Validate file extension
-        filename = file.filename.lower()
-        ext = os.path.splitext(filename)[1]
-        if ext not in ALLOWED_IMAGE_EXTENSIONS:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": f"Invalid file type '{ext}'. Allowed: jpg, jpeg, png, webp, svg",
-                }
-            ), 400
-
-        # Validate MIME type
-        if file.content_type not in ALLOWED_IMAGE_MIMETYPES:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": f"Invalid MIME type '{file.content_type}'. Allowed: image/jpeg, image/png, image/webp, image/svg+xml",
-                }
-            ), 400
-
-        # Validate file size (read content and check)
+        # Read file data
         file_data = file.read()
-        if len(file_data) > MAX_IMAGE_SIZE:
-            size_mb = len(file_data) / (1024 * 1024)
-            return jsonify(
-                {
-                    "success": False,
-                    "error": f"File too large ({size_mb:.1f}MB). Maximum size is 5MB.",
-                }
-            ), 400
 
-        # Get slug for tenant
+        # Get slug for tenant (used as entity_id for reference tracking)
         slug_service = _get_slug_service()
         slug = slug_service.get_slug(tenant)
 
@@ -926,48 +888,55 @@ def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
                 }
             ), 400
 
-        # Generate unique filename
-        unique_id = uuid.uuid4().hex[:12]
-        safe_filename = _sanitize_filename(file.filename)
-        unique_filename = f"{unique_id}_{safe_filename}"
+        # Upload via MediaAssetService (handles validation, S3 upload, and registry)
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
+        db = DatabaseManager(test_mode=test_mode)
+        ps = ParameterService(db)
+        asset_svc = MediaAssetService(db, ps)
 
-        # Upload to S3
-        image_key = f"{slug}/images/{unique_filename}"
-        env = os.environ.get("ENVIRONMENT", "production")
-        bucket_name = os.environ.get(
-            "LANDING_PAGES_BUCKET", f"myadmin-public-pages-{env}"
+        result = asset_svc.store_and_register(
+            tenant=tenant,
+            file_data=file_data,
+            filename=file.filename,
+            category='landing-pages',
+            entity_type='landing_page',
+            entity_id=str(slug),
+            metadata={'slug': slug},
         )
+
+        if not result['success']:
+            return jsonify({"success": False, "error": result.get('error', 'Upload failed')}), 400
+
+        s3_key = result['asset']['s3_key']
+
+        # Build public URL (CloudFront or direct S3)
         cloudfront_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
-
-        region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
-        s3_client = boto3.client("s3", region_name=region)
-
-        s3_client.put_object(
-            Bucket=bucket_name,
-            Key=image_key,
-            Body=file_data,
-            ContentType=file.content_type,
-            CacheControl="max-age=31536000",  # 1 year (immutable content-addressed)
-        )
-
-        # Build public URL
         if cloudfront_domain:
-            url = f"https://{cloudfront_domain}/{image_key}"
+            url = f"https://{cloudfront_domain}/{s3_key}"
         else:
-            url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{image_key}"
+            env = os.environ.get("ENVIRONMENT", "production")
+            bucket_name = os.environ.get(
+                "LANDING_PAGES_BUCKET", f"myadmin-public-pages-{env}"
+            )
+            region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
+            url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{s3_key}"
 
-        logger.info(f"Image uploaded by {user_email} for tenant {tenant}: {image_key}")
+        logger.info(f"Image uploaded by {user_email} for tenant {tenant}: {s3_key}")
 
         return jsonify(
             {
                 "success": True,
                 "data": {
-                    "image_key": image_key,
+                    "image_key": s3_key,
                     "url": url,
                 },
             }
         )
 
+    except ValueError as e:
+        # MediaAssetService raises ValueError for validation failures
+        logger.warning(f"Image validation error for tenant {tenant}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 400
     except ClientError as e:
         logger.error(f"S3 upload error for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": "Failed to upload image"}), 500

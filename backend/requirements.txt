@@ -28,5 +28,7 @@ PyJWT==2.10.1
 python-jose==3.5.0
 cryptography==44.0.0
 
+python-ulid==3.2.1
+
 babel>=2.14.0
 weasyprint>=60.0

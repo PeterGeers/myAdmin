@@ -13,14 +13,18 @@ import {
   FormControl, FormLabel, Select, Input, Button,
   SimpleGrid, Alert, AlertIcon,
   Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon,
-  Table, Thead, Tbody, Tr, Th, Td,
+  Table, Thead, Tbody, Tr, Th, Td, useDisclosure,
 } from '@chakra-ui/react';
 import { ExternalLinkIcon, RepeatIcon, CheckCircleIcon, AttachmentIcon } from '@chakra-ui/icons';
+import { FiFolder } from 'react-icons/fi';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { getParameterSchema } from '../../services/parameterSchemaService';
 import { createParameter } from '../../services/parameterService';
 import { authenticatedFormData, buildEndpoint } from '../../services/apiService';
+import { AssetPicker } from '../common/AssetPicker/AssetPicker';
+import type { MediaAsset } from '@/types/mediaAsset';
+import { useDuplicateNotification } from '@/hooks/useDuplicateNotification';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -41,6 +45,7 @@ interface StorageTabProps {
 export default function StorageTab({ tenant }: StorageTabProps) {
   const { t } = useTypedTranslation('admin');
   const toast = useToast();
+  const { notifyDuplicate } = useDuplicateNotification();
 
   // Provider state
   const [provider, setProvider] = useState('');
@@ -64,6 +69,41 @@ export default function StorageTab({ tenant }: StorageTabProps) {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoS3Key, setLogoS3Key] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const { isOpen: isLogoPickerOpen, onOpen: onLogoPickerOpen, onClose: onLogoPickerClose } = useDisclosure();
+
+  /** Handle selecting an existing asset as the logo */
+  const handleLogoAssetSelect = useCallback((asset: MediaAsset) => {
+    if (asset.presigned_url) {
+      try {
+        const url = new URL(asset.presigned_url);
+        const s3Key = decodeURIComponent(url.pathname.slice(1));
+        setLogoS3Key(s3Key);
+        toast({
+          title: 'Logo selected',
+          description: asset.original_filename,
+          status: 'success',
+          duration: 3000,
+        });
+      } catch {
+        setLogoS3Key(asset.id);
+        toast({
+          title: 'Logo selected',
+          description: asset.original_filename,
+          status: 'success',
+          duration: 3000,
+        });
+      }
+    } else {
+      setLogoS3Key(asset.id);
+      toast({
+        title: 'Logo selected',
+        description: asset.original_filename,
+        status: 'success',
+        duration: 3000,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]);
 
   const getToken = async () => {
     const session = await fetchAuthSession();
@@ -221,6 +261,7 @@ export default function StorageTab({ tenant }: StorageTabProps) {
 
       if (resp.ok && data.success) {
         setLogoS3Key(data.key);
+        notifyDuplicate(data);
         toast({ title: 'Logo uploaded', description: `Stored as: ${data.key}`, status: 'success', duration: 3000 });
       } else {
         toast({ title: 'Upload failed', description: data.error || 'Unknown error', status: 'error', duration: 5000 });
@@ -539,6 +580,18 @@ export default function StorageTab({ tenant }: StorageTabProps) {
                     disabled={logoUploading}
                   />
                 </FormControl>
+                {/* Choose existing asset for logo */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="orange"
+                  leftIcon={<FiFolder />}
+                  onClick={onLogoPickerOpen}
+                  isDisabled={logoUploading}
+                  data-testid="logo-choose-existing-btn"
+                >
+                  or choose existing
+                </Button>
                 {logoUploading && (
                   <HStack>
                     <Spinner size="sm" color="orange.400" />
@@ -554,6 +607,15 @@ export default function StorageTab({ tenant }: StorageTabProps) {
                   </HStack>
                 )}
               </VStack>
+              {/* Asset Picker for logo selection */}
+              <AssetPicker
+                isOpen={isLogoPickerOpen}
+                onClose={onLogoPickerClose}
+                onSelect={handleLogoAssetSelect}
+                defaultCategory="branding"
+                defaultMediaType=""
+                allowedMediaTypes={['image']}
+              />
             </AccordionPanel>
           </AccordionItem>
         )}

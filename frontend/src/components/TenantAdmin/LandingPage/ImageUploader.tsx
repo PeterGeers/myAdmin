@@ -8,17 +8,21 @@
  * - Preview of uploaded/current image
  * - File type validation (jpg, png, webp, svg) + size limit (5MB)
  * - Error messages for invalid files
+ * - "Choose existing" option to pick from asset library (AssetPicker)
  *
- * Task 2.18
+ * Task 2.18, Task 8.3
  */
 
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Box, Text, VStack, HStack, Icon, Progress, Image,
-  IconButton, useToast,
+  IconButton, useToast, Button, useDisclosure,
 } from '@chakra-ui/react';
-import { FiUploadCloud, FiX, FiImage } from 'react-icons/fi';
+import { FiUploadCloud, FiX, FiImage, FiFolder } from 'react-icons/fi';
 import { uploadImage } from '../../../services/landingPageApi';
+import { AssetPicker } from '../../common/AssetPicker/AssetPicker';
+import type { MediaAsset, AssetCategory, AssetMediaType } from '@/types/mediaAsset';
+import { useDuplicateNotification } from '@/hooks/useDuplicateNotification';
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.svg'];
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
@@ -28,9 +32,22 @@ interface ImageUploaderProps {
   onUpload: (imageKey: string) => void;
   currentImageKey?: string;
   label?: string;
+  /** Show "Choose existing" button to open asset picker (default: true) */
+  showAssetPicker?: boolean;
+  /** Default category filter for asset picker */
+  assetPickerCategory?: AssetCategory;
+  /** Restrict allowed media types in asset picker */
+  assetPickerMediaTypes?: AssetMediaType[];
 }
 
-export default function ImageUploader({ onUpload, currentImageKey, label }: ImageUploaderProps) {
+export default function ImageUploader({
+  onUpload,
+  currentImageKey,
+  label,
+  showAssetPicker = true,
+  assetPickerCategory,
+  assetPickerMediaTypes = ['image'],
+}: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -38,6 +55,8 @@ export default function ImageUploader({ onUpload, currentImageKey, label }: Imag
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+  const { isOpen: isPickerOpen, onOpen: onPickerOpen, onClose: onPickerClose } = useDisclosure();
+  const { notifyDuplicate } = useDuplicateNotification();
 
   const validateFile = useCallback((file: File): string | null => {
     // Check extension
@@ -83,6 +102,7 @@ export default function ImageUploader({ onUpload, currentImageKey, label }: Imag
       });
 
       onUpload(result.image_key);
+      notifyDuplicate(result);
       toast({
         title: 'Image uploaded',
         status: 'success',
@@ -104,7 +124,7 @@ export default function ImageUploader({ onUpload, currentImageKey, label }: Imag
       setIsUploading(false);
       URL.revokeObjectURL(localPreview);
     }
-  }, [validateFile, onUpload, toast]);
+  }, [validateFile, onUpload, toast, notifyDuplicate]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -147,6 +167,40 @@ export default function ImageUploader({ onUpload, currentImageKey, label }: Imag
     setError(null);
     onUpload('');
   }, [onUpload]);
+
+  /** Handle asset selection from the AssetPicker modal */
+  const handleAssetSelect = useCallback((asset: MediaAsset) => {
+    // Extract S3 key from presigned URL or use the asset id as fallback
+    // The presigned URL contains the S3 key in the path — but we use the
+    // original_filename and id to construct a reference the backend understands.
+    // Convention: the asset's s3_key is embedded in the presigned_url path.
+    // However, the most reliable approach is to use the asset ID which the
+    // backend can resolve. For ImageUploader's onUpload callback (which expects
+    // an S3 image key), we extract the key from the presigned URL path.
+    if (asset.presigned_url) {
+      try {
+        const url = new URL(asset.presigned_url);
+        // S3 presigned URLs have the key as the pathname (after the leading slash)
+        const s3Key = decodeURIComponent(url.pathname.slice(1));
+        setPreviewUrl(asset.presigned_url);
+        onUpload(s3Key);
+      } catch {
+        // Fallback: use presigned_url directly for preview, asset id for key
+        setPreviewUrl(asset.presigned_url);
+        onUpload(asset.id);
+      }
+    } else {
+      // No presigned URL — use the asset id
+      onUpload(asset.id);
+    }
+    toast({
+      title: 'Asset selected',
+      description: asset.original_filename,
+      status: 'success',
+      duration: 2000,
+      isClosable: true,
+    });
+  }, [onUpload, toast]);
 
   // Determine what to show as preview
   const showImage = previewUrl || currentImageKey;
@@ -250,6 +304,34 @@ export default function ImageUploader({ onUpload, currentImageKey, label }: Imag
         <Text color="red.300" fontSize="xs">
           {error}
         </Text>
+      )}
+
+      {/* Choose existing asset button */}
+      {showAssetPicker && !isUploading && (
+        <Button
+          size="xs"
+          variant="ghost"
+          color="gray.400"
+          fontWeight="normal"
+          leftIcon={<Icon as={FiFolder} />}
+          onClick={onPickerOpen}
+          _hover={{ color: 'orange.300' }}
+          data-testid="choose-existing-asset-btn"
+        >
+          or choose existing
+        </Button>
+      )}
+
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
+        <AssetPicker
+          isOpen={isPickerOpen}
+          onClose={onPickerClose}
+          onSelect={handleAssetSelect}
+          defaultCategory={assetPickerCategory}
+          defaultMediaType=""
+          allowedMediaTypes={assetPickerMediaTypes}
+        />
       )}
     </VStack>
   );

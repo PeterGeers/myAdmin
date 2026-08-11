@@ -333,6 +333,7 @@ export interface ImageUploadResponse {
     image_key: string;
     url: string;
   };
+  duplicate_of?: { asset_id: string; original_filename: string } | null;
 }
 
 /**
@@ -345,7 +346,7 @@ export interface ImageUploadResponse {
 export async function uploadImage(
   file: File,
   onProgress?: (progress: { loaded: number; total?: number }) => void,
-): Promise<{ image_key: string; url: string }> {
+): Promise<{ image_key: string; url: string; duplicate_of?: { asset_id: string; original_filename: string } | null }> {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -362,5 +363,5 @@ export async function uploadImage(
   if (!result.success) {
     throw new Error('Upload failed');
   }
-  return result.data;
+  return { ...result.data, duplicate_of: result.duplicate_of };
 }

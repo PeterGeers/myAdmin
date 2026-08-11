@@ -21,6 +21,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from services.media_asset_service import MediaAssetService
 from services.parameter_service import ParameterService
 
 # Initialize logger
@@ -148,22 +149,28 @@ def upload_logo(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         # Determine file extension from MIME type
         ext = MIME_TO_EXT.get(content_type, "png")
 
-        # Build S3 key: {tenant}/branding/company_logo.{ext}
-        s3_key = f"{tenant}/branding/company_logo.{ext}"
-
-        # Upload to S3
-        s3_client = boto3.client("s3")
-        s3_client.put_object(
-            Bucket=bucket,
-            Key=s3_key,
-            Body=file_data,
-            ContentType=content_type,
-        )
-
-        # Update company_logo_s3_key parameter via ParameterService
+        # Use MediaAssetService for upload + registry tracking
         test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         db = DatabaseManager(test_mode=test_mode)
         ps = ParameterService(db)
+        asset_svc = MediaAssetService(db, ps)
+
+        result = asset_svc.store_and_register(
+            tenant=tenant,
+            file_data=file_data,
+            filename=f"company_logo.{ext}",
+            category='branding',
+            entity_type='branding',
+            entity_id=f"{tenant}:company_logo",
+        )
+
+        if not result['success']:
+            return jsonify({"success": False, "error": result.get('error', 'Upload failed')}), 400
+
+        # Use the s3_key from the registered asset
+        s3_key = result['asset']['s3_key']
+
+        # Update company_logo_s3_key parameter via ParameterService
         ps.set_param(
             "tenant",
             tenant,

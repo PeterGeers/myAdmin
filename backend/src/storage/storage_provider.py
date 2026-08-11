@@ -17,21 +17,31 @@ logger = logging.getLogger(__name__)
 class StorageProvider(ABC):
     """Abstract base class for file storage backends."""
 
-    @abstractmethod
-    def upload(self, file_data: bytes, path: str, metadata: dict | None = None) -> str:
-        """Upload file, return reference string."""
+    # --- Public API (read-only) ---
 
     @abstractmethod
     def download(self, reference: str) -> bytes:
         """Download file by reference, return bytes."""
 
     @abstractmethod
-    def delete(self, reference: str) -> bool:
-        """Delete file by reference, return success."""
-
-    @abstractmethod
     def list_files(self, path: str) -> list[dict]:
         """List files at path, return list of metadata dicts."""
+
+    # --- Internal methods (only callable by MediaAssetService) ---
+
+    @abstractmethod
+    def _upload_raw(self, file_data: bytes, key: str, content_type: str) -> bool:
+        """Raw upload: put file_data at the given fully-qualified key.
+
+        No key building, no registry interaction. Returns True on success.
+        """
+
+    @abstractmethod
+    def _delete_raw(self, key: str) -> bool:
+        """Raw delete: remove the object at the given key.
+
+        No registry interaction. Returns True on success, False on failure.
+        """
 
 
 VALID_PROVIDERS = ("google_drive", "s3_shared", "s3_tenant")

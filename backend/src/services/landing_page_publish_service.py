@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 import boto3
 from botocore.exceptions import ClientError
 
+from services.media_asset_service import MediaAssetService
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +48,12 @@ class LandingPagePublishService:
         self.slug_svc = slug_service
         self.db = db_manager
 
+        # MediaAssetService for registry-tracked S3 uploads (required)
+        if db_manager:
+            self.asset_svc = MediaAssetService(db_manager, parameter_service)
+        else:
+            self.asset_svc = None
+
         region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
         env = os.environ.get("ENVIRONMENT", "production")
         self.bucket_name = os.environ.get(
@@ -56,7 +64,6 @@ class LandingPagePublishService:
             "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", ""
         )
         self.base_url = os.environ.get("LANDING_PAGE_BASE_URL", "https://myadmin.app")
-        self._s3 = boto3.client("s3", region_name=region)
         self._cloudfront = boto3.client("cloudfront", region_name=region)
 
     # ========================================================================
@@ -140,33 +147,62 @@ class LandingPagePublishService:
         # Step 5b: Enrich sections with live module data (Task 3.14)
         self._enrich_sections_with_module_data(published_data["sections"], tenant)
 
-        # Step 6: Write landing.json to S3
+        # Step 6: Write landing.json to S3 via MediaAssetService
+        json_body = json.dumps(published_data, ensure_ascii=False)
+        if not self.asset_svc:
+            return {
+                "success": False,
+                "error": "MediaAssetService not available (db_manager required).",
+            }
         try:
-            self._s3.put_object(
-                Bucket=self.bucket_name,
-                Key=f"{slug}/landing.json",
-                Body=json.dumps(published_data, ensure_ascii=False),
-                ContentType="application/json",
-                CacheControl="max-age=300",
+            result_json = self.asset_svc.store_and_register(
+                tenant=tenant,
+                file_data=json_body.encode("utf-8"),
+                filename="landing.json",
+                category="landing-pages",
+                entity_type="landing_page",
+                entity_id=str(slug),
+                metadata={"media_type": "web_content"},
             )
-        except ClientError as e:
+            if not result_json.get("success"):
+                logger.error(
+                    "store_and_register landing.json failed for slug=%s: %s",
+                    slug,
+                    result_json.get("error"),
+                )
+                return {
+                    "success": False,
+                    "error": "Failed to publish landing page data to S3.",
+                }
+            json_s3_key = result_json["asset"]["s3_key"]
+        except (ClientError, ValueError) as e:
             logger.error("S3 put_object landing.json failed for slug=%s: %s", slug, e)
             return {
                 "success": False,
                 "error": "Failed to publish landing page data to S3.",
             }
 
-        # Step 7: Generate and write index.html to S3
+        # Step 7: Generate and write index.html to S3 via MediaAssetService
         try:
             index_html = self.generate_index_html(published_data, slug)
-            self._s3.put_object(
-                Bucket=self.bucket_name,
-                Key=f"{slug}/index.html",
-                Body=index_html,
-                ContentType="text/html; charset=utf-8",
-                CacheControl="max-age=300",
+            result_html = self.asset_svc.store_and_register(
+                tenant=tenant,
+                file_data=index_html.encode("utf-8") if isinstance(index_html, str) else index_html,
+                filename="index.html",
+                category="landing-pages",
+                entity_type="landing_page",
+                entity_id=str(slug),
+                metadata={"media_type": "web_content"},
             )
-        except ClientError as e:
+            if not result_html.get("success"):
+                logger.error(
+                    "store_and_register index.html failed for slug=%s: %s",
+                    slug,
+                    result_html.get("error"),
+                )
+                return {"success": False, "error": "Failed to publish index.html to S3."}
+            html_s3_key = result_html["asset"]["s3_key"]
+        except (ClientError, ValueError) as e:
             logger.error("S3 put_object index.html failed for slug=%s: %s", slug, e)
             return {"success": False, "error": "Failed to publish index.html to S3."}
 
@@ -202,12 +238,17 @@ class LandingPagePublishService:
 
     def unpublish(self, tenant: str, unpublished_by: str) -> dict:
         """
-        Take a landing page offline by deleting S3 files.
+        Take a landing page offline by detaching and deleting assets.
+
+        Assets are detached from the landing page entity. Orphaned assets
+        (zero remaining references) are then deleted via the registry.
+        For pre-migration data (no registered assets), files are deleted
+        directly from S3.
 
         Steps:
         1. Get slug for tenant
-        2. Delete landing.json from S3
-        3. Delete index.html from S3
+        2. Detach + delete orphaned assets (or direct S3 delete for legacy data)
+        3. Invalidate CloudFront cache
         4. Return success
 
         Args:
@@ -222,17 +263,42 @@ class LandingPagePublishService:
         if not slug:
             return {"success": False, "error": "No slug configured for this tenant."}
 
-        # Step 2 & 3: Delete S3 files (graceful — not an error if files don't exist)
-        for key in (f"{slug}/landing.json", f"{slug}/index.html"):
-            try:
-                self._s3.delete_object(Bucket=self.bucket_name, Key=key)
-            except ClientError as e:
-                error_code = e.response.get("Error", {}).get("Code", "")
-                if error_code == "NoSuchKey":
-                    # File doesn't exist — that's fine
-                    continue
-                logger.error("S3 delete_object failed for key=%s: %s", key, e)
-                return {"success": False, "error": f"Failed to delete {key} from S3."}
+        # Step 2: Remove assets via registry
+        if not self.asset_svc:
+            return {
+                "success": False,
+                "error": "MediaAssetService not available (db_manager required).",
+            }
+
+        asset_ids = self._find_landing_page_assets(tenant, slug)
+
+        if asset_ids:
+            # Detach and delete orphaned assets via the registry
+            for asset_id in asset_ids:
+                try:
+                    detach_result = self.asset_svc.detach(
+                        tenant, asset_id, "landing_page", str(slug)
+                    )
+                    if (
+                        detach_result.get("success")
+                        and detach_result.get("asset", {}).get("reference_count", 1) == 0
+                    ):
+                        # Asset is orphaned — safe to delete
+                        self.asset_svc.delete_asset(
+                            tenant, asset_id, approved_by=unpublished_by
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Asset detach/delete failed for asset_id=%s slug=%s: %s",
+                        asset_id,
+                        slug,
+                        e,
+                    )
+        else:
+            # No assets in registry — clean up legacy S3 files via the
+            # asset service's internal delete (pre-migration data)
+            for key in (f"{slug}/landing.json", f"{slug}/index.html"):
+                self.asset_svc._delete_raw(self.bucket_name, key)
 
         logger.info(
             "Unpublished landing page for tenant=%s slug=%s by=%s",
@@ -245,6 +311,43 @@ class LandingPagePublishService:
         self._invalidate_cache(slug)
 
         return {"success": True, "message": "Landing page is now offline."}
+
+    def _find_landing_page_assets(self, tenant: str, slug: str) -> list:
+        """
+        Find asset IDs registered for a landing page via the references table.
+
+        Queries s3_asset_references for entity_type='landing_page' and
+        entity_id matching the slug.
+
+        Args:
+            tenant: Administration identifier
+            slug: Tenant slug (used as entity_id for landing page assets)
+
+        Returns:
+            List of asset_id strings, empty if none found or DB unavailable.
+        """
+        if not self.db:
+            return []
+
+        try:
+            rows = self.db.execute_query(
+                """
+                SELECT ar.asset_id
+                FROM s3_asset_references ar
+                JOIN s3_assets a ON a.id = ar.asset_id
+                WHERE ar.entity_type = 'landing_page'
+                  AND ar.entity_id = %s
+                  AND a.administration = %s
+                """,
+                (str(slug), tenant),
+                fetch=True,
+            )
+            return [row["asset_id"] for row in rows] if rows else []
+        except Exception as e:
+            logger.warning(
+                "Failed to query landing page assets for slug=%s: %s", slug, e
+            )
+            return []
 
     # ========================================================================
     # CloudFront Cache Invalidation

@@ -195,11 +195,13 @@ class TestInvoiceUploadS3Flow:
     def test_upload_to_drive_uses_s3_for_s3_tenant(self, s3_tenant, mock_s3_client):
         """
         Full flow: InvoiceService.upload_to_drive() for S3 tenant uploads
-        to S3 via S3SharedStorage.upload() and returns S3 key.
+        to S3 via MediaAssetService.store_and_register() and returns S3 key.
 
         Validates: Requirement 2.3
         """
         import tempfile
+
+        expected_s3_key = f'{s3_tenant}/invoices/ast_01TEST_invoice_2024.pdf'
 
         # Create a temp file to simulate uploaded invoice
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
@@ -207,10 +209,22 @@ class TestInvoiceUploadS3Flow:
             temp_path = f.name
 
         try:
+            mock_asset_svc = MagicMock()
+            mock_asset_svc.store_and_register.return_value = {
+                'success': True,
+                'asset': {
+                    'id': 'ast_01TEST',
+                    's3_key': expected_s3_key,
+                    'bucket': 'test-shared-bucket',
+                },
+                'duplicate_of': None,
+            }
+
             with patch('services.parameter_service.ParameterService.get_param',
                        side_effect=param_service_s3_side_effect), \
                  patch('database.DatabaseManager'), \
-                 patch('boto3.client', return_value=mock_s3_client), \
+                 patch('services.media_asset_service.MediaAssetService',
+                       return_value=mock_asset_svc), \
                  patch.dict(os.environ, {'S3_SHARED_BUCKET': 'test-shared-bucket'}):
 
                 from services.invoice_service import InvoiceService
@@ -223,20 +237,19 @@ class TestInvoiceUploadS3Flow:
                     tenant=s3_tenant
                 )
 
-                # Verify S3 put_object was called
-                assert mock_s3_client.put_object.called
-                call_kwargs = mock_s3_client.put_object.call_args[1]
-                assert call_kwargs['Bucket'] == 'test-shared-bucket'
-                # Key should follow pattern: {tenant}/invoices/{reference}/{uuid}_{filename}
-                assert s3_tenant in call_kwargs['Key']
-                assert 'invoices' in call_kwargs['Key']
-                assert 'Supplier1' in call_kwargs['Key']
-                assert 'invoice_2024.pdf' in call_kwargs['Key']
+                # Verify store_and_register was called with correct params
+                mock_asset_svc.store_and_register.assert_called_once()
+                call_kwargs = mock_asset_svc.store_and_register.call_args[1]
+                assert call_kwargs['tenant'] == s3_tenant
+                assert call_kwargs['filename'] == 'invoice_2024.pdf'
+                assert call_kwargs['category'] == 'invoices'
+                assert call_kwargs['metadata'] == {'reference_number': 'Supplier1'}
 
-                # Result should contain S3 key
+                # Result should contain S3 key from asset service
                 assert 'id' in result
                 assert 'url' in result
                 assert s3_tenant in result['id']
+                assert result['id'] == expected_s3_key
         finally:
             os.unlink(temp_path)
 
@@ -252,16 +265,38 @@ class TestReportOutputS3Flow:
     def test_handle_output_gdrive_routes_to_s3_for_s3_tenant(self, s3_tenant, mock_s3_client):
         """
         Full flow: OutputService.handle_output(destination='gdrive') for S3 tenant
-        routes to _handle_s3_upload() and uploads report to S3.
+        routes to _handle_s3_upload() via MediaAssetService.store_and_register().
 
         Validates: Requirement 2.5
         """
         mock_db = MagicMock()
+        expected_s3_key = f'{s3_tenant}/invoices/ast_01TEST_report_2024_01.html'
+
+        mock_asset_svc = MagicMock()
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_01TEST',
+                's3_key': expected_s3_key,
+                'bucket': 'test-shared-bucket',
+                'mime_type': 'text/html',
+                'file_size': 42,
+                'category': 'invoices',
+                'media_type': 'web_content',
+                'original_filename': 'report_2024_01.html',
+                'content_hash': 'abc123',
+                'status': 'ACTIVE',
+                'created_at': '2026-01-01 00:00:00',
+                'reference_count': 1,
+            },
+            'duplicate_of': None,
+        }
 
         with patch('services.parameter_service.ParameterService.get_param',
                    return_value='s3_shared'), \
              patch('database.DatabaseManager', return_value=mock_db), \
-             patch('boto3.client', return_value=mock_s3_client), \
+             patch('services.media_asset_service.MediaAssetService',
+                   return_value=mock_asset_svc), \
              patch.dict(os.environ, {'S3_SHARED_BUCKET': 'test-shared-bucket'}):
 
             from services.output_service import OutputService

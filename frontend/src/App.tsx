@@ -58,11 +58,12 @@ const SysAdminDashboard = lazy(() =>
 
 // Admin pages (default exports)
 const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
+const MediaAssetAdminPage = lazy(() => import('./pages/MediaAssetAdminPage'));
 
 // Public pages (no auth required)
 const PublicLandingPage = lazy(() => import('./pages/public/PublicLandingPage'));
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-trips' | 'zzp-trip-quick' | 'zzp-trip-import' | 'zzp-debtors' | 'budget' | 'transactions' | 'check-accounts' | 'check-reference' | 'str-channel-revenue';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-trips' | 'zzp-trip-quick' | 'zzp-trip-import' | 'zzp-debtors' | 'budget' | 'transactions' | 'check-accounts' | 'check-reference' | 'str-channel-revenue' | 'media-asset-admin';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -84,6 +85,7 @@ function AppContent() {
       '/fin/check-accounts': 'check-accounts',
       '/fin/check-reference': 'check-reference',
       '/fin/str-channel-revenue': 'str-channel-revenue',
+      '/admin/assets': 'media-asset-admin',
     };
     // Strip base path (/myAdmin) if present
     const basePath = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
@@ -273,6 +275,19 @@ function AppContent() {
             <Box minH="100vh" bg="gray.900">
               {renderPageHeader(`🏢 ${t('common:navigation.modules.tenantAdministration')}`)}
               <TenantAdminDashboard />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'media-asset-admin':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Tenant_Admin']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`🗄️ Media Asset Administration`)}
+              <MediaAssetAdminPage />
             </Box>
           </ProtectedRoute>
         );
@@ -693,6 +708,13 @@ function AppContent() {
                   {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="pink" justifyContent="flex-start" onClick={() => setCurrentPage('tenant-admin')}>
                       🏢 {t('common:navigation.modules.tenantAdministration')}
+                    </Button>
+                  )}
+
+                  {/* Media Asset Administration - Tenant_Admin only */}
+                  {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="orange" justifyContent="flex-start" onClick={() => setCurrentPage('media-asset-admin')}>
+                      🗄️ Media Asset Admin
                     </Button>
                   )}
 

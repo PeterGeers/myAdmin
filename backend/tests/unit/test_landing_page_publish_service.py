@@ -270,13 +270,13 @@ class TestLandingPagePublishService:
     # ========================================================================
 
     def test_unpublish_happy_path(self, service, mock_s3):
-        """Test unpublish deletes both S3 files and returns success."""
+        """Test unpublish deletes both S3 files via direct S3 (no asset_svc)."""
         result = service.unpublish("TestTenant", "admin@acme.nl")
 
         assert result["success"] is True
         assert result["message"] == "Landing page is now offline."
 
-        # Verify both files deleted
+        # Verify both files deleted (fallback path — no asset_svc)
         assert mock_s3.delete_object.call_count == 2
         calls = mock_s3.delete_object.call_args_list
         assert calls[0][1]["Key"] == "acme-rentals/landing.json"
@@ -312,6 +312,100 @@ class TestLandingPagePublishService:
 
         assert result["success"] is False
         assert "Failed to delete" in result["error"]
+
+    def test_unpublish_with_asset_svc_detach_and_delete_orphaned(self, service, mock_s3):
+        """Test unpublish uses asset_svc to detach and delete orphaned assets."""
+        # Setup asset service mock
+        mock_asset_svc = Mock()
+        service.asset_svc = mock_asset_svc
+
+        # Mock db query to find registered assets
+        mock_db = Mock()
+        service.db = mock_db
+        mock_db.execute_query.return_value = [
+            {"asset_id": "ast_json_001"},
+            {"asset_id": "ast_html_002"},
+        ]
+
+        # Detach returns orphaned (reference_count=0)
+        mock_asset_svc.detach.return_value = {
+            "success": True,
+            "asset": {"id": "ast_json_001", "status": "ORPHAN", "reference_count": 0},
+        }
+        mock_asset_svc.delete_asset.return_value = {"success": True, "asset_id": "ast_json_001"}
+
+        result = service.unpublish("TestTenant", "admin@acme.nl")
+
+        assert result["success"] is True
+        assert result["message"] == "Landing page is now offline."
+
+        # Verify detach called for each asset
+        assert mock_asset_svc.detach.call_count == 2
+        mock_asset_svc.detach.assert_any_call("TestTenant", "ast_json_001", "landing_page", "acme-rentals")
+        mock_asset_svc.detach.assert_any_call("TestTenant", "ast_html_002", "landing_page", "acme-rentals")
+
+        # Verify delete called for orphaned assets
+        assert mock_asset_svc.delete_asset.call_count == 2
+
+        # No direct S3 delete calls
+        assert mock_s3.delete_object.call_count == 0
+
+    def test_unpublish_with_asset_svc_no_delete_when_still_referenced(self, service, mock_s3):
+        """Test unpublish does not delete assets that still have references."""
+        mock_asset_svc = Mock()
+        service.asset_svc = mock_asset_svc
+
+        mock_db = Mock()
+        service.db = mock_db
+        mock_db.execute_query.return_value = [{"asset_id": "ast_shared_001"}]
+
+        # Detach returns non-orphaned (reference_count > 0)
+        mock_asset_svc.detach.return_value = {
+            "success": True,
+            "asset": {"id": "ast_shared_001", "status": "ACTIVE", "reference_count": 2},
+        }
+
+        result = service.unpublish("TestTenant", "admin@acme.nl")
+
+        assert result["success"] is True
+        # delete_asset should NOT be called since asset still has references
+        mock_asset_svc.delete_asset.assert_not_called()
+        assert mock_s3.delete_object.call_count == 0
+
+    def test_unpublish_with_asset_svc_fallback_when_no_registered_assets(self, service, mock_s3):
+        """Test unpublish falls back to direct S3 delete when no assets in registry."""
+        mock_asset_svc = Mock()
+        service.asset_svc = mock_asset_svc
+
+        mock_db = Mock()
+        service.db = mock_db
+        # No assets found in registry (pre-migration data)
+        mock_db.execute_query.return_value = []
+
+        result = service.unpublish("TestTenant", "admin@acme.nl")
+
+        assert result["success"] is True
+        # Falls back to direct S3 delete
+        assert mock_s3.delete_object.call_count == 2
+        mock_asset_svc.detach.assert_not_called()
+
+    def test_unpublish_with_asset_svc_graceful_on_detach_error(self, service, mock_s3):
+        """Test unpublish handles detach exceptions gracefully."""
+        mock_asset_svc = Mock()
+        service.asset_svc = mock_asset_svc
+
+        mock_db = Mock()
+        service.db = mock_db
+        mock_db.execute_query.return_value = [{"asset_id": "ast_err_001"}]
+
+        # Detach raises an exception
+        mock_asset_svc.detach.side_effect = Exception("DB connection lost")
+
+        result = service.unpublish("TestTenant", "admin@acme.nl")
+
+        # Should still succeed (graceful handling)
+        assert result["success"] is True
+        assert result["message"] == "Landing page is now offline."
 
     # ========================================================================
     # Branding resolution tests (Task 1.15)
@@ -1024,3 +1118,185 @@ class TestLandingPagePublishService:
                 assert svc.bucket_name == "custom-bucket"
                 assert svc.base_url == "https://custom.app"
                 assert svc.cloudfront_domain == "d123.cloudfront.net"
+
+
+class TestPublishWithAssetService:
+    """Tests for publish method using MediaAssetService (when db_manager is provided)."""
+
+    @pytest.fixture
+    def mock_landing_page_svc(self):
+        """Mock LandingPageService."""
+        svc = Mock()
+        svc.get_draft.return_value = {
+            "status": "draft",
+            "version": 3,
+            "sections": [
+                {"id": "block-001", "type": "hero", "properties": {"title": "Hello"}},
+            ],
+        }
+        svc.save_version.return_value = {"success": True, "version": 3}
+        svc.prune_old_versions.return_value = None
+        return svc
+
+    @pytest.fixture
+    def mock_param_svc(self):
+        """Mock ParameterService with minimal branding."""
+        svc = Mock()
+        svc.get_param.return_value = None
+        return svc
+
+    @pytest.fixture
+    def mock_slug_svc(self):
+        """Mock TenantSlugService."""
+        svc = Mock()
+        svc.get_slug.return_value = "test-slug"
+        return svc
+
+    @pytest.fixture
+    def mock_db_manager(self):
+        """Mock DatabaseManager."""
+        return Mock()
+
+    @pytest.fixture
+    def mock_asset_svc(self):
+        """Mock MediaAssetService with successful store_and_register."""
+        svc = Mock()
+        svc.store_and_register.side_effect = [
+            {
+                "success": True,
+                "asset": {
+                    "id": "ast_JSON123",
+                    "s3_key": "TestTenant/landing-pages/ast_JSON123_landing.json",
+                },
+                "duplicate_of": None,
+            },
+            {
+                "success": True,
+                "asset": {
+                    "id": "ast_HTML456",
+                    "s3_key": "TestTenant/landing-pages/ast_HTML456_index.html",
+                },
+                "duplicate_of": None,
+            },
+        ]
+        return svc
+
+    @pytest.fixture
+    def service(
+        self,
+        mock_landing_page_svc,
+        mock_param_svc,
+        mock_slug_svc,
+        mock_db_manager,
+        mock_asset_svc,
+    ):
+        """Create service with db_manager provided (asset_svc active)."""
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_DEFAULT_REGION": "eu-west-1",
+                "ENVIRONMENT": "test",
+                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+            },
+        ):
+            with patch(
+                "services.landing_page_publish_service.boto3.client"
+            ) as mock_boto:
+                mock_boto.return_value = Mock()
+                with patch(
+                    "services.landing_page_publish_service.MediaAssetService"
+                ) as MockAssetCls:
+                    MockAssetCls.return_value = mock_asset_svc
+
+                    from services.landing_page_publish_service import (
+                        LandingPagePublishService,
+                    )
+
+                    svc = LandingPagePublishService(
+                        landing_page_service=mock_landing_page_svc,
+                        parameter_service=mock_param_svc,
+                        slug_service=mock_slug_svc,
+                        db_manager=mock_db_manager,
+                    )
+                    # Ensure asset_svc is our mock
+                    svc.asset_svc = mock_asset_svc
+                    return svc
+
+    def test_publish_uses_store_and_register(self, service, mock_asset_svc):
+        """Test publish calls store_and_register for both landing.json and index.html."""
+        result = service.publish("TestTenant", "admin@test.nl")
+
+        assert result["success"] is True
+        assert mock_asset_svc.store_and_register.call_count == 2
+
+        # First call: landing.json
+        call_1 = mock_asset_svc.store_and_register.call_args_list[0]
+        assert call_1[1]["tenant"] == "TestTenant"
+        assert call_1[1]["filename"] == "landing.json"
+        assert call_1[1]["category"] == "landing-pages"
+        assert call_1[1]["entity_type"] == "landing_page"
+        assert call_1[1]["entity_id"] == "test-slug"
+
+        # Second call: index.html
+        call_2 = mock_asset_svc.store_and_register.call_args_list[1]
+        assert call_2[1]["tenant"] == "TestTenant"
+        assert call_2[1]["filename"] == "index.html"
+        assert call_2[1]["category"] == "landing-pages"
+        assert call_2[1]["entity_type"] == "landing_page"
+        assert call_2[1]["entity_id"] == "test-slug"
+
+    def test_publish_does_not_call_s3_directly(self, service):
+        """Test publish does NOT use self._s3.put_object when asset_svc is available."""
+        result = service.publish("TestTenant", "admin@test.nl")
+
+        assert result["success"] is True
+        # S3 put_object should NOT have been called directly
+        service._s3.put_object.assert_not_called()
+
+    def test_publish_store_and_register_json_failure(self, service, mock_asset_svc):
+        """Test publish fails gracefully if store_and_register fails for landing.json."""
+        mock_asset_svc.store_and_register.side_effect = [
+            {"success": False, "error": "S3 upload failed"},
+        ]
+
+        result = service.publish("TestTenant", "admin@test.nl")
+
+        assert result["success"] is False
+        assert "Failed to publish landing page data" in result["error"]
+
+    def test_publish_store_and_register_html_failure(self, service, mock_asset_svc):
+        """Test publish fails gracefully if store_and_register fails for index.html."""
+        mock_asset_svc.store_and_register.side_effect = [
+            {
+                "success": True,
+                "asset": {"id": "ast_1", "s3_key": "TestTenant/landing-pages/ast_1_landing.json"},
+                "duplicate_of": None,
+            },
+            {"success": False, "error": "S3 upload failed"},
+        ]
+
+        result = service.publish("TestTenant", "admin@test.nl")
+
+        assert result["success"] is False
+        assert "Failed to publish index.html" in result["error"]
+
+    def test_publish_file_data_is_bytes(self, service, mock_asset_svc):
+        """Test that file_data passed to store_and_register is bytes (UTF-8 encoded)."""
+        service.publish("TestTenant", "admin@test.nl")
+
+        # Both calls should pass bytes as file_data
+        call_1 = mock_asset_svc.store_and_register.call_args_list[0]
+        assert isinstance(call_1[1]["file_data"], bytes)
+
+        call_2 = mock_asset_svc.store_and_register.call_args_list[1]
+        assert isinstance(call_2[1]["file_data"], bytes)
+
+    def test_publish_uses_slug_as_entity_id(self, service, mock_asset_svc, mock_slug_svc):
+        """Test that entity_id is the slug (not a numeric page ID)."""
+        mock_slug_svc.get_slug.return_value = "my-custom-slug"
+
+        service.publish("TestTenant", "admin@test.nl")
+
+        call_1 = mock_asset_svc.store_and_register.call_args_list[0]
+        assert call_1[1]["entity_id"] == "my-custom-slug"
