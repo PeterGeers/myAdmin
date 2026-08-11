@@ -1,16 +1,15 @@
 """
-Property Tests — S3 Ref3 Prefix Bug
+Property Tests — S3 Report Output via MediaAssetService
 
-Tests for the S3 prefix bug fix in output_service._handle_s3_upload:
+Tests for output_service._handle_s3_upload after migration to MediaAssetService:
 
-1. Bug Condition Exploration (TestS3PrefixBugExploration):
-   Demonstrates the bug where 'url' was wrapped as f"s3://{bucket}/{reference}".
-   **Validates: Requirements 2.1, 2.2, 2.3**
+1. URL Consistency (TestS3UploadUrlConsistency):
+   Verifies that the url and reference fields both contain the plain S3 key
+   returned by MediaAssetService, with no s3:// prefix wrapping.
 
-2. Preservation (TestS3PrefixPreservation):
-   Verifies that when provider has NO bucket (test/local mode),
-   behavior remains unchanged — url equals reference directly.
-   **Validates: Requirements 3.3, 3.4, 3.5**
+2. Entity ID Format (TestS3UploadEntityIdFormat):
+   Verifies that entity_id follows the format 'report_type:timestamp'
+   where report_type is the filename without extension.
 """
 
 import pytest
@@ -26,189 +25,219 @@ from services.output_service import OutputService
 # Tenant names: lowercase alphanumeric, 3-20 chars (realistic tenant identifiers)
 tenant_strategy = st.from_regex(r"[a-z][a-z0-9]{2,19}", fullmatch=True)
 
-# Filenames: realistic invoice filenames with UUID prefix
+# Filenames: realistic report filenames
 filename_strategy = st.builds(
-    lambda uuid_part, name: f"{uuid_part}_{name}.pdf",
-    uuid_part=st.from_regex(r"[0-9a-f]{12}", fullmatch=True),
-    name=st.from_regex(r"INV-20[2-3][0-9]-[0-9]{4}", fullmatch=True),
+    lambda name, ext: f"{name}.{ext}",
+    name=st.from_regex(r"[a-z][a-z0-9_]{2,30}", fullmatch=True),
+    ext=st.sampled_from(["pdf", "html", "xlsx", "json"]),
 )
 
-# Bucket names: valid S3 bucket names (lowercase, hyphens, 3-63 chars)
-bucket_strategy = st.from_regex(r"[a-z][a-z0-9\-]{2,30}[a-z0-9]", fullmatch=True)
+# S3 key patterns returned by MediaAssetService
+s3_key_strategy = st.builds(
+    lambda tenant, asset_id, filename: f"{tenant}/invoices/{asset_id}_{filename}",
+    tenant=tenant_strategy,
+    asset_id=st.from_regex(r"ast_[a-z0-9]{20}", fullmatch=True),
+    filename=filename_strategy,
+)
 
 
-class TestS3PrefixBugExploration:
+class TestS3UploadUrlConsistency:
     """
-    Bug condition exploration: demonstrates that _handle_s3_upload wraps
-    the S3 key with s3://bucket/ prefix when provider has a non-empty bucket.
-
-    This test SHOULD FAIL on unfixed code (proving the bug exists).
+    Verifies that _handle_s3_upload returns url and reference as plain S3 keys
+    from MediaAssetService.store_and_register result, with no URI wrapping.
     """
 
     @given(
         tenant=tenant_strategy,
         filename=filename_strategy,
-        bucket=bucket_strategy,
+        s3_key=s3_key_strategy,
     )
-    @settings(max_examples=50)
-    def test_s3_upload_returns_plain_key_not_uri(self, tenant, filename, bucket):
+    @settings(max_examples=50, deadline=None)
+    def test_url_equals_reference_and_is_plain_key(self, tenant, filename, s3_key):
         """
-        **Validates: Requirements 2.1, 2.2, 2.3**
-
-        Property: When _handle_s3_upload is called with a provider that has a
-        non-empty bucket, the result['url'] must equal result['reference']
-        (the plain S3 key), NOT an s3:// URI.
-
-        On UNFIXED code this will FAIL because the code constructs:
-            url = f"s3://{bucket}/{reference}"
-        instead of:
-            url = reference
+        Property: url and reference must both equal the s3_key from the asset
+        result. Neither should contain 's3://' prefix or any URI wrapping.
         """
-        # Arrange
         mock_db = Mock()
         service = OutputService(mock_db)
 
-        # The plain S3 key that provider.upload() returns
-        plain_s3_key = f"{tenant}/invoices/general/{filename}"
-
-        # Mock the storage provider with a non-empty bucket
-        mock_provider = Mock()
-        mock_provider.bucket = bucket
-        mock_provider.upload.return_value = plain_s3_key
+        mock_asset_svc = Mock()
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_test123',
+                's3_key': s3_key,
+                'bucket': 'myadmin-shared-dev',
+                'mime_type': 'application/pdf',
+                'file_size': 100,
+                'category': 'invoices',
+                'media_type': 'document',
+                'original_filename': filename,
+                'content_hash': 'abc123',
+                'status': 'ACTIVE',
+                'created_at': '2026-01-01 00:00:00',
+                'reference_count': 1,
+            },
+            'duplicate_of': None,
+        }
 
         with patch(
-            "services.parameter_service.ParameterService"
-        ), patch(
-            "storage.storage_provider.get_storage_provider",
-            return_value=mock_provider,
+            "services.media_asset_service.MediaAssetService",
+            return_value=mock_asset_svc,
         ):
-            # Act
             result = service._handle_s3_upload(
-                content=b"fake-pdf-content",
+                content=b"fake-content",
                 filename=filename,
                 administration=tenant,
                 content_type="application/pdf",
             )
 
-        # Assert — the url must be the plain key, same as reference
+        # url and reference must be the plain S3 key
+        assert result["url"] == s3_key, (
+            f"url mismatch: expected {s3_key!r}, got {result['url']!r}"
+        )
+        assert result["reference"] == s3_key, (
+            f"reference mismatch: expected {s3_key!r}, got {result['reference']!r}"
+        )
         assert result["url"] == result["reference"], (
-            f"Bug detected: url={result['url']!r} != reference={result['reference']!r}. "
-            f"The url field contains an s3:// URI instead of the plain S3 key."
+            f"url != reference: {result['url']!r} != {result['reference']!r}"
         )
         assert not result["url"].startswith("s3://"), (
-            f"Bug detected: url starts with 's3://' prefix: {result['url']!r}. "
-            f"Expected plain key: {result['reference']!r}"
+            f"url has s3:// prefix: {result['url']!r}"
         )
 
 
-class TestS3PrefixPreservation:
+class TestS3UploadEntityIdFormat:
     """
-    Preservation property test: verifies that when the provider does NOT have
-    a non-empty bucket (test/local mode), the fix does not change behavior.
-
-    The url field must equal the reference value directly — same as before the fix.
-
-    **Validates: Requirements 3.3, 3.4, 3.5**
+    Verifies that entity_id passed to store_and_register follows
+    the format 'report_type:YYYYMMDD_HHMMSS'.
     """
 
     @given(
         tenant=tenant_strategy,
         filename=filename_strategy,
     )
-    @settings(max_examples=50)
-    def test_no_bucket_provider_url_equals_reference(self, tenant, filename):
+    @settings(max_examples=50, deadline=None)
+    def test_entity_id_is_report_type_colon_timestamp(self, tenant, filename):
         """
-        **Validates: Requirements 3.3, 3.4, 3.5**
-
-        Property: When _handle_s3_upload is called with a provider that has
-        NO bucket attribute (or empty string), the result['url'] must equal
-        result['reference']. This preserves existing test/local mode behavior.
-
-        FOR ALL X WHERE NOT isBugCondition(X) DO
-          ASSERT output_service.upload_to_storage(X) = output_service.upload_to_storage'(X)
-        END FOR
+        Property: entity_id must be '{filename_without_extension}:{timestamp}'
+        where timestamp is YYYYMMDD_HHMMSS (15 chars).
         """
-        # Arrange
         mock_db = Mock()
         service = OutputService(mock_db)
 
-        # The plain S3 key that provider.upload() returns
-        plain_s3_key = f"{tenant}/invoices/general/{filename}"
-
-        # Mock the storage provider WITHOUT a bucket attribute
-        mock_provider = Mock(spec=[])  # spec=[] means no attributes defined
-        mock_provider.upload = Mock(return_value=plain_s3_key)
-        # Ensure no 'bucket' attribute exists
-        assert not hasattr(mock_provider, 'bucket')
+        mock_asset_svc = Mock()
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_test123',
+                's3_key': f'{tenant}/invoices/ast_test123_{filename}',
+                'bucket': 'myadmin-shared-dev',
+                'mime_type': 'application/pdf',
+                'file_size': 100,
+                'category': 'invoices',
+                'media_type': 'document',
+                'original_filename': filename,
+                'content_hash': 'abc123',
+                'status': 'ACTIVE',
+                'created_at': '2026-01-01 00:00:00',
+                'reference_count': 1,
+            },
+            'duplicate_of': None,
+        }
 
         with patch(
-            "services.parameter_service.ParameterService"
-        ), patch(
-            "storage.storage_provider.get_storage_provider",
-            return_value=mock_provider,
+            "services.media_asset_service.MediaAssetService",
+            return_value=mock_asset_svc,
         ):
-            # Act
-            result = service._handle_s3_upload(
-                content=b"fake-pdf-content",
+            service._handle_s3_upload(
+                content=b"fake-content",
                 filename=filename,
                 administration=tenant,
                 content_type="application/pdf",
             )
 
-        # Assert — url must equal reference (preservation of existing behavior)
-        assert result["url"] == result["reference"], (
-            f"Preservation broken: url={result['url']!r} != reference={result['reference']!r}. "
-            f"When provider has no bucket, url should equal reference directly."
+        # Extract entity_id from the call
+        call_kwargs = mock_asset_svc.store_and_register.call_args[1]
+        entity_id = call_kwargs['entity_id']
+        entity_type = call_kwargs['entity_type']
+
+        # entity_type must be 'report'
+        assert entity_type == 'report', (
+            f"Expected entity_type='report', got {entity_type!r}"
         )
-        # Also verify the reference is the expected plain key
-        assert result["reference"] == plain_s3_key, (
-            f"Reference mismatch: expected {plain_s3_key!r}, got {result['reference']!r}"
+
+        # entity_id format: report_type:timestamp
+        assert ':' in entity_id, (
+            f"entity_id missing colon separator: {entity_id!r}"
+        )
+        parts = entity_id.split(':', 1)
+        report_type = parts[0]
+        timestamp = parts[1]
+
+        # report_type should be filename without extension
+        expected_report_type = filename.rsplit('.', 1)[0] if '.' in filename else filename
+        assert report_type == expected_report_type, (
+            f"report_type mismatch: expected {expected_report_type!r}, got {report_type!r}"
+        )
+
+        # timestamp should be YYYYMMDD_HHMMSS (15 chars)
+        assert len(timestamp) == 15, (
+            f"timestamp length should be 15 (YYYYMMDD_HHMMSS), got {len(timestamp)}: {timestamp!r}"
+        )
+        assert timestamp[8] == '_', (
+            f"timestamp separator at pos 8 should be '_': {timestamp!r}"
         )
 
     @given(
         tenant=tenant_strategy,
-        filename=filename_strategy,
     )
-    @settings(max_examples=50)
-    def test_empty_bucket_provider_url_equals_reference(self, tenant, filename):
+    @settings(max_examples=20, deadline=None)
+    def test_entity_id_filename_without_extension(self, tenant):
         """
-        **Validates: Requirements 3.3, 3.4, 3.5**
-
-        Property: When _handle_s3_upload is called with a provider that has
-        an empty string bucket, the result['url'] must equal result['reference'].
-        This covers the edge case where bucket exists but is empty.
+        Property: For a filename without extension, the entire filename
+        becomes the report_type in entity_id.
         """
-        # Arrange
+        filename = "report_no_ext"  # No dot — no extension
         mock_db = Mock()
         service = OutputService(mock_db)
 
-        # The plain S3 key that provider.upload() returns
-        plain_s3_key = f"{tenant}/invoices/general/{filename}"
-
-        # Mock the storage provider with an EMPTY bucket string
-        mock_provider = Mock()
-        mock_provider.bucket = ""
-        mock_provider.upload.return_value = plain_s3_key
+        mock_asset_svc = Mock()
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_test123',
+                's3_key': f'{tenant}/invoices/ast_test123_{filename}',
+                'bucket': 'myadmin-shared-dev',
+                'mime_type': 'application/octet-stream',
+                'file_size': 100,
+                'category': 'invoices',
+                'media_type': 'document',
+                'original_filename': filename,
+                'content_hash': 'abc123',
+                'status': 'ACTIVE',
+                'created_at': '2026-01-01 00:00:00',
+                'reference_count': 1,
+            },
+            'duplicate_of': None,
+        }
 
         with patch(
-            "services.parameter_service.ParameterService"
-        ), patch(
-            "storage.storage_provider.get_storage_provider",
-            return_value=mock_provider,
+            "services.media_asset_service.MediaAssetService",
+            return_value=mock_asset_svc,
         ):
-            # Act
-            result = service._handle_s3_upload(
-                content=b"fake-pdf-content",
+            service._handle_s3_upload(
+                content=b"fake-content",
                 filename=filename,
                 administration=tenant,
-                content_type="application/pdf",
+                content_type="application/octet-stream",
             )
 
-        # Assert — url must equal reference (preservation of existing behavior)
-        assert result["url"] == result["reference"], (
-            f"Preservation broken: url={result['url']!r} != reference={result['reference']!r}. "
-            f"When provider has empty bucket, url should equal reference directly."
-        )
-        assert result["reference"] == plain_s3_key, (
-            f"Reference mismatch: expected {plain_s3_key!r}, got {result['reference']!r}"
+        call_kwargs = mock_asset_svc.store_and_register.call_args[1]
+        entity_id = call_kwargs['entity_id']
+        report_type = entity_id.split(':', 1)[0]
+
+        assert report_type == filename, (
+            f"For extensionless filename, report_type should be the full "
+            f"filename: expected {filename!r}, got {report_type!r}"
         )

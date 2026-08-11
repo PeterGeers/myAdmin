@@ -9,7 +9,6 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 
 import logging
 import os
-import uuid
 
 import boto3
 from botocore.exceptions import ClientError
@@ -56,32 +55,26 @@ class S3TenantStorage(StorageProvider):
             region_name=creds.get("region", "eu-west-1"),
         )
 
-    def upload(self, file_data: bytes, path: str, metadata: dict | None = None) -> str:
-        """Upload file to tenant's S3 bucket. Returns the S3 key."""
-        metadata = metadata or {}
-        ref = metadata.get("reference_number", "general")
-        filename = os.path.basename(path)
-        unique = uuid.uuid4().hex[:12]
-        key = f"{ref}/{unique}_{filename}"
-        content_type = metadata.get("mime_type", "application/octet-stream")
+    def _upload_raw(self, file_data: bytes, key: str, content_type: str) -> bool:
+        """Raw S3 put_object. No key building, no registry."""
         self._client.put_object(
             Bucket=self.bucket, Key=key, Body=file_data, ContentType=content_type
         )
-        return key
+        return True
+
+    def _delete_raw(self, key: str) -> bool:
+        """Raw S3 delete_object. No registry interaction."""
+        try:
+            self._client.delete_object(Bucket=self.bucket, Key=key)
+            return True
+        except ClientError as e:
+            logger.error("Failed to delete s3://%s/%s: %s", self.bucket, key, e)
+            return False
 
     def download(self, reference: str) -> bytes:
         """Download file from tenant's S3 bucket by key."""
         response = self._client.get_object(Bucket=self.bucket, Key=reference)
         return response["Body"].read()
-
-    def delete(self, reference: str) -> bool:
-        """Delete file from tenant's S3 bucket by key."""
-        try:
-            self._client.delete_object(Bucket=self.bucket, Key=reference)
-            return True
-        except ClientError as e:
-            logger.error("Failed to delete s3://%s/%s: %s", self.bucket, reference, e)
-            return False
 
     def list_files(self, path: str) -> list[dict]:
         """List files under a prefix in tenant's bucket."""

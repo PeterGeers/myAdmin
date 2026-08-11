@@ -436,6 +436,8 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
 
 def _upload_template_s3(tenant):
     """Upload STR invoice templates to S3 for s3_shared tenants."""
+    import uuid
+
     from services.storage_resolver import get_s3_storage
 
     s3_storage = get_s3_storage(tenant)
@@ -455,13 +457,12 @@ def _upload_template_s3(tenant):
                 with open(template_path, "rb") as f:
                     content_bytes = f.read()
 
-                # Upload to S3 with category='templates'
-                s3_key = s3_storage.upload(
-                    content_bytes,
-                    tenant_template_name,
-                    metadata={"mime_type": "text/html"},
-                    category="templates",
-                )
+                # Build S3 key: {tenant}/templates/general/{uuid}_{filename}
+                unique = uuid.uuid4().hex[:12]
+                s3_key = f"{tenant}/templates/general/{unique}_{tenant_template_name}"
+
+                # Upload directly via _upload_raw (internal method)
+                s3_storage._upload_raw(content_bytes, s3_key, "text/html")
 
                 # Store the S3 key in tenant_template_config
                 template_type = template_name.replace(".html", "")

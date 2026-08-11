@@ -88,6 +88,35 @@ def _register_code_defaults() -> None:
         )
 
     # ------------------------------------------------------------------
+    # asset_retention — Media asset retention period defaults (days)
+    # ------------------------------------------------------------------
+    CODE_DEFAULTS[("asset_retention", "invoices_days")] = {
+        "value": 2555,
+        "value_type": "number",
+        "description": "Invoice PDF retention (7 years)",
+    }
+    CODE_DEFAULTS[("asset_retention", "branding_days")] = {
+        "value": 30,
+        "value_type": "number",
+        "description": "Logo/letterhead retention",
+    }
+    CODE_DEFAULTS[("asset_retention", "templates_days")] = {
+        "value": 90,
+        "value_type": "number",
+        "description": "Template file retention",
+    }
+    CODE_DEFAULTS[("asset_retention", "landing_pages_days")] = {
+        "value": 7,
+        "value_type": "number",
+        "description": "Landing page web content retention",
+    }
+    CODE_DEFAULTS[("asset_retention", "landing_pages_media_days")] = {
+        "value": 30,
+        "value_type": "number",
+        "description": "Landing page images/videos retention",
+    }
+
+    # ------------------------------------------------------------------
     # ui.pivot — Allowed pivot columns per data source
     # ------------------------------------------------------------------
     CODE_DEFAULTS[("ui.pivot", "allowed_columns.vw_mutaties")] = {

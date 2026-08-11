@@ -40,6 +40,7 @@ from routes.financial_reporting_routes import financial_reporting_bp
 from routes.folder_routes import folder_bp
 from routes.invoice_routes import invoice_bp
 from routes.landing_page_routes import landing_page_bp
+from routes.media_asset_routes import media_asset_bp
 from routes.missing_invoices_routes import missing_invoices_bp
 from routes.parameter_admin_routes import parameter_admin_bp
 from routes.pdf_validation_routes import pdf_validation_bp
@@ -174,6 +175,7 @@ app.register_blueprint(zzp_trip_io_bp)  # ZZP trip import/export/billing routes
 app.register_blueprint(
     storage_bp
 )  # S3 storage endpoints (pre-signed URLs, logo upload)
+app.register_blueprint(media_asset_bp)  # Media asset management endpoints
 app.register_blueprint(email_log_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix="/api/sysadmin/health")
@@ -267,6 +269,11 @@ set_invoice_test_mode(flag)
 from routes.banking_routes import set_test_mode as set_banking_test_mode
 
 set_banking_test_mode(flag)
+
+# Set test mode flag for media_asset_bp
+from routes.media_asset_routes import set_test_mode as set_media_asset_test_mode
+
+set_media_asset_test_mode(flag)
 
 # Set test mode flag for budget_bp
 from routes.budget_routes import set_test_mode as set_budget_test_mode

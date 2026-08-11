@@ -84,6 +84,106 @@ resource "aws_route53_record" "jabaki_txt" {
   ]
 }
 
+# ============================================================================
+# Stripe Custom Email Domain — DNS Records
+# Required for sending emails from jabaki.nl via Stripe
+# ============================================================================
+
+# --- DMARC TXT record for Stripe email ---
+resource "aws_route53_record" "jabaki_dmarc" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "_dmarc.jabaki.nl"
+  type    = "TXT"
+  ttl     = 300
+
+  records = [
+    "v=DMARC1; p=none; rua=mailto:info@jabaki.nl",
+  ]
+}
+
+# --- Stripe bounce CNAME record ---
+resource "aws_route53_record" "jabaki_stripe_bounce" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "bounce.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "custom-email-domain.stripe.com.",
+  ]
+}
+
+# --- Stripe DKIM CNAME records (6 keys) ---
+resource "aws_route53_record" "jabaki_stripe_dkim_1" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "zpbrq275kmdm65oiflue2a7eswh3bmdg._domainkey.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "zpbrq275kmdm65oiflue2a7eswh3bmdg.dkim.custom-email-domain.stripe.com.",
+  ]
+}
+
+resource "aws_route53_record" "jabaki_stripe_dkim_2" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "o3wj7w2mbytvfbc33xg2opadgyakwyay._domainkey.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "o3wj7w2mbytvfbc33xg2opadgyakwyay.dkim.custom-email-domain.stripe.com.",
+  ]
+}
+
+resource "aws_route53_record" "jabaki_stripe_dkim_3" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "d55ffqy3lk5ubilpdnvzjrqb2fe7h6gf._domainkey.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "d55ffqy3lk5ubilpdnvzjrqb2fe7h6gf.dkim.custom-email-domain.stripe.com.",
+  ]
+}
+
+resource "aws_route53_record" "jabaki_stripe_dkim_4" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "zsshb7kskblnjoxfuweyqvi6aceylzvn._domainkey.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "zsshb7kskblnjoxfuweyqvi6aceylzvn.dkim.custom-email-domain.stripe.com.",
+  ]
+}
+
+resource "aws_route53_record" "jabaki_stripe_dkim_5" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "mztktdox2gzkjo4ima4um24ibexrxlov._domainkey.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "mztktdox2gzkjo4ima4um24ibexrxlov.dkim.custom-email-domain.stripe.com.",
+  ]
+}
+
+resource "aws_route53_record" "jabaki_stripe_dkim_6" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "csdvp64vsm3xfkcqdfyr2y4vtx3fjb2d._domainkey.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "csdvp64vsm3xfkcqdfyr2y4vtx3fjb2d.dkim.custom-email-domain.stripe.com.",
+  ]
+}
+
+# ============================================================================
+# SES Records
+# ============================================================================
+
 # --- SES domain verification TXT record ---
 resource "aws_route53_record" "jabaki_ses_verification" {
   zone_id = aws_route53_zone.jabaki.zone_id
