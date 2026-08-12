@@ -1,7 +1,7 @@
 /**
  * useAssetSearch Hook
  *
- * Reusable hook for searching and paginating media assets via GET /api/assets/search.
+ * Reusable hook for searching and paginating media assets via GET /api/media-assets/search.
  * Handles debounced text queries, filter state, pagination, and authentication.
  *
  * Used by AssetPicker and other components that need asset search/browse.
@@ -130,7 +130,7 @@ export function useAssetSearch(options: UseAssetSearchOptions = {}): UseAssetSea
       params.set('page', String(searchPage));
       params.set('page_size', String(searchFilters.page_size ?? DEFAULT_PAGE_SIZE));
 
-      const url = buildApiUrl('/api/assets/search', params);
+      const url = buildApiUrl('/api/media-assets/search', params);
 
       const response = await fetch(url, {
         signal: controller.signal,

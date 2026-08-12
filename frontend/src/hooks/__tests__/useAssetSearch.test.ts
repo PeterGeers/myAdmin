@@ -146,7 +146,7 @@ describe('useAssetSearch', () => {
     });
 
     const calledUrl = fetchSpy.mock.calls[0][0] as string;
-    expect(calledUrl).toContain('/api/assets/search?');
+    expect(calledUrl).toContain('/api/media-assets/search?');
     expect(calledUrl).toContain('q=invoice');
     expect(calledUrl).toContain('category=invoices');
     expect(calledUrl).toContain('media_type=document');

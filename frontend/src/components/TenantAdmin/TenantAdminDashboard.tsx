@@ -17,6 +17,7 @@ import AdvancedTab from './AdvancedTab';
 import FunctionsTab from './FunctionsTab';
 import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
 import { LandingPageEditor } from './LandingPage';
+import MediaAssetAdminPage from '../../pages/MediaAssetAdminPage';
 
 interface TenantInfo {
   name: string;
@@ -195,6 +196,9 @@ export function TenantAdminDashboard() {
               📁 {t('tenantAdmin.tabs.storage')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              🗄️ {t('tenantAdmin.tabs.mediaAssets', 'Media Assets')}
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               {t('tenantAdmin.tabs.templates')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
@@ -230,6 +234,9 @@ export function TenantAdminDashboard() {
             )}
             <TabPanel>
               <StorageTab tenant={currentTenant} />
+            </TabPanel>
+            <TabPanel>
+              <MediaAssetAdminPage />
             </TabPanel>
             <TabPanel>
               <TemplateManagement />

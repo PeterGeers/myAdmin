@@ -165,7 +165,7 @@ export const AssetPicker: React.FC<AssetPickerProps> = ({
       params.set('page', String(filters.page ?? 1));
       params.set('page_size', String(filters.page_size ?? PAGE_SIZE));
 
-      const url = buildApiUrl('/api/assets/search', params);
+      const url = buildApiUrl('/api/media-assets/search', params);
 
       const response = await fetch(url, {
         headers: {

@@ -28,7 +28,7 @@ import type {
  * @returns Dashboard data with totals, storage breakdown, and top orphans
  */
 export async function fetchAssetDashboard(): Promise<AssetDashboardData> {
-  const response = await authenticatedGet(buildEndpoint('/api/assets/dashboard'));
+  const response = await authenticatedGet(buildEndpoint('/api/media-assets/dashboard'));
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
@@ -46,7 +46,7 @@ export async function fetchAssetDashboard(): Promise<AssetDashboardData> {
  * @returns Object containing the scan_id
  */
 export async function triggerScan(): Promise<{ scan_id: string }> {
-  const response = await authenticatedPost(buildEndpoint('/api/assets/scan'), {});
+  const response = await authenticatedPost(buildEndpoint('/api/media-assets/scan'), {});
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
@@ -54,7 +54,7 @@ export async function triggerScan(): Promise<{ scan_id: string }> {
   }
 
   const result = await response.json();
-  return result.data as { scan_id: string };
+  return result as { scan_id: string };
 }
 
 
@@ -73,7 +73,7 @@ export async function fetchDeletionEligible(page = 1, pageSize = 20): Promise<As
     page_size: String(pageSize),
   });
 
-  const response = await authenticatedGet(buildEndpoint('/api/assets/search', params));
+  const response = await authenticatedGet(buildEndpoint('/api/media-assets/search', params));
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
@@ -91,7 +91,7 @@ export async function fetchDeletionEligible(page = 1, pageSize = 20): Promise<As
  * @returns Response with deleted/skipped counts and per-asset details
  */
 export async function approveDeletion(assetIds: string[]): Promise<ApproveDeleteResponse> {
-  const response = await authenticatedPost(buildEndpoint('/api/assets/approve-delete'), {
+  const response = await authenticatedPost(buildEndpoint('/api/media-assets/approve-delete'), {
     asset_ids: assetIds,
   });
 
@@ -111,7 +111,7 @@ export async function approveDeletion(assetIds: string[]): Promise<ApproveDelete
  * @returns List of unregistered S3 objects with metadata
  */
 export async function fetchUnregistered(): Promise<UnregisteredObject[]> {
-  const response = await authenticatedGet(buildEndpoint('/api/assets/unregistered'));
+  const response = await authenticatedGet(buildEndpoint('/api/media-assets/unregistered'));
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
@@ -130,7 +130,7 @@ export async function fetchUnregistered(): Promise<UnregisteredObject[]> {
  * @returns Import result with imported/skipped counts
  */
 export async function importUnregistered(s3Keys: string[]): Promise<ImportUnregisteredResponse> {
-  const response = await authenticatedPost(buildEndpoint('/api/assets/import'), {
+  const response = await authenticatedPost(buildEndpoint('/api/media-assets/import'), {
     s3_keys: s3Keys,
   });
 
@@ -150,7 +150,7 @@ export async function importUnregistered(s3Keys: string[]): Promise<ImportUnregi
  * @returns Deletion result with deleted/skipped counts
  */
 export async function deleteUnregistered(s3Keys: string[]): Promise<DeleteUnregisteredResponse> {
-  const response = await authenticatedPost(buildEndpoint('/api/assets/delete-unregistered'), {
+  const response = await authenticatedPost(buildEndpoint('/api/media-assets/delete-unregistered'), {
     s3_keys: s3Keys,
   });
 
@@ -170,7 +170,7 @@ export async function deleteUnregistered(s3Keys: string[]): Promise<DeleteUnregi
  * @returns Retention settings keyed by category parameter name
  */
 export async function fetchRetentionSettings(): Promise<RetentionSettingsData> {
-  const response = await authenticatedGet(buildEndpoint('/api/assets/retention-settings'));
+  const response = await authenticatedGet(buildEndpoint('/api/media-assets/retention-settings'));
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
@@ -191,7 +191,7 @@ export async function fetchRetentionSettings(): Promise<RetentionSettingsData> {
 export async function updateRetentionSettings(
   overrides: Record<string, number>
 ): Promise<UpdateRetentionSettingsResponse> {
-  const response = await authenticatedPut(buildEndpoint('/api/assets/retention-settings'), overrides);
+  const response = await authenticatedPut(buildEndpoint('/api/media-assets/retention-settings'), overrides);
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
@@ -209,7 +209,7 @@ export async function updateRetentionSettings(
  * @returns Array of duplicate groups with their constituent assets
  */
 export async function fetchDuplicates(): Promise<DuplicateGroup[]> {
-  const response = await authenticatedGet(buildEndpoint('/api/assets/duplicates'));
+  const response = await authenticatedGet(buildEndpoint('/api/media-assets/duplicates'));
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
@@ -232,7 +232,7 @@ export async function mergeDuplicates(
   keepAssetId: string,
   duplicateAssetIds: string[]
 ): Promise<MergeResult> {
-  const response = await authenticatedPost(buildEndpoint('/api/assets/merge-duplicates'), {
+  const response = await authenticatedPost(buildEndpoint('/api/media-assets/merge-duplicates'), {
     keep_asset_id: keepAssetId,
     duplicate_asset_ids: duplicateAssetIds,
   });

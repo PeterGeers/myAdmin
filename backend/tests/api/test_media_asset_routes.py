@@ -49,7 +49,7 @@ def asset_auth_sysadmin():
 
 
 class TestUploadAsset:
-    """Tests for POST /api/assets/upload."""
+    """Tests for POST /api/media-assets/upload."""
 
     def test_upload_success(self, client, asset_auth):
         """Successful file upload returns 201 with asset data."""
@@ -72,7 +72,7 @@ class TestUploadAsset:
                 'category': 'branding',
             }
             response = client.post(
-                '/api/assets/upload',
+                '/api/media-assets/upload',
                 headers=asset_auth,
                 data=data,
                 content_type='multipart/form-data',
@@ -88,7 +88,7 @@ class TestUploadAsset:
         with patch('routes.media_asset_routes._get_service'):
             data = {'category': 'branding'}
             response = client.post(
-                '/api/assets/upload',
+                '/api/media-assets/upload',
                 headers=asset_auth,
                 data=data,
                 content_type='multipart/form-data',
@@ -106,7 +106,7 @@ class TestUploadAsset:
                 'file': (io.BytesIO(b'fake image data'), 'test.png'),
             }
             response = client.post(
-                '/api/assets/upload',
+                '/api/media-assets/upload',
                 headers=asset_auth,
                 data=data,
                 content_type='multipart/form-data',
@@ -119,7 +119,7 @@ class TestUploadAsset:
 
 
 class TestGetAsset:
-    """Tests for GET /api/assets/<asset_id>."""
+    """Tests for GET /api/media-assets/<asset_id>."""
 
     def test_get_asset_success(self, client, asset_auth):
         """Existing asset returns 200 with metadata."""
@@ -135,7 +135,7 @@ class TestGetAsset:
             }
             mock_svc_factory.return_value = mock_svc
 
-            response = client.get('/api/assets/ast_123', headers=asset_auth)
+            response = client.get('/api/media-assets/ast_123', headers=asset_auth)
 
         assert response.status_code == 200
         result = response.get_json()
@@ -152,7 +152,7 @@ class TestGetAsset:
             }
             mock_svc_factory.return_value = mock_svc
 
-            response = client.get('/api/assets/ast_nonexistent', headers=asset_auth)
+            response = client.get('/api/media-assets/ast_nonexistent', headers=asset_auth)
 
         assert response.status_code == 404
         result = response.get_json()
@@ -160,7 +160,7 @@ class TestGetAsset:
 
 
 class TestAttachAsset:
-    """Tests for POST /api/assets/<asset_id>/attach."""
+    """Tests for POST /api/media-assets/<asset_id>/attach."""
 
     def test_attach_success(self, client, asset_auth):
         """Attach entity reference returns 200."""
@@ -173,7 +173,7 @@ class TestAttachAsset:
             mock_svc_factory.return_value = mock_svc
 
             response = client.post(
-                '/api/assets/ast_123/attach',
+                '/api/media-assets/ast_123/attach',
                 headers=asset_auth,
                 json={'entity_type': 'invoice', 'entity_id': 'inv_456'},
             )
@@ -186,7 +186,7 @@ class TestAttachAsset:
         """Missing entity_type or entity_id returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/ast_123/attach',
+                '/api/media-assets/ast_123/attach',
                 headers=asset_auth,
                 json={'entity_type': 'invoice'},
             )
@@ -200,7 +200,7 @@ class TestAttachAsset:
         """Request without JSON body returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/ast_123/attach',
+                '/api/media-assets/ast_123/attach',
                 headers=asset_auth,
                 json={},
             )
@@ -211,7 +211,7 @@ class TestAttachAsset:
 
 
 class TestDetachAsset:
-    """Tests for POST /api/assets/<asset_id>/detach."""
+    """Tests for POST /api/media-assets/<asset_id>/detach."""
 
     def test_detach_success(self, client, asset_auth):
         """Detach entity reference returns 200."""
@@ -224,7 +224,7 @@ class TestDetachAsset:
             mock_svc_factory.return_value = mock_svc
 
             response = client.post(
-                '/api/assets/ast_123/detach',
+                '/api/media-assets/ast_123/detach',
                 headers=asset_auth,
                 json={'entity_type': 'invoice', 'entity_id': 'inv_456'},
             )
@@ -237,7 +237,7 @@ class TestDetachAsset:
         """Missing entity_id returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/ast_123/detach',
+                '/api/media-assets/ast_123/detach',
                 headers=asset_auth,
                 json={'entity_type': 'invoice'},
             )
@@ -248,7 +248,7 @@ class TestDetachAsset:
 
 
 class TestReplaceAsset:
-    """Tests for POST /api/assets/replace."""
+    """Tests for POST /api/media-assets/replace."""
 
     def test_replace_success(self, client, asset_auth):
         """Successful replace returns 200."""
@@ -262,7 +262,7 @@ class TestReplaceAsset:
             mock_svc_factory.return_value = mock_svc
 
             response = client.post(
-                '/api/assets/replace',
+                '/api/media-assets/replace',
                 headers=asset_auth,
                 json={
                     'entity_type': 'invoice',
@@ -280,7 +280,7 @@ class TestReplaceAsset:
         """Missing new_asset_id returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/replace',
+                '/api/media-assets/replace',
                 headers=asset_auth,
                 json={
                     'entity_type': 'invoice',
@@ -297,7 +297,7 @@ class TestReplaceAsset:
         """Missing entity_type/entity_id returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/replace',
+                '/api/media-assets/replace',
                 headers=asset_auth,
                 json={'new_asset_id': 'ast_new'},
             )
@@ -308,7 +308,7 @@ class TestReplaceAsset:
 
 
 class TestSearchAssets:
-    """Tests for GET /api/assets/search."""
+    """Tests for GET /api/media-assets/search."""
 
     def test_search_default_params(self, client, asset_auth):
         """Search with default params returns 200 with pagination."""
@@ -326,7 +326,7 @@ class TestSearchAssets:
             }
             mock_svc_factory.return_value = mock_svc
 
-            response = client.get('/api/assets/search', headers=asset_auth)
+            response = client.get('/api/media-assets/search', headers=asset_auth)
 
         assert response.status_code == 200
         result = response.get_json()
@@ -345,7 +345,7 @@ class TestSearchAssets:
             mock_svc_factory.return_value = mock_svc
 
             response = client.get(
-                '/api/assets/search?q=logo&category=branding&page=1&page_size=10',
+                '/api/media-assets/search?q=logo&category=branding&page=1&page_size=10',
                 headers=asset_auth,
             )
 
@@ -367,7 +367,7 @@ class TestSearchAssets:
 
 
 class TestDashboard:
-    """Tests for GET /api/assets/dashboard."""
+    """Tests for GET /api/media-assets/dashboard."""
 
     def test_dashboard_success(self, client, asset_auth):
         """Dashboard returns summary stats."""
@@ -384,7 +384,7 @@ class TestDashboard:
             }
             mock_svc_factory.return_value = mock_svc
 
-            response = client.get('/api/assets/dashboard', headers=asset_auth)
+            response = client.get('/api/media-assets/dashboard', headers=asset_auth)
 
         assert response.status_code == 200
         result = response.get_json()
@@ -394,7 +394,7 @@ class TestDashboard:
 
 
 class TestTriggerScan:
-    """Tests for POST /api/assets/scan."""
+    """Tests for POST /api/media-assets/scan."""
 
     def test_scan_returns_scan_id(self, client, asset_auth):
         """Trigger scan returns 202 with scan_id."""
@@ -404,7 +404,7 @@ class TestTriggerScan:
             mock_svc_factory.return_value = mock_svc
 
             response = client.post(
-                '/api/assets/scan',
+                '/api/media-assets/scan',
                 headers=asset_auth,
                 content_type='application/json',
             )
@@ -418,7 +418,7 @@ class TestTriggerScan:
 
 
 class TestApproveDelete:
-    """Tests for POST /api/assets/approve-delete."""
+    """Tests for POST /api/media-assets/approve-delete."""
 
     def test_approve_delete_success(self, client, asset_auth):
         """Approve deletion with valid asset_ids returns 200."""
@@ -428,7 +428,7 @@ class TestApproveDelete:
             mock_svc_factory.return_value = mock_svc
 
             response = client.post(
-                '/api/assets/approve-delete',
+                '/api/media-assets/approve-delete',
                 headers=asset_auth,
                 json={'asset_ids': ['ast_1', 'ast_2']},
             )
@@ -443,7 +443,7 @@ class TestApproveDelete:
         """Missing asset_ids returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/approve-delete',
+                '/api/media-assets/approve-delete',
                 headers=asset_auth,
                 json={'asset_ids': 'not-a-list'},
             )
@@ -464,7 +464,7 @@ class TestApproveDelete:
             mock_svc_factory.return_value = mock_svc
 
             response = client.post(
-                '/api/assets/approve-delete',
+                '/api/media-assets/approve-delete',
                 headers=asset_auth,
                 json={'asset_ids': ['ast_1', 'ast_2']},
             )
@@ -476,7 +476,7 @@ class TestApproveDelete:
 
 
 class TestListDuplicates:
-    """Tests for GET /api/assets/duplicates."""
+    """Tests for GET /api/media-assets/duplicates."""
 
     def test_duplicates_success(self, client, asset_auth):
         """List duplicates returns grouped data."""
@@ -497,7 +497,7 @@ class TestListDuplicates:
             }
             mock_svc_factory.return_value = mock_svc
 
-            response = client.get('/api/assets/duplicates', headers=asset_auth)
+            response = client.get('/api/media-assets/duplicates', headers=asset_auth)
 
         assert response.status_code == 200
         result = response.get_json()
@@ -507,7 +507,7 @@ class TestListDuplicates:
 
 
 class TestRetentionSettings:
-    """Tests for GET/PUT /api/assets/retention-settings."""
+    """Tests for GET/PUT /api/media-assets/retention-settings."""
 
     def test_get_retention_settings_success(self, client, asset_auth):
         """Get retention settings returns config with source indicators."""
@@ -522,7 +522,7 @@ class TestRetentionSettings:
             }
             mock_svc_factory.return_value = mock_svc
 
-            response = client.get('/api/assets/retention-settings', headers=asset_auth)
+            response = client.get('/api/media-assets/retention-settings', headers=asset_auth)
 
         assert response.status_code == 200
         result = response.get_json()
@@ -541,7 +541,7 @@ class TestRetentionSettings:
             mock_svc_factory.return_value = mock_svc
 
             response = client.put(
-                '/api/assets/retention-settings',
+                '/api/media-assets/retention-settings',
                 headers=asset_auth,
                 json={'branding_days': 60},
             )
@@ -561,7 +561,7 @@ class TestRetentionSettings:
             mock_svc_factory.return_value = mock_svc
 
             response = client.put(
-                '/api/assets/retention-settings',
+                '/api/media-assets/retention-settings',
                 headers=asset_auth,
                 json={'bogus_key': 999},
             )
@@ -578,7 +578,7 @@ class TestRetentionSettings:
 
 
 class TestForceDelete:
-    """Tests for POST /api/assets/force-delete."""
+    """Tests for POST /api/media-assets/force-delete."""
 
     def test_force_delete_success(self, client, asset_auth_sysadmin):
         """Sysadmin force-delete returns 200."""
@@ -594,7 +594,7 @@ class TestForceDelete:
             mock_svc_factory.return_value = mock_svc
 
             response = client.post(
-                '/api/assets/force-delete',
+                '/api/media-assets/force-delete',
                 headers=asset_auth_sysadmin,
                 json={
                     'asset_id': 'ast_123',
@@ -611,7 +611,7 @@ class TestForceDelete:
         """Missing asset_id returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/force-delete',
+                '/api/media-assets/force-delete',
                 headers=asset_auth_sysadmin,
                 json={'reason': 'GDPR compliance'},
             )
@@ -625,7 +625,7 @@ class TestForceDelete:
         """Missing reason returns 400."""
         with patch('routes.media_asset_routes._get_service'):
             response = client.post(
-                '/api/assets/force-delete',
+                '/api/media-assets/force-delete',
                 headers=asset_auth_sysadmin,
                 json={'asset_id': 'ast_123'},
             )
@@ -637,7 +637,7 @@ class TestForceDelete:
 
 
 class TestAdminTenants:
-    """Tests for GET /api/assets/admin/tenants."""
+    """Tests for GET /api/media-assets/admin/tenants."""
 
     def test_admin_tenants_success(self, client, asset_auth_sysadmin):
         """Cross-tenant stats returns aggregated data."""
@@ -651,7 +651,7 @@ class TestAdminTenants:
             mock_svc.db = mock_db
             mock_svc_factory.return_value = mock_svc
 
-            response = client.get('/api/assets/admin/tenants', headers=asset_auth_sysadmin)
+            response = client.get('/api/media-assets/admin/tenants', headers=asset_auth_sysadmin)
 
         assert response.status_code == 200
         result = response.get_json()
@@ -684,7 +684,7 @@ class TestAuthEnforcement:
                 'category': 'branding',
             }
             response = client.post(
-                '/api/assets/upload',
+                '/api/media-assets/upload',
                 data=data,
                 content_type='multipart/form-data',
             )
@@ -701,14 +701,14 @@ class TestAuthEnforcement:
             'auth.cognito_utils.extract_user_credentials',
             return_value=(None, None, auth_error),
         ):
-            response = client.get('/api/assets/ast_123')
+            response = client.get('/api/media-assets/ast_123')
 
         assert response.status_code in (401, 403)
 
     def test_force_delete_non_admin_returns_403(self, client, mock_auth):
         """Non-admin user cannot force-delete (requires admin_manage)."""
         response = client.post(
-            '/api/assets/force-delete',
+            '/api/media-assets/force-delete',
             headers=mock_auth,
             json={'asset_id': 'ast_123', 'reason': 'test'},
         )
@@ -718,7 +718,7 @@ class TestAuthEnforcement:
     def test_admin_tenants_non_admin_returns_403(self, client, mock_auth):
         """Non-admin user cannot access cross-tenant stats."""
         response = client.get(
-            '/api/assets/admin/tenants',
+            '/api/media-assets/admin/tenants',
             headers=mock_auth,
         )
 

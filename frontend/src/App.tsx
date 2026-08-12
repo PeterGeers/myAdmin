@@ -58,7 +58,6 @@ const SysAdminDashboard = lazy(() =>
 
 // Admin pages (default exports)
 const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
-const MediaAssetAdminPage = lazy(() => import('./pages/MediaAssetAdminPage'));
 
 // Public pages (no auth required)
 const PublicLandingPage = lazy(() => import('./pages/public/PublicLandingPage'));
@@ -282,12 +281,12 @@ function AppContent() {
       case 'media-asset-admin':
         return (
           <ProtectedRoute 
-            requiredRoles={['Tenant_Admin']}
+            requiredRoles={['Tenant_Admin', 'SysAdmin']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              {renderPageHeader(`🗄️ Media Asset Administration`)}
-              <MediaAssetAdminPage />
+              {renderPageHeader(`🏢 Tenant Administration`)}
+              <TenantAdminDashboard />
             </Box>
           </ProtectedRoute>
         );
@@ -708,13 +707,6 @@ function AppContent() {
                   {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="pink" justifyContent="flex-start" onClick={() => setCurrentPage('tenant-admin')}>
                       🏢 {t('common:navigation.modules.tenantAdministration')}
-                    </Button>
-                  )}
-
-                  {/* Media Asset Administration - Tenant_Admin only */}
-                  {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="orange" justifyContent="flex-start" onClick={() => setCurrentPage('media-asset-admin')}>
-                      🗄️ Media Asset Admin
                     </Button>
                   )}
 
