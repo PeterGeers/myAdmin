@@ -8,9 +8,9 @@ from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
 from services.function_guard import function_guard
+from services.media_asset_service import MediaAssetService
 from services.storage_resolver import (
     create_s3_folder,
-    get_s3_storage,
     list_s3_folders,
     resolve_storage_provider,
 )
@@ -84,13 +84,21 @@ def upload_receipt(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
                 # Create folder marker in S3
                 create_s3_folder(administration, supplier_name)
 
-            # Read file data and upload via S3SharedStorage
+            # Read file data and upload via MediaAssetService
             file_data = file.read()
-            storage = get_s3_storage(administration)
-            s3_key = storage.upload(
-                file_data, file.filename, metadata={"reference_number": supplier_name}
+            asset_svc = MediaAssetService(db)
+            result = asset_svc.store_and_register(
+                tenant=administration,
+                file_data=file_data,
+                filename=file.filename,
+                category="invoices",
+                metadata={"reference_number": supplier_name},
             )
 
+            if not result["success"]:
+                return jsonify({"error": result.get("error", "Upload failed")}), 500
+
+            s3_key = result["asset"]["s3_key"]
             return jsonify({"driveUrl": s3_key})
         else:
             # Google Drive tenant: use existing Drive service

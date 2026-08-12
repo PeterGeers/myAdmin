@@ -169,21 +169,32 @@ class InvoiceService:
             return {"id": filename, "url": f"http://localhost:5000/uploads/{filename}"}
 
         # Resolve storage provider for this tenant
-        from services.storage_resolver import get_s3_storage, resolve_storage_provider
+        from services.storage_resolver import resolve_storage_provider
 
         provider = resolve_storage_provider(tenant)
 
         if provider == "s3_shared":
-            # S3 storage path
+            # S3 storage path — via MediaAssetService for registry tracking
             try:
                 print(f"Using S3 storage for tenant: {tenant}", flush=True)
                 with open(temp_path, "rb") as f:
                     file_data = f.read()
 
-                storage = get_s3_storage(tenant)
-                s3_key = storage.upload(
-                    file_data, filename, metadata={"reference_number": folder_name}
+                from services.media_asset_service import MediaAssetService
+
+                asset_svc = MediaAssetService(self.db)
+                result = asset_svc.store_and_register(
+                    tenant=tenant,
+                    file_data=file_data,
+                    filename=filename,
+                    category="invoices",
+                    metadata={"reference_number": folder_name},
                 )
+
+                if not result["success"]:
+                    raise RuntimeError(result.get("error", "Asset registration failed"))
+
+                s3_key = result["asset"]["s3_key"]
                 print(f"File uploaded to S3: {s3_key}", flush=True)
                 return {"id": s3_key, "url": s3_key}
             except Exception as e:  # noqa: BLE001

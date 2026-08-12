@@ -41,7 +41,8 @@
       "emailLog": "E-maillog",
       "pivotViews": "Draaitabelweergaven",
       "functions": "Functies",
-      "landingPage": "Landingspagina"
+      "landingPage": "Landingspagina",
+      "mediaAssets": "Media Assets"
     },
     "parameters": {
       "title": "Parameters",
@@ -698,7 +699,9 @@
       "unpublishError": "Depubliceren mislukt",
       "unpublishTooltip": "Landingspagina offline halen",
       "itemEditorComingSoon": "Item-editor komt in volgende fase",
-      "liveDataBlock": "Dit blok toont live data uit je module"
+      "liveDataBlock": "Dit blok toont live data uit je module",
+      "tabContent": "Inhoud",
+      "tabSettings": "Instellingen"
     },
     "blockTypes": {
       "hero": "Hero",
@@ -711,7 +714,8 @@
       "embed": "Insluiten",
       "contact": "Contact",
       "properties": "Accommodaties",
-      "services": "Diensten"
+      "services": "Diensten",
+      "video": "Video"
     },
     "blockDescriptions": {
       "hero": "Grote banner met afbeelding en kop",
@@ -724,12 +728,17 @@
       "embed": "Ingesloten externe content (iframe)",
       "contact": "Contactformulier voor bezoekers",
       "properties": "Je STR-accommodaties",
-      "services": "Je ZZP-diensten"
+      "services": "Je ZZP-diensten",
+      "video": "Ingesloten YouTube-videospeler"
     },
     "layouts": {
       "image-right": "Afbeelding rechts",
       "image-left": "Afbeelding links",
       "image-background": "Achtergrondafbeelding",
+      "image-bg": "Achtergrondafbeelding",
+      "video-bg": "Video-achtergrond",
+      "split-diagonal": "Diagonaal gesplitst",
+      "default": "Standaard",
       "centered": "Gecentreerd",
       "grid-3": "Raster (3 kolommen)",
       "grid-4": "Raster (4 kolommen)",
@@ -742,7 +751,19 @@
       "table": "Tabel",
       "left-aligned": "Links uitgelijnd",
       "full-width": "Volledige breedte",
-      "contained": "Begrensd"
+      "contained": "Begrensd",
+      "split": "Gesplitst",
+      "banner": "Banner",
+      "floating": "Zwevende balk",
+      "two-column": "Twee kolommen",
+      "side-by-side": "Naast elkaar",
+      "horizontal": "Horizontaal",
+      "featured-center": "Uitgelicht midden",
+      "comparison-table": "Vergelijkingstabel",
+      "quote-large": "Groot citaat",
+      "grid": "Raster",
+      "card": "Kaart",
+      "timeline": "Tijdlijn"
     },
     "fields": {
       "title": "Titel",
@@ -754,7 +775,35 @@
       "buttonText": "Knoptekst",
       "buttonUrl": "Knop-URL",
       "embedUrl": "Insluiten-URL",
-      "height": "Hoogte"
+      "height": "Hoogte",
+      "videoUrl": "Video URL",
+      "description": "Beschrijving"
+    },
+    "settings": {
+      "backgroundType": "Achtergrond",
+      "bgColour": "Kleur",
+      "bgImage": "Afbeelding",
+      "bgGradient": "Verloop",
+      "backgroundColor": "Achtergrondkleur",
+      "backgroundImage": "Achtergrondafbeelding",
+      "backgroundGradient": "CSS Verloop",
+      "imageUploadPlaceholder": "Upload een achtergrondafbeelding",
+      "padding": "Ruimte",
+      "padding_compact": "Compact",
+      "padding_normal": "Normaal",
+      "padding_spacious": "Ruim",
+      "textColour": "Tekstkleur",
+      "textColor_dark": "Donker",
+      "textColor_light": "Licht",
+      "textColor_auto": "Auto",
+      "maxWidth": "Breedte",
+      "maxWidth_contained": "Begrensd",
+      "maxWidth_full-width": "Volledig",
+      "borderRadius": "Hoeken",
+      "borderRadius_none": "Geen",
+      "borderRadius_sm": "Klein",
+      "borderRadius_md": "Middel",
+      "borderRadius_lg": "Groot"
     },
     "branding": {
       "companyInfo": "Bedrijf & Huisstijl",
@@ -781,7 +830,29 @@
       "showShareButtonsHelp": "Wanneer ingeschakeld verschijnt er een zwevende deelbalk met Facebook, X, WhatsApp, LinkedIn en e-mailknoppen op je gepubliceerde landingspagina.",
       "save": "Huisstijl opslaan",
       "saved": "Huisstijl-instellingen opgeslagen",
-      "saveError": "Fout bij opslaan huisstijl-instellingen"
+      "saveError": "Fout bij opslaan huisstijl-instellingen",
+      "chooseTheme": "Kies een thema",
+      "customTheme": "Aangepast",
+      "manualControl": "Handmatig",
+      "resetToDefaults": "Herstel naar thema-standaarden",
+      "typography": "Typografie & Stijl",
+      "fontHeading": "Koptekst lettertype",
+      "fontBody": "Broodtekst lettertype",
+      "fontPreviewHeading": "De snelle bruine vos springt",
+      "fontPreviewBody": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+      "baseSpacing": "Ruimte",
+      "spacing_compact": "Compact",
+      "spacing_normal": "Normaal",
+      "spacing_relaxed": "Ruim",
+      "borderRadius": "Hoekafronding",
+      "radius_sharp": "Scherp",
+      "radius_rounded": "Afgerond",
+      "radius_pill": "Pil",
+      "shadowStyle": "Schaduwstijl",
+      "shadow_none": "Geen",
+      "shadow_subtle": "Subtiel",
+      "shadow_medium": "Medium",
+      "shadow_dramatic": "Dramatisch"
     },
     "seo": {
       "title": "SEO-titel",
@@ -810,10 +881,12 @@
       "embed": "Sluit externe content in (Google Maps, video's, boekingswidgets) via HTTPS-URL.",
       "contact": "Een contactformulier waarmee bezoekers je berichten kunnen sturen. Inzendingen gaan naar je geconfigureerde e-mail.",
       "properties": "Toont automatisch je STR-accommodaties die als openbaar zijn gemarkeerd. Data wordt vernieuwd bij elke publicatie.",
-      "services": "Toont automatisch je ZZP-diensten die als openbaar zijn gemarkeerd. Data wordt vernieuwd bij elke publicatie."
+      "services": "Toont automatisch je ZZP-diensten die als openbaar zijn gemarkeerd. Data wordt vernieuwd bij elke publicatie.",
+      "video": "Voeg een YouTube-video toe. Plak de video-URL — de speler wordt responsief ingebed met een thumbnail-voorbeeld."
     },
     "fieldHelp": {
-      "embedUrl": "Alleen HTTPS-URL's worden ondersteund. Niet-HTTPS-content wordt niet weergegeven."
+      "embedUrl": "Alleen HTTPS-URL's worden ondersteund. Niet-HTTPS-content wordt niet weergegeven.",
+      "videoUrlInvalid": "Voer een geldige YouTube-URL in (youtube.com/watch?v=... of youtu.be/...)"
     },
     "faqEditor": {
       "addItem": "+ Vraag toevoegen",
@@ -1012,6 +1085,155 @@
       "step4": "Welkomstmail sturen naar gebruiker",
       "cancel": "Annuleren",
       "provision": "Inrichten"
+    }
+  },
+  "mediaAssets": {
+    "title": "Media Asset Beheer",
+    "tabs": {
+      "dashboard": "Dashboard",
+      "scan": "Scan",
+      "deletion": "Verwijdering",
+      "unregistered": "Niet-geregistreerd",
+      "retention": "Bewaartermijn",
+      "duplicates": "Duplicaten",
+      "storage": "Opslag"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "totalAssets": "Totaal assets",
+      "activeAssets": "Actieve assets",
+      "orphanedAssets": "Verweesd",
+      "deletionEligible": "Verwijderbaar",
+      "storageByCategory": "Opslag per categorie",
+      "lastScan": "Laatste scan",
+      "topOrphans": "Grootste verweesde assets",
+      "never": "Nooit",
+      "count": "Aantal",
+      "size": "Grootte",
+      "category": "Categorie",
+      "filename": "Bestandsnaam",
+      "daysOrphaned": "Dagen verweesd"
+    },
+    "scan": {
+      "title": "Reconciliatie Scan",
+      "startScan": "Start Scan",
+      "scanning": "Bezig met scannen...",
+      "phases": {
+        "scanningS3": "S3 buckets scannen...",
+        "checkingRegistry": "Vergelijken met register...",
+        "verifyingReferences": "Referenties verifiëren...",
+        "transitioning": "Assets overzetten...",
+        "complete": "Scan voltooid"
+      },
+      "results": {
+        "title": "Scanresultaten",
+        "consistent": "Consistent",
+        "unregistered": "Niet-geregistreerd",
+        "missing": "Ontbrekend",
+        "staleReferences": "Verlopen referenties",
+        "newlyEligible": "Nieuw verwijderbaar",
+        "totalScanned": "Totaal gescand"
+      },
+      "errors": {
+        "connectionLost": "Verbinding verbroken tijdens scan. Probeer opnieuw.",
+        "startFailed": "Scan starten mislukt"
+      }
+    },
+    "deletion": {
+      "title": "Verwijdering Goedkeuren",
+      "description": "Assets die langer verweesd zijn dan de bewaartermijn. Beoordeel en keur permanente verwijdering goed.",
+      "noAssets": "Geen assets beschikbaar voor verwijdering",
+      "noAssetsHint": "Assets worden verwijderbaar nadat de bewaartermijn verloopt terwijl ze verweesd zijn.",
+      "approveSelected": "Verwijdering goedkeuren",
+      "selected": "{{count}} asset(s) geselecteerd",
+      "confirmTitle": "Permanente verwijdering bevestigen",
+      "confirmMessage": "Weet u zeker dat u {{count}} asset(s) permanent wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "complianceWarning": "Sommige geselecteerde assets bevinden zich in compliance-gevoelige categorieën (facturen). Controleer of aan de bewaartermijnen is voldaan.",
+      "messages": {
+        "success": "Verwijdering voltooid",
+        "successDetail": "{{deleted}} verwijderd, {{skipped}} overgeslagen",
+        "failed": "Verwijdering mislukt"
+      },
+      "table": {
+        "filename": "Bestandsnaam",
+        "category": "Categorie",
+        "size": "Grootte",
+        "orphanedDays": "Dagen verweesd",
+        "status": "Status"
+      }
+    },
+    "unregistered": {
+      "title": "Niet-geregistreerde objecten",
+      "description": "S3 objecten die bestaan in buckets maar niet worden bijgehouden in het asset register.",
+      "noObjects": "Geen niet-geregistreerde objecten gevonden",
+      "noObjectsHint": "Voer een scan uit om S3 objecten te vinden die niet in het register staan.",
+      "importToRegistry": "Importeren in register",
+      "deleteFromS3": "Verwijderen uit S3",
+      "selected": "{{count}} object(en) geselecteerd",
+      "confirmDeleteTitle": "Permanente verwijdering bevestigen",
+      "confirmDeleteMessage": "Weet u zeker dat u {{count}} S3 object(en) permanent wilt verwijderen?",
+      "confirmDeleteWarning": "Deze actie is onomkeerbaar. Deze bestanden worden permanent verwijderd uit S3 opslag en kunnen niet worden hersteld.",
+      "table": {
+        "s3Key": "S3 Sleutel",
+        "bucket": "Bucket",
+        "size": "Grootte",
+        "lastModified": "Laatst gewijzigd"
+      },
+      "messages": {
+        "importSuccess": "Import voltooid",
+        "importDetail": "{{imported}} geïmporteerd, {{skipped}} overgeslagen",
+        "importFailed": "Import mislukt",
+        "deleteSuccess": "Verwijdering voltooid",
+        "deleteDetail": "{{deleted}} verwijderd, {{skipped}} overgeslagen",
+        "deleteFailed": "Verwijdering mislukt"
+      }
+    },
+    "retention": {
+      "title": "Bewaartermijn Instellingen",
+      "description": "Configureer hoe lang verweesde assets worden bewaard voordat ze verwijderbaar worden.",
+      "category": "Categorie",
+      "days": "Dagen",
+      "source": "Bron",
+      "sources": {
+        "systemDefault": "Systeemstandaard",
+        "tenantOverride": "Tenant aanpassing"
+      },
+      "save": "Wijzigingen opslaan",
+      "noChanges": "Geen wijzigingen om op te slaan",
+      "messages": {
+        "success": "Instellingen opgeslagen",
+        "successDetail": "{{count}} bewaartermijn instelling(en) bijgewerkt",
+        "failed": "Opslaan mislukt"
+      }
+    },
+    "duplicates": {
+      "title": "Dubbele Assets",
+      "description": "Assets met dezelfde inhoud (identieke bestanden meerdere keren geüpload).",
+      "noDuplicates": "Geen dubbele assets gevonden",
+      "noDuplicatesHint": "Alle geregistreerde assets hebben unieke inhoud.",
+      "merge": "Samenvoegen",
+      "keep": "Behouden",
+      "group": "Groep",
+      "files": "{{count}} bestanden",
+      "references": "{{count}} ref(s)",
+      "messages": {
+        "mergeSuccess": "Samenvoegen voltooid",
+        "mergeDetail": "{{deleted}} duplica(a)t(en) verwijderd, {{moved}} referentie(s) verplaatst",
+        "mergeFailed": "Samenvoegen mislukt"
+      }
+    },
+    "storageSummary": {
+      "title": "Opslag Overzicht",
+      "byCategory": "Per categorie",
+      "orphanSummary": "Verweesde assets overzicht",
+      "topOrphans": "Top 10 grootste verweesde assets",
+      "noData": "Geen opslaggegevens beschikbaar",
+      "category": "Categorie",
+      "count": "Aantal",
+      "totalSize": "Totale grootte",
+      "filename": "Bestandsnaam",
+      "size": "Grootte",
+      "daysOrphaned": "Dagen verweesd"
     }
   }
 }

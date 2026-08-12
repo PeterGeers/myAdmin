@@ -1,0 +1,14 @@
+{
+  "name": "create_s3_assets",
+  "description": "Create s3_assets and s3_asset_references tables for the Media Asset Management service. Implements Req 7: asset registry with lifecycle tracking, reference management, and tenant isolation.",
+  "timestamp": "20260811120000",
+  "up": [
+    "CREATE TABLE IF NOT EXISTS s3_assets (id VARCHAR(30) NOT NULL PRIMARY KEY COMMENT 'ast_<ULID>', administration VARCHAR(50) NOT NULL, bucket VARCHAR(100) NOT NULL, s3_key VARCHAR(512) NOT NULL, mime_type VARCHAR(100) NOT NULL, file_size BIGINT NOT NULL, category ENUM('invoices','branding','templates','landing-pages') NOT NULL, media_type ENUM('image','video','document','web_content') NOT NULL, original_filename VARCHAR(255) NOT NULL, content_hash VARCHAR(64) DEFAULT NULL COMMENT 'SHA-256 hex', status ENUM('ACTIVE','ORPHAN','DELETION_ELIGIBLE') NOT NULL DEFAULT 'ACTIVE', retention_days INT DEFAULT NULL COMMENT 'Per-asset override', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP, orphaned_at DATETIME DEFAULT NULL, migrated_at DATETIME DEFAULT NULL, INDEX idx_admin_status (administration, status), INDEX idx_admin_category (administration, category), INDEX idx_status_orphaned (status, orphaned_at), INDEX idx_admin_hash (administration, content_hash), UNIQUE INDEX idx_admin_s3key (administration, s3_key)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    "CREATE TABLE IF NOT EXISTS s3_asset_references (id BIGINT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(50) NOT NULL, asset_id VARCHAR(30) NOT NULL, entity_type VARCHAR(50) NOT NULL, entity_id VARCHAR(100) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_administration (administration), CONSTRAINT fk_asset_ref_asset FOREIGN KEY (asset_id) REFERENCES s3_assets(id) ON DELETE CASCADE, UNIQUE INDEX idx_asset_entity (asset_id, entity_type, entity_id), INDEX idx_entity_lookup (entity_type, entity_id), INDEX idx_admin_asset (administration, asset_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS s3_asset_references",
+    "DROP TABLE IF EXISTS s3_assets"
+  ],
+  "version": "1.0"
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Flex, Heading, Text, Image } from '@chakra-ui/react';
+import { Box, Container, Flex, Heading, Text, Image } from '@chakra-ui/react';
 
 export interface AboutBlockProps {
   properties: {
@@ -71,6 +71,37 @@ export const AboutBlock: React.FC<AboutBlockProps> = ({
         {textContent}
         {imageElement && <Box mt={8}>{imageElement}</Box>}
       </Box>
+    );
+  }
+
+  // Layout: card — elevated card with shadow, centered content
+  if (layout === 'card') {
+    return (
+      <Container maxW="700px" py={{ base: 12, md: 16 }}>
+        <Box bg="white" borderRadius="xl" boxShadow="lg" p={12} textAlign="center">
+          {textContent}
+          {imageElement && <Box mt={6}>{imageElement}</Box>}
+        </Box>
+      </Container>
+    );
+  }
+
+  // Layout: timeline — reads timeline_items from properties
+  if (layout === 'timeline') {
+    const timelineItems = (properties as any).timeline_items || [];
+    return (
+      <Container maxW="800px" py={{ base: 12, md: 16 }}>
+        {title && <Heading as="h2" size="xl" mb={8}>{title}</Heading>}
+        <Box borderLeft="3px solid" borderColor="orange.400" pl={8} position="relative">
+          {timelineItems.map((item: any, i: number) => (
+            <Box key={i} mb={8} position="relative">
+              <Box position="absolute" left="-2.1rem" top="0" w="12px" h="12px" borderRadius="full" bg="orange.400" />
+              <Heading as="h3" size="md" mb={1}>{item.title}</Heading>
+              <Text color="gray.600">{item.description}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Container>
     );
   }
 

@@ -8,7 +8,7 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 import sys
 import os
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -101,16 +101,11 @@ class TestGoogleDriveStorage:
         provider = GoogleDriveStorage('T1')
         assert provider._service is None
 
-    def test_upload_text(self):
+    def test_upload_raw_raises_not_implemented(self):
         from storage.google_drive_storage import GoogleDriveStorage
         provider = GoogleDriveStorage('T1')
-        mock_svc = Mock()
-        mock_svc.upload_text_file = Mock(return_value={'id': 'file123'})
-        provider._service = mock_svc
-
-        ref = provider.upload(b'hello', 'test.html', {'folder_id': 'f1', 'mime_type': 'text/html'})
-        assert ref == 'file123'
-        mock_svc.upload_text_file.assert_called_once()
+        with pytest.raises(NotImplementedError):
+            provider._upload_raw(b'hello', 'some-key', 'text/html')
 
     def test_download(self):
         from storage.google_drive_storage import GoogleDriveStorage
@@ -121,23 +116,33 @@ class TestGoogleDriveStorage:
 
         assert provider.download('file123') == b'content'
 
-    def test_delete_success(self):
+    def test_delete_raw_success(self):
         from storage.google_drive_storage import GoogleDriveStorage
         provider = GoogleDriveStorage('T1')
         mock_svc = Mock()
         mock_svc.service.files.return_value.delete.return_value.execute.return_value = None
         provider._service = mock_svc
 
-        assert provider.delete('file123') is True
+        assert provider._delete_raw('file123') is True
 
-    def test_delete_failure(self):
+    def test_delete_raw_failure(self):
         from storage.google_drive_storage import GoogleDriveStorage
         provider = GoogleDriveStorage('T1')
         mock_svc = Mock()
         mock_svc.service.files.return_value.delete.return_value.execute.side_effect = Exception("err")
         provider._service = mock_svc
 
-        assert provider.delete('file123') is False
+        assert provider._delete_raw('file123') is False
+
+    def test_no_upload_method(self):
+        """GoogleDriveStorage no longer has a public upload() method."""
+        from storage.google_drive_storage import GoogleDriveStorage
+        assert 'upload' not in GoogleDriveStorage.__dict__
+
+    def test_no_delete_method(self):
+        """GoogleDriveStorage no longer has a public delete() method."""
+        from storage.google_drive_storage import GoogleDriveStorage
+        assert 'delete' not in GoogleDriveStorage.__dict__
 
 
 # ---------------------------------------------------------------------------
@@ -154,14 +159,13 @@ class TestS3SharedStorage:
                 with pytest.raises(ValueError, match="S3 shared bucket not configured"):
                     S3SharedStorage('T1', ps)
 
-    def test_upload_returns_key(self):
+    def test_upload_raw_calls_put_object(self):
         from storage.s3_shared_storage import S3SharedStorage
         ps = make_param_service(extra={('storage', 's3_shared_bucket'): 'bucket'})
         with patch('storage.s3_shared_storage.boto3') as mock_boto:
             provider = S3SharedStorage('T1', ps)
-            ref = provider.upload(b'data', 'invoice.pdf', {'reference_number': 'INV001'})
-            assert ref.startswith('T1/invoices/INV001/')
-            assert 'invoice.pdf' in ref
+            result = provider._upload_raw(b'data', 'T1/invoices/INV001/abc_invoice.pdf', 'application/pdf')
+            assert result is True
             mock_boto.client.return_value.put_object.assert_called_once()
 
     def test_is_storage_provider(self):
@@ -170,6 +174,16 @@ class TestS3SharedStorage:
         with patch('storage.s3_shared_storage.boto3'):
             provider = S3SharedStorage('T1', ps)
         assert isinstance(provider, StorageProvider)
+
+    def test_no_upload_method(self):
+        """S3SharedStorage no longer has a public upload() method."""
+        from storage.s3_shared_storage import S3SharedStorage
+        assert 'upload' not in S3SharedStorage.__dict__
+
+    def test_no_delete_method(self):
+        """S3SharedStorage no longer has a public delete() method."""
+        from storage.s3_shared_storage import S3SharedStorage
+        assert 'delete' not in S3SharedStorage.__dict__
 
 
 # ---------------------------------------------------------------------------

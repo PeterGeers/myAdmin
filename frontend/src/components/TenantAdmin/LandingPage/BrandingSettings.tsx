@@ -7,7 +7,7 @@
  * Tasks 3.15 + 3.16
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, VStack, HStack, Text, FormControl, FormLabel, Input, Button,
   Divider, Icon, InputGroup, InputLeftElement, useToast, Spinner,
@@ -19,6 +19,9 @@ import {
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import ImageUploader from './ImageUploader';
+import ThemeSelector from './ThemeSelector';
+import TypographySettings from './TypographySettings';
+import { THEME_PRESETS } from './themePresets';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import {
   getBrandingSettings, saveBrandingSettings,
@@ -75,8 +78,19 @@ export default function BrandingSettings() {
     og_image_url: '',
     social_links: {},
     show_share_buttons: false,
+    font_heading: 'system',
+    font_body: 'system',
+    base_spacing: 'normal',
+    border_radius_global: 'rounded',
+    shadow_style: 'subtle',
   });
   const [socialErrors, setSocialErrors] = useState<Record<string, string>>({});
+
+  // Theme preset state (Tasks 37–39)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [themeOverrides, setThemeOverrides] = useState<Record<string, string>>({});
+  // Ref to suppress override tracking when a theme is being applied programmatically
+  const applyingThemeRef = useRef(false);
 
   // Load settings
   useEffect(() => {
@@ -88,6 +102,11 @@ export default function BrandingSettings() {
     try {
       const data = await getBrandingSettings();
       setSettings(data);
+      // Initialize theme state from loaded settings (Task 41)
+      if (data.theme) {
+        setSelectedPreset(data.theme.preset ?? null);
+        setThemeOverrides(data.theme.overrides ?? {});
+      }
     } catch {
       // If 404 or no settings yet, use defaults
     } finally {
@@ -95,10 +114,59 @@ export default function BrandingSettings() {
     }
   };
 
-  // Field updater
+  // Field updater — tracks overrides when a theme is active (Task 37)
   const updateField = useCallback((field: keyof LandingPageSettings, value: string | boolean) => {
     setSettings(prev => ({ ...prev, [field]: value }));
+
+    // Track overrides: if a theme is selected and this is a theme-managed field,
+    // record the manual change as an override (unless we're programmatically applying a theme)
+    if (!applyingThemeRef.current && selectedPreset !== null) {
+      const themeFields = ['color_primary', 'color_accent'];
+      if (themeFields.includes(field as string)) {
+        setThemeOverrides(prev => ({ ...prev, [field]: value as string }));
+      }
+    }
+  }, [selectedPreset]);
+
+  // Theme selection handler (Task 37)
+  const handleSelectTheme = useCallback((presetId: string | null) => {
+    setSelectedPreset(presetId);
+    setThemeOverrides({});
+
+    if (presetId === null) {
+      // Custom mode — don't change field values (Task 38)
+      return;
+    }
+
+    // Find the preset and fill colour fields
+    const preset = THEME_PRESETS.find(p => p.id === presetId);
+    if (preset) {
+      applyingThemeRef.current = true;
+      setSettings(prev => ({
+        ...prev,
+        color_primary: preset.color_primary,
+        color_accent: preset.color_accent,
+      }));
+      applyingThemeRef.current = false;
+    }
   }, []);
+
+  // Reset to theme defaults (Task 39)
+  const handleResetTheme = useCallback(() => {
+    if (selectedPreset === null) return;
+
+    const preset = THEME_PRESETS.find(p => p.id === selectedPreset);
+    if (preset) {
+      applyingThemeRef.current = true;
+      setSettings(prev => ({
+        ...prev,
+        color_primary: preset.color_primary,
+        color_accent: preset.color_accent,
+      }));
+      setThemeOverrides({});
+      applyingThemeRef.current = false;
+    }
+  }, [selectedPreset]);
 
   // Social link updater with validation
   const updateSocialLink = useCallback((platform: keyof SocialLinks, value: string) => {
@@ -144,6 +212,10 @@ export default function BrandingSettings() {
       await saveBrandingSettings({
         ...settings,
         social_links: cleanedSocialLinks,
+        theme: {
+          preset: selectedPreset,
+          overrides: themeOverrides,
+        },
       });
 
       toast({
@@ -205,6 +277,15 @@ export default function BrandingSettings() {
         onUpload={(imageKey) => updateField('logo_url', imageKey)}
       />
 
+      {/* Theme Selector — Task 36 */}
+      <ThemeSelector
+        selectedPreset={selectedPreset}
+        onSelectTheme={handleSelectTheme}
+        onReset={handleResetTheme}
+      />
+
+      <Divider borderColor="gray.600" />
+
       {/* Colors */}
       <SectionHeading title={t('landingPage.branding.colors')} />
       <HStack spacing={4}>
@@ -259,6 +340,22 @@ export default function BrandingSettings() {
           </HStack>
         </FormControl>
       </HStack>
+
+      <Divider borderColor="gray.600" />
+
+      {/* Typography & Spacing — Tasks 52–56 */}
+      <TypographySettings
+        fontHeading={settings.font_heading}
+        fontBody={settings.font_body}
+        baseSpacing={settings.base_spacing}
+        borderRadiusGlobal={settings.border_radius_global}
+        shadowStyle={settings.shadow_style}
+        onFontHeadingChange={(v) => updateField('font_heading', v)}
+        onFontBodyChange={(v) => updateField('font_body', v)}
+        onSpacingChange={(v) => updateField('base_spacing', v)}
+        onRadiusChange={(v) => updateField('border_radius_global', v)}
+        onShadowChange={(v) => updateField('shadow_style', v)}
+      />
 
       {/* Contact Info */}
       <SectionHeading title={t('landingPage.branding.contactInfo')} />

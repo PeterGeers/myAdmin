@@ -188,11 +188,10 @@ def create_s3_folder(tenant: str, folder_name: str, parameter_service=None) -> d
         storage = get_s3_storage(tenant, parameter_service)
         key = f"{tenant}/invoices/{folder_name}/.folder"
 
-        storage._client.put_object(
-            Bucket=storage.bucket,
-            Key=key,
-            Body=b"",
-            ContentType="application/x-directory",
+        storage._upload_raw(
+            file_data=b"",
+            key=key,
+            content_type="application/x-directory",
         )
 
         logger.info("Created S3 folder marker: s3://%s/%s", storage.bucket, key)

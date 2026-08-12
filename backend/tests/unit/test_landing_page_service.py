@@ -363,6 +363,169 @@ class TestLandingPageService:
         assert result == []
 
     # ========================================================================
+    # settings round-trip tests (Phase A: Block-Level Settings)
+    # ========================================================================
+
+    def test_save_draft_preserves_settings_field(self, service, mock_dynamodb):
+        """Test that sections with a 'settings' dict survive save_draft round-trip.
+
+        The settings field is an optional per-block visual configuration added in
+        Phase A (Look & Feel). Since DynamoDB stores sections as full JSON, settings
+        must pass through without any field extraction or whitelist filtering.
+        """
+        mock_dynamodb.get_item.return_value = {
+            "Item": {"version": Decimal("2")}
+        }
+        mock_dynamodb.put_item.return_value = {}
+
+        sections_with_settings = [
+            {
+                "id": "block-001",
+                "type": "hero",
+                "layout": "centered",
+                "properties": {"title": "Welcome", "subtitle": "Hello"},
+                "settings": {
+                    "background_type": "gradient",
+                    "background_color": "#ffffff",
+                    "background_image_key": "",
+                    "background_gradient": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    "padding": "spacious",
+                    "text_color": "light",
+                    "max_width": "full-width",
+                    "border_radius": "md",
+                },
+            },
+            {
+                "id": "block-002",
+                "type": "about",
+                "layout": "image-right",
+                "properties": {"text": "About us"},
+                # No settings — backwards compatibility
+            },
+        ]
+
+        result = service.save_draft(
+            slug="acme-rentals",
+            sections=sections_with_settings,
+            modified_by="admin@acme.nl",
+        )
+
+        assert result["success"] is True
+
+        # Verify the sections were stored exactly as provided (including settings)
+        put_call = mock_dynamodb.put_item.call_args
+        item = put_call[1]["Item"]
+        stored_sections = item["sections"]
+
+        assert len(stored_sections) == 2
+
+        # First section has settings preserved
+        assert "settings" in stored_sections[0]
+        assert stored_sections[0]["settings"]["background_type"] == "gradient"
+        assert stored_sections[0]["settings"]["padding"] == "spacious"
+        assert stored_sections[0]["settings"]["text_color"] == "light"
+        assert stored_sections[0]["settings"]["max_width"] == "full-width"
+        assert stored_sections[0]["settings"]["border_radius"] == "md"
+        assert stored_sections[0]["settings"]["background_gradient"] == (
+            "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+        )
+
+        # Second section has no settings (backwards compatible)
+        assert "settings" not in stored_sections[1]
+
+    def test_get_draft_returns_settings_field(self, service, mock_dynamodb):
+        """Test that get_draft returns the settings field from stored sections."""
+        mock_dynamodb.get_item.return_value = {
+            "Item": {
+                "PK": "TENANT#acme-rentals",
+                "SK": "LANDING#HOME",
+                "status": "draft",
+                "version": Decimal("4"),
+                "last_modified": "2026-08-10T10:00:00+00:00",
+                "modified_by": "admin@acme.nl",
+                "sections": [
+                    {
+                        "id": "block-001",
+                        "type": "faq",
+                        "layout": "centered",
+                        "properties": {"items": [], "title": "FAQ"},
+                        "settings": {
+                            "background_type": "color",
+                            "background_color": "#f9f9f9",
+                            "background_image_key": "",
+                            "background_gradient": "",
+                            "padding": "normal",
+                            "text_color": "dark",
+                            "max_width": "contained",
+                            "border_radius": "none",
+                        },
+                    }
+                ],
+            }
+        }
+
+        result = service.get_draft("acme-rentals")
+
+        assert result is not None
+        section = result["sections"][0]
+        assert "settings" in section
+        assert section["settings"]["background_type"] == "color"
+        assert section["settings"]["background_color"] == "#f9f9f9"
+        assert section["settings"]["padding"] == "normal"
+        assert section["settings"]["text_color"] == "dark"
+        assert section["settings"]["max_width"] == "contained"
+        assert section["settings"]["border_radius"] == "none"
+
+    def test_settings_round_trip_save_then_get(self, service, mock_dynamodb):
+        """Test full round-trip: save sections with settings, then get them back.
+
+        Simulates the real workflow where the frontend saves a draft with settings
+        and later retrieves it. DynamoDB should preserve the full structure.
+        """
+        settings_data = {
+            "background_type": "image",
+            "background_color": "",
+            "background_image_key": "tenants/acme/images/hero-bg.jpg",
+            "background_gradient": "",
+            "padding": "compact",
+            "text_color": "auto",
+            "max_width": "contained",
+            "border_radius": "lg",
+        }
+
+        sections = [
+            {
+                "id": "block-003",
+                "type": "gallery",
+                "layout": "grid-4",
+                "properties": {"images": ["img1.jpg", "img2.jpg"]},
+                "settings": settings_data,
+            }
+        ]
+
+        # Step 1: Save draft
+        mock_dynamodb.get_item.return_value = {"Item": {"version": Decimal("1")}}
+        mock_dynamodb.put_item.return_value = {}
+
+        save_result = service.save_draft(
+            slug="acme-rentals", sections=sections, modified_by="admin@acme.nl"
+        )
+        assert save_result["success"] is True
+
+        # Capture what was stored
+        put_call = mock_dynamodb.put_item.call_args
+        stored_item = put_call[1]["Item"]
+
+        # Step 2: Simulate get_draft returning what was stored
+        mock_dynamodb.get_item.return_value = {"Item": stored_item}
+
+        get_result = service.get_draft("acme-rentals")
+
+        assert get_result is not None
+        retrieved_section = get_result["sections"][0]
+        assert retrieved_section["settings"] == settings_data
+
+    # ========================================================================
     # Initialization tests
     # ========================================================================
 

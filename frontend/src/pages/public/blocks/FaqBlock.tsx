@@ -7,7 +7,9 @@ import {
   AccordionPanel,
   Box,
   Container,
+  Flex,
   Heading,
+  SimpleGrid,
   Text,
 } from '@chakra-ui/react';
 
@@ -37,6 +39,38 @@ export const FaqBlock: React.FC<FaqBlockProps> = ({
   const { title, items } = properties || {};
 
   if (!items || items.length === 0) return null;
+
+  // Layout: two-column — forced 2-column accordion
+  if (layout === 'two-column') {
+    return (
+      <Container maxW="1000px" px={{ base: 6, md: 12 }} py={{ base: 12, md: 16 }}>
+        {title && <Heading as="h2" size="xl" textAlign="center" mb={8}>{title}</Heading>}
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          {items.map((item, index) => (
+            <Box key={index} borderBottom="1px solid" borderColor="gray.200" pb={3} mb={3}>
+              <Text fontWeight="bold" mb={1}>{item.question}</Text>
+              <Text color="gray.600" fontSize="sm">{item.answer}</Text>
+            </Box>
+          ))}
+        </SimpleGrid>
+      </Container>
+    );
+  }
+
+  // Layout: side-by-side — question left, answer right
+  if (layout === 'side-by-side') {
+    return (
+      <Container maxW="1000px" px={{ base: 6, md: 12 }} py={{ base: 12, md: 16 }}>
+        {title && <Heading as="h2" size="xl" textAlign="center" mb={8}>{title}</Heading>}
+        {items.map((item, index) => (
+          <Flex key={index} direction={{ base: 'column', md: 'row' }} gap={4} py={4} borderBottom="1px solid" borderColor="gray.200">
+            <Box flex="1" fontWeight="bold">{item.question}</Box>
+            <Box flex="2" color="gray.600">{item.answer}</Box>
+          </Flex>
+        ))}
+      </Container>
+    );
+  }
 
   // Layout: list — all Q&A visible
   if (layout === 'list') {
