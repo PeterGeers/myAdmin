@@ -225,7 +225,7 @@ def load_patterns_from_database(
 
         reference_patterns = {}
         for row in verb_results:
-            pattern_key = f"{row['administration']}_{row['bank_account']}_{row['verb']}"
+            pattern_key = f"{row['administration'].lower()}_{row['bank_account']}_{row['verb']}"
             reference_patterns[pattern_key] = {
                 "administration": row["administration"],
                 "bank_account": row["bank_account"],

@@ -89,8 +89,10 @@ def extract_company_name(description: str) -> str | None:
         (r"\bPICNIC\b", "PICNIC"),
         (r"\bBOOKING\.COM\b", "BOOKING"),
         (r"\bBOOKING\b", "BOOKING"),
+        (r"NO\.[A-Za-z0-9]+/ID\.\d+", "BOOKING"),  # Booking.com reference format
         (r"\bGREENWHEELS\b", "GREENWHEELS"),
         (r"\bMOLLIE\b", "MOLLIE"),
+        (r"\bQ-?PARK\b", "QPARK"),
         (r"\bANWB\b", "ANWB"),
         (r"\bAEGON\b", "AEGON"),
         (r"\bKLEI\s+AAN\s+HET\s+IJ\b", "KLEI"),
@@ -99,6 +101,8 @@ def extract_company_name(description: str) -> str | None:
         (r"\bZORG\s+EN\s+WELZIJN\b", "ZORG"),
         (r"\bPENSIOENFONDS\b", "PENSIOENFONDS"),
         (r"\bSTRIPE\b", "STRIPE"),
+        (r"\bAPPS\s+COMMERCE:", "GOOGLE"),  # Google Cloud billing format
+        (r"/INV/NLN\d+", "KUWAIT"),  # Kuwait Petroleum invoice format
         (r"\bVIA\b", "VIA"),
     ]
 
