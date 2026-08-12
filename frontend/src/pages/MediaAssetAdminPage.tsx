@@ -46,6 +46,7 @@ import UnregisteredTab from '@/components/MediaAssetAdmin/UnregisteredTab';
 import RetentionTab from '@/components/MediaAssetAdmin/RetentionTab';
 import DuplicatesTab from '@/components/MediaAssetAdmin/DuplicatesTab';
 import StorageSummaryTab from '@/components/MediaAssetAdmin/StorageSummaryTab';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ function formatDate(isoDate: string | null): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MediaAssetAdminPage() {
+  const { t } = useTypedTranslation('admin');
   const [dashboard, setDashboard] = useState<AssetDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,25 +104,25 @@ export default function MediaAssetAdminPage() {
       <Tabs variant="enclosed" colorScheme="orange" index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
-            Dashboard
+            {t('mediaAssets.tabs.dashboard')}
           </Tab>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
-            Scan
+            {t('mediaAssets.tabs.scan')}
           </Tab>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
-            Deletion
+            {t('mediaAssets.tabs.deletion')}
           </Tab>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
-            Unregistered
+            {t('mediaAssets.tabs.unregistered')}
           </Tab>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
-            Retention
+            {t('mediaAssets.tabs.retention')}
           </Tab>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
-            Duplicates
+            {t('mediaAssets.tabs.duplicates')}
           </Tab>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
-            Storage
+            {t('mediaAssets.tabs.storage')}
           </Tab>
         </TabList>
 

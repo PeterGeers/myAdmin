@@ -41,7 +41,8 @@
       "emailLog": "Email Log",
       "pivotViews": "Pivot Views",
       "functions": "Functions",
-      "landingPage": "Landing Page"
+      "landingPage": "Landing Page",
+      "mediaAssets": "Media Assets"
     },
     "parameters": {
       "title": "Parameters",
@@ -1016,6 +1017,155 @@
       "step4": "Send welcome email to user",
       "cancel": "Cancel",
       "provision": "Provision"
+    }
+  },
+  "mediaAssets": {
+    "title": "Media Asset Administration",
+    "tabs": {
+      "dashboard": "Dashboard",
+      "scan": "Scan",
+      "deletion": "Deletion",
+      "unregistered": "Unregistered",
+      "retention": "Retention",
+      "duplicates": "Duplicates",
+      "storage": "Storage"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "totalAssets": "Total Assets",
+      "activeAssets": "Active Assets",
+      "orphanedAssets": "Orphaned Assets",
+      "deletionEligible": "Deletion Eligible",
+      "storageByCategory": "Storage by Category",
+      "lastScan": "Last Scan",
+      "topOrphans": "Top Orphans",
+      "never": "Never",
+      "count": "Count",
+      "size": "Size",
+      "category": "Category",
+      "filename": "Filename",
+      "daysOrphaned": "Days Orphaned"
+    },
+    "scan": {
+      "title": "Reconciliation Scan",
+      "startScan": "Start Scan",
+      "scanning": "Scanning...",
+      "phases": {
+        "scanningS3": "Scanning S3 buckets...",
+        "checkingRegistry": "Comparing with registry...",
+        "verifyingReferences": "Verifying entity references...",
+        "transitioning": "Transitioning eligible assets...",
+        "complete": "Scan complete"
+      },
+      "results": {
+        "title": "Scan Results",
+        "consistent": "Consistent",
+        "unregistered": "Unregistered",
+        "missing": "Missing",
+        "staleReferences": "Stale References",
+        "newlyEligible": "Newly Eligible",
+        "totalScanned": "Total Scanned"
+      },
+      "errors": {
+        "connectionLost": "Connection lost during scan. Please try again.",
+        "startFailed": "Failed to start scan"
+      }
+    },
+    "deletion": {
+      "title": "Deletion Approval",
+      "description": "Assets that have been orphaned beyond their retention period. Review and approve permanent deletion.",
+      "noAssets": "No assets eligible for deletion",
+      "noAssetsHint": "Assets become eligible after their retention period expires while orphaned.",
+      "approveSelected": "Approve Deletion",
+      "selected": "{{count}} asset(s) selected",
+      "confirmTitle": "Confirm Permanent Deletion",
+      "confirmMessage": "Are you sure you want to permanently delete {{count}} asset(s)? This action cannot be undone.",
+      "complianceWarning": "Some selected assets are in compliance-sensitive categories (invoices). Ensure retention requirements are met.",
+      "messages": {
+        "success": "Deletion complete",
+        "successDetail": "{{deleted}} deleted, {{skipped}} skipped",
+        "failed": "Deletion failed"
+      },
+      "table": {
+        "filename": "Filename",
+        "category": "Category",
+        "size": "Size",
+        "orphanedDays": "Days Orphaned",
+        "status": "Status"
+      }
+    },
+    "unregistered": {
+      "title": "Unregistered Objects",
+      "description": "S3 objects that exist in buckets but are not tracked in the asset registry.",
+      "noObjects": "No unregistered objects found",
+      "noObjectsHint": "Run a scan to check for S3 objects not tracked in the registry.",
+      "importToRegistry": "Import to Registry",
+      "deleteFromS3": "Delete from S3",
+      "selected": "{{count}} object(s) selected",
+      "confirmDeleteTitle": "Confirm Permanent Deletion",
+      "confirmDeleteMessage": "Are you sure you want to permanently delete {{count}} S3 object(s)?",
+      "confirmDeleteWarning": "This action is irreversible. These files will be permanently removed from S3 storage and cannot be recovered.",
+      "table": {
+        "s3Key": "S3 Key",
+        "bucket": "Bucket",
+        "size": "Size",
+        "lastModified": "Last Modified"
+      },
+      "messages": {
+        "importSuccess": "Import complete",
+        "importDetail": "{{imported}} imported, {{skipped}} skipped",
+        "importFailed": "Import failed",
+        "deleteSuccess": "Deletion complete",
+        "deleteDetail": "{{deleted}} deleted, {{skipped}} skipped",
+        "deleteFailed": "Deletion failed"
+      }
+    },
+    "retention": {
+      "title": "Retention Settings",
+      "description": "Configure how long orphaned assets are retained before becoming eligible for deletion.",
+      "category": "Category",
+      "days": "Days",
+      "source": "Source",
+      "sources": {
+        "systemDefault": "System Default",
+        "tenantOverride": "Tenant Override"
+      },
+      "save": "Save Changes",
+      "noChanges": "No changes to save",
+      "messages": {
+        "success": "Settings saved",
+        "successDetail": "Updated {{count}} retention setting(s)",
+        "failed": "Save failed"
+      }
+    },
+    "duplicates": {
+      "title": "Duplicate Assets",
+      "description": "Assets sharing the same content (identical files uploaded multiple times).",
+      "noDuplicates": "No duplicate assets found",
+      "noDuplicatesHint": "All registered assets have unique content.",
+      "merge": "Merge",
+      "keep": "Keep",
+      "group": "Group",
+      "files": "{{count}} files",
+      "references": "{{count}} ref(s)",
+      "messages": {
+        "mergeSuccess": "Merge complete",
+        "mergeDetail": "{{deleted}} duplicate(s) removed, {{moved}} reference(s) moved",
+        "mergeFailed": "Merge failed"
+      }
+    },
+    "storageSummary": {
+      "title": "Storage Summary",
+      "byCategory": "By Category",
+      "orphanSummary": "Orphan Summary",
+      "topOrphans": "Top 10 Largest Orphans",
+      "noData": "No storage data available",
+      "category": "Category",
+      "count": "Count",
+      "totalSize": "Total Size",
+      "filename": "Filename",
+      "size": "Size",
+      "daysOrphaned": "Days Orphaned"
     }
   }
 }
