@@ -6,6 +6,7 @@ Contains gradient/theme presets, CSS generation, and WCAG contrast utilities.
 """
 
 import re
+from typing import ClassVar
 
 
 class LandingPageStyles:
@@ -13,12 +14,21 @@ class LandingPageStyles:
 
     # ─── Gradient Presets ───────────────────────────────────────────────────
 
-    GRADIENT_PRESETS = [
-        {"name": "Sunset", "value": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"},
+    GRADIENT_PRESETS: ClassVar[list[dict[str, str]]] = [
+        {
+            "name": "Sunset",
+            "value": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        },
         {"name": "Ocean", "value": "linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)"},
-        {"name": "Forest", "value": "linear-gradient(135deg, #134e5e 0%, #71b280 100%)"},
+        {
+            "name": "Forest",
+            "value": "linear-gradient(135deg, #134e5e 0%, #71b280 100%)",
+        },
         {"name": "Peach", "value": "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)"},
-        {"name": "Night", "value": "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)"},
+        {
+            "name": "Night",
+            "value": "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)",
+        },
         {"name": "Warm", "value": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"},
         {"name": "Sky", "value": "linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)"},
         {"name": "Gold", "value": "linear-gradient(135deg, #f7971e 0%, #ffd200 100%)"},
@@ -26,7 +36,7 @@ class LandingPageStyles:
 
     # ─── Theme Presets ──────────────────────────────────────────────────────
 
-    THEME_PRESETS = {
+    THEME_PRESETS: ClassVar[dict[str, dict[str, str]]] = {
         "professional": {
             "color_primary": "#2D5F8A",
             "color_accent": "#F4A261",
@@ -73,31 +83,40 @@ class LandingPageStyles:
 
     # ─── Padding / Radius / Text Colour Maps ───────────────────────────────
 
-    PADDING_MAP = {
+    PADDING_MAP: ClassVar[dict[str, str]] = {
         "compact": "1rem 1.5rem",
         "normal": "2rem 1.5rem",
         "spacious": "4rem 1.5rem",
     }
 
-    TEXT_COLOR_MAP = {"dark": "#333", "light": "#fff", "auto": "inherit"}
+    TEXT_COLOR_MAP: ClassVar[dict[str, str]] = {
+        "dark": "#333",
+        "light": "#fff",
+        "auto": "inherit",
+    }
 
-    BORDER_RADIUS_MAP = {"none": "0", "sm": "8px", "md": "16px", "lg": "24px"}
+    BORDER_RADIUS_MAP: ClassVar[dict[str, str]] = {
+        "none": "0",
+        "sm": "8px",
+        "md": "16px",
+        "lg": "24px",
+    }
 
     # ─── Spacing / Radius / Shadow mappings for CSS variables ───────────────
 
-    SPACING_MAP = {
+    SPACING_MAP: ClassVar[dict[str, dict[str, str]]] = {
         "compact": {"section": "1.5rem", "element": "0.75rem"},
         "normal": {"section": "2rem", "element": "1rem"},
         "relaxed": {"section": "3rem", "element": "1.5rem"},
     }
 
-    GLOBAL_RADIUS_MAP = {
+    GLOBAL_RADIUS_MAP: ClassVar[dict[str, dict[str, str]]] = {
         "sharp": {"sm": "0", "md": "0", "lg": "0"},
         "rounded": {"sm": "4px", "md": "8px", "lg": "16px"},
         "pill": {"sm": "12px", "md": "24px", "lg": "9999px"},
     }
 
-    SHADOW_MAP = {
+    SHADOW_MAP: ClassVar[dict[str, dict[str, str]]] = {
         "none": {"card": "none", "hover": "none"},
         "subtle": {
             "card": "0 2px 8px rgba(0,0,0,0.08)",
@@ -224,9 +243,7 @@ class LandingPageStyles:
             return s / 12.92 if s <= 0.03928 else ((s + 0.055) / 1.055) ** 2.4
 
         luminance = (
-            0.2126 * linearize(r)
-            + 0.7152 * linearize(g)
-            + 0.0722 * linearize(b)
+            0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
         )
         # Use WCAG-optimal threshold: white text (#fff) meets AA (4.5:1) only
         # when background luminance ≤ ~0.1791.  Dark text (#333, lum≈0.0304)
@@ -300,20 +317,26 @@ class LandingPageStyles:
 
         # Spacing
         base_spacing = branding.get("base_spacing", "normal")
-        spacing = LandingPageStyles.SPACING_MAP.get(base_spacing, LandingPageStyles.SPACING_MAP["normal"])
+        spacing = LandingPageStyles.SPACING_MAP.get(
+            base_spacing, LandingPageStyles.SPACING_MAP["normal"]
+        )
         lines.append(f"  --spacing-section: {spacing['section']};")
         lines.append(f"  --spacing-element: {spacing['element']};")
 
         # Border radius
         radius_global = branding.get("border_radius_global", "rounded")
-        radii = LandingPageStyles.GLOBAL_RADIUS_MAP.get(radius_global, LandingPageStyles.GLOBAL_RADIUS_MAP["rounded"])
+        radii = LandingPageStyles.GLOBAL_RADIUS_MAP.get(
+            radius_global, LandingPageStyles.GLOBAL_RADIUS_MAP["rounded"]
+        )
         lines.append(f"  --radius-sm: {radii['sm']};")
         lines.append(f"  --radius-md: {radii['md']};")
         lines.append(f"  --radius-lg: {radii['lg']};")
 
         # Shadows
         shadow_style = branding.get("shadow_style", "subtle")
-        shadows = LandingPageStyles.SHADOW_MAP.get(shadow_style, LandingPageStyles.SHADOW_MAP["subtle"])
+        shadows = LandingPageStyles.SHADOW_MAP.get(
+            shadow_style, LandingPageStyles.SHADOW_MAP["subtle"]
+        )
         lines.append(f"  --shadow-card: {shadows['card']};")
         lines.append(f"  --shadow-hover: {shadows['hover']};")
 

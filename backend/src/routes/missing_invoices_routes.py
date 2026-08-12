@@ -91,14 +91,14 @@ def upload_receipt(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
                 tenant=administration,
                 file_data=file_data,
                 filename=file.filename,
-                category='invoices',
-                metadata={'reference_number': supplier_name},
+                category="invoices",
+                metadata={"reference_number": supplier_name},
             )
 
-            if not result['success']:
-                return jsonify({"error": result.get('error', 'Upload failed')}), 500
+            if not result["success"]:
+                return jsonify({"error": result.get("error", "Upload failed")}), 500
 
-            s3_key = result['asset']['s3_key']
+            s3_key = result["asset"]["s3_key"]
             return jsonify({"driveUrl": s3_key})
         else:
             # Google Drive tenant: use existing Drive service

@@ -7,6 +7,8 @@ from unittest.mock import Mock, MagicMock, patch
 from contextlib import contextmanager
 from pathlib import Path
 
+from hypothesis import settings as hypothesis_settings, HealthCheck
+
 # Add src directory to Python path for imports
 backend_dir = Path(__file__).parent.parent
 src_dir = backend_dir / 'src'
@@ -14,6 +16,15 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
+
+# Hypothesis CI profile: deterministic, no deadline, suppress slow health check
+hypothesis_settings.register_profile(
+    "ci",
+    derandomize=True,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+hypothesis_settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
 
 # Test fixtures for pytest framework
 

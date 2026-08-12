@@ -82,8 +82,7 @@ def run_domain_verification_check(db=None, cf_service=None):
             if status == "ISSUED":
                 # Activate the domain: add to CloudFront + KVS + update DB
                 success = _activate_domain(
-                    db, cf_service, domain_id, domain, slug,
-                    cert_arn, administration
+                    db, cf_service, domain_id, domain, slug, cert_arn, administration
                 )
                 if success:
                     activated += 1
@@ -114,7 +113,7 @@ def run_domain_verification_check(db=None, cf_service=None):
                     f"(status: {status}, tenant: {administration})"
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failed += 1
             logger.error(
                 f"Domain verification job: unexpected error processing "
@@ -158,17 +157,13 @@ def _activate_domain(db, cf_service, domain_id, domain, slug, cert_arn, administ
     # Add domain to CloudFront distribution
     add_success = cf_service.add_domain_to_distribution(domain, cert_arn)
     if not add_success:
-        logger.error(
-            f"Domain verification job: failed to add {domain} to CloudFront"
-        )
+        logger.error(f"Domain verification job: failed to add {domain} to CloudFront")
         return False
 
     # Update KVS mapping
     kvs_success = cf_service.put_kvs_mapping(domain, slug)
     if not kvs_success:
-        logger.error(
-            f"Domain verification job: failed to update KVS for {domain}"
-        )
+        logger.error(f"Domain verification job: failed to update KVS for {domain}")
         return False
 
     # Update database: mark as active

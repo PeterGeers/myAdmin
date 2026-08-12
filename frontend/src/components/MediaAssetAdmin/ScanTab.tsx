@@ -92,6 +92,15 @@ export default function ScanTab() {
       es.onmessage = (event) => {
         try {
           const data: ScanProgress = JSON.parse(event.data);
+
+          if (data.type === 'error') {
+            setError(data.error || t('mediaAssets.scan.errors.startFailed'));
+            setScanning(false);
+            es.close();
+            eventSourceRef.current = null;
+            return;
+          }
+
           setPhase(data.phase);
           setProgress(data.progress ?? 0);
 
