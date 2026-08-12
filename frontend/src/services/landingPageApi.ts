@@ -31,12 +31,25 @@ export interface ValidateSlugResponse {
   error?: string;
 }
 
+/** Per-block visual settings (Phase A: Look & Feel) */
+export interface BlockSettings {
+  background_type: "color" | "image" | "gradient";
+  background_color: string;
+  background_image_key: string;
+  background_gradient: string;
+  padding: "compact" | "normal" | "spacious";
+  text_color: "dark" | "light" | "auto";
+  max_width: "contained" | "full-width";
+  border_radius: "none" | "sm" | "md" | "lg";
+}
+
 /** A single section/block in the landing page */
 export interface Section {
   id: string;
   type: string;
   layout: string;
   properties: Record<string, unknown>;
+  settings?: BlockSettings; // optional for backwards compatibility
 }
 
 export interface DraftResponse {
@@ -290,6 +303,14 @@ export interface LandingPageSettings {
   // Social
   social_links: SocialLinks;
   show_share_buttons: boolean;
+  // Theme (Phase B)
+  theme?: { preset: string | null; overrides: Record<string, string> };
+  // Typography & Spacing (Phase D)
+  font_heading: string;
+  font_body: string;
+  base_spacing: string;
+  border_radius_global: string;
+  shadow_style: string;
 }
 
 /**

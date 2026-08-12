@@ -699,7 +699,9 @@
       "unpublishError": "Depubliceren mislukt",
       "unpublishTooltip": "Landingspagina offline halen",
       "itemEditorComingSoon": "Item-editor komt in volgende fase",
-      "liveDataBlock": "Dit blok toont live data uit je module"
+      "liveDataBlock": "Dit blok toont live data uit je module",
+      "tabContent": "Inhoud",
+      "tabSettings": "Instellingen"
     },
     "blockTypes": {
       "hero": "Hero",
@@ -712,7 +714,8 @@
       "embed": "Insluiten",
       "contact": "Contact",
       "properties": "Accommodaties",
-      "services": "Diensten"
+      "services": "Diensten",
+      "video": "Video"
     },
     "blockDescriptions": {
       "hero": "Grote banner met afbeelding en kop",
@@ -725,12 +728,17 @@
       "embed": "Ingesloten externe content (iframe)",
       "contact": "Contactformulier voor bezoekers",
       "properties": "Je STR-accommodaties",
-      "services": "Je ZZP-diensten"
+      "services": "Je ZZP-diensten",
+      "video": "Ingesloten YouTube-videospeler"
     },
     "layouts": {
       "image-right": "Afbeelding rechts",
       "image-left": "Afbeelding links",
       "image-background": "Achtergrondafbeelding",
+      "image-bg": "Achtergrondafbeelding",
+      "video-bg": "Video-achtergrond",
+      "split-diagonal": "Diagonaal gesplitst",
+      "default": "Standaard",
       "centered": "Gecentreerd",
       "grid-3": "Raster (3 kolommen)",
       "grid-4": "Raster (4 kolommen)",
@@ -743,7 +751,19 @@
       "table": "Tabel",
       "left-aligned": "Links uitgelijnd",
       "full-width": "Volledige breedte",
-      "contained": "Begrensd"
+      "contained": "Begrensd",
+      "split": "Gesplitst",
+      "banner": "Banner",
+      "floating": "Zwevende balk",
+      "two-column": "Twee kolommen",
+      "side-by-side": "Naast elkaar",
+      "horizontal": "Horizontaal",
+      "featured-center": "Uitgelicht midden",
+      "comparison-table": "Vergelijkingstabel",
+      "quote-large": "Groot citaat",
+      "grid": "Raster",
+      "card": "Kaart",
+      "timeline": "Tijdlijn"
     },
     "fields": {
       "title": "Titel",
@@ -755,7 +775,35 @@
       "buttonText": "Knoptekst",
       "buttonUrl": "Knop-URL",
       "embedUrl": "Insluiten-URL",
-      "height": "Hoogte"
+      "height": "Hoogte",
+      "videoUrl": "Video URL",
+      "description": "Beschrijving"
+    },
+    "settings": {
+      "backgroundType": "Achtergrond",
+      "bgColour": "Kleur",
+      "bgImage": "Afbeelding",
+      "bgGradient": "Verloop",
+      "backgroundColor": "Achtergrondkleur",
+      "backgroundImage": "Achtergrondafbeelding",
+      "backgroundGradient": "CSS Verloop",
+      "imageUploadPlaceholder": "Upload een achtergrondafbeelding",
+      "padding": "Ruimte",
+      "padding_compact": "Compact",
+      "padding_normal": "Normaal",
+      "padding_spacious": "Ruim",
+      "textColour": "Tekstkleur",
+      "textColor_dark": "Donker",
+      "textColor_light": "Licht",
+      "textColor_auto": "Auto",
+      "maxWidth": "Breedte",
+      "maxWidth_contained": "Begrensd",
+      "maxWidth_full-width": "Volledig",
+      "borderRadius": "Hoeken",
+      "borderRadius_none": "Geen",
+      "borderRadius_sm": "Klein",
+      "borderRadius_md": "Middel",
+      "borderRadius_lg": "Groot"
     },
     "branding": {
       "companyInfo": "Bedrijf & Huisstijl",
@@ -782,7 +830,29 @@
       "showShareButtonsHelp": "Wanneer ingeschakeld verschijnt er een zwevende deelbalk met Facebook, X, WhatsApp, LinkedIn en e-mailknoppen op je gepubliceerde landingspagina.",
       "save": "Huisstijl opslaan",
       "saved": "Huisstijl-instellingen opgeslagen",
-      "saveError": "Fout bij opslaan huisstijl-instellingen"
+      "saveError": "Fout bij opslaan huisstijl-instellingen",
+      "chooseTheme": "Kies een thema",
+      "customTheme": "Aangepast",
+      "manualControl": "Handmatig",
+      "resetToDefaults": "Herstel naar thema-standaarden",
+      "typography": "Typografie & Stijl",
+      "fontHeading": "Koptekst lettertype",
+      "fontBody": "Broodtekst lettertype",
+      "fontPreviewHeading": "De snelle bruine vos springt",
+      "fontPreviewBody": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+      "baseSpacing": "Ruimte",
+      "spacing_compact": "Compact",
+      "spacing_normal": "Normaal",
+      "spacing_relaxed": "Ruim",
+      "borderRadius": "Hoekafronding",
+      "radius_sharp": "Scherp",
+      "radius_rounded": "Afgerond",
+      "radius_pill": "Pil",
+      "shadowStyle": "Schaduwstijl",
+      "shadow_none": "Geen",
+      "shadow_subtle": "Subtiel",
+      "shadow_medium": "Medium",
+      "shadow_dramatic": "Dramatisch"
     },
     "seo": {
       "title": "SEO-titel",
@@ -811,10 +881,12 @@
       "embed": "Sluit externe content in (Google Maps, video's, boekingswidgets) via HTTPS-URL.",
       "contact": "Een contactformulier waarmee bezoekers je berichten kunnen sturen. Inzendingen gaan naar je geconfigureerde e-mail.",
       "properties": "Toont automatisch je STR-accommodaties die als openbaar zijn gemarkeerd. Data wordt vernieuwd bij elke publicatie.",
-      "services": "Toont automatisch je ZZP-diensten die als openbaar zijn gemarkeerd. Data wordt vernieuwd bij elke publicatie."
+      "services": "Toont automatisch je ZZP-diensten die als openbaar zijn gemarkeerd. Data wordt vernieuwd bij elke publicatie.",
+      "video": "Voeg een YouTube-video toe. Plak de video-URL — de speler wordt responsief ingebed met een thumbnail-voorbeeld."
     },
     "fieldHelp": {
-      "embedUrl": "Alleen HTTPS-URL's worden ondersteund. Niet-HTTPS-content wordt niet weergegeven."
+      "embedUrl": "Alleen HTTPS-URL's worden ondersteund. Niet-HTTPS-content wordt niet weergegeven.",
+      "videoUrlInvalid": "Voer een geldige YouTube-URL in (youtube.com/watch?v=... of youtu.be/...)"
     },
     "faqEditor": {
       "addItem": "+ Vraag toevoegen",

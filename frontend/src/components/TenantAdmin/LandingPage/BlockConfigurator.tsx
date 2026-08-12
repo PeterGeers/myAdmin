@@ -3,21 +3,25 @@
  *
  * Renders form fields based on the block type and includes
  * the layout variant selector (Task 2.10).
+ * Provides Content/Settings tabs (Task 10).
  */
 
 import React from 'react';
 import {
   Box, VStack, HStack, Text, Select, FormControl, FormLabel,
   Input, Textarea, CloseButton, Divider, FormHelperText,
+  Tabs, TabList, Tab, TabPanels, TabPanel,
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
-import { Section } from '../../../services/landingPageApi';
+import { Section, BlockSettings } from '../../../services/landingPageApi';
 import { getLayoutsForType } from './blockTypeDefinitions';
+import { DEFAULT_BLOCK_SETTINGS } from './blockSettingsDefaults';
 import ImageUploader from './ImageUploader';
 import FaqItemEditor from './FaqItemEditor';
 import TestimonialsItemEditor from './TestimonialsItemEditor';
 import GalleryItemEditor from './GalleryItemEditor';
 import PricingItemEditor from './PricingItemEditor';
+import BlockSettingsTab from './BlockSettingsTab';
 
 interface BlockConfiguratorProps {
   section: Section;
@@ -39,6 +43,12 @@ export default function BlockConfigurator({ section, onUpdate, onClose }: BlockC
     onUpdate({ layout: e.target.value });
   };
 
+  const currentSettings: BlockSettings = section.settings ?? DEFAULT_BLOCK_SETTINGS;
+
+  const handleSettingsChange = (settings: BlockSettings) => {
+    onUpdate({ settings });
+  };
+
   return (
     <Box bg="gray.800" borderRadius="md" p={4} border="1px solid" borderColor="gray.600">
       {/* Header */}
@@ -54,35 +64,60 @@ export default function BlockConfigurator({ section, onUpdate, onClose }: BlockC
         {t(`landingPage.blockHelp.${section.type}`)}
       </Text>
 
-      <VStack spacing={3} align="stretch">
-        {/* Layout variant selector (Task 2.10) */}
-        {layouts.length > 1 && (
-          <FormControl>
-            <FormLabel color="gray.300" fontSize="xs" mb={1}>
-              {t('landingPage.editor.layout')}
-            </FormLabel>
-            <Select
-              size="sm"
-              bg="gray.700"
-              color="white"
-              borderColor="gray.600"
-              value={section.layout}
-              onChange={handleLayoutChange}
-            >
-              {layouts.map((layout) => (
-                <option key={layout} value={layout}>
-                  {t(`landingPage.layouts.${layout}`)}
-                </option>
-              ))}
-            </Select>
-          </FormControl>
-        )}
+      {/* Tab switcher: Content / Settings */}
+      <Tabs variant="soft-rounded" colorScheme="blue" size="sm">
+        <TabList mb={3}>
+          <Tab color="gray.400" _selected={{ color: 'white', bg: 'blue.600' }} fontSize="xs">
+            {t('landingPage.editor.tabContent')}
+          </Tab>
+          <Tab color="gray.400" _selected={{ color: 'white', bg: 'blue.600' }} fontSize="xs">
+            {t('landingPage.editor.tabSettings')}
+          </Tab>
+        </TabList>
 
-        <Divider borderColor="gray.600" />
+        <TabPanels>
+          {/* Tab 1: Content — existing field renderers */}
+          <TabPanel p={0}>
+            <VStack spacing={3} align="stretch">
+              {/* Layout variant selector (Task 2.10) */}
+              {layouts.length > 1 && (
+                <FormControl>
+                  <FormLabel color="gray.300" fontSize="xs" mb={1}>
+                    {t('landingPage.editor.layout')}
+                  </FormLabel>
+                  <Select
+                    size="sm"
+                    bg="gray.700"
+                    color="white"
+                    borderColor="gray.600"
+                    value={section.layout}
+                    onChange={handleLayoutChange}
+                  >
+                    {layouts.map((layout) => (
+                      <option key={layout} value={layout}>
+                        {t(`landingPage.layouts.${layout}`)}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
 
-        {/* Type-specific fields */}
-        {renderFieldsForType(section, updateProperty, t)}
-      </VStack>
+              <Divider borderColor="gray.600" />
+
+              {/* Type-specific fields */}
+              {renderFieldsForType(section, updateProperty, t)}
+            </VStack>
+          </TabPanel>
+
+          {/* Tab 2: Settings — block visual settings */}
+          <TabPanel p={0}>
+            <BlockSettingsTab
+              settings={currentSettings}
+              onSettingsChange={handleSettingsChange}
+            />
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
     </Box>
   );
 }
@@ -110,6 +145,7 @@ function renderFieldsForType(
             currentImageKey={props.image_key as string}
             onUpload={(key) => updateProperty('image_key', key)}
           />
+          <FieldInput label={t('landingPage.fields.videoUrl')} value={props.video_url as string} onChange={(v) => updateProperty('video_url', v)} placeholder="https://youtube.com/watch?v=..." />
         </>
       );
 
@@ -222,6 +258,20 @@ function renderFieldsForType(
         </Text>
       );
 
+    case 'video':
+      return (
+        <>
+          <VideoUrlField
+            label={t('landingPage.fields.videoUrl')}
+            value={props.video_url as string}
+            onChange={(v) => updateProperty('video_url', v)}
+            warningText={t('landingPage.fieldHelp.videoUrlInvalid')}
+          />
+          <FieldInput label={t('landingPage.fields.title')} value={props.title as string} onChange={(v) => updateProperty('title', v)} />
+          <FieldInput label={t('landingPage.fields.description')} value={props.description as string} onChange={(v) => updateProperty('description', v)} />
+        </>
+      );
+
     default:
       return null;
   }
@@ -274,6 +324,47 @@ function FieldTextarea({ label, value, onChange }: FieldTextareaProps) {
         rows={4}
         _placeholder={{ color: 'gray.500' }}
       />
+    </FormControl>
+  );
+}
+
+// --- YouTube URL validation ---
+
+const YOUTUBE_URL_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/;
+
+function isValidYouTubeUrl(url: string): boolean {
+  if (!url) return true; // empty is valid (not required)
+  return YOUTUBE_URL_REGEX.test(url);
+}
+
+interface VideoUrlFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  warningText: string;
+}
+
+function VideoUrlField({ label, value, onChange, warningText }: VideoUrlFieldProps) {
+  const showWarning = !!value && !isValidYouTubeUrl(value);
+
+  return (
+    <FormControl>
+      <FormLabel color="gray.300" fontSize="xs" mb={1}>{label}</FormLabel>
+      <Input
+        size="sm"
+        bg="gray.700"
+        color="white"
+        borderColor={showWarning ? 'red.400' : 'gray.600'}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://youtube.com/watch?v=..."
+        _placeholder={{ color: 'gray.500' }}
+      />
+      {showWarning && (
+        <Text color="red.400" fontSize="xs" mt={1}>
+          {warningText}
+        </Text>
+      )}
     </FormControl>
   );
 }
