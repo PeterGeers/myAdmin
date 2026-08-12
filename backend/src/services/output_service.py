@@ -209,10 +209,10 @@ class OutputService:
         self, content, filename: str, administration: str, content_type: str
     ) -> dict[str, Any]:
         """
-        Handle S3 upload destination using StorageProvider.
+        Handle S3 upload destination using MediaAssetService.
 
-        Uses the tenant's configured S3 provider (s3_shared or s3_tenant)
-        via the StorageProvider factory.
+        Uploads report output via the asset management service, registering
+        the file in the asset registry with entity_type='report'.
 
         Args:
             content: File content (str or bytes)
@@ -224,17 +224,13 @@ class OutputService:
             Dictionary with S3 reference and URL
         """
         try:
-            from services.parameter_service import ParameterService
-            from storage.storage_provider import get_storage_provider
+            from services.media_asset_service import MediaAssetService
 
             logger.info(
                 f"Uploading to S3 for administration '{administration}': {filename}"
             )
 
-            param_svc = ParameterService(self.db)
-
-            # Resolve provider — will be s3_shared or s3_tenant based on config
-            provider = get_storage_provider(administration, param_svc)
+            asset_svc = MediaAssetService(self.db)
 
             # Ensure content is bytes
             if isinstance(content, str):
@@ -242,26 +238,32 @@ class OutputService:
             else:
                 file_data = content
 
-            # Upload via StorageProvider
-            reference = provider.upload(
+            # Generate entity_id from report name + timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
+            report_type = filename.rsplit(".", 1)[0] if "." in filename else filename
+            entity_id = f"{report_type}:{timestamp}"
+
+            result = asset_svc.store_and_register(
+                tenant=administration,
                 file_data=file_data,
-                path=filename,
-                metadata={
-                    "administration": administration,
-                    "mime_type": content_type,
-                },
+                filename=filename,
+                category="invoices",
+                entity_type="report",
+                entity_id=entity_id,
+                metadata={"content_type": content_type},
             )
 
-            # Use the reference directly as the URL (plain S3 key)
-            url = reference
+            if not result["success"]:
+                raise Exception(result.get("error", "Asset registration failed"))  # noqa: TRY002
 
-            logger.info(f"Successfully uploaded to S3: {filename} (ref: {reference})")
+            s3_key = result["asset"]["s3_key"]
+            logger.info(f"Successfully uploaded to S3: {filename} (ref: {s3_key})")
 
             return {
                 "success": True,
                 "destination": "s3",
-                "url": url,
-                "reference": reference,
+                "url": s3_key,
+                "reference": s3_key,
                 "filename": filename,
                 "message": f"File uploaded to S3: {filename}",
             }

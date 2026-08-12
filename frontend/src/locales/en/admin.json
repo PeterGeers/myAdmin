@@ -41,7 +41,8 @@
       "emailLog": "Email Log",
       "pivotViews": "Pivot Views",
       "functions": "Functions",
-      "landingPage": "Landing Page"
+      "landingPage": "Landing Page",
+      "mediaAssets": "Media Assets"
     },
     "parameters": {
       "title": "Parameters",
@@ -702,7 +703,9 @@
       "unpublishError": "Failed to unpublish",
       "unpublishTooltip": "Take landing page offline",
       "itemEditorComingSoon": "Item editor coming in next phase",
-      "liveDataBlock": "This block shows live data from your module"
+      "liveDataBlock": "This block shows live data from your module",
+      "tabContent": "Content",
+      "tabSettings": "Settings"
     },
     "blockTypes": {
       "hero": "Hero",
@@ -715,7 +718,8 @@
       "embed": "Embed",
       "contact": "Contact",
       "properties": "Properties",
-      "services": "Services"
+      "services": "Services",
+      "video": "Video"
     },
     "blockDescriptions": {
       "hero": "Large banner with image and headline",
@@ -728,12 +732,17 @@
       "embed": "Embedded external content (iframe)",
       "contact": "Contact form for visitors",
       "properties": "Your STR property listings",
-      "services": "Your ZZP service listings"
+      "services": "Your ZZP service listings",
+      "video": "Embedded YouTube video player"
     },
     "layouts": {
       "image-right": "Image Right",
       "image-left": "Image Left",
       "image-background": "Image Background",
+      "image-bg": "Image Background",
+      "video-bg": "Video Background",
+      "split-diagonal": "Split Diagonal",
+      "default": "Default",
       "centered": "Centered",
       "grid-3": "Grid (3 columns)",
       "grid-4": "Grid (4 columns)",
@@ -746,7 +755,19 @@
       "table": "Table",
       "left-aligned": "Left Aligned",
       "full-width": "Full Width",
-      "contained": "Contained"
+      "contained": "Contained",
+      "split": "Split",
+      "banner": "Banner",
+      "floating": "Floating Bar",
+      "two-column": "Two Column",
+      "side-by-side": "Side by Side",
+      "horizontal": "Horizontal",
+      "featured-center": "Featured Center",
+      "comparison-table": "Comparison Table",
+      "quote-large": "Large Quote",
+      "grid": "Grid",
+      "card": "Card",
+      "timeline": "Timeline"
     },
     "fields": {
       "title": "Title",
@@ -758,7 +779,35 @@
       "buttonText": "Button text",
       "buttonUrl": "Button URL",
       "embedUrl": "Embed URL",
-      "height": "Height"
+      "height": "Height",
+      "videoUrl": "Video URL",
+      "description": "Description"
+    },
+    "settings": {
+      "backgroundType": "Background",
+      "bgColour": "Colour",
+      "bgImage": "Image",
+      "bgGradient": "Gradient",
+      "backgroundColor": "Background colour",
+      "backgroundImage": "Background image",
+      "backgroundGradient": "CSS Gradient",
+      "imageUploadPlaceholder": "Upload a background image",
+      "padding": "Padding",
+      "padding_compact": "Compact",
+      "padding_normal": "Normal",
+      "padding_spacious": "Spacious",
+      "textColour": "Text colour",
+      "textColor_dark": "Dark",
+      "textColor_light": "Light",
+      "textColor_auto": "Auto",
+      "maxWidth": "Width",
+      "maxWidth_contained": "Contained",
+      "maxWidth_full-width": "Full width",
+      "borderRadius": "Corners",
+      "borderRadius_none": "None",
+      "borderRadius_sm": "Small",
+      "borderRadius_md": "Medium",
+      "borderRadius_lg": "Large"
     },
     "branding": {
       "companyInfo": "Company & Branding",
@@ -785,7 +834,29 @@
       "showShareButtonsHelp": "When enabled, a floating share bar with Facebook, X, WhatsApp, LinkedIn, and Email buttons will appear on your published landing page.",
       "save": "Save Branding",
       "saved": "Branding settings saved",
-      "saveError": "Failed to save branding settings"
+      "saveError": "Failed to save branding settings",
+      "chooseTheme": "Choose a Theme",
+      "customTheme": "Custom",
+      "manualControl": "Manual",
+      "resetToDefaults": "Reset to theme defaults",
+      "typography": "Typography & Styling",
+      "fontHeading": "Heading Font",
+      "fontBody": "Body Font",
+      "fontPreviewHeading": "The quick brown fox jumps",
+      "fontPreviewBody": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+      "baseSpacing": "Spacing",
+      "spacing_compact": "Compact",
+      "spacing_normal": "Normal",
+      "spacing_relaxed": "Relaxed",
+      "borderRadius": "Border Radius",
+      "radius_sharp": "Sharp",
+      "radius_rounded": "Rounded",
+      "radius_pill": "Pill",
+      "shadowStyle": "Shadow Style",
+      "shadow_none": "None",
+      "shadow_subtle": "Subtle",
+      "shadow_medium": "Medium",
+      "shadow_dramatic": "Dramatic"
     },
     "seo": {
       "title": "SEO Title",
@@ -814,10 +885,12 @@
       "embed": "Embed external content (Google Maps, videos, booking widgets) via HTTPS URL.",
       "contact": "A contact form for visitors to send you messages. Submissions go to your configured email.",
       "properties": "Automatically shows your STR properties marked as public. Data is refreshed on each publish.",
-      "services": "Automatically shows your ZZP services marked as public. Data is refreshed on each publish."
+      "services": "Automatically shows your ZZP services marked as public. Data is refreshed on each publish.",
+      "video": "Add a YouTube video. Paste the video URL — the player will be embedded responsively with a thumbnail preview."
     },
     "fieldHelp": {
-      "embedUrl": "Only HTTPS URLs are supported. Non-HTTPS content will not be displayed."
+      "embedUrl": "Only HTTPS URLs are supported. Non-HTTPS content will not be displayed.",
+      "videoUrlInvalid": "Please enter a valid YouTube URL (youtube.com/watch?v=... or youtu.be/...)"
     },
     "faqEditor": {
       "addItem": "+ Add Question",
@@ -1016,6 +1089,155 @@
       "step4": "Send welcome email to user",
       "cancel": "Cancel",
       "provision": "Provision"
+    }
+  },
+  "mediaAssets": {
+    "title": "Media Asset Administration",
+    "tabs": {
+      "dashboard": "Dashboard",
+      "scan": "Scan",
+      "deletion": "Deletion",
+      "unregistered": "Unregistered",
+      "retention": "Retention",
+      "duplicates": "Duplicates",
+      "storage": "Storage"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "totalAssets": "Total Assets",
+      "activeAssets": "Active Assets",
+      "orphanedAssets": "Orphaned Assets",
+      "deletionEligible": "Deletion Eligible",
+      "storageByCategory": "Storage by Category",
+      "lastScan": "Last Scan",
+      "topOrphans": "Top Orphans",
+      "never": "Never",
+      "count": "Count",
+      "size": "Size",
+      "category": "Category",
+      "filename": "Filename",
+      "daysOrphaned": "Days Orphaned"
+    },
+    "scan": {
+      "title": "Reconciliation Scan",
+      "startScan": "Start Scan",
+      "scanning": "Scanning...",
+      "phases": {
+        "scanningS3": "Scanning S3 buckets...",
+        "checkingRegistry": "Comparing with registry...",
+        "verifyingReferences": "Verifying entity references...",
+        "transitioning": "Transitioning eligible assets...",
+        "complete": "Scan complete"
+      },
+      "results": {
+        "title": "Scan Results",
+        "consistent": "Consistent",
+        "unregistered": "Unregistered",
+        "missing": "Missing",
+        "staleReferences": "Stale References",
+        "newlyEligible": "Newly Eligible",
+        "totalScanned": "Total Scanned"
+      },
+      "errors": {
+        "connectionLost": "Connection lost during scan. Please try again.",
+        "startFailed": "Failed to start scan"
+      }
+    },
+    "deletion": {
+      "title": "Deletion Approval",
+      "description": "Assets that have been orphaned beyond their retention period. Review and approve permanent deletion.",
+      "noAssets": "No assets eligible for deletion",
+      "noAssetsHint": "Assets become eligible after their retention period expires while orphaned.",
+      "approveSelected": "Approve Deletion",
+      "selected": "{{count}} asset(s) selected",
+      "confirmTitle": "Confirm Permanent Deletion",
+      "confirmMessage": "Are you sure you want to permanently delete {{count}} asset(s)? This action cannot be undone.",
+      "complianceWarning": "Some selected assets are in compliance-sensitive categories (invoices). Ensure retention requirements are met.",
+      "messages": {
+        "success": "Deletion complete",
+        "successDetail": "{{deleted}} deleted, {{skipped}} skipped",
+        "failed": "Deletion failed"
+      },
+      "table": {
+        "filename": "Filename",
+        "category": "Category",
+        "size": "Size",
+        "orphanedDays": "Days Orphaned",
+        "status": "Status"
+      }
+    },
+    "unregistered": {
+      "title": "Unregistered Objects",
+      "description": "S3 objects that exist in buckets but are not tracked in the asset registry.",
+      "noObjects": "No unregistered objects found",
+      "noObjectsHint": "Run a scan to check for S3 objects not tracked in the registry.",
+      "importToRegistry": "Import to Registry",
+      "deleteFromS3": "Delete from S3",
+      "selected": "{{count}} object(s) selected",
+      "confirmDeleteTitle": "Confirm Permanent Deletion",
+      "confirmDeleteMessage": "Are you sure you want to permanently delete {{count}} S3 object(s)?",
+      "confirmDeleteWarning": "This action is irreversible. These files will be permanently removed from S3 storage and cannot be recovered.",
+      "table": {
+        "s3Key": "S3 Key",
+        "bucket": "Bucket",
+        "size": "Size",
+        "lastModified": "Last Modified"
+      },
+      "messages": {
+        "importSuccess": "Import complete",
+        "importDetail": "{{imported}} imported, {{skipped}} skipped",
+        "importFailed": "Import failed",
+        "deleteSuccess": "Deletion complete",
+        "deleteDetail": "{{deleted}} deleted, {{skipped}} skipped",
+        "deleteFailed": "Deletion failed"
+      }
+    },
+    "retention": {
+      "title": "Retention Settings",
+      "description": "Configure how long orphaned assets are retained before becoming eligible for deletion.",
+      "category": "Category",
+      "days": "Days",
+      "source": "Source",
+      "sources": {
+        "systemDefault": "System Default",
+        "tenantOverride": "Tenant Override"
+      },
+      "save": "Save Changes",
+      "noChanges": "No changes to save",
+      "messages": {
+        "success": "Settings saved",
+        "successDetail": "Updated {{count}} retention setting(s)",
+        "failed": "Save failed"
+      }
+    },
+    "duplicates": {
+      "title": "Duplicate Assets",
+      "description": "Assets sharing the same content (identical files uploaded multiple times).",
+      "noDuplicates": "No duplicate assets found",
+      "noDuplicatesHint": "All registered assets have unique content.",
+      "merge": "Merge",
+      "keep": "Keep",
+      "group": "Group",
+      "files": "{{count}} files",
+      "references": "{{count}} ref(s)",
+      "messages": {
+        "mergeSuccess": "Merge complete",
+        "mergeDetail": "{{deleted}} duplicate(s) removed, {{moved}} reference(s) moved",
+        "mergeFailed": "Merge failed"
+      }
+    },
+    "storageSummary": {
+      "title": "Storage Summary",
+      "byCategory": "By Category",
+      "orphanSummary": "Orphan Summary",
+      "topOrphans": "Top 10 Largest Orphans",
+      "noData": "No storage data available",
+      "category": "Category",
+      "count": "Count",
+      "totalSize": "Total Size",
+      "filename": "Filename",
+      "size": "Size",
+      "daysOrphaned": "Days Orphaned"
     }
   }
 }

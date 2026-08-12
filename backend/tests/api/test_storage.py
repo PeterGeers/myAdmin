@@ -222,17 +222,31 @@ class TestUploadLogo:
         resp_data = json.loads(response.data)
         assert 'not configured' in resp_data['error']
 
+    @patch('routes.storage.MediaAssetService')
     @patch('routes.storage.ParameterService')
     @patch('routes.storage.DatabaseManager')
-    @patch('boto3.client')
-    def test_upload_logo_png_success(self, mock_boto_client, mock_db_class,
-                                     mock_ps_class, client, mock_auth):
-        """Happy path: PNG upload succeeds and returns S3 key."""
-        mock_s3 = MagicMock()
-        mock_boto_client.return_value = mock_s3
+    def test_upload_logo_png_success(self, mock_db_class, mock_ps_class,
+                                     mock_asset_cls, client, mock_auth):
+        """Happy path: PNG upload succeeds and returns S3 key via MediaAssetService."""
         mock_db_class.return_value = MagicMock()
         mock_ps_instance = MagicMock()
         mock_ps_class.return_value = mock_ps_instance
+        mock_asset_svc = MagicMock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_01TEST',
+                's3_key': 'test-tenant/branding/ast_01TEST_company_logo.png',
+                'bucket': 'my-bucket',
+                'mime_type': 'image/png',
+                'file_size': 108,
+                'category': 'branding',
+                'media_type': 'image',
+                'status': 'ACTIVE',
+            },
+            'duplicate_of': None,
+        }
 
         png_data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
         data = {
@@ -253,18 +267,32 @@ class TestUploadLogo:
         assert response.status_code == 200
         resp_data = json.loads(response.data)
         assert resp_data['success'] is True
-        assert resp_data['key'] == 'test-tenant/branding/company_logo.png'
+        assert resp_data['key'] == 'test-tenant/branding/ast_01TEST_company_logo.png'
 
+    @patch('routes.storage.MediaAssetService')
     @patch('routes.storage.ParameterService')
     @patch('routes.storage.DatabaseManager')
-    @patch('boto3.client')
-    def test_upload_logo_jpg_success(self, mock_boto_client, mock_db_class,
-                                     mock_ps_class, client, mock_auth):
-        """JPEG upload uses .jpg extension."""
-        mock_s3 = MagicMock()
-        mock_boto_client.return_value = mock_s3
+    def test_upload_logo_jpg_success(self, mock_db_class, mock_ps_class,
+                                     mock_asset_cls, client, mock_auth):
+        """JPEG upload uses .jpg extension via MediaAssetService."""
         mock_db_class.return_value = MagicMock()
         mock_ps_class.return_value = MagicMock()
+        mock_asset_svc = MagicMock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_01TEST',
+                's3_key': 'test-tenant/branding/ast_01TEST_company_logo.jpg',
+                'bucket': 'my-bucket',
+                'mime_type': 'image/jpeg',
+                'file_size': 104,
+                'category': 'branding',
+                'media_type': 'image',
+                'status': 'ACTIVE',
+            },
+            'duplicate_of': None,
+        }
 
         jpg_data = b'\xff\xd8\xff\xe0' + b'\x00' * 100
         data = {
@@ -284,19 +312,34 @@ class TestUploadLogo:
 
         assert response.status_code == 200
         resp_data = json.loads(response.data)
-        assert resp_data['key'] == 'test-tenant/branding/company_logo.jpg'
+        assert resp_data['key'] == 'test-tenant/branding/ast_01TEST_company_logo.jpg'
 
+    @patch('routes.storage.MediaAssetService')
     @patch('routes.storage.ParameterService')
     @patch('routes.storage.DatabaseManager')
-    @patch('boto3.client')
-    def test_upload_logo_calls_s3_put_object(self, mock_boto_client,
-                                             mock_db_class, mock_ps_class,
-                                             client, mock_auth):
-        """Verifies S3 put_object is called with correct params."""
-        mock_s3 = MagicMock()
-        mock_boto_client.return_value = mock_s3
+    def test_upload_logo_calls_store_and_register(self, mock_db_class,
+                                                   mock_ps_class,
+                                                   mock_asset_cls,
+                                                   client, mock_auth):
+        """Verifies MediaAssetService.store_and_register is called with correct params."""
         mock_db_class.return_value = MagicMock()
         mock_ps_class.return_value = MagicMock()
+        mock_asset_svc = MagicMock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_01TEST',
+                's3_key': 'test-tenant/branding/ast_01TEST_company_logo.png',
+                'bucket': 'test-bucket',
+                'mime_type': 'image/png',
+                'file_size': 58,
+                'category': 'branding',
+                'media_type': 'image',
+                'status': 'ACTIVE',
+            },
+            'duplicate_of': None,
+        }
 
         png_data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
         data = {
@@ -314,25 +357,42 @@ class TestUploadLogo:
                 data=data,
             )
 
-        mock_s3.put_object.assert_called_once()
-        call_kwargs = mock_s3.put_object.call_args[1]
-        assert call_kwargs['Bucket'] == 'test-bucket'
-        assert call_kwargs['Key'] == 'test-tenant/branding/company_logo.png'
-        assert call_kwargs['ContentType'] == 'image/png'
+        mock_asset_svc.store_and_register.assert_called_once_with(
+            tenant='test-tenant',
+            file_data=png_data,
+            filename='company_logo.png',
+            category='branding',
+            entity_type='branding',
+            entity_id='test-tenant:company_logo',
+        )
 
+    @patch('routes.storage.MediaAssetService')
     @patch('routes.storage.ParameterService')
     @patch('routes.storage.DatabaseManager')
-    @patch('boto3.client')
-    def test_upload_logo_updates_parameter_service(self, mock_boto_client,
-                                                    mock_db_class,
+    def test_upload_logo_updates_parameter_service(self, mock_db_class,
                                                     mock_ps_class,
+                                                    mock_asset_cls,
                                                     client, mock_auth):
-        """Verifies ParameterService is called to store the S3 key."""
-        mock_s3 = MagicMock()
-        mock_boto_client.return_value = mock_s3
+        """Verifies ParameterService is called to store the S3 key from asset result."""
         mock_db_class.return_value = MagicMock()
         mock_ps_instance = MagicMock()
         mock_ps_class.return_value = mock_ps_instance
+        mock_asset_svc = MagicMock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_01TEST',
+                's3_key': 'test-tenant/branding/ast_01TEST_company_logo.png',
+                'bucket': 'my-bucket',
+                'mime_type': 'image/png',
+                'file_size': 58,
+                'category': 'branding',
+                'media_type': 'image',
+                'status': 'ACTIVE',
+            },
+            'duplicate_of': None,
+        }
 
         png_data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
         data = {
@@ -352,6 +412,6 @@ class TestUploadLogo:
 
         mock_ps_instance.set_param.assert_called_once_with(
             'tenant', 'test-tenant', 'branding', 'company_logo_s3_key',
-            'test-tenant/branding/company_logo.png',
+            'test-tenant/branding/ast_01TEST_company_logo.png',
             value_type='string', created_by='test@example.com'
         )

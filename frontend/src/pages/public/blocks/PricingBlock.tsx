@@ -48,6 +48,67 @@ export const PricingBlock: React.FC<PricingBlockProps> = ({
 
   if (!items || items.length === 0) return null;
 
+  // Layout: horizontal — table with feature rows
+  if (layout === 'horizontal') {
+    const allFeatures = [...new Set(items.flatMap(item => item.features || []))];
+    return (
+      <Container maxW="1200px" px={{ base: 6, md: 12 }} py={{ base: 12, md: 16 }}>
+        {title && <Heading as="h2" size="xl" textAlign="center" mb={8}>{title}</Heading>}
+        <Box overflowX="auto">
+          <Table variant="simple">
+            <Thead><Tr><Th>Feature</Th>{items.map((item, i) => <Th key={i} textAlign="center">{item.name}<br/><Text as="span" fontSize="lg" color="orange.500">{item.price}</Text></Th>)}</Tr></Thead>
+            <Tbody>{allFeatures.map((feature, fi) => (
+              <Tr key={fi}><Td>{feature}</Td>{items.map((item, ii) => <Td key={ii} textAlign="center">{item.features?.includes(feature) ? '✓' : '—'}</Td>)}</Tr>
+            ))}</Tbody>
+          </Table>
+        </Box>
+      </Container>
+    );
+  }
+
+  // Layout: featured-center — middle card highlighted
+  if (layout === 'featured-center') {
+    const midIndex = Math.floor(items.length / 2);
+    return (
+      <Container maxW="1200px" px={{ base: 6, md: 12 }} py={{ base: 12, md: 16 }}>
+        {title && <Heading as="h2" size="xl" textAlign="center" mb={8}>{title}</Heading>}
+        <SimpleGrid columns={{ base: 1, md: items.length >= 3 ? 3 : items.length }} spacing={6}>
+          {items.map((item, index) => (
+            <Flex key={index} direction="column" align="center" bg="white" p={8} borderRadius="lg"
+              boxShadow={index === midIndex ? 'xl' : 'md'}
+              border="2px solid" borderColor={index === midIndex ? 'orange.400' : 'gray.100'}
+              transform={index === midIndex ? 'scale(1.05)' : undefined}
+            >
+              <Heading as="h3" size="md" mb={2}>{item.name}</Heading>
+              <Text fontSize="3xl" fontWeight="bold" mb={1}>{item.price}</Text>
+              {item.features && <List spacing={2} mt={4} textAlign="left" w="100%">
+                {item.features.map((f, fi) => <ListItem key={fi} fontSize="sm"><ListIcon as={CheckIcon} color="green.500" />{f}</ListItem>)}
+              </List>}
+            </Flex>
+          ))}
+        </SimpleGrid>
+      </Container>
+    );
+  }
+
+  // Layout: comparison-table — same as horizontal but with "Feature" header
+  if (layout === 'comparison-table') {
+    const allFeatures = [...new Set(items.flatMap(item => item.features || []))];
+    return (
+      <Container maxW="1200px" px={{ base: 6, md: 12 }} py={{ base: 12, md: 16 }}>
+        {title && <Heading as="h2" size="xl" textAlign="center" mb={8}>{title}</Heading>}
+        <Box overflowX="auto">
+          <Table variant="simple">
+            <Thead><Tr><Th>Feature</Th>{items.map((item, i) => <Th key={i} textAlign="center">{item.name} - {item.price}</Th>)}</Tr></Thead>
+            <Tbody>{allFeatures.map((feature, fi) => (
+              <Tr key={fi}><Td>{feature}</Td>{items.map((item, ii) => <Td key={ii} textAlign="center">{item.features?.includes(feature) ? '✓' : '—'}</Td>)}</Tr>
+            ))}</Tbody>
+          </Table>
+        </Box>
+      </Container>
+    );
+  }
+
   // Layout: table
   if (layout === 'table') {
     return (

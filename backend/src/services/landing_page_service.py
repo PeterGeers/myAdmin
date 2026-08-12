@@ -294,9 +294,7 @@ class LandingPageService:
 
             for item in to_delete:
                 try:
-                    self._table.delete_item(
-                        Key={"PK": item["PK"], "SK": item["SK"]}
-                    )
+                    self._table.delete_item(Key={"PK": item["PK"], "SK": item["SK"]})
                     deleted_count += 1
                 except ClientError as e:
                     logger.warning(

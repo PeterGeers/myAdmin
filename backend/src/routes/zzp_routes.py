@@ -609,8 +609,8 @@ def upload_supporting_document(
 ) -> ResponseReturnValue:
     """Upload a supporting document and link it to an invoice.
 
-    Stores via OutputService (Google Drive) and records the reference
-    on the invoice for later attachment when sending.
+    Stores via MediaAssetService (S3) and registers the asset reference
+    for the ZZP invoice entity.
     """
     try:
         svc = _get_invoice_service()
@@ -629,30 +629,34 @@ def upload_supporting_document(
         file_content = file.read()
         filename = file.filename
 
-        # Store via tenant's configured storage provider
-        from storage.storage_provider import get_storage_provider
+        # Store via MediaAssetService
+        from services.media_asset_service import MediaAssetService
 
         db = DatabaseManager(test_mode=_test_mode)
-        param_svc = ParameterService(db)
-        provider = get_storage_provider(tenant, param_svc)
-
-        doc_path = f"zzp/invoices/{invoice['invoice_number']}/{filename}"
-        url = provider.upload(
-            file_content,
-            doc_path,
-            metadata={
-                "administration": tenant,
-                "invoice_id": invoice_id,
-                "content_type": file.content_type or "application/octet-stream",
-            },
+        asset_svc = MediaAssetService(db)
+        result = asset_svc.store_and_register(
+            tenant=tenant,
+            file_data=file_content,
+            filename=filename,
+            category="invoices",
+            entity_type="zzp_invoice",
+            entity_id=str(invoice_id),
+            metadata={"reference_number": invoice["invoice_number"]},
         )
+
+        if not result["success"]:
+            return jsonify(
+                {"success": False, "error": result.get("error", "Upload failed")}
+            ), 500
+
+        s3_key = result["asset"]["s3_key"]
 
         return jsonify(
             {
                 "success": True,
                 "data": {
                     "filename": filename,
-                    "url": url,
+                    "url": s3_key,
                     "invoice_id": invoice_id,
                 },
             }

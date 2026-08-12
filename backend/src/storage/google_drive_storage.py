@@ -32,47 +32,31 @@ class GoogleDriveStorage(StorageProvider):
             )
         return self._service
 
-    def upload(self, file_data: bytes, path: str, metadata: dict | None = None) -> str:
-        """Upload file to Google Drive. Returns the file ID as reference."""
-        import os
-        import tempfile
+    def _upload_raw(self, file_data: bytes, key: str, content_type: str) -> bool:
+        """Raw upload for Google Drive. Not applicable — raises NotImplementedError.
 
-        metadata = metadata or {}
-        folder_id = metadata.get("folder_id", "")
-        filename = metadata.get("filename") or os.path.basename(path)
-        mime_type = metadata.get("mime_type", "application/octet-stream")
+        Google Drive doesn't use key-based addressing. Use MediaAssetService
+        with an S3-based provider instead.
+        """
+        raise NotImplementedError(
+            "GoogleDriveStorage does not support _upload_raw. "
+            "Use MediaAssetService with S3 providers for managed assets."
+        )
 
-        svc = self._get_service()
-
-        if isinstance(file_data, bytes) and mime_type.startswith("text/"):
-            result = svc.upload_text_file(
-                file_data.decode("utf-8"), filename, folder_id, mime_type
-            )
-        else:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=filename) as tmp:
-                tmp.write(file_data)
-                tmp_path = tmp.name
-            try:
-                result = svc.upload_file(tmp_path, filename, folder_id)
-            finally:
-                os.unlink(tmp_path)
-
-        return result.get("id", "")
+    def _delete_raw(self, key: str) -> bool:
+        """Raw delete for Google Drive (uses key as file ID)."""
+        try:
+            svc = self._get_service()
+            svc.service.files().delete(fileId=key).execute()
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error("Failed to delete Google Drive file %s: %s", key, e)
+            return False
 
     def download(self, reference: str) -> bytes:
         """Download file from Google Drive by file ID."""
         svc = self._get_service()
         return svc.download_file_content(reference)
-
-    def delete(self, reference: str) -> bool:
-        """Delete file from Google Drive by file ID."""
-        try:
-            svc = self._get_service()
-            svc.service.files().delete(fileId=reference).execute()
-            return True
-        except Exception as e:  # noqa: BLE001
-            logger.error("Failed to delete Google Drive file %s: %s", reference, e)
-            return False
 
     def list_files(self, path: str) -> list[dict]:
         """List files in a Google Drive folder (path = folder ID)."""

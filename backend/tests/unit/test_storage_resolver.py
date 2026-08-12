@@ -295,32 +295,27 @@ class TestCreateS3Folder:
     """Tests for create_s3_folder()."""
 
     def test_creates_correct_marker_object_key(self):
-        """Creates marker at {tenant}/invoices/{name}/.folder."""
+        """Creates marker at {tenant}/invoices/{name}/.folder via _upload_raw."""
         from services.storage_resolver import create_s3_folder
 
-        mock_client = Mock()
         mock_storage = Mock()
         mock_storage.bucket = 'test-bucket'
-        mock_storage._client = mock_client
 
         with patch('services.storage_resolver.get_s3_storage', return_value=mock_storage):
             create_s3_folder('TenantA', 'NewSupplier', parameter_service=Mock())
 
-        mock_client.put_object.assert_called_once_with(
-            Bucket='test-bucket',
-            Key='TenantA/invoices/NewSupplier/.folder',
-            Body=b'',
-            ContentType='application/x-directory',
+        mock_storage._upload_raw.assert_called_once_with(
+            file_data=b'',
+            key='TenantA/invoices/NewSupplier/.folder',
+            content_type='application/x-directory',
         )
 
     def test_returns_correct_response_shape(self):
         """Returns dict with 'id', 'name', and 'url' keys."""
         from services.storage_resolver import create_s3_folder
 
-        mock_client = Mock()
         mock_storage = Mock()
         mock_storage.bucket = 'test-bucket'
-        mock_storage._client = mock_client
 
         with patch('services.storage_resolver.get_s3_storage', return_value=mock_storage):
             result = create_s3_folder('TenantA', 'MyFolder', parameter_service=Mock())
@@ -332,14 +327,12 @@ class TestCreateS3Folder:
         }
 
     def test_returns_error_on_failure(self):
-        """Returns error dict when put_object fails."""
+        """Returns error dict when _upload_raw fails."""
         from services.storage_resolver import create_s3_folder
 
-        mock_client = Mock()
-        mock_client.put_object.side_effect = Exception("Access denied")
         mock_storage = Mock()
         mock_storage.bucket = 'test-bucket'
-        mock_storage._client = mock_client
+        mock_storage._upload_raw.side_effect = Exception("Access denied")
 
         with patch('services.storage_resolver.get_s3_storage', return_value=mock_storage):
             result = create_s3_folder('TenantA', 'Folder', parameter_service=Mock())
@@ -365,20 +358,17 @@ class TestEdgeCases:
         """create_s3_folder handles special characters in folder names."""
         from services.storage_resolver import create_s3_folder
 
-        mock_client = Mock()
         mock_storage = Mock()
         mock_storage.bucket = 'test-bucket'
-        mock_storage._client = mock_client
 
         with patch('services.storage_resolver.get_s3_storage', return_value=mock_storage):
             result = create_s3_folder('TenantA', 'Supplier & Co.', parameter_service=Mock())
 
         expected_key = 'TenantA/invoices/Supplier & Co./.folder'
-        mock_client.put_object.assert_called_once_with(
-            Bucket='test-bucket',
-            Key=expected_key,
-            Body=b'',
-            ContentType='application/x-directory',
+        mock_storage._upload_raw.assert_called_once_with(
+            file_data=b'',
+            key=expected_key,
+            content_type='application/x-directory',
         )
         assert result['name'] == 'Supplier & Co.'
         assert result['id'] == expected_key
@@ -387,20 +377,17 @@ class TestEdgeCases:
         """create_s3_folder handles unicode characters in folder names."""
         from services.storage_resolver import create_s3_folder
 
-        mock_client = Mock()
         mock_storage = Mock()
         mock_storage.bucket = 'test-bucket'
-        mock_storage._client = mock_client
 
         with patch('services.storage_resolver.get_s3_storage', return_value=mock_storage):
             result = create_s3_folder('TenantA', 'Ünternehmen GmbH', parameter_service=Mock())
 
         expected_key = 'TenantA/invoices/Ünternehmen GmbH/.folder'
-        mock_client.put_object.assert_called_once_with(
-            Bucket='test-bucket',
-            Key=expected_key,
-            Body=b'',
-            ContentType='application/x-directory',
+        mock_storage._upload_raw.assert_called_once_with(
+            file_data=b'',
+            key=expected_key,
+            content_type='application/x-directory',
         )
         assert result['name'] == 'Ünternehmen GmbH'
 
@@ -454,10 +441,8 @@ class TestEdgeCases:
         """create_s3_folder works with empty tenant string."""
         from services.storage_resolver import create_s3_folder
 
-        mock_client = Mock()
         mock_storage = Mock()
         mock_storage.bucket = 'test-bucket'
-        mock_storage._client = mock_client
 
         with patch('services.storage_resolver.get_s3_storage', return_value=mock_storage):
             result = create_s3_folder('', 'TestFolder', parameter_service=Mock())

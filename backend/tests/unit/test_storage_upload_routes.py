@@ -9,9 +9,11 @@ Tests the POST /api/storage/upload-logo endpoint for:
 - File exceeding 2MB returns 400
 - Missing file in request returns 400
 - Missing authentication returns 401
+- Asset registered with correct entity_type and entity_id
+- Parameter updated with s3_key from asset service result
 
 Requirements: 9.1–9.3
-Reference: .kiro/specs/s3-shared-bucket-infrastructure/design.md
+Reference: .kiro/specs/Common/image-asset-management/design.md
 """
 
 import sys
@@ -57,11 +59,26 @@ def _auth_mocks(tenant='TestTenant'):
     ]
 
 
-def _make_file(content=b'\x89PNG\r\n\x1a\n' + b'\x00' * 100,
-               filename='logo.png',
-               content_type='image/png'):
-    """Create a file-like object for upload testing."""
-    return (io.BytesIO(content), filename, content_type)
+def _mock_store_result(s3_key, asset_id='ast_01TESTASSET123456'):
+    """Create a successful store_and_register result."""
+    return {
+        'success': True,
+        'asset': {
+            'id': asset_id,
+            's3_key': s3_key,
+            'bucket': 'myadmin-shared-dev',
+            'mime_type': 'image/png',
+            'file_size': 108,
+            'category': 'branding',
+            'media_type': 'image',
+            'original_filename': 'company_logo.png',
+            'content_hash': 'abc123',
+            'status': 'ACTIVE',
+            'created_at': '2025-01-01 00:00:00',
+            'reference_count': 1,
+        },
+        'duplicate_of': None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -72,18 +89,20 @@ class TestUploadLogoSuccess:
     """Test successful logo uploads."""
 
     def test_valid_png_upload_returns_200(self, client):
-        """Valid PNG upload stores to correct S3 key and returns 200."""
+        """Valid PNG upload stores via asset service and returns 200."""
         tenant = 'TestTenant'
+        expected_s3_key = 'TestTenant/branding/ast_01TEST_company_logo.png'
 
         mocks = _auth_mocks(tenant=tenant)
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], \
              patch.dict(os.environ, {'S3_SHARED_BUCKET': 'myadmin-shared-dev'}), \
-             patch('routes.storage.boto3') as mock_boto3, \
+             patch('routes.storage.MediaAssetService') as mock_svc_cls, \
              patch('routes.storage.DatabaseManager') as mock_db_cls, \
              patch('routes.storage.ParameterService') as mock_ps_cls:
 
-            mock_s3_client = MagicMock()
-            mock_boto3.client.return_value = mock_s3_client
+            mock_svc = MagicMock()
+            mock_svc_cls.return_value = mock_svc
+            mock_svc.store_and_register.return_value = _mock_store_result(expected_s3_key)
             mock_ps = MagicMock()
             mock_ps_cls.return_value = mock_ps
 
@@ -105,35 +124,43 @@ class TestUploadLogoSuccess:
             assert resp.status_code == 200
             result = resp.get_json()
             assert result['success'] is True
-            assert result['key'] == 'TestTenant/branding/company_logo.png'
+            assert result['key'] == expected_s3_key
 
-            # Verify S3 put_object was called
-            mock_s3_client.put_object.assert_called_once()
-            call_kwargs = mock_s3_client.put_object.call_args[1]
-            assert call_kwargs['Bucket'] == 'myadmin-shared-dev'
-            assert call_kwargs['Key'] == 'TestTenant/branding/company_logo.png'
-            assert call_kwargs['ContentType'] == 'image/png'
+            # Verify store_and_register was called with correct params
+            mock_svc.store_and_register.assert_called_once_with(
+                tenant=tenant,
+                file_data=b'\x89PNG\r\n\x1a\n' + b'\x00' * 100,
+                filename='company_logo.png',
+                category='branding',
+                entity_type='branding',
+                entity_id=f'{tenant}:company_logo',
+            )
 
-            # Verify ParameterService.set_param was called
+            # Verify ParameterService.set_param was called with asset s3_key
             mock_ps.set_param.assert_called_once_with(
                 'tenant', tenant, 'branding', 'company_logo_s3_key',
-                'TestTenant/branding/company_logo.png',
+                expected_s3_key,
                 value_type='string', created_by='user@test.com'
             )
 
     def test_valid_jpg_upload_returns_200(self, client):
-        """Valid JPG upload stores to correct S3 key and returns 200."""
+        """Valid JPG upload stores via asset service and returns 200."""
         tenant = 'TestTenant'
+        expected_s3_key = 'TestTenant/branding/ast_01TEST_company_logo.jpg'
 
         mocks = _auth_mocks(tenant=tenant)
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], \
              patch.dict(os.environ, {'S3_SHARED_BUCKET': 'myadmin-shared-dev'}), \
-             patch('routes.storage.boto3') as mock_boto3, \
+             patch('routes.storage.MediaAssetService') as mock_svc_cls, \
              patch('routes.storage.DatabaseManager') as mock_db_cls, \
              patch('routes.storage.ParameterService') as mock_ps_cls:
 
-            mock_s3_client = MagicMock()
-            mock_boto3.client.return_value = mock_s3_client
+            mock_svc = MagicMock()
+            mock_svc_cls.return_value = mock_svc
+            result_data = _mock_store_result(expected_s3_key)
+            result_data['asset']['mime_type'] = 'image/jpeg'
+            result_data['asset']['original_filename'] = 'company_logo.jpg'
+            mock_svc.store_and_register.return_value = result_data
             mock_ps = MagicMock()
             mock_ps_cls.return_value = mock_ps
 
@@ -155,26 +182,36 @@ class TestUploadLogoSuccess:
             assert resp.status_code == 200
             result = resp.get_json()
             assert result['success'] is True
-            assert result['key'] == 'TestTenant/branding/company_logo.jpg'
+            assert result['key'] == expected_s3_key
 
-            # Verify S3 key uses .jpg extension
-            call_kwargs = mock_s3_client.put_object.call_args[1]
-            assert call_kwargs['Key'] == 'TestTenant/branding/company_logo.jpg'
-            assert call_kwargs['ContentType'] == 'image/jpeg'
+            # Verify store_and_register called with .jpg filename
+            mock_svc.store_and_register.assert_called_once_with(
+                tenant=tenant,
+                file_data=b'\xff\xd8\xff\xe0' + b'\x00' * 100,
+                filename='company_logo.jpg',
+                category='branding',
+                entity_type='branding',
+                entity_id=f'{tenant}:company_logo',
+            )
 
     def test_valid_svg_upload_returns_200(self, client):
-        """Valid SVG upload stores to correct S3 key and returns 200."""
+        """Valid SVG upload stores via asset service and returns 200."""
         tenant = 'TestTenant'
+        expected_s3_key = 'TestTenant/branding/ast_01TEST_company_logo.svg'
 
         mocks = _auth_mocks(tenant=tenant)
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], \
              patch.dict(os.environ, {'S3_SHARED_BUCKET': 'myadmin-shared-dev'}), \
-             patch('routes.storage.boto3') as mock_boto3, \
+             patch('routes.storage.MediaAssetService') as mock_svc_cls, \
              patch('routes.storage.DatabaseManager') as mock_db_cls, \
              patch('routes.storage.ParameterService') as mock_ps_cls:
 
-            mock_s3_client = MagicMock()
-            mock_boto3.client.return_value = mock_s3_client
+            mock_svc = MagicMock()
+            mock_svc_cls.return_value = mock_svc
+            result_data = _mock_store_result(expected_s3_key)
+            result_data['asset']['mime_type'] = 'image/svg+xml'
+            result_data['asset']['original_filename'] = 'company_logo.svg'
+            mock_svc.store_and_register.return_value = result_data
             mock_ps = MagicMock()
             mock_ps_cls.return_value = mock_ps
 
@@ -196,7 +233,102 @@ class TestUploadLogoSuccess:
             assert resp.status_code == 200
             result = resp.get_json()
             assert result['success'] is True
-            assert result['key'] == 'TestTenant/branding/company_logo.svg'
+            assert result['key'] == expected_s3_key
+
+            # Verify store_and_register called with .svg filename
+            mock_svc.store_and_register.assert_called_once_with(
+                tenant=tenant,
+                file_data=svg_content,
+                filename='company_logo.svg',
+                category='branding',
+                entity_type='branding',
+                entity_id=f'{tenant}:company_logo',
+            )
+
+
+# ---------------------------------------------------------------------------
+# Tests: Asset registration with correct entity_type and entity_id
+# ---------------------------------------------------------------------------
+
+class TestUploadLogoAssetRegistration:
+    """Test that asset service is called with correct branding entity params."""
+
+    def test_entity_type_is_branding(self, client):
+        """store_and_register called with entity_type='branding'."""
+        tenant = 'MyCompany'
+        expected_s3_key = 'MyCompany/branding/ast_01TEST_company_logo.png'
+
+        mocks = _auth_mocks(tenant=tenant)
+        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], \
+             patch.dict(os.environ, {'S3_SHARED_BUCKET': 'myadmin-shared-dev'}), \
+             patch('routes.storage.MediaAssetService') as mock_svc_cls, \
+             patch('routes.storage.DatabaseManager'), \
+             patch('routes.storage.ParameterService') as mock_ps_cls:
+
+            mock_svc = MagicMock()
+            mock_svc_cls.return_value = mock_svc
+            mock_svc.store_and_register.return_value = _mock_store_result(expected_s3_key)
+            mock_ps_cls.return_value = MagicMock()
+
+            data = {
+                'file': (io.BytesIO(b'\x89PNG\r\n\x1a\n' + b'\x00' * 100),
+                         'logo.png', 'image/png')
+            }
+
+            resp = client.post(
+                '/api/storage/upload-logo',
+                data=data,
+                content_type='multipart/form-data',
+                headers={
+                    'Authorization': 'Bearer fake-jwt-token',
+                    'X-Tenant': tenant,
+                },
+            )
+
+            assert resp.status_code == 200
+            call_kwargs = mock_svc.store_and_register.call_args[1]
+            assert call_kwargs['entity_type'] == 'branding'
+            assert call_kwargs['entity_id'] == f'{tenant}:company_logo'
+            assert call_kwargs['category'] == 'branding'
+
+    def test_asset_service_failure_returns_400(self, client):
+        """When store_and_register fails, route returns 400."""
+        tenant = 'TestTenant'
+
+        mocks = _auth_mocks(tenant=tenant)
+        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], \
+             patch.dict(os.environ, {'S3_SHARED_BUCKET': 'myadmin-shared-dev'}), \
+             patch('routes.storage.MediaAssetService') as mock_svc_cls, \
+             patch('routes.storage.DatabaseManager'), \
+             patch('routes.storage.ParameterService') as mock_ps_cls:
+
+            mock_svc = MagicMock()
+            mock_svc_cls.return_value = mock_svc
+            mock_svc.store_and_register.return_value = {
+                'success': False,
+                'error': 'S3 upload failed',
+            }
+            mock_ps_cls.return_value = MagicMock()
+
+            data = {
+                'file': (io.BytesIO(b'\x89PNG\r\n\x1a\n' + b'\x00' * 100),
+                         'logo.png', 'image/png')
+            }
+
+            resp = client.post(
+                '/api/storage/upload-logo',
+                data=data,
+                content_type='multipart/form-data',
+                headers={
+                    'Authorization': 'Bearer fake-jwt-token',
+                    'X-Tenant': tenant,
+                },
+            )
+
+            assert resp.status_code == 400
+            result = resp.get_json()
+            assert result['success'] is False
+            assert 'S3 upload failed' in result['error']
 
 
 # ---------------------------------------------------------------------------

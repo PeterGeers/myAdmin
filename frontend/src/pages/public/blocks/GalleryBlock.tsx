@@ -1,11 +1,12 @@
 import React from 'react';
-import { Box, Container, Heading, Image, SimpleGrid, Text } from '@chakra-ui/react';
+import { Box, Container, Flex, Heading, Image, SimpleGrid, Text } from '@chakra-ui/react';
 
 export interface GalleryBlockProps {
   properties: {
     title?: string;
     images: Array<{
-      key: string;
+      image_key: string;
+      key?: string;
       alt?: string;
       caption?: string;
     }>;
@@ -31,6 +32,28 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = ({
 
   if (!images || images.length === 0) return null;
 
+  // Resolve image key (data uses image_key, legacy may use key)
+  const getImageUrl = (image: typeof images[number]) => {
+    const imgKey = image.image_key || image.key || '';
+    return imgKey ? `${cloudFrontUrl}/${imgKey}` : '';
+  };
+
+  // Layout: carousel — horizontal scroll preview
+  if (layout === 'carousel') {
+    return (
+      <Container maxW="1200px" py={{ base: 12, md: 16 }}>
+        {title && <Heading as="h2" size="xl" textAlign="center" mb={8}>{title}</Heading>}
+        <Flex overflowX="auto" gap={4} pb={4} sx={{ scrollSnapType: 'x mandatory' }}>
+          {images.map((image, index) => (
+            <Box key={index} minW="80%" maxW="80%" flex="0 0 auto" borderRadius="md" overflow="hidden" sx={{ scrollSnapAlign: 'start' }}>
+              <Image src={getImageUrl(image)} alt={image.alt || ''} w="100%" h="400px" objectFit="cover" />
+            </Box>
+          ))}
+        </Flex>
+      </Container>
+    );
+  }
+
   const getColumns = () => {
     switch (layout) {
       case 'grid-4':
@@ -53,13 +76,13 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = ({
       <SimpleGrid columns={getColumns()} spacing={4}>
         {images.map((image, index) => (
           <Box
-            key={image.key || index}
+            key={image.image_key || image.key || index}
             borderRadius="md"
             overflow="hidden"
             position="relative"
           >
             <Image
-              src={`${cloudFrontUrl}/${image.key}`}
+              src={getImageUrl(image)}
               alt={image.alt || `Gallery image ${index + 1}`}
               objectFit="cover"
               w="100%"

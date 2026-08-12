@@ -153,14 +153,29 @@ class TestOutputService:
         # Should not call _get_or_create_reports_folder when folder_id is provided
         mock_drive.upload_text_file.assert_called_once()
     
-    @patch('services.parameter_service.ParameterService')
-    @patch('storage.storage_provider.get_storage_provider')
-    def test_handle_s3_upload_success(self, mock_get_provider, mock_param_cls, output_service):
-        """Test handling S3 upload via StorageProvider"""
-        mock_provider = Mock()
-        mock_provider.bucket = 'test-bucket'
-        mock_provider.upload.return_value = 'TestAdmin/general/abc123_test.pdf'
-        mock_get_provider.return_value = mock_provider
+    @patch('services.media_asset_service.MediaAssetService')
+    def test_handle_s3_upload_success(self, mock_asset_cls, output_service):
+        """Test handling S3 upload via MediaAssetService"""
+        mock_asset_svc = Mock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_test123',
+                's3_key': 'TestAdmin/invoices/ast_test123_test.pdf',
+                'bucket': 'myadmin-shared-dev',
+                'mime_type': 'application/pdf',
+                'file_size': 9,
+                'category': 'invoices',
+                'media_type': 'document',
+                'original_filename': 'test.pdf',
+                'content_hash': 'abc123',
+                'status': 'ACTIVE',
+                'created_at': '2026-01-01 00:00:00',
+                'reference_count': 1,
+            },
+            'duplicate_of': None,
+        }
 
         result = output_service.handle_output(
             content=b'%PDF-fake',
@@ -172,8 +187,117 @@ class TestOutputService:
 
         assert result['success'] is True
         assert result['destination'] == 's3'
-        assert 'TestAdmin' in result['url']
-        mock_provider.upload.assert_called_once()
+        assert result['url'] == 'TestAdmin/invoices/ast_test123_test.pdf'
+        assert result['reference'] == 'TestAdmin/invoices/ast_test123_test.pdf'
+        assert result['filename'] == 'test.pdf'
+
+        # Verify store_and_register was called with correct params
+        mock_asset_svc.store_and_register.assert_called_once()
+        call_kwargs = mock_asset_svc.store_and_register.call_args[1]
+        assert call_kwargs['tenant'] == 'TestAdmin'
+        assert call_kwargs['file_data'] == b'%PDF-fake'
+        assert call_kwargs['filename'] == 'test.pdf'
+        assert call_kwargs['category'] == 'invoices'
+        assert call_kwargs['entity_type'] == 'report'
+        assert ':' in call_kwargs['entity_id']  # report_type:timestamp format
+        assert call_kwargs['entity_id'].startswith('test:')
+
+    @patch('services.media_asset_service.MediaAssetService')
+    def test_handle_s3_upload_string_content(self, mock_asset_cls, output_service):
+        """Test S3 upload with string content is converted to bytes"""
+        mock_asset_svc = Mock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_test456',
+                's3_key': 'TestAdmin/invoices/ast_test456_report.html',
+                'bucket': 'myadmin-shared-dev',
+                'mime_type': 'text/html',
+                'file_size': 26,
+                'category': 'invoices',
+                'media_type': 'web_content',
+                'original_filename': 'report.html',
+                'content_hash': 'def456',
+                'status': 'ACTIVE',
+                'created_at': '2026-01-01 00:00:00',
+                'reference_count': 1,
+            },
+            'duplicate_of': None,
+        }
+
+        result = output_service.handle_output(
+            content="<html><body>Report</body></html>",
+            filename="report.html",
+            destination='s3',
+            administration='TestAdmin',
+            content_type='text/html'
+        )
+
+        assert result['success'] is True
+        # Verify bytes were passed to store_and_register
+        call_kwargs = mock_asset_svc.store_and_register.call_args[1]
+        assert call_kwargs['file_data'] == b"<html><body>Report</body></html>"
+
+    @patch('services.media_asset_service.MediaAssetService')
+    def test_handle_s3_upload_failure(self, mock_asset_cls, output_service):
+        """Test S3 upload failure propagates as exception"""
+        mock_asset_svc = Mock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': False,
+            'error': 'S3 upload failed',
+        }
+
+        with pytest.raises(Exception) as exc_info:
+            output_service.handle_output(
+                content=b'%PDF-fake',
+                filename="test.pdf",
+                destination='s3',
+                administration='TestAdmin',
+                content_type='application/pdf'
+            )
+
+        assert 'S3 upload failed' in str(exc_info.value)
+
+    @patch('services.media_asset_service.MediaAssetService')
+    def test_handle_s3_upload_entity_id_format(self, mock_asset_cls, output_service):
+        """Test that entity_id uses report_type:timestamp format"""
+        mock_asset_svc = Mock()
+        mock_asset_cls.return_value = mock_asset_svc
+        mock_asset_svc.store_and_register.return_value = {
+            'success': True,
+            'asset': {
+                'id': 'ast_test789',
+                's3_key': 'TestAdmin/invoices/ast_test789_quarterly_report.xlsx',
+                'bucket': 'myadmin-shared-dev',
+                'mime_type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'file_size': 100,
+                'category': 'invoices',
+                'media_type': 'document',
+                'original_filename': 'quarterly_report.xlsx',
+                'content_hash': 'ghi789',
+                'status': 'ACTIVE',
+                'created_at': '2026-01-01 00:00:00',
+                'reference_count': 1,
+            },
+            'duplicate_of': None,
+        }
+
+        output_service.handle_output(
+            content=b'fake-xlsx-content',
+            filename="quarterly_report.xlsx",
+            destination='s3',
+            administration='TestAdmin',
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+        call_kwargs = mock_asset_svc.store_and_register.call_args[1]
+        entity_id = call_kwargs['entity_id']
+        # entity_id should be "quarterly_report:YYYYMMDD_HHMMSS"
+        parts = entity_id.split(':')
+        assert parts[0] == 'quarterly_report'
+        assert len(parts[1]) == 15  # YYYYMMDD_HHMMSS
     
     @patch('google_drive_service.GoogleDriveService')
     @patch('services.output_service.os.getenv')
