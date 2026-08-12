@@ -34,6 +34,7 @@ import {
   AlertIcon,
 } from '@chakra-ui/react';
 import { fetchAssetDashboard } from '@/services/mediaAssetService';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 import type { AssetDashboardData } from '@/types/mediaAsset';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ function formatBytes(bytes: number): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function StorageSummaryTab() {
+  const { t } = useTypedTranslation('admin');
   const [dashboard, setDashboard] = useState<AssetDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,15 +117,15 @@ export default function StorageSummaryTab() {
       {/* ── Section: Storage by Category ─────────────────────── */}
       <Box>
         <Text color="gray.200" fontWeight="bold" fontSize="lg" mb={3}>
-          Storage by Category
+          {t('mediaAssets.storageSummary.byCategory')}
         </Text>
         <Box bg="gray.800" borderRadius="md" overflowX="auto">
           <Table variant="simple" size="sm">
             <Thead>
               <Tr>
-                <Th color="gray.400">Category</Th>
-                <Th color="gray.400" isNumeric>Asset Count</Th>
-                <Th color="gray.400" isNumeric>Total Size</Th>
+                <Th color="gray.400">{t('mediaAssets.storageSummary.category')}</Th>
+                <Th color="gray.400" isNumeric>{t('mediaAssets.storageSummary.count')}</Th>
+                <Th color="gray.400" isNumeric>{t('mediaAssets.storageSummary.totalSize')}</Th>
                 <Th color="gray.400" isNumeric>% of Total</Th>
               </Tr>
             </Thead>
@@ -163,7 +165,7 @@ export default function StorageSummaryTab() {
       {/* ── Section: Orphan Summary ──────────────────────────── */}
       <Box>
         <Text color="gray.200" fontWeight="bold" fontSize="lg" mb={3}>
-          Orphan Summary
+          {t('mediaAssets.storageSummary.orphanSummary')}
         </Text>
         <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={4}>
           <Box bg="gray.800" p={4} borderRadius="md">
@@ -199,20 +201,20 @@ export default function StorageSummaryTab() {
       {/* ── Section: Top 10 Largest Orphans ──────────────────── */}
       <Box>
         <Text color="gray.200" fontWeight="bold" fontSize="lg" mb={3}>
-          Top 10 Largest Orphans
+          {t('mediaAssets.storageSummary.topOrphans')}
         </Text>
         {topOrphans.length === 0 ? (
           <Box bg="gray.800" p={6} borderRadius="md" textAlign="center">
-            <Text color="gray.500">No orphaned assets found.</Text>
+            <Text color="gray.500">{t('mediaAssets.storageSummary.noData')}</Text>
           </Box>
         ) : (
           <Box bg="gray.800" borderRadius="md" overflowX="auto">
             <Table variant="simple" size="sm">
               <Thead>
                 <Tr>
-                  <Th color="gray.400">Filename</Th>
-                  <Th color="gray.400" isNumeric>Size</Th>
-                  <Th color="gray.400" isNumeric>Days Orphaned</Th>
+                  <Th color="gray.400">{t('mediaAssets.storageSummary.filename')}</Th>
+                  <Th color="gray.400" isNumeric>{t('mediaAssets.storageSummary.size')}</Th>
+                  <Th color="gray.400" isNumeric>{t('mediaAssets.storageSummary.daysOrphaned')}</Th>
                 </Tr>
               </Thead>
               <Tbody>

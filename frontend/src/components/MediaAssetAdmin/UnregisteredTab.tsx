@@ -38,6 +38,7 @@ import {
 } from '@chakra-ui/react';
 import { MdDelete, MdFileDownload } from 'react-icons/md';
 import { fetchUnregistered, importUnregistered, deleteUnregistered } from '@/services/mediaAssetService';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 import type { UnregisteredObject } from '@/types/mediaAsset';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ function formatDate(isoDate: string | null): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function UnregisteredTab() {
+  const { t } = useTypedTranslation('admin');
   const [objects, setObjects] = useState<UnregisteredObject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,7 +123,7 @@ export default function UnregisteredTab() {
     try {
       const result = await importUnregistered(Array.from(selectedKeys));
       toast({
-        title: 'Import complete',
+        title: t('mediaAssets.unregistered.messages.importSuccess'),
         description: `${result.imported} imported, ${result.skipped} skipped`,
         status: result.imported > 0 ? 'success' : 'info',
         duration: 5000,
@@ -131,7 +133,7 @@ export default function UnregisteredTab() {
       await loadObjects();
     } catch (err) {
       toast({
-        title: 'Import failed',
+        title: t('mediaAssets.unregistered.messages.importFailed'),
         description: err instanceof Error ? err.message : 'Unknown error',
         status: 'error',
         duration: 5000,
@@ -155,7 +157,7 @@ export default function UnregisteredTab() {
     try {
       const result = await deleteUnregistered(Array.from(selectedKeys));
       toast({
-        title: 'Deletion complete',
+        title: t('mediaAssets.unregistered.messages.deleteSuccess'),
         description: `${result.deleted} deleted, ${result.skipped} skipped`,
         status: result.deleted > 0 ? 'success' : 'info',
         duration: 5000,
@@ -165,7 +167,7 @@ export default function UnregisteredTab() {
       await loadObjects();
     } catch (err) {
       toast({
-        title: 'Deletion failed',
+        title: t('mediaAssets.unregistered.messages.deleteFailed'),
         description: err instanceof Error ? err.message : 'Unknown error',
         status: 'error',
         duration: 5000,
@@ -199,10 +201,10 @@ export default function UnregisteredTab() {
     return (
       <Box py={12} textAlign="center">
         <Text color="gray.500" fontSize="lg">
-          No unregistered objects found
+          {t('mediaAssets.unregistered.noObjects')}
         </Text>
         <Text color="gray.600" fontSize="sm" mt={2}>
-          Run a scan to check for S3 objects not tracked in the registry.
+          {t('mediaAssets.unregistered.noObjectsHint')}
         </Text>
       </Box>
     );
@@ -221,7 +223,7 @@ export default function UnregisteredTab() {
           gap={2}
         >
           <Text color="gray.300" fontSize="sm">
-            {selectedKeys.size} object{selectedKeys.size > 1 ? 's' : ''} selected
+            {t('mediaAssets.unregistered.selected', { count: selectedKeys.size })}
           </Text>
           <HStack spacing={2} flexWrap="wrap">
             <Button
@@ -232,7 +234,7 @@ export default function UnregisteredTab() {
               isLoading={actionInProgress}
               loadingText="Importing..."
             >
-              Import to Registry
+              {t('mediaAssets.unregistered.importToRegistry')}
             </Button>
             <Button
               size="sm"
@@ -242,7 +244,7 @@ export default function UnregisteredTab() {
               isLoading={actionInProgress}
               loadingText="Deleting..."
             >
-              Delete from S3
+              {t('mediaAssets.unregistered.deleteFromS3')}
             </Button>
           </HStack>
         </HStack>
@@ -262,10 +264,10 @@ export default function UnregisteredTab() {
                   aria-label="Select all objects"
                 />
               </Th>
-              <Th color="gray.400">S3 Key</Th>
-              <Th color="gray.400">Bucket</Th>
-              <Th color="gray.400" isNumeric>Size</Th>
-              <Th color="gray.400">Last Modified</Th>
+              <Th color="gray.400">{t('mediaAssets.unregistered.table.s3Key')}</Th>
+              <Th color="gray.400">{t('mediaAssets.unregistered.table.bucket')}</Th>
+              <Th color="gray.400" isNumeric>{t('mediaAssets.unregistered.table.size')}</Th>
+              <Th color="gray.400">{t('mediaAssets.unregistered.table.lastModified')}</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -323,27 +325,24 @@ function ConfirmDeleteModal({
   onConfirm,
   count,
 }: ConfirmDeleteModalProps) {
+  const { t } = useTypedTranslation('admin');
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
       <ModalContent bg="gray.800" borderColor="gray.600" borderWidth="1px">
-        <ModalHeader color="gray.100">Confirm Permanent Deletion</ModalHeader>
+        <ModalHeader color="gray.100">{t('mediaAssets.unregistered.confirmDeleteTitle')}</ModalHeader>
         <ModalCloseButton color="gray.400" />
         <ModalBody>
           <VStack spacing={3} align="stretch">
             <Text color="gray.300">
-              Are you sure you want to permanently delete{' '}
-              <Text as="span" fontWeight="bold" color="red.300">
-                {count}
-              </Text>{' '}
-              S3 object{count > 1 ? 's' : ''}?
+              {t('mediaAssets.unregistered.confirmDeleteMessage', { count })}
             </Text>
 
             <Alert status="error" bg="red.900" borderRadius="md">
               <AlertIcon />
               <Text fontSize="sm" color="red.200">
-                This action is irreversible. These files will be permanently
-                removed from S3 storage and cannot be recovered.
+                {t('mediaAssets.unregistered.confirmDeleteWarning')}
               </Text>
             </Alert>
           </VStack>

@@ -30,6 +30,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { fetchRetentionSettings, updateRetentionSettings } from '@/services/mediaAssetService';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 import type { RetentionSettingsData } from '@/types/mediaAsset';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ const SYSTEM_DEFAULTS: Record<string, number> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RetentionTab() {
+  const { t } = useTypedTranslation('admin');
   const [settings, setSettings] = useState<RetentionSettingsData | null>(null);
   const [editValues, setEditValues] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ export default function RetentionTab() {
     try {
       const result = await updateRetentionSettings(changes);
       toast({
-        title: 'Settings saved',
+        title: t('mediaAssets.retention.messages.success'),
         description: `Updated ${result.updated.length} retention setting${result.updated.length > 1 ? 's' : ''}`,
         status: 'success',
         duration: 4000,
@@ -122,7 +124,7 @@ export default function RetentionTab() {
       await loadSettings();
     } catch (err) {
       toast({
-        title: 'Save failed',
+        title: t('mediaAssets.retention.messages.failed'),
         description: err instanceof Error ? err.message : 'Unknown error',
         status: 'error',
         duration: 5000,
@@ -180,7 +182,7 @@ export default function RetentionTab() {
           loadingText="Saving..."
           isDisabled={!hasChanges}
         >
-          Save Changes
+          {t('mediaAssets.retention.save')}
         </Button>
       </HStack>
 
@@ -194,9 +196,9 @@ export default function RetentionTab() {
         <Table variant="simple" size="sm">
           <Thead>
             <Tr>
-              <Th color="gray.400">Category</Th>
-              <Th color="gray.400">Retention (days)</Th>
-              <Th color="gray.400">Source</Th>
+              <Th color="gray.400">{t('mediaAssets.retention.category')}</Th>
+              <Th color="gray.400">{t('mediaAssets.retention.days')}</Th>
+              <Th color="gray.400">{t('mediaAssets.retention.source')}</Th>
               <Th color="gray.400" isNumeric>System Default</Th>
             </Tr>
           </Thead>
@@ -235,7 +237,7 @@ export default function RetentionTab() {
                       variant="subtle"
                       fontSize="xs"
                     >
-                      {isOverride ? 'Tenant Override' : 'System Default'}
+                      {isOverride ? t('mediaAssets.retention.sources.tenantOverride') : t('mediaAssets.retention.sources.systemDefault')}
                     </Badge>
                   </Td>
                   <Td color="gray.500" isNumeric fontSize="sm">

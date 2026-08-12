@@ -40,6 +40,7 @@ import {
 } from '@chakra-ui/react';
 import { MdDelete, MdSchedule, MdLink } from 'react-icons/md';
 import { fetchDeletionEligible, approveDeletion } from '@/services/mediaAssetService';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 import type { MediaAsset } from '@/types/mediaAsset';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ function daysOrphaned(createdAt: string): number {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DeletionTab() {
+  const { t } = useTypedTranslation('admin');
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +139,7 @@ export default function DeletionTab() {
     try {
       const result = await approveDeletion(Array.from(selectedIds));
       toast({
-        title: 'Deletion complete',
+        title: t('mediaAssets.deletion.messages.success'),
         description: `${result.deleted} deleted, ${result.skipped} skipped`,
         status: result.deleted > 0 ? 'success' : 'info',
         duration: 5000,
@@ -148,7 +150,7 @@ export default function DeletionTab() {
       await loadAssets();
     } catch (err) {
       toast({
-        title: 'Deletion failed',
+        title: t('mediaAssets.deletion.messages.failed'),
         description: err instanceof Error ? err.message : 'Unknown error',
         status: 'error',
         duration: 5000,
@@ -182,10 +184,10 @@ export default function DeletionTab() {
     return (
       <Box py={12} textAlign="center">
         <Text color="gray.500" fontSize="lg">
-          No deletion-eligible assets found
+          {t('mediaAssets.deletion.noAssets')}
         </Text>
         <Text color="gray.600" fontSize="sm" mt={2}>
-          Assets become eligible after their retention period elapses.
+          {t('mediaAssets.deletion.noAssetsHint')}
         </Text>
       </Box>
     );
@@ -204,7 +206,7 @@ export default function DeletionTab() {
           gap={2}
         >
           <Text color="gray.300" fontSize="sm">
-            {selectedIds.size} asset{selectedIds.size > 1 ? 's' : ''} selected
+            {t('mediaAssets.deletion.selected', { count: selectedIds.size })}
           </Text>
           <HStack spacing={2} flexWrap="wrap">
             <Button
@@ -215,7 +217,7 @@ export default function DeletionTab() {
               isLoading={deleting}
               loadingText="Deleting..."
             >
-              Approve Deletion
+              {t('mediaAssets.deletion.approveSelected')}
             </Button>
             <Button
               size="sm"
@@ -255,10 +257,10 @@ export default function DeletionTab() {
                   aria-label="Select all assets"
                 />
               </Th>
-              <Th color="gray.400">Filename</Th>
-              <Th color="gray.400">Category</Th>
-              <Th color="gray.400" isNumeric>Size</Th>
-              <Th color="gray.400" isNumeric>Days Orphaned</Th>
+              <Th color="gray.400">{t('mediaAssets.deletion.table.filename')}</Th>
+              <Th color="gray.400">{t('mediaAssets.deletion.table.category')}</Th>
+              <Th color="gray.400" isNumeric>{t('mediaAssets.deletion.table.size')}</Th>
+              <Th color="gray.400" isNumeric>{t('mediaAssets.deletion.table.orphanedDays')}</Th>
               <Th color="gray.400">Created</Th>
             </Tr>
           </Thead>
@@ -326,28 +328,25 @@ function ConfirmDeleteModal({
   count,
   hasInvoices,
 }: ConfirmDeleteModalProps) {
+  const { t } = useTypedTranslation('admin');
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
       <ModalContent bg="gray.800" borderColor="gray.600" borderWidth="1px">
-        <ModalHeader color="gray.100">Confirm Deletion</ModalHeader>
+        <ModalHeader color="gray.100">{t('mediaAssets.deletion.confirmTitle')}</ModalHeader>
         <ModalCloseButton color="gray.400" />
         <ModalBody>
           <VStack spacing={3} align="stretch">
             <Text color="gray.300">
-              Are you sure you want to permanently delete{' '}
-              <Text as="span" fontWeight="bold" color="red.300">
-                {count}
-              </Text>{' '}
-              asset{count > 1 ? 's' : ''}? This action cannot be undone.
+              {t('mediaAssets.deletion.confirmMessage', { count })}
             </Text>
 
             {hasInvoices && (
               <Alert status="warning" bg="yellow.900" borderRadius="md">
                 <AlertIcon />
                 <Text fontSize="sm" color="yellow.200">
-                  ⚠️ These include compliance-sensitive invoice documents. Verify that
-                  retention requirements have been met before proceeding.
+                  ⚠️ {t('mediaAssets.deletion.complianceWarning')}
                 </Text>
               </Alert>
             )}

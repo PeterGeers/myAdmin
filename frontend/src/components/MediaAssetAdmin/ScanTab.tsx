@@ -28,21 +28,21 @@ import { MdRefresh, MdCheckCircle } from 'react-icons/md';
 import { triggerScan } from '@/services/mediaAssetService';
 import { getCurrentAuthTokens } from '@/services/authService';
 import { API_BASE_URL } from '@/config/api';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 import type { ScanPhase, ScanProgress, ScanSummary } from '@/types/mediaAsset';
-
-// ─── Phase Labels ─────────────────────────────────────────────────────────────
-
-const PHASE_LABELS: Record<ScanPhase, string> = {
-  scanning_s3: 'Scanning S3...',
-  checking_registry: 'Checking Registry...',
-  verifying_references: 'Verifying References...',
-  transitioning: 'Transitioning Eligible Assets...',
-  complete: 'Scan Complete',
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ScanTab() {
+  const { t } = useTypedTranslation('admin');
+
+  const PHASE_LABELS: Record<ScanPhase, string> = {
+    scanning_s3: t('mediaAssets.scan.phases.scanningS3'),
+    checking_registry: t('mediaAssets.scan.phases.checkingRegistry'),
+    verifying_references: t('mediaAssets.scan.phases.verifyingReferences'),
+    transitioning: t('mediaAssets.scan.phases.transitioning'),
+    complete: t('mediaAssets.scan.phases.complete'),
+  };
   const [scanning, setScanning] = useState(false);
   const [phase, setPhase] = useState<ScanPhase | null>(null);
   const [progress, setProgress] = useState(0);
@@ -111,15 +111,15 @@ export default function ScanTab() {
         eventSourceRef.current = null;
         // Only show error if scan hasn't completed
         if (!summary) {
-          setError('Connection lost during scan. Please try again.');
+          setError(t('mediaAssets.scan.errors.connectionLost'));
           setScanning(false);
         }
       };
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start scan');
+      setError(err instanceof Error ? err.message : t('mediaAssets.scan.errors.startFailed'));
       setScanning(false);
     }
-  }, [summary]);
+  }, [summary, t]);
 
   return (
     <VStack spacing={6} align="stretch">
@@ -129,11 +129,11 @@ export default function ScanTab() {
           colorScheme="orange"
           leftIcon={<Icon as={MdRefresh} />}
           isLoading={scanning}
-          loadingText="Scanning..."
+          loadingText={t('mediaAssets.scan.scanning')}
           onClick={startScan}
           isDisabled={scanning}
         >
-          Start Scan
+          {t('mediaAssets.scan.startScan')}
         </Button>
         {phase && !scanning && (
           <HStack color="green.300" spacing={1}>
@@ -155,7 +155,7 @@ export default function ScanTab() {
       {scanning && (
         <Box bg="gray.800" p={4} borderRadius="md">
           <Text color="gray.300" fontSize="sm" mb={2}>
-            {phase ? PHASE_LABELS[phase] : 'Initializing...'}
+            {phase ? PHASE_LABELS[phase] : t('mediaAssets.scan.scanning')}
           </Text>
           <Progress
             value={progress}
@@ -184,44 +184,46 @@ interface ScanResultsProps {
 }
 
 function ScanResults({ summary }: ScanResultsProps) {
+  const { t } = useTypedTranslation('admin');
+
   return (
     <Box>
       <Text color="gray.200" fontWeight="bold" mb={4}>
-        Scan Results
+        {t('mediaAssets.scan.results.title')}
       </Text>
       <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={4}>
         <ResultCard
-          label="Consistent"
+          label={t('mediaAssets.scan.results.consistent')}
           value={summary.consistent}
           color="green.300"
           bg="green.900"
         />
         <ResultCard
-          label="Unregistered"
+          label={t('mediaAssets.scan.results.unregistered')}
           value={summary.unregistered}
           color="orange.300"
           bg="orange.900"
         />
         <ResultCard
-          label="Missing"
+          label={t('mediaAssets.scan.results.missing')}
           value={summary.missing}
           color="red.300"
           bg="red.900"
         />
         <ResultCard
-          label="Stale References"
+          label={t('mediaAssets.scan.results.staleReferences')}
           value={summary.stale_references}
           color="orange.300"
           bg="orange.900"
         />
         <ResultCard
-          label="Newly Eligible"
+          label={t('mediaAssets.scan.results.newlyEligible')}
           value={summary.newly_eligible}
           color="red.300"
           bg="red.900"
         />
         <ResultCard
-          label="Total Scanned"
+          label={t('mediaAssets.scan.results.totalScanned')}
           value={summary.total_assets}
           color="gray.200"
           bg="gray.700"

@@ -32,6 +32,7 @@ import {
 } from '@chakra-ui/react';
 import { MdCallMerge, MdCheckCircle } from 'react-icons/md';
 import { fetchDuplicates, mergeDuplicates } from '@/services/mediaAssetService';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 import type { DuplicateGroup } from '@/types/mediaAsset';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ function pickDefaultKeep(group: DuplicateGroup): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DuplicatesTab() {
+  const { t } = useTypedTranslation('admin');
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export default function DuplicatesTab() {
     try {
       const result = await mergeDuplicates(keepId, duplicateIds);
       toast({
-        title: 'Merge complete',
+        title: t('mediaAssets.duplicates.messages.mergeSuccess'),
         description: `${result.duplicates_deleted} duplicate${result.duplicates_deleted !== 1 ? 's' : ''} removed, ${result.references_moved} reference${result.references_moved !== 1 ? 's' : ''} moved`,
         status: 'success',
         duration: 5000,
@@ -129,7 +131,7 @@ export default function DuplicatesTab() {
       await loadGroups();
     } catch (err) {
       toast({
-        title: 'Merge failed',
+        title: t('mediaAssets.duplicates.messages.mergeFailed'),
         description: err instanceof Error ? err.message : 'Unknown error',
         status: 'error',
         duration: 5000,
@@ -170,10 +172,10 @@ export default function DuplicatesTab() {
       <Box py={12} textAlign="center">
         <Icon as={MdCheckCircle} boxSize={10} color="green.400" mb={3} />
         <Text color="green.300" fontSize="lg" fontWeight="medium">
-          No duplicates found
+          {t('mediaAssets.duplicates.noDuplicates')}
         </Text>
         <Text color="gray.500" fontSize="sm" mt={2}>
-          All assets have unique content. Nothing to merge.
+          {t('mediaAssets.duplicates.noDuplicatesHint')}
         </Text>
       </Box>
     );
@@ -217,6 +219,7 @@ function DuplicateGroupCard({
   onMerge,
   isMerging,
 }: DuplicateGroupCardProps) {
+  const { t } = useTypedTranslation('admin');
   const duplicateCount = group.assets.length - 1;
 
   return (
@@ -240,7 +243,7 @@ function DuplicateGroupCard({
           loadingText="Merging..."
           isDisabled={!keepId || duplicateCount === 0}
         >
-          Merge ({duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''})
+          {t('mediaAssets.duplicates.merge')} ({duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''})
         </Button>
       </HStack>
 
