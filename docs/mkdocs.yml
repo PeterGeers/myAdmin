@@ -120,7 +120,12 @@ nav:
       - Gebruikers: tenant-admin/user-management.md
       - Audit logging: tenant-admin/audit-logging.md
       - Media Assets: tenant-admin/media-assets.md
-      - Landing Page: landing-page/index.md
+      - Landing Page:
+          - Overzicht: landing-page/index.md
+          - Thema presets: landing-page/theme-presets.md
+          - Verlopen achtergronden: landing-page/gradients.md
+          - Typografie: landing-page/typography.md
+          - Blokinstellingen: landing-page/block-settings.md
   - Changelog: changelog.md
   - FAQ: faq.md
   - Woordenlijst: glossary.md

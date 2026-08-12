@@ -75,6 +75,8 @@ Deletion from S3 is permanent and cannot be undone.
 
 ### Approving deletion-eligible assets
 
+The deletion process requires three conditions: an asset must be (1) orphaned (no longer referenced), (2) past its retention period, and (3) explicitly approved by an admin. Only when all three conditions are met will an asset actually be deleted.
+
 1. Go to **Media Assets** → **Deletion**
 2. You'll see assets that are orphaned and past their retention period
 3. Select the assets you want to delete
@@ -107,6 +109,38 @@ Default retention periods:
 3. Select which file to keep per group (defaults to the one with the most references)
 4. Click **Merge**
 5. References are transferred to the kept file, duplicates are deleted
+
+### Storage overview
+
+The **Storage** tab gives you an overview of the total storage usage for your tenant, broken down by category. Here you can quickly see how much space each category occupies and how many orphaned assets there are.
+
+1. Go to **Media Assets** → **Storage**
+2. At the top you'll see the **total storage usage** (in MB or GB) for all assets of your tenant
+3. Below that you'll find a table with the breakdown per category:
+
+| Category      | Description                          |
+| ------------- | ------------------------------------ |
+| Invoices      | Stored invoice PDFs and attachments  |
+| Branding      | Logos, brand images and brand assets |
+| Templates     | Invoice and report templates         |
+| Landing Pages | Images and files for published pages |
+
+4. At the bottom the number of **orphaned assets** is displayed
+
+!!! note "What are orphaned assets?"
+An orphaned asset is a file that exists in S3 storage but is no longer referenced by an invoice, template, landing page or other component. The file is therefore no longer in use.
+
+#### Interpreting the dashboard
+
+- **Total storage**: the combined storage usage of all categories together. Use this to determine whether you are approaching storage limits.
+- **Storage per category**: see which categories take up the most space. Invoices typically occupy the most due to the legal retention requirement.
+- **Orphaned assets**: a high number of orphaned assets may indicate that cleanup is possible. Go to the **Deletion** tab to review these assets.
+
+!!! tip "Tip"
+Run regular scans (via the **Scan** tab) to keep the storage overview up to date. After a scan, counts and categories are automatically updated.
+
+!!! warning "Warning"
+The displayed values are based on the last scan that was run. If files have been added or removed since the last scan, the overview may differ from the actual situation.
 
 ## FAQ
 

@@ -42,7 +42,7 @@ Media Asset Beheer is bereikbaar via **Tenant Beheer** → **Media Assets** en b
    - S3 buckets scannen
    - Vergelijken met het register
    - Referenties verifiëren
-   - Verweesde assets overzetten
+   - In aanmerking komende assets overzetten (eligible transition)
 4. Na afloop zie je de resultaten:
 
 | Resultaat            | Betekenis                                         |
@@ -74,6 +74,8 @@ Na het importeren kun je een scan uitvoeren om te verifiëren dat alles consiste
 Verwijderen uit S3 is permanent en kan niet ongedaan worden gemaakt.
 
 ### Verwijderbare assets goedkeuren
+
+Het verwijderingsproces vereist drie voorwaarden: een asset moet (1) verweesd zijn (niet meer gerefereerd), (2) de bewaartermijn moet verstreken zijn, én (3) een admin moet de verwijdering expliciet goedkeuren. Pas wanneer alle drie voorwaarden zijn vervuld wordt een asset daadwerkelijk verwijderd.
 
 1. Ga naar **Media Assets** → **Verwijdering**
 2. Je ziet assets die verweesd zijn en waarvan de bewaartermijn is verlopen
@@ -107,6 +109,38 @@ Standaard bewaartermijnen:
 3. Selecteer per groep welk bestand je wilt behouden (standaard het bestand met de meeste referenties)
 4. Klik op **Samenvoegen**
 5. Referenties worden overgezet naar het behouden bestand, duplicaten worden verwijderd
+
+### Opslag overzicht
+
+Het **Opslag** tab geeft je een overzicht van het totale opslaggebruik voor je tenant, uitgesplitst per categorie. Hier kun je snel zien hoeveel ruimte elke categorie inneemt en hoeveel verweesde assets er zijn.
+
+1. Ga naar **Media Assets** → **Opslag**
+2. Bovenaan zie je het **totale opslaggebruik** (in MB of GB) voor alle assets van je tenant
+3. Daaronder vind je een tabel met de verdeling per categorie:
+
+| Categorie        | Beschrijving                                          |
+| ---------------- | ----------------------------------------------------- |
+| Facturen         | Opgeslagen factuur-PDF's en bijlagen                  |
+| Branding         | Logo's, huisstijl-afbeeldingen en merkbestanden       |
+| Templates        | Factuur- en rapporttemplates                          |
+| Landingspagina's | Afbeeldingen en bestanden voor gepubliceerde pagina's |
+
+4. Onderaan wordt het aantal **verweesde assets** weergegeven
+
+!!! note "Wat zijn verweesde assets?"
+Een verweesd asset is een bestand dat wel in S3 opslag staat, maar niet meer wordt gerefereerd door een factuur, template, landingspagina of ander onderdeel. Het bestand is dus niet meer in gebruik.
+
+#### Het dashboard interpreteren
+
+- **Totale opslag**: het gecombineerde opslaggebruik van alle categorieën samen. Gebruik dit om te bepalen of je tegen opslaglimieten aanloopt.
+- **Opslag per categorie**: bekijk welke categorieën de meeste ruimte innemen. Facturen nemen doorgaans het meeste in beslag door de wettelijke bewaarplicht.
+- **Verweesde assets**: een hoog aantal verweesde assets kan betekenen dat er opgeschoond kan worden. Ga naar het **Verwijdering** tab om deze assets te beoordelen.
+
+!!! tip "Tip"
+Voer regelmatig een scan uit (via het **Scan** tab) om het opslaginzicht actueel te houden. Na een scan worden de tellingen en categorieën automatisch bijgewerkt.
+
+!!! warning "Let op"
+De getoonde waarden zijn gebaseerd op de laatst uitgevoerde scan. Als er sinds de laatste scan bestanden zijn toegevoegd of verwijderd, kan het overzicht afwijken van de werkelijke situatie.
 
 ## Veelgestelde vragen
 
