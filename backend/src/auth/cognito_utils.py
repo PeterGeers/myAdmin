@@ -89,6 +89,9 @@ ROLE_PERMISSIONS = {
         "tenant_settings",
         "tenant_credentials",
         "tenant_storage",
+        "storage_manage",
+        "storage_read",
+        "storage_write",
     ],
     # System Administration - system config ONLY, NO user data access
     "SysAdmin": [
@@ -102,6 +105,10 @@ ROLE_PERMISSIONS = {
         "scalability_read",
         "performance_read",
         "debug_access",
+        "admin_manage",
+        "storage_manage",
+        "storage_read",
+        "storage_write",
     ],
     # Finance Module - Financial data access (invoices, transactions, banking, reports)
     "Finance_CRUD": [

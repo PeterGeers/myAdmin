@@ -70,6 +70,7 @@ export default function MediaAssetAdminPage() {
   const [dashboard, setDashboard] = useState<AssetDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tabIndex, setTabIndex] = useState(0);
 
   useEffect(() => {
     loadDashboard();
@@ -88,9 +89,17 @@ export default function MediaAssetAdminPage() {
     }
   };
 
+  // Refresh dashboard data when switching to Dashboard or Storage tabs
+  const handleTabChange = (index: number) => {
+    setTabIndex(index);
+    if (index === 0 || index === 6) {
+      loadDashboard();
+    }
+  };
+
   return (
     <Box p={6}>
-      <Tabs variant="enclosed" colorScheme="orange">
+      <Tabs variant="enclosed" colorScheme="orange" index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab color="gray.300" _selected={{ color: 'orange.300', bg: 'gray.800' }}>
             Dashboard

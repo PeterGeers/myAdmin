@@ -82,7 +82,7 @@ export default function ScanTab() {
 
       // 3. Open SSE connection
       const sseUrl =
-        `${API_BASE_URL}/api/assets/scan/${scan_id}/status` +
+        `${API_BASE_URL}/api/media-assets/scan/${scan_id}/status` +
         `?token=${encodeURIComponent(tokens.idToken)}` +
         `&administration=${encodeURIComponent(tenant)}`;
 
@@ -93,7 +93,7 @@ export default function ScanTab() {
         try {
           const data: ScanProgress = JSON.parse(event.data);
           setPhase(data.phase);
-          setProgress(data.progress);
+          setProgress(data.progress ?? 0);
 
           if (data.phase === 'complete') {
             setSummary(data.summary ?? null);
@@ -222,7 +222,7 @@ function ScanResults({ summary }: ScanResultsProps) {
         />
         <ResultCard
           label="Total Scanned"
-          value={summary.total}
+          value={summary.total_assets}
           color="gray.200"
           bg="gray.700"
         />
@@ -246,7 +246,7 @@ function ResultCard({ label, value, color, bg }: ResultCardProps) {
       <Stat>
         <StatLabel color="gray.300">{label}</StatLabel>
         <StatNumber color={color} fontSize="2xl">
-          {value.toLocaleString()}
+          {(value ?? 0).toLocaleString()}
         </StatNumber>
       </Stat>
     </Box>

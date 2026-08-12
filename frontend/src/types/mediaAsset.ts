@@ -101,13 +101,13 @@ export type ScanPhase =
 /** SSE event data from GET /api/assets/scan/{scan_id}/status */
 export interface ScanProgress {
   phase: ScanPhase;
-  progress: number;
+  progress?: number;
   summary?: ScanSummary;
 }
 
 /** Summary returned when scan phase = 'complete' */
 export interface ScanSummary {
-  total: number;
+  total_assets: number;
   consistent: number;
   unregistered: number;
   missing: number;

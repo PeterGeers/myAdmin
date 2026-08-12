@@ -5,29 +5,29 @@ API endpoints for the Media Asset Management service.
 Handles upload, metadata retrieval, search, attachment/detachment,
 tenant admin dashboard, reconciliation, and system admin operations.
 
-Blueprint: media_asset_bp (url_prefix='/api/assets')
+Blueprint: media_asset_bp (url_prefix='/api/media-assets')
 
 Endpoints:
-- POST /api/assets/upload              - Upload + register + optional attach
-- GET  /api/assets/<asset_id>          - Get metadata + presigned URL
-- GET  /api/assets/search              - Paginated search for Asset Picker
-- POST /api/assets/<asset_id>/attach   - Attach reference
-- POST /api/assets/<asset_id>/detach   - Detach reference
-- POST /api/assets/replace             - Atomic replace
-- GET  /api/assets/dashboard           - Summary stats (tenant admin)
-- POST /api/assets/scan                - Trigger reconciliation (tenant admin)
-- GET  /api/assets/scan/<scan_id>/status - SSE progress for scan (tenant admin)
-- POST /api/assets/approve-delete      - Approve deletion (tenant admin)
-- GET  /api/assets/unregistered        - List unregistered S3 objects (tenant admin)
-- POST /api/assets/delete-unregistered - Delete unregistered S3 objects (tenant admin)
-- POST /api/assets/import              - Import unregistered S3 objects (tenant admin)
-- GET  /api/assets/duplicates          - List duplicate content_hash groups (tenant admin)
-- POST /api/assets/merge-duplicates    - Merge duplicate assets (tenant admin)
-- GET  /api/assets/retention-settings  - Get retention config (tenant admin)
-- PUT  /api/assets/retention-settings  - Update retention config (tenant admin)
-- POST /api/assets/force-delete        - Emergency bypass delete (sysadmin)
-- POST /api/assets/migrate             - Full migration trigger (sysadmin)
-- GET  /api/assets/admin/tenants       - Cross-tenant stats (sysadmin)
+- POST /api/media-assets/upload              - Upload + register + optional attach
+- GET  /api/media-assets/<asset_id>          - Get metadata + presigned URL
+- GET  /api/media-assets/search              - Paginated search for Asset Picker
+- POST /api/media-assets/<asset_id>/attach   - Attach reference
+- POST /api/media-assets/<asset_id>/detach   - Detach reference
+- POST /api/media-assets/replace             - Atomic replace
+- GET  /api/media-assets/dashboard           - Summary stats (tenant admin)
+- POST /api/media-assets/scan                - Trigger reconciliation (tenant admin)
+- GET  /api/media-assets/scan/<scan_id>/status - SSE progress for scan (tenant admin)
+- POST /api/media-assets/approve-delete      - Approve deletion (tenant admin)
+- GET  /api/media-assets/unregistered        - List unregistered S3 objects (tenant admin)
+- POST /api/media-assets/delete-unregistered - Delete unregistered S3 objects (tenant admin)
+- POST /api/media-assets/import              - Import unregistered S3 objects (tenant admin)
+- GET  /api/media-assets/duplicates          - List duplicate content_hash groups (tenant admin)
+- POST /api/media-assets/merge-duplicates    - Merge duplicate assets (tenant admin)
+- GET  /api/media-assets/retention-settings  - Get retention config (tenant admin)
+- PUT  /api/media-assets/retention-settings  - Update retention config (tenant admin)
+- POST /api/media-assets/force-delete        - Emergency bypass delete (sysadmin)
+- POST /api/media-assets/migrate             - Full migration trigger (sysadmin)
+- GET  /api/media-assets/admin/tenants       - Cross-tenant stats (sysadmin)
 
 Reference: .kiro/specs/Common/image-asset-management/design.md
 """
@@ -48,7 +48,7 @@ from services.parameter_service import ParameterService
 logger = logging.getLogger(__name__)
 
 # Create blueprint
-media_asset_bp = Blueprint("media_assets", __name__, url_prefix="/api/assets")
+media_asset_bp = Blueprint("media_assets", __name__, url_prefix="/api/media-assets")
 
 # Global variables set by app.py
 flag = False  # Test mode flag
@@ -406,18 +406,51 @@ def trigger_scan(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
 
 
 @media_asset_bp.route("/scan/<scan_id>/status", methods=["GET"])
-@cognito_required(required_permissions=["storage_manage"])
-@tenant_required()
-def scan_status_stream(user_email, user_roles, tenant, user_tenants, scan_id) -> ResponseReturnValue:
+def scan_status_stream(scan_id) -> ResponseReturnValue:
     """SSE stream for reconciliation scan progress.
 
+    Uses query parameter authentication since EventSource cannot send custom headers.
+
+    Query Parameters:
+        token: JWT token for authentication
+        administration: Tenant identifier
+
     Path Parameters:
-        scan_id: The scan ID returned by POST /api/assets/scan
+        scan_id: The scan ID returned by POST /api/media-assets/scan
 
     Returns:
         200: SSE stream with progress events
+        401: {success: false, error: 'Authentication required'}
         404: {success: false, error: 'Scan not found'}
     """
+    # SSE endpoints use query-param auth since EventSource can't send headers
+    token = request.args.get("token")
+    tenant = request.args.get("administration")
+
+    if not token:
+        return jsonify({"success": False, "error": "Authentication required"}), 401
+
+    # Manually validate the token
+    from auth.cognito_utils import _get_jwt_verifier, _extract_with_verifier, _extract_with_base64
+
+    verifier = _get_jwt_verifier()
+    if verifier is not None:
+        user_email, user_roles, auth_error = _extract_with_verifier(verifier, token)
+    else:
+        user_email, user_roles, auth_error = _extract_with_base64(token)
+
+    if auth_error:
+        return jsonify({"success": False, "error": "Authentication failed"}), 401
+
+    # Check permissions
+    from auth.cognito_utils import validate_permissions
+    is_authorized, _ = validate_permissions(user_roles or [], ["storage_manage"])
+    if not is_authorized:
+        return jsonify({"success": False, "error": "Insufficient permissions"}), 403
+
+    if not tenant:
+        return jsonify({"success": False, "error": "Tenant is required"}), 400
+
     scan_entry = _active_scans.get(scan_id)
 
     if not scan_entry:
