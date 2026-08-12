@@ -50,22 +50,58 @@ class LandingPageRenderers:
 
             content_html = self.render_section(section_type, props, layout, slug)
             if content_html:
-                if wrapper_style and not content_html.strip().startswith("<section"):
-                    # Settings present and content doesn't already have its own section wrapper
+                if wrapper_style:
+                    # Settings present — apply styled wrapper
                     max_width = settings.get("max_width", "contained")
-                    container_class = (
-                        "container" if max_width == "contained" else ""
-                    )
+                    container_class = "container" if max_width == "contained" else ""
                     style_attr = f' style="{wrapper_style}"'
+
+                    # If content already has its own <section> wrapper, extract
+                    # the inner content so we can re-wrap with settings style
+                    inner = self._strip_section_wrapper(content_html)
+
                     parts.append(
                         f'<section class="section"{style_attr}>'
-                        f'<div class="{container_class}">{content_html}</div>'
-                        f'</section>'
+                        f'<div class="{container_class}">{inner}</div>'
+                        f"</section>"
                     )
                 else:
-                    # No settings OR content already has its own section — render as-is
+                    # No settings — render as-is
                     parts.append(content_html)
         return "\n".join(parts)
+
+    @staticmethod
+    def _strip_section_wrapper(html_str: str) -> str:
+        """Strip outer <section ...>...</section> wrapper if present.
+
+        Returns the inner content (everything between the opening and closing
+        section tags). If the content also has a <div class="container"> wrapper
+        immediately inside, that is stripped too so the caller can apply its own
+        container class.
+        """
+        stripped = html_str.strip()
+        if not stripped.startswith("<section"):
+            return html_str
+
+        # Remove opening <section ...> tag
+        close_bracket = stripped.index(">")
+        inner = stripped[close_bracket + 1 :]
+
+        # Remove closing </section> tag
+        if inner.rstrip().endswith("</section>"):
+            inner = inner.rstrip()[: -len("</section>")]
+
+        # Strip container div wrapper if present
+        inner_stripped = inner.strip()
+        container_match = re.match(
+            r'^<div class="container">\s*(.*?)\s*</div>$',
+            inner_stripped,
+            re.DOTALL,
+        )
+        if container_match:
+            inner = container_match.group(1)
+
+        return inner
 
     def render_section(
         self, section_type: str, props: dict, layout: str, slug: str
@@ -131,9 +167,7 @@ class LandingPageRenderers:
                 title, subtitle, cta_text, cta_url, img_url
             )
         elif layout == "video-bg":
-            return self._render_hero_video_bg(
-                title, subtitle, cta_text, cta_url, props
-            )
+            return self._render_hero_video_bg(title, subtitle, cta_text, cta_url, props)
 
         # Default / image-left layout
         img_html = (
@@ -141,9 +175,7 @@ class LandingPageRenderers:
             if img_url
             else ""
         )
-        btn_html = (
-            f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
-        )
+        btn_html = f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
         sub_html = f"<p>{subtitle}</p>" if subtitle else ""
 
         direction = (
@@ -166,21 +198,19 @@ class LandingPageRenderers:
     ) -> str:
         """Render hero with full-bleed background image and text overlay."""
         sub_html = f'<p style="color:#eee;">{subtitle}</p>' if subtitle else ""
-        btn_html = (
-            f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
-        )
+        btn_html = f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
 
         return (
             f'<section class="section hero-image-bg" style="background-image:url(\'{img_url}\');'
-            f'background-size:cover;background-position:center;min-height:500px;'
+            f"background-size:cover;background-position:center;min-height:500px;"
             f'display:flex;align-items:center;">\n'
             f'  <div class="container hero-overlay" style="background:rgba(0,0,0,0.5);'
             f'padding:3rem;border-radius:8px;">\n'
             f'    <h1 style="color:#fff;">{title}</h1>\n'
-            f'    {sub_html}\n'
-            f'    {btn_html}\n'
-            f'  </div>\n'
-            f'</section>'
+            f"    {sub_html}\n"
+            f"    {btn_html}\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     def _render_hero_split_diagonal(
@@ -188,24 +218,22 @@ class LandingPageRenderers:
     ) -> str:
         """Render hero with diagonal clip-path split between image and text."""
         sub_html = f"<p>{subtitle}</p>" if subtitle else ""
-        btn_html = (
-            f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
-        )
+        btn_html = f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
 
         return (
             f'<section class="section hero-split" style="display:flex;min-height:500px;'
             f'position:relative;overflow:hidden;">\n'
             f'  <div style="flex:1;padding:3rem;display:flex;flex-direction:column;'
             f'justify-content:center;">\n'
-            f'    <h1>{title}</h1>\n'
-            f'    {sub_html}\n'
-            f'    {btn_html}\n'
-            f'  </div>\n'
+            f"    <h1>{title}</h1>\n"
+            f"    {sub_html}\n"
+            f"    {btn_html}\n"
+            f"  </div>\n"
             f'  <div style="flex:1;clip-path:polygon(15% 0, 100% 0, 100% 100%, 0% 100%);'
             f"background-image:url('{img_url}');background-size:cover;"
             f'background-position:center;">\n'
-            f'  </div>\n'
-            f'</section>'
+            f"  </div>\n"
+            f"</section>"
         )
 
     def _render_hero_video_bg(
@@ -215,15 +243,14 @@ class LandingPageRenderers:
         video_url = props.get("video_url", "")
         video_id = self._extract_youtube_id(video_url)
         sub_html = f'<p style="color:#eee;">{subtitle}</p>' if subtitle else ""
-        btn_html = (
-            f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
-        )
+        btn_html = f'<a href="{cta_url}" class="btn">{cta_text}</a>' if cta_text else ""
 
         iframe_html = ""
         if video_id:
             iframe_html = (
-                f'<iframe src="https://www.youtube-nocookie.com/embed/{video_id}'
-                f'?autoplay=1&mute=1&loop=1&playlist={video_id}&controls=0" '
+                f'<iframe src="https://www.youtube.com/embed/{video_id}'
+                f"?autoplay=1&mute=1&loop=1&playlist={video_id}&controls=0"
+                f'&rel=0&modestbranding=1&showinfo=0&iv_load_policy=3&disablekb=1" '
                 f'style="position:absolute;top:50%;left:50%;min-width:100%;'
                 f'min-height:100%;transform:translate(-50%,-50%);" '
                 f'frameborder="0" allow="autoplay" allowfullscreen></iframe>'
@@ -233,15 +260,15 @@ class LandingPageRenderers:
             f'<section class="section hero-video-bg" style="position:relative;'
             f'min-height:500px;overflow:hidden;">\n'
             f'  <div style="position:absolute;top:0;left:0;width:100%;height:100%;">\n'
-            f'    {iframe_html}\n'
-            f'  </div>\n'
+            f"    {iframe_html}\n"
+            f"  </div>\n"
             f'  <div class="container hero-overlay" style="position:relative;z-index:2;'
             f'background:rgba(0,0,0,0.5);padding:3rem;border-radius:8px;">\n'
             f'    <h1 style="color:#fff;">{title}</h1>\n'
-            f'    {sub_html}\n'
-            f'    {btn_html}\n'
-            f'  </div>\n'
-            f'</section>'
+            f"    {sub_html}\n"
+            f"    {btn_html}\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     @staticmethod
@@ -258,9 +285,7 @@ class LandingPageRenderers:
         if not url:
             return ""
         # Match youtube.com/watch?v=ID or youtu.be/ID
-        match = re.search(
-            r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]+)", url
-        )
+        match = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]+)", url)
         return match.group(1) if match else ""
 
     # ========================================================================
@@ -310,22 +335,20 @@ class LandingPageRenderers:
   </div>
 </section>"""
 
-    def _render_about_card(
-        self, title_html: str, text_html: str, img_html: str
-    ) -> str:
+    def _render_about_card(self, title_html: str, text_html: str, img_html: str) -> str:
         """Render about section as an elevated card with shadow and centred content."""
         return (
             f'<section class="section about">\n'
             f'  <div class="container">\n'
             f'    <div style="max-width:700px;margin:0 auto;background:#fff;'
-            f'border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.1);'
+            f"border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.1);"
             f'padding:3rem;text-align:center;">\n'
-            f'      {title_html}\n'
-            f'      {text_html}\n'
-            f'      {img_html}\n'
-            f'    </div>\n'
-            f'  </div>\n'
-            f'</section>'
+            f"      {title_html}\n"
+            f"      {text_html}\n"
+            f"      {img_html}\n"
+            f"    </div>\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     def _render_about_timeline(self, title_html: str, props: dict) -> str:
@@ -342,19 +365,19 @@ class LandingPageRenderers:
                 f'height:12px;border-radius:50%;background:{self.color_accent};"></div>'
                 f'<h3 style="margin:0 0 0.25rem 0;">{item_title}</h3>'
                 f'<p style="color:#555;margin:0;">{item_desc}</p>'
-                f'</div>'
+                f"</div>"
             )
 
         return (
             f'<section class="section about">\n'
             f'  <div class="container">\n'
-            f'    {title_html}\n'
+            f"    {title_html}\n"
             f'    <div style="position:relative;padding-left:2rem;'
             f'border-left:3px solid {self.color_accent};">\n'
-            f'      {items_html}\n'
-            f'    </div>\n'
-            f'  </div>\n'
-            f'</section>'
+            f"      {items_html}\n"
+            f"    </div>\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     # ========================================================================
@@ -451,9 +474,7 @@ class LandingPageRenderers:
             return self._render_cta_floating(title, subtitle, btn_text, btn_url)
 
         sub_html = f"<p>{subtitle}</p>" if subtitle else ""
-        btn_html = (
-            f'<a href="{btn_url}" class="btn">{btn_text}</a>' if btn_text else ""
-        )
+        btn_html = f'<a href="{btn_url}" class="btn">{btn_text}</a>' if btn_text else ""
 
         return f"""<section class="cta">
   <div class="container">
@@ -468,21 +489,19 @@ class LandingPageRenderers:
     ) -> str:
         """Render CTA with text left and button right in a flex row."""
         sub_html = f"<p>{subtitle}</p>" if subtitle else ""
-        btn_html = (
-            f'<a href="{btn_url}" class="btn">{btn_text}</a>' if btn_text else ""
-        )
+        btn_html = f'<a href="{btn_url}" class="btn">{btn_text}</a>' if btn_text else ""
 
         return (
             f'<section class="cta" style="display:flex;align-items:center;'
             f'justify-content:space-between;flex-wrap:wrap;">\n'
             f'  <div style="flex:1;min-width:280px;">\n'
-            f'    <h2>{title}</h2>\n'
-            f'    {sub_html}\n'
-            f'  </div>\n'
+            f"    <h2>{title}</h2>\n"
+            f"    {sub_html}\n"
+            f"  </div>\n"
             f'  <div style="flex-shrink:0;">\n'
-            f'    {btn_html}\n'
-            f'  </div>\n'
-            f'</section>'
+            f"    {btn_html}\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     def _render_cta_banner(
@@ -492,41 +511,35 @@ class LandingPageRenderers:
         subtitle_span = (
             f'<span style="opacity:0.9;">{subtitle}</span>' if subtitle else ""
         )
-        btn_html = (
-            f'<a href="{btn_url}" class="btn">{btn_text}</a>'
-            if btn_text
-            else ""
-        )
+        btn_html = f'<a href="{btn_url}" class="btn">{btn_text}</a>' if btn_text else ""
 
         return (
             f'<section class="cta" style="padding:1rem 1.5rem;">\n'
             f'  <div class="container" style="display:flex;align-items:center;'
             f'justify-content:center;gap:1.5rem;flex-wrap:wrap;">\n'
             f'    <span style="font-weight:600;">{title}</span>\n'
-            f'    {subtitle_span}\n'
-            f'    {btn_html}\n'
-            f'  </div>\n'
-            f'</section>'
+            f"    {subtitle_span}\n"
+            f"    {btn_html}\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     def _render_cta_floating(
         self, title: str, subtitle: str, btn_text: str, btn_url: str
     ) -> str:
         """Render CTA as a fixed bottom bar (position:fixed at page bottom)."""
-        btn_html = (
-            f'<a href="{btn_url}" class="btn">{btn_text}</a>' if btn_text else ""
-        )
+        btn_html = f'<a href="{btn_url}" class="btn">{btn_text}</a>' if btn_text else ""
 
         return (
             f'<div class="cta-floating" style="position:fixed;bottom:0;left:0;right:0;'
-            f'z-index:999;padding:1rem 1.5rem;background:{self.color_primary};'
+            f"z-index:999;padding:1rem 1.5rem;background:{self.color_primary};"
             f'box-shadow:0 -2px 8px rgba(0,0,0,0.15);">\n'
             f'  <div class="container" style="display:flex;align-items:center;'
             f'justify-content:space-between;flex-wrap:wrap;gap:1rem;">\n'
             f'    <span style="color:#fff;font-weight:600;">{title}</span>\n'
-            f'    {btn_html}\n'
-            f'  </div>\n'
-            f'</div>'
+            f"    {btn_html}\n"
+            f"  </div>\n"
+            f"</div>"
         )
 
     # ========================================================================
@@ -585,11 +598,11 @@ class LandingPageRenderers:
         return (
             f'<section class="section faq">\n'
             f'  <div class="container">\n'
-            f'    {title_html}\n'
+            f"    {title_html}\n"
             f'    <div style="display:grid;grid-template-columns:1fr 2fr;'
             f'gap:1rem 2rem;align-items:start;">{rows_html}</div>\n'
-            f'  </div>\n'
-            f'</section>'
+            f"  </div>\n"
+            f"</section>"
         )
 
     # ========================================================================
@@ -644,7 +657,7 @@ class LandingPageRenderers:
                 f'<div class="carousel-slide" style="min-width:100%;padding:2rem;text-align:center;">'
                 f'<blockquote style="font-size:1.3rem;font-style:italic;color:#555;">"{quote}"</blockquote>'
                 f'<cite style="display:block;margin-top:1rem;font-weight:600;">{cite_text}</cite>'
-                f'</div>'
+                f"</div>"
             )
 
         carousel_id = f"testimonial-carousel-{id(items)}"
@@ -694,7 +707,7 @@ class LandingPageRenderers:
                 f'<div style="padding:1rem 0;border-bottom:1px solid #eee;">'
                 f'<blockquote style="font-style:italic;color:#555;">"{quote}"</blockquote>'
                 f'<cite style="font-weight:600;color:#333;">{cite_text}</cite>'
-                f'</div>'
+                f"</div>"
             )
 
         return f"""<section class="section testimonials">
@@ -810,25 +823,25 @@ function submitContact(e) {{
         return (
             f'<section class="section video-block">\n'
             f'  <div class="container" style="{max_width_style}">\n'
-            f'    {title_html}\n'
+            f"    {title_html}\n"
             f'    <div class="video-wrapper" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;">\n'
             f'      <div data-video-id="{video_id}" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:pointer;"'
             f" onclick=\"this.innerHTML='<iframe src=&quot;https://www.youtube-nocookie.com/embed/{video_id}?autoplay=1&quot;"
-            f' style=&quot;position:absolute;top:0;left:0;width:100%;height:100%;&quot;'
-            f' frameborder=&quot;0&quot; allowfullscreen allow=&quot;autoplay&quot;></iframe>\'\">\n'
+            f" style=&quot;position:absolute;top:0;left:0;width:100%;height:100%;&quot;"
+            f" frameborder=&quot;0&quot; allowfullscreen allow=&quot;autoplay&quot;></iframe>'\">\n"
             f'        <img src="https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"'
             f' style="width:100%;height:100%;object-fit:cover;" alt="{title}">\n'
             f'        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
-            f'width:68px;height:48px;background:rgba(0,0,0,0.7);border-radius:8px;'
+            f"width:68px;height:48px;background:rgba(0,0,0,0.7);border-radius:8px;"
             f'display:flex;align-items:center;justify-content:center;">\n'
             f'          <svg width="24" height="24" viewBox="0 0 24 24" fill="white">'
             f'<path d="M8 5v14l11-7z"/></svg>\n'
-            f'        </div>\n'
-            f'      </div>\n'
-            f'    </div>\n'
-            f'    {desc_html}\n'
-            f'  </div>\n'
-            f'</section>'
+            f"        </div>\n"
+            f"      </div>\n"
+            f"    </div>\n"
+            f"    {desc_html}\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     # ========================================================================
@@ -889,7 +902,7 @@ function submitContact(e) {{
             header_cells += (
                 f'<th style="padding:1rem;border-bottom:2px solid #eee;">'
                 f'{name}<br><span style="font-size:1.5rem;color:{self.color_accent};">'
-                f'{price}</span></th>'
+                f"{price}</span></th>"
             )
 
         # Collect all unique features across items
@@ -912,19 +925,19 @@ function submitContact(e) {{
             body_rows += (
                 f'<tr><td style="padding:0.75rem;border-bottom:1px solid #eee;'
                 f'text-align:left;font-weight:500;">{html.escape(feature)}</td>'
-                f'{cells}</tr>'
+                f"{cells}</tr>"
             )
 
         return (
             f'<section class="section pricing">\n'
             f'  <div class="container">\n'
-            f'    {title_html}\n'
+            f"    {title_html}\n"
             f'    <table style="width:100%;border-collapse:collapse;text-align:center;">\n'
-            f'      <thead><tr><th></th>{header_cells}</tr></thead>\n'
-            f'      <tbody>{body_rows}</tbody>\n'
-            f'    </table>\n'
-            f'  </div>\n'
-            f'</section>'
+            f"      <thead><tr><th></th>{header_cells}</tr></thead>\n"
+            f"      <tbody>{body_rows}</tbody>\n"
+            f"    </table>\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     def _render_pricing_featured_center(self, items: list, title_html: str) -> str:
@@ -954,7 +967,7 @@ function submitContact(e) {{
             cards_html += (
                 f'<div class="pricing-card"{card_style}>'
                 f'<h3>{name}</h3><div class="price">{price}</div>'
-                f'<p>{desc}</p>{features_html}</div>'
+                f"<p>{desc}</p>{features_html}</div>"
             )
 
         return f"""<section class="section pricing">
@@ -990,20 +1003,20 @@ function submitContact(e) {{
                 cells += f'<td style="padding:0.75rem;text-align:center;">{mark}</td>'
             body_rows += (
                 f'<tr><td style="padding:0.75rem;">{html.escape(feature)}</td>'
-                f'{cells}</tr>'
+                f"{cells}</tr>"
             )
 
         return (
             f'<section class="section pricing">\n'
             f'  <div class="container">\n'
-            f'    {title_html}\n'
+            f"    {title_html}\n"
             f'    <table style="width:100%;border-collapse:collapse;">\n'
             f'      <thead><tr><th style="padding:0.75rem;">Feature</th>'
-            f'{header_cells}</tr></thead>\n'
-            f'      <tbody>{body_rows}</tbody>\n'
-            f'    </table>\n'
-            f'  </div>\n'
-            f'</section>'
+            f"{header_cells}</tr></thead>\n"
+            f"      <tbody>{body_rows}</tbody>\n"
+            f"    </table>\n"
+            f"  </div>\n"
+            f"</section>"
         )
 
     # ========================================================================
@@ -1032,9 +1045,7 @@ function submitContact(e) {{
                         f'<a href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">{html.escape(platform.replace("_", " ").title())}</a>'
                     )
             if links:
-                social_html = (
-                    f'<p style="margin-top:0.5rem;">{"  ·  ".join(links)}</p>'
-                )
+                social_html = f'<p style="margin-top:0.5rem;">{"  ·  ".join(links)}</p>'
 
         return f"""<footer>
   <p>{info_line}</p>

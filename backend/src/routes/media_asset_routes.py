@@ -158,14 +158,14 @@ def search_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
     """
     try:
         filters = {
-            'q': request.args.get('q', ''),
-            'category': request.args.get('category', ''),
-            'media_type': request.args.get('media_type', ''),
-            'status': request.args.get('status', ''),
-            'sort': request.args.get('sort', 'created_at'),
-            'order': request.args.get('order', 'desc'),
-            'page': request.args.get('page', '1'),
-            'page_size': request.args.get('page_size', '20'),
+            "q": request.args.get("q", ""),
+            "category": request.args.get("category", ""),
+            "media_type": request.args.get("media_type", ""),
+            "status": request.args.get("status", ""),
+            "sort": request.args.get("sort", "created_at"),
+            "order": request.args.get("order", "desc"),
+            "page": request.args.get("page", "1"),
+            "page_size": request.args.get("page_size", "20"),
         }
 
         service = _get_service()
@@ -181,7 +181,9 @@ def search_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 @media_asset_bp.route("/<asset_id>", methods=["GET"])
 @cognito_required(required_permissions=["storage_read"])
 @tenant_required()
-def get_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
+def get_asset(
+    user_email, user_roles, tenant, user_tenants, asset_id
+) -> ResponseReturnValue:
     """Get asset metadata and presigned URL.
 
     Path Parameters:
@@ -209,7 +211,9 @@ def get_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> Respons
 @media_asset_bp.route("/<asset_id>/attach", methods=["POST"])
 @cognito_required(required_permissions=["storage_write"])
 @tenant_required()
-def attach_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
+def attach_asset(
+    user_email, user_roles, tenant, user_tenants, asset_id
+) -> ResponseReturnValue:
     """Attach an entity reference to an asset.
 
     Path Parameters:
@@ -233,7 +237,9 @@ def attach_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> Resp
         entity_id = data.get("entity_id")
 
         if not entity_type or not entity_id:
-            return jsonify({"success": False, "error": "entity_type and entity_id are required"}), 400
+            return jsonify(
+                {"success": False, "error": "entity_type and entity_id are required"}
+            ), 400
 
         service = _get_service()
         result = service.attach(
@@ -256,7 +262,9 @@ def attach_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> Resp
 @media_asset_bp.route("/<asset_id>/detach", methods=["POST"])
 @cognito_required(required_permissions=["storage_write"])
 @tenant_required()
-def detach_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
+def detach_asset(
+    user_email, user_roles, tenant, user_tenants, asset_id
+) -> ResponseReturnValue:
     """Detach an entity reference from an asset.
 
     Path Parameters:
@@ -280,7 +288,9 @@ def detach_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> Resp
         entity_id = data.get("entity_id")
 
         if not entity_type or not entity_id:
-            return jsonify({"success": False, "error": "entity_type and entity_id are required"}), 400
+            return jsonify(
+                {"success": False, "error": "entity_type and entity_id are required"}
+            ), 400
 
         service = _get_service()
         result = service.detach(
@@ -328,7 +338,9 @@ def replace_asset(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         new_asset_id = data.get("new_asset_id")
 
         if not entity_type or not entity_id:
-            return jsonify({"success": False, "error": "entity_type and entity_id are required"}), 400
+            return jsonify(
+                {"success": False, "error": "entity_type and entity_id are required"}
+            ), 400
 
         if not new_asset_id:
             return jsonify({"success": False, "error": "new_asset_id is required"}), 400
@@ -394,8 +406,8 @@ def trigger_scan(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         # Store the generator for later SSE consumption
         service = _get_service()
         _active_scans[scan_id] = {
-            'tenant': tenant,
-            'generator': service.run_reconciliation_with_progress(tenant),
+            "tenant": tenant,
+            "generator": service.run_reconciliation_with_progress(tenant),
         }
 
         return jsonify({"success": True, "scan_id": scan_id}), 202
@@ -431,19 +443,24 @@ def scan_status_stream(scan_id) -> ResponseReturnValue:
         return jsonify({"success": False, "error": "Authentication required"}), 401
 
     # Manually validate the token
-    from auth.cognito_utils import _get_jwt_verifier, _extract_with_verifier, _extract_with_base64
+    from auth.cognito_utils import (
+        _extract_with_base64,
+        _extract_with_verifier,
+        _get_jwt_verifier,
+    )
 
     verifier = _get_jwt_verifier()
     if verifier is not None:
-        user_email, user_roles, auth_error = _extract_with_verifier(verifier, token)
+        _, user_roles, auth_error = _extract_with_verifier(verifier, token)
     else:
-        user_email, user_roles, auth_error = _extract_with_base64(token)
+        _, user_roles, auth_error = _extract_with_base64(token)
 
     if auth_error:
         return jsonify({"success": False, "error": "Authentication failed"}), 401
 
     # Check permissions
     from auth.cognito_utils import validate_permissions
+
     is_authorized, _ = validate_permissions(user_roles or [], ["storage_manage"])
     if not is_authorized:
         return jsonify({"success": False, "error": "Insufficient permissions"}), 403
@@ -457,12 +474,12 @@ def scan_status_stream(scan_id) -> ResponseReturnValue:
         return jsonify({"success": False, "error": "Scan not found"}), 404
 
     # Verify tenant ownership
-    if scan_entry['tenant'] != tenant:
+    if scan_entry["tenant"] != tenant:
         return jsonify({"success": False, "error": "Scan not found"}), 404
 
     def generate_progress():
         try:
-            generator = scan_entry['generator']
+            generator = scan_entry["generator"]
             for progress_data in generator:
                 yield f"data: {json.dumps(progress_data, default=str)}\n\n"
         except Exception as e:
@@ -503,7 +520,9 @@ def approve_delete(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
 
         asset_ids = data.get("asset_ids")
         if not asset_ids or not isinstance(asset_ids, list):
-            return jsonify({"success": False, "error": "asset_ids array is required"}), 400
+            return jsonify(
+                {"success": False, "error": "asset_ids array is required"}
+            ), 400
 
         service = _get_service()
         deleted = 0
@@ -521,18 +540,22 @@ def approve_delete(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
                 details.append({"asset_id": asset_id, "status": "deleted"})
             else:
                 skipped += 1
-                details.append({
-                    "asset_id": asset_id,
-                    "status": "skipped",
-                    "reason": result.get("error", "unknown"),
-                })
+                details.append(
+                    {
+                        "asset_id": asset_id,
+                        "status": "skipped",
+                        "reason": result.get("error", "unknown"),
+                    }
+                )
 
-        return jsonify({
-            "success": True,
-            "deleted": deleted,
-            "skipped": skipped,
-            "details": details,
-        }), 200
+        return jsonify(
+            {
+                "success": True,
+                "deleted": deleted,
+                "skipped": skipped,
+                "details": details,
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Approve delete error: {e}")
@@ -542,7 +565,9 @@ def approve_delete(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
 @media_asset_bp.route("/unregistered", methods=["GET"])
 @cognito_required(required_permissions=["storage_manage"])
 @tenant_required()
-def get_unregistered(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_unregistered(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """List unregistered S3 objects (in S3 but not in asset registry).
 
     Performs a lightweight S3 scan comparing bucket contents against the
@@ -566,7 +591,9 @@ def get_unregistered(user_email, user_roles, tenant, user_tenants) -> ResponseRe
 @media_asset_bp.route("/delete-unregistered", methods=["POST"])
 @cognito_required(required_permissions=["storage_manage"])
 @tenant_required()
-def delete_unregistered(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def delete_unregistered(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Delete unregistered S3 objects permanently.
 
     Removes S3 objects that are not in the asset registry. This is a
@@ -587,10 +614,14 @@ def delete_unregistered(user_email, user_roles, tenant, user_tenants) -> Respons
 
         s3_keys = data.get("s3_keys")
         if not s3_keys or not isinstance(s3_keys, list):
-            return jsonify({"success": False, "error": "s3_keys array is required"}), 400
+            return jsonify(
+                {"success": False, "error": "s3_keys array is required"}
+            ), 400
 
         service = _get_service()
-        result = service.delete_unregistered_objects(tenant, s3_keys, operator=user_email)
+        result = service.delete_unregistered_objects(
+            tenant, s3_keys, operator=user_email
+        )
 
         if result.get("success"):
             return jsonify(result), 200
@@ -644,11 +675,13 @@ def import_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
                     continue
 
                 # Derive category from key path (e.g., "TenantA/invoices/file.pdf" → "invoices")
-                parts = key.split('/')
-                key_category = parts[1] if len(parts) > 2 else ''
+                parts = key.split("/")
+                key_category = parts[1] if len(parts) > 2 else ""
 
                 try:
-                    result = service.import_legacy_assets(tenant=tenant, category=key_category)
+                    result = service.import_legacy_assets(
+                        tenant=tenant, category=key_category
+                    )
                     if result.get("success"):
                         imported += result.get("imported", 0)
                         skipped += result.get("skipped", 0)
@@ -657,15 +690,19 @@ def import_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
                 except (NotImplementedError, Exception):
                     skipped += 1
 
-            return jsonify({
-                "success": True,
-                "imported": imported,
-                "skipped": skipped,
-            }), 200
+            return jsonify(
+                {
+                    "success": True,
+                    "imported": imported,
+                    "skipped": skipped,
+                }
+            ), 200
 
         # Mode 2: Category-based import (legacy)
         if not category:
-            return jsonify({"success": False, "error": "category or s3_keys is required"}), 400
+            return jsonify(
+                {"success": False, "error": "category or s3_keys is required"}
+            ), 400
 
         service = _get_service()
         result = service.import_legacy_assets(tenant=tenant, category=category)
@@ -676,10 +713,12 @@ def import_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             return jsonify(result), 400
 
     except NotImplementedError:
-        return jsonify({
-            "success": False,
-            "error": "Import functionality is not yet implemented",
-        }), 501
+        return jsonify(
+            {
+                "success": False,
+                "error": "Import functionality is not yet implemented",
+            }
+        ), 501
     except Exception as e:
         logger.error(f"Import assets error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -688,7 +727,9 @@ def import_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 @media_asset_bp.route("/duplicates", methods=["GET"])
 @cognito_required(required_permissions=["storage_manage"])
 @tenant_required()
-def list_duplicates(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def list_duplicates(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """List duplicate content_hash groups for this tenant.
 
     Returns assets grouped by content_hash where COUNT > 1.
@@ -710,7 +751,9 @@ def list_duplicates(user_email, user_roles, tenant, user_tenants) -> ResponseRet
 @media_asset_bp.route("/merge-duplicates", methods=["POST"])
 @cognito_required(required_permissions=["storage_manage"])
 @tenant_required()
-def merge_duplicates(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def merge_duplicates(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Merge a group of duplicate assets (same content_hash).
 
     Keeps one asset (the oldest/primary), re-attaches all references from the
@@ -734,10 +777,14 @@ def merge_duplicates(user_email, user_roles, tenant, user_tenants) -> ResponseRe
         duplicate_asset_ids = data.get("duplicate_asset_ids")
 
         if not keep_asset_id:
-            return jsonify({"success": False, "error": "keep_asset_id is required"}), 400
+            return jsonify(
+                {"success": False, "error": "keep_asset_id is required"}
+            ), 400
 
         if not duplicate_asset_ids or not isinstance(duplicate_asset_ids, list):
-            return jsonify({"success": False, "error": "duplicate_asset_ids array is required"}), 400
+            return jsonify(
+                {"success": False, "error": "duplicate_asset_ids array is required"}
+            ), 400
 
         service = _get_service()
         result = service.merge_duplicates(
@@ -759,7 +806,9 @@ def merge_duplicates(user_email, user_roles, tenant, user_tenants) -> ResponseRe
 @media_asset_bp.route("/retention-settings", methods=["GET"])
 @cognito_required(required_permissions=["storage_manage"])
 @tenant_required()
-def get_retention_settings(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_retention_settings(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get current retention configuration with source indicators.
 
     Returns the resolved retention settings for each category. Each value
@@ -783,7 +832,9 @@ def get_retention_settings(user_email, user_roles, tenant, user_tenants) -> Resp
 @media_asset_bp.route("/retention-settings", methods=["PUT"])
 @cognito_required(required_permissions=["storage_manage"])
 @tenant_required()
-def update_retention_settings(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def update_retention_settings(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Update tenant-level retention overrides.
 
     Request JSON:
@@ -801,7 +852,9 @@ def update_retention_settings(user_email, user_roles, tenant, user_tenants) -> R
             return jsonify({"success": False, "error": "Request body is required"}), 400
 
         if not isinstance(data, dict):
-            return jsonify({"success": False, "error": "Request body must be a JSON object"}), 400
+            return jsonify(
+                {"success": False, "error": "Request body must be a JSON object"}
+            ), 400
 
         service = _get_service()
         result = service.update_retention_settings(tenant, data)
@@ -820,7 +873,9 @@ def update_retention_settings(user_email, user_roles, tenant, user_tenants) -> R
 @media_asset_bp.route("/force-delete", methods=["POST"])
 @cognito_required(required_permissions=["admin_manage"])
 @tenant_required(allow_sysadmin=True)
-def force_delete_asset(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def force_delete_asset(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Emergency bypass delete. System admin only.
 
     Bypasses the reference guard entirely — deletes the asset even if active
@@ -899,16 +954,20 @@ def migrate_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
             return jsonify({"success": False, "error": "tenants is required"}), 400
 
         if tenants_param != "all" and not isinstance(tenants_param, list):
-            return jsonify({
-                "success": False,
-                "error": "tenants must be a list of tenant IDs or 'all'",
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "tenants must be a list of tenant IDs or 'all'",
+                }
+            ), 400
 
         # import_legacy_assets is not yet implemented — return 501
-        return jsonify({
-            "success": False,
-            "error": "Migration not yet implemented",
-        }), 501
+        return jsonify(
+            {
+                "success": False,
+                "error": "Migration not yet implemented",
+            }
+        ), 501
 
     except Exception as e:
         logger.error(f"Migrate assets error: {e}")
@@ -918,7 +977,9 @@ def migrate_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
 @media_asset_bp.route("/admin/tenants", methods=["GET"])
 @cognito_required(required_permissions=["admin_manage"])
 @tenant_required(allow_sysadmin=True)
-def admin_tenant_stats(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def admin_tenant_stats(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Cross-tenant asset statistics. System admin only.
 
     Queries aggregate stats across all tenants — total assets and storage
@@ -947,11 +1008,13 @@ def admin_tenant_stats(user_email, user_roles, tenant, user_tenants) -> Response
 
         data = []
         for row in rows:
-            data.append({
-                "tenant": row["tenant"],
-                "total_assets": row["total_assets"],
-                "total_bytes": row["total_bytes"],
-            })
+            data.append(
+                {
+                    "tenant": row["tenant"],
+                    "total_assets": row["total_assets"],
+                    "total_bytes": row["total_bytes"],
+                }
+            )
 
         return jsonify({"success": True, "data": data}), 200
 

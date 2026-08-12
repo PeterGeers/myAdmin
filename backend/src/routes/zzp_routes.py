@@ -638,16 +638,18 @@ def upload_supporting_document(
             tenant=tenant,
             file_data=file_content,
             filename=filename,
-            category='invoices',
-            entity_type='zzp_invoice',
+            category="invoices",
+            entity_type="zzp_invoice",
             entity_id=str(invoice_id),
-            metadata={'reference_number': invoice['invoice_number']},
+            metadata={"reference_number": invoice["invoice_number"]},
         )
 
-        if not result['success']:
-            return jsonify({"success": False, "error": result.get('error', 'Upload failed')}), 500
+        if not result["success"]:
+            return jsonify(
+                {"success": False, "error": result.get("error", "Upload failed")}
+            ), 500
 
-        s3_key = result['asset']['s3_key']
+        s3_key = result["asset"]["s3_key"]
 
         return jsonify(
             {

@@ -38,9 +38,7 @@ class CloudFrontDomainService:
             "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", ""
         )
         self.kvs_arn = os.environ.get("CLOUDFRONT_KVS_ARN", "")
-        self.cloudfront_domain = os.environ.get(
-            "CLOUDFRONT_PUBLIC_PAGES_DOMAIN", ""
-        )
+        self.cloudfront_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
 
     def _get_kvs_client(self):
         """
@@ -60,7 +58,7 @@ class CloudFrontDomainService:
             region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
             self._kvs = boto3.client("cloudfront-keyvaluestore", region_name=region)
             return self._kvs
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(
                 f"cloudfront-keyvaluestore client not available (awscrt missing): {e}. "
                 "Falling back to AWS CLI for KVS operations."
@@ -71,9 +69,7 @@ class CloudFrontDomainService:
     # CloudFront Distribution CNAME Management (Task 4.4)
     # ========================================================================
 
-    def add_domain_to_distribution(
-        self, domain: str, certificate_arn: str
-    ) -> bool:
+    def add_domain_to_distribution(self, domain: str, certificate_arn: str) -> bool:
         """
         Add a custom domain as an alternate domain name on the CloudFront
         distribution and associate its ACM certificate.
@@ -89,9 +85,7 @@ class CloudFrontDomainService:
         """
         try:
             # Step 1: Get current distribution config with ETag
-            response = self._cloudfront.get_distribution_config(
-                Id=self.distribution_id
-            )
+            response = self._cloudfront.get_distribution_config(Id=self.distribution_id)
             config = response["DistributionConfig"]
             etag = response["ETag"]
 
@@ -100,9 +94,7 @@ class CloudFrontDomainService:
             items = aliases.get("Items", [])
 
             if domain in items:
-                logger.info(
-                    f"Domain {domain} already in distribution aliases"
-                )
+                logger.info(f"Domain {domain} already in distribution aliases")
                 return True
 
             items.append(domain)
@@ -144,9 +136,7 @@ class CloudFrontDomainService:
         """
         try:
             # Step 1: Get current distribution config with ETag
-            response = self._cloudfront.get_distribution_config(
-                Id=self.distribution_id
-            )
+            response = self._cloudfront.get_distribution_config(Id=self.distribution_id)
             config = response["DistributionConfig"]
             etag = response["ETag"]
 
@@ -156,8 +146,7 @@ class CloudFrontDomainService:
 
             if domain not in items:
                 logger.info(
-                    f"Domain {domain} not in distribution aliases, "
-                    f"nothing to remove"
+                    f"Domain {domain} not in distribution aliases, nothing to remove"
                 )
                 return True
 
@@ -181,8 +170,7 @@ class CloudFrontDomainService:
 
         except ClientError as e:
             logger.error(
-                f"Failed to remove domain {domain} from "
-                f"CloudFront distribution: {e}"
+                f"Failed to remove domain {domain} from CloudFront distribution: {e}"
             )
             return False
 
@@ -221,9 +209,7 @@ class CloudFrontDomainService:
     def _put_kvs_boto3(self, kvs_client, domain: str, slug: str) -> bool:
         """Put KVS mapping using boto3 client."""
         try:
-            describe_response = kvs_client.describe_key_value_store(
-                KvsARN=self.kvs_arn
-            )
+            describe_response = kvs_client.describe_key_value_store(KvsARN=self.kvs_arn)
             etag = describe_response["ETag"]
 
             kvs_client.put_key(
@@ -246,10 +232,17 @@ class CloudFrontDomainService:
         try:
             # Get current ETag
             describe_cmd = [
-                "aws", "cloudfront-keyvaluestore", "describe-key-value-store",
-                "--kvs-arn", self.kvs_arn, "--output", "json"
+                "aws",
+                "cloudfront-keyvaluestore",
+                "describe-key-value-store",
+                "--kvs-arn",
+                self.kvs_arn,
+                "--output",
+                "json",
             ]
-            result = subprocess.run(describe_cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                describe_cmd, capture_output=True, text=True, timeout=30, check=False
+            )
             if result.returncode != 0:
                 logger.error(f"AWS CLI describe KVS failed: {result.stderr}")
                 return False
@@ -258,20 +251,28 @@ class CloudFrontDomainService:
 
             # Put key
             put_cmd = [
-                "aws", "cloudfront-keyvaluestore", "put-key",
-                "--kvs-arn", self.kvs_arn,
-                "--key", domain,
-                "--value", slug,
-                "--if-match", etag
+                "aws",
+                "cloudfront-keyvaluestore",
+                "put-key",
+                "--kvs-arn",
+                self.kvs_arn,
+                "--key",
+                domain,
+                "--value",
+                slug,
+                "--if-match",
+                etag,
             ]
-            result = subprocess.run(put_cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                put_cmd, capture_output=True, text=True, timeout=30, check=False
+            )
             if result.returncode != 0:
                 logger.error(f"AWS CLI put KVS key failed: {result.stderr}")
                 return False
 
             logger.info(f"Put KVS mapping (CLI): {domain} → {slug}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"CLI fallback failed for put KVS {domain}: {e}")
             return False
 
@@ -302,9 +303,7 @@ class CloudFrontDomainService:
     def _delete_kvs_boto3(self, kvs_client, domain: str) -> bool:
         """Delete KVS mapping using boto3 client."""
         try:
-            describe_response = kvs_client.describe_key_value_store(
-                KvsARN=self.kvs_arn
-            )
+            describe_response = kvs_client.describe_key_value_store(KvsARN=self.kvs_arn)
             etag = describe_response["ETag"]
 
             kvs_client.delete_key(
@@ -330,10 +329,17 @@ class CloudFrontDomainService:
         try:
             # Get current ETag
             describe_cmd = [
-                "aws", "cloudfront-keyvaluestore", "describe-key-value-store",
-                "--kvs-arn", self.kvs_arn, "--output", "json"
+                "aws",
+                "cloudfront-keyvaluestore",
+                "describe-key-value-store",
+                "--kvs-arn",
+                self.kvs_arn,
+                "--output",
+                "json",
             ]
-            result = subprocess.run(describe_cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                describe_cmd, capture_output=True, text=True, timeout=30, check=False
+            )
             if result.returncode != 0:
                 logger.error(f"AWS CLI describe KVS failed: {result.stderr}")
                 return False
@@ -342,12 +348,19 @@ class CloudFrontDomainService:
 
             # Delete key
             delete_cmd = [
-                "aws", "cloudfront-keyvaluestore", "delete-key",
-                "--kvs-arn", self.kvs_arn,
-                "--key", domain,
-                "--if-match", etag
+                "aws",
+                "cloudfront-keyvaluestore",
+                "delete-key",
+                "--kvs-arn",
+                self.kvs_arn,
+                "--key",
+                domain,
+                "--if-match",
+                etag,
             ]
-            result = subprocess.run(delete_cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                delete_cmd, capture_output=True, text=True, timeout=30, check=False
+            )
             if result.returncode != 0:
                 # Key not found is OK
                 if "ResourceNotFoundException" in result.stderr:
@@ -358,7 +371,7 @@ class CloudFrontDomainService:
 
             logger.info(f"Deleted KVS mapping (CLI) for domain: {domain}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"CLI fallback failed for delete KVS {domain}: {e}")
             return False
 
@@ -424,9 +437,7 @@ class CloudFrontDomainService:
                     f"attempt {attempt + 1}/4"
                 )
 
-            logger.info(
-                f"Requested ACM certificate for {domain}: {certificate_arn}"
-            )
+            logger.info(f"Requested ACM certificate for {domain}: {certificate_arn}")
 
             return {
                 "success": True,
@@ -439,7 +450,7 @@ class CloudFrontDomainService:
             logger.error(f"Failed to request ACM certificate for {domain}: {e}")
             return {
                 "success": False,
-                "error": f"Failed to request certificate: {str(e)}",
+                "error": f"Failed to request certificate: {e!s}",
             }
 
     def describe_certificate(self, certificate_arn: str) -> dict:
@@ -458,9 +469,7 @@ class CloudFrontDomainService:
             }
         """
         try:
-            response = self._acm.describe_certificate(
-                CertificateArn=certificate_arn
-            )
+            response = self._acm.describe_certificate(CertificateArn=certificate_arn)
             cert = response["Certificate"]
 
             return {
@@ -470,12 +479,10 @@ class CloudFrontDomainService:
             }
 
         except ClientError as e:
-            logger.error(
-                f"Failed to describe certificate {certificate_arn}: {e}"
-            )
+            logger.error(f"Failed to describe certificate {certificate_arn}: {e}")
             return {
                 "success": False,
-                "error": f"Failed to describe certificate: {str(e)}",
+                "error": f"Failed to describe certificate: {e!s}",
             }
 
     def delete_certificate(self, certificate_arn: str) -> bool:
@@ -494,7 +501,5 @@ class CloudFrontDomainService:
             return True
 
         except ClientError as e:
-            logger.error(
-                f"Failed to delete certificate {certificate_arn}: {e}"
-            )
+            logger.error(f"Failed to delete certificate {certificate_arn}: {e}")
             return False

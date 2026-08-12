@@ -12,33 +12,53 @@ import logging
 import mimetypes
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import ClassVar
 
 import boto3
 from botocore.exceptions import ClientError
 from ulid import ULID
 
 from database import DatabaseManager
-from db_exceptions import IntegrityError
+from db_exceptions import DatabaseError, IntegrityError
 from services.parameter_service import ParameterService
 
 logger = logging.getLogger(__name__)
 
 # entity_type → (table, id_column, existence_query) or None for ephemeral types
+# Special: 'dynamodb' as table name indicates DynamoDB-backed entity (no MySQL query)
 ENTITY_TYPE_REGISTRY = {
-    'invoice': ('mutaties', 'ID',
-                "SELECT 1 FROM mutaties WHERE ID = %s AND administration = %s LIMIT 1"),
-    'branding': ('parameter_values', None,
-                 "SELECT 1 FROM parameter_values WHERE namespace = 'branding' "
-                 "AND `key` = %s AND scope_type = 'tenant' AND scope_value = %s LIMIT 1"),
-    'landing_page': ('landing_pages', 'id',
-                     "SELECT 1 FROM landing_pages WHERE id = %s AND administration = %s LIMIT 1"),
-    'template': ('parameter_values', None,
-                 "SELECT 1 FROM parameter_values WHERE namespace = 'templates' "
-                 "AND `key` = %s AND scope_type = 'tenant' AND scope_value = %s LIMIT 1"),
-    'report': None,  # Ephemeral — auto-expire after 90 days, no existence check
-    'zzp_invoice': ('zzp_invoices', 'id',
-                    "SELECT 1 FROM zzp_invoices WHERE id = %s AND administration = %s LIMIT 1"),
+    "invoice": (
+        "mutaties",
+        "ID",
+        "SELECT 1 FROM mutaties WHERE ID = %s AND administration = %s LIMIT 1",
+    ),
+    "branding": (
+        "parameter_values",
+        None,
+        (
+            "SELECT 1 FROM parameter_values WHERE namespace = 'branding' "
+            "AND `key` = %s AND scope_type = 'tenant' AND scope_value = %s LIMIT 1"
+        ),
+    ),
+    "landing_page": (
+        "dynamodb",
+        "slug",
+        None,
+    ),  # DynamoDB — verified via LandingPageService
+    "template": (
+        "parameter_values",
+        None,
+        (
+            "SELECT 1 FROM parameter_values WHERE namespace = 'templates' "
+            "AND `key` = %s AND scope_type = 'tenant' AND scope_value = %s LIMIT 1"
+        ),
+    ),
+    "report": None,  # Ephemeral — auto-expire after 90 days, no existence check
+    "zzp_invoice": (
+        "zzp_invoices",
+        "id",
+        "SELECT 1 FROM zzp_invoices WHERE id = %s AND administration = %s LIMIT 1",
+    ),
 }
 
 
@@ -46,50 +66,54 @@ class MediaAssetService:
     """Central service for media asset lifecycle management."""
 
     # Allowed media types with validation rules
-    MEDIA_TYPES = {
-        'image': {
-            'extensions': {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'},
-            'mime_prefixes': ['image/'],
-            'max_size': 10 * 1024 * 1024,  # 10 MB
+    MEDIA_TYPES: ClassVar[dict[str, dict]] = {
+        "image": {
+            "extensions": {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"},
+            "mime_prefixes": ["image/"],
+            "max_size": 10 * 1024 * 1024,  # 10 MB
         },
-        'video': {
-            'extensions': {'.mp4', '.webm'},
-            'mime_prefixes': ['video/'],
-            'max_size': 100 * 1024 * 1024,  # 100 MB
+        "video": {
+            "extensions": {".mp4", ".webm"},
+            "mime_prefixes": ["video/"],
+            "max_size": 100 * 1024 * 1024,  # 100 MB
         },
-        'document': {
-            'extensions': {'.pdf'},
-            'mime_prefixes': ['application/pdf'],
-            'max_size': 25 * 1024 * 1024,  # 25 MB
+        "document": {
+            "extensions": {".pdf"},
+            "mime_prefixes": ["application/pdf"],
+            "max_size": 25 * 1024 * 1024,  # 25 MB
         },
-        'web_content': {
-            'extensions': {'.html', '.json'},
-            'mime_prefixes': ['text/html', 'application/json'],
-            'max_size': 5 * 1024 * 1024,  # 5 MB
+        "web_content": {
+            "extensions": {".html", ".json"},
+            "mime_prefixes": ["text/html", "application/json"],
+            "max_size": 5 * 1024 * 1024,  # 5 MB
         },
     }
 
     # Category → environment variable name for bucket resolution
-    CATEGORY_BUCKETS = {
-        'invoices': 'S3_SHARED_BUCKET',
-        'branding': 'S3_SHARED_BUCKET',
-        'templates': 'S3_SHARED_BUCKET',
-        'landing-pages': 'LANDING_PAGES_BUCKET',
+    CATEGORY_BUCKETS: ClassVar[dict[str, str]] = {
+        "invoices": "S3_SHARED_BUCKET",
+        "branding": "S3_SHARED_BUCKET",
+        "templates": "S3_SHARED_BUCKET",
+        "landing-pages": "LANDING_PAGES_BUCKET",
     }
 
     # Magic bytes for binary file type detection
-    MAGIC_BYTES = {
-        b'\xff\xd8\xff': 'image/jpeg',
-        b'\x89PNG\r\n\x1a\n': 'image/png',
-        b'RIFF': 'image/webp',       # check WEBP at offset 8
-        b'GIF87a': 'image/gif',
-        b'GIF89a': 'image/gif',
-        b'%PDF': 'application/pdf',
-        b'\x00\x00\x00': 'video/mp4',  # ftyp box (check offset 4)
-        b'\x1aE\xdf\xa3': 'video/webm',
+    MAGIC_BYTES: ClassVar[dict[bytes, str]] = {
+        b"\xff\xd8\xff": "image/jpeg",
+        b"\x89PNG\r\n\x1a\n": "image/png",
+        b"RIFF": "image/webp",  # check WEBP at offset 8
+        b"GIF87a": "image/gif",
+        b"GIF89a": "image/gif",
+        b"%PDF": "application/pdf",
+        b"\x00\x00\x00": "video/mp4",  # ftyp box (check offset 4)
+        b"\x1aE\xdf\xa3": "video/webm",
     }
 
-    def __init__(self, db_manager: DatabaseManager, parameter_service: Optional[ParameterService] = None):
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        parameter_service: ParameterService | None = None,
+    ):
         self.db = db_manager
         self.ps = parameter_service or ParameterService(db_manager)
         self._presigned_cache = {}  # {asset_id: (url, expires_at)}
@@ -103,9 +127,9 @@ class MediaAssetService:
         file_data: bytes,
         filename: str,
         category: str,
-        entity_type: str = None,
-        entity_id: str = None,
-        metadata: dict = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Upload to S3 + register in s3_assets + optionally attach reference.
 
@@ -139,8 +163,8 @@ class MediaAssetService:
         """
         # Step 1: Validate file (AC 3-7 from Req 1)
         validation = self._validate_file(file_data, filename)
-        media_type = validation['media_type']
-        mime_type = validation['mime_type']
+        media_type = validation["media_type"]
+        mime_type = validation["mime_type"]
 
         # Step 2: Compute SHA-256 content_hash
         content_hash = hashlib.sha256(file_data).hexdigest()
@@ -155,14 +179,14 @@ class MediaAssetService:
         # Step 5: Upload to S3 — if this fails, no DB records are created (Req 9 AC 9)
         upload_success = self._upload_raw(bucket, s3_key, file_data, mime_type)
         if not upload_success:
-            return {'success': False, 'error': 'S3 upload failed'}
+            return {"success": False, "error": "S3 upload failed"}
 
         # Step 6: Insert DB records — commit only after S3 write succeeds (Req 9 AC 8)
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         file_size = len(file_data)
 
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _):
                 # INSERT s3_assets
                 insert_asset_query = """
                     INSERT INTO s3_assets
@@ -171,11 +195,23 @@ class MediaAssetService:
                      status, created_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(insert_asset_query, (
-                    asset_id, tenant, bucket, s3_key, mime_type, file_size,
-                    category, media_type, filename, content_hash,
-                    'ACTIVE', now,
-                ))
+                cursor.execute(
+                    insert_asset_query,
+                    (
+                        asset_id,
+                        tenant,
+                        bucket,
+                        s3_key,
+                        mime_type,
+                        file_size,
+                        category,
+                        media_type,
+                        filename,
+                        content_hash,
+                        "ACTIVE",
+                        now,
+                    ),
+                )
 
                 # Optionally INSERT s3_asset_references (Req 1 AC 8)
                 reference_count = 0
@@ -185,22 +221,32 @@ class MediaAssetService:
                         (administration, asset_id, entity_type, entity_id, created_at)
                         VALUES (%s, %s, %s, %s, %s)
                     """
-                    cursor.execute(insert_ref_query, (
-                        tenant, asset_id, entity_type, entity_id, now,
-                    ))
+                    cursor.execute(
+                        insert_ref_query,
+                        (
+                            tenant,
+                            asset_id,
+                            entity_type,
+                            entity_id,
+                            now,
+                        ),
+                    )
                     reference_count = 1
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # DB commit failed after S3 write — log orphaned key (Req 9 AC 10)
             logger.error(
                 "DB commit failed after S3 write — orphaned S3 key: "
                 "bucket=%s, key=%s, timestamp=%s, error=%s",
-                bucket, s3_key, now, str(e)
+                bucket,
+                s3_key,
+                now,
+                str(e),
             )
             return {
-                'success': False,
-                'error': 'Database registration failed after S3 upload',
-                'orphaned_key': {'bucket': bucket, 'key': s3_key},
+                "success": False,
+                "error": "Database registration failed after S3 upload",
+                "orphaned_key": {"bucket": bucket, "key": s3_key},
             }
 
         # Step 7: Check for duplicate content_hash (non-blocking)
@@ -208,27 +254,29 @@ class MediaAssetService:
 
         # Step 8: Return result
         asset_record = {
-            'id': asset_id,
-            's3_key': s3_key,
-            'bucket': bucket,
-            'mime_type': mime_type,
-            'file_size': file_size,
-            'category': category,
-            'media_type': media_type,
-            'original_filename': filename,
-            'content_hash': content_hash,
-            'status': 'ACTIVE',
-            'created_at': now,
-            'reference_count': reference_count,
+            "id": asset_id,
+            "s3_key": s3_key,
+            "bucket": bucket,
+            "mime_type": mime_type,
+            "file_size": file_size,
+            "category": category,
+            "media_type": media_type,
+            "original_filename": filename,
+            "content_hash": content_hash,
+            "status": "ACTIVE",
+            "created_at": now,
+            "reference_count": reference_count,
         }
 
         return {
-            'success': True,
-            'asset': asset_record,
-            'duplicate_of': duplicate_of,
+            "success": True,
+            "asset": asset_record,
+            "duplicate_of": duplicate_of,
         }
 
-    def attach(self, tenant: str, asset_id: str, entity_type: str, entity_id: str) -> dict:
+    def attach(
+        self, tenant: str, asset_id: str, entity_type: str, entity_id: str
+    ) -> dict:
         """Create a reference from entity to asset.
 
         Inserts a row into s3_asset_references linking the asset to the given
@@ -247,18 +295,18 @@ class MediaAssetService:
         Returns:
             Dict with 'success' and either 'asset' info or 'error' message.
         """
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _):
             # Step 1: Verify asset exists and belongs to tenant
             cursor.execute(
                 "SELECT id, status FROM s3_assets WHERE id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             asset_row = cursor.fetchone()
 
             if not asset_row:
-                return {'success': False, 'error': 'Asset not found'}
+                return {"success": False, "error": "Asset not found"}
 
             # Step 2: INSERT reference (idempotent via unique constraint)
             try:
@@ -268,40 +316,46 @@ class MediaAssetService:
                     (administration, asset_id, entity_type, entity_id, created_at)
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (tenant, asset_id, entity_type, entity_id, now)
+                    (tenant, asset_id, entity_type, entity_id, now),
                 )
             except IntegrityError:
                 # Unique constraint violation — already exists, treat as success
                 pass
 
             # Step 3: If asset was ORPHAN or DELETION_ELIGIBLE, revert to ACTIVE
-            current_status = asset_row['status'] if isinstance(asset_row, dict) else asset_row[1]
-            if current_status in ('ORPHAN', 'DELETION_ELIGIBLE'):
+            current_status = (
+                asset_row["status"] if isinstance(asset_row, dict) else asset_row[1]
+            )
+            if current_status in ("ORPHAN", "DELETION_ELIGIBLE"):
                 cursor.execute(
                     """
                     UPDATE s3_assets
                     SET status = 'ACTIVE', orphaned_at = NULL, updated_at = %s
                     WHERE id = %s AND administration = %s
                     """,
-                    (now, asset_id, tenant)
+                    (now, asset_id, tenant),
                 )
             else:
                 # Step 4: Update updated_at timestamp
                 cursor.execute(
                     "UPDATE s3_assets SET updated_at = %s WHERE id = %s AND administration = %s",
-                    (now, asset_id, tenant)
+                    (now, asset_id, tenant),
                 )
 
         return {
-            'success': True,
-            'asset_id': asset_id,
-            'entity_type': entity_type,
-            'entity_id': entity_id,
-            'status': 'ACTIVE' if current_status in ('ORPHAN', 'DELETION_ELIGIBLE') else current_status,
-            'updated_at': now,
+            "success": True,
+            "asset_id": asset_id,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "status": "ACTIVE"
+            if current_status in ("ORPHAN", "DELETION_ELIGIBLE")
+            else current_status,
+            "updated_at": now,
         }
 
-    def detach(self, tenant: str, asset_id: str, entity_type: str, entity_id: str) -> dict:
+    def detach(
+        self, tenant: str, asset_id: str, entity_type: str, entity_id: str
+    ) -> dict:
         """Remove a reference. If zero refs remain, mark ORPHAN.
 
         Deletes the matching row from s3_asset_references and updates the
@@ -318,18 +372,18 @@ class MediaAssetService:
         Returns:
             Dict with 'success' and either 'asset' info or 'error' message.
         """
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _):
             # Step 1: Verify asset exists and belongs to tenant
             cursor.execute(
                 "SELECT id, status FROM s3_assets WHERE id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             asset_row = cursor.fetchone()
 
             if not asset_row:
-                return {'success': False, 'error': 'Asset not found'}
+                return {"success": False, "error": "Asset not found"}
 
             # Step 2: DELETE the reference row
             cursor.execute(
@@ -337,19 +391,21 @@ class MediaAssetService:
                 DELETE FROM s3_asset_references
                 WHERE asset_id = %s AND entity_type = %s AND entity_id = %s AND administration = %s
                 """,
-                (asset_id, entity_type, entity_id, tenant)
+                (asset_id, entity_type, entity_id, tenant),
             )
 
             if cursor.rowcount == 0:
-                return {'success': False, 'error': 'Reference not found'}
+                return {"success": False, "error": "Reference not found"}
 
             # Step 3: Count remaining references for this asset
             cursor.execute(
                 "SELECT COUNT(*) AS cnt FROM s3_asset_references WHERE asset_id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             count_row = cursor.fetchone()
-            reference_count = count_row['cnt'] if isinstance(count_row, dict) else count_row[0]
+            reference_count = (
+                count_row["cnt"] if isinstance(count_row, dict) else count_row[0]
+            )
 
             # Step 4: Update asset status based on remaining references
             if reference_count == 0:
@@ -359,29 +415,37 @@ class MediaAssetService:
                     SET status = 'ORPHAN', orphaned_at = %s, updated_at = %s
                     WHERE id = %s AND administration = %s
                     """,
-                    (now, now, asset_id, tenant)
+                    (now, now, asset_id, tenant),
                 )
-                new_status = 'ORPHAN'
+                new_status = "ORPHAN"
             else:
                 cursor.execute(
                     "UPDATE s3_assets SET updated_at = %s WHERE id = %s AND administration = %s",
-                    (now, asset_id, tenant)
+                    (now, asset_id, tenant),
                 )
-                current_status = asset_row['status'] if isinstance(asset_row, dict) else asset_row[1]
+                current_status = (
+                    asset_row["status"] if isinstance(asset_row, dict) else asset_row[1]
+                )
                 new_status = current_status
 
         return {
-            'success': True,
-            'asset': {
-                'id': asset_id,
-                'status': new_status,
-                'reference_count': reference_count,
-                'updated_at': now,
+            "success": True,
+            "asset": {
+                "id": asset_id,
+                "status": new_status,
+                "reference_count": reference_count,
+                "updated_at": now,
             },
         }
 
-    def replace(self, tenant: str, entity_type: str, entity_id: str,
-                old_asset_id: str, new_asset_id: str) -> dict:
+    def replace(
+        self,
+        tenant: str,
+        entity_type: str,
+        entity_id: str,
+        old_asset_id: str,
+        new_asset_id: str,
+    ) -> dict:
         """Atomically detach old + attach new within one transaction.
 
         Replaces an entity's asset reference in a single DB transaction.
@@ -402,28 +466,28 @@ class MediaAssetService:
         Returns:
             Dict with 'success' and asset info or 'error' message.
         """
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         # AC 9: When old_asset_id is null or empty, treat as simple attach
         if not old_asset_id:
             return self.attach(tenant, new_asset_id, entity_type, entity_id)
 
         # AC 7: Atomically detach old + attach new within one transaction
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _):
             # Step 1: Verify old reference exists (AC 10)
             cursor.execute(
                 """
                 SELECT id FROM s3_asset_references
                 WHERE asset_id = %s AND entity_type = %s AND entity_id = %s AND administration = %s
                 """,
-                (old_asset_id, entity_type, entity_id, tenant)
+                (old_asset_id, entity_type, entity_id, tenant),
             )
             old_ref = cursor.fetchone()
 
             if not old_ref:
                 return {
-                    'success': False,
-                    'error': (
+                    "success": False,
+                    "error": (
                         f"No reference found for old_asset_id '{old_asset_id}' "
                         f"with entity_type '{entity_type}' and entity_id '{entity_id}'"
                     ),
@@ -432,14 +496,14 @@ class MediaAssetService:
             # Step 2: Verify new asset exists and belongs to tenant
             cursor.execute(
                 "SELECT id, status FROM s3_assets WHERE id = %s AND administration = %s",
-                (new_asset_id, tenant)
+                (new_asset_id, tenant),
             )
             new_asset_row = cursor.fetchone()
 
             if not new_asset_row:
                 return {
-                    'success': False,
-                    'error': f"New asset '{new_asset_id}' not found",
+                    "success": False,
+                    "error": f"New asset '{new_asset_id}' not found",
                 }
 
             # Step 3: DELETE old reference
@@ -448,7 +512,7 @@ class MediaAssetService:
                 DELETE FROM s3_asset_references
                 WHERE asset_id = %s AND entity_type = %s AND entity_id = %s AND administration = %s
                 """,
-                (old_asset_id, entity_type, entity_id, tenant)
+                (old_asset_id, entity_type, entity_id, tenant),
             )
 
             # Step 4: INSERT new reference
@@ -459,7 +523,7 @@ class MediaAssetService:
                     (administration, asset_id, entity_type, entity_id, created_at)
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (tenant, new_asset_id, entity_type, entity_id, now)
+                    (tenant, new_asset_id, entity_type, entity_id, now),
                 )
             except IntegrityError:
                 # Reference already exists (idempotent) — not an error
@@ -468,12 +532,16 @@ class MediaAssetService:
             # Step 5: Check if old asset has zero remaining refs → mark ORPHAN
             cursor.execute(
                 "SELECT COUNT(*) AS cnt FROM s3_asset_references WHERE asset_id = %s AND administration = %s",
-                (old_asset_id, tenant)
+                (old_asset_id, tenant),
             )
             old_ref_count_row = cursor.fetchone()
-            old_ref_count = old_ref_count_row['cnt'] if isinstance(old_ref_count_row, dict) else old_ref_count_row[0]
+            old_ref_count = (
+                old_ref_count_row["cnt"]
+                if isinstance(old_ref_count_row, dict)
+                else old_ref_count_row[0]
+            )
 
-            old_new_status = 'ACTIVE'
+            old_new_status = "ACTIVE"
             if old_ref_count == 0:
                 cursor.execute(
                     """
@@ -481,42 +549,46 @@ class MediaAssetService:
                     SET status = 'ORPHAN', orphaned_at = %s, updated_at = %s
                     WHERE id = %s AND administration = %s
                     """,
-                    (now, now, old_asset_id, tenant)
+                    (now, now, old_asset_id, tenant),
                 )
-                old_new_status = 'ORPHAN'
+                old_new_status = "ORPHAN"
 
             # Step 6: If new asset was ORPHAN or DELETION_ELIGIBLE → revert to ACTIVE
-            new_status = new_asset_row['status'] if isinstance(new_asset_row, dict) else new_asset_row[1]
-            if new_status in ('ORPHAN', 'DELETION_ELIGIBLE'):
+            new_status = (
+                new_asset_row["status"]
+                if isinstance(new_asset_row, dict)
+                else new_asset_row[1]
+            )
+            if new_status in ("ORPHAN", "DELETION_ELIGIBLE"):
                 cursor.execute(
                     """
                     UPDATE s3_assets
                     SET status = 'ACTIVE', orphaned_at = NULL, updated_at = %s
                     WHERE id = %s AND administration = %s
                     """,
-                    (now, new_asset_id, tenant)
+                    (now, new_asset_id, tenant),
                 )
-                new_status = 'ACTIVE'
+                new_status = "ACTIVE"
             else:
                 cursor.execute(
                     "UPDATE s3_assets SET updated_at = %s WHERE id = %s AND administration = %s",
-                    (now, new_asset_id, tenant)
+                    (now, new_asset_id, tenant),
                 )
 
         return {
-            'success': True,
-            'old_asset': {
-                'id': old_asset_id,
-                'status': old_new_status,
-                'reference_count': old_ref_count,
+            "success": True,
+            "old_asset": {
+                "id": old_asset_id,
+                "status": old_new_status,
+                "reference_count": old_ref_count,
             },
-            'new_asset': {
-                'id': new_asset_id,
-                'status': new_status,
-                'entity_type': entity_type,
-                'entity_id': entity_id,
+            "new_asset": {
+                "id": new_asset_id,
+                "status": new_status,
+                "entity_type": entity_type,
+                "entity_id": entity_id,
             },
-            'updated_at': now,
+            "updated_at": now,
         }
 
     def get_asset(self, tenant: str, asset_id: str) -> dict:
@@ -550,7 +622,7 @@ class MediaAssetService:
         results = self.db.execute_query(asset_query, (asset_id, tenant), fetch=True)
 
         if not results:
-            return {'success': False, 'error': 'Asset not found'}
+            return {"success": False, "error": "Asset not found"}
 
         asset = results[0]
 
@@ -567,19 +639,19 @@ class MediaAssetService:
 
         # Step 4: Return combined result
         return {
-            'success': True,
-            'asset': {
-                'id': asset['id'],
-                's3_key': asset['s3_key'],
-                'mime_type': asset['mime_type'],
-                'file_size': asset['file_size'],
-                'category': asset['category'],
-                'media_type': asset['media_type'],
-                'original_filename': asset['original_filename'],
-                'status': asset['status'],
-                'created_at': asset['created_at'],
-                'presigned_url': presigned_url,
-                'references': references,
+            "success": True,
+            "asset": {
+                "id": asset["id"],
+                "s3_key": asset["s3_key"],
+                "mime_type": asset["mime_type"],
+                "file_size": asset["file_size"],
+                "category": asset["category"],
+                "media_type": asset["media_type"],
+                "original_filename": asset["original_filename"],
+                "status": asset["status"],
+                "created_at": asset["created_at"],
+                "presigned_url": presigned_url,
+                "references": references,
             },
         }
 
@@ -611,45 +683,51 @@ class MediaAssetService:
         import math
 
         # Parse pagination params
-        page = max(1, int(filters.get('page', 1)))
-        page_size = min(100, max(1, int(filters.get('page_size', 20))))
+        page = max(1, int(filters.get("page", 1)))
+        page_size = min(100, max(1, int(filters.get("page_size", 20))))
 
         # Parse sort params (whitelist allowed columns)
-        allowed_sort_columns = {'created_at', 'original_filename', 'file_size', 'mime_type', 'category'}
-        sort = filters.get('sort', 'created_at')
+        allowed_sort_columns = {
+            "created_at",
+            "original_filename",
+            "file_size",
+            "mime_type",
+            "category",
+        }
+        sort = filters.get("sort", "created_at")
         if sort not in allowed_sort_columns:
-            sort = 'created_at'
+            sort = "created_at"
 
-        order = filters.get('order', 'desc').upper()
-        if order not in ('ASC', 'DESC'):
-            order = 'DESC'
+        order = filters.get("order", "desc").upper()
+        if order not in ("ASC", "DESC"):
+            order = "DESC"
 
         # Build WHERE clauses
-        where_clauses = ['a.administration = %s']
+        where_clauses = ["a.administration = %s"]
         params = [tenant]
 
-        if filters.get('q'):
-            where_clauses.append('a.original_filename LIKE %s')
+        if filters.get("q"):
+            where_clauses.append("a.original_filename LIKE %s")
             params.append(f"%{filters['q']}%")
 
-        if filters.get('category'):
-            where_clauses.append('a.category = %s')
-            params.append(filters['category'])
+        if filters.get("category"):
+            where_clauses.append("a.category = %s")
+            params.append(filters["category"])
 
-        if filters.get('media_type'):
-            where_clauses.append('a.media_type = %s')
-            params.append(filters['media_type'])
+        if filters.get("media_type"):
+            where_clauses.append("a.media_type = %s")
+            params.append(filters["media_type"])
 
-        if filters.get('status'):
-            where_clauses.append('a.status = %s')
-            params.append(filters['status'])
+        if filters.get("status"):
+            where_clauses.append("a.status = %s")
+            params.append(filters["status"])
 
-        where_sql = ' AND '.join(where_clauses)
+        where_sql = " AND ".join(where_clauses)
 
         # Count total results
         count_query = f"SELECT COUNT(*) AS total FROM s3_assets a WHERE {where_sql}"
         count_result = self.db.execute_query(count_query, tuple(params), fetch=True)
-        total = count_result[0]['total'] if count_result else 0
+        total = count_result[0]["total"] if count_result else 0
         total_pages = math.ceil(total / page_size) if total > 0 else 0
 
         # Fetch paginated results with reference_count subquery
@@ -671,32 +749,34 @@ class MediaAssetService:
         # Build response data with presigned URLs for images
         data = []
         for row in rows:
-            media_type = row['media_type']
+            media_type = row["media_type"]
             presigned_url = None
-            if media_type == 'image':
+            if media_type == "image":
                 presigned_url = self._get_presigned_url(row)
 
-            data.append({
-                'id': row['id'],
-                'original_filename': row['original_filename'],
-                'mime_type': row['mime_type'],
-                'file_size': row['file_size'],
-                'category': row['category'],
-                'media_type': media_type,
-                'status': row['status'],
-                'created_at': row['created_at'],
-                'reference_count': row['reference_count'],
-                'presigned_url': presigned_url,
-            })
+            data.append(
+                {
+                    "id": row["id"],
+                    "original_filename": row["original_filename"],
+                    "mime_type": row["mime_type"],
+                    "file_size": row["file_size"],
+                    "category": row["category"],
+                    "media_type": media_type,
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "reference_count": row["reference_count"],
+                    "presigned_url": presigned_url,
+                }
+            )
 
         return {
-            'success': True,
-            'data': data,
-            'pagination': {
-                'page': page,
-                'page_size': page_size,
-                'total': total,
-                'total_pages': total_pages,
+            "success": True,
+            "data": data,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": total_pages,
             },
         }
 
@@ -733,79 +813,87 @@ class MediaAssetService:
         Returns:
             Dict with 'success' and either deletion confirmation or 'error' message.
         """
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _):
             # Step 1: Lock the asset row (SELECT FOR UPDATE)
             cursor.execute(
                 "SELECT id, status, s3_key, bucket, category FROM s3_assets "
                 "WHERE id = %s AND administration = %s FOR UPDATE",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             asset = cursor.fetchone()
 
             if not asset:
-                return {'success': False, 'error': 'Asset not found'}
+                return {"success": False, "error": "Asset not found"}
 
             # Step 2: Verify status allows deletion
-            status = asset['status'] if isinstance(asset, dict) else asset[1]
+            status = asset["status"] if isinstance(asset, dict) else asset[1]
 
             # Step 3: Reference guard — verify zero references (Req 10 AC 1)
             cursor.execute(
                 "SELECT COUNT(*) AS cnt FROM s3_asset_references "
                 "WHERE asset_id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             count_row = cursor.fetchone()
-            ref_count = count_row['cnt'] if isinstance(count_row, dict) else count_row[0]
+            ref_count = (
+                count_row["cnt"] if isinstance(count_row, dict) else count_row[0]
+            )
 
             # Req 5 AC 10: If asset regained a reference, report re-activated
-            if ref_count > 0 and status in ('ORPHAN', 'DELETION_ELIGIBLE'):
+            if ref_count > 0 and status in ("ORPHAN", "DELETION_ELIGIBLE"):
                 return {
-                    'success': False,
-                    'error': 're-activated',
-                    'reference_count': ref_count,
+                    "success": False,
+                    "error": "re-activated",
+                    "reference_count": ref_count,
                 }
 
             # Req 5 AC 12 / Req 10 AC 2: Active references → reject
             if ref_count > 0:
                 return {
-                    'success': False,
-                    'error': f'Asset still has {ref_count} active references',
-                    'reference_count': ref_count,
+                    "success": False,
+                    "error": f"Asset still has {ref_count} active references",
+                    "reference_count": ref_count,
                 }
 
             # Status check: only ORPHAN/DELETION_ELIGIBLE or ACTIVE with zero refs
             # (ACTIVE with zero refs is allowed per design — zero refs is the guard)
 
             # Step 4: S3 deletion (Req 5 AC 13: if fails, retain record)
-            s3_key = asset['s3_key'] if isinstance(asset, dict) else asset[2]
-            bucket = asset['bucket'] if isinstance(asset, dict) else asset[3]
-            category = asset['category'] if isinstance(asset, dict) else asset[4]
+            s3_key = asset["s3_key"] if isinstance(asset, dict) else asset[2]
+            bucket = asset["bucket"] if isinstance(asset, dict) else asset[3]
+            category = asset["category"] if isinstance(asset, dict) else asset[4]
 
             deleted = self._delete_raw(bucket, s3_key)
             if not deleted:
-                return {'success': False, 'error': 'S3 deletion failed'}
+                return {"success": False, "error": "S3 deletion failed"}
 
             # Step 5: Remove registry records
             cursor.execute(
                 "DELETE FROM s3_asset_references WHERE asset_id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             cursor.execute(
                 "DELETE FROM s3_assets WHERE id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
 
         # Step 6: Audit log (Req 5 AC 11)
         logger.info(
             "Asset deleted: asset_id=%s, administration=%s, bucket=%s, "
             "category=%s, approved_by=%s",
-            asset_id, tenant, bucket, category, approved_by
+            asset_id,
+            tenant,
+            bucket,
+            category,
+            approved_by,
         )
 
         # Step 7: Return success
-        return {'success': True, 'asset_id': asset_id}
+        return {"success": True, "asset_id": asset_id}
 
-    def force_delete(self, tenant: str, asset_id: str, operator: str, reason: str) -> dict:
+    def force_delete(
+        self, tenant: str, asset_id: str, operator: str, reason: str
+    ) -> dict:
         """Emergency delete bypassing reference guard. admin_manage only.
 
         Intended solely for emergency recovery. Bypasses the reference guard
@@ -836,61 +924,67 @@ class MediaAssetService:
         Returns:
             Dict with 'success' and either deletion confirmation or 'error' message.
         """
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _):
             # Step 1: Lock the asset row
             cursor.execute(
                 "SELECT id, status, s3_key, bucket, category FROM s3_assets "
                 "WHERE id = %s AND administration = %s FOR UPDATE",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             asset = cursor.fetchone()
 
             if not asset:
-                return {'success': False, 'error': 'Asset not found'}
+                return {"success": False, "error": "Asset not found"}
 
             # Step 2: Count references for audit (NOT for guard — bypassed)
             cursor.execute(
                 "SELECT COUNT(*) AS cnt FROM s3_asset_references "
                 "WHERE asset_id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             count_row = cursor.fetchone()
-            ref_count = count_row['cnt'] if isinstance(count_row, dict) else count_row[0]
+            ref_count = (
+                count_row["cnt"] if isinstance(count_row, dict) else count_row[0]
+            )
 
             # Step 3: S3 deletion
-            s3_key = asset['s3_key'] if isinstance(asset, dict) else asset[2]
-            bucket = asset['bucket'] if isinstance(asset, dict) else asset[3]
-            category = asset['category'] if isinstance(asset, dict) else asset[4]
+            s3_key = asset["s3_key"] if isinstance(asset, dict) else asset[2]
+            bucket = asset["bucket"] if isinstance(asset, dict) else asset[3]
+            _category = asset["category"] if isinstance(asset, dict) else asset[4]
 
             deleted = self._delete_raw(bucket, s3_key)
             if not deleted:
-                return {'success': False, 'error': 'S3 deletion failed'}
+                return {"success": False, "error": "S3 deletion failed"}
 
             # Step 5: Remove registry records (bypass reference guard)
             cursor.execute(
                 "DELETE FROM s3_asset_references WHERE asset_id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
             cursor.execute(
                 "DELETE FROM s3_assets WHERE id = %s AND administration = %s",
-                (asset_id, tenant)
+                (asset_id, tenant),
             )
 
         # Step 6: WARNING-level audit entry (Req 10 AC 7, AC 8)
         logger.warning(
             "FORCE DELETE: asset_id=%s, administration=%s, operator=%s, "
             "reference_count=%d, reason=%s, timestamp=%s",
-            asset_id, tenant, operator, ref_count, reason,
-            datetime.now(timezone.utc).isoformat()
+            asset_id,
+            tenant,
+            operator,
+            ref_count,
+            reason,
+            datetime.now(timezone.utc).isoformat(),
         )
 
         # Step 7: Return success
         return {
-            'success': True,
-            'asset_id': asset_id,
-            'reference_count': ref_count,
-            'operator': operator,
-            'reason': reason,
+            "success": True,
+            "asset_id": asset_id,
+            "reference_count": ref_count,
+            "operator": operator,
+            "reason": reason,
         }
 
     # === Reconciliation ===
@@ -909,20 +1003,20 @@ class MediaAssetService:
             Dict with 'success', 'tenant', phase results, and 'summary' report.
         """
         result = {
-            'success': True,
-            'tenant': tenant,
-            'phase1': self._reconcile_s3_scan(tenant),
-            'phase2': self._reconcile_references(tenant),
-            'phase3': self.transition_eligible(tenant),
+            "success": True,
+            "tenant": tenant,
+            "phase1": self._reconcile_s3_scan(tenant),
+            "phase2": self._reconcile_references(tenant),
+            "phase3": self.transition_eligible(tenant),
         }
 
         # Build reconciliation report (Req 6 AC 4)
-        result['summary'] = self._build_reconciliation_report(
-            tenant, result['phase1'], result['phase2'], result['phase3']
+        result["summary"] = self._build_reconciliation_report(
+            tenant, result["phase1"], result["phase2"], result["phase3"]
         )
 
         # Store in memory cache for UI retrieval
-        self._last_reconciliation[tenant] = result['summary']
+        self._last_reconciliation[tenant] = result["summary"]
 
         return result
 
@@ -948,43 +1042,43 @@ class MediaAssetService:
         """
         # Phase 1: scanning_s3
         yield {
-            'type': 'progress',
-            'phase': 'scanning_s3',
-            'message': 'Scanning S3 buckets...',
+            "type": "progress",
+            "phase": "scanning_s3",
+            "message": "Scanning S3 buckets...",
         }
 
         phase1 = self._reconcile_s3_scan(tenant)
 
         # Phase 2: checking_registry
         yield {
-            'type': 'progress',
-            'phase': 'checking_registry',
-            'message': 'Comparing with registry...',
-            'total_s3': phase1.get('total_s3', 0),
-            'total_registry': phase1.get('total_registry', 0),
-            'unregistered': len(phase1.get('unregistered', [])),
-            'missing': len(phase1.get('missing', [])),
+            "type": "progress",
+            "phase": "checking_registry",
+            "message": "Comparing with registry...",
+            "total_s3": phase1.get("total_s3", 0),
+            "total_registry": phase1.get("total_registry", 0),
+            "unregistered": len(phase1.get("unregistered", [])),
+            "missing": len(phase1.get("missing", [])),
         }
 
         phase2 = self._reconcile_references(tenant)
 
         # Phase 3: verifying_references
         yield {
-            'type': 'progress',
-            'phase': 'verifying_references',
-            'message': 'Verifying entity references...',
-            'stale_found': phase2.get('stale_removed', 0),
-            'newly_orphaned': phase2.get('newly_orphaned', 0),
+            "type": "progress",
+            "phase": "verifying_references",
+            "message": "Verifying entity references...",
+            "stale_found": phase2.get("stale_removed", 0),
+            "newly_orphaned": phase2.get("newly_orphaned", 0),
         }
 
         phase3 = self.transition_eligible(tenant)
 
         # Phase 4: transitioning
         yield {
-            'type': 'progress',
-            'phase': 'transitioning',
-            'message': 'Transitioning eligible assets...',
-            'transitioned': phase3.get('transitioned', 0),
+            "type": "progress",
+            "phase": "transitioning",
+            "message": "Transitioning eligible assets...",
+            "transitioned": phase3.get("transitioned", 0),
         }
 
         # Build final report and cache it
@@ -993,12 +1087,14 @@ class MediaAssetService:
 
         # Phase 5: complete
         yield {
-            'type': 'complete',
-            'phase': 'complete',
-            'summary': summary,
+            "type": "complete",
+            "phase": "complete",
+            "summary": summary,
         }
 
-    def _build_reconciliation_report(self, tenant: str, phase1: dict, phase2: dict, phase3: dict) -> dict:
+    def _build_reconciliation_report(
+        self, tenant: str, phase1: dict, phase2: dict, phase3: dict
+    ) -> dict:
         """Build reconciliation summary report from phase results.
 
         Produces the report format specified by Req 6 AC 4:
@@ -1020,22 +1116,22 @@ class MediaAssetService:
         Returns:
             Summary report dict.
         """
-        total_assets = phase1.get('total_registry', 0)
-        missing_count = len(phase1.get('missing', []))
-        unregistered_count = len(phase1.get('unregistered', []))
-        stale_count = phase2.get('stale_removed', 0)
-        newly_eligible_count = phase3.get('transitioned', 0)
+        total_assets = phase1.get("total_registry", 0)
+        missing_count = len(phase1.get("missing", []))
+        unregistered_count = len(phase1.get("unregistered", []))
+        stale_count = phase2.get("stale_removed", 0)
+        newly_eligible_count = phase3.get("transitioned", 0)
         consistent = total_assets - missing_count
 
         return {
-            'administration': tenant,
-            'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-            'total_assets': total_assets,
-            'consistent': consistent,
-            'unregistered': unregistered_count,
-            'missing': missing_count,
-            'stale_references': stale_count,
-            'newly_eligible': newly_eligible_count,
+            "administration": tenant,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "total_assets": total_assets,
+            "consistent": consistent,
+            "unregistered": unregistered_count,
+            "missing": missing_count,
+            "stale_references": stale_count,
+            "newly_eligible": newly_eligible_count,
         }
 
     def _reconcile_s3_scan(self, tenant: str) -> dict:
@@ -1063,14 +1159,14 @@ class MediaAssetService:
         s3_objects = {}  # {s3_key: bucket}
 
         # Shared bucket: categories invoices, branding, templates
-        shared_bucket = os.environ.get('S3_SHARED_BUCKET')
+        shared_bucket = os.environ.get("S3_SHARED_BUCKET")
         if shared_bucket:
             shared_keys = self._list_s3_objects(shared_bucket, f"{tenant}/")
             for key in shared_keys:
                 s3_objects[key] = shared_bucket
 
         # Public-pages bucket: category landing-pages
-        pages_bucket = os.environ.get('LANDING_PAGES_BUCKET')
+        pages_bucket = os.environ.get("LANDING_PAGES_BUCKET")
         if pages_bucket:
             pages_keys = self._list_s3_objects(pages_bucket, f"{tenant}/")
             for key in pages_keys:
@@ -1082,29 +1178,29 @@ class MediaAssetService:
             WHERE administration = %s
         """
         registry_rows = self.db.execute_query(registry_query, (tenant,), fetch=True)
-        registered_keys = {row['s3_key'] for row in registry_rows}
+        registered_keys = {row["s3_key"] for row in registry_rows}
 
         # Step 3: Compare
         s3_key_set = set(s3_objects.keys())
 
         # Unregistered: in S3 but NOT in registry
         unregistered = [
-            {'s3_key': key, 'bucket': s3_objects[key]}
+            {"s3_key": key, "bucket": s3_objects[key]}
             for key in sorted(s3_key_set - registered_keys)
         ]
 
         # Missing: in registry but NOT in S3
         missing = [
-            {'s3_key': row['s3_key'], 'bucket': row['bucket']}
+            {"s3_key": row["s3_key"], "bucket": row["bucket"]}
             for row in registry_rows
-            if row['s3_key'] not in s3_key_set
+            if row["s3_key"] not in s3_key_set
         ]
 
         return {
-            'unregistered': unregistered,
-            'missing': missing,
-            'total_s3': len(s3_key_set),
-            'total_registry': len(registered_keys),
+            "unregistered": unregistered,
+            "missing": missing,
+            "total_s3": len(s3_key_set),
+            "total_registry": len(registered_keys),
         }
 
     def _reconcile_references(self, tenant: str) -> dict:
@@ -1140,9 +1236,12 @@ class MediaAssetService:
         skipped_types = set()
 
         # Step 2: For each reference, check entity existence
+        # Track tables that don't exist so we skip them after first failure
+        missing_tables = set()
+
         for ref in references:
-            entity_type = ref['entity_type']
-            entity_id = ref['entity_id']
+            entity_type = ref["entity_type"]
+            entity_id = ref["entity_id"]
 
             registry_entry = ENTITY_TYPE_REGISTRY.get(entity_type)
 
@@ -1151,7 +1250,8 @@ class MediaAssetService:
                 skipped_types.add(entity_type)
                 logger.warning(
                     "Unknown entity_type '%s' in s3_asset_references (ref id=%s), skipping",
-                    entity_type, ref['id']
+                    entity_type,
+                    ref["id"],
                 )
                 continue
 
@@ -1162,41 +1262,88 @@ class MediaAssetService:
 
             # Run the existence check query
             _table, _id_col, existence_query = registry_entry
-            result = self.db.execute_query(
-                existence_query, (entity_id, tenant), fetch=True
-            )
+
+            # DynamoDB-backed entity — use dedicated service
+            if _table == "dynamodb":
+                if entity_type == "landing_page":
+                    if not hasattr(self, "_landing_page_service"):
+                        from services.landing_page_service import LandingPageService
+
+                        try:
+                            self._landing_page_service = LandingPageService()
+                        except Exception as e:  # noqa: BLE001
+                            logger.warning(
+                                "Cannot initialize LandingPageService: %s, skipping landing_page checks",
+                                e,
+                            )
+                            skipped_types.add(entity_type)
+                            continue
+                    # entity_id is the slug for landing pages
+                    draft = self._landing_page_service.get_draft(entity_id)
+                    if not draft:
+                        stale_ref_ids.append(ref["id"])
+                        stale_asset_ids.add(ref["asset_id"])
+                else:
+                    skipped_types.add(entity_type)
+                continue
+
+            # Skip if table was already found to be missing
+            if _table in missing_tables:
+                skipped_types.add(entity_type)
+                continue
+
+            try:
+                result = self.db.execute_query(
+                    existence_query, (entity_id, tenant), fetch=True
+                )
+            except DatabaseError as e:
+                # Table doesn't exist (error 1146) — skip this entity_type entirely
+                if "1146" in str(e) or "doesn't exist" in str(e):
+                    logger.warning(
+                        "Table '%s' does not exist, skipping entity_type '%s'",
+                        _table,
+                        entity_type,
+                    )
+                    missing_tables.add(_table)
+                    skipped_types.add(entity_type)
+                    continue
+                raise
 
             if not result:
                 # Entity doesn't exist → stale reference
-                stale_ref_ids.append(ref['id'])
-                stale_asset_ids.add(ref['asset_id'])
+                stale_ref_ids.append(ref["id"])
+                stale_asset_ids.add(ref["asset_id"])
 
         # Step 3: DELETE stale references
         stale_removed = 0
         if stale_ref_ids:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _):
                 # Delete stale refs in batches
-                placeholders = ', '.join(['%s'] * len(stale_ref_ids))
+                placeholders = ", ".join(["%s"] * len(stale_ref_ids))
                 cursor.execute(
                     f"DELETE FROM s3_asset_references WHERE id IN ({placeholders})",
-                    tuple(stale_ref_ids)
+                    tuple(stale_ref_ids),
                 )
                 stale_removed = cursor.rowcount
 
         # Step 4: For affected assets, check if refs dropped to zero → mark ORPHAN
         newly_orphaned = 0
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         if stale_asset_ids:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _):
                 for asset_id in stale_asset_ids:
                     cursor.execute(
                         "SELECT COUNT(*) AS cnt FROM s3_asset_references "
                         "WHERE asset_id = %s AND administration = %s",
-                        (asset_id, tenant)
+                        (asset_id, tenant),
                     )
                     count_row = cursor.fetchone()
-                    ref_count = count_row['cnt'] if isinstance(count_row, dict) else count_row[0]
+                    ref_count = (
+                        count_row["cnt"]
+                        if isinstance(count_row, dict)
+                        else count_row[0]
+                    )
 
                     if ref_count == 0:
                         cursor.execute(
@@ -1206,15 +1353,15 @@ class MediaAssetService:
                             WHERE id = %s AND administration = %s
                               AND status = 'ACTIVE'
                             """,
-                            (now, now, asset_id, tenant)
+                            (now, now, asset_id, tenant),
                         )
                         if cursor.rowcount > 0:
                             newly_orphaned += 1
 
         return {
-            'stale_removed': stale_removed,
-            'newly_orphaned': newly_orphaned,
-            'skipped_types': sorted(skipped_types),
+            "stale_removed": stale_removed,
+            "newly_orphaned": newly_orphaned,
+            "skipped_types": sorted(skipped_types),
         }
 
     def _list_s3_objects(self, bucket: str, prefix: str) -> list:
@@ -1232,27 +1379,28 @@ class MediaAssetService:
         """
         keys = []
         try:
-            s3_client = boto3.client('s3')
-            paginator = s3_client.get_paginator('list_objects_v2')
+            s3_client = boto3.client("s3")
+            paginator = s3_client.get_paginator("list_objects_v2")
             page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
 
             for page in page_iterator:
-                for obj in page.get('Contents', []):
-                    key = obj['Key']
-                    size = obj.get('Size', 0)
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    size = obj.get("Size", 0)
                     # Filter out .folder markers (zero-byte directory placeholders)
-                    if key.endswith('.folder') and size == 0:
+                    if key.endswith(".folder") and size == 0:
                         continue
                     keys.append(key)
         except ClientError as e:
             logger.error(
-                "S3 list failed: bucket=%s, prefix=%s, error=%s",
-                bucket, prefix, str(e)
+                "S3 list failed: bucket=%s, prefix=%s, error=%s", bucket, prefix, str(e)
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "Unexpected error listing S3 objects: bucket=%s, prefix=%s, error=%s",
-                bucket, prefix, str(e)
+                bucket,
+                prefix,
+                str(e),
             )
 
         return keys
@@ -1280,14 +1428,16 @@ class MediaAssetService:
         Returns:
             Dict with 'success' and 'transitioned' count.
         """
-        categories = ['invoices', 'branding', 'templates', 'landing-pages']
+        categories = ["invoices", "branding", "templates", "landing-pages"]
         transitioned = 0
 
         for category in categories:
-            if category == 'landing-pages':
+            if category == "landing-pages":
                 # Landing-pages has different retention per media type group
                 # Group 1: web_content (landing_pages_days)
-                retention_web = self._get_retention_days(tenant, category, media_type='web_content')
+                retention_web = self._get_retention_days(
+                    tenant, category, media_type="web_content"
+                )
                 result_web = self.db.execute_query(
                     """
                     UPDATE s3_assets
@@ -1303,12 +1453,15 @@ class MediaAssetService:
                       )
                     """,
                     (tenant, category, retention_web),
-                    fetch=False, commit=True
+                    fetch=False,
+                    commit=True,
                 )
                 transitioned += result_web
 
                 # Group 2: image/video (landing_pages_media_days)
-                retention_media = self._get_retention_days(tenant, category, media_type='image')
+                retention_media = self._get_retention_days(
+                    tenant, category, media_type="image"
+                )
                 result_media = self.db.execute_query(
                     """
                     UPDATE s3_assets
@@ -1324,7 +1477,8 @@ class MediaAssetService:
                       )
                     """,
                     (tenant, category, retention_media),
-                    fetch=False, commit=True
+                    fetch=False,
+                    commit=True,
                 )
                 transitioned += result_media
             else:
@@ -1344,11 +1498,12 @@ class MediaAssetService:
                       )
                     """,
                     (tenant, category, retention),
-                    fetch=False, commit=True
+                    fetch=False,
+                    commit=True,
                 )
                 transitioned += result
 
-        return {'success': True, 'transitioned': transitioned}
+        return {"success": True, "transitioned": transitioned}
 
     # === Tenant Admin: Unregistered Objects ===
 
@@ -1366,45 +1521,49 @@ class MediaAssetService:
             Dict with 'success' and 'data' containing list of unregistered objects.
         """
         import os
+
         import boto3
         from botocore.exceptions import ClientError
 
         s3_objects = {}  # {s3_key: {bucket, size, last_modified}}
 
-        s3_client = boto3.client('s3')
+        s3_client = boto3.client("s3")
 
         def list_with_metadata(bucket, prefix):
             """List S3 objects with full metadata."""
             try:
-                paginator = s3_client.get_paginator('list_objects_v2')
+                paginator = s3_client.get_paginator("list_objects_v2")
                 page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
 
                 for page in page_iterator:
-                    for obj in page.get('Contents', []):
-                        key = obj['Key']
-                        size = obj.get('Size', 0)
+                    for obj in page.get("Contents", []):
+                        key = obj["Key"]
+                        size = obj.get("Size", 0)
                         # Filter out .folder markers
-                        if key.endswith('.folder') and size == 0:
+                        if key.endswith(".folder") and size == 0:
                             continue
                         s3_objects[key] = {
-                            'bucket': bucket,
-                            'size': size,
-                            'last_modified': obj.get('LastModified', '').isoformat()
-                            if obj.get('LastModified') else None,
+                            "bucket": bucket,
+                            "size": size,
+                            "last_modified": obj.get("LastModified", "").isoformat()
+                            if obj.get("LastModified")
+                            else None,
                         }
             except ClientError as e:
                 logger.error(
                     "S3 list failed: bucket=%s, prefix=%s, error=%s",
-                    bucket, prefix, str(e)
+                    bucket,
+                    prefix,
+                    str(e),
                 )
 
         # Scan shared bucket
-        shared_bucket = os.environ.get('S3_SHARED_BUCKET')
+        shared_bucket = os.environ.get("S3_SHARED_BUCKET")
         if shared_bucket:
             list_with_metadata(shared_bucket, f"{tenant}/")
 
         # Scan public-pages bucket
-        pages_bucket = os.environ.get('LANDING_PAGES_BUCKET')
+        pages_bucket = os.environ.get("LANDING_PAGES_BUCKET")
         if pages_bucket:
             list_with_metadata(pages_bucket, f"{tenant}/")
 
@@ -1414,23 +1573,27 @@ class MediaAssetService:
             WHERE administration = %s
         """
         registry_rows = self.db.execute_query(registry_query, (tenant,), fetch=True)
-        registered_keys = {row['s3_key'] for row in registry_rows}
+        registered_keys = {row["s3_key"] for row in registry_rows}
 
         # Find unregistered objects
         unregistered = []
         for key in sorted(s3_objects.keys()):
             if key not in registered_keys:
                 info = s3_objects[key]
-                unregistered.append({
-                    's3_key': key,
-                    'bucket': info['bucket'],
-                    'size': info['size'],
-                    'last_modified': info['last_modified'],
-                })
+                unregistered.append(
+                    {
+                        "s3_key": key,
+                        "bucket": info["bucket"],
+                        "size": info["size"],
+                        "last_modified": info["last_modified"],
+                    }
+                )
 
-        return {'success': True, 'data': unregistered}
+        return {"success": True, "data": unregistered}
 
-    def delete_unregistered_objects(self, tenant: str, s3_keys: list, operator: str) -> dict:
+    def delete_unregistered_objects(
+        self, tenant: str, s3_keys: list, operator: str
+    ) -> dict:
         """Delete unregistered S3 objects permanently.
 
         Verifies each key is truly unregistered before deletion. Skips any
@@ -1445,27 +1608,28 @@ class MediaAssetService:
             Dict with 'success', 'deleted', and 'skipped' counts.
         """
         import os
+
         import boto3
         from botocore.exceptions import ClientError
 
         # Safety check: verify keys are not registered
         if s3_keys:
-            placeholders = ', '.join(['%s'] * len(s3_keys))
+            placeholders = ", ".join(["%s"] * len(s3_keys))
             check_query = f"""
                 SELECT s3_key FROM s3_assets
                 WHERE administration = %s AND s3_key IN ({placeholders})
             """
             params = [tenant] + s3_keys
             registered = self.db.execute_query(check_query, tuple(params), fetch=True)
-            registered_set = {row['s3_key'] for row in registered}
+            registered_set = {row["s3_key"] for row in registered}
         else:
             registered_set = set()
 
         # Resolve bucket for each key
-        shared_bucket = os.environ.get('S3_SHARED_BUCKET')
-        pages_bucket = os.environ.get('LANDING_PAGES_BUCKET')
+        shared_bucket = os.environ.get("S3_SHARED_BUCKET")
+        pages_bucket = os.environ.get("LANDING_PAGES_BUCKET")
 
-        s3_client = boto3.client('s3')
+        s3_client = boto3.client("s3")
         deleted = 0
         skipped = 0
 
@@ -1474,8 +1638,7 @@ class MediaAssetService:
             if key in registered_set:
                 skipped += 1
                 logger.warning(
-                    "Skipping delete of registered key: tenant=%s, key=%s",
-                    tenant, key
+                    "Skipping delete of registered key: tenant=%s, key=%s", tenant, key
                 )
                 continue
 
@@ -1483,14 +1646,13 @@ class MediaAssetService:
             if not key.startswith(f"{tenant}/"):
                 skipped += 1
                 logger.warning(
-                    "Skipping delete of non-tenant key: tenant=%s, key=%s",
-                    tenant, key
+                    "Skipping delete of non-tenant key: tenant=%s, key=%s", tenant, key
                 )
                 continue
 
             # Determine bucket from key path
             # landing-pages go in pages_bucket, others in shared_bucket
-            bucket = pages_bucket if '/landing-pages/' in key else shared_bucket
+            bucket = pages_bucket if "/landing-pages/" in key else shared_bucket
 
             if not bucket:
                 skipped += 1
@@ -1501,16 +1663,17 @@ class MediaAssetService:
                 deleted += 1
                 logger.info(
                     "Deleted unregistered S3 object: tenant=%s, key=%s, operator=%s",
-                    tenant, key, operator
+                    tenant,
+                    key,
+                    operator,
                 )
             except ClientError as e:
                 skipped += 1
                 logger.error(
-                    "Failed to delete S3 object: key=%s, error=%s",
-                    key, str(e)
+                    "Failed to delete S3 object: key=%s, error=%s", key, str(e)
                 )
 
-        return {'success': True, 'deleted': deleted, 'skipped': skipped}
+        return {"success": True, "deleted": deleted, "skipped": skipped}
 
     # === Tenant Admin: Dashboard & Duplicates ===
 
@@ -1541,14 +1704,14 @@ class MediaAssetService:
         deletion_eligible = 0
 
         for row in status_rows:
-            count = row['cnt']
-            status = row['status']
+            count = row["cnt"]
+            status = row["status"]
             total_assets += count
-            if status == 'ACTIVE':
+            if status == "ACTIVE":
                 active_assets = count
-            elif status == 'ORPHAN':
+            elif status == "ORPHAN":
                 orphaned_assets = count
-            elif status == 'DELETION_ELIGIBLE':
+            elif status == "DELETION_ELIGIBLE":
                 deletion_eligible = count
 
         # Storage by category
@@ -1562,16 +1725,16 @@ class MediaAssetService:
 
         storage_by_category = {}
         for row in category_rows:
-            storage_by_category[row['category']] = {
-                'count': row['cnt'],
-                'bytes': int(row['total_bytes']),
+            storage_by_category[row["category"]] = {
+                "count": row["cnt"],
+                "bytes": int(row["total_bytes"]),
             }
 
         # Last scan timestamp (from in-memory cache)
         last_scan_at = None
         cached = self._last_reconciliation.get(tenant)
-        if cached and 'timestamp' in cached:
-            last_scan_at = cached['timestamp']
+        if cached and "timestamp" in cached:
+            last_scan_at = cached["timestamp"]
 
         # Top orphans (oldest orphaned assets, limit 10)
         orphans_query = """
@@ -1587,23 +1750,25 @@ class MediaAssetService:
 
         top_orphans = []
         for row in orphan_rows:
-            top_orphans.append({
-                'id': row['id'],
-                'filename': row['original_filename'],
-                'size': row['file_size'],
-                'days_orphaned': row['days_orphaned'] or 0,
-            })
+            top_orphans.append(
+                {
+                    "id": row["id"],
+                    "filename": row["original_filename"],
+                    "size": row["file_size"],
+                    "days_orphaned": row["days_orphaned"] or 0,
+                }
+            )
 
         return {
-            'success': True,
-            'data': {
-                'total_assets': total_assets,
-                'active_assets': active_assets,
-                'orphaned_assets': orphaned_assets,
-                'deletion_eligible': deletion_eligible,
-                'storage_by_category': storage_by_category,
-                'last_scan_at': last_scan_at,
-                'top_orphans': top_orphans,
+            "success": True,
+            "data": {
+                "total_assets": total_assets,
+                "active_assets": active_assets,
+                "orphaned_assets": orphaned_assets,
+                "deletion_eligible": deletion_eligible,
+                "storage_by_category": storage_by_category,
+                "last_scan_at": last_scan_at,
+                "top_orphans": top_orphans,
             },
         }
 
@@ -1634,8 +1799,8 @@ class MediaAssetService:
 
         groups = []
         for row in hash_rows:
-            content_hash = row['content_hash']
-            count = row['cnt']
+            content_hash = row["content_hash"]
+            count = row["cnt"]
 
             # Get the assets for this hash
             assets_query = """
@@ -1652,25 +1817,31 @@ class MediaAssetService:
 
             assets = []
             for asset_row in asset_rows:
-                assets.append({
-                    'id': asset_row['id'],
-                    'original_filename': asset_row['original_filename'],
-                    'file_size': asset_row['file_size'],
-                    'category': asset_row['category'],
-                    'status': asset_row['status'],
-                    'created_at': asset_row['created_at'],
-                    'reference_count': asset_row['reference_count'],
-                })
+                assets.append(
+                    {
+                        "id": asset_row["id"],
+                        "original_filename": asset_row["original_filename"],
+                        "file_size": asset_row["file_size"],
+                        "category": asset_row["category"],
+                        "status": asset_row["status"],
+                        "created_at": asset_row["created_at"],
+                        "reference_count": asset_row["reference_count"],
+                    }
+                )
 
-            groups.append({
-                'content_hash': content_hash,
-                'count': count,
-                'assets': assets,
-            })
+            groups.append(
+                {
+                    "content_hash": content_hash,
+                    "count": count,
+                    "assets": assets,
+                }
+            )
 
-        return {'success': True, 'data': groups}
+        return {"success": True, "data": groups}
 
-    def merge_duplicates(self, tenant: str, keep_asset_id: str, duplicate_asset_ids: list) -> dict:
+    def merge_duplicates(
+        self, tenant: str, keep_asset_id: str, duplicate_asset_ids: list
+    ) -> dict:
         """Merge duplicate assets: keep one, re-attach refs, delete the rest.
 
         For each duplicate asset:
@@ -1691,24 +1862,29 @@ class MediaAssetService:
             SELECT id, content_hash FROM s3_assets
             WHERE id = %s AND administration = %s
         """
-        keep_rows = self.db.execute_query(keep_query, (keep_asset_id, tenant), fetch=True)
+        keep_rows = self.db.execute_query(
+            keep_query, (keep_asset_id, tenant), fetch=True
+        )
         if not keep_rows:
-            return {'success': False, 'error': f"Keep asset '{keep_asset_id}' not found"}
+            return {
+                "success": False,
+                "error": f"Keep asset '{keep_asset_id}' not found",
+            }
 
         merged = 0
         deleted = 0
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         for dup_id in duplicate_asset_ids:
             if dup_id == keep_asset_id:
                 continue  # Skip if someone accidentally includes the keep asset
 
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _):
                 # Verify duplicate belongs to tenant
                 cursor.execute(
                     "SELECT id, s3_key, bucket FROM s3_assets "
                     "WHERE id = %s AND administration = %s",
-                    (dup_id, tenant)
+                    (dup_id, tenant),
                 )
                 dup_row = cursor.fetchone()
                 if not dup_row:
@@ -1721,13 +1897,15 @@ class MediaAssetService:
                     FROM s3_asset_references
                     WHERE asset_id = %s AND administration = %s
                     """,
-                    (dup_id, tenant)
+                    (dup_id, tenant),
                 )
                 refs = cursor.fetchall()
 
                 for ref in refs:
-                    entity_type = ref['entity_type'] if isinstance(ref, dict) else ref[1]
-                    entity_id = ref['entity_id'] if isinstance(ref, dict) else ref[2]
+                    entity_type = (
+                        ref["entity_type"] if isinstance(ref, dict) else ref[1]
+                    )
+                    entity_id = ref["entity_id"] if isinstance(ref, dict) else ref[2]
 
                     # Try to insert the reference for the kept asset (ignore if exists)
                     try:
@@ -1737,7 +1915,7 @@ class MediaAssetService:
                             (administration, asset_id, entity_type, entity_id, created_at)
                             VALUES (%s, %s, %s, %s, %s)
                             """,
-                            (tenant, keep_asset_id, entity_type, entity_id, now)
+                            (tenant, keep_asset_id, entity_type, entity_id, now),
                         )
                     except IntegrityError:
                         # Reference already exists on kept asset — skip
@@ -1746,18 +1924,18 @@ class MediaAssetService:
                 # Delete duplicate's references
                 cursor.execute(
                     "DELETE FROM s3_asset_references WHERE asset_id = %s AND administration = %s",
-                    (dup_id, tenant)
+                    (dup_id, tenant),
                 )
 
                 # Delete duplicate's S3 object
-                s3_key = dup_row['s3_key'] if isinstance(dup_row, dict) else dup_row[1]
-                bucket = dup_row['bucket'] if isinstance(dup_row, dict) else dup_row[2]
+                s3_key = dup_row["s3_key"] if isinstance(dup_row, dict) else dup_row[1]
+                bucket = dup_row["bucket"] if isinstance(dup_row, dict) else dup_row[2]
                 self._delete_raw(bucket, s3_key)
 
                 # Delete duplicate's DB record
                 cursor.execute(
                     "DELETE FROM s3_assets WHERE id = %s AND administration = %s",
-                    (dup_id, tenant)
+                    (dup_id, tenant),
                 )
 
                 merged += len(refs)
@@ -1768,30 +1946,34 @@ class MediaAssetService:
             "UPDATE s3_assets SET status = 'ACTIVE', orphaned_at = NULL, updated_at = %s "
             "WHERE id = %s AND administration = %s AND status != 'ACTIVE'",
             (now, keep_asset_id, tenant),
-            fetch=False, commit=True
+            fetch=False,
+            commit=True,
         )
 
         logger.info(
             "Merge duplicates: kept=%s, deleted=%d, refs_moved=%d, tenant=%s",
-            keep_asset_id, deleted, merged, tenant
+            keep_asset_id,
+            deleted,
+            merged,
+            tenant,
         )
 
         return {
-            'success': True,
-            'kept': keep_asset_id,
-            'merged': merged,
-            'deleted': deleted,
+            "success": True,
+            "kept": keep_asset_id,
+            "merged": merged,
+            "deleted": deleted,
         }
 
     # === Retention Settings ===
 
     # The full set of allowed retention parameter keys
     RETENTION_KEYS = (
-        'invoices_days',
-        'branding_days',
-        'templates_days',
-        'landing_pages_days',
-        'landing_pages_media_days',
+        "invoices_days",
+        "branding_days",
+        "templates_days",
+        "landing_pages_days",
+        "landing_pages_media_days",
     )
 
     def get_retention_settings(self, tenant: str) -> dict:
@@ -1813,17 +1995,19 @@ class MediaAssetService:
         data = {}
         for key in self.RETENTION_KEYS:
             # Check if tenant has an override in the DB
-            tenant_value = self.ps._resolve_from_db('tenant', tenant, 'asset_retention', key)
+            tenant_value = self.ps._resolve_from_db(
+                "tenant", tenant, "asset_retention", key
+            )
 
             if tenant_value is not None:
-                data[key] = {'value': int(tenant_value), 'source': 'tenant_override'}
+                data[key] = {"value": int(tenant_value), "source": "tenant_override"}
             else:
                 # Fall back to CODE_DEFAULTS (system default)
-                code_default = CODE_DEFAULTS.get(('asset_retention', key))
-                value = code_default['value'] if code_default else 30
-                data[key] = {'value': int(value), 'source': 'system_default'}
+                code_default = CODE_DEFAULTS.get(("asset_retention", key))
+                value = code_default["value"] if code_default else 30
+                data[key] = {"value": int(value), "source": "system_default"}
 
-        return {'success': True, 'data': data}
+        return {"success": True, "data": data}
 
     def update_retention_settings(self, tenant: str, updates: dict) -> dict:
         """Validate and save tenant-level retention overrides.
@@ -1857,16 +2041,16 @@ class MediaAssetService:
                 )
 
             self.ps.set_param(
-                scope='tenant',
+                scope="tenant",
                 scope_id=tenant,
-                namespace='asset_retention',
+                namespace="asset_retention",
                 key=key,
                 value=int(value),
-                value_type='number',
+                value_type="number",
             )
             updated.append(key)
 
-        return {'success': True, 'updated': updated}
+        return {"success": True, "updated": updated}
 
     # === Import ===
 
@@ -1909,18 +2093,20 @@ class MediaAssetService:
             SELECT s3_key FROM s3_assets
             WHERE administration = %s AND category = %s
         """
-        existing_rows = self.db.execute_query(existing_query, (tenant, category), fetch=True)
-        existing_keys = {row['s3_key'] for row in existing_rows}
+        existing_rows = self.db.execute_query(
+            existing_query, (tenant, category), fetch=True
+        )
+        existing_keys = {row["s3_key"] for row in existing_rows}
 
         # Step 4: Process each unregistered object
         newly_registered = 0
         already_registered = 0
         unclassified = []
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         for obj in s3_objects:
-            s3_key = obj['key']
-            file_size = obj['size']
+            s3_key = obj["key"]
+            file_size = obj["size"]
 
             # AC 5: Skip objects already registered
             if s3_key in existing_keys:
@@ -1928,30 +2114,34 @@ class MediaAssetService:
                 continue
 
             # Extract original_filename from key (last segment after the last '/')
-            original_filename = s3_key.rsplit('/', 1)[-1] if '/' in s3_key else s3_key
+            original_filename = s3_key.rsplit("/", 1)[-1] if "/" in s3_key else s3_key
 
             # Detect media_type from extension
             ext = os.path.splitext(original_filename)[1].lower()
             detected_media_type = None
             for media_type, rules in self.MEDIA_TYPES.items():
-                if ext in rules['extensions']:
+                if ext in rules["extensions"]:
                     detected_media_type = media_type
                     break
 
             # AC 8: Unclassifiable objects (unknown extension) are skipped
             if detected_media_type is None:
-                unclassified.append({
-                    's3_key': s3_key,
-                    'filename': original_filename,
-                    'reason': f"Unknown extension '{ext}'",
-                })
+                unclassified.append(
+                    {
+                        "s3_key": s3_key,
+                        "filename": original_filename,
+                        "reason": f"Unknown extension '{ext}'",
+                    }
+                )
                 continue
 
             # Generate asset_id
             asset_id = self._generate_asset_id()
 
             # Detect mime_type from extension
-            mime_type = mimetypes.guess_type(original_filename)[0] or 'application/octet-stream'
+            mime_type = (
+                mimetypes.guess_type(original_filename)[0] or "application/octet-stream"
+            )
 
             # INSERT into s3_assets with status=ACTIVE, migrated_at=NOW()
             insert_query = """
@@ -1963,9 +2153,18 @@ class MediaAssetService:
             self.db.execute_query(
                 insert_query,
                 (
-                    asset_id, tenant, bucket, s3_key, mime_type, file_size,
-                    category, detected_media_type, original_filename,
-                    'ACTIVE', now, now,
+                    asset_id,
+                    tenant,
+                    bucket,
+                    s3_key,
+                    mime_type,
+                    file_size,
+                    category,
+                    detected_media_type,
+                    original_filename,
+                    "ACTIVE",
+                    now,
+                    now,
                 ),
                 fetch=False,
                 commit=True,
@@ -1974,13 +2173,13 @@ class MediaAssetService:
 
         # AC 6: Return summary report
         return {
-            'success': True,
-            'administration': tenant,
-            'category': category,
-            'total_scanned': total_scanned,
-            'newly_registered': newly_registered,
-            'already_registered': already_registered,
-            'unclassified': unclassified,
+            "success": True,
+            "administration": tenant,
+            "category": category,
+            "total_scanned": total_scanned,
+            "newly_registered": newly_registered,
+            "already_registered": already_registered,
+            "unclassified": unclassified,
         }
 
     # === Reference Discovery ===
@@ -2009,10 +2208,10 @@ class MediaAssetService:
         assets = self.db.execute_query(assets_query, (tenant,), fetch=True)
 
         if not assets:
-            return {'success': True, 'references_created': 0, 'already_linked': 0}
+            return {"success": True, "references_created": 0, "already_linked": 0}
 
         # Step 2: Build a lookup: s3_key → asset_id
-        key_to_asset = {row['s3_key']: row['id'] for row in assets}
+        key_to_asset = {row["s3_key"]: row["id"] for row in assets}
 
         # Step 3: Scan mutaties for Ref3 values that match any registered s3_key
         references_created = 0
@@ -2027,7 +2226,7 @@ class MediaAssetService:
             matches = self.db.execute_query(match_query, (tenant, s3_key), fetch=True)
 
             for match in matches:
-                mutatie_id = str(match['ID'])
+                mutatie_id = str(match["ID"])
                 # INSERT reference (idempotent via unique constraint)
                 try:
                     insert_query = """
@@ -2037,8 +2236,9 @@ class MediaAssetService:
                     """
                     self.db.execute_query(
                         insert_query,
-                        (tenant, asset_id, 'invoice', mutatie_id),
-                        fetch=False, commit=True
+                        (tenant, asset_id, "invoice", mutatie_id),
+                        fetch=False,
+                        commit=True,
                     )
                     references_created += 1
                 except IntegrityError:
@@ -2046,9 +2246,9 @@ class MediaAssetService:
                     already_linked += 1
 
         return {
-            'success': True,
-            'references_created': references_created,
-            'already_linked': already_linked,
+            "success": True,
+            "references_created": references_created,
+            "already_linked": already_linked,
         }
 
     def discover_branding_references(self, tenant: str) -> dict:
@@ -2076,10 +2276,10 @@ class MediaAssetService:
         assets = self.db.execute_query(assets_query, (tenant,), fetch=True)
 
         if not assets:
-            return {'success': True, 'references_created': 0, 'already_linked': 0}
+            return {"success": True, "references_created": 0, "already_linked": 0}
 
         # Step 2: Build a lookup: s3_key → asset_id
-        key_to_asset = {row['s3_key']: row['id'] for row in assets}
+        key_to_asset = {row["s3_key"]: row["id"] for row in assets}
 
         # Step 3: Scan parameter_values for branding entries matching registered s3_keys
         references_created = 0
@@ -2094,7 +2294,7 @@ class MediaAssetService:
             matches = self.db.execute_query(match_query, (tenant, s3_key), fetch=True)
 
             for match in matches:
-                param_key = match['key']
+                param_key = match["key"]
                 entity_id = f"{tenant}:{param_key}"
                 try:
                     insert_query = """
@@ -2104,17 +2304,18 @@ class MediaAssetService:
                     """
                     self.db.execute_query(
                         insert_query,
-                        (tenant, asset_id, 'branding', entity_id),
-                        fetch=False, commit=True
+                        (tenant, asset_id, "branding", entity_id),
+                        fetch=False,
+                        commit=True,
                     )
                     references_created += 1
                 except IntegrityError:
                     already_linked += 1
 
         return {
-            'success': True,
-            'references_created': references_created,
-            'already_linked': already_linked,
+            "success": True,
+            "references_created": references_created,
+            "already_linked": already_linked,
         }
 
     def discover_landing_page_references(self, tenant: str) -> dict:
@@ -2141,7 +2342,7 @@ class MediaAssetService:
         assets = self.db.execute_query(assets_query, (tenant,), fetch=True)
 
         if not assets:
-            return {'success': True, 'references_created': 0, 'already_linked': 0}
+            return {"success": True, "references_created": 0, "already_linked": 0}
 
         # Step 2: Get all landing pages for this tenant
         pages_query = """
@@ -2151,19 +2352,19 @@ class MediaAssetService:
         pages = self.db.execute_query(pages_query, (tenant,), fetch=True)
 
         if not pages:
-            return {'success': True, 'references_created': 0, 'already_linked': 0}
+            return {"success": True, "references_created": 0, "already_linked": 0}
 
         # Step 3: For each page, check if content contains any registered s3_key
         references_created = 0
         already_linked = 0
 
         for page in pages:
-            page_id = str(page['id'])
-            content = page.get('content') or ''
+            page_id = str(page["id"])
+            content = page.get("content") or ""
 
             for asset in assets:
-                s3_key = asset['s3_key']
-                asset_id = asset['id']
+                s3_key = asset["s3_key"]
+                asset_id = asset["id"]
 
                 # Simple string search: does the content contain this s3_key?
                 if s3_key in content:
@@ -2175,17 +2376,18 @@ class MediaAssetService:
                         """
                         self.db.execute_query(
                             insert_query,
-                            (tenant, asset_id, 'landing_page', page_id),
-                            fetch=False, commit=True
+                            (tenant, asset_id, "landing_page", page_id),
+                            fetch=False,
+                            commit=True,
                         )
                         references_created += 1
                     except IntegrityError:
                         already_linked += 1
 
         return {
-            'success': True,
-            'references_created': references_created,
-            'already_linked': already_linked,
+            "success": True,
+            "references_created": references_created,
+            "already_linked": already_linked,
         }
 
     def discover_template_references(self, tenant: str) -> dict:
@@ -2213,10 +2415,10 @@ class MediaAssetService:
         assets = self.db.execute_query(assets_query, (tenant,), fetch=True)
 
         if not assets:
-            return {'success': True, 'references_created': 0, 'already_linked': 0}
+            return {"success": True, "references_created": 0, "already_linked": 0}
 
         # Step 2: Build a lookup: s3_key → asset_id
-        key_to_asset = {row['s3_key']: row['id'] for row in assets}
+        key_to_asset = {row["s3_key"]: row["id"] for row in assets}
 
         # Step 3: Scan parameter_values for template entries matching registered s3_keys
         references_created = 0
@@ -2231,7 +2433,7 @@ class MediaAssetService:
             matches = self.db.execute_query(match_query, (tenant, s3_key), fetch=True)
 
             for match in matches:
-                template_key = match['key']
+                template_key = match["key"]
                 try:
                     insert_query = """
                         INSERT INTO s3_asset_references
@@ -2240,17 +2442,18 @@ class MediaAssetService:
                     """
                     self.db.execute_query(
                         insert_query,
-                        (tenant, asset_id, 'template', template_key),
-                        fetch=False, commit=True
+                        (tenant, asset_id, "template", template_key),
+                        fetch=False,
+                        commit=True,
                     )
                     references_created += 1
                 except IntegrityError:
                     already_linked += 1
 
         return {
-            'success': True,
-            'references_created': references_created,
-            'already_linked': already_linked,
+            "success": True,
+            "references_created": references_created,
+            "already_linked": already_linked,
         }
 
     # === Orphan Marking (Post-Import) ===
@@ -2281,8 +2484,10 @@ class MediaAssetService:
                   WHERE r.asset_id = a.id AND r.administration = %s
               )
         """
-        result = self.db.execute_query(query, (tenant, tenant), fetch=False, commit=True)
-        return {'success': True, 'orphaned': result}
+        result = self.db.execute_query(
+            query, (tenant, tenant), fetch=False, commit=True
+        )
+        return {"success": True, "orphaned": result}
 
     def _list_s3_objects_detailed(self, bucket: str, prefix: str) -> list:
         """List S3 objects with metadata under a prefix.
@@ -2299,27 +2504,28 @@ class MediaAssetService:
         """
         objects = []
         try:
-            s3_client = boto3.client('s3')
-            paginator = s3_client.get_paginator('list_objects_v2')
+            s3_client = boto3.client("s3")
+            paginator = s3_client.get_paginator("list_objects_v2")
             page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
 
             for page in page_iterator:
-                for obj in page.get('Contents', []):
-                    key = obj['Key']
-                    size = obj.get('Size', 0)
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    size = obj.get("Size", 0)
                     # Filter out .folder markers (zero-byte directory placeholders)
-                    if key.endswith('.folder') and size == 0:
+                    if key.endswith(".folder") and size == 0:
                         continue
-                    objects.append({'key': key, 'size': size})
+                    objects.append({"key": key, "size": size})
         except ClientError as e:
             logger.error(
-                "S3 list failed: bucket=%s, prefix=%s, error=%s",
-                bucket, prefix, str(e)
+                "S3 list failed: bucket=%s, prefix=%s, error=%s", bucket, prefix, str(e)
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "Unexpected error listing S3 objects: bucket=%s, prefix=%s, error=%s",
-                bucket, prefix, str(e)
+                bucket,
+                prefix,
+                str(e),
             )
 
         return objects
@@ -2348,10 +2554,9 @@ class MediaAssetService:
         """
         env_var = self.CATEGORY_BUCKETS.get(category)
         if env_var is None:
-            valid_categories = ', '.join(sorted(self.CATEGORY_BUCKETS.keys()))
+            valid_categories = ", ".join(sorted(self.CATEGORY_BUCKETS.keys()))
             raise ValueError(
-                f"Unknown category '{category}'. "
-                f"Valid categories: {valid_categories}"
+                f"Unknown category '{category}'. Valid categories: {valid_categories}"
             )
 
         bucket = os.environ.get(env_var)
@@ -2363,7 +2568,9 @@ class MediaAssetService:
 
         return bucket
 
-    def _build_s3_key(self, tenant: str, category: str, asset_id: str, filename: str) -> str:
+    def _build_s3_key(
+        self, tenant: str, category: str, asset_id: str, filename: str
+    ) -> str:
         """Build S3 key path: {tenant}/{category}/{asset_id}_{filename}.
 
         Args:
@@ -2399,14 +2606,16 @@ class MediaAssetService:
         """
         # AC 7: Check empty file
         if not file_data:
-            raise ValueError("A file is required. The upload contained no file or an empty file body.")
+            raise ValueError(
+                "A file is required. The upload contained no file or an empty file body."
+            )
 
         ext = os.path.splitext(filename)[1].lower()
 
         # Find which media_type this extension belongs to
         detected_media_type = None
         for media_type, rules in self.MEDIA_TYPES.items():
-            if ext in rules['extensions']:
+            if ext in rules["extensions"]:
                 detected_media_type = media_type
                 break
 
@@ -2417,21 +2626,20 @@ class MediaAssetService:
                 for mt, rules in self.MEDIA_TYPES.items()
             )
             raise ValueError(
-                f"Unsupported file type '{ext}'. "
-                f"Allowed types — {allowed_summary}"
+                f"Unsupported file type '{ext}'. Allowed types — {allowed_summary}"
             )
 
         # AC 3: Validate magic bytes (skip for web content)
-        if detected_media_type == 'web_content':
+        if detected_media_type == "web_content":
             mime_type = self._sniff_web_content(file_data, ext)
-        elif ext == '.svg':
+        elif ext == ".svg":
             # SVG is text-based XML — validate by content sniffing, not magic bytes
             mime_type = self._validate_svg_content(file_data)
         else:
             mime_type = self._validate_magic_bytes(file_data, ext, detected_media_type)
 
         # AC 4 & 6: Validate file size
-        max_size = self.MEDIA_TYPES[detected_media_type]['max_size']
+        max_size = self.MEDIA_TYPES[detected_media_type]["max_size"]
         if len(file_data) > max_size:
             max_mb = max_size / (1024 * 1024)
             file_mb = len(file_data) / (1024 * 1024)
@@ -2441,8 +2649,8 @@ class MediaAssetService:
             )
 
         return {
-            'media_type': detected_media_type,
-            'mime_type': mime_type,
+            "media_type": detected_media_type,
+            "mime_type": mime_type,
         }
 
     def _validate_magic_bytes(self, file_data: bytes, ext: str, media_type: str) -> str:
@@ -2469,7 +2677,7 @@ class MediaAssetService:
             )
 
         # Cross-check: detected MIME should match the media type's expected prefixes
-        expected_prefixes = self.MEDIA_TYPES[media_type]['mime_prefixes']
+        expected_prefixes = self.MEDIA_TYPES[media_type]["mime_prefixes"]
         if not any(detected_mime.startswith(prefix) for prefix in expected_prefixes):
             raise ValueError(
                 f"File content detected as '{detected_mime}' does not match "
@@ -2480,7 +2688,7 @@ class MediaAssetService:
 
         return detected_mime
 
-    def _detect_mime_from_bytes(self, file_data: bytes) -> Optional[str]:
+    def _detect_mime_from_bytes(self, file_data: bytes) -> str | None:
         """Detect MIME type from file content using magic bytes.
 
         Args:
@@ -2494,19 +2702,20 @@ class MediaAssetService:
 
         # Check each signature against the file header
         for signature, mime_type in self.MAGIC_BYTES.items():
-            if mime_type == 'image/webp':
+            if mime_type == "image/webp":
                 # WEBP: starts with RIFF, then has WEBP at offset 8
-                if (file_data[:4] == b'RIFF' and
-                        len(file_data) >= 12 and
-                        file_data[8:12] == b'WEBP'):
-                    return 'image/webp'
-            elif mime_type == 'video/mp4':
+                if (
+                    file_data[:4] == b"RIFF"
+                    and len(file_data) >= 12
+                    and file_data[8:12] == b"WEBP"
+                ):
+                    return "image/webp"
+            elif mime_type == "video/mp4":
                 # MP4: has 'ftyp' at offset 4
-                if (len(file_data) >= 8 and
-                        file_data[4:8] == b'ftyp'):
-                    return 'video/mp4'
+                if len(file_data) >= 8 and file_data[4:8] == b"ftyp":
+                    return "video/mp4"
             else:
-                if file_data[:len(signature)] == signature:
+                if file_data[: len(signature)] == signature:
                     return mime_type
 
         return None
@@ -2527,31 +2736,34 @@ class MediaAssetService:
         Raises:
             ValueError: If content doesn't appear to be valid for the extension.
         """
-        if ext == '.html':
+        if ext == ".html":
             # Basic check: should contain HTML-like content
             try:
-                text = file_data[:1024].decode('utf-8', errors='ignore').lower()
-            except Exception:
-                text = ''
-            if not any(marker in text for marker in ['<html', '<!doctype', '<head', '<body', '<div']):
+                text = file_data[:1024].decode("utf-8", errors="ignore").lower()
+            except Exception:  # noqa: BLE001
+                text = ""
+            if not any(
+                marker in text
+                for marker in ["<html", "<!doctype", "<head", "<body", "<div"]
+            ):
                 raise ValueError(
                     "File with .html extension does not appear to contain valid HTML content."
                 )
-            return 'text/html'
-        elif ext == '.json':
+            return "text/html"
+        elif ext == ".json":
             # Basic check: should start with { or [ after whitespace
             try:
-                text = file_data[:256].decode('utf-8', errors='ignore').strip()
-            except Exception:
-                text = ''
-            if not text or text[0] not in ('{', '['):
+                text = file_data[:256].decode("utf-8", errors="ignore").strip()
+            except Exception:  # noqa: BLE001
+                text = ""
+            if not text or text[0] not in ("{", "["):
                 raise ValueError(
                     "File with .json extension does not appear to contain valid JSON content."
                 )
-            return 'application/json'
+            return "application/json"
 
         # Should not reach here since we only call for web_content extensions
-        return mimetypes.guess_type(f"file{ext}")[0] or 'application/octet-stream'
+        return mimetypes.guess_type(f"file{ext}")[0] or "application/octet-stream"
 
     def _validate_svg_content(self, file_data: bytes) -> str:
         """Validate SVG file content by checking for XML/SVG markers.
@@ -2569,19 +2781,21 @@ class MediaAssetService:
             ValueError: If content doesn't appear to be valid SVG.
         """
         try:
-            text = file_data[:1024].decode('utf-8', errors='ignore').strip().lower()
-        except Exception:
-            text = ''
+            text = file_data[:1024].decode("utf-8", errors="ignore").strip().lower()
+        except Exception:  # noqa: BLE001
+            text = ""
 
-        if not any(marker in text for marker in ['<svg', '<?xml']):
+        if not any(marker in text for marker in ["<svg", "<?xml"]):
             raise ValueError(
                 "File with .svg extension does not appear to contain valid SVG content."
             )
-        return 'image/svg+xml'
+        return "image/svg+xml"
 
     # === Raw S3 operations (stubs) ===
 
-    def _upload_raw(self, bucket: str, key: str, file_data: bytes, content_type: str) -> bool:
+    def _upload_raw(
+        self, bucket: str, key: str, file_data: bytes, content_type: str
+    ) -> bool:
         """Raw S3 put_object. Only called from store_and_register.
 
         Args:
@@ -2594,7 +2808,7 @@ class MediaAssetService:
             True if upload succeeded, False otherwise.
         """
         try:
-            s3_client = boto3.client('s3')
+            s3_client = boto3.client("s3")
             s3_client.put_object(
                 Bucket=bucket,
                 Key=key,
@@ -2604,14 +2818,15 @@ class MediaAssetService:
             return True
         except ClientError as e:
             logger.error(
-                "S3 upload failed: bucket=%s, key=%s, error=%s",
-                bucket, key, str(e)
+                "S3 upload failed: bucket=%s, key=%s, error=%s", bucket, key, str(e)
             )
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "Unexpected error during S3 upload: bucket=%s, key=%s, error=%s",
-                bucket, key, str(e)
+                bucket,
+                key,
+                str(e),
             )
             return False
 
@@ -2626,19 +2841,20 @@ class MediaAssetService:
             True if deletion succeeded, False otherwise.
         """
         try:
-            s3_client = boto3.client('s3')
+            s3_client = boto3.client("s3")
             s3_client.delete_object(Bucket=bucket, Key=key)
             return True
         except ClientError as e:
             logger.error(
-                "S3 delete failed: bucket=%s, key=%s, error=%s",
-                bucket, key, str(e)
+                "S3 delete failed: bucket=%s, key=%s, error=%s", bucket, key, str(e)
             )
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "Unexpected error during S3 delete: bucket=%s, key=%s, error=%s",
-                bucket, key, str(e)
+                bucket,
+                key,
+                str(e),
             )
             return False
 
@@ -2663,7 +2879,7 @@ class MediaAssetService:
             Integer number of retention days.
         """
         key = self._retention_param_key(category, media_type)
-        value = self.ps.get_param('asset_retention', key, tenant=tenant)
+        value = self.ps.get_param("asset_retention", key, tenant=tenant)
         if value is not None:
             return int(value)
         # Shouldn't happen if CODE_DEFAULTS is populated, but defensive fallback
@@ -2680,13 +2896,13 @@ class MediaAssetService:
         Returns:
             The parameter key string for use with namespace 'asset_retention'.
         """
-        if category == 'landing-pages':
-            if media_type in ('image', 'video'):
-                return 'landing_pages_media_days'
-            return 'landing_pages_days'
+        if category == "landing-pages":
+            if media_type in ("image", "video"):
+                return "landing_pages_media_days"
+            return "landing_pages_days"
 
         # Normalize category for param key lookup (e.g., 'landing-pages' → 'landing_pages')
-        key_prefix = category.replace('-', '_')
+        key_prefix = category.replace("-", "_")
         return f"{key_prefix}_days"
 
     def _get_presigned_url(self, asset: dict, ttl: int = 3600) -> str:
@@ -2705,7 +2921,7 @@ class MediaAssetService:
         Returns:
             Presigned URL string for the S3 object.
         """
-        asset_id = asset['id']
+        asset_id = asset["id"]
         now = datetime.now(timezone.utc)
 
         # Check cache (50-min effective TTL for 60-min URLs)
@@ -2715,17 +2931,19 @@ class MediaAssetService:
                 return url
 
         # Generate new presigned URL
-        s3_client = boto3.client('s3')
+        s3_client = boto3.client("s3")
         url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': asset['bucket'], 'Key': asset['s3_key']},
-            ExpiresIn=ttl
+            "get_object",
+            Params={"Bucket": asset["bucket"], "Key": asset["s3_key"]},
+            ExpiresIn=ttl,
         )
 
         self._presigned_cache[asset_id] = (url, now + timedelta(seconds=ttl))
         return url
 
-    def _check_duplicate(self, tenant: str, current_asset_id: str, content_hash: str) -> Optional[dict]:
+    def _check_duplicate(
+        self, tenant: str, current_asset_id: str, content_hash: str
+    ) -> dict | None:
         """Check if another asset in the same tenant has the same content_hash.
 
         This is a non-blocking check — duplicates are reported but do not
@@ -2750,16 +2968,17 @@ class MediaAssetService:
                 ORDER BY created_at ASC
                 LIMIT 1
             """
-            results = self.db.execute_query(query, (tenant, content_hash, current_asset_id))
+            results = self.db.execute_query(
+                query, (tenant, content_hash, current_asset_id)
+            )
             if results:
                 return {
-                    'asset_id': results[0]['id'],
-                    'original_filename': results[0]['original_filename'],
+                    "asset_id": results[0]["id"],
+                    "original_filename": results[0]["original_filename"],
                 }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Duplicate detection is non-blocking — log and continue
             logger.warning(
-                "Duplicate check failed for asset %s: %s",
-                current_asset_id, str(e)
+                "Duplicate check failed for asset %s: %s", current_asset_id, str(e)
             )
         return None

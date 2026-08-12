@@ -187,14 +187,14 @@ class InvoiceService:
                     tenant=tenant,
                     file_data=file_data,
                     filename=filename,
-                    category='invoices',
-                    metadata={'reference_number': folder_name},
+                    category="invoices",
+                    metadata={"reference_number": folder_name},
                 )
 
-                if not result['success']:
-                    raise RuntimeError(result.get('error', 'Asset registration failed'))
+                if not result["success"]:
+                    raise RuntimeError(result.get("error", "Asset registration failed"))
 
-                s3_key = result['asset']['s3_key']
+                s3_key = result["asset"]["s3_key"]
                 print(f"File uploaded to S3: {s3_key}", flush=True)
                 return {"id": s3_key, "url": s3_key}
             except Exception as e:  # noqa: BLE001

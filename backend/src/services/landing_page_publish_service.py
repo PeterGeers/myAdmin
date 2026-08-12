@@ -31,7 +31,9 @@ class LandingPagePublishService:
     Delegates rendering to LandingPageRenderers, CSS to LandingPageStyles.
     """
 
-    def __init__(self, landing_page_service, parameter_service, slug_service, db_manager=None):
+    def __init__(
+        self, landing_page_service, parameter_service, slug_service, db_manager=None
+    ):
         self.landing_page_svc = landing_page_service
         self.param_svc = parameter_service
         self.slug_svc = slug_service
@@ -67,11 +69,17 @@ class LandingPagePublishService:
         """
         slug = self.slug_svc.get_slug(tenant)
         if not slug:
-            return {"success": False, "error": "No slug configured for this tenant. Set a slug first."}
+            return {
+                "success": False,
+                "error": "No slug configured for this tenant. Set a slug first.",
+            }
 
         draft = self.landing_page_svc.get_draft(slug)
         if not draft:
-            return {"success": False, "error": "No draft found. Create a landing page draft first."}
+            return {
+                "success": False,
+                "error": "No draft found. Create a landing page draft first.",
+            }
 
         branding = self.resolve_branding(tenant)
         footer = self.resolve_footer(tenant, branding)
@@ -97,7 +105,9 @@ class LandingPagePublishService:
             },
             "footer": footer,
             "seo": seo,
-            "settings": {"show_share_buttons": show_share_buttons in ("true", "True", True)},
+            "settings": {
+                "show_share_buttons": show_share_buttons in ("true", "True", True)
+            },
             "sections": sections,
         }
 
@@ -105,49 +115,144 @@ class LandingPagePublishService:
 
         # Write landing.json to S3
         json_body = json.dumps(published_data, ensure_ascii=False)
-        try:
-            s3_client = boto3.client("s3", region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-west-1"))
-            s3_client.put_object(
-                Bucket=self.bucket_name,
-                Key=f"{slug}/landing.json",
-                Body=json_body.encode("utf-8"),
-                ContentType="application/json",
-                CacheControl="public, max-age=300",
-            )
-            logger.info("Published landing.json to s3://%s/%s/landing.json", self.bucket_name, slug)
-        except (ClientError, ValueError) as e:
-            logger.error("S3 put_object landing.json failed for slug=%s: %s", slug, e)
-            return {"success": False, "error": "Failed to publish landing page data to S3."}
+        json_bytes = json_body.encode("utf-8")
 
-        # Generate and write index.html to S3
-        try:
-            index_html = self.generate_index_html(published_data, slug)
-            # Write directly to {slug}/index.html — CloudFront expects this key
-            s3_client = boto3.client("s3", region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-west-1"))
-            s3_client.put_object(
-                Bucket=self.bucket_name,
-                Key=f"{slug}/index.html",
-                Body=index_html.encode("utf-8") if isinstance(index_html, str) else index_html,
-                ContentType="text/html; charset=utf-8",
-                CacheControl="public, max-age=300",
-            )
-            logger.info("Published index.html to s3://%s/%s/index.html", self.bucket_name, slug)
-        except (ClientError, ValueError) as e:
-            logger.error("S3 put_object index.html failed for slug=%s: %s", slug, e)
-            return {"success": False, "error": "Failed to publish index.html to S3."}
+        if self.asset_svc:
+            # Use MediaAssetService for tracked asset storage
+            try:
+                json_result = self.asset_svc.store_and_register(
+                    tenant=tenant,
+                    file_data=json_bytes,
+                    filename="landing.json",
+                    category="landing-pages",
+                    entity_type="landing_page",
+                    entity_id=slug,
+                )
+                if not json_result.get("success"):
+                    logger.error(
+                        "store_and_register landing.json failed for slug=%s: %s",
+                        slug,
+                        json_result.get("error"),
+                    )
+                    return {
+                        "success": False,
+                        "error": "Failed to publish landing page data to S3.",
+                    }
+                logger.info(
+                    "Published landing.json via asset_svc for slug=%s", slug
+                )
+            except (ClientError, ValueError) as e:
+                logger.error(
+                    "store_and_register landing.json failed for slug=%s: %s", slug, e
+                )
+                return {
+                    "success": False,
+                    "error": "Failed to publish landing page data to S3.",
+                }
+
+            # Generate and write index.html via asset_svc
+            try:
+                index_html = self.generate_index_html(published_data, slug)
+                html_bytes = (
+                    index_html.encode("utf-8")
+                    if isinstance(index_html, str)
+                    else index_html
+                )
+                html_result = self.asset_svc.store_and_register(
+                    tenant=tenant,
+                    file_data=html_bytes,
+                    filename="index.html",
+                    category="landing-pages",
+                    entity_type="landing_page",
+                    entity_id=slug,
+                )
+                if not html_result.get("success"):
+                    logger.error(
+                        "store_and_register index.html failed for slug=%s: %s",
+                        slug,
+                        html_result.get("error"),
+                    )
+                    return {
+                        "success": False,
+                        "error": "Failed to publish index.html to S3.",
+                    }
+                logger.info(
+                    "Published index.html via asset_svc for slug=%s", slug
+                )
+            except (ClientError, ValueError) as e:
+                logger.error(
+                    "store_and_register index.html failed for slug=%s: %s", slug, e
+                )
+                return {"success": False, "error": "Failed to publish index.html to S3."}
+        else:
+            # Fallback: direct S3 writes (no db_manager / no asset tracking)
+            try:
+                s3_client = boto3.client(
+                    "s3", region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
+                )
+                s3_client.put_object(
+                    Bucket=self.bucket_name,
+                    Key=f"{slug}/landing.json",
+                    Body=json_bytes,
+                    ContentType="application/json",
+                    CacheControl="public, max-age=300",
+                )
+                logger.info(
+                    "Published landing.json to s3://%s/%s/landing.json",
+                    self.bucket_name,
+                    slug,
+                )
+            except (ClientError, ValueError) as e:
+                logger.error("S3 put_object landing.json failed for slug=%s: %s", slug, e)
+                return {
+                    "success": False,
+                    "error": "Failed to publish landing page data to S3.",
+                }
+
+            # Generate and write index.html to S3
+            try:
+                index_html = self.generate_index_html(published_data, slug)
+                s3_client = boto3.client(
+                    "s3", region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
+                )
+                s3_client.put_object(
+                    Bucket=self.bucket_name,
+                    Key=f"{slug}/index.html",
+                    Body=index_html.encode("utf-8")
+                    if isinstance(index_html, str)
+                    else index_html,
+                    ContentType="text/html; charset=utf-8",
+                    CacheControl="public, max-age=300",
+                )
+                logger.info(
+                    "Published index.html to s3://%s/%s/index.html", self.bucket_name, slug
+                )
+            except (ClientError, ValueError) as e:
+                logger.error("S3 put_object index.html failed for slug=%s: %s", slug, e)
+                return {"success": False, "error": "Failed to publish index.html to S3."}
 
         # Save version snapshot
         version_result = self.landing_page_svc.save_version(
-            slug=slug, version=version, sections=sections, published_by=published_by,
+            slug=slug,
+            version=version,
+            sections=sections,
+            published_by=published_by,
         )
         if not version_result.get("success"):
-            logger.warning("Failed to save version snapshot for slug=%s version=%d", slug, version)
+            logger.warning(
+                "Failed to save version snapshot for slug=%s version=%d", slug, version
+            )
         else:
             self.landing_page_svc.prune_old_versions(slug)
 
         self._invalidate_cache(slug)
 
-        return {"success": True, "version": version, "published_at": now, "public_url": f"/p/{slug}"}
+        return {
+            "success": True,
+            "version": version,
+            "published_at": now,
+            "public_url": f"/p/{slug}",
+        }
 
     # ========================================================================
     # Unpublish
@@ -160,27 +265,45 @@ class LandingPagePublishService:
             return {"success": False, "error": "No slug configured for this tenant."}
 
         if not self.asset_svc:
-            return {"success": False, "error": "MediaAssetService not available (db_manager required)."}
+            return {
+                "success": False,
+                "error": "MediaAssetService not available (db_manager required).",
+            }
 
         asset_ids = self._find_landing_page_assets(tenant, slug)
 
         if asset_ids:
             for asset_id in asset_ids:
                 try:
-                    detach_result = self.asset_svc.detach(tenant, asset_id, "landing_page", str(slug))
+                    detach_result = self.asset_svc.detach(
+                        tenant, asset_id, "landing_page", str(slug)
+                    )
                     if (
                         detach_result.get("success")
-                        and detach_result.get("asset", {}).get("reference_count", 1) == 0
+                        and detach_result.get("asset", {}).get("reference_count", 1)
+                        == 0
                     ):
-                        self.asset_svc.delete_asset(tenant, asset_id, approved_by=unpublished_by)
-                except Exception as e:
-                    logger.warning("Asset detach/delete failed for asset_id=%s slug=%s: %s", asset_id, slug, e)
+                        self.asset_svc.delete_asset(
+                            tenant, asset_id, approved_by=unpublished_by
+                        )
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(
+                        "Asset detach/delete failed for asset_id=%s slug=%s: %s",
+                        asset_id,
+                        slug,
+                        e,
+                    )
         else:
             # Legacy S3 cleanup (pre-migration data)
             for key in (f"{slug}/landing.json", f"{slug}/index.html"):
                 self.asset_svc._delete_raw(self.bucket_name, key)
 
-        logger.info("Unpublished landing page for tenant=%s slug=%s by=%s", tenant, slug, unpublished_by)
+        logger.info(
+            "Unpublished landing page for tenant=%s slug=%s by=%s",
+            tenant,
+            slug,
+            unpublished_by,
+        )
         self._invalidate_cache(slug)
         return {"success": True, "message": "Landing page is now offline."}
 
@@ -206,14 +329,18 @@ class LandingPagePublishService:
                 fetch=True,
             )
             return [row["asset_id"] for row in rows] if rows else []
-        except Exception as e:
-            logger.warning("Failed to query landing page assets for slug=%s: %s", slug, e)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Failed to query landing page assets for slug=%s: %s", slug, e
+            )
             return []
 
     def _invalidate_cache(self, slug: str) -> None:
         """Invalidate CloudFront cache for a tenant's landing page files."""
         if not self.cloudfront_distribution_id:
-            logger.warning("CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID not set — skipping cache invalidation")
+            logger.warning(
+                "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID not set — skipping cache invalidation"
+            )
             return
         try:
             self._cloudfront.create_invalidation(
@@ -240,8 +367,8 @@ class LandingPagePublishService:
             )
             if result and result[0].get("domain"):
                 return result[0]["domain"]
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001
+            logger.debug("Failed to query custom domain for tenant %s", tenant)
         return None
 
     def _is_jabaki_enabled(self, tenant: str) -> bool:
@@ -255,8 +382,8 @@ class LandingPagePublishService:
             )
             if result and result[0].get("jabaki_enabled"):
                 return True
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001
+            logger.debug("Failed to query jabaki_enabled for tenant %s", tenant)
         return False
 
     # ========================================================================
@@ -272,9 +399,21 @@ class LandingPagePublishService:
         explicit overrides are applied on top.
         """
         fields = [
-            "company_name", "logo_url", "address", "postal_city", "country",
-            "phone", "email", "coc", "vat", "tagline", "color_primary", "color_accent",
-            "font_heading", "font_body", "section_bg",
+            "company_name",
+            "logo_url",
+            "address",
+            "postal_city",
+            "country",
+            "phone",
+            "email",
+            "coc",
+            "vat",
+            "tagline",
+            "color_primary",
+            "color_accent",
+            "font_heading",
+            "font_body",
+            "section_bg",
         ]
         result = {}
         for field in fields:
@@ -288,7 +427,9 @@ class LandingPagePublishService:
         # Theme layer: apply preset defaults, then overrides
         theme_param = self.param_svc.get_param("landing_page", "theme", tenant=tenant)
         if theme_param:
-            theme_data = json.loads(theme_param) if isinstance(theme_param, str) else theme_param
+            theme_data = (
+                json.loads(theme_param) if isinstance(theme_param, str) else theme_param
+            )
             preset_name = theme_data.get("preset", "")
             if preset_name in LandingPageStyles.THEME_PRESETS:
                 preset = LandingPageStyles.THEME_PRESETS[preset_name]
@@ -306,7 +447,9 @@ class LandingPagePublishService:
 
     def resolve_footer(self, tenant: str, branding: dict) -> dict:
         """Build footer object from branding fields and social links."""
-        social_links_raw = self.param_svc.get_param("landing_page", "social_links", tenant=tenant)
+        social_links_raw = self.param_svc.get_param(
+            "landing_page", "social_links", tenant=tenant
+        )
         social_links = {}
         if social_links_raw:
             if isinstance(social_links_raw, str):
@@ -335,8 +478,14 @@ class LandingPagePublishService:
         if not title:
             title = branding.get("company_name", "")
 
-        description = self.param_svc.get_param("landing_page", "seo_description", tenant=tenant) or ""
-        og_image = self.param_svc.get_param("landing_page", "og_image_url", tenant=tenant) or ""
+        description = (
+            self.param_svc.get_param("landing_page", "seo_description", tenant=tenant)
+            or ""
+        )
+        og_image = (
+            self.param_svc.get_param("landing_page", "og_image_url", tenant=tenant)
+            or ""
+        )
 
         custom_domain = self._get_active_custom_domain(tenant)
         jabaki_enabled = self._is_jabaki_enabled(tenant)
@@ -357,8 +506,11 @@ class LandingPagePublishService:
         alternate_urls = [u for u in alternate_urls if u != canonical_url]
 
         return {
-            "title": title, "description": description, "og_image": og_image,
-            "canonical_url": canonical_url, "alternate_urls": alternate_urls,
+            "title": title,
+            "description": description,
+            "og_image": og_image,
+            "canonical_url": canonical_url,
+            "alternate_urls": alternate_urls,
         }
 
     # ========================================================================
@@ -430,7 +582,9 @@ class LandingPagePublishService:
                         img["image_key"] = f"{slug}/{parts[1]}"
 
         # Delegate rendering
-        renderer = LandingPageRenderers(img_base=img_base, color_accent=color_accent, color_primary=color_primary)
+        renderer = LandingPageRenderers(
+            img_base=img_base, color_accent=color_accent, color_primary=color_primary
+        )
         sections_html = renderer.render_sections_html(sections, slug)
         footer_html = renderer.render_footer_html(footer, branding)
 
@@ -442,8 +596,16 @@ class LandingPagePublishService:
         tagline = html.escape(branding.get("tagline", ""))
         header_html = ""
         if logo_url or site_name:
-            logo_img = f'<img src="{logo_url}" alt="{site_name}" style="max-height:60px;width:auto;margin:0 auto;">' if logo_url else ""
-            tagline_p = f'<p style="color:#666;margin-top:0.5rem;font-size:1.1rem;">{tagline}</p>' if tagline else ""
+            logo_img = (
+                f'<img src="{logo_url}" alt="{site_name}" style="max-height:60px;width:auto;margin:0 auto;">'
+                if logo_url
+                else ""
+            )
+            tagline_p = (
+                f'<p style="color:#666;margin-top:0.5rem;font-size:1.1rem;">{tagline}</p>'
+                if tagline
+                else ""
+            )
             header_html = (
                 '<header style="padding:1.5rem;text-align:center;border-bottom:1px solid #eee;'
                 f'display:flex;flex-direction:column;align-items:center;">\n  {logo_img}\n  {tagline_p}\n</header>'

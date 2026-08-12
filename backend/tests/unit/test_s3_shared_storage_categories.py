@@ -1,8 +1,11 @@
 """
-Unit tests for S3SharedStorage _make_key and list_files with category support.
+Unit tests for S3SharedStorage list_files with category support.
 
 Requirements: 10.1–10.6
 Reference: .kiro/specs/s3-shared-bucket-infrastructure/design.md
+
+Note: The _make_key method was removed from S3SharedStorage during refactoring.
+Key building is now handled by MediaAssetService._build_s3_key().
 """
 
 import sys
@@ -33,54 +36,6 @@ def create_storage(tenant='TestTenant'):
     with patch('storage.s3_shared_storage.boto3') as mock_boto:
         provider = S3SharedStorage(tenant, ps)
     return provider
-
-
-class TestMakeKeyCategory:
-    """Tests for _make_key with category parameter."""
-
-    def test_default_category_produces_invoices_in_key(self):
-        """Default category should be 'invoices'."""
-        provider = create_storage('KimGeers')
-        key = provider._make_key('document.pdf', {'reference_number': 'railway'})
-        assert '/invoices/' in key
-        assert key.startswith('KimGeers/invoices/railway/')
-        assert key.endswith('_document.pdf')
-
-    def test_explicit_category_branding(self):
-        """Explicit category='branding' produces /branding/ in key."""
-        provider = create_storage('KimGeers')
-        key = provider._make_key('logo.png', {'reference_number': 'company'}, category='branding')
-        assert '/branding/' in key
-        assert key.startswith('KimGeers/branding/company/')
-        assert key.endswith('_logo.png')
-
-    def test_explicit_category_templates(self):
-        """Explicit category='templates' produces /templates/ in key."""
-        provider = create_storage('KimGeers')
-        key = provider._make_key('invoice_nl.html', {'reference_number': 'str'}, category='templates')
-        assert '/templates/' in key
-        assert key.startswith('KimGeers/templates/str/')
-        assert key.endswith('_invoice_nl.html')
-
-    def test_default_category_without_metadata(self):
-        """Default category with no metadata uses 'general' as reference."""
-        provider = create_storage('KimGeers')
-        key = provider._make_key('receipt.pdf')
-        assert '/invoices/' in key
-        assert key.startswith('KimGeers/invoices/general/')
-        assert key.endswith('_receipt.pdf')
-
-    def test_key_structure_format(self):
-        """Key follows {tenant}/{category}/{reference}/{uuid}_{filename} pattern."""
-        provider = create_storage('TestAdmin')
-        key = provider._make_key('file.pdf', {'reference_number': 'ref1'}, category='invoices')
-        parts = key.split('/')
-        assert len(parts) == 4
-        assert parts[0] == 'TestAdmin'
-        assert parts[1] == 'invoices'
-        assert parts[2] == 'ref1'
-        # Last part: {uuid}_{filename}
-        assert '_file.pdf' in parts[3]
 
 
 class TestListFilesCategory:

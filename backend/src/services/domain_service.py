@@ -26,9 +26,7 @@ DOMAIN_REGEX = re.compile(
 )
 
 # IPv4 pattern to reject IP addresses
-IP_REGEX = re.compile(
-    r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
-)
+IP_REGEX = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
 
 class DomainService:
@@ -216,9 +214,7 @@ class DomainService:
         if not cert_result.get("success"):
             return {
                 "success": False,
-                "error": cert_result.get(
-                    "error", "Failed to request SSL certificate."
-                ),
+                "error": cert_result.get("error", "Failed to request SSL certificate."),
             }
 
         certificate_arn = cert_result["certificate_arn"]
@@ -345,9 +341,7 @@ class DomainService:
 
         if status == "ISSUED":
             # Activate the domain: add to CloudFront + KVS
-            add_success = cf_service.add_domain_to_distribution(
-                domain, cert_arn
-            )
+            add_success = cf_service.add_domain_to_distribution(domain, cert_arn)
             if not add_success:
                 return {
                     "success": False,
@@ -373,9 +367,7 @@ class DomainService:
                 update_query, (record_id, tenant), fetch=False, commit=True
             )
 
-            logger.info(
-                f"Custom domain {domain} activated for tenant {tenant}"
-            )
+            logger.info(f"Custom domain {domain} activated for tenant {tenant}")
 
             return {
                 "success": True,
@@ -487,9 +479,7 @@ class DomainService:
             delete_query, (record_id, tenant), fetch=False, commit=True
         )
 
-        logger.info(
-            f"Custom domain {domain} removed for tenant {tenant}"
-        )
+        logger.info(f"Custom domain {domain} removed for tenant {tenant}")
 
         return {
             "success": True,

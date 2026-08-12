@@ -1208,7 +1208,11 @@ class TestPublishWithAssetService:
         mock_db_manager,
         mock_asset_svc,
     ):
-        """Create service with db_manager provided (asset_svc active)."""
+        """Create service with db_manager provided (asset_svc active).
+
+        Patches boto3.client and MediaAssetService for the entire test duration
+        so that publish() never hits real AWS.
+        """
         with patch.dict(
             os.environ,
             {
@@ -1239,7 +1243,7 @@ class TestPublishWithAssetService:
                     )
                     # Ensure asset_svc is our mock
                     svc.asset_svc = mock_asset_svc
-                    return svc
+                    yield svc
 
     def test_publish_uses_store_and_register(self, service, mock_asset_svc):
         """Test publish calls store_and_register for both landing.json and index.html."""

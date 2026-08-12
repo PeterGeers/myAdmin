@@ -260,9 +260,7 @@ def enable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         result = service.enable_jabaki(tenant)
 
         if result["success"]:
-            logger.info(
-                f"Jabaki subdomain enabled for tenant {tenant} by {user_email}"
-            )
+            logger.info(f"Jabaki subdomain enabled for tenant {tenant} by {user_email}")
             return jsonify(result), 200
         else:
             return jsonify(result), 400
@@ -275,9 +273,7 @@ def enable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 @landing_page_bp.route("/api/landing/domains/jabaki/disable", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
 @tenant_required()
-def disable_jabaki(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
+def disable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Disable the Jabaki subdomain for the authenticated tenant.
 
@@ -337,9 +333,7 @@ def register_custom_domain(
         domain = data["domain"].strip().lower()
 
         if not domain:
-            return jsonify(
-                {"success": False, "error": "Domain cannot be empty"}
-            ), 400
+            return jsonify({"success": False, "error": "Domain cannot be empty"}), 400
 
         service = _get_domain_service()
         result = service.register_custom_domain(tenant, domain)
@@ -354,9 +348,7 @@ def register_custom_domain(
             return jsonify(result), 400
 
     except Exception as e:  # noqa: BLE001
-        logger.error(
-            f"Error registering custom domain for tenant {tenant}: {e}"
-        )
+        logger.error(f"Error registering custom domain for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -392,9 +384,7 @@ def verify_custom_domain(
             return jsonify(result), 400
 
     except Exception as e:  # noqa: BLE001
-        logger.error(
-            f"Error verifying custom domain for tenant {tenant}: {e}"
-        )
+        logger.error(f"Error verifying custom domain for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -421,17 +411,13 @@ def delete_custom_domain(
         result = service.remove_custom_domain(tenant)
 
         if result["success"]:
-            logger.info(
-                f"Custom domain removed for tenant {tenant} by {user_email}"
-            )
+            logger.info(f"Custom domain removed for tenant {tenant} by {user_email}")
             return jsonify(result), 200
         else:
             return jsonify(result), 400
 
     except Exception as e:  # noqa: BLE001
-        logger.error(
-            f"Error removing custom domain for tenant {tenant}: {e}"
-        )
+        logger.error(f"Error removing custom domain for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -678,9 +664,7 @@ def delete_version(
             details=f"Deleted version {version}",
         )
 
-        return jsonify(
-            {"success": True, "message": f"Version {version} deleted."}
-        )
+        return jsonify({"success": True, "message": f"Version {version} deleted."})
 
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error deleting version {version} for tenant {tenant}: {e}")
@@ -898,16 +882,18 @@ def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
             tenant=tenant,
             file_data=file_data,
             filename=file.filename,
-            category='landing-pages',
-            entity_type='landing_page',
+            category="landing-pages",
+            entity_type="landing_page",
             entity_id=str(slug),
-            metadata={'slug': slug},
+            metadata={"slug": slug},
         )
 
-        if not result['success']:
-            return jsonify({"success": False, "error": result.get('error', 'Upload failed')}), 400
+        if not result["success"]:
+            return jsonify(
+                {"success": False, "error": result.get("error", "Upload failed")}
+            ), 400
 
-        s3_key = result['asset']['s3_key']
+        s3_key = result["asset"]["s3_key"]
 
         # Build public URL (CloudFront or direct S3)
         cloudfront_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
@@ -1202,10 +1188,12 @@ def save_branding_settings(
         if "theme" in data:
             theme = data["theme"]
             if isinstance(theme, dict):
-                theme_value = json_module.dumps({
-                    "preset": theme.get("preset"),
-                    "overrides": theme.get("overrides", {}),
-                })
+                theme_value = json_module.dumps(
+                    {
+                        "preset": theme.get("preset"),
+                        "overrides": theme.get("overrides", {}),
+                    }
+                )
                 param_svc.set_param(
                     scope="tenant",
                     scope_id=tenant,
@@ -1614,9 +1602,7 @@ def run_verification_check(
 
         result = run_domain_verification_check()
 
-        logger.info(
-            f"Domain verification check triggered by {user_email}: {result}"
-        )
+        logger.info(f"Domain verification check triggered by {user_email}: {result}")
 
         return jsonify({"success": True, "data": result}), 200
 

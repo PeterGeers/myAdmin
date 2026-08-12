@@ -159,16 +159,18 @@ def upload_logo(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
             tenant=tenant,
             file_data=file_data,
             filename=f"company_logo.{ext}",
-            category='branding',
-            entity_type='branding',
+            category="branding",
+            entity_type="branding",
             entity_id=f"{tenant}:company_logo",
         )
 
-        if not result['success']:
-            return jsonify({"success": False, "error": result.get('error', 'Upload failed')}), 400
+        if not result["success"]:
+            return jsonify(
+                {"success": False, "error": result.get("error", "Upload failed")}
+            ), 400
 
         # Use the s3_key from the registered asset
-        s3_key = result['asset']['s3_key']
+        s3_key = result["asset"]["s3_key"]
 
         # Update company_logo_s3_key parameter via ParameterService
         ps.set_param(
