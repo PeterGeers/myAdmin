@@ -1008,6 +1008,11 @@ BRANDING_KEYS = [
     "email",
     "coc",
     "vat",
+    "font_heading",
+    "font_body",
+    "base_spacing",
+    "border_radius_global",
+    "shadow_style",
 ]
 SEO_KEYS = ["seo_title", "seo_description", "og_image_url"]
 SETTINGS_KEYS = ["social_links", "show_share_buttons"]
@@ -1070,6 +1075,21 @@ def get_branding_settings(
             "landing_page", "show_share_buttons", tenant=tenant
         )
         result["show_share_buttons"] = show_share in ("true", "True", True)
+
+        # Load theme (preset + overrides)
+        theme_raw = param_svc.get_param("landing_page", "theme", tenant=tenant)
+        if theme_raw:
+            if isinstance(theme_raw, str):
+                try:
+                    result["theme"] = json_module.loads(theme_raw)
+                except (json_module.JSONDecodeError, TypeError):
+                    result["theme"] = {"preset": None, "overrides": {}}
+            elif isinstance(theme_raw, dict):
+                result["theme"] = theme_raw
+            else:
+                result["theme"] = {"preset": None, "overrides": {}}
+        else:
+            result["theme"] = {"preset": None, "overrides": {}}
 
         return jsonify({"success": True, "data": result})
 
@@ -1177,6 +1197,24 @@ def save_branding_settings(
                 value_type="string",
                 created_by=user_email,
             )
+
+        # Save theme selection (preset + overrides)
+        if "theme" in data:
+            theme = data["theme"]
+            if isinstance(theme, dict):
+                theme_value = json_module.dumps({
+                    "preset": theme.get("preset"),
+                    "overrides": theme.get("overrides", {}),
+                })
+                param_svc.set_param(
+                    scope="tenant",
+                    scope_id=tenant,
+                    namespace="landing_page",
+                    key="theme",
+                    value=theme_value,
+                    value_type="string",
+                    created_by=user_email,
+                )
 
         logger.info(f"Branding settings saved for tenant {tenant} by {user_email}")
         return jsonify({"success": True, "message": "Settings saved successfully"})

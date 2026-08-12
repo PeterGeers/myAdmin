@@ -703,7 +703,9 @@
       "unpublishError": "Failed to unpublish",
       "unpublishTooltip": "Take landing page offline",
       "itemEditorComingSoon": "Item editor coming in next phase",
-      "liveDataBlock": "This block shows live data from your module"
+      "liveDataBlock": "This block shows live data from your module",
+      "tabContent": "Content",
+      "tabSettings": "Settings"
     },
     "blockTypes": {
       "hero": "Hero",
@@ -716,7 +718,8 @@
       "embed": "Embed",
       "contact": "Contact",
       "properties": "Properties",
-      "services": "Services"
+      "services": "Services",
+      "video": "Video"
     },
     "blockDescriptions": {
       "hero": "Large banner with image and headline",
@@ -729,12 +732,17 @@
       "embed": "Embedded external content (iframe)",
       "contact": "Contact form for visitors",
       "properties": "Your STR property listings",
-      "services": "Your ZZP service listings"
+      "services": "Your ZZP service listings",
+      "video": "Embedded YouTube video player"
     },
     "layouts": {
       "image-right": "Image Right",
       "image-left": "Image Left",
       "image-background": "Image Background",
+      "image-bg": "Image Background",
+      "video-bg": "Video Background",
+      "split-diagonal": "Split Diagonal",
+      "default": "Default",
       "centered": "Centered",
       "grid-3": "Grid (3 columns)",
       "grid-4": "Grid (4 columns)",
@@ -747,7 +755,19 @@
       "table": "Table",
       "left-aligned": "Left Aligned",
       "full-width": "Full Width",
-      "contained": "Contained"
+      "contained": "Contained",
+      "split": "Split",
+      "banner": "Banner",
+      "floating": "Floating Bar",
+      "two-column": "Two Column",
+      "side-by-side": "Side by Side",
+      "horizontal": "Horizontal",
+      "featured-center": "Featured Center",
+      "comparison-table": "Comparison Table",
+      "quote-large": "Large Quote",
+      "grid": "Grid",
+      "card": "Card",
+      "timeline": "Timeline"
     },
     "fields": {
       "title": "Title",
@@ -759,7 +779,35 @@
       "buttonText": "Button text",
       "buttonUrl": "Button URL",
       "embedUrl": "Embed URL",
-      "height": "Height"
+      "height": "Height",
+      "videoUrl": "Video URL",
+      "description": "Description"
+    },
+    "settings": {
+      "backgroundType": "Background",
+      "bgColour": "Colour",
+      "bgImage": "Image",
+      "bgGradient": "Gradient",
+      "backgroundColor": "Background colour",
+      "backgroundImage": "Background image",
+      "backgroundGradient": "CSS Gradient",
+      "imageUploadPlaceholder": "Upload a background image",
+      "padding": "Padding",
+      "padding_compact": "Compact",
+      "padding_normal": "Normal",
+      "padding_spacious": "Spacious",
+      "textColour": "Text colour",
+      "textColor_dark": "Dark",
+      "textColor_light": "Light",
+      "textColor_auto": "Auto",
+      "maxWidth": "Width",
+      "maxWidth_contained": "Contained",
+      "maxWidth_full-width": "Full width",
+      "borderRadius": "Corners",
+      "borderRadius_none": "None",
+      "borderRadius_sm": "Small",
+      "borderRadius_md": "Medium",
+      "borderRadius_lg": "Large"
     },
     "branding": {
       "companyInfo": "Company & Branding",
@@ -786,7 +834,29 @@
       "showShareButtonsHelp": "When enabled, a floating share bar with Facebook, X, WhatsApp, LinkedIn, and Email buttons will appear on your published landing page.",
       "save": "Save Branding",
       "saved": "Branding settings saved",
-      "saveError": "Failed to save branding settings"
+      "saveError": "Failed to save branding settings",
+      "chooseTheme": "Choose a Theme",
+      "customTheme": "Custom",
+      "manualControl": "Manual",
+      "resetToDefaults": "Reset to theme defaults",
+      "typography": "Typography & Styling",
+      "fontHeading": "Heading Font",
+      "fontBody": "Body Font",
+      "fontPreviewHeading": "The quick brown fox jumps",
+      "fontPreviewBody": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+      "baseSpacing": "Spacing",
+      "spacing_compact": "Compact",
+      "spacing_normal": "Normal",
+      "spacing_relaxed": "Relaxed",
+      "borderRadius": "Border Radius",
+      "radius_sharp": "Sharp",
+      "radius_rounded": "Rounded",
+      "radius_pill": "Pill",
+      "shadowStyle": "Shadow Style",
+      "shadow_none": "None",
+      "shadow_subtle": "Subtle",
+      "shadow_medium": "Medium",
+      "shadow_dramatic": "Dramatic"
     },
     "seo": {
       "title": "SEO Title",
@@ -815,10 +885,12 @@
       "embed": "Embed external content (Google Maps, videos, booking widgets) via HTTPS URL.",
       "contact": "A contact form for visitors to send you messages. Submissions go to your configured email.",
       "properties": "Automatically shows your STR properties marked as public. Data is refreshed on each publish.",
-      "services": "Automatically shows your ZZP services marked as public. Data is refreshed on each publish."
+      "services": "Automatically shows your ZZP services marked as public. Data is refreshed on each publish.",
+      "video": "Add a YouTube video. Paste the video URL — the player will be embedded responsively with a thumbnail preview."
     },
     "fieldHelp": {
-      "embedUrl": "Only HTTPS URLs are supported. Non-HTTPS content will not be displayed."
+      "embedUrl": "Only HTTPS URLs are supported. Non-HTTPS content will not be displayed.",
+      "videoUrlInvalid": "Please enter a valid YouTube URL (youtube.com/watch?v=... or youtu.be/...)"
     },
     "faqEditor": {
       "addItem": "+ Add Question",

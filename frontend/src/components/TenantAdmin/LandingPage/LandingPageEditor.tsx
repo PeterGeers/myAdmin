@@ -477,7 +477,7 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
           </VStack>
 
           {editingBlock && (
-            <Box w="380px" flexShrink={0}>
+            <Box w="760px" flexShrink={0}>
               <BlockConfigurator
                 section={editingBlock}
                 onUpdate={(updates) => handleUpdateBlock(editingBlock.id, updates)}
@@ -573,6 +573,8 @@ function getDefaultProperties(type: string): Record<string, unknown> {
       return { title: '', subtitle: '' };
     case 'services':
       return {};
+    case 'video':
+      return { video_url: '', title: '', description: '' };
     default:
       return {};
   }
