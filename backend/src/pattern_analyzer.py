@@ -69,7 +69,7 @@ class PatternAnalyzer:
             self.bank_accounts_cache = {}
 
             for account in bank_accounts:
-                key = f"{account['administration']}_{account['Account']}"
+                key = f"{account['administration']}_{account['Account']}".lower()
                 self.bank_accounts_cache[key] = {
                     "iban": account["rekeningNummer"],
                     "account": account["Account"],
@@ -84,7 +84,7 @@ class PatternAnalyzer:
             return False
 
         bank_accounts = self.get_bank_accounts()
-        key = f"{administration}_{account_number}"
+        key = f"{administration}_{account_number}".lower()
         return key in bank_accounts
 
     def analyze_historical_patterns(
@@ -199,12 +199,14 @@ class PatternAnalyzer:
         }
 
         # Store patterns in database for persistent storage (REQ-PAT-005)
+        # Guard: only store if patterns were actually discovered (avoid overwriting good data with nothing)
         if not reference_number and not debet_account and not credit_account:
-            store_verb_patterns_to_database(
-                self.db, administration, reference_patterns_result, result
-            )
-            # Invalidate persistent cache since we have new patterns
-            self.persistent_cache.invalidate_cache(administration)
+            if len(reference_patterns_result) > 0:
+                store_verb_patterns_to_database(
+                    self.db, administration, reference_patterns_result, result
+                )
+                # Invalidate persistent cache since we have new patterns
+                self.persistent_cache.invalidate_cache(administration)
 
         # Cache the results with filter-specific key for backward compatibility
         cache_key = build_cache_key(
