@@ -156,6 +156,16 @@ export function useBankingPatterns(deps: UseBankingPatternsDeps) {
   const getPatternFieldStyle = useCallback(
     (transaction: Transaction, field: string) => {
       if (isPatternFilled(transaction, field)) {
+        // REQ 2.4: Orange border for uncertain predictions (confidence < 0.80)
+        if (transaction._uncertain === true) {
+          return {
+            bg: 'orange.50',
+            borderColor: 'orange.300',
+            borderWidth: '2px',
+            _hover: { bg: 'orange.100' },
+          };
+        }
+        // REQ 2.3: Blue border for confident predictions (default)
         return {
           bg: 'blue.50',
           borderColor: 'blue.300',

@@ -44,3 +44,9 @@ So the practical value of manual presets: you can add a route you will drive (ne
 
 In the management UI, you could show a small badge ("Handmatig" / "Geleerd") to distinguish them visually, but it's purely informationa
 
+
+# Possible parameters
+CONFIDENCE_THRESHOLD_CONFIDENT instead of hardcoded values in Banking processor domain
+
+## Bugs flagged
+That one failure (test_pattern_discovery_with_new_data in test_incremental_pattern_discovery.py) is a pre-existing issue — it was already flagged during task 1.1 as an FK constraint problem in the test data, unrelated to our changes. 

@@ -28,8 +28,25 @@ def test_pattern_discovery_with_new_data():
     
     # Clean up any existing test data
     print("🧹 Cleaning up existing test data...")
+    db.execute_query("DELETE FROM mutaties WHERE Administration = %s", (administration,), fetch=False, commit=True)
     db.execute_query("DELETE FROM pattern_verb_patterns WHERE administration = %s", (administration,), fetch=False, commit=True)
     db.execute_query("DELETE FROM pattern_analysis_metadata WHERE administration = %s", (administration,), fetch=False, commit=True)
+    db.execute_query("DELETE FROM rekeningschema WHERE administration = %s", (administration,), fetch=False, commit=True)
+
+    # Create chart of accounts entries required by FK constraints on mutaties
+    test_accounts = [
+        ("1003", "Groceries", administration),
+        ("1004", "Building Materials", administration),
+        ("1005", "Subscriptions", administration),
+        ("1300", "Bank Account", administration),
+    ]
+    for account, name, admin in test_accounts:
+        db.execute_query(
+            """INSERT INTO rekeningschema (Account, AccountName, administration)
+               VALUES (%s, %s, %s)""",
+            (account, name, admin),
+            fetch=False, commit=True,
+        )
     
     # Step 1: Create initial dataset with some transactions
     print("\n📝 Step 1: Creating initial dataset...")
@@ -182,6 +199,7 @@ def test_pattern_discovery_with_new_data():
     db.execute_query("DELETE FROM mutaties WHERE Administration = %s", (administration,), fetch=False, commit=True)
     db.execute_query("DELETE FROM pattern_verb_patterns WHERE administration = %s", (administration,), fetch=False, commit=True)
     db.execute_query("DELETE FROM pattern_analysis_metadata WHERE administration = %s", (administration,), fetch=False, commit=True)
+    db.execute_query("DELETE FROM rekeningschema WHERE administration = %s", (administration,), fetch=False, commit=True)
     
     print(f"✅ Test data cleaned up")
     

@@ -32,6 +32,9 @@ from pattern_detection import (
     is_valid_verb,
 )
 from pattern_scoring import (
+    build_reference_account_index,
+    predict_account_from_reference,
+    CONFIDENCE_THRESHOLD_CONFIDENT,
     calculate_statistics_from_db_patterns,
     generate_pattern_statistics,
     predict_credit,
@@ -223,7 +226,12 @@ class PatternAnalyzer:
         self, transactions: list[dict], administration: str
     ) -> tuple[list[dict], dict[str, Any]]:
         """
-        Apply discovered patterns to predict missing values in transactions
+        Apply discovered patterns to predict missing values in transactions.
+
+        Orchestration order:
+          Step 1: Predict reference (or use pre-populated ReferenceNumber)
+          Step 2: If reference available → try predict_account_from_reference
+          Step 3: If step 2 returned None → fall back to predict_debet/predict_credit
 
         Args:
             transactions: List of transaction dictionaries
@@ -234,12 +242,16 @@ class PatternAnalyzer:
         """
         print(f"🔧 Applying patterns to {len(transactions)} transactions...")
 
-        # Get patterns for this administration (database first, then cache)
+        # Get patterns for this administration (multi-level cache)
         patterns = self.get_filtered_patterns(administration)
+
+        # Build reference-account index from existing verb patterns (no extra DB query)
+        reference_account_index = build_reference_account_index(patterns["reference_patterns"])
 
         results = {
             "total_transactions": len(transactions),
             "predictions_made": {"debet": 0, "credit": 0, "reference": 0},
+            "prediction_methods": {"reference_lookup": 0, "verb_matching": 0},
             "confidence_scores": [],
             "failed_predictions": 0,
         }
@@ -250,39 +262,8 @@ class PatternAnalyzer:
             updated_tx = tx.copy()
             tx_predictions = []
 
-            # Apply debet patterns (delegated to pattern_scoring module)
-            if not updated_tx.get("Debet"):
-                debet_prediction = predict_debet(
-                    updated_tx,
-                    patterns["reference_patterns"],
-                    administration,
-                    self.is_bank_account,
-                    self._extract_verb_from_description,
-                    self.get_filtered_patterns,
-                )
-                if debet_prediction:
-                    updated_tx["Debet"] = debet_prediction["value"]
-                    updated_tx["_debet_confidence"] = debet_prediction["confidence"]
-                    results["predictions_made"]["debet"] += 1
-                    tx_predictions.append(debet_prediction["confidence"])
-
-            # Apply credit patterns (delegated to pattern_scoring module)
-            if not updated_tx.get("Credit"):
-                credit_prediction = predict_credit(
-                    updated_tx,
-                    patterns["reference_patterns"],
-                    administration,
-                    self.is_bank_account,
-                    self._extract_verb_from_description,
-                    self.get_filtered_patterns,
-                )
-                if credit_prediction:
-                    updated_tx["Credit"] = credit_prediction["value"]
-                    updated_tx["_credit_confidence"] = credit_prediction["confidence"]
-                    results["predictions_made"]["credit"] += 1
-                    tx_predictions.append(credit_prediction["confidence"])
-
-            # Apply reference patterns (delegated to pattern_scoring module)
+            # ─── Step 1: Predict Reference (existing, unchanged) ───
+            ref_confidence = 1.0  # Default: user-supplied reference
             if not updated_tx.get("ReferenceNumber"):
                 ref_prediction = predict_reference(
                     updated_tx,
@@ -293,8 +274,95 @@ class PatternAnalyzer:
                 if ref_prediction:
                     updated_tx["ReferenceNumber"] = ref_prediction["value"]
                     updated_tx["_reference_confidence"] = ref_prediction["confidence"]
+                    ref_confidence = ref_prediction["confidence"]
                     results["predictions_made"]["reference"] += 1
                     tx_predictions.append(ref_prediction["confidence"])
+            # else: ReferenceNumber already populated → use it with confidence 1.0 (Task 3.2)
+
+            # ─── Step 2: Reference Lookup for counter-account (NEW) ───
+            account_predicted_via_ref = False
+
+            if updated_tx.get("ReferenceNumber") and ref_confidence >= CONFIDENCE_THRESHOLD_CONFIDENT:
+                # Identify bank account for this transaction
+                bank_account = None
+                if self.is_bank_account(updated_tx.get("Debet", ""), administration):
+                    bank_account = updated_tx["Debet"]
+                elif self.is_bank_account(updated_tx.get("Credit", ""), administration):
+                    bank_account = updated_tx["Credit"]
+
+                if bank_account:
+                    ref_lookup_result = predict_account_from_reference(
+                        reference_code=updated_tx["ReferenceNumber"],
+                        reference_confidence=ref_confidence,
+                        bank_account=bank_account,
+                        administration=administration,
+                        reference_account_index=reference_account_index,
+                    )
+
+                    if ref_lookup_result:
+                        # Determine which field to set (debet or credit)
+                        if bank_account == updated_tx.get("Credit", ""):
+                            # Bank is credit → predict debet
+                            if not updated_tx.get("Debet"):
+                                updated_tx["Debet"] = ref_lookup_result["value"]
+                                updated_tx["_debet_confidence"] = ref_lookup_result["confidence"]
+                                updated_tx["_prediction_method"] = "reference_lookup"
+                                updated_tx["_uncertain"] = ref_lookup_result["uncertain"]
+                                results["predictions_made"]["debet"] += 1
+                                results["prediction_methods"]["reference_lookup"] += 1
+                                tx_predictions.append(ref_lookup_result["confidence"])
+                                account_predicted_via_ref = True
+                        elif bank_account == updated_tx.get("Debet", ""):
+                            # Bank is debet → predict credit
+                            if not updated_tx.get("Credit"):
+                                updated_tx["Credit"] = ref_lookup_result["value"]
+                                updated_tx["_credit_confidence"] = ref_lookup_result["confidence"]
+                                updated_tx["_prediction_method"] = "reference_lookup"
+                                updated_tx["_uncertain"] = ref_lookup_result["uncertain"]
+                                results["predictions_made"]["credit"] += 1
+                                results["prediction_methods"]["reference_lookup"] += 1
+                                tx_predictions.append(ref_lookup_result["confidence"])
+                                account_predicted_via_ref = True
+
+            # ─── Step 3: Verb-matching fallback (existing, unchanged) ───
+            if not account_predicted_via_ref:
+                # Apply debet patterns (existing logic)
+                if not updated_tx.get("Debet"):
+                    debet_prediction = predict_debet(
+                        updated_tx,
+                        patterns["reference_patterns"],
+                        administration,
+                        self.is_bank_account,
+                        self._extract_verb_from_description,
+                        self.get_filtered_patterns,
+                    )
+                    if debet_prediction:
+                        updated_tx["Debet"] = debet_prediction["value"]
+                        updated_tx["_debet_confidence"] = debet_prediction["confidence"]
+                        updated_tx["_prediction_method"] = "verb_matching"
+                        updated_tx["_uncertain"] = debet_prediction["confidence"] < CONFIDENCE_THRESHOLD_CONFIDENT
+                        results["predictions_made"]["debet"] += 1
+                        results["prediction_methods"]["verb_matching"] += 1
+                        tx_predictions.append(debet_prediction["confidence"])
+
+                # Apply credit patterns (existing logic)
+                if not updated_tx.get("Credit"):
+                    credit_prediction = predict_credit(
+                        updated_tx,
+                        patterns["reference_patterns"],
+                        administration,
+                        self.is_bank_account,
+                        self._extract_verb_from_description,
+                        self.get_filtered_patterns,
+                    )
+                    if credit_prediction:
+                        updated_tx["Credit"] = credit_prediction["value"]
+                        updated_tx["_credit_confidence"] = credit_prediction["confidence"]
+                        updated_tx["_prediction_method"] = "verb_matching"
+                        updated_tx["_uncertain"] = credit_prediction["confidence"] < CONFIDENCE_THRESHOLD_CONFIDENT
+                        results["predictions_made"]["credit"] += 1
+                        results["prediction_methods"]["verb_matching"] += 1
+                        tx_predictions.append(credit_prediction["confidence"])
 
             # Track confidence scores
             if tx_predictions:
@@ -313,7 +381,9 @@ class PatternAnalyzer:
             results["average_confidence"] = 0.0
 
         print(
-            f"✅ Pattern application complete: {sum(results['predictions_made'].values())} predictions made"
+            f"✅ Pattern application complete: {sum(results['predictions_made'].values())} predictions made "
+            f"(ref_lookup: {results['prediction_methods']['reference_lookup']}, "
+            f"verb: {results['prediction_methods']['verb_matching']})"
         )
         return updated_transactions, results
 
