@@ -50,6 +50,7 @@ export default function ScanTab() {
   const [error, setError] = useState<string | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const scanCompleteRef = useRef(false);
 
   // Cleanup EventSource on unmount
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function ScanTab() {
     setProgress(0);
     setSummary(null);
     setError(null);
+    scanCompleteRef.current = false;
 
     try {
       // 1. Trigger the scan
@@ -107,6 +109,7 @@ export default function ScanTab() {
           if (data.phase === 'complete') {
             setSummary(data.summary ?? null);
             setScanning(false);
+            scanCompleteRef.current = true;
             es.close();
             eventSourceRef.current = null;
           }
@@ -119,7 +122,7 @@ export default function ScanTab() {
         es.close();
         eventSourceRef.current = null;
         // Only show error if scan hasn't completed
-        if (!summary) {
+        if (!scanCompleteRef.current) {
           setError(t('mediaAssets.scan.errors.connectionLost'));
           setScanning(false);
         }
@@ -128,7 +131,7 @@ export default function ScanTab() {
       setError(err instanceof Error ? err.message : t('mediaAssets.scan.errors.startFailed'));
       setScanning(false);
     }
-  }, [summary, t]);
+  }, [t]);
 
   return (
     <VStack spacing={6} align="stretch">
