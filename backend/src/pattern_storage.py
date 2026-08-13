@@ -84,8 +84,16 @@ def store_verb_patterns_to_database(
                         f"marked ambiguous (confidence={pattern.get('confidence', 0.0)})"
                     )
                 continue
+            # For full analysis: replace occurrences with freshly calculated values
+            # For incremental analysis: accumulate new occurrences on top of existing
+            occurrences_update = (
+                "occurrences = occurrences + VALUES(occurrences)"
+                if is_incremental
+                else "occurrences = VALUES(occurrences)"
+            )
+
             db.execute_query(
-                """
+                f"""
                 INSERT INTO pattern_verb_patterns 
                 (administration, bank_account, verb, verb_company, verb_reference, is_compound,
                  reference_number, debet_account, credit_account, occurrences, confidence, 
@@ -98,7 +106,7 @@ def store_verb_patterns_to_database(
                 reference_number = VALUES(reference_number),
                 debet_account = VALUES(debet_account),
                 credit_account = VALUES(credit_account),
-                occurrences = occurrences + VALUES(occurrences),
+                {occurrences_update},
                 confidence = VALUES(confidence),
                 last_seen = VALUES(last_seen),
                 sample_description = VALUES(sample_description),
@@ -122,6 +130,27 @@ def store_verb_patterns_to_database(
                 fetch=False,
                 commit=True,
             )
+
+        # Only during full analysis: remove patterns not seen within the analysis window
+        if not is_incremental:
+            analysis_start = analysis_metadata.get("date_range", {}).get("from")
+            if analysis_start:
+                result = db.execute_query(
+                    """
+                    DELETE FROM pattern_verb_patterns
+                    WHERE administration = %s
+                      AND last_seen < %s
+                    """,
+                    (administration, analysis_start),
+                    fetch=False,
+                    commit=True,
+                )
+                deleted_count = result if isinstance(result, int) else 0
+                if deleted_count:
+                    print(
+                        f"🧹 Removed {deleted_count} stale patterns "
+                        f"(last_seen < {analysis_start})"
+                    )
 
         # Get current pattern count from database for accurate reporting
         pattern_count_result = db.execute_query(

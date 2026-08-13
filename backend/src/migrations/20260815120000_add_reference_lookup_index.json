@@ -1,0 +1,12 @@
+{
+  "name": "add_reference_lookup_index",
+  "description": "Add composite index on pattern_verb_patterns (administration, bank_account, reference_number) to optimize reference-based lookups for the prediction engine.",
+  "timestamp": "20260815120000",
+  "up": [
+    "CREATE INDEX idx_ref_lookup ON pattern_verb_patterns (administration, bank_account, reference_number)"
+  ],
+  "down": [
+    "DROP INDEX idx_ref_lookup ON pattern_verb_patterns"
+  ],
+  "version": "1.0"
+}

@@ -16,6 +16,11 @@ from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
 
+# Confidence threshold: predictions at or above this are shown as confident (blue indicator)
+# Below this threshold: shown as uncertain (orange indicator)
+# Single location for all prediction modules (Requirement 7.6)
+CONFIDENCE_THRESHOLD_CONFIDENT = 0.80
+
 
 def generate_pattern_statistics(
     transactions: list[dict],
@@ -187,6 +192,129 @@ def resolve_pattern_conflicts(
     return (best_key, best_pattern)
 
 
+def build_reference_account_index(
+    reference_patterns: dict[str, dict],
+) -> dict[str, dict]:
+    """
+    Build a reference-code-keyed index from existing verb patterns.
+
+    The existing patterns are keyed by verb. This function re-indexes them
+    by reference_number so that predict_account_from_reference() can do
+    O(1) lookups by reference code.
+
+    Args:
+        reference_patterns: The existing verb patterns dict from get_filtered_patterns()
+
+    Returns:
+        Dict keyed by "{admin}_{bank_account}_{reference_number}" with value:
+        {
+            "counter_account": str,
+            "occurrences": int,
+            "confidence": float,
+            "last_seen": date,
+            "source_verb": str,
+        }
+        When multiple verb patterns share the same reference_number,
+        the one with the highest occurrences wins.
+    """
+    ref_index: dict[str, dict] = {}
+
+    for _key, pattern in reference_patterns.items():
+        ref_num = pattern.get("reference_number", "").strip()
+        if not ref_num:
+            continue
+        if pattern.get("_ambiguous"):
+            continue
+        if pattern.get("confidence", 0) <= 0:
+            continue
+
+        admin = pattern.get("administration", "")
+        bank_account = pattern.get("bank_account", "")
+
+        # Derive counter-account from stored debet/credit + known bank account
+        debet = pattern.get("debet_account", "")
+        credit = pattern.get("credit_account", "")
+        if bank_account == debet:
+            other_account = credit
+        elif bank_account == credit:
+            other_account = debet
+        else:
+            continue
+
+        if not other_account:
+            continue
+
+        index_key = f"{admin}_{bank_account}_{ref_num}"
+
+        # Keep the pattern with highest occurrences for this reference code
+        existing = ref_index.get(index_key)
+        if existing and existing["occurrences"] >= pattern.get("occurrences", 0):
+            continue
+
+        ref_index[index_key] = {
+            "counter_account": other_account,
+            "occurrences": pattern.get("occurrences", 1),
+            "confidence": pattern.get("confidence", 0.0),
+            "last_seen": pattern.get("last_seen"),
+            "source_verb": pattern.get("verb", ""),
+        }
+
+    return ref_index
+
+
+def predict_account_from_reference(
+    reference_code: str,
+    reference_confidence: float,
+    bank_account: str,
+    administration: str,
+    reference_account_index: dict[str, dict],
+) -> dict | None:
+    """
+    Predict counter-account using a reference code as lookup key.
+
+    Multiplies reference_confidence × lookup_confidence for combined score.
+    Always returns a result if a match exists — caller uses confidence
+    to determine UI indicator (blue ≥ 0.80, orange < 0.80).
+
+    Args:
+        reference_code: The (predicted or existing) reference code
+        reference_confidence: Confidence of the reference code itself (1.0 if user-supplied)
+        bank_account: The identified bank account for this transaction
+        administration: Tenant scope
+        reference_account_index: Output from build_reference_account_index()
+
+    Returns:
+        Dict with prediction result, or None if no match found
+    """
+    if not reference_code or not reference_code.strip():
+        return None
+
+    # Build lookup key — uses the full reference_code as-is (including compound verbs)
+    lookup_key = f"{administration}_{bank_account}_{reference_code}"
+
+    pattern = reference_account_index.get(lookup_key)
+    if not pattern:
+        return None
+
+    lookup_confidence = pattern["confidence"]
+
+    # Combined confidence: reference prediction confidence × lookup confidence
+    combined_confidence = reference_confidence * lookup_confidence
+
+    return {
+        "value": pattern["counter_account"],
+        "confidence": combined_confidence,
+        "lookup_confidence": lookup_confidence,
+        "reference_code": reference_code,
+        "method": "reference_lookup",
+        "uncertain": combined_confidence < CONFIDENCE_THRESHOLD_CONFIDENT,
+        "reason": (
+            f'Reference lookup: "{reference_code}" → {pattern["counter_account"]} '
+            f'(confidence {lookup_confidence:.1%}, via verb "{pattern["source_verb"]}")'
+        ),
+    }
+
+
 def predict_debet(
     transaction: dict,
     debet_patterns: dict,
@@ -288,7 +416,7 @@ def predict_debet(
         best_pattern = resolve_pattern_conflicts(
             matching_patterns, transaction, administration, is_bank_account_fn
         )
-        if best_pattern and best_pattern[1].get("confidence", 0) >= 0.8:
+        if best_pattern and best_pattern[1].get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT:
             key, pattern = best_pattern
             return {
                 "value": pattern.get("debet_account"),
@@ -404,7 +532,7 @@ def predict_credit(
         best_pattern = resolve_pattern_conflicts(
             matching_patterns, transaction, administration, is_bank_account_fn
         )
-        if best_pattern and best_pattern[1].get("confidence", 0) >= 0.8:
+        if best_pattern and best_pattern[1].get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT:
             key, pattern = best_pattern
             return {
                 "value": pattern.get("credit_account"),
@@ -534,7 +662,7 @@ def predict_reference(
         key, pattern, match_type, score = best_match
 
         # Require minimum confidence threshold
-        if score >= 0.8 and pattern.get("confidence", 0) >= 0.8:
+        if score >= CONFIDENCE_THRESHOLD_CONFIDENT and pattern.get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT:
             return {
                 "value": pattern.get("reference_number"),
                 "confidence": pattern.get("confidence", 1.0) * score,

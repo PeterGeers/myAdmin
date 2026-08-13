@@ -1,5 +1,7 @@
 # Code Quality Maintenance Prompt
 
+## add item to add code reduction, dead code and duplicate code prevention
+
 Paste this into Kiro to run the full analysis and generate fix tasks automatically.
 
 ---

@@ -41,6 +41,14 @@ Catch `DatabaseError` (base), `IntegrityError`, `ConnectionError`, `OperationalE
 
 Full spec: #[[file:.kiro/specs/database-abstraction-layer/design.md]]
 
+## Migrations
+
+- Migration JSON files live in `backend/src/migrations/` and are applied by `DatabaseMigration.run_all_migrations()`
+- Migrations are NOT auto-applied on app startup — run manually via `PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration(test_mode=False).run_all_migrations()"`
+- The migration system tracks applied migrations in the `database_migrations` table — it won't re-run them
+- **MySQL 9.4 does NOT support `IF NOT EXISTS` / `IF EXISTS` on `CREATE INDEX` or `DROP INDEX`** — never use these clauses in migration files. Idempotency is handled by the migration system itself (it skips already-applied migrations).
+- Use plain `CREATE INDEX idx_name ON table (columns)` and `DROP INDEX idx_name ON table`
+
 ## Core Rules
 
 - Parameterized queries: always `%s` placeholders, never f-string interpolation

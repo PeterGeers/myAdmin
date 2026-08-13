@@ -21,6 +21,10 @@ export interface Transaction {
   Ref4: string;
   Administration: string;
   pattern_filled?: boolean;
+  /** Prediction metadata: which method produced the counter-account prediction */
+  _prediction_method?: string;
+  /** When true, frontend shows orange indicator instead of blue (confidence < 0.80) */
+  _uncertain?: boolean;
 }
 
 export interface CreditCardAccount {
