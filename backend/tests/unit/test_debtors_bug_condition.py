@@ -147,7 +147,7 @@ def build_invoice_rows(client_id, company_name, contact_id, invoices):
 def mock_db_for_ledger(mock_db, ledger_rows, invoice_rows=None):
     """
     Configure mock_db.execute_query to return ledger rows on first call
-    and invoice rows on second call (the fixed code makes two queries).
+    and invoice rows on second call. UPDATE calls (fetch=False) return None.
 
     Args:
         mock_db: The MagicMock database instance
@@ -156,7 +156,14 @@ def mock_db_for_ledger(mock_db, ledger_rows, invoice_rows=None):
     """
     if invoice_rows is None:
         invoice_rows = []
-    mock_db.execute_query.side_effect = [ledger_rows, invoice_rows]
+    responses = iter([ledger_rows, invoice_rows])
+
+    def _side_effect(*args, **kwargs):
+        if kwargs.get('fetch') is False:
+            return None
+        return next(responses)
+
+    mock_db.execute_query.side_effect = _side_effect
 
 
 # ---------------------------------------------------------------------------
