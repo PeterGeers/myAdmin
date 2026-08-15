@@ -318,23 +318,72 @@ def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
 @tenant_required()
 @module_required("ZZP")
 def get_aging(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
-    """Aging analysis with buckets: current, 1-30, 31-60, 61-90, 90+."""
+    """Aging analysis with buckets: current, 1-30, 31-60, 61-90, 90+.
+
+    Only includes invoices for clients with a positive ledger balance on the
+    debtor account (consistent with the receivables endpoint).
+    """
     try:
         db = DatabaseManager(test_mode=_test_mode)
+
+        # Resolve debtor account to filter by ledger balance
+        debtor_account = _resolve_debtor_account(db, tenant)
+
+        # Get clients with positive ledger balance
+        ledger_rows = (
+            db.execute_query(
+                """SELECT ReferenceNumber AS client_id,
+                       SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) -
+                       SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) AS ledger_balance
+                FROM mutaties
+                WHERE administration = %s
+                GROUP BY ReferenceNumber
+                HAVING SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) -
+                       SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) > 0""",
+                (debtor_account, debtor_account, tenant, debtor_account, debtor_account),
+            )
+            or []
+        )
+
+        balance_by_client = {
+            row["client_id"]: float(row["ledger_balance"])
+            for row in ledger_rows
+            if row.get("client_id")
+        }
+
+        if not balance_by_client:
+            return jsonify(
+                {
+                    "success": True,
+                    "data": {
+                        "total_outstanding": 0.0,
+                        "buckets": {
+                            "current": 0.0,
+                            "1_30_days": 0.0,
+                            "31_60_days": 0.0,
+                            "61_90_days": 0.0,
+                            "90_plus_days": 0.0,
+                        },
+                        "by_contact": [],
+                    },
+                }
+            )
+
+        # Fetch invoices only for clients with positive ledger balance
+        placeholders = ", ".join(["%s"] * len(balance_by_client))
         rows = (
             db.execute_query(
-                """SELECT i.id, i.invoice_number, i.due_date, i.grand_total,
-                      i.status, {datediff} as days_overdue,
+                f"""SELECT i.id, i.invoice_number, i.due_date, i.grand_total,
+                      i.status, {dialect.date_diff(dialect.current_date(), "i.due_date")} as days_overdue,
                       c.id as contact_id, c.client_id, c.company_name
                FROM invoices i
                JOIN contacts c ON i.contact_id = c.id
                WHERE i.administration = %s
+                 AND c.client_id IN ({placeholders})
                  AND i.status IN ('sent', 'overdue')
                  AND i.invoice_type = 'invoice'
-               ORDER BY c.company_name, i.due_date""".format(
-                    datediff=dialect.date_diff(dialect.current_date(), "i.due_date")
-                ),
-                (tenant,),
+               ORDER BY c.company_name, i.due_date""",
+                (tenant, *balance_by_client.keys()),
             )
             or []
         )
