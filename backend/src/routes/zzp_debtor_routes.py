@@ -148,12 +148,46 @@ def get_receivables(
             if row.get("client_id")
         }
 
+        # ── Automatic Status Reconciliation (Req 2.4) ──────────────────
+        # Update invoices.status to 'paid' for clients that are NOT in the
+        # positive-balance list. If a client has no positive ledger balance
+        # on the debtor account, their invoices should be marked as paid.
+        # Only touches 'sent'/'overdue' invoices — never 'draft' or 'paid'.
+        try:
+            if balance_by_client:
+                placeholders_recon = ", ".join(["%s"] * len(balance_by_client))
+                db.execute_query(
+                    f"""UPDATE invoices i
+                       JOIN contacts c ON i.contact_id = c.id
+                       SET i.status = 'paid'
+                       WHERE i.administration = %s
+                         AND i.status IN ('sent', 'overdue')
+                         AND i.invoice_type = 'invoice'
+                         AND c.client_id NOT IN ({placeholders_recon})""",
+                    (tenant, *balance_by_client.keys()),
+                    fetch=False,
+                    commit=True,
+                )
+            else:
+                db.execute_query(
+                    """UPDATE invoices i
+                       SET i.status = 'paid'
+                       WHERE i.administration = %s
+                         AND i.status IN ('sent', 'overdue')
+                         AND i.invoice_type = 'invoice'""",
+                    (tenant,),
+                    fetch=False,
+                    commit=True,
+                )
+        except Exception as recon_err:  # noqa: BLE001
+            logger.warning(
+                "Status reconciliation failed for %s: %s", tenant, recon_err
+            )
+
         if not balance_by_client:
             return jsonify(
                 {"success": True, "data": [], "total_outstanding": 0.0}
             )
-
-        # Fetch invoice details for clients with positive ledger balance
         # to provide display data (invoice numbers, dates, company names)
         placeholders = ", ".join(["%s"] * len(balance_by_client))
         invoice_rows = (
@@ -206,46 +240,6 @@ def get_receivables(
         total_outstanding = round(
             sum(entry["total"] for entry in grouped.values()), 2
         )
-
-        # ── Automatic Status Reconciliation (Req 2.4) ──────────────────
-        # Update invoices.status to 'paid' for clients that are NOT in the
-        # positive-balance list. If a client has no positive ledger balance
-        # on the debtor account, their invoices should be marked as paid.
-        # Only touches 'sent'/'overdue' invoices — never 'draft' or 'paid'.
-        # Wrapped in try/except: fire-and-forget, never blocks the response.
-        try:
-            if balance_by_client:
-                # Mark as paid: clients with open invoices but NOT in positive-balance set
-                placeholders_recon = ", ".join(["%s"] * len(balance_by_client))
-                db.execute_query(
-                    f"""UPDATE invoices i
-                       JOIN contacts c ON i.contact_id = c.id
-                       SET i.status = 'paid'
-                       WHERE i.administration = %s
-                         AND i.status IN ('sent', 'overdue')
-                         AND i.invoice_type = 'invoice'
-                         AND c.client_id NOT IN ({placeholders_recon})""",
-                    (tenant, *balance_by_client.keys()),
-                    fetch=False,
-                    commit=True,
-                )
-            else:
-                # No clients with positive balance — mark ALL open invoices as paid
-                db.execute_query(
-                    """UPDATE invoices i
-                       SET i.status = 'paid'
-                       WHERE i.administration = %s
-                         AND i.status IN ('sent', 'overdue')
-                         AND i.invoice_type = 'invoice'""",
-                    (tenant,),
-                    fetch=False,
-                    commit=True,
-                )
-        except Exception:  # noqa: BLE001
-            # Reconciliation is best-effort — don't block the response
-            logger.debug(
-                "Status reconciliation skipped or failed for %s", tenant
-            )
 
         return jsonify(
             {

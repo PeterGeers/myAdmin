@@ -125,9 +125,21 @@ def receivables_app(mock_db, tenant_factory=None):
     """
     Context manager that creates a Flask test client with all auth/db mocked.
 
-    Patches _resolve_debtor_account to avoid consuming execute_query side_effect slots.
+    Patches _resolve_debtor_account and wraps execute_query to handle
+    the reconciliation UPDATE call (fetch=False) transparently.
     """
     tenant_side_effect = tenant_factory or _passthrough_tenant
+
+    # Wrap side_effect to return None for UPDATE calls (fetch=False)
+    original_side_effect = mock_db.execute_query.side_effect
+    call_iter = iter(original_side_effect) if original_side_effect else iter([])
+
+    def _side_effect_wrapper(*args, **kwargs):
+        if kwargs.get('fetch') is False:
+            return None
+        return next(call_iter)
+
+    mock_db.execute_query.side_effect = _side_effect_wrapper
 
     with patch('auth.cognito_utils.cognito_required', side_effect=_passthrough_cognito), \
          patch('auth.tenant_context.tenant_required', side_effect=tenant_side_effect), \
