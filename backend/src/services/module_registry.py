@@ -53,8 +53,8 @@ MODULE_REGISTRY: dict[str, dict] = {
             "zzp.default_payment_terms_days": {"type": "number", "default": 30},
             "zzp.default_currency": {"type": "string", "default": "EUR"},
             "zzp.invoice_number_padding": {"type": "number", "default": 4},
-            "zzp.debtor_account": {"type": "string", "default": "1300"},
-            "zzp.creditor_account": {"type": "string", "default": "1600"},
+            "zzp.debtor_account": {"type": "string", "default": "1600"},
+            "zzp.creditor_account": {"type": "string", "default": "1300"},
             "zzp.email_subject_template": {
                 "type": "string",
                 "default": "Factuur {invoice_number} - {company_name}",

@@ -32,6 +32,35 @@ def set_test_mode(flag: bool) -> None:
     _test_mode = flag
 
 
+# ── Helpers ──────────────────────────────────────────────────
+
+
+def _resolve_debtor_account(db, tenant: str) -> str:
+    """Resolve the tenant's debtor account code (default: 1600).
+
+    Looks up the ``zzp.debtor_account`` parameter for the tenant.
+    Falls back to ``'1600'`` (Debiteuren — Kortlopende Vorderingen).
+    """
+    try:
+        param_service = ParameterService(db)
+        return param_service.get_param("zzp", "debtor_account", tenant=tenant) or "1600"
+    except Exception:  # noqa: BLE001
+        return "1600"
+
+
+def _resolve_creditor_account(db, tenant: str) -> str:
+    """Resolve the tenant's creditor account code (default: 1300).
+
+    Looks up the ``zzp.creditor_account`` parameter for the tenant.
+    Falls back to ``'1300'`` (Crediteuren — Kortlopende Schulden).
+    """
+    try:
+        param_service = ParameterService(db)
+        return param_service.get_param("zzp", "creditor_account", tenant=tenant) or "1300"
+    except Exception:  # noqa: BLE001
+        return "1300"
+
+
 # ── Debtor/Creditor Endpoints (Req 12) ─────────────────────
 
 
@@ -42,49 +71,139 @@ def set_test_mode(flag: bool) -> None:
 def get_receivables(
     user_email, user_roles, tenant, user_tenants
 ) -> ResponseReturnValue:
-    """Accounts receivable: outgoing invoices with status sent/overdue, grouped by contact."""
+    """Accounts receivable: ledger-balance-driven, grouped by client.
+
+    Computes outstanding balances from the mutaties table using the debtor account
+    (typically 1300). Only clients with a positive ledger balance are returned.
+    The ledger is the single source of truth — invoices.status is not used to
+    determine what is shown as outstanding.
+    """
     try:
         db = DatabaseManager(test_mode=_test_mode)
-        rows = (
+
+        # Resolve tenant-configurable debtor account for ledger queries
+        debtor_account = _resolve_debtor_account(db, tenant)
+
+        # Compute per-client ledger balance on the debtor account.
+        # Positive balance = client still owes money.
+        ledger_rows = (
             db.execute_query(
-                """SELECT i.id, i.invoice_number, i.invoice_date, i.due_date,
-                      i.grand_total, i.currency, i.status,
-                      c.id as contact_id, c.client_id, c.company_name
-               FROM invoices i
-               JOIN contacts c ON i.contact_id = c.id
-               WHERE i.administration = %s
-                 AND i.status IN ('sent', 'overdue')
-                 AND i.invoice_type = 'invoice'
-               ORDER BY c.company_name, i.due_date""",
-                (tenant,),
+                """SELECT ReferenceNumber AS client_id,
+                       SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) -
+                       SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) AS ledger_balance
+                FROM mutaties
+                WHERE administration = %s
+                GROUP BY ReferenceNumber
+                HAVING SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) -
+                       SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) > 0""",
+                (debtor_account, debtor_account, tenant, debtor_account, debtor_account),
             )
             or []
         )
 
-        # Group by contact
+        # Build a map of client_id → ledger_balance for clients with positive balance
+        balance_by_client = {
+            row["client_id"]: float(row["ledger_balance"])
+            for row in ledger_rows
+            if row.get("client_id")
+        }
+
+        if not balance_by_client:
+            return jsonify(
+                {"success": True, "data": [], "total_outstanding": 0.0}
+            )
+
+        # Fetch invoice details for clients with positive ledger balance
+        # to provide display data (invoice numbers, dates, company names)
+        placeholders = ", ".join(["%s"] * len(balance_by_client))
+        invoice_rows = (
+            db.execute_query(
+                f"""SELECT i.id, i.invoice_number, i.invoice_date, i.due_date,
+                       i.grand_total, i.currency, i.status,
+                       c.id as contact_id, c.client_id, c.company_name
+                FROM invoices i
+                JOIN contacts c ON i.contact_id = c.id
+                WHERE i.administration = %s
+                  AND c.client_id IN ({placeholders})
+                  AND i.status IN ('sent', 'overdue')
+                  AND i.invoice_type = 'invoice'
+                ORDER BY c.company_name, i.due_date""",
+                (tenant, *balance_by_client.keys()),
+            )
+            or []
+        )
+
+        # Group by client, using ledger balance as the total (not grand_total sum)
         grouped = {}
-        total_outstanding = 0.0
-        for row in rows:
-            cid = row["contact_id"]
-            if cid not in grouped:
-                grouped[cid] = {
+        for row in invoice_rows:
+            client_id = row["client_id"]
+            if client_id not in grouped:
+                grouped[client_id] = {
                     "contact": {
-                        "id": cid,
-                        "client_id": row["client_id"],
+                        "id": row["contact_id"],
+                        "client_id": client_id,
                         "company_name": row["company_name"],
                     },
                     "invoices": [],
-                    "total": 0.0,
+                    "total": balance_by_client.get(client_id, 0.0),
                 }
-            grouped[cid]["invoices"].append(row)
-            grouped[cid]["total"] += float(row["grand_total"])
-            total_outstanding += float(row["grand_total"])
+            grouped[client_id]["invoices"].append(row)
+
+        # Include clients that have ledger balance but no matching invoices
+        # (edge case: transactions without invoice records)
+        for client_id, balance in balance_by_client.items():
+            if client_id not in grouped:
+                grouped[client_id] = {
+                    "contact": {
+                        "id": None,
+                        "client_id": client_id,
+                        "company_name": client_id,
+                    },
+                    "invoices": [],
+                    "total": balance,
+                }
+
+        total_outstanding = round(
+            sum(entry["total"] for entry in grouped.values()), 2
+        )
+
+        # ── Automatic Status Reconciliation (Req 2.4) ──────────────────
+        # Update invoices.status to 'paid' for clients whose ledger balance
+        # is zero or negative (fully settled). This keeps the status field
+        # consistent as a secondary cache. Only touches 'sent'/'overdue'
+        # invoices — never 'draft' or already 'paid'.
+        # Wrapped in try/except: fire-and-forget, never blocks the response.
+        try:
+            db.execute_query(
+                """UPDATE invoices i
+                   JOIN contacts c ON i.contact_id = c.id
+                   SET i.status = 'paid'
+                   WHERE i.administration = %s
+                     AND i.status IN ('sent', 'overdue')
+                     AND i.invoice_type = 'invoice'
+                     AND c.client_id IN (
+                         SELECT m.ReferenceNumber
+                         FROM mutaties m
+                         WHERE m.administration = %s
+                         GROUP BY m.ReferenceNumber
+                         HAVING SUM(CASE WHEN m.Debet = %s THEN m.TransactionAmount ELSE 0 END) -
+                                SUM(CASE WHEN m.Credit = %s THEN m.TransactionAmount ELSE 0 END) <= 0
+                     )""",
+                (tenant, tenant, debtor_account, debtor_account),
+                fetch=False,
+                commit=True,
+            )
+        except Exception:  # noqa: BLE001
+            # Reconciliation is best-effort — don't block the response
+            logger.debug(
+                "Status reconciliation skipped or failed for %s", tenant
+            )
 
         return jsonify(
             {
                 "success": True,
                 "data": list(grouped.values()),
-                "total_outstanding": round(total_outstanding, 2),
+                "total_outstanding": total_outstanding,
             }
         )
     except Exception as e:  # noqa: BLE001
@@ -97,49 +216,96 @@ def get_receivables(
 @tenant_required()
 @module_required("ZZP")
 def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
-    """Accounts payable: incoming invoices with unpaid status, grouped by contact."""
+    """Accounts payable: ledger-balance-driven, grouped by supplier.
+
+    Computes outstanding balances from the mutaties table using the creditor account
+    (typically 1300). Only suppliers with a positive ledger balance are returned.
+    The ledger is the single source of truth — incoming invoices are booked by the
+    FIN invoice processor and payments are recorded via banking.
+    """
     try:
         db = DatabaseManager(test_mode=_test_mode)
-        rows = (
+
+        # Resolve tenant-configurable creditor account for ledger queries
+        creditor_account = _resolve_creditor_account(db, tenant)
+
+        # Compute per-supplier ledger balance on the creditor account.
+        # Positive balance (credit > debit) = we still owe the supplier.
+        # Negative balance (debit > credit) = overpayment (paid more than booked).
+        # Creditor account: credits = invoices booked, debits = payments made.
+        ledger_rows = (
             db.execute_query(
-                """SELECT i.id, i.invoice_number, i.invoice_date, i.due_date,
-                      i.grand_total, i.currency, i.status,
-                      c.id as contact_id, c.client_id, c.company_name
-               FROM invoices i
-               JOIN contacts c ON i.contact_id = c.id
-               WHERE i.administration = %s
-                 AND i.status IN ('sent', 'overdue')
-                 AND i.invoice_type = 'credit_note'
-               ORDER BY c.company_name, i.due_date""",
-                (tenant,),
+                """SELECT ReferenceNumber AS client_id,
+                       SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) -
+                       SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) AS ledger_balance
+                FROM mutaties
+                WHERE administration = %s
+                GROUP BY ReferenceNumber
+                HAVING SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) -
+                       SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) != 0""",
+                (creditor_account, creditor_account, tenant, creditor_account, creditor_account),
             )
             or []
         )
 
+        # Build a map of client_id → ledger_balance for suppliers with positive balance
+        balance_by_client = {
+            row["client_id"]: float(row["ledger_balance"])
+            for row in ledger_rows
+            if row.get("client_id")
+        }
+
+        if not balance_by_client:
+            return jsonify(
+                {"success": True, "data": [], "total_outstanding": 0.0}
+            )
+
+        # Try to enrich with contact details from the contacts table
+        placeholders = ", ".join(["%s"] * len(balance_by_client))
+        contact_rows = (
+            db.execute_query(
+                f"""SELECT id, client_id, company_name
+                FROM contacts
+                WHERE administration = %s
+                  AND client_id IN ({placeholders})""",
+                (tenant, *balance_by_client.keys()),
+            )
+            or []
+        )
+
+        # Map client_id → contact info
+        contact_by_client = {
+            row["client_id"]: {
+                "id": row["id"],
+                "client_id": row["client_id"],
+                "company_name": row["company_name"],
+            }
+            for row in contact_rows
+        }
+
+        # Build grouped response
         grouped = {}
-        total_outstanding = 0.0
-        for row in rows:
-            cid = row["contact_id"]
-            if cid not in grouped:
-                grouped[cid] = {
-                    "contact": {
-                        "id": cid,
-                        "client_id": row["client_id"],
-                        "company_name": row["company_name"],
-                    },
-                    "invoices": [],
-                    "total": 0.0,
-                }
-            grouped[cid]["invoices"].append(row)
-            amt = abs(float(row["grand_total"]))
-            grouped[cid]["total"] += amt
-            total_outstanding += amt
+        for client_id, balance in balance_by_client.items():
+            contact = contact_by_client.get(client_id, {
+                "id": None,
+                "client_id": client_id,
+                "company_name": client_id,
+            })
+            grouped[client_id] = {
+                "contact": contact,
+                "invoices": [],
+                "total": balance,
+            }
+
+        total_outstanding = round(
+            sum(entry["total"] for entry in grouped.values()), 2
+        )
 
         return jsonify(
             {
                 "success": True,
                 "data": list(grouped.values()),
-                "total_outstanding": round(total_outstanding, 2),
+                "total_outstanding": total_outstanding,
             }
         )
     except Exception as e:  # noqa: BLE001

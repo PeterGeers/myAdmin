@@ -142,7 +142,7 @@ const ZZPDebtors: React.FC = () => {
     }
   };
 
-  const renderContactTable = (groups: DebtorGroup[], showReminder: boolean) => (
+  const renderContactTable = (groups: DebtorGroup[], showReminder: boolean, emptyMessage?: string) => (
     <Box overflowX="auto">
       <Table variant="simple" size="sm" bg="gray.800" color="white">
         <Thead>
@@ -248,7 +248,7 @@ const ZZPDebtors: React.FC = () => {
           {groups.length === 0 && (
             <Tr>
               <Td colSpan={5}>
-                <Text color="gray.500">{t('common.noData')}</Text>
+                <Text color="gray.500">{emptyMessage || t('common.noData')}</Text>
               </Td>
             </Tr>
           )}
@@ -358,10 +358,10 @@ const ZZPDebtors: React.FC = () => {
 
         <TabPanels>
           <TabPanel px={0}>
-            {renderContactTable(receivables, true)}
+            {renderContactTable(receivables, true, t('debtors.allInvoicesPaid', 'All invoices are paid'))}
           </TabPanel>
           <TabPanel px={0}>
-            {renderContactTable(payables, false)}
+            {renderContactTable(payables, false, t('debtors.noOutstandingBalances', 'No outstanding balances'))}
           </TabPanel>
         </TabPanels>
       </Tabs>
