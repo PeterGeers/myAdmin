@@ -36,29 +36,69 @@ def set_test_mode(flag: bool) -> None:
 
 
 def _resolve_debtor_account(db, tenant: str) -> str:
-    """Resolve the tenant's debtor account code (default: 1600).
+    """Resolve the tenant's debtor account code.
 
-    Looks up the ``zzp.debtor_account`` parameter for the tenant.
-    Falls back to ``'1600'`` (Debiteuren — Kortlopende Vorderingen).
+    Resolution order:
+    1. ParameterService: ``zzp.debtor_account`` for the tenant
+    2. Chart of accounts: account flagged with ``zzp_debtor_account = true``
     """
     try:
         param_service = ParameterService(db)
-        return param_service.get_param("zzp", "debtor_account", tenant=tenant) or "1600"
+        value = param_service.get_param("zzp", "debtor_account", tenant=tenant)
+        if value:
+            return value
     except Exception:  # noqa: BLE001
-        return "1600"
+        pass
+
+    # Fallback: look up from chart of accounts (rekeningschema)
+    try:
+        rows = db.execute_query(
+            """SELECT Account FROM rekeningschema
+               WHERE administration = %s
+                 AND JSON_EXTRACT(parameters, '$.zzp_debtor_account') = true
+               LIMIT 1""",
+            (tenant,),
+        )
+        if rows:
+            return str(rows[0]["Account"])
+    except Exception:  # noqa: BLE001
+        pass
+
+    logger.warning("No debtor account configured for tenant %s", tenant)
+    return "1600"
 
 
 def _resolve_creditor_account(db, tenant: str) -> str:
-    """Resolve the tenant's creditor account code (default: 1300).
+    """Resolve the tenant's creditor account code.
 
-    Looks up the ``zzp.creditor_account`` parameter for the tenant.
-    Falls back to ``'1300'`` (Crediteuren — Kortlopende Schulden).
+    Resolution order:
+    1. ParameterService: ``zzp.creditor_account`` for the tenant
+    2. Chart of accounts: account flagged with ``zzp_creditor_account = true``
     """
     try:
         param_service = ParameterService(db)
-        return param_service.get_param("zzp", "creditor_account", tenant=tenant) or "1300"
+        value = param_service.get_param("zzp", "creditor_account", tenant=tenant)
+        if value:
+            return value
     except Exception:  # noqa: BLE001
-        return "1300"
+        pass
+
+    # Fallback: look up from chart of accounts (rekeningschema)
+    try:
+        rows = db.execute_query(
+            """SELECT Account FROM rekeningschema
+               WHERE administration = %s
+                 AND JSON_EXTRACT(parameters, '$.zzp_creditor_account') = true
+               LIMIT 1""",
+            (tenant,),
+        )
+        if rows:
+            return str(rows[0]["Account"])
+    except Exception:  # noqa: BLE001
+        pass
+
+    logger.warning("No creditor account configured for tenant %s", tenant)
+    return "1300"
 
 
 # ── Debtor/Creditor Endpoints (Req 12) ─────────────────────
@@ -168,31 +208,39 @@ def get_receivables(
         )
 
         # ── Automatic Status Reconciliation (Req 2.4) ──────────────────
-        # Update invoices.status to 'paid' for clients whose ledger balance
-        # is zero or negative (fully settled). This keeps the status field
-        # consistent as a secondary cache. Only touches 'sent'/'overdue'
-        # invoices — never 'draft' or already 'paid'.
+        # Update invoices.status to 'paid' for clients that are NOT in the
+        # positive-balance list. If a client has no positive ledger balance
+        # on the debtor account, their invoices should be marked as paid.
+        # Only touches 'sent'/'overdue' invoices — never 'draft' or 'paid'.
         # Wrapped in try/except: fire-and-forget, never blocks the response.
         try:
-            db.execute_query(
-                """UPDATE invoices i
-                   JOIN contacts c ON i.contact_id = c.id
-                   SET i.status = 'paid'
-                   WHERE i.administration = %s
-                     AND i.status IN ('sent', 'overdue')
-                     AND i.invoice_type = 'invoice'
-                     AND c.client_id IN (
-                         SELECT m.ReferenceNumber
-                         FROM mutaties m
-                         WHERE m.administration = %s
-                         GROUP BY m.ReferenceNumber
-                         HAVING SUM(CASE WHEN m.Debet = %s THEN m.TransactionAmount ELSE 0 END) -
-                                SUM(CASE WHEN m.Credit = %s THEN m.TransactionAmount ELSE 0 END) <= 0
-                     )""",
-                (tenant, tenant, debtor_account, debtor_account),
-                fetch=False,
-                commit=True,
-            )
+            if balance_by_client:
+                # Mark as paid: clients with open invoices but NOT in positive-balance set
+                placeholders_recon = ", ".join(["%s"] * len(balance_by_client))
+                db.execute_query(
+                    f"""UPDATE invoices i
+                       JOIN contacts c ON i.contact_id = c.id
+                       SET i.status = 'paid'
+                       WHERE i.administration = %s
+                         AND i.status IN ('sent', 'overdue')
+                         AND i.invoice_type = 'invoice'
+                         AND c.client_id NOT IN ({placeholders_recon})""",
+                    (tenant, *balance_by_client.keys()),
+                    fetch=False,
+                    commit=True,
+                )
+            else:
+                # No clients with positive balance — mark ALL open invoices as paid
+                db.execute_query(
+                    """UPDATE invoices i
+                       SET i.status = 'paid'
+                       WHERE i.administration = %s
+                         AND i.status IN ('sent', 'overdue')
+                         AND i.invoice_type = 'invoice'""",
+                    (tenant,),
+                    fetch=False,
+                    commit=True,
+                )
         except Exception:  # noqa: BLE001
             # Reconciliation is best-effort — don't block the response
             logger.debug(
