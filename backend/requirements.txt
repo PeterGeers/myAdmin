@@ -32,3 +32,4 @@ python-ulid==3.2.1
 
 babel>=2.14.0
 weasyprint>=60.0
+stripe>=7.0.0,<16.0.0

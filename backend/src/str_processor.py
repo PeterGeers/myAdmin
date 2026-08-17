@@ -2,8 +2,9 @@
 STR (Short-Term Rental) Processor - Dispatcher Module
 
 Orchestrates STR file processing across platforms by delegating to:
-- str_airbnb_parser (Airbnb), str_booking_parser (Booking.com), str_utils (shared)
-- Direct/VRBO: handled inline (smaller codepaths)
+- str_airbnb_parser (Airbnb), str_booking_parser (Booking.com), str_direct_parser (Direct)
+- str_utils (shared utilities)
+- VRBO: handled inline (smaller codepath)
 """
 
 import os
@@ -179,156 +180,17 @@ class STRProcessor:
         """Process Booking.com Payout CSV (delegated)."""
         return process_booking_payout(file_path, self.tax_rate_service, self.tenant)
 
-    # Direct bookings (inline — small codepath)
+    # Direct bookings (delegated to str_direct_parser)
 
     def _process_direct(self, file_path: str) -> list[dict]:
-        """Process direct bookings Excel/CSV."""
-        try:
-            df = (
-                pd.read_excel(file_path)
-                if file_path.endswith((".xls", ".xlsx"))
-                else pd.read_csv(file_path)
-            )
-            transactions = []
-            source_file = (
-                f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"  # noqa: DTZ005
-            )
+        """Process direct bookings from Guesty CSV."""
+        from str_direct_parser import process_direct_csv
 
-            for _, row in df.iterrows():
-                if str(row.get("type", "")).strip().lower() != "reservation":
-                    continue
-                booking = self._calculate_direct_row(row, file_path, source_file)
-                if booking:
-                    transactions.append(booking)
-
-            return transactions
-        except Exception as e:  # noqa: BLE001
-            print(f"ERROR in _process_direct: {e}", flush=True)
-            return []
-
-    def _calculate_direct_row(
-        self, row, file_path: str, source_file: str
-    ) -> dict | None:
-        """Process a single direct booking row."""
-        checkin_date = row.get("startDate", "")
-        guest_name = row.get("guestName", "")
-        listing = row.get("listing", "")
-        nights = row.get("nights", 0)
-        guests = row.get("guests", 0)
-        gross_amount = row.get("amountGross", 0)
-        paid_out = row.get("paidOut", 0)
-        channel_fee = float(gross_amount) - float(paid_out)
-        booking_id = row.get("reservationCode", "")
-        trade_type = row.get("typeTrade", "")
-        details = row.get("details", "")
-        currency = row.get("currency", "")
-        cleaning_fee = row.get("cleaningFee", 0)
-
-        # Determine channel
-        trade_lower = str(trade_type).lower()
-        channel = (
-            "dfDirect"
-            if "goodwin" in trade_lower
-            else ("VRBO" if "vrbo" in trade_lower else "dfZwart")
-        )
-
-        # Booking status
-        today = date.today()  # noqa: DTZ011
-        try:
-            checkin_str = str(checkin_date).strip()
-            checkin_dt = None
-            for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%Y-%m-%d %H:%M:%S"]:
-                try:
-                    checkin_dt = datetime.strptime(checkin_str.split()[0], fmt).date()  # noqa: DTZ007
-                    break
-                except ValueError:
-                    continue
-            if checkin_dt is None:
-                checkin_dt = pd.to_datetime(checkin_str).date()
-            booking_status = "planned" if checkin_dt > today else "realised"
-        except Exception:  # noqa: BLE001
-            booking_status = "realised"
-
-        # Checkout date
-        try:
-            checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")  # noqa: DTZ007
-            checkout_date = (checkin_dt + pd.Timedelta(days=int(nights))).strftime(
-                "%Y-%m-%d"
-            )
-        except Exception:  # noqa: BLE001
-            try:
-                from datetime import timedelta
-
-                checkout_date = (
-                    pd.to_datetime(checkin_date) + timedelta(days=int(nights))
-                ).strftime("%Y-%m-%d")
-            except Exception:  # noqa: BLE001
-                checkout_date = str(checkin_date)
-
-        tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, channel_fee)
-
-        # Dates and periods
-        try:
-            checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")  # noqa: DTZ007
-            reservation_dt = checkin_dt
-            year, quarter, month = (
-                checkin_dt.year,
-                (checkin_dt.month - 1) // 3 + 1,
-                checkin_dt.month,
-            )
-        except Exception:  # noqa: BLE001
-            reservation_dt = datetime.now()  # noqa: DTZ005
-            year, quarter, month = (
-                reservation_dt.year,
-                (reservation_dt.month - 1) // 3 + 1,
-                reservation_dt.month,
-            )
-
-        price_per_night = (
-            tax_calc["amount_nett"] / int(nights) if int(nights) > 0 else 0
-        )
-        add_info = (
-            f"{os.path.basename(file_path)} | {guest_name} | reservation | {trade_type} "
-            f"| {details} | {booking_id} | {currency} | {gross_amount} "
-            f"| {channel_fee} | {cleaning_fee}"
-        )
-        country = detect_country(channel, phone="", addinfo=add_info)
-
-        try:
-            checkin_date_clean = pd.to_datetime(checkin_date).strftime("%Y-%m-%d")
-        except Exception:  # noqa: BLE001
-            checkin_date_clean = (
-                str(checkin_date).split()[0]
-                if " " in str(checkin_date)
-                else str(checkin_date)
-            )
-
-        return {
-            "sourceFile": source_file,
-            "channel": channel,
-            "listing": normalize_listing_name(str(listing)),
-            "checkinDate": checkin_date_clean,
-            "checkoutDate": checkout_date,
-            "nights": int(nights) if nights else 0,
-            "guests": int(guests) if guests else 0,
-            "amountGross": round(float(gross_amount), 2),
-            "amountChannelFee": round(float(channel_fee), 2),
-            "guestName": str(guest_name).replace("'", " "),
-            "phone": "",
-            "reservationCode": str(booking_id),
-            "reservationDate": reservation_dt.strftime("%Y-%m-%d"),
-            "status": str(booking_status),
-            "addInfo": add_info,
-            "amountVat": tax_calc["amount_vat"],
-            "amountTouristTax": tax_calc["amount_tourist_tax"],
-            "amountNett": tax_calc["amount_nett"],
-            "pricePerNight": round(float(price_per_night), 2),
-            "year": year,
-            "q": quarter,
-            "m": month,
-            "daysBeforeReservation": 0,
-            "country": country,
-        }
+        result = process_direct_csv(file_path, self.tax_rate_service, self.tenant)
+        # Store processing summary for route-level access
+        self._direct_processing_summary = result.get("summary", {})
+        self._direct_status_updates = result.get("status_updates", [])
+        return result.get("bookings", [])
 
     # VRBO Processing
 
@@ -560,7 +422,7 @@ class STRProcessor:
             str_db = STRDatabase(test_mode=self.test_mode)
             channels = {b.get("channel", "") for b in bookings}
             existing_codes_by_channel = {
-                ch: str_db.get_existing_reservation_codes_for_channel(ch)
+                ch: str_db.get_existing_reservation_codes_for_channel(ch, self.tenant)
                 for ch in channels
                 if ch
             }

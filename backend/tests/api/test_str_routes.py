@@ -780,3 +780,343 @@ class TestSTRCalculateTaxes:
             json={'amountGross': 100.0}
         )
         assert response.status_code == 500
+
+
+# ============================================================================
+# STR Direct Upload — File Extension Validation & Processor Delegation Tests
+# ============================================================================
+
+
+@pytest.mark.api
+class TestSTRDirectUploadValidation:
+    """Tests for direct platform file extension validation and processor delegation.
+
+    Requirements: 7.1–7.4, 9.1–9.4
+    Reference: .kiro/specs/import-df-direct/tasks.md (task 2.4)
+    """
+
+    # --- File Extension Validation (Req 7.2, 7.3, 7.4) ---
+
+    @patch('os.remove')
+    @patch('routes.str_routes.STRProcessor')
+    def test_direct_csv_accepted(self, mock_processor_cls, mock_remove, client, str_auth, tmp_path):
+        """Platform 'direct' with .csv file proceeds without 400 error."""
+        import routes.str_routes as str_routes_mod
+        orig = str_routes_mod.UPLOAD_FOLDER
+        str_routes_mod.UPLOAD_FOLDER = str(tmp_path)
+        try:
+            mock_processor = MagicMock()
+            mock_processor_cls.return_value = mock_processor
+            mock_processor.process_str_files.return_value = []
+            # Set _direct_processing_summary so hasattr check works correctly
+            mock_processor._direct_processing_summary = {
+                'total_rows': 0, 'skipped_count': 0, 'skipped_reasons': {}
+            }
+
+            data = {
+                'file': (io.BytesIO(b'CHECK-IN,CHECK-OUT\n'), 'test.csv'),
+                'platform': 'direct'
+            }
+            response = client.post(
+                '/api/str/upload',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+            assert response.status_code == 200
+            result = json.loads(response.data)
+            assert result['success'] is True
+        finally:
+            str_routes_mod.UPLOAD_FOLDER = orig
+
+    def test_direct_xls_rejected(self, client, str_auth):
+        """Platform 'direct' with .xls file returns 400 with Excel rejection message."""
+        data = {
+            'file': (io.BytesIO(b'binary data'), 'test.xls'),
+            'platform': 'direct'
+        }
+        response = client.post(
+            '/api/str/upload',
+            headers=str_auth,
+            data=data,
+            content_type='multipart/form-data'
+        )
+        assert response.status_code == 400
+        result = json.loads(response.data)
+        assert result['success'] is False
+        assert 'Only CSV files are supported for the direct platform' in result['error']
+        assert '.xls/.xlsx' in result['error']
+
+    def test_direct_xlsx_rejected(self, client, str_auth):
+        """Platform 'direct' with .xlsx file returns 400 with Excel rejection message."""
+        data = {
+            'file': (io.BytesIO(b'binary data'), 'test.xlsx'),
+            'platform': 'direct'
+        }
+        response = client.post(
+            '/api/str/upload',
+            headers=str_auth,
+            data=data,
+            content_type='multipart/form-data'
+        )
+        assert response.status_code == 400
+        result = json.loads(response.data)
+        assert result['success'] is False
+        assert 'Only CSV files are supported for the direct platform' in result['error']
+        assert 'Excel files' in result['error']
+
+    def test_direct_tsv_rejected(self, client, str_auth):
+        """Platform 'direct' with .tsv file returns 400 with unsupported file type message."""
+        data = {
+            'file': (io.BytesIO(b'tab\tdata\n'), 'test.tsv'),
+            'platform': 'direct'
+        }
+        response = client.post(
+            '/api/str/upload',
+            headers=str_auth,
+            data=data,
+            content_type='multipart/form-data'
+        )
+        assert response.status_code == 400
+        result = json.loads(response.data)
+        assert result['success'] is False
+        assert 'Unsupported file type for direct platform' in result['error']
+        assert '.csv' in result['error']
+
+    @patch('routes.str_routes.UPLOAD_FOLDER', '/tmp')
+    @patch('os.remove')
+    @patch('routes.str_routes.STRProcessor')
+    def test_booking_xlsx_accepted(self, mock_processor_cls, mock_remove, client, str_auth, tmp_path):
+        """Platform 'booking' with .xlsx file proceeds (validation only for direct)."""
+        import routes.str_routes as str_routes_mod
+        orig = str_routes_mod.UPLOAD_FOLDER
+        str_routes_mod.UPLOAD_FOLDER = str(tmp_path)
+        try:
+            mock_processor = MagicMock()
+            mock_processor_cls.return_value = mock_processor
+            mock_processor.process_str_files.return_value = []
+            mock_processor.separate_by_status.return_value = {
+                'realised': [], 'planned': [], 'already_loaded': []
+            }
+            mock_processor.generate_summary.return_value = {}
+            # Ensure hasattr check for _direct_processing_summary returns False
+            del mock_processor._direct_processing_summary
+
+            data = {
+                'file': (io.BytesIO(b'booking data'), 'test.xlsx'),
+                'platform': 'booking'
+            }
+            response = client.post(
+                '/api/str/upload',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+            # Should not be rejected with 400 for file type — validation only applies to direct
+            assert response.status_code != 400 or 'Only CSV files' not in json.loads(response.data).get('error', '')
+        finally:
+            str_routes_mod.UPLOAD_FOLDER = orig
+
+    # --- Processor Delegation (Req 7.1) ---
+
+    @patch('os.remove')
+    @patch('routes.str_routes.STRProcessor')
+    def test_direct_delegates_to_processor(self, mock_processor_cls, mock_remove, client, str_auth, tmp_path):
+        """Platform 'direct' with valid CSV delegates to STRProcessor for processing."""
+        import routes.str_routes as str_routes_mod
+        orig = str_routes_mod.UPLOAD_FOLDER
+        str_routes_mod.UPLOAD_FOLDER = str(tmp_path)
+        try:
+            mock_processor = MagicMock()
+            mock_processor_cls.return_value = mock_processor
+            mock_processor.process_str_files.return_value = [
+                {'guest': 'Alice', 'amount': 500.0, 'status': 'realised'}
+            ]
+            mock_processor.separate_by_status.return_value = {
+                'realised': [{'guest': 'Alice', 'amount': 500.0}],
+                'planned': [],
+                'already_loaded': []
+            }
+            mock_processor.generate_summary.return_value = {'total': 500.0}
+            mock_processor._direct_processing_summary = {
+                'total_rows': 1, 'skipped_count': 0, 'skipped_reasons': {}
+            }
+
+            data = {
+                'file': (io.BytesIO(b'csv,content\n'), 'guesty_export.csv'),
+                'platform': 'direct'
+            }
+            response = client.post(
+                '/api/str/upload',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+            assert response.status_code == 200
+            # Verify processor was instantiated and process_str_files was called
+            mock_processor_cls.assert_called_once()
+            mock_processor.process_str_files.assert_called_once()
+            # Verify the platform argument passed is 'direct'
+            call_args = mock_processor.process_str_files.call_args
+            assert call_args[0][1] == 'direct'
+        finally:
+            str_routes_mod.UPLOAD_FOLDER = orig
+
+    # --- Summary Response Structure (Req 9.1, 9.2, 9.3, 9.4) ---
+
+    @patch('os.remove')
+    @patch('routes.str_routes.STRProcessor')
+    def test_direct_response_structure(self, mock_processor_cls, mock_remove, client, str_auth, tmp_path):
+        """dfDirect response includes success, realised, planned, already_loaded, summary, platform, administration."""
+        import routes.str_routes as str_routes_mod
+        orig = str_routes_mod.UPLOAD_FOLDER
+        str_routes_mod.UPLOAD_FOLDER = str(tmp_path)
+        try:
+            mock_processor = MagicMock()
+            mock_processor_cls.return_value = mock_processor
+            mock_processor.process_str_files.return_value = [
+                {'guest': 'Bob', 'status': 'realised', 'amount': 300.0},
+                {'guest': 'Carol', 'status': 'planned', 'amount': 400.0},
+            ]
+            mock_processor.separate_by_status.return_value = {
+                'realised': [{'guest': 'Bob', 'amount': 300.0}],
+                'planned': [{'guest': 'Carol', 'amount': 400.0}],
+                'already_loaded': []
+            }
+            mock_processor.generate_summary.return_value = {
+                'total_bookings': 2,
+                'realised_count': 1,
+                'planned_count': 1,
+                'skipped_count': 0,
+                'updated_count': 0,
+                'skipped_reasons': {}
+            }
+            mock_processor._direct_processing_summary = {
+                'total_rows': 2, 'skipped_count': 0, 'skipped_reasons': {}
+            }
+
+            data = {
+                'file': (io.BytesIO(b'csv,data\n'), 'reservations.csv'),
+                'platform': 'direct'
+            }
+            response = client.post(
+                '/api/str/upload',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+            assert response.status_code == 200
+            result = json.loads(response.data)
+
+            # Top-level structure keys
+            assert result['success'] is True
+            assert 'realised' in result
+            assert 'planned' in result
+            assert 'already_loaded' in result
+            assert 'summary' in result
+            assert 'platform' in result
+            assert 'administration' in result
+
+            # Verify array types
+            assert isinstance(result['realised'], list)
+            assert isinstance(result['planned'], list)
+            assert isinstance(result['already_loaded'], list)
+
+            # Platform should reflect what was sent
+            assert result['platform'] == 'direct'
+        finally:
+            str_routes_mod.UPLOAD_FOLDER = orig
+
+    @patch('os.remove')
+    @patch('routes.str_routes.STRProcessor')
+    def test_direct_response_summary_fields(self, mock_processor_cls, mock_remove, client, str_auth, tmp_path):
+        """Summary object contains expected counting fields for dfDirect."""
+        import routes.str_routes as str_routes_mod
+        orig = str_routes_mod.UPLOAD_FOLDER
+        str_routes_mod.UPLOAD_FOLDER = str(tmp_path)
+        try:
+            mock_processor = MagicMock()
+            mock_processor_cls.return_value = mock_processor
+            mock_processor.process_str_files.return_value = [
+                {'guest': 'Dave', 'status': 'realised', 'amount': 250.0}
+            ]
+            mock_processor.separate_by_status.return_value = {
+                'realised': [{'guest': 'Dave', 'amount': 250.0}],
+                'planned': [],
+                'already_loaded': []
+            }
+            mock_processor.generate_summary.return_value = {
+                'total_bookings': 1,
+                'realised_count': 1,
+                'planned_count': 0,
+                'skipped_count': 2,
+                'updated_count': 0,
+                'skipped_reasons': {'non_confirmed_status': 2}
+            }
+            mock_processor._direct_processing_summary = {
+                'total_rows': 3, 'skipped_count': 2,
+                'skipped_reasons': {'non_confirmed_status': 2}
+            }
+
+            data = {
+                'file': (io.BytesIO(b'csv,data\n'), 'export.csv'),
+                'platform': 'direct'
+            }
+            response = client.post(
+                '/api/str/upload',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+            assert response.status_code == 200
+            result = json.loads(response.data)
+
+            summary = result['summary']
+            assert 'total_bookings' in summary
+            assert 'realised_count' in summary
+            assert 'planned_count' in summary
+            assert 'skipped_count' in summary
+            assert 'updated_count' in summary
+            assert 'skipped_reasons' in summary
+
+            # Verify counts are correct
+            assert summary['total_bookings'] == 1
+            assert summary['realised_count'] == 1
+            assert summary['planned_count'] == 0
+            assert summary['skipped_count'] == 2
+            assert summary['skipped_reasons']['non_confirmed_status'] == 2
+        finally:
+            str_routes_mod.UPLOAD_FOLDER = orig
+
+    @patch('os.remove')
+    @patch('routes.str_routes.STRProcessor')
+    def test_direct_response_already_loaded_array(self, mock_processor_cls, mock_remove, client, str_auth, tmp_path):
+        """Response includes already_loaded array (empty when no duplicates)."""
+        import routes.str_routes as str_routes_mod
+        orig = str_routes_mod.UPLOAD_FOLDER
+        str_routes_mod.UPLOAD_FOLDER = str(tmp_path)
+        try:
+            mock_processor = MagicMock()
+            mock_processor_cls.return_value = mock_processor
+            mock_processor.process_str_files.return_value = []
+            mock_processor._direct_processing_summary = {
+                'total_rows': 0, 'skipped_count': 0, 'skipped_reasons': {}
+            }
+
+            data = {
+                'file': (io.BytesIO(b'csv,data\n'), 'test.csv'),
+                'platform': 'direct'
+            }
+            response = client.post(
+                '/api/str/upload',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data'
+            )
+            assert response.status_code == 200
+            result = json.loads(response.data)
+            assert 'already_loaded' in result
+            assert isinstance(result['already_loaded'], list)
+            assert len(result['already_loaded']) == 0
+        finally:
+            str_routes_mod.UPLOAD_FOLDER = orig

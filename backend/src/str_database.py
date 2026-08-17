@@ -20,7 +20,8 @@ class STRDatabase(DatabaseManager):
         for booking in bookings:
             channel = booking.get("channel", "")
             code = booking.get("reservationCode", "")
-            existing_codes = self.get_existing_reservation_codes_for_channel(channel)
+            admin = booking.get("administration", "")
+            existing_codes = self.get_existing_reservation_codes_for_channel(channel, admin if admin else None)
             if code not in existing_codes:
                 new_bookings.append(booking)
 
@@ -32,8 +33,8 @@ class STRDatabase(DatabaseManager):
         (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
          amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
          guestName, phone, reservationCode, reservationDate, status, pricePerNight,
-         daysBeforeReservation, addInfo, year, q, m, country)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         daysBeforeReservation, addInfo, year, q, m, country, administration)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         try:
@@ -68,7 +69,8 @@ class STRDatabase(DatabaseManager):
                     booking.get("year", 0),
                     booking.get("q", 0),
                     booking.get("m", 0),
-                    booking.get("country", None),  # NEW: Country field
+                    booking.get("country", None),
+                    booking.get("administration", ""),
                 )
 
                 cursor.execute(insert_query, values)
@@ -82,7 +84,7 @@ class STRDatabase(DatabaseManager):
             return 0
 
     def insert_planned_bookings(self, bookings: list[dict]) -> int:
-        """Insert planned bookings into bnbplanned table (delete by channel/listing first)"""
+        """Insert planned bookings into bnbplanned table (delete by channel/listing/admin first)"""
         try:
             cursor = self.connection.cursor()
 
@@ -90,17 +92,17 @@ class STRDatabase(DatabaseManager):
                 cursor.close()
                 return 0
 
-            # Get unique channel/listing combinations from new bookings
-            channel_listings = {
-                (booking.get("channel", ""), booking.get("listing", ""))
+            # Get unique channel/listing/administration combinations from new bookings
+            channel_listing_admins = {
+                (booking.get("channel", ""), booking.get("listing", ""), booking.get("administration", ""))
                 for booking in bookings
             }
 
-            # Delete existing records for these channel/listing combinations
-            for channel, listing in channel_listings:
+            # Delete existing records for these channel/listing/administration combinations
+            for channel, listing, admin in channel_listing_admins:
                 cursor.execute(
-                    "DELETE FROM bnbplanned WHERE channel = %s AND listing = %s",
-                    (channel, listing),
+                    "DELETE FROM bnbplanned WHERE channel = %s AND listing = %s AND administration = %s",
+                    (channel, listing, admin),
                 )
 
             insert_query = """
@@ -108,8 +110,8 @@ class STRDatabase(DatabaseManager):
             (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
              amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
              guestName, phone, reservationCode, reservationDate, status, pricePerNight,
-             daysBeforeReservation, addInfo, year, q, m, country)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             daysBeforeReservation, addInfo, year, q, m, country, administration)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
 
             inserted = 0
@@ -138,7 +140,8 @@ class STRDatabase(DatabaseManager):
                     booking.get("year", 0),
                     booking.get("q", 0),
                     booking.get("m", 0),
-                    booking.get("country", None),  # NEW: Country field
+                    booking.get("country", None),
+                    booking.get("administration", ""),
                 )
 
                 cursor.execute(insert_query, values)
@@ -184,14 +187,20 @@ class STRDatabase(DatabaseManager):
         except DatabaseError:
             return 0
 
-    def get_existing_reservation_codes_for_channel(self, channel: str) -> set:
+    def get_existing_reservation_codes_for_channel(self, channel: str, tenant: str | None = None) -> set:
         """Get existing reservation codes for a specific channel from bnb table"""
         try:
             cursor = self.connection.cursor()
-            cursor.execute(
-                "SELECT DISTINCT reservationCode FROM bnb WHERE channel = %s AND reservationCode IS NOT NULL",
-                (channel,),
-            )
+            if tenant:
+                cursor.execute(
+                    "SELECT DISTINCT reservationCode FROM bnb WHERE channel = %s AND administration = %s AND reservationCode IS NOT NULL",
+                    (channel, tenant),
+                )
+            else:
+                cursor.execute(
+                    "SELECT DISTINCT reservationCode FROM bnb WHERE channel = %s AND reservationCode IS NOT NULL",
+                    (channel,),
+                )
             codes = {str(row[0]) for row in cursor.fetchall()}
             cursor.close()
             return codes
@@ -357,6 +366,249 @@ class STRDatabase(DatabaseManager):
 
         except DatabaseError:
             return {}
+
+    def upsert_direct_bookings(self, bookings: list[dict], status_updates: list[dict] | None = None, tenant: str | None = None) -> dict:
+        """
+        Insert or update dfDirect bookings using reservationCode as composite key.
+
+        Args:
+            bookings: List of booking dicts from the parser (confirmed rows)
+            status_updates: Optional list of dicts with reservationCode + status
+                            for non-confirmed re-imported rows
+            tenant: Optional tenant/administration identifier for tenant isolation
+
+        Returns:
+            dict with 'inserted': int, 'updated': int
+            On error: dict with 'inserted': 0, 'updated': 0, 'error': str
+        """
+        if not bookings and not status_updates:
+            return {"inserted": 0, "updated": 0}
+
+        try:
+            with self.transaction() as (cursor, conn):
+                # Step 1: Query existing reservation codes for channel "dfDirect"
+                if tenant:
+                    cursor.execute(
+                        "SELECT DISTINCT reservationCode FROM bnb WHERE channel = 'dfDirect' AND administration = %s AND reservationCode IS NOT NULL",
+                        (tenant,),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT DISTINCT reservationCode FROM bnb WHERE channel = 'dfDirect' AND reservationCode IS NOT NULL"
+                    )
+
+                existing_codes = {row["reservationCode"] for row in cursor.fetchall()}
+
+                # Step 2: Separate bookings into new and existing
+                new_bookings = []
+                existing_bookings = []
+                for booking in bookings:
+                    code = booking.get("reservationCode", "")
+                    if code in existing_codes:
+                        existing_bookings.append(booking)
+                    else:
+                        new_bookings.append(booking)
+
+                # Step 3: INSERT new bookings
+                insert_query = """
+                INSERT INTO bnb 
+                (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
+                 amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
+                 guestName, phone, reservationCode, reservationDate, status, pricePerNight,
+                 daysBeforeReservation, addInfo, year, q, m, country, administration)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+
+                for booking in new_bookings:
+                    values = (
+                        booking.get("sourceFile", ""),
+                        booking.get("channel", ""),
+                        booking.get("listing", ""),
+                        booking.get("checkinDate", ""),
+                        booking.get("checkoutDate", ""),
+                        booking.get("nights", 0),
+                        booking.get("guests", 0),
+                        booking.get("amountGross", 0),
+                        booking.get("amountNett", 0),
+                        booking.get("amountChannelFee", 0),
+                        booking.get("amountTouristTax", 0),
+                        booking.get("amountVat", 0),
+                        booking.get("guestName", ""),
+                        booking.get("phone", ""),
+                        booking.get("reservationCode", ""),
+                        booking.get("reservationDate", ""),
+                        booking.get("status", ""),
+                        booking.get("pricePerNight", 0),
+                        booking.get("daysBeforeReservation", 0),
+                        booking.get("addInfo", ""),
+                        booking.get("year", 0),
+                        booking.get("q", 0),
+                        booking.get("m", 0),
+                        booking.get("country", None),
+                        booking.get("administration", tenant),
+                    )
+                    cursor.execute(insert_query, values)
+
+                # Step 4: UPDATE existing bookings
+                if tenant:
+                    update_query = """
+                    UPDATE bnb SET
+                        checkinDate = %s, checkoutDate = %s, listing = %s, guestName = %s,
+                        nights = %s, guests = %s, amountGross = %s, amountNett = %s,
+                        amountChannelFee = %s, amountVat = %s, amountTouristTax = %s,
+                        status = %s, pricePerNight = %s, sourceFile = %s
+                    WHERE reservationCode = %s AND channel = 'dfDirect' AND administration = %s
+                    """
+                else:
+                    update_query = """
+                    UPDATE bnb SET
+                        checkinDate = %s, checkoutDate = %s, listing = %s, guestName = %s,
+                        nights = %s, guests = %s, amountGross = %s, amountNett = %s,
+                        amountChannelFee = %s, amountVat = %s, amountTouristTax = %s,
+                        status = %s, pricePerNight = %s, sourceFile = %s
+                    WHERE reservationCode = %s AND channel = 'dfDirect'
+                    """
+
+                for booking in existing_bookings:
+                    values = (
+                        booking.get("checkinDate", ""),
+                        booking.get("checkoutDate", ""),
+                        booking.get("listing", ""),
+                        booking.get("guestName", ""),
+                        booking.get("nights", 0),
+                        booking.get("guests", 0),
+                        booking.get("amountGross", 0),
+                        booking.get("amountNett", 0),
+                        booking.get("amountChannelFee", 0),
+                        booking.get("amountVat", 0),
+                        booking.get("amountTouristTax", 0),
+                        booking.get("status", ""),
+                        booking.get("pricePerNight", 0),
+                        booking.get("sourceFile", ""),
+                        booking.get("reservationCode", ""),
+                    )
+                    if tenant:
+                        values = values + (tenant,)
+                    cursor.execute(update_query, values)
+
+                # Step 5: Apply status_updates for non-confirmed re-imported rows
+                if status_updates:
+                    if tenant:
+                        status_update_query = """
+                        UPDATE bnb SET status = %s
+                        WHERE reservationCode = %s AND channel = 'dfDirect' AND administration = %s
+                        """
+                    else:
+                        status_update_query = """
+                        UPDATE bnb SET status = %s
+                        WHERE reservationCode = %s AND channel = 'dfDirect'
+                        """
+
+                    for update in status_updates:
+                        code = update.get("reservationCode", "")
+                        status = update.get("status", "")
+                        if code and status and code in existing_codes:
+                            if tenant:
+                                cursor.execute(status_update_query, (status, code, tenant))
+                            else:
+                                cursor.execute(status_update_query, (status, code))
+
+            return {
+                "inserted": len(new_bookings),
+                "updated": len(existing_bookings),
+                "updated_codes": [b.get("reservationCode", "") for b in existing_bookings],
+            }
+
+        except DatabaseError as e:
+            return {"inserted": 0, "updated": 0, "updated_codes": [], "error": str(e)}
+
+    def get_unenriched_direct_codes(self, tenant: str) -> list[str]:
+        """Get dfDirect reservation codes that have no phone/country data."""
+        query = """
+            SELECT reservationCode FROM bnb
+            WHERE channel = 'dfDirect'
+              AND administration = %s
+              AND (phone IS NULL OR phone = '')
+              AND (country IS NULL OR country = '')
+            ORDER BY checkinDate DESC
+            LIMIT 50
+        """
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute(query, (tenant,))
+            result = cursor.fetchall()
+            cursor.close()
+            return [row["reservationCode"] for row in result] if result else []
+        except DatabaseError:
+            return []
+
+    def apply_stripe_enrichments(self, enrichments: list[dict], tenant: str) -> int:
+        """Apply Stripe-sourced customer data and actual fee to bnb records.
+
+        When stripe_fee is available, it replaces the estimated 4% channel fee
+        and triggers recalculation of amountNett and pricePerNight.
+        """
+        update_with_fee_query = """
+            UPDATE bnb
+            SET phone = COALESCE(NULLIF(%s, ''), phone),
+                country = COALESCE(NULLIF(%s, ''), country),
+                amountChannelFee = %s,
+                amountNett = amountGross - %s - amountVat - amountTouristTax,
+                pricePerNight = CASE
+                    WHEN nights > 0 THEN ROUND((amountGross - %s - amountVat - amountTouristTax) / nights, 2)
+                    ELSE 0
+                END,
+                addInfo = CASE
+                    WHEN %s IS NOT NULL AND %s != ''
+                    THEN CONCAT(COALESCE(addInfo, ''), ' | email:', %s)
+                    ELSE addInfo
+                END
+            WHERE reservationCode = %s
+              AND channel = 'dfDirect'
+              AND administration = %s
+        """
+        update_no_fee_query = """
+            UPDATE bnb
+            SET phone = COALESCE(NULLIF(%s, ''), phone),
+                country = COALESCE(NULLIF(%s, ''), country),
+                addInfo = CASE
+                    WHEN %s IS NOT NULL AND %s != ''
+                    THEN CONCAT(COALESCE(addInfo, ''), ' | email:', %s)
+                    ELSE addInfo
+                END
+            WHERE reservationCode = %s
+              AND channel = 'dfDirect'
+              AND administration = %s
+        """
+        try:
+            cursor = self.connection.cursor()
+            updated = 0
+            for e in enrichments:
+                email = e.get("email") or ""
+                phone = e.get("phone") or ""
+                country = e.get("country") or ""
+                stripe_fee = e.get("stripe_fee")
+                code = e["reservationCode"]
+
+                if stripe_fee is not None:
+                    fee = round(stripe_fee, 2)
+                    cursor.execute(
+                        update_with_fee_query,
+                        (phone, country, fee, fee, fee, email, email, email, code, tenant),
+                    )
+                else:
+                    cursor.execute(
+                        update_no_fee_query,
+                        (phone, country, email, email, email, code, tenant),
+                    )
+                updated += 1
+
+            self.connection.commit()
+            cursor.close()
+            return updated
+        except DatabaseError as e:
+            print(f"Error applying Stripe enrichments: {e}", flush=True)
+            return 0
 
     def update_from_payout(self, payout_updates: list[dict]) -> dict:
         """
