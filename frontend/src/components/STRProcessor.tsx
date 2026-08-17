@@ -136,14 +136,36 @@ const STRProcessor: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await authenticatedPost('/api/str/save', { realised: realisedBookings, planned: plannedBookings });
+      const savePayload: Record<string, unknown> = { realised: realisedBookings, planned: plannedBookings };
+      if (selectedPlatform === 'direct') {
+        savePayload.platform = 'direct';
+      }
+      const response = await authenticatedPost('/api/str/save', savePayload);
       const data = await response.json();
       if (data.success) {
+        // Capture codes before clearing state
+        const codes = [...realisedBookings, ...plannedBookings]
+          .map((b: STRBooking) => b.reservationCode)
+          .filter(Boolean);
+
         setMessage(data.message);
         setRealisedBookings([]);
         setPlannedBookings([]);
         setAlreadyLoadedBookings([]);
         setSummary(null);
+
+        // Stripe enrichment for dfDirect bookings (awaited for UI feedback)
+        if (selectedPlatform === 'direct' && codes.length > 0) {
+          try {
+            const enrichRes = await authenticatedPost('/api/str/enrich-direct', { reservation_codes: codes });
+            const enrichData = await enrichRes.json();
+            if (enrichData.success && enrichData.enriched > 0) {
+              setMessage(prev => `${prev} | Stripe: ${enrichData.enriched} bookings enriched`);
+            }
+          } catch {
+            // Silent on enrichment failure
+          }
+        }
       } else {
         setError(data.error);
       }
@@ -232,7 +254,7 @@ const STRProcessor: React.FC = () => {
                 </Select>
                 <Input
                   type="file"
-                  accept={selectedPlatform === 'payout' || selectedPlatform === 'airbnb' ? '.csv' : '.csv,.tsv,.xlsx,.xls'}
+                  accept={selectedPlatform === 'payout' || selectedPlatform === 'airbnb' || selectedPlatform === 'direct' ? '.csv' : '.csv,.tsv,.xlsx,.xls'}
                   multiple={selectedPlatform === 'vrbo' || selectedPlatform === 'booking' || selectedPlatform === 'airbnb'}
                   onChange={handleFileUpload}
                   bg="gray.600" color="white"
@@ -370,8 +392,9 @@ const ImportLinksPopup: React.FC<ImportLinksPopupProps> = ({ dateFrom, dateTo, a
           <Link href="https://www.airbnb.nl/hosting/reservations/all" isExternal w="full" p={2} bg="gray.600" borderRadius="md" textDecoration="none" _hover={{ bg: 'gray.500' }} display="block">{t('processor.importDataLinks.allReservations')}</Link>
         </Box>
         <Box>
-          <Text fontWeight="bold" mb={2}>{t('processor.importDataLinks.jabakiDirect')}</Text>
-          <Box p={2} bg="blue.600" borderRadius="md">{t('processor.importDataLinks.fileLocation')}</Box>
+          <Text fontWeight="bold" mb={2}>{t('processor.importDataLinks.dfDirect')}</Text>
+          <Link href="https://app.guesty.com/reservations?viewId=6a72237ce377681f84e3746c" isExternal w="full" p={2} bg="teal.600" borderRadius="md" textDecoration="none" _hover={{ bg: 'teal.500' }} display="block">{t('processor.importDataLinks.guestyReservations')}</Link>
+          <Text color="gray.300" fontSize="xs" mt={1}>{t('processor.importDataLinks.guestyFilterPrompt')}</Text>
         </Box>
         <Box>
           <Text fontWeight="bold" mb={2}>VRBO:</Text>

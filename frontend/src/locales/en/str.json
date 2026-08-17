@@ -52,7 +52,10 @@
       "airbnb": "Airbnb:",
       "allReservations": "All (Select period & download BTW invoice)",
       "jabakiDirect": "JaBaKi Direct:",
-      "fileLocation": "File already at: C:\\Users\\peter\\OneDrive\\R\\AirBnB\\data"
+      "fileLocation": "File already at: C:\\Users\\peter\\OneDrive\\R\\AirBnB\\data",
+      "dfDirect": "Guesty Direct:",
+      "guestyReservations": "Guesty Reservations",
+      "guestyFilterPrompt": "Checkin is between 2 months ago and 1 year into the future for Platform Manual"
     },
     "summary": {
       "title": "Summary",

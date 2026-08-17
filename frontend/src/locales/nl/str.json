@@ -52,7 +52,10 @@
       "airbnb": "Airbnb:",
       "allReservations": "Alles (Selecteer periode & download BTW factuur)",
       "jabakiDirect": "JaBaKi Direct:",
-      "fileLocation": "Bestand al op: C:\\Users\\peter\\OneDrive\\R\\AirBnB\\data"
+      "fileLocation": "Bestand al op: C:\\Users\\peter\\OneDrive\\R\\AirBnB\\data",
+      "dfDirect": "Guesty Direct:",
+      "guestyReservations": "Guesty Reservations",
+      "guestyFilterPrompt": "Checkin is tussen 2 maanden geleden en 1 jaar in de toekomst voor Platform Manual"
     },
     "summary": {
       "title": "Samenvatting",

@@ -26,7 +26,7 @@ Kies het juiste platform uit de dropdown:
 | **Airbnb**      | Voor Airbnb reserveringsexports (CSV)                    |
 | **Booking.com** | Voor Booking.com boekingsoverzichten (Excel)             |
 | **VRBO**        | Voor VRBO reserveringen + uitbetalingen (meerdere CSV's) |
-| **Direct**      | Voor eigen directe boekingen (Excel)                     |
+| **Direct**      | Voor Guesty directe boekingen (CSV)                      |
 | **Payout**      | Voor Booking.com maandelijkse afrekeningen (CSV)         |
 
 ### 3. Selecteer het bestand
@@ -51,6 +51,17 @@ Klik op **Bestand kiezen** en selecteer het gedownloade bestand.
 - Selecteer meerdere bestanden: Reserveringen CSV + Uitbetalingen CSV
 - Het systeem detecteert automatisch welk bestand wat is op basis van de kolomkoppen
 
+**Direct (Guesty):**
+
+- Alleen CSV-bestanden worden geaccepteerd — Excel (.xls/.xlsx) wordt geweigerd
+- Exporteer vanuit Guesty: klik op de link in het Import Links popup
+- Pas de filter toe: "Checkin is between 2 months ago and 1 year into the future for Platform Manual"
+- Het systeem verwerkt alleen boekingen met status "confirmed"
+- Geannuleerde of niet-bevestigde boekingen worden overgeslagen
+- Kanaalkosten worden berekend als 4% van het bruto bedrag (TOTAL PAYOUT)
+- Bij herimport worden bestaande boekingen bijgewerkt in plaats van gedupliceerd (op basis van reserveringscode)
+- Na opslaan wordt optioneel Stripe-verrijking uitgevoerd (e-mail, telefoon, land)
+
 **Payout (Booking.com afrekening):**
 
 - Bestandsnaam moet beginnen met `Payout_from_` en eindigen op `.csv`
@@ -65,6 +76,9 @@ Klik op **Bestand verwerken**. Het systeem:
 3. Bepaalt of elke boeking gerealiseerd of gepland is (op basis van incheckdatum)
 4. Controleert op duplicaten (reserveringscode + kanaal)
 5. Toont een preview in drie tabbladen
+
+!!! info "Direct (Guesty) — Duplicaatafhandeling"
+Bij het platform **Direct** worden bestaande boekingen automatisch bijgewerkt wanneer dezelfde reserveringscode opnieuw wordt geïmporteerd. Dit betekent dat je veilig hetzelfde Guesty-export meerdere keren kunt importeren — gewijzigde velden worden bijgewerkt, geen duplicaten worden aangemaakt.
 
 ### 5. Bekijk de preview
 
@@ -104,13 +118,18 @@ Importeer Airbnb en Booking.com bestanden apart — elk platform heeft een eigen
 - Payout-imports werken bestaande boekingen bij met definitieve bedragen
 - Het systeem detecteert automatisch het land van herkomst van gasten
 - Geannuleerde boekingen met €0 inkomsten worden overgeslagen
+- **Direct (Guesty):** Je kunt hetzelfde bestand meerdere keren veilig importeren — duplicaten worden bijgewerkt
+- **Direct (Guesty):** Na opslaan haalt het systeem automatisch contactgegevens op uit Stripe (indien geconfigureerd)
 
 ## Problemen oplossen
 
-| Probleem                        | Oorzaak                          | Oplossing                                                  |
-| ------------------------------- | -------------------------------- | ---------------------------------------------------------- |
-| "No file provided"              | Geen bestand geselecteerd        | Selecteer eerst een bestand                                |
-| "Unsupported platform"          | Verkeerd platform geselecteerd   | Controleer of je het juiste platform hebt gekozen          |
-| Geen boekingen gevonden         | Leeg bestand of verkeerd formaat | Controleer of het bestand boekingen bevat                  |
-| Alle boekingen als "Al geladen" | Bestand al eerder geïmporteerd   | Dit is normaal — alleen nieuwe boekingen worden toegevoegd |
-| Payout-bestand geweigerd        | Verkeerde bestandsnaam           | Bestandsnaam moet beginnen met `Payout_from_`              |
+| Probleem                                               | Oorzaak                                | Oplossing                                                                |
+| ------------------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------------ |
+| "No file provided"                                     | Geen bestand geselecteerd              | Selecteer eerst een bestand                                              |
+| "Unsupported platform"                                 | Verkeerd platform geselecteerd         | Controleer of je het juiste platform hebt gekozen                        |
+| Geen boekingen gevonden                                | Leeg bestand of verkeerd formaat       | Controleer of het bestand boekingen bevat                                |
+| Alle boekingen als "Al geladen"                        | Bestand al eerder geïmporteerd         | Dit is normaal — alleen nieuwe boekingen worden toegevoegd               |
+| Payout-bestand geweigerd                               | Verkeerde bestandsnaam                 | Bestandsnaam moet beginnen met `Payout_from_`                            |
+| "Only CSV files are supported for the direct platform" | Excel-bestand geselecteerd voor Direct | Exporteer vanuit Guesty als CSV, niet als Excel                          |
+| "Missing required columns: ..."                        | Verkeerd CSV-formaat voor Direct       | Zorg dat het een Guesty-export is met alle 13 vereiste kolommen          |
+| Alle rijen overgeslagen bij Direct                     | Geen boekingen met status "confirmed"  | Controleer de Guesty-filter: alleen bevestigde boekingen worden verwerkt |

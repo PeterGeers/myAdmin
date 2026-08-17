@@ -70,6 +70,20 @@ def str_upload_authenticated(
         if not uploaded_files or uploaded_files[0].filename == "":
             return jsonify({"success": False, "error": "No file selected"}), 400
 
+        # File extension validation for direct platform
+        if platform == "direct":
+            filename_check = uploaded_files[0].filename.lower()
+            if filename_check.endswith(('.xls', '.xlsx')):
+                return jsonify({
+                    "success": False,
+                    "error": "Only CSV files are supported for the direct platform. Excel files (.xls/.xlsx) are no longer accepted."
+                }), 400
+            if not filename_check.endswith('.csv'):
+                return jsonify({
+                    "success": False,
+                    "error": "Unsupported file type for direct platform. Please upload a .csv file."
+                }), 400
+
         temp_paths = []
         for file in uploaded_files:
             filename = secure_filename(file.filename)
@@ -92,6 +106,17 @@ def str_upload_authenticated(
         else:
             separated = {"realised": [], "planned": []}
             summary = {}
+
+        # Enhance summary for dfDirect platform (add even when no bookings)
+        if platform == "direct" and hasattr(str_processor, '_direct_processing_summary'):
+            direct_summary = str_processor._direct_processing_summary
+            summary["total_bookings"] = len(bookings) if bookings else 0
+            summary["total_rows"] = direct_summary.get("total_rows", 0)
+            summary["realised_count"] = len(separated.get("realised", []))
+            summary["planned_count"] = len(separated.get("planned", []))
+            summary["skipped_count"] = direct_summary.get("skipped_count", 0)
+            summary["skipped_reasons"] = direct_summary.get("skipped_reasons", {})
+            summary["updated_count"] = 0  # Populated by upsert in task 4.2
 
         for tp in temp_paths:
             try:
@@ -142,6 +167,54 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             booking["administration"] = tenant
 
         str_db = STRDatabase(test_mode=test_mode)
+
+        platform = data.get("platform", "")
+
+        # dfDirect uses upsert for duplicate handling
+        if platform == "direct":
+            status_updates = data.get("status_updates", [])
+
+            # Only upsert realised bookings into bnb table
+            upsert_result = str_db.upsert_direct_bookings(
+                bookings=realised_bookings,
+                status_updates=status_updates,
+                tenant=tenant,
+            )
+
+            inserted_count = upsert_result.get("inserted", 0)
+            updated_count = upsert_result.get("updated", 0)
+            updated_codes = set(upsert_result.get("updated_codes", []))
+
+            # Save planned bookings to bnbplanned table as well
+            if planned_bookings:
+                planned_count = str_db.insert_planned_bookings(planned_bookings)
+            else:
+                planned_count = 0
+
+            # Generate and save future summary
+            if planned_bookings:
+                str_processor = STRProcessor(test_mode=test_mode)
+                future_summary = str_processor.generate_future_summary(planned_bookings)
+                str_db.insert_future_summary(future_summary)
+
+            # Populate already_loaded with bookings that were updated (duplicates)
+            already_loaded = [
+                b for b in realised_bookings
+                if b.get("reservationCode") in updated_codes
+            ]
+
+            return jsonify({
+                "success": True,
+                "results": {
+                    "inserted": inserted_count,
+                    "updated": updated_count,
+                    "planned_saved": planned_count,
+                },
+                "already_loaded": already_loaded,
+                "message": f"dfDirect: {inserted_count} inserted, {updated_count} updated for {tenant}",
+            })
+
+        # Standard flow for non-direct platforms
         str_processor = STRProcessor(test_mode=test_mode)
 
         results = {}
@@ -603,6 +676,44 @@ def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "data": results})
 
     except Exception as e:  # noqa: BLE001
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@str_bp.route("/api/str/enrich-direct", methods=["POST"])
+@cognito_required(required_permissions=["str_create"])
+@tenant_required()
+def str_enrich_direct(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+    """Enrich recently imported dfDirect bookings with Stripe customer data."""
+    try:
+        from str_stripe_enrichment import enrich_direct_bookings
+
+        data = request.get_json(silent=True) or {}
+        codes = data.get("reservation_codes")
+
+        if not codes:
+            str_db = STRDatabase(test_mode=test_mode)
+            codes = str_db.get_unenriched_direct_codes(tenant)
+
+        if not codes:
+            return jsonify({"success": True, "message": "No bookings to enrich", "enriched": 0})
+
+        result = enrich_direct_bookings(codes)
+
+        print(f"[Stripe Enrichment] codes={codes}, enriched={len(result['enrichments'])}, not_found={result['not_found']}, errors={result['errors']}", flush=True)
+        if result["enrichments"]:
+            for e in result["enrichments"]:
+                print(f"[Stripe Enrichment] {e['reservationCode']}: phone={e.get('phone')}, country={e.get('country')}, email={e.get('email')}, fee={e.get('stripe_fee')}", flush=True)
+            str_db = STRDatabase(test_mode=test_mode)
+            str_db.apply_stripe_enrichments(result["enrichments"], tenant)
+
+        return jsonify({
+            "success": True,
+            "enriched": len(result["enrichments"]),
+            "not_found": len(result["not_found"]),
+            "errors": result["errors"],
+        })
+    except Exception as e:  # noqa: BLE001
+        print(f"Error in str_enrich_direct: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
