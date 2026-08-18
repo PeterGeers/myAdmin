@@ -184,6 +184,41 @@ class LandingPagePublishService:
                     "store_and_register index.html failed for slug=%s: %s", slug, e
                 )
                 return {"success": False, "error": "Failed to publish index.html to S3."}
+
+            # Write slug-based files for CloudFront serving ({slug}/index.html)
+            # The asset_svc writes are for tracking (tenant/category/asset_id_file),
+            # but CloudFront resolves subdomains to {slug}/index.html in S3.
+            try:
+                s3_client = boto3.client(
+                    "s3", region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
+                )
+                s3_client.put_object(
+                    Bucket=self.bucket_name,
+                    Key=f"{slug}/landing.json",
+                    Body=json_bytes,
+                    ContentType="application/json",
+                    CacheControl="public, max-age=300",
+                )
+                s3_client.put_object(
+                    Bucket=self.bucket_name,
+                    Key=f"{slug}/index.html",
+                    Body=html_bytes,
+                    ContentType="text/html; charset=utf-8",
+                    CacheControl="public, max-age=300",
+                )
+                logger.info(
+                    "Published CDN-serving files to s3://%s/%s/",
+                    self.bucket_name,
+                    slug,
+                )
+            except (ClientError, ValueError) as e:
+                logger.error(
+                    "S3 CDN-serving write failed for slug=%s: %s", slug, e
+                )
+                return {
+                    "success": False,
+                    "error": "Failed to publish landing page for CDN serving.",
+                }
         else:
             # Fallback: direct S3 writes (no db_manager / no asset tracking)
             try:
@@ -293,10 +328,10 @@ class LandingPagePublishService:
                         slug,
                         e,
                     )
-        else:
-            # Legacy S3 cleanup (pre-migration data)
-            for key in (f"{slug}/landing.json", f"{slug}/index.html"):
-                self.asset_svc._delete_raw(self.bucket_name, key)
+
+        # Always remove CDN-serving files ({slug}/index.html, {slug}/landing.json)
+        for key in (f"{slug}/landing.json", f"{slug}/index.html"):
+            self.asset_svc._delete_raw(self.bucket_name, key)
 
         logger.info(
             "Unpublished landing page for tenant=%s slug=%s by=%s",
@@ -561,25 +596,9 @@ class LandingPagePublishService:
         cf_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
         img_base = f"https://{cf_domain}" if cf_domain else ""
 
-        # Fix image key prefix: stored keys may use tenant name (e.g., 'myadmin/images/...')
-        # but S3 files are under the slug prefix (e.g., 'peter/images/...')
-        # Correct the prefix in section image keys before rendering
-        for section in sections:
-            props = section.get("properties", {})
-            # Fix single image_key fields
-            img_key = props.get("image_key", "")
-            if img_key and "/" in img_key and not img_key.startswith(slug + "/"):
-                # Replace wrong prefix with slug prefix
-                parts = img_key.split("/", 1)
-                if len(parts) == 2:
-                    props["image_key"] = f"{slug}/{parts[1]}"
-            # Fix gallery images array
-            for img in props.get("images", []):
-                ik = img.get("image_key", "")
-                if ik and "/" in ik and not ik.startswith(slug + "/"):
-                    parts = ik.split("/", 1)
-                    if len(parts) == 2:
-                        img["image_key"] = f"{slug}/{parts[1]}"
+        # Note: image S3 keys use the tenant name as prefix (e.g., 'kimgeers/landing-pages/...')
+        # which is the actual S3 path. Do NOT rewrite them to use the slug — the slug is only
+        # used for CDN-serving files (index.html, landing.json), not for uploaded assets.
 
         # Delegate rendering
         renderer = LandingPageRenderers(
