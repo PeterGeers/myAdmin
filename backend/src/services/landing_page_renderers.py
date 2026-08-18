@@ -56,15 +56,31 @@ class LandingPageRenderers:
                     container_class = "container" if max_width == "contained" else ""
                     style_attr = f' style="{wrapper_style}"'
 
-                    # If content already has its own <section> wrapper, extract
-                    # the inner content so we can re-wrap with settings style
-                    inner = self._strip_section_wrapper(content_html)
+                    # Separate any trailing <script> blocks from section HTML
+                    section_part, script_part = self._split_script(content_html)
+
+                    # Extract original CSS classes from the section wrapper
+                    orig_classes = self._extract_section_classes(section_part)
+
+                    # Merge classes: always include 'section', preserve originals
+                    all_classes = {"section"}
+                    all_classes.update(orig_classes)
+                    class_str = " ".join(sorted(all_classes))
+
+                    # Extract original id attribute if present
+                    orig_id = self._extract_section_id(section_part)
+                    id_attr = f' id="{orig_id}"' if orig_id else ""
+
+                    # Strip the existing wrapper to get inner content
+                    inner = self._strip_section_wrapper(section_part)
 
                     parts.append(
-                        f'<section class="section"{style_attr}>'
+                        f'<section{id_attr} class="{class_str}"{style_attr}>'
                         f'<div class="{container_class}">{inner}</div>'
                         f"</section>"
                     )
+                    if script_part:
+                        parts.append(script_part)
                 else:
                     # No settings — render as-is
                     parts.append(content_html)
@@ -102,6 +118,47 @@ class LandingPageRenderers:
             inner = container_match.group(1)
 
         return inner
+
+    @staticmethod
+    def _split_script(html_str: str) -> tuple:
+        """Split trailing <script>...</script> from section HTML.
+
+        Returns (section_html, script_html). script_html is empty string
+        if no script block follows the section.
+        """
+        # Find </section> followed by <script>
+        idx = html_str.find("</section>")
+        if idx == -1:
+            return html_str, ""
+        end_section = idx + len("</section>")
+        remainder = html_str[end_section:].strip()
+        if remainder.startswith("<script"):
+            return html_str[:end_section], remainder
+        return html_str, ""
+
+    @staticmethod
+    def _extract_section_classes(html_str: str) -> set:
+        """Extract CSS classes from the opening <section> tag."""
+        stripped = html_str.strip()
+        if not stripped.startswith("<section"):
+            return set()
+        close_bracket = stripped.index(">")
+        opening_tag = stripped[: close_bracket + 1]
+        match = re.search(r'class="([^"]*)"', opening_tag)
+        if match:
+            return set(match.group(1).split())
+        return set()
+
+    @staticmethod
+    def _extract_section_id(html_str: str) -> str:
+        """Extract id attribute from the opening <section> tag."""
+        stripped = html_str.strip()
+        if not stripped.startswith("<section"):
+            return ""
+        close_bracket = stripped.index(">")
+        opening_tag = stripped[: close_bracket + 1]
+        match = re.search(r'id="([^"]*)"', opening_tag)
+        return match.group(1) if match else ""
 
     def render_section(
         self, section_type: str, props: dict, layout: str, slug: str
