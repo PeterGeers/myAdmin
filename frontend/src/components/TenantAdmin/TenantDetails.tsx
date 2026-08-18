@@ -129,12 +129,35 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
 
   const handleSlugSave = async () => {
     if (!slugValue || !slugValidation?.valid) return;
+
+    // Show confirmation if renaming an existing slug
+    if (savedSlug && savedSlug !== slugValue) {
+      const confirmed = window.confirm(
+        `${t('landingPage.editor.slugRenameWarning')}\n\n${savedSlug}.jabaki.nl → ${slugValue}.jabaki.nl`
+      );
+      if (!confirmed) return;
+    }
+
     setSlugSaving(true);
     try {
       const result = await setSlug(slugValue);
       if (result.success) {
-        setSavedSlug(result.data?.slug || slugValue);
-        toast({ title: t('landingPage.slug.saved'), status: 'success', duration: 3000 });
+        setSavedSlug(result.slug || result.data?.slug || slugValue);
+        const wasRename = result.renamed_from;
+        toast({
+          title: wasRename ? t('landingPage.editor.slugRenamed') : t('landingPage.slug.saved'),
+          description: wasRename ? `${result.renamed_from} → ${slugValue}` : undefined,
+          status: 'success',
+          duration: 3000,
+        });
+        if (result.warnings && result.warnings.length > 0) {
+          toast({
+            title: t('landingPage.editor.slugRenameWarnings'),
+            description: result.warnings.join(', '),
+            status: 'warning',
+            duration: 8000,
+          });
+        }
       } else {
         toast({ title: t('landingPage.slug.saveError'), description: result.error, status: 'error', duration: 5000 });
       }
