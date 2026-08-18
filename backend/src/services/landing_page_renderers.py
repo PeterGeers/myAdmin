@@ -739,7 +739,7 @@ class LandingPageRenderers:
         )
         api_url = f"{backend_url}/api/public/landing/{safe_slug}/contact"
 
-        return f"""<section class="section contact">
+        return f"""<section id="contact" class="section contact">
   <div class="container">
     {title_html}
     {sub_html}
