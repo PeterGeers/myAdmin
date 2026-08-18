@@ -115,12 +115,12 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
         setSlugSaving(false);
         return;
       }
-      // Save slug
+
+      // Save slug (first-time setup only — rename is in DomainSettings)
       const resp = await setSlug(slugInput);
       if (resp.success) {
         setSlugState(slugInput);
         setNeedsSlug(false);
-        // Now load the draft
         await loadDraft();
       } else {
         setSlugError(resp.error || 'Failed to save slug');

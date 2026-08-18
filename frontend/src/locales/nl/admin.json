@@ -698,6 +698,11 @@
       "unpublished": "Landingspagina offline gezet",
       "unpublishError": "Depubliceren mislukt",
       "unpublishTooltip": "Landingspagina offline halen",
+      "changeSlug": "Wijzigen",
+      "slugRenamed": "URL succesvol hernoemd",
+      "slugRenameWarnings": "Hernoemen voltooid met waarschuwingen",
+      "slugRenameWarning": "Dit wijzigt je publieke URL. Doorgaan?",
+      "confirmRename": "Bevestig hernoemen",
       "itemEditorComingSoon": "Item-editor komt in volgende fase",
       "liveDataBlock": "Dit blok toont live data uit je module",
       "tabContent": "Inhoud",
@@ -977,6 +982,7 @@
     "domains": {
       "title": "Domeininstellingen",
       "description": "Stel in hoe bezoekers je landingspagina bereiken.",
+      "slugLabel": "URL-slug",
       "retry": "Opnieuw proberen",
 
       "jabakiTitle": "Jabaki Subdomein",

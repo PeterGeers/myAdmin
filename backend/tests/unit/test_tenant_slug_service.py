@@ -188,8 +188,18 @@ class TestSetSlug:
     """Test setting/updating a tenant slug."""
 
     def test_set_slug_success(self, service, mock_db):
-        # validate_slug will check uniqueness
-        mock_db.execute_query.return_value = []
+        """First-time slug setup (no existing slug)."""
+        def side_effect(query, params, **kwargs):
+            # validate_slug uniqueness check
+            if "SELECT administration" in query:
+                return []
+            # get_slug check
+            if "SELECT slug" in query:
+                return []
+            # INSERT
+            return []
+
+        mock_db.execute_query.side_effect = side_effect
         result = service.set_slug("AcmeRentals", "acme-rentals")
         assert result == {"success": True, "slug": "acme-rentals"}
 
@@ -201,3 +211,152 @@ class TestSetSlug:
         result = service.set_slug("AcmeRentals", "admin")
         assert result["success"] is False
         assert "reserved" in result["error"]
+
+
+# ============================================================================
+# rename_slug
+# ============================================================================
+
+
+class TestRenameSlug:
+    """Test the full slug rename orchestration."""
+
+    @patch("services.tenant_slug_service.boto3")
+    @patch("services.landing_page_publish_service.LandingPagePublishService")
+    @patch("services.parameter_service.ParameterService")
+    @patch("services.landing_page_service.LandingPageService")
+    def test_rename_happy_path(
+        self, mock_lp_svc_cls, mock_param_cls, mock_pub_cls, mock_boto3, service, mock_db
+    ):
+        """All steps succeed — DynamoDB migrated, MySQL updated, S3 cleaned, republished."""
+        # Step 1: MySQL update succeeds (no exception)
+        mock_db.execute_query.return_value = []
+
+        # Step 2: DynamoDB migration — patch the instance created inside rename_slug
+        mock_lp_instance = MagicMock()
+        mock_lp_instance.migrate_slug.return_value = {
+            "success": True,
+            "migrated": 3,
+            "warnings": [],
+        }
+
+        # Step 6: Republish
+        mock_pub_instance = MagicMock()
+        mock_pub_instance.publish.return_value = {"success": True, "version": 5}
+
+        # Step 5: S3 client
+        mock_s3 = MagicMock()
+        mock_boto3.client.return_value = mock_s3
+
+        with patch("services.tenant_slug_service.LandingPageService", return_value=mock_lp_instance, create=True):
+            with patch("services.tenant_slug_service.LandingPagePublishService", return_value=mock_pub_instance, create=True):
+                with patch("services.tenant_slug_service.ParameterService", return_value=MagicMock(), create=True):
+                    result = service.rename_slug("kimgeers", "old-slug", "new-slug", "user@test.com")
+
+        assert result["success"] is True
+        assert result["slug"] == "new-slug"
+        assert result["renamed_from"] == "old-slug"
+        assert result["warnings"] == []
+
+    @patch("services.tenant_slug_service.boto3")
+    def test_rename_partial_failure_returns_warnings(
+        self, mock_boto3, service, mock_db
+    ):
+        """DynamoDB succeeds but republish fails — result is success with warnings."""
+        mock_db.execute_query.return_value = []
+
+        mock_lp_instance = MagicMock()
+        mock_lp_instance.migrate_slug.return_value = {
+            "success": True,
+            "migrated": 2,
+            "warnings": [],
+        }
+
+        mock_pub_instance = MagicMock()
+        mock_pub_instance.publish.return_value = {
+            "success": False,
+            "error": "No draft found",
+        }
+
+        mock_s3 = MagicMock()
+        mock_boto3.client.return_value = mock_s3
+
+        with patch("services.tenant_slug_service.LandingPageService", return_value=mock_lp_instance, create=True):
+            with patch("services.tenant_slug_service.LandingPagePublishService", return_value=mock_pub_instance, create=True):
+                with patch("services.tenant_slug_service.ParameterService", return_value=MagicMock(), create=True):
+                    result = service.rename_slug("tenant1", "old-name", "new-name", "u@t.com")
+
+        assert result["success"] is True
+        assert result["slug"] == "new-name"
+        assert any("Republish failed" in w for w in result["warnings"])
+
+    def test_rename_to_taken_slug_fails(self, service, mock_db):
+        """Renaming to a slug that's taken by another tenant returns error."""
+        from db_exceptions import IntegrityError
+
+        # get_slug returns old slug (triggering rename path in set_slug)
+        # But we call rename_slug directly here — MySQL UPDATE raises IntegrityError
+        mock_db.execute_query.side_effect = IntegrityError("Duplicate entry")
+
+        result = service.rename_slug("tenant1", "old-slug", "taken-slug", "u@t.com")
+
+        assert result["success"] is False
+        assert "already taken" in result["error"]
+
+    def test_set_slug_same_slug_is_noop(self, service, mock_db):
+        """Setting the same slug that already exists is a no-op."""
+
+        def side_effect(query, params, **kwargs):
+            # validate_slug uniqueness check — same tenant owns it, so empty result
+            if "SELECT administration" in query:
+                return []
+            # get_slug returns current slug
+            if "SELECT slug" in query:
+                return [{"slug": "my-slug"}]
+            return []
+
+        mock_db.execute_query.side_effect = side_effect
+
+        result = service.set_slug("MyTenant", "my-slug", user_email="u@t.com")
+
+        assert result == {"success": True, "slug": "my-slug"}
+
+    @patch("services.tenant_slug_service.boto3")
+    def test_set_slug_detects_rename(
+        self, mock_boto3, service, mock_db
+    ):
+        """set_slug detects an existing different slug and triggers rename."""
+        old_slug = "old-slug"
+
+        def side_effect(query, params, **kwargs):
+            # validate_slug uniqueness check
+            if "SELECT administration" in query and "slug = %s" in query:
+                return []
+            # get_slug
+            if "SELECT slug" in query:
+                return [{"slug": old_slug}]
+            # Everything else (UPDATE, custom domain query, etc.)
+            return []
+
+        mock_db.execute_query.side_effect = side_effect
+
+        mock_lp_instance = MagicMock()
+        mock_lp_instance.migrate_slug.return_value = {
+            "success": True,
+            "migrated": 1,
+            "warnings": [],
+        }
+
+        mock_pub_instance = MagicMock()
+        mock_pub_instance.publish.return_value = {"success": True, "version": 2}
+
+        mock_boto3.client.return_value = MagicMock()
+
+        with patch("services.tenant_slug_service.LandingPageService", return_value=mock_lp_instance, create=True):
+            with patch("services.tenant_slug_service.LandingPagePublishService", return_value=mock_pub_instance, create=True):
+                with patch("services.tenant_slug_service.ParameterService", return_value=MagicMock(), create=True):
+                    result = service.set_slug("MyTenant", "new-slug", user_email="u@t.com")
+
+        assert result["success"] is True
+        assert result["slug"] == "new-slug"
+        assert result["renamed_from"] == "old-slug"
