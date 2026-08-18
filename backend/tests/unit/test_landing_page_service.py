@@ -565,3 +565,85 @@ class TestLandingPageService:
                 LandingPageService()
 
                 mock_resource.assert_called_with("dynamodb", region_name="eu-west-1")
+
+
+# ============================================================================
+# migrate_slug tests
+# ============================================================================
+
+
+class TestMigrateSlug:
+    """Test DynamoDB slug migration (copy + delete)."""
+
+    @pytest.fixture
+    def mock_dynamodb(self):
+        """Mock boto3.resource('dynamodb') and table."""
+        with patch(
+            "services.landing_page_service.boto3.resource"
+        ) as mock_resource_factory:
+            mock_resource = Mock()
+            mock_table = Mock()
+            mock_resource.Table.return_value = mock_table
+            mock_resource_factory.return_value = mock_resource
+            yield mock_table
+
+    @pytest.fixture
+    def service(self, mock_dynamodb):
+        """Create LandingPageService with mocked DynamoDB."""
+        from services.landing_page_service import LandingPageService
+
+        return LandingPageService()
+
+    def test_migrate_slug_copies_and_deletes(self, service, mock_dynamodb):
+        """migrate_slug copies all items to new PK and deletes originals."""
+        mock_dynamodb.query.return_value = {
+            "Items": [
+                {"PK": "TENANT#old-slug", "SK": "LANDING#HOME", "version": Decimal("5"), "sections": []},
+                {"PK": "TENANT#old-slug", "SK": "VERSION#3", "version": Decimal("3"), "sections": []},
+                {"PK": "TENANT#old-slug", "SK": "VERSION#4", "version": Decimal("4"), "sections": []},
+            ]
+        }
+
+        result = service.migrate_slug("old-slug", "new-slug")
+
+        assert result["success"] is True
+        assert result["migrated"] == 3
+        assert result["warnings"] == []
+
+        # Verify 3 put_item calls with new PK
+        assert mock_dynamodb.put_item.call_count == 3
+        first_put = mock_dynamodb.put_item.call_args_list[0]
+        assert first_put[1]["Item"]["PK"] == "TENANT#new-slug"
+
+        # Verify 3 delete_item calls with old PK
+        assert mock_dynamodb.delete_item.call_count == 3
+
+    def test_migrate_slug_no_items(self, service, mock_dynamodb):
+        """migrate_slug with no existing items returns success with 0 migrated."""
+        mock_dynamodb.query.return_value = {"Items": []}
+
+        result = service.migrate_slug("nonexistent", "new-slug")
+
+        assert result["success"] is True
+        assert result["migrated"] == 0
+        assert mock_dynamodb.put_item.call_count == 0
+
+    def test_migrate_slug_delete_failure_adds_warning(self, service, mock_dynamodb):
+        """If delete fails after copy, result includes warnings but is still success."""
+        mock_dynamodb.query.return_value = {
+            "Items": [
+                {"PK": "TENANT#old", "SK": "LANDING#HOME", "version": Decimal("1"), "sections": []},
+            ]
+        }
+        # put_item succeeds, delete_item fails
+        mock_dynamodb.delete_item.side_effect = ClientError(
+            {"Error": {"Code": "InternalError", "Message": "DDB error"}},
+            "DeleteItem",
+        )
+
+        result = service.migrate_slug("old", "new")
+
+        assert result["success"] is True
+        assert result["migrated"] == 1
+        assert len(result["warnings"]) == 1
+        assert "Failed to delete" in result["warnings"][0]
