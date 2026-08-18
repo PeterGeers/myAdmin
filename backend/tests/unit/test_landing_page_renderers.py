@@ -242,8 +242,9 @@ class TestRenderAbout:
         html = renderer.render_about(props, "default")
 
         assert '<h2>About Us</h2>' in html
-        assert '<p>Line one</p>' in html
-        assert '<p>Line two</p>' in html
+        # nl2br extension: single newline → <br> within same paragraph
+        assert 'Line one' in html
+        assert 'Line two' in html
         assert 'about-img' in html
         assert 'about.jpg' in html
 
@@ -256,7 +257,7 @@ class TestRenderAbout:
         assert '<p>Some text</p>' in html
 
     def test_about_empty_lines_skipped(self, renderer):
-        """Empty lines in content_md are not rendered as paragraphs."""
+        """Blank lines in content_md create separate paragraphs."""
         props = {"title": "", "content_md": "First\n\nSecond"}
         html = renderer.render_about(props, "default")
 

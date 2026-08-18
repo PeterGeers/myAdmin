@@ -12,6 +12,8 @@ import html
 import os
 import re
 
+import markdown
+
 from services.landing_page_styles import LandingPageStyles
 
 
@@ -363,8 +365,13 @@ class LandingPageRenderers:
         image_key = props.get("image_key", "")
         img_url = self._img_url(image_key)
 
-        paragraphs = [html.escape(p) for p in content.split("\n") if p.strip()]
-        text_html = "".join(f"<p>{p}</p>" for p in paragraphs)
+        # Render markdown content to HTML (supports headings, bold, lists, etc.)
+        if content.strip():
+            text_html = markdown.markdown(
+                content, extensions=["nl2br", "smarty"]
+            )
+        else:
+            text_html = ""
         title_html = f"<h2>{title}</h2>" if title else ""
         img_html = (
             f'<div class="about-img"><img src="{img_url}" alt="{title}"></div>'
