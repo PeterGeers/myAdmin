@@ -45,7 +45,7 @@ def resolve_tenant_logo(
         provider = parameter_service.get_param(
             "storage", "invoice_provider", tenant=tenant
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(
             "Could not read storage.invoice_provider for tenant %s: %s", tenant, e
         )
@@ -89,7 +89,7 @@ def _resolve_google_drive_logo(
                 tenant,
             )
             return None
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Could not fetch Google Drive logo for tenant %s: %s", tenant, e)
         return None
 
@@ -123,6 +123,6 @@ def _resolve_s3_logo(
             "S3 ClientError fetching logo for tenant %s (key=%s): %s", tenant, s3_key, e
         )
         return None
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Could not fetch S3 logo for tenant %s: %s", tenant, e)
         return None

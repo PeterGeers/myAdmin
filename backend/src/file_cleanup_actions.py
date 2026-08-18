@@ -67,7 +67,7 @@ class FileCleanupActions:
                 if path_parts and path_parts[0]:
                     local_path = os.path.join(self.base_storage_path, *path_parts)
                     return os.path.normpath(local_path)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error parsing URL {url}: {e}")
 
         return ""
@@ -91,7 +91,7 @@ class FileCleanupActions:
             parsed = urlparse(url.lower())
             normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
             return normalized.rstrip("/")
-        except Exception:  # noqa: BLE001
+        except Exception:
             return url.lower()
 
     def is_google_drive_url(self, url: str) -> bool:
@@ -168,7 +168,7 @@ class FileCleanupActions:
         except GoogleDriveError:
             raise
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise GoogleDriveError(f"Unexpected error in Google Drive cleanup: {e}")
 
     def cleanup_local_file(self, file_path: str, operation_id: str) -> bool:
@@ -242,7 +242,7 @@ class FileCleanupActions:
         except OSError as ose:
             raise FileSystemError(f"OS error removing file {file_path}: {ose}")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise FileSystemError(f"Unexpected error removing file {file_path}: {e}")
 
     def cleanup_empty_parent_directory(self, file_path: str, operation_id: str) -> None:
@@ -267,7 +267,7 @@ class FileCleanupActions:
 
         except OSError as ose:
             logger.debug(f"[{operation_id}] Could not remove parent directory: {ose}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.debug(
                 f"[{operation_id}] Unexpected error in parent directory cleanup: {e}"
             )
@@ -290,7 +290,7 @@ class FileCleanupActions:
                     f"Path traversal attempt detected in URL: {file_url}"
                 )
 
-        if file_url.startswith(("file://", "ftp://", "sftp://")):  # noqa: SIM102
+        if file_url.startswith(("file://", "ftp://", "sftp://")):
             if not file_url.startswith("file://") or not self._is_development_mode():
                 raise SecurityError(f"Suspicious protocol in URL: {file_url}")
 
@@ -306,7 +306,7 @@ class FileCleanupActions:
             abs_temp = os.path.abspath(self.temp_storage_path)
 
             return abs_path.startswith((abs_storage, abs_temp))
-        except Exception:  # noqa: BLE001
+        except Exception:
             return False
 
     def _is_development_mode(self) -> bool:

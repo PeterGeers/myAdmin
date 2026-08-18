@@ -58,7 +58,7 @@ def get_settings(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant, "settings": settings})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting settings: {e}")
         import traceback
 
@@ -121,7 +121,7 @@ def update_settings(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating settings: {e}")
         import traceback
 
@@ -172,7 +172,7 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant, "activity": activity})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting activity: {e}")
         import traceback
 
@@ -217,7 +217,7 @@ def get_tenant_language_preference(user_email, user_roles) -> ResponseReturnValu
 
         return jsonify({"default_language": language}), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error in get_tenant_language_preference: {e}")
         return jsonify(
             {
@@ -288,7 +288,7 @@ def update_tenant_language_preference(user_email, user_roles) -> ResponseReturnV
             }
         ), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error in update_tenant_language_preference: {e}")
         return jsonify(
             {"error": "Failed to update tenant language preference", "details": str(e)}

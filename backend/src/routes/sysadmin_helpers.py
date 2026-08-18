@@ -33,7 +33,7 @@ def get_user_attribute(user: dict[str, Any], attribute_name: str) -> Any:
                     if "\\" in value:
                         value = value.replace("\\", "")
                     return json.loads(value)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     return [value] if value else []
             return value
     return None
@@ -46,7 +46,7 @@ def get_user_groups(username: str) -> list[str]:
             UserPoolId=USER_POOL_ID, Username=username
         )
         return [group["GroupName"] for group in response.get("Groups", [])]
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting user groups: {e}")
         return []
 
@@ -79,7 +79,7 @@ def get_tenant_user_count(administration: str) -> int:
                     count += 1
 
         return count
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting tenant user count: {e}")
         return 0
 
@@ -113,7 +113,7 @@ def get_tenant_users(administration: str) -> list[dict[str, Any]]:
                     users.append({"email": email, "groups": groups})
 
         return users
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting tenant users: {e}")
         return []
 

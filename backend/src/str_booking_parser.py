@@ -53,7 +53,7 @@ def process_booking(
 
         # Source file info for single-file import: "{date} {filename}"
         source_file = (
-            f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"  # noqa: DTZ005
+            f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
         )
 
         transactions = []
@@ -67,7 +67,7 @@ def process_booking(
 
         print(f"Booking.com processing completed: {len(transactions)} transactions")
         return transactions
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error processing booking.com file: {e!s}")
         import traceback
 
@@ -107,7 +107,7 @@ def process_booking_multi(
             print(
                 f"Booking multi-import: loaded {len(df)} rows from {os.path.basename(fp)}"
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             failed_files.append(os.path.basename(fp))
             print(f"Booking multi-import: failed to parse {os.path.basename(fp)}: {e}")
 
@@ -133,7 +133,7 @@ def process_booking_multi(
         )
 
     # Determine sourceFile label
-    today_str = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+    today_str = datetime.now().strftime("%Y-%m-%d")
     if len(file_paths) > 1:
         source_file = f"{today_str} multi-import ({len(file_paths)} files)"
     else:
@@ -244,16 +244,16 @@ def calculate_booking_row(
     price = amount_gross
 
     # Determine status based on check-in date and booking status
-    today = date.today()  # noqa: DTZ011
+    today = date.today()
     try:
-        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d").date()  # noqa: DTZ007
+        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d").date()
         if status == "cancelled_by_guest":
             booking_status = "cancelled"
         elif checkin_dt > today:
             booking_status = "planned"
         else:
             booking_status = "realised"
-    except Exception:  # noqa: BLE001
+    except Exception:
         booking_status = "realised"
 
     # Use generic tax calculation function
@@ -272,9 +272,9 @@ def calculate_booking_row(
 
     # Calculate dates and periods
     try:
-        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")  # noqa: DTZ007
-        _checkout_dt = datetime.strptime(str(checkout_date), "%Y-%m-%d")  # noqa: DTZ007
-        reservation_dt = datetime.strptime(  # noqa: DTZ007
+        checkin_dt = datetime.strptime(str(checkin_date), "%Y-%m-%d")
+        _checkout_dt = datetime.strptime(str(checkout_date), "%Y-%m-%d")
+        reservation_dt = datetime.strptime(
             str(row.get("Booked on", "")).split(" ")[0], "%Y-%m-%d"
         )
 
@@ -282,12 +282,12 @@ def calculate_booking_row(
         quarter = (checkin_dt.month - 1) // 3 + 1
         month = checkin_dt.month
         days_before_reservation = (checkin_dt - reservation_dt).days
-    except Exception:  # noqa: BLE001
-        year = datetime.now().year  # noqa: DTZ005
+    except Exception:
+        year = datetime.now().year
         quarter = 1
         month = 1
         days_before_reservation = 0
-        reservation_dt = datetime.now()  # noqa: DTZ005
+        reservation_dt = datetime.now()
 
     # Price per night based on net amount
     price_per_night = amount_nett / nights if nights > 0 else 0
@@ -475,7 +475,7 @@ def process_booking_payout(
                     "checkinDate": checkin_date,
                     "checkoutDate": checkout_date,
                     "nights": nights,
-                    "sourceFile": f"PAYOUT_{datetime.now().strftime('%Y-%m-%d')}_{os.path.basename(file_path)}",  # noqa: DTZ005
+                    "sourceFile": f"PAYOUT_{datetime.now().strftime('%Y-%m-%d')}_{os.path.basename(file_path)}",
                 }
 
                 updates.append(update_record)
@@ -487,7 +487,7 @@ def process_booking_payout(
                     f"VAT={amount_vat}, TouristTax={amount_tourist_tax}, Net={amount_nett}"
                 )
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 error_msg = (
                     f"Error processing row for reservation {reservation_code}: {e!s}"
                 )
@@ -507,7 +507,7 @@ def process_booking_payout(
 
         return results
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         error_msg = f"Error processing Payout CSV file: {e!s}"
         print(error_msg)
         import traceback

@@ -111,7 +111,7 @@ def get_balance_data(
 
             # Date range
             date_from = request.args.get("dateFrom")
-            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
+            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
             if date_from:
                 where_parts.append("TransactionDate BETWEEN %s AND %s")
                 params.extend([date_from, date_to])
@@ -138,7 +138,7 @@ def get_balance_data(
                     "from": request.args.get("dateFrom"),
                     "to": request.args.get(
                         "dateTo",
-                        datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+                        datetime.now().strftime("%Y-%m-%d"),
                     ),
                 },
                 "administration": administration,
@@ -161,7 +161,7 @@ def get_balance_data(
             results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -179,7 +179,7 @@ def get_trends_data(
 
         years = [
             int(y)
-            for y in request.args.get("years", str(datetime.now().year)).split(",")  # noqa: DTZ005
+            for y in request.args.get("years", str(datetime.now().year)).split(",")
             if y
         ]
 
@@ -214,7 +214,7 @@ def get_trends_data(
             results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -229,7 +229,7 @@ def get_reference_analysis(
         service = FinancialReportingService()
         years = [
             y
-            for y in request.args.get("years", str(datetime.now().year)).split(",")  # noqa: DTZ005
+            for y in request.args.get("years", str(datetime.now().year)).split(",")
             if y
         ]
         reference_number = request.args.get("reference_number", "")
@@ -342,5 +342,5 @@ def get_reference_analysis(
                 "available_accounts": available_accounts,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

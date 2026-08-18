@@ -93,7 +93,7 @@ class InvitationService:
             temp_password = self.generate_temporary_password()
 
             # Calculate expiry date (7 days from now)
-            expires_at = datetime.now() + timedelta(days=self.invitation_expiry_days)  # noqa: DTZ005
+            expires_at = datetime.now() + timedelta(days=self.invitation_expiry_days)
 
             # Check if there's an existing invitation (any status)
             existing = self.get_invitation(administration, email)
@@ -163,7 +163,7 @@ class InvitationService:
                 "expiry_days": self.invitation_expiry_days,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error creating invitation: {e}")
             return {"success": False, "error": str(e)}
 
@@ -192,7 +192,7 @@ class InvitationService:
             logger.info(f"Marked invitation as sent for {email} in {administration}")
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error marking invitation as sent: {e}")
             return False
 
@@ -224,7 +224,7 @@ class InvitationService:
             )
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error marking invitation as accepted: {e}")
             return False
 
@@ -257,7 +257,7 @@ class InvitationService:
             )
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error marking invitation as failed: {e}")
             return False
 
@@ -287,7 +287,7 @@ class InvitationService:
 
             return None
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error getting invitation: {e}")
             return None
 
@@ -324,7 +324,7 @@ class InvitationService:
 
             return results or []
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error listing invitations: {e}")
             return []
 
@@ -353,7 +353,7 @@ class InvitationService:
 
             return count
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error expiring invitations: {e}")
             return 0
 

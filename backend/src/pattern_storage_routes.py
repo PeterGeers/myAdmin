@@ -36,7 +36,7 @@ def get_pattern_storage_stats(administration, user_email, user_roles):
             {"success": True, "administration": administration, "storage_stats": stats}
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -88,7 +88,7 @@ def analyze_patterns_with_storage(administration, user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -116,7 +116,7 @@ def get_pattern_summary_from_storage(administration, user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -155,7 +155,7 @@ def apply_patterns_from_storage(administration, user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -213,7 +213,7 @@ def get_performance_comparison(administration, user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -247,5 +247,5 @@ def get_incremental_update_stats(administration, user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

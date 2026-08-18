@@ -121,7 +121,7 @@ class TripImportService:
 
         try:
             df = self._read_dataframe(file_stream, ext)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Failed to parse import file '%s': %s", filename, e)
             return {
                 "success": False,
@@ -482,7 +482,7 @@ class TripImportService:
                 if len(df.columns) <= 1:
                     file_stream.seek(0)
                     df = pd.read_csv(file_stream, sep=",", dtype=str)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 file_stream.seek(0)
                 df = pd.read_csv(file_stream, sep=",", dtype=str)
             return df
@@ -548,7 +548,7 @@ class TripImportService:
                 )
                 if categories:
                     return categories
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 pass
         return None
 
@@ -561,7 +561,7 @@ class TripImportService:
                 )
                 if purposes:
                     return purposes
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 pass
         return None
 
@@ -707,7 +707,7 @@ class TripImportService:
         prev_end = None
         for row in rows:
             start = row.get("start_odometer")
-            if prev_end is not None and isinstance(start, (int, float)):  # noqa: SIM102
+            if prev_end is not None and isinstance(start, (int, float)):
                 if start != prev_end:
                     gap = start - prev_end
                     row["_messages"].append(

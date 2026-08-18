@@ -56,7 +56,7 @@ class MutatisCacheLoaderMixin:
             set: Set of years (integers) to load
         """
         try:
-            current_year = datetime.now().year  # noqa: DTZ005
+            current_year = datetime.now().year
 
             # Query closed years
             query = """
@@ -117,7 +117,7 @@ class MutatisCacheLoaderMixin:
             )
             return years_to_load
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error determining years to load: {e}")
             return set()
 
@@ -133,7 +133,7 @@ class MutatisCacheLoaderMixin:
 
         try:
             self._loading = True
-            start_time = datetime.now()  # noqa: DTZ005
+            start_time = datetime.now()
 
             logger.info(f"Loading vw_mutaties for tenant '{tenant}'...")
 
@@ -171,7 +171,7 @@ class MutatisCacheLoaderMixin:
             if "TransactionDate" in data.columns:
                 data["TransactionDate"] = pd.to_datetime(data["TransactionDate"])
 
-            now = datetime.now()  # noqa: DTZ005
+            now = datetime.now()
             self._tenant_data[tenant] = TenantCacheEntry(
                 data=data,
                 last_accessed=now,
@@ -179,7 +179,7 @@ class MutatisCacheLoaderMixin:
                 years_loaded=years_to_load if years_to_load else set(),
             )
 
-            load_time = (datetime.now() - start_time).total_seconds()  # noqa: DTZ005
+            load_time = (datetime.now() - start_time).total_seconds()
             logger.info(
                 f"Cache loaded for tenant '{tenant}': "
                 f"{len(data):,} rows in {load_time:.2f}s, "
@@ -205,7 +205,7 @@ class MutatisCacheLoaderMixin:
 
         try:
             self._loading = True
-            start_time = datetime.now()  # noqa: DTZ005
+            start_time = datetime.now()
             logger.info("Loading vw_mutaties into memory cache (legacy/all tenants)...")
 
             conn = db_manager.get_connection()
@@ -239,7 +239,7 @@ class MutatisCacheLoaderMixin:
                 data["TransactionDate"] = pd.to_datetime(data["TransactionDate"])
 
             # Split by tenant into individual entries
-            now = datetime.now()  # noqa: DTZ005
+            now = datetime.now()
             if "administration" in data.columns:
                 for admin in data["administration"].dropna().unique():
                     tenant_df = data[data["administration"] == admin].copy()
@@ -255,7 +255,7 @@ class MutatisCacheLoaderMixin:
                         years_loaded=tenant_years,
                     )
 
-            load_time = (datetime.now() - start_time).total_seconds()  # noqa: DTZ005
+            load_time = (datetime.now() - start_time).total_seconds()
             logger.info(
                 f"Legacy cache loaded: {len(data):,} rows across "
                 f"{len(self._tenant_data)} tenants in {load_time:.2f}s"
@@ -344,7 +344,7 @@ class MutatisCacheLoaderMixin:
                         f"No data for tenant '{tenant}' years {sorted(missing_years)}"
                     )
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.error(
                     f"Error loading years {missing_years} for tenant '{tenant}': {e}"
                 )
@@ -372,7 +372,7 @@ class MutatisCacheLoaderMixin:
 
         # Legacy: check if year exists in any tenant's data
         for entry in self._tenant_data.values():
-            if entry.data is not None and "jaar" in entry.data.columns:  # noqa: SIM102
+            if entry.data is not None and "jaar" in entry.data.columns:
                 if year in entry.data["jaar"].unique():
                     logger.info(f"Year {year} already in cache")
                     return False
@@ -399,7 +399,7 @@ class MutatisCacheLoaderMixin:
                     )
 
                 # Distribute to tenant entries
-                now = datetime.now()  # noqa: DTZ005
+                now = datetime.now()
                 if "administration" in year_data.columns:
                     for admin in year_data["administration"].dropna().unique():
                         tenant_df = year_data[
@@ -420,6 +420,6 @@ class MutatisCacheLoaderMixin:
                             )
 
                 return True
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.error(f"Error loading additional year {year}: {e}")
                 return False

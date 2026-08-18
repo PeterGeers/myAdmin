@@ -110,7 +110,7 @@ def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting AI help: {e}")
 
         try:
@@ -125,7 +125,7 @@ def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
                     "message": "Error occurred, showing generic help",
                 }
             ), 200
-        except Exception:  # noqa: BLE001
+        except Exception:
             return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 
@@ -188,7 +188,7 @@ def apply_ai_fixes_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(response), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error applying AI fixes: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
@@ -267,7 +267,7 @@ def delete_tenant_template_endpoint(
             }
         ), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error deleting tenant template: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 

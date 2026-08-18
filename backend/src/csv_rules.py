@@ -67,13 +67,13 @@ class CsvRuleEngine:
         try:
             # Aggregate amount
             total_amount = 0.0
-            if rule.amount_column in df.columns:  # noqa: SIM102
+            if rule.amount_column in df.columns:
                 if rule.amount_operation == "sum":
                     total_amount = float(df[rule.amount_column].dropna().sum())
 
             # Extract date
-            date = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
-            if rule.date_column in df.columns:  # noqa: SIM102
+            date = datetime.now().strftime("%Y-%m-%d")
+            if rule.date_column in df.columns:
                 if rule.date_operation == "max":
                     max_date = df[rule.date_column].max()
                     if pd.notna(max_date):
@@ -92,7 +92,7 @@ class CsvRuleEngine:
                 "parser_used_hint": "csv_rule",
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error applying CSV rule for {folder_name}: {e}")
             return None
 

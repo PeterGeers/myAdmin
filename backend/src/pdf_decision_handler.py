@@ -113,7 +113,7 @@ def handle_duplicate_decision(
             errors=[error_msg],
             user_message="System components not available. Please contact support.",
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         error_msg = f"Unexpected error in duplicate decision handling: {e!s}"
         print(error_msg)
         return create_error_response(
@@ -167,7 +167,7 @@ def handle_continue_decision(
             "message": " ".join(message_parts),
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in continue decision handling: {e}")
         return {
             "success": False,
@@ -256,7 +256,7 @@ def handle_cancel_decision(
             "message": " ".join(message_parts),
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in cancel decision handling: {e}")
         return {
             "success": False,

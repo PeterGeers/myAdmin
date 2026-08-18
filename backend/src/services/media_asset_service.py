@@ -233,7 +233,7 @@ class MediaAssetService:
                     )
                     reference_count = 1
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # DB commit failed after S3 write — log orphaned key (Req 9 AC 10)
             logger.error(
                 "DB commit failed after S3 write — orphaned S3 key: "
@@ -1271,7 +1271,7 @@ class MediaAssetService:
 
                         try:
                             self._landing_page_service = LandingPageService()
-                        except Exception as e:  # noqa: BLE001
+                        except Exception as e:
                             logger.warning(
                                 "Cannot initialize LandingPageService: %s, skipping landing_page checks",
                                 e,
@@ -1395,7 +1395,7 @@ class MediaAssetService:
             logger.error(
                 "S3 list failed: bucket=%s, prefix=%s, error=%s", bucket, prefix, str(e)
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 "Unexpected error listing S3 objects: bucket=%s, prefix=%s, error=%s",
                 bucket,
@@ -2520,7 +2520,7 @@ class MediaAssetService:
             logger.error(
                 "S3 list failed: bucket=%s, prefix=%s, error=%s", bucket, prefix, str(e)
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 "Unexpected error listing S3 objects: bucket=%s, prefix=%s, error=%s",
                 bucket,
@@ -2740,7 +2740,7 @@ class MediaAssetService:
             # Basic check: should contain HTML-like content
             try:
                 text = file_data[:1024].decode("utf-8", errors="ignore").lower()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 text = ""
             if not any(
                 marker in text
@@ -2754,7 +2754,7 @@ class MediaAssetService:
             # Basic check: should start with { or [ after whitespace
             try:
                 text = file_data[:256].decode("utf-8", errors="ignore").strip()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 text = ""
             if not text or text[0] not in ("{", "["):
                 raise ValueError(
@@ -2782,7 +2782,7 @@ class MediaAssetService:
         """
         try:
             text = file_data[:1024].decode("utf-8", errors="ignore").strip().lower()
-        except Exception:  # noqa: BLE001
+        except Exception:
             text = ""
 
         if not any(marker in text for marker in ["<svg", "<?xml"]):
@@ -2821,7 +2821,7 @@ class MediaAssetService:
                 "S3 upload failed: bucket=%s, key=%s, error=%s", bucket, key, str(e)
             )
             return False
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 "Unexpected error during S3 upload: bucket=%s, key=%s, error=%s",
                 bucket,
@@ -2849,7 +2849,7 @@ class MediaAssetService:
                 "S3 delete failed: bucket=%s, key=%s, error=%s", bucket, key, str(e)
             )
             return False
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 "Unexpected error during S3 delete: bucket=%s, key=%s, error=%s",
                 bucket,
@@ -2976,7 +2976,7 @@ class MediaAssetService:
                     "asset_id": results[0]["id"],
                     "original_filename": results[0]["original_filename"],
                 }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Duplicate detection is non-blocking — log and continue
             logger.warning(
                 "Duplicate check failed for asset %s: %s", current_asset_id, str(e)

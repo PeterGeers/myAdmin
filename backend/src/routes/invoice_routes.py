@@ -126,7 +126,7 @@ def upload_file_authenticated(
                 invoice_service.move_file_to_folder(
                     temp_path, filename, result["folder"]
                 )
-            except Exception as move_error:  # noqa: BLE001
+            except Exception as move_error:
                 print(f"Error moving file: {move_error}", flush=True)
                 # Continue even if move fails - file is already processed
 
@@ -161,7 +161,7 @@ def upload_file_authenticated(
 
         return jsonify({"success": False, "error": "Invalid file type"}), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print("\n=== UPLOAD ERROR ===", flush=True)
         print(f"Error type: {type(e).__name__}", flush=True)
         print(f"Error message: {e!s}", flush=True)
@@ -209,6 +209,6 @@ def approve_transactions(
     except ClosedPeriodError as e:
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Approval error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500

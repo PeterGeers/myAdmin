@@ -44,11 +44,11 @@ def scalability_dashboard(user_email, user_roles):
         scalability_manager = None
         try:
             scalability_manager = get_scalability_manager(db.config)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Scalability manager not available: {e}")
 
         dashboard_data = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "scalability_active": scalability_manager is not None,
             "concurrent_capacity": "10x baseline"
             if scalability_manager
@@ -138,13 +138,13 @@ def scalability_dashboard(user_email, user_roles):
                 "health": db_health,
                 "connection_pools": pool_status,
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error getting database scalability info: {e}")
             dashboard_data["database_scalability"] = {"error": str(e)}
 
         return jsonify(dashboard_data)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error generating scalability dashboard: {e}")
         return jsonify(
             {
@@ -182,7 +182,7 @@ def realtime_metrics(user_email, user_roles):
         stats = scalability_manager.get_comprehensive_statistics()
 
         realtime_data = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "realtime_monitoring": True,
             "current_performance": {
                 "response_time": stats["scalability_manager"]["avg_response_time"],
@@ -210,7 +210,7 @@ def realtime_metrics(user_email, user_roles):
 
         return jsonify(realtime_data)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting realtime metrics: {e}")
         return jsonify({"error": str(e), "realtime_monitoring": False}), 500
 
@@ -267,7 +267,7 @@ def run_load_test(user_email, user_roles):
         import threading
 
         results = {
-            "test_started": datetime.now().isoformat(),  # noqa: DTZ005
+            "test_started": datetime.now().isoformat(),
             "parameters": {
                 "concurrent_users": concurrent_users,
                 "requests_per_user": requests_per_user,
@@ -294,7 +294,7 @@ def run_load_test(user_email, user_roles):
                     results["response_times"].append(response_time)
                     results["requests_successful"] += 1
 
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     results["requests_failed"] += 1
                     logger.warning(f"Load test request failed: {e}")
 
@@ -333,7 +333,7 @@ def run_load_test(user_email, user_roles):
 
         results.update(
             {
-                "test_completed": datetime.now().isoformat(),  # noqa: DTZ005
+                "test_completed": datetime.now().isoformat(),
                 "actual_duration": test_duration_actual,
                 "success_rate": results["requests_successful"]
                 / max(results["requests_completed"], 1),
@@ -364,7 +364,7 @@ def run_load_test(user_email, user_roles):
 
         return jsonify(results)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error running load test: {e}")
         return jsonify({"error": str(e), "load_test_completed": False}), 500
 
@@ -397,7 +397,7 @@ def optimize_scalability(user_email, user_roles):
                         "details": db_optimizations,
                     }
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 optimizations_applied.append(
                     {"type": "database", "status": "failed", "error": str(e)}
                 )
@@ -431,7 +431,7 @@ def optimize_scalability(user_email, user_roles):
                             "message": "Scalability manager not initialized",
                         }
                     )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 optimizations_applied.append(
                     {"type": "connections", "status": "failed", "error": str(e)}
                 )
@@ -463,7 +463,7 @@ def optimize_scalability(user_email, user_roles):
                             "message": "Scalability manager not initialized",
                         }
                     )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 optimizations_applied.append(
                     {"type": "monitoring", "status": "failed", "error": str(e)}
                 )
@@ -485,7 +485,7 @@ def optimize_scalability(user_email, user_roles):
 
         return jsonify(
             {
-                "optimization_completed": datetime.now().isoformat(),  # noqa: DTZ005
+                "optimization_completed": datetime.now().isoformat(),
                 "optimization_type": optimization_type,
                 "optimizations_applied": optimizations_applied,
                 "success_rate": optimization_success_rate,
@@ -517,7 +517,7 @@ def optimize_scalability(user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error applying scalability optimizations: {e}")
         return jsonify({"error": str(e), "optimization_completed": False}), 500
 
@@ -590,7 +590,7 @@ def get_scalability_config(user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting scalability configuration: {e}")
         return jsonify({"error": str(e), "scalability_configured": False}), 500
 
@@ -633,7 +633,7 @@ def get_scalability_alerts(user_email, user_roles):
                     if health["health_score"] >= 50
                     else "critical",
                     "message": f"System health score is {health['health_score']} (below optimal)",
-                    "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                    "timestamp": datetime.now().isoformat(),
                     "recommendations": health.get("recommendations", []),
                 }
             )
@@ -646,7 +646,7 @@ def get_scalability_alerts(user_email, user_roles):
                     "type": "system",
                     "severity": severity,
                     "message": issue,
-                    "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                    "timestamp": datetime.now().isoformat(),
                 }
             )
 
@@ -659,7 +659,7 @@ def get_scalability_alerts(user_email, user_roles):
                         "type": alert.get("type", "resource"),
                         "severity": alert.get("severity", "info"),
                         "message": alert.get("message", "Resource alert"),
-                        "timestamp": alert.get("timestamp", datetime.now().isoformat()),  # noqa: DTZ005
+                        "timestamp": alert.get("timestamp", datetime.now().isoformat()),
                     }
                 )
 
@@ -683,7 +683,7 @@ def get_scalability_alerts(user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting scalability alerts: {e}")
         return jsonify({"error": str(e), "alerts_available": False}), 500
 
@@ -732,7 +732,7 @@ def scalability_status(user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify(
             {
                 "scalability_active": False,
@@ -765,7 +765,7 @@ def scalability_database_status(user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"error": str(e), "database_scalability": "unavailable"}), 500
 
 
@@ -794,5 +794,5 @@ def scalability_performance(user_email, user_roles):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"performance_monitoring": False, "error": str(e)}), 500

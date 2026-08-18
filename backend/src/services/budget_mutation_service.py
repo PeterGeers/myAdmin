@@ -241,7 +241,7 @@ class BudgetMutationService:
                 ),
             }
 
-        now = datetime.now()  # noqa: DTZ005
+        now = datetime.now()
 
         if action == "approve":
             # Simple status update: Draft → Approved

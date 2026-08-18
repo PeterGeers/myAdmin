@@ -80,7 +80,7 @@ class DuplicateChecker:
 
         Requirements: 1.1, 1.3, 6.1, 6.4
         """
-        operation_id = f"dup_check_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"  # noqa: DTZ005
+        operation_id = f"dup_check_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
         try:
             # Validate input parameters
@@ -130,7 +130,7 @@ class DuplicateChecker:
             )
             return []
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             error_details = {
                 "operation_id": operation_id,
                 "reference_number": reference_number,
@@ -237,7 +237,7 @@ class DuplicateChecker:
 
         Requirements: 3.2, 6.4, 6.5
         """
-        operation_id = f"dup_log_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"  # noqa: DTZ005
+        operation_id = f"dup_log_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
         try:
             # Validate decision parameter
@@ -288,7 +288,7 @@ class DuplicateChecker:
                     self.db.execute_query(
                         log_query,
                         (
-                            datetime.now(),  # noqa: DTZ005
+                            datetime.now(),
                             reference_number,
                             transaction_date,
                             transaction_amount,
@@ -333,7 +333,7 @@ class DuplicateChecker:
             )
             return False
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             error_details = {
                 "operation_id": operation_id,
                 "decision": decision,
@@ -379,7 +379,7 @@ class DuplicateChecker:
 
         # Validate date format
         try:
-            datetime.strptime(transaction_date, "%Y-%m-%d")  # noqa: DTZ007
+            datetime.strptime(transaction_date, "%Y-%m-%d")
         except ValueError:
             raise ValidationError(
                 f"Invalid transaction date format: {transaction_date}. Expected YYYY-MM-DD"
@@ -425,7 +425,7 @@ class DuplicateChecker:
             # Re-raise session timeout errors
             raise
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # If session manager is not available or fails, log warning but don't fail operation
             logger.warning(
                 f"[{operation_id}] Could not validate session {session_id}: {e}"
@@ -495,7 +495,7 @@ class DuplicateChecker:
             "operation_id": operation_id,
             "error_type": error_type,
             "error_message": error_message,
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "component": "duplicate_checker",
             "action": "graceful_degradation",
             "severity": "warning",
@@ -518,7 +518,7 @@ class DuplicateChecker:
             # Store degradation event for analysis
             self._store_degradation_event(degradation_log)
 
-        except Exception as monitoring_error:  # noqa: BLE001
+        except Exception as monitoring_error:
             # Don't let monitoring failures affect the main operation
             logger.error(
                 f"[{operation_id}] Failed to send monitoring alert: {monitoring_error}"
@@ -589,7 +589,7 @@ class DuplicateChecker:
                 f"Health metrics updated for error_type: {error_type}, event: {event_type}"
             )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to update health metrics: {e}")
 
     def _store_degradation_event(self, degradation_log: dict) -> None:
@@ -617,5 +617,5 @@ class DuplicateChecker:
 
             logger.debug(f"Degradation event stored: {degradation_log['operation_id']}")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to store degradation event: {e}")

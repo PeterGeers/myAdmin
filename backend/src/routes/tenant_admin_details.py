@@ -77,7 +77,7 @@ def get_tenant_details(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant_details})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting tenant details: {e}")
         import traceback
 
@@ -193,7 +193,7 @@ def update_tenant_details(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating tenant details: {e}")
         import traceback
 

@@ -54,7 +54,7 @@ def budget_list_versions(
             return jsonify(result), 400
     except ValueError:
         return jsonify({"success": False, "error": "Invalid year parameter"}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget list versions error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -98,7 +98,7 @@ def budget_create_version(
             return jsonify(result), 201
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget create version error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -125,7 +125,7 @@ def budget_transition_status(
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget transition status error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -150,7 +150,7 @@ def budget_activate_version(
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget activate version error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -169,7 +169,7 @@ def budget_delete_version(
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget delete version error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -193,7 +193,7 @@ def budget_list_lines(
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget list lines error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -283,7 +283,7 @@ def budget_create_line(
             return jsonify(result), 201
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget create line error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -311,7 +311,7 @@ def budget_update_line(
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget update line error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -330,7 +330,7 @@ def budget_delete_line(
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget delete line error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -401,6 +401,6 @@ def budget_dashboard(
             return jsonify(result)
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget dashboard error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500

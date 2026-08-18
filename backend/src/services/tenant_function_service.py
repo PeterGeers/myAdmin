@@ -59,7 +59,7 @@ class TenantFunctionService:
             if result:
                 return bool(result[0]["is_active"])
             return default
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 "DB read failed for function '%s', tenant '%s': %s. "
                 "Falling back to registry default.",
@@ -98,7 +98,7 @@ class TenantFunctionService:
             if rows:
                 for row in rows:
                     overrides[row["function_name"]] = bool(row["is_active"])
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 "DB read failed for tenant '%s' functions: %s. "
                 "Using registry defaults only.",
@@ -181,7 +181,7 @@ class TenantFunctionService:
                     "is_active": is_active,
                 },
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 "DB write failed for function '%s', tenant '%s': %s",
                 function_name,

@@ -67,7 +67,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
         if value is None:
             self._tenant_data.clear()
         else:
-            now = datetime.now()  # noqa: DTZ005
+            now = datetime.now()
             # Split by administration if present, otherwise store as single legacy entry
             if "administration" in value.columns:
                 self._tenant_data.clear()
@@ -148,7 +148,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
             return pd.DataFrame()
 
         # Update last_accessed
-        entry.last_accessed = datetime.now()  # noqa: DTZ005
+        entry.last_accessed = datetime.now()
 
         # Load missing years on demand if specific years are requested
         if requested_years and entry.data is not None and not entry.data.empty:
@@ -175,7 +175,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
         """Check if a tenant's cache entry needs to be refreshed."""
         if entry.data is None:
             return True
-        return datetime.now() - entry.last_loaded > self.ttl  # noqa: DTZ005
+        return datetime.now() - entry.last_loaded > self.ttl
 
     def _needs_refresh(self):
         """Backward-compatible: check if any refresh is needed (legacy callers)."""
@@ -189,7 +189,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
 
     def _evict_inactive(self):
         """Remove tenants not accessed for 2× TTL."""
-        eviction_threshold = datetime.now() - (2 * self.ttl)  # noqa: DTZ005
+        eviction_threshold = datetime.now() - (2 * self.ttl)
         tenants_to_evict = []
 
         for tenant_key, entry in self._tenant_data.items():
@@ -256,9 +256,7 @@ class MutatiesCache(MutatisCacheLoaderMixin, MutatisCacheQueriesMixin):
                 oldest_load = entry.last_loaded
 
         memory_mb = round(total_memory / 1024 / 1024, 2)
-        age = (
-            (datetime.now() - oldest_load).total_seconds() if oldest_load else None  # noqa: DTZ005
-        )
+        age = (datetime.now() - oldest_load).total_seconds() if oldest_load else None
 
         return {
             "loaded": True,
@@ -312,6 +310,6 @@ def invalidate_cache(tenant=None):
     Args:
         tenant: If provided, only invalidate that tenant. Otherwise invalidate all.
     """
-    global _cache  # noqa: PLW0602
+    global _cache
     if _cache:
         _cache.invalidate(tenant=tenant)

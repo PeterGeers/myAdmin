@@ -346,7 +346,7 @@ def _fetch_and_create_account_rows(
             account_row = _create_account_row(reknum, account_name, detail_amount)
             account_rows.append(account_row)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error fetching details for {parent}-{aangifte}: {e}")
         # Continue processing - don't fail the entire report for one error
 

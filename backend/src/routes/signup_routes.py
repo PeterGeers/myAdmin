@@ -83,7 +83,7 @@ def create_signup() -> ResponseReturnValue:
 
     except UsernameExistsError:
         return jsonify({"error": "Email already registered"}), 409
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Signup failed: {e}")
         return jsonify({"error": "Signup failed. Please try again."}), 500
 
@@ -114,7 +114,7 @@ def verify_signup() -> ResponseReturnValue:
         return jsonify({"error": "Already verified"}), 410
     except InvalidCodeError as e:
         return jsonify({"error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Verification failed: {e}")
         return jsonify({"error": "Verification failed. Please try again."}), 500
 
@@ -143,6 +143,6 @@ def resend_verification() -> ResponseReturnValue:
         return jsonify({"error": "Already verified"}), 410
     except ResendRateLimitError as e:
         return jsonify({"error": str(e)}), 429
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Resend failed: {e}")
         return jsonify({"error": "Resend failed. Please try again."}), 500

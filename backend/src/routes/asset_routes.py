@@ -48,7 +48,7 @@ def list_assets(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
             ledger_account=request.args.get("ledger_account"),
         )
         return jsonify({"success": True, "assets": assets, "count": len(assets)})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error listing assets: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -93,7 +93,7 @@ def create_asset(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         return jsonify(result), 201
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error creating asset: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -112,7 +112,7 @@ def get_asset(
         if not asset:
             return jsonify({"error": "Asset not found"}), 404
         return jsonify({"success": True, "asset": asset})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting asset {asset_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -144,7 +144,7 @@ def update_asset(
                 "error"
             ) == "Asset not found" else 422
         return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating asset {asset_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -183,7 +183,7 @@ def dispose_asset(
             status = 404 if result.get("error") == "Asset not found" else 400
             return jsonify(result), status
         return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error disposing asset {asset_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -216,7 +216,7 @@ def generate_depreciation(
             year=int(data["year"]),
         )
         return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error generating depreciation: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -268,7 +268,7 @@ def asset_register_report(
                 },
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error generating asset register: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -322,13 +322,13 @@ def depreciation_schedule_report(
                 ),
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error generating depreciation schedule: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 def import_datetime() -> datetime:
-    return datetime.now()  # noqa: DTZ005
+    return datetime.now()
 
 
 @asset_bp.route("/<int:asset_id>", methods=["DELETE"])
@@ -369,6 +369,6 @@ def delete_asset(
         )
 
         return jsonify({"success": True, "message": f"Asset {asset_id} deleted"})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error deleting asset {asset_id}: {e}")
         return jsonify({"error": str(e)}), 500

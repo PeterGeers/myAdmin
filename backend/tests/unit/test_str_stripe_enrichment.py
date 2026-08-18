@@ -33,13 +33,19 @@ def _make_mock_pi(
     customer=None,
     payment_method=None,
     latest_charge=None,
+    shipping=None,
 ):
-    """Create a mock PaymentIntent with configurable fields."""
+    """Create a mock PaymentIntent with configurable fields.
+
+    shipping must be explicitly provided (as a MagicMock with phone/address set)
+    or left as None to prevent MagicMock auto-attribute creation.
+    """
     pi = MagicMock()
     pi.receipt_email = receipt_email
     pi.customer = customer
     pi.payment_method = payment_method
     pi.latest_charge = latest_charge
+    pi.shipping = shipping
     return pi
 
 
@@ -120,11 +126,17 @@ class TestExtractCustomerData:
     @patch('str_stripe_enrichment.stripe')
     def test_extract_all_data_available(self, mock_stripe):
         """All sources present: receipt_email, customer, payment_method, balance_transaction."""
+        # Build a shipping mock with phone and address.country
+        mock_shipping = MagicMock()
+        mock_shipping.phone = "+31687654321"
+        mock_shipping.address.country = "NL"
+
         pi = _make_mock_pi(
             receipt_email="guest@direct.com",
             customer="cus_123",
             payment_method="pm_456",
             latest_charge="ch_789",
+            shipping=mock_shipping,
         )
 
         # Mock Customer.retrieve

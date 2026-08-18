@@ -64,7 +64,7 @@ def get_verification_status(
             }
         ), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting verification status for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -101,7 +101,7 @@ def resend_verification(
                 return jsonify({"success": False, "error": error_msg}), 429
             return jsonify({"success": False, "error": error_msg}), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error resending verification for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -153,6 +153,6 @@ def update_sender_email(
                 }
             ), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating sender email for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

@@ -72,7 +72,7 @@ class BnbCache:
         if value is None:
             self._tenant_data.clear()
         else:
-            now = datetime.now()  # noqa: DTZ005
+            now = datetime.now()
             if "administration" in value.columns:
                 self._tenant_data.clear()
                 for admin in value["administration"].dropna().unique():
@@ -117,7 +117,7 @@ class BnbCache:
             entry = self._tenant_data.get(tenant)
             if entry is None or entry.data is None:
                 return False
-            return (datetime.now() - entry.last_loaded) < self.ttl  # noqa: DTZ005
+            return (datetime.now() - entry.last_loaded) < self.ttl
 
         # Legacy: check if there's any valid data
         if not self._tenant_data:
@@ -125,7 +125,7 @@ class BnbCache:
         for entry in self._tenant_data.values():
             if (
                 entry.data is not None
-                and (datetime.now() - entry.last_loaded) < self.ttl  # noqa: DTZ005
+                and (datetime.now() - entry.last_loaded) < self.ttl
             ):
                 return True
         return False
@@ -165,14 +165,14 @@ class BnbCache:
             return pd.DataFrame()
 
         # Update last_accessed
-        entry.last_accessed = datetime.now()  # noqa: DTZ005
+        entry.last_accessed = datetime.now()
         return entry.data if entry.data is not None else pd.DataFrame()
 
     def _needs_refresh_tenant(self, entry: TenantCacheEntry) -> bool:
         """Check if a tenant's cache entry needs to be refreshed."""
         if entry.data is None:
             return True
-        return (datetime.now() - entry.last_loaded) > self.ttl  # noqa: DTZ005
+        return (datetime.now() - entry.last_loaded) > self.ttl
 
     def _refresh_tenant(self, db, tenant):
         """
@@ -182,7 +182,7 @@ class BnbCache:
             db: DatabaseManager instance
             tenant: Tenant identifier (administration)
         """
-        start_time = datetime.now()  # noqa: DTZ005
+        start_time = datetime.now()
         logger.info(f"Loading BNB data for tenant '{tenant}'...")
 
         try:
@@ -217,14 +217,14 @@ class BnbCache:
 
             self._process_dataframe(data)
 
-            now = datetime.now()  # noqa: DTZ005
+            now = datetime.now()
             self._tenant_data[tenant] = TenantCacheEntry(
                 data=data,
                 last_accessed=now,
                 last_loaded=now,
             )
 
-            elapsed = (datetime.now() - start_time).total_seconds()  # noqa: DTZ005
+            elapsed = (datetime.now() - start_time).total_seconds()
             memory_mb = data.memory_usage(deep=True).sum() / 1024 / 1024
             actual_count = (
                 len(data[data["source_type"] == "actual"]) if not data.empty else 0
@@ -257,7 +257,7 @@ class BnbCache:
             return
 
         # Legacy: load all data
-        start_time = datetime.now()  # noqa: DTZ005
+        start_time = datetime.now()
         logger.info("Loading BNB data into memory cache (all tenants)...")
 
         try:
@@ -292,7 +292,7 @@ class BnbCache:
             self._process_dataframe(data)
 
             # Split by tenant
-            now = datetime.now()  # noqa: DTZ005
+            now = datetime.now()
             with self.lock:
                 self._tenant_data.clear()
                 if "administration" in data.columns:
@@ -311,7 +311,7 @@ class BnbCache:
                         last_loaded=now,
                     )
 
-            elapsed = (datetime.now() - start_time).total_seconds()  # noqa: DTZ005
+            elapsed = (datetime.now() - start_time).total_seconds()
             memory_mb = data.memory_usage(deep=True).sum() / 1024 / 1024
             actual_count = (
                 len(data[data["source_type"] == "actual"]) if not data.empty else 0
@@ -374,7 +374,7 @@ class BnbCache:
 
     def _evict_inactive(self):
         """Remove tenants not accessed for 2× TTL."""
-        eviction_threshold = datetime.now() - (2 * self.ttl)  # noqa: DTZ005
+        eviction_threshold = datetime.now() - (2 * self.ttl)
         tenants_to_evict = []
 
         for tenant_key, entry in self._tenant_data.items():

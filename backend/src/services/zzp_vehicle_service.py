@@ -104,7 +104,7 @@ class VehicleService:
             raise ValueError(f"Vehicle {vehicle_id} not found")
 
         # Block start_odometer change if trips exist
-        if (  # noqa: SIM102
+        if (
             "start_odometer" in data
             and int(data["start_odometer"]) != existing["start_odometer"]
         ):
@@ -123,7 +123,7 @@ class VehicleService:
                 )
 
         # Validate odometer_unit if being changed
-        if "odometer_unit" in data:  # noqa: SIM102
+        if "odometer_unit" in data:
             if data["odometer_unit"] not in ("km", "miles"):
                 raise ValueError("odometer_unit must be 'km' or 'miles'")
 

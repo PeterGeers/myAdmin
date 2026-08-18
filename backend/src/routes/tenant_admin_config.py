@@ -83,7 +83,7 @@ def list_configs(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error listing configs: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -155,7 +155,7 @@ def create_config(user_email, user_roles) -> ResponseReturnValue:
             {"success": True, "message": "Configuration created successfully"}
         ), 201
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error creating config: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -237,7 +237,7 @@ def update_config(user_email, user_roles, config_id) -> ResponseReturnValue:
             {"success": True, "message": "Configuration updated successfully"}
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating config: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -296,7 +296,7 @@ def delete_config(user_email, user_roles, config_id) -> ResponseReturnValue:
             {"success": True, "message": "Configuration deleted successfully"}
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error deleting config: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -366,7 +366,7 @@ def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error getting tenant config: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -431,7 +431,7 @@ def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
         else:
             return jsonify({"error": "Failed to update configuration"}), 500
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error setting tenant config: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -491,6 +491,6 @@ def delete_tenant_config_legacy(
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error deleting tenant config: {e}", flush=True)
         return jsonify({"error": str(e)}), 500

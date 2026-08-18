@@ -86,7 +86,7 @@ def serve_index() -> ResponseReturnValue:
     build_folder = "/app/frontend/build"
     try:
         return send_from_directory(build_folder, "index.html")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"error": "Frontend not built", "details": str(e)}), 404
 
 
@@ -104,5 +104,5 @@ def handle_404(e) -> ResponseReturnValue:
     )
     try:
         return send_from_directory(build_folder, "index.html")
-    except Exception:  # noqa: BLE001
+    except Exception:
         return jsonify({"error": "Frontend not built"}), 404

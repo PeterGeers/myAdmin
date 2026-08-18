@@ -58,7 +58,7 @@ class CloudFrontDomainService:
             region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
             self._kvs = boto3.client("cloudfront-keyvaluestore", region_name=region)
             return self._kvs
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(
                 f"cloudfront-keyvaluestore client not available (awscrt missing): {e}. "
                 "Falling back to AWS CLI for KVS operations."
@@ -272,7 +272,7 @@ class CloudFrontDomainService:
 
             logger.info(f"Put KVS mapping (CLI): {domain} → {slug}")
             return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"CLI fallback failed for put KVS {domain}: {e}")
             return False
 
@@ -371,7 +371,7 @@ class CloudFrontDomainService:
 
             logger.info(f"Deleted KVS mapping (CLI) for domain: {domain}")
             return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"CLI fallback failed for delete KVS {domain}: {e}")
             return False
 

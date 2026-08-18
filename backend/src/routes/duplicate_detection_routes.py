@@ -65,7 +65,7 @@ def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
                 "newFileUrl": new_file_url,
                 "newFileId": new_file_id,
                 "tableName": table_name,
-                "checkTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                "checkTimestamp": datetime.now().isoformat(),
             }
         )
 
@@ -73,7 +73,7 @@ def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
 
     except ValueError as e:
         return jsonify({"success": False, "error": f"Invalid data format: {e!s}"}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Duplicate check error: {e}", flush=True)
         # Return graceful degradation - allow import to continue with warning
         return jsonify(
@@ -85,7 +85,7 @@ def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
                     "existing_transactions": [],
                     "requires_user_decision": False,
                     "error_message": f"Duplicate check failed: {e!s}",
-                    "checkTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                    "checkTimestamp": datetime.now().isoformat(),
                 },
             }
         ), 200
@@ -166,7 +166,7 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                 {
                     "success": True,
                     "message": f'Decision "{decision}" logged successfully',
-                    "logTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                    "logTimestamp": datetime.now().isoformat(),
                 }
             )
         else:
@@ -176,11 +176,11 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                     "success": True,
                     "message": f'Decision "{decision}" processed (logging may have failed)',
                     "warning": "Audit logging encountered an issue",
-                    "logTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                    "logTimestamp": datetime.now().isoformat(),
                 }
             )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Decision logging error: {e}", flush=True)
         # Don't fail the user's workflow even if logging fails
         return jsonify(
@@ -188,7 +188,7 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                 "success": True,
                 "message": "Decision processed (logging failed)",
                 "error": str(e),
-                "logTimestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                "logTimestamp": datetime.now().isoformat(),
             }
         ), 200
 
@@ -270,7 +270,7 @@ def handle_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                     f" {inserted_count} transaction(s) inserted into database."
                 )
 
-            except Exception as db_error:  # noqa: BLE001
+            except Exception as db_error:
                 print(f"Database insertion error: {db_error}")
                 result["success"] = False
                 result["message"] = (
@@ -285,16 +285,16 @@ def handle_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
                 "cleanupPerformed": result.get("cleanup_performed", False),
                 "transactionsProcessed": len(result.get("transactions", [])),
                 "transactionsInserted": result.get("transactions_inserted", 0),
-                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                "timestamp": datetime.now().isoformat(),
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Duplicate decision handling error: {e}", flush=True)
         return jsonify(
             {
                 "success": False,
                 "error": f"Error handling duplicate decision: {e!s}",
-                "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                "timestamp": datetime.now().isoformat(),
             }
         ), 500

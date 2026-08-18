@@ -22,7 +22,7 @@ class FieldConfigMixin:
 
     # Subclasses must define these
     FIELD_CONFIG_KEY: str = ""
-    ALWAYS_REQUIRED: list[str] = []  # noqa: RUF012
+    ALWAYS_REQUIRED: list[str] = []
 
     def get_field_config(self, tenant: str) -> dict[str, str]:
         """Get field config for tenant, merging defaults with overrides.

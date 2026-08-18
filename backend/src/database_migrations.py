@@ -58,7 +58,7 @@ class DatabaseMigration:
         if not migration_name:
             raise ValueError("Migration name is required")
 
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")  # noqa: DTZ005
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"{timestamp}_{migration_name}.json"
         filepath = os.path.join(self.migrations_dir, filename)
 
@@ -170,7 +170,7 @@ class DatabaseMigration:
                 try:
                     self.apply_migration(filepath)
                     applied_count += 1
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     print(f"Failed to apply {migration['name']}: {e}")
                     break
 
@@ -228,7 +228,7 @@ class DatabaseMigration:
             try:
                 result = self.db.execute_query(query)
                 results.append({"query": query, "success": True, "result": result})
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 results.append({"query": query, "success": False, "error": str(e)})
 
         return results
@@ -260,7 +260,7 @@ class DatabaseMigration:
                         "index_count": len(indexes) if indexes else 0,
                     }
                     index_report.append(table_report)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 index_report.append({"table": table, "error": str(e)})
 
         return index_report
@@ -313,7 +313,7 @@ class DatabaseMigration:
                             "status": "exists",
                         }
                     )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 results.append(
                     {
                         "table": table,
@@ -356,7 +356,7 @@ class DatabaseMigration:
                         "success": True,
                     }
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 results.append(
                     {"query": query[:50] + "...", "success": False, "error": str(e)}
                 )
@@ -382,7 +382,7 @@ class QueryOptimizer:
         cached_result = self.query_cache.get(cache_key)
         if cached_result and (
             "timestamp" not in cached_result
-            or (datetime.now() - cached_result["timestamp"]).seconds  # noqa: DTZ005
+            or (datetime.now() - cached_result["timestamp"]).seconds
             < (ttl or self.cache_ttl)
         ):
             return cached_result["data"]
@@ -393,7 +393,7 @@ class QueryOptimizer:
         # Cache result
         self.query_cache[cache_key] = {
             "data": result,
-            "timestamp": datetime.now(),  # noqa: DTZ005
+            "timestamp": datetime.now(),
             "query": query,
             "params": params,
         }
@@ -445,7 +445,7 @@ class QueryOptimizer:
 
             return analysis
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {"query": query, "error": str(e)}
 
     def optimize_query(self, query):

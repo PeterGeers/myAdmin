@@ -52,7 +52,7 @@ def get_email_logs(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "logs": logs, "count": len(logs)})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error fetching email logs: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -122,6 +122,6 @@ def ses_notification_webhook() -> ResponseReturnValue:
 
         return jsonify({"status": "ok"}), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error processing SES webhook: {e}")
         return jsonify({"status": "error"}), 200  # Return 200 to prevent SNS retries

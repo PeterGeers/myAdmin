@@ -32,7 +32,7 @@ class DuplicateDetectionMetrics:
     def __init__(self):
         self.metrics = defaultdict(list)
         self.aggregated_metrics = {}
-        self.start_time = datetime.now()  # noqa: DTZ005
+        self.start_time = datetime.now()
 
         # Performance thresholds (from requirements)
         self.query_time_threshold = 2.0  # 2 seconds max (Requirement 5.5)
@@ -55,7 +55,7 @@ class DuplicateDetectionMetrics:
             error: Error message if operation failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "execution_time": execution_time,
             "duplicates_found": duplicates_found,
             "cache_hit": cache_hit,
@@ -88,7 +88,7 @@ class DuplicateDetectionMetrics:
             error: Error message if operation failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "execution_time": execution_time,
             "success": success,
             "file_size_bytes": file_size_bytes,
@@ -119,7 +119,7 @@ class DuplicateDetectionMetrics:
             error: Error message if operation failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "execution_time": execution_time,
             "decision": decision,
             "success": success,
@@ -148,7 +148,7 @@ class DuplicateDetectionMetrics:
             error: Error message if query failed
         """
         metric_entry = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "query_type": query_type,
             "execution_time": execution_time,
             "rows_returned": rows_returned,
@@ -175,8 +175,8 @@ class DuplicateDetectionMetrics:
         summary = {
             "collection_period": {
                 "start": self.start_time.isoformat(),
-                "end": datetime.now().isoformat(),  # noqa: DTZ005
-                "duration_hours": (datetime.now() - self.start_time).total_seconds()  # noqa: DTZ005
+                "end": datetime.now().isoformat(),
+                "duration_hours": (datetime.now() - self.start_time).total_seconds()
                 / 3600,
             },
             "duplicate_checks": self._summarize_duplicate_checks(),
@@ -413,7 +413,7 @@ class DuplicateDetectionMetrics:
         """
         try:
             export_data = {
-                "export_timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+                "export_timestamp": datetime.now().isoformat(),
                 "summary": self.get_summary_statistics(),
                 "raw_metrics": dict(self.metrics),
             }
@@ -424,7 +424,7 @@ class DuplicateDetectionMetrics:
             logger.info(f"Metrics exported to {filepath}")
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to export metrics: {e}")
             return False
 
@@ -432,7 +432,7 @@ class DuplicateDetectionMetrics:
         """Reset all collected metrics."""
         self.metrics.clear()
         self.aggregated_metrics.clear()
-        self.start_time = datetime.now()  # noqa: DTZ005
+        self.start_time = datetime.now()
         logger.info("Metrics reset")
 
 

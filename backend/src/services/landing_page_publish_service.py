@@ -138,9 +138,7 @@ class LandingPagePublishService:
                         "success": False,
                         "error": "Failed to publish landing page data to S3.",
                     }
-                logger.info(
-                    "Published landing.json via asset_svc for slug=%s", slug
-                )
+                logger.info("Published landing.json via asset_svc for slug=%s", slug)
             except (ClientError, ValueError) as e:
                 logger.error(
                     "store_and_register landing.json failed for slug=%s: %s", slug, e
@@ -176,14 +174,15 @@ class LandingPagePublishService:
                         "success": False,
                         "error": "Failed to publish index.html to S3.",
                     }
-                logger.info(
-                    "Published index.html via asset_svc for slug=%s", slug
-                )
+                logger.info("Published index.html via asset_svc for slug=%s", slug)
             except (ClientError, ValueError) as e:
                 logger.error(
                     "store_and_register index.html failed for slug=%s: %s", slug, e
                 )
-                return {"success": False, "error": "Failed to publish index.html to S3."}
+                return {
+                    "success": False,
+                    "error": "Failed to publish index.html to S3.",
+                }
 
             # Write slug-based files for CloudFront serving ({slug}/index.html)
             # The asset_svc writes are for tracking (tenant/category/asset_id_file),
@@ -212,9 +211,7 @@ class LandingPagePublishService:
                     slug,
                 )
             except (ClientError, ValueError) as e:
-                logger.error(
-                    "S3 CDN-serving write failed for slug=%s: %s", slug, e
-                )
+                logger.error("S3 CDN-serving write failed for slug=%s: %s", slug, e)
                 return {
                     "success": False,
                     "error": "Failed to publish landing page for CDN serving.",
@@ -238,7 +235,9 @@ class LandingPagePublishService:
                     slug,
                 )
             except (ClientError, ValueError) as e:
-                logger.error("S3 put_object landing.json failed for slug=%s: %s", slug, e)
+                logger.error(
+                    "S3 put_object landing.json failed for slug=%s: %s", slug, e
+                )
                 return {
                     "success": False,
                     "error": "Failed to publish landing page data to S3.",
@@ -260,11 +259,16 @@ class LandingPagePublishService:
                     CacheControl="public, max-age=300",
                 )
                 logger.info(
-                    "Published index.html to s3://%s/%s/index.html", self.bucket_name, slug
+                    "Published index.html to s3://%s/%s/index.html",
+                    self.bucket_name,
+                    slug,
                 )
             except (ClientError, ValueError) as e:
                 logger.error("S3 put_object index.html failed for slug=%s: %s", slug, e)
-                return {"success": False, "error": "Failed to publish index.html to S3."}
+                return {
+                    "success": False,
+                    "error": "Failed to publish index.html to S3.",
+                }
 
         # Save version snapshot
         version_result = self.landing_page_svc.save_version(
@@ -321,7 +325,7 @@ class LandingPagePublishService:
                         self.asset_svc.delete_asset(
                             tenant, asset_id, approved_by=unpublished_by
                         )
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning(
                         "Asset detach/delete failed for asset_id=%s slug=%s: %s",
                         asset_id,
@@ -364,7 +368,7 @@ class LandingPagePublishService:
                 fetch=True,
             )
             return [row["asset_id"] for row in rows] if rows else []
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(
                 "Failed to query landing page assets for slug=%s: %s", slug, e
             )
@@ -402,7 +406,7 @@ class LandingPagePublishService:
             )
             if result and result[0].get("domain"):
                 return result[0]["domain"]
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Failed to query custom domain for tenant %s", tenant)
         return None
 
@@ -417,7 +421,7 @@ class LandingPagePublishService:
             )
             if result and result[0].get("jabaki_enabled"):
                 return True
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Failed to query jabaki_enabled for tenant %s", tenant)
         return False
 

@@ -216,7 +216,7 @@ class AITemplateAssistant:
                     )
                     last_error = f"AI service request failed: {e!s}"
                     continue
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning(f"{model.model_id} failed: {e} - trying next model")
                     last_error = f"Failed to process response: {e!s}"
                     continue
@@ -225,7 +225,7 @@ class AITemplateAssistant:
             logger.error(f"All models failed. Last error: {last_error}")
             return {"success": False, "error": "All models failed"}
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Unexpected error in get_fix_suggestions: {e}")
             return {
                 "success": False,
@@ -408,7 +408,7 @@ Format your response as JSON:
 
             # Validate structure
             if not isinstance(parsed, dict):
-                raise ValueError("Response is not a dictionary")  # noqa: TRY004
+                raise ValueError("Response is not a dictionary")
 
             # Ensure required fields exist
             if "analysis" not in parsed:
@@ -433,7 +433,7 @@ Format your response as JSON:
                 "auto_fix_available": False,
                 "confidence": "low",
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to parse AI response: {e}")
             return {
                 "analysis": "Failed to parse AI response",
@@ -488,7 +488,7 @@ Format your response as JSON:
 
             return modified_template
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to apply auto-fixes: {e}")
             # Return original template if fixes fail
             return template_content
@@ -534,7 +534,7 @@ Format your response as JSON:
                     )
                     return template
 
-            elif "body" in location_lower or "main" in location_lower:  # noqa: SIM102
+            elif "body" in location_lower or "main" in location_lower:
                 # Try to add in body/main section
                 if "<main" in template:
                     template = template.replace("</main>", f"{code_to_add}\n</main>", 1)
@@ -549,7 +549,7 @@ Format your response as JSON:
 
             return template
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to add placeholder: {e}")
             # Return original template if addition fails
             return template

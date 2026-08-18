@@ -31,7 +31,7 @@ class TemplateService:
     """
 
     # Mapping of template_type to local default files
-    _LOCAL_DEFAULTS = {  # noqa: RUF012
+    _LOCAL_DEFAULTS = {
         "aangifte_ib_html_report": {
             "template": "html/aangifte_ib_template.html",
             "field_mappings": "html/aangifte_ib_field_mappings.json",
@@ -132,9 +132,9 @@ class TemplateService:
             # Fall back to local default
             return self._get_local_default_metadata(template_type)
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to get template metadata: {e}")
-            raise Exception(f"Failed to retrieve template metadata: {e!s}")  # noqa: TRY002
+            raise Exception(f"Failed to retrieve template metadata: {e!s}")
 
     def _get_local_default_metadata(self, template_type: str) -> dict[str, Any] | None:
         """
@@ -165,7 +165,7 @@ class TemplateService:
             try:
                 with open(mappings_path, encoding="utf-8") as f:
                     field_mappings = json.load(f)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"Failed to load local field mappings from {mappings_path}: {e}"
                 )
@@ -203,9 +203,9 @@ class TemplateService:
                     content = f.read()
                 logger.info(f"Loaded local default template from {local_path}")
                 return content
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.error(f"Failed to read local template {local_path}: {e}")
-                raise Exception(f"Failed to read local template: {e!s}")  # noqa: TRY002
+                raise Exception(f"Failed to read local template: {e!s}")
 
         # Google Drive path
         try:
@@ -244,9 +244,9 @@ class TemplateService:
 
             return template_content
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to fetch template from Google Drive: {e}")
-            raise Exception(f"Failed to fetch template: {e!s}")  # noqa: TRY002
+            raise Exception(f"Failed to fetch template: {e!s}")
 
     def apply_field_mappings(
         self, template_xml: str, data: dict[str, Any], mappings: dict[str, Any]
@@ -293,7 +293,7 @@ class TemplateService:
                         placeholder, str(formatted_value)
                     )
 
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning(
                         f"Failed to apply field mapping for '{field_name}': {e}"
                     )
@@ -310,16 +310,16 @@ class TemplateService:
                     result_template = self._apply_conditional(
                         result_template, data, conditional, fields
                     )
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning(f"Failed to apply conditional: {e}")
 
             logger.info("Successfully applied field mappings to template")
 
             return result_template
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to apply field mappings: {e}")
-            raise Exception(f"Failed to apply field mappings: {e!s}")  # noqa: TRY002
+            raise Exception(f"Failed to apply field mappings: {e!s}")
 
     def generate_output(
         self, template: str, data: dict[str, Any], output_format: str
@@ -358,9 +358,9 @@ class TemplateService:
             else:
                 raise ValueError(f"Unsupported output format: {output_format}")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to generate output: {e}")
-            raise Exception(f"Failed to generate output: {e!s}")  # noqa: TRY002
+            raise Exception(f"Failed to generate output: {e!s}")
 
     # Helper methods
 
@@ -401,7 +401,7 @@ class TemplateService:
 
             return value
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Failed to get field value for path '{path}': {e}")
             return default
 
@@ -469,7 +469,7 @@ class TemplateService:
                 return str(value).lower()
             else:
                 return value
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Failed to apply transform '{transform}': {e}")
             return value
 
@@ -504,7 +504,7 @@ class TemplateService:
             else:
                 return f"{currency} {formatted}"
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Failed to format currency: {e}")
             return str(value)
 
@@ -527,7 +527,7 @@ class TemplateService:
                 # Try common date formats
                 for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y", "%Y/%m/%d"]:
                     try:
-                        date_obj = datetime.strptime(value, fmt)  # noqa: DTZ007
+                        date_obj = datetime.strptime(value, fmt)
                         break
                     except ValueError:
                         continue
@@ -549,7 +549,7 @@ class TemplateService:
             else:
                 return date_obj.strftime("%d-%m-%Y")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Failed to format date: {e}")
             return str(value)
 
@@ -575,7 +575,7 @@ class TemplateService:
                 # Format with decimals
                 decimals = formatting.get("number_decimals", 2)
                 return f"{numeric_value:,.{decimals}f}"
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Failed to format number: {e}")
             return str(value)
 
@@ -624,7 +624,7 @@ class TemplateService:
 
             return template
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Failed to apply conditional: {e}")
             return template
 
@@ -660,7 +660,7 @@ class TemplateService:
             else:
                 logger.warning(f"Unknown operator: {operator}")
                 return False
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Failed to evaluate condition: {e}")
             return False
 

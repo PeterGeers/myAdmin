@@ -31,7 +31,7 @@ def _get_ledger_parameters() -> dict:
         try:
             with open(config_path, encoding="utf-8") as f:
                 _ledger_parameters = json.load(f)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to load ledger_parameters.json: {e}")
             _ledger_parameters = []
     return _ledger_parameters

@@ -140,7 +140,7 @@ def upload_receipt(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
             os.unlink(temp_path)
 
             return jsonify({"driveUrl": drive_result["url"]})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 

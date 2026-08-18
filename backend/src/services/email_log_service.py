@@ -45,7 +45,7 @@ class EmailLogService:
                 fetch=False,
                 commit=True,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to log email send: {e}")
             return None
 
@@ -68,7 +68,7 @@ class EmailLogService:
                 fetch=False,
                 commit=True,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to log email failure: {e}")
             return None
 
@@ -89,7 +89,7 @@ class EmailLogService:
                 commit=True,
             )
             return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to update email status: {e}")
             return False
 
@@ -132,6 +132,6 @@ class EmailLogService:
                 fetch=True,
             )
             return rows or []
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to query email logs: {e}")
             return []

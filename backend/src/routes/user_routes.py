@@ -39,7 +39,7 @@ def get_user_language_preference(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"language": language}), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Error in get_user_language_preference: {e}")
         return jsonify(
             {"error": _("Failed to retrieve language preference"), "details": str(e)}
@@ -97,7 +97,7 @@ def update_user_language_preference(user_email, user_roles) -> ResponseReturnVal
             }
         ), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Error in update_user_language_preference: {e}")
         return jsonify(
             {"error": _("Failed to update language preference"), "details": str(e)}

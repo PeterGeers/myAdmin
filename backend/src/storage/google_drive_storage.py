@@ -49,7 +49,7 @@ class GoogleDriveStorage(StorageProvider):
             svc = self._get_service()
             svc.service.files().delete(fileId=key).execute()
             return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error("Failed to delete Google Drive file %s: %s", key, e)
             return False
 
@@ -80,6 +80,6 @@ class GoogleDriveStorage(StorageProvider):
                 }
                 for f in results.get("files", [])
             ]
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error("Failed to list Google Drive folder %s: %s", path, e)
             return []

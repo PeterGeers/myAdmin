@@ -73,7 +73,7 @@ def get_closure_aware_start_year(db, administration):
 
         return None
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(
             f"Could not determine closure-aware start year for {administration}: {e}. "
             f"Falling back to full cumulation (no lower bound)."

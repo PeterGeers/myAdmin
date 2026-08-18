@@ -44,7 +44,7 @@ def process_airbnb_multi(
             print(
                 f"Airbnb multi-import: loaded {len(df)} rows from {os.path.basename(fp)}"
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             failed_files.append(os.path.basename(fp))
             print(f"Airbnb multi-import: failed to parse {os.path.basename(fp)}: {e}")
 
@@ -64,7 +64,7 @@ def process_airbnb_multi(
         )
 
     # Determine sourceFile label
-    today_str = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+    today_str = datetime.now().strftime("%Y-%m-%d")
     if len(file_paths) > 1:
         source_file = f"{today_str} multi-import ({len(file_paths)} files)"
     else:
@@ -146,16 +146,16 @@ def calculate_airbnb_row(
         return None
 
     # Determine booking status
-    today = date.today()  # noqa: DTZ011
+    today = date.today()
     try:
-        checkin_dt = datetime.strptime(checkin_date, "%d-%m-%Y").date()  # noqa: DTZ007
+        checkin_dt = datetime.strptime(checkin_date, "%d-%m-%Y").date()
         if "Geannuleerd" in status:
             booking_status = "cancelled"
         elif checkin_dt > today:
             booking_status = "planned"
         else:
             booking_status = "realised"
-    except Exception:  # noqa: BLE001
+    except Exception:
         booking_status = "realised"
 
     # Calculate financial amounts like R code
@@ -177,20 +177,20 @@ def calculate_airbnb_row(
 
     # Calculate dates and periods
     try:
-        checkin_dt = datetime.strptime(checkin_date, "%d-%m-%Y")  # noqa: DTZ007
-        checkout_dt = datetime.strptime(checkout_date, "%d-%m-%Y")  # noqa: DTZ007
-        reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d")  # noqa: DTZ007
+        checkin_dt = datetime.strptime(checkin_date, "%d-%m-%Y")
+        checkout_dt = datetime.strptime(checkout_date, "%d-%m-%Y")
+        reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d")
 
         year = checkin_dt.year
         quarter = (checkin_dt.month - 1) // 3 + 1
         month = checkin_dt.month
         days_before_reservation = (checkin_dt - reservation_dt).days
-    except Exception:  # noqa: BLE001
-        year = datetime.now().year  # noqa: DTZ005
+    except Exception:
+        year = datetime.now().year
         quarter = 1
         month = 1
         days_before_reservation = 0
-        reservation_dt = datetime.now()  # noqa: DTZ005
+        reservation_dt = datetime.now()
 
     # Price per night based on net amount
     price_per_night = amount_nett / nights if nights > 0 else 0

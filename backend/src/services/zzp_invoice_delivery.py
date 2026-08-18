@@ -70,7 +70,7 @@ class ZZPInvoiceDeliveryHelper:
                 from services.output_service import OutputService
 
                 output_service = OutputService(self.db)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 raise RuntimeError(f"OutputService unavailable: {e}")
 
         # Resolve output destination before health check
@@ -97,7 +97,7 @@ class ZZPInvoiceDeliveryHelper:
                     "success": False,
                     "error": f"Storage unavailable: {health.get('reason', 'health check failed')}. Invoice not sent.",
                 }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {
                 "success": False,
                 "error": f"Storage health check failed: {e}. Invoice not sent.",
@@ -122,7 +122,7 @@ class ZZPInvoiceDeliveryHelper:
                     "success": False,
                     "error": "Storage failed — no URL returned. Invoice not sent.",
                 }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error("PDF storage failed for %s: %s", invoice["invoice_number"], e)
             return {
                 "success": False,
@@ -143,7 +143,7 @@ class ZZPInvoiceDeliveryHelper:
                 )
 
         # 4. Update status to sent (financial records are now complete)
-        self._update_status(tenant, invoice_id, "sent", sent_at=datetime.utcnow())  # noqa: DTZ003
+        self._update_status(tenant, invoice_id, "sent", sent_at=datetime.utcnow())
 
         # 5. Send email — SOFT FAILURE (invoice already booked and marked sent)
         email_warning = None
@@ -172,7 +172,7 @@ class ZZPInvoiceDeliveryHelper:
                         invoice["invoice_number"],
                         email_result.get("error"),
                     )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 email_warning = (
                     f"Invoice booked successfully, but email failed: {e}. "
                     f"Please resend manually."
@@ -241,7 +241,7 @@ class ZZPInvoiceDeliveryHelper:
 
         try:
             return self.pdf_generator.generate_preview_pdf(tenant, invoice)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise RuntimeError(f"PDF generation failed: {e}")
 
     def get_email_preview(self, tenant: str, invoice_id: int, get_invoice_fn) -> dict:

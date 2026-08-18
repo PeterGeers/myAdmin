@@ -78,7 +78,7 @@ def get_user_tenants(jwt_token: str) -> list[str]:
         print(f"[Backend] Final tenants list: {tenants}", flush=True)
         return tenants
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error extracting tenants from JWT: {e}", flush=True)
         import traceback
 
@@ -312,7 +312,7 @@ def get_tenant_config(
         if result and len(result) > 0:
             return result[0].get("config_value")
         return None
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error getting tenant config: {e}", flush=True)
         return None
 
@@ -362,6 +362,6 @@ def set_tenant_config(
             commit=True,
         )
         return True
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error setting tenant config: {e}", flush=True)
         return False

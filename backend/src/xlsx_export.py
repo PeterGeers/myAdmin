@@ -78,7 +78,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                         f"Template path from database not found: {template_path}, "
                         f"using default"
                     )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Could not get template path from TemplateService: {e}")
 
         logger.info(f"Using default template path for {administration}")
@@ -100,7 +100,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                         f"{output_path}"
                     )
                     return output_path
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Could not get output path from TemplateService: {e}")
 
         logger.info(f"Using default output path for {administration}")
@@ -321,7 +321,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                         }
                     )
 
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     print(f"Error processing {administration} {year}: {e!s}")
                     import traceback
 

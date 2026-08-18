@@ -29,7 +29,7 @@ class AISanitizer:
     MAX_TEXT_LENGTH = 10000
     REJECTION_THRESHOLD = 0.50  # Reject if >50% of content stripped
 
-    INJECTION_PATTERNS = [  # noqa: RUF012
+    INJECTION_PATTERNS = [
         re.compile(r"(?i)\b(you are now|act as|pretend to be|assume the role)\b"),
         re.compile(
             r"(?i)\b(ignore previous|disregard above|forget all|override instructions)\b"

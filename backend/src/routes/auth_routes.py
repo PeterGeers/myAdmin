@@ -118,12 +118,12 @@ def forgot_password() -> ResponseReturnValue:
 
                     tenants = json.loads(attr["Value"])
                     administration = tenants[0] if tenants else None
-                except Exception:  # noqa: BLE001, S110
+                except Exception:
                     pass
 
         # Generate code and store in password_reset_codes table
         code = _generate_code()
-        expires_at = datetime.utcnow() + timedelta(minutes=CODE_EXPIRY_MINUTES)  # noqa: DTZ003
+        expires_at = datetime.utcnow() + timedelta(minutes=CODE_EXPIRY_MINUTES)
         db = _get_db()
 
         # Upsert: delete any existing code for this email, then insert new one
@@ -159,7 +159,7 @@ def forgot_password() -> ResponseReturnValue:
                 },
                 format="html",
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             html_content = None
 
         text_content = (
@@ -187,7 +187,7 @@ def forgot_password() -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error in forgot-password: {e}")
         return jsonify(
             {
@@ -244,7 +244,7 @@ def confirm_reset_password() -> ResponseReturnValue:
         attempts = row["attempts"] if isinstance(row, dict) else row[2]
 
         # Check expiry
-        if datetime.utcnow() > expires_at:  # noqa: DTZ003
+        if datetime.utcnow() > expires_at:
             db.execute_query(
                 "DELETE FROM password_reset_codes WHERE email = %s",
                 (email,),
@@ -320,7 +320,7 @@ def confirm_reset_password() -> ResponseReturnValue:
             {"success": True, "message": "Password has been reset successfully."}
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error in confirm-reset: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 

@@ -290,7 +290,7 @@ def get_available_roles(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -346,7 +346,7 @@ def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
                         group["GroupName"]
                         for group in groups_response.get("Groups", [])
                     ]
-                except Exception:  # noqa: BLE001
+                except Exception:
                     user_groups = []
 
                 tenant_users.append(
@@ -371,7 +371,7 @@ def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error getting tenant users: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -433,7 +433,7 @@ def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseRetur
             target_user_tenants = get_user_attribute(
                 user_response.get("UserAttributes", []), "custom:tenants"
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             return jsonify({"error": f"User not found: {username}"}), 404
 
         if not target_user_tenants or tenant not in target_user_tenants:
@@ -460,7 +460,7 @@ def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseRetur
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error assigning tenant role: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
 
@@ -518,7 +518,7 @@ def remove_tenant_role_legacy(
             target_user_tenants = get_user_attribute(
                 user_response.get("UserAttributes", []), "custom:tenants"
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             return jsonify({"error": f"User not found: {username}"}), 404
 
         if not target_user_tenants or tenant not in target_user_tenants:
@@ -545,6 +545,6 @@ def remove_tenant_role_legacy(
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error removing tenant role: {e}", flush=True)
         return jsonify({"error": str(e)}), 500

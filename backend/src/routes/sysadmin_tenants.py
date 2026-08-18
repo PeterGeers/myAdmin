@@ -110,7 +110,7 @@ def create_tenant(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(response), 201
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error creating tenant: {e}")
         import traceback
 
@@ -235,7 +235,7 @@ def list_tenants(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error listing tenants: {e}")
         import traceback
 
@@ -303,7 +303,7 @@ def get_tenant(user_email, user_roles, administration) -> ResponseReturnValue:
 
         return jsonify({"success": True, "tenant": tenant})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting tenant: {e}")
         import traceback
 
@@ -410,7 +410,7 @@ def update_tenant(user_email, user_roles, administration) -> ResponseReturnValue
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating tenant: {e}")
         import traceback
 
@@ -474,7 +474,7 @@ def delete_tenant(user_email, user_roles, administration) -> ResponseReturnValue
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error deleting tenant: {e}")
         import traceback
 
@@ -554,7 +554,7 @@ def get_tenant_modules(user_email, user_roles, administration) -> ResponseReturn
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting tenant modules: {e}")
         import traceback
 
@@ -653,7 +653,7 @@ def update_tenant_modules(
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating tenant modules: {e}")
         import traceback
 

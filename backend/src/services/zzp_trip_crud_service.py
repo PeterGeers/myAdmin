@@ -26,7 +26,7 @@ class TripCrudService:
     """Trip CRUD operations: create, update, cancel, gap-fill."""
 
     # Fields that can be updated via update_trip (excludes distance_km which is generated)
-    UPDATABLE_FIELDS = [  # noqa: RUF012
+    UPDATABLE_FIELDS = [
         "trip_date",
         "start_time",
         "end_time",
@@ -199,7 +199,7 @@ class TripCrudService:
                 default_purpose=data.get("trip_purpose"),
                 typical_distance_km=end_odometer - start_odometer,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Route preset auto-learn failed (non-blocking): {e}")
 
         return result

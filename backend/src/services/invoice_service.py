@@ -25,7 +25,7 @@ from transaction_logic import TransactionLogic
 class InvoiceService:
     """Service class for invoice processing operations"""
 
-    ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}  # noqa: RUF012
+    ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}
 
     def __init__(self, test_mode=False):
         """
@@ -140,7 +140,7 @@ class InvoiceService:
                 "duplicate_info": None,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error in early duplicate check: {e}", flush=True)
             # On error, allow processing to continue (graceful degradation)
             return {
@@ -197,7 +197,7 @@ class InvoiceService:
                 s3_key = result["asset"]["s3_key"]
                 print(f"File uploaded to S3: {s3_key}", flush=True)
                 return {"id": s3_key, "url": s3_key}
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(
                     f"S3 upload failed for tenant {tenant}: {type(e).__name__}: {e!s}",
                     flush=True,
@@ -270,7 +270,7 @@ class InvoiceService:
                         "id": filename,
                         "url": f"http://localhost:5000/uploads/{filename}",
                     }
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(
                     f"Google Drive upload failed for tenant {tenant}: {type(e).__name__}: {e!s}",
                     flush=True,
@@ -344,7 +344,7 @@ class InvoiceService:
                 ):
                     vendor_data["vat_amount"] = transactions[1].get("amount", 0)
 
-            transaction_date = vendor_data.get("date") or datetime.now().strftime(  # noqa: DTZ005
+            transaction_date = vendor_data.get("date") or datetime.now().strftime(
                 "%Y-%m-%d"
             )
             description = vendor_data.get("description", f"Invoice from {folder_name}")
@@ -538,5 +538,5 @@ class InvoiceService:
             try:
                 os.remove(temp_path)
                 print(f"Cleaned up temp file: {temp_path}", flush=True)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"Error cleaning up temp file: {e}", flush=True)

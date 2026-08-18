@@ -87,7 +87,7 @@ class SessionManager:
                 raise SessionValidationError(f"Session not found: {session_id}")
 
             session_info = self.sessions[session_id]
-            now = datetime.now()  # noqa: DTZ005
+            now = datetime.now()
 
             # Check if session has timed out
             time_since_access = (now - session_info.last_accessed).total_seconds()
@@ -115,7 +115,7 @@ class SessionManager:
             Number of sessions that were cleaned up
         """
         expired_sessions = []
-        now = datetime.now()  # noqa: DTZ005
+        now = datetime.now()
 
         with self.lock:
             for session_id, session_info in self.sessions.items():
@@ -140,7 +140,7 @@ class SessionManager:
                 try:
                     time.sleep(self.cleanup_interval)
                     self.cleanup_expired_sessions()
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.error(f"Error in session cleanup thread: {e}")
 
         cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)

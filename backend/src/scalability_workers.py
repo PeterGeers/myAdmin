@@ -146,7 +146,7 @@ class AsyncProcessingManager:
             try:
                 result = process_func(item)
                 results.append(result)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.error(f"❌ Batch processing error: {e}")
                 results.append(None)
         return results
@@ -265,14 +265,14 @@ class ResourceMonitor:
                         "packets_sent": network.packets_sent,
                         "packets_recv": network.packets_recv,
                     }
-                except Exception:  # noqa: BLE001
+                except Exception:
                     network_stats = {}
 
                 process = psutil.Process()
                 process_memory = process.memory_info()
 
                 metrics = {
-                    "timestamp": datetime.now(),  # noqa: DTZ005
+                    "timestamp": datetime.now(),
                     "cpu_percent": cpu_percent,
                     "memory": {
                         "total_gb": memory.total / (1024**3),
@@ -299,7 +299,7 @@ class ResourceMonitor:
                 with self.lock:
                     self.metrics_history.append(metrics)
 
-                    cutoff_time = datetime.now() - timedelta(hours=1)  # noqa: DTZ005
+                    cutoff_time = datetime.now() - timedelta(hours=1)
                     self.metrics_history = [
                         m for m in self.metrics_history if m["timestamp"] > cutoff_time
                     ]
@@ -308,7 +308,7 @@ class ResourceMonitor:
 
                 time.sleep(self.config.monitoring_interval_seconds)
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.error(f"❌ Resource monitoring error: {e}")
                 time.sleep(self.config.monitoring_interval_seconds)
 
@@ -322,7 +322,7 @@ class ResourceMonitor:
                     "type": "cpu_high",
                     "message": f"High CPU usage: {metrics['cpu_percent']:.1f}%",
                     "severity": "warning",
-                    "timestamp": datetime.now(),  # noqa: DTZ005
+                    "timestamp": datetime.now(),
                 }
             )
 
@@ -335,7 +335,7 @@ class ResourceMonitor:
                     "type": "memory_high",
                     "message": f"High memory usage: {metrics['memory']['percent_used']:.1f}%",
                     "severity": "warning",
-                    "timestamp": datetime.now(),  # noqa: DTZ005
+                    "timestamp": datetime.now(),
                 }
             )
 
@@ -345,7 +345,7 @@ class ResourceMonitor:
                     "type": "process_memory_high",
                     "message": f"High process memory: {metrics['memory']['process_rss_mb']:.1f}MB",
                     "severity": "info",
-                    "timestamp": datetime.now(),  # noqa: DTZ005
+                    "timestamp": datetime.now(),
                 }
             )
 
@@ -394,7 +394,7 @@ class ResourceMonitor:
                     "recent_alerts": [
                         a
                         for a in self.alerts
-                        if a["timestamp"] > datetime.now() - timedelta(minutes=30)  # noqa: DTZ005
+                        if a["timestamp"] > datetime.now() - timedelta(minutes=30)
                     ],
                 },
             }

@@ -53,7 +53,7 @@ def load_zzp_public_services(db: DatabaseManager, tenant: str) -> list[dict]:
             }
             for row in (results or [])
         ]
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Failed to load ZZP services for %s: %s", tenant, e)
         return []
 

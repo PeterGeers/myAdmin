@@ -141,14 +141,14 @@ def resolve_pattern_conflicts(
         if last_seen:
             if isinstance(last_seen, str):
                 try:
-                    last_seen = datetime.strptime(last_seen, "%Y-%m-%d").date()  # noqa: DTZ007
+                    last_seen = datetime.strptime(last_seen, "%Y-%m-%d").date()
                 except (ValueError, TypeError):
                     last_seen = None
 
             if last_seen:
                 if isinstance(last_seen, datetime):
                     last_seen = last_seen.date()
-                days_ago = (date.today() - last_seen).days  # noqa: DTZ011
+                days_ago = (date.today() - last_seen).days
                 # More recent = higher score (max 40 points)
                 recency_score = max(0, 40 - (days_ago / 30))  # Decay over months
                 score += recency_score
@@ -219,7 +219,7 @@ def build_reference_account_index(
     """
     ref_index: dict[str, dict] = {}
 
-    for _key, pattern in reference_patterns.items():
+    for pattern in reference_patterns.values():
         ref_num = pattern.get("reference_number", "").strip()
         if not ref_num:
             continue
@@ -398,7 +398,7 @@ def predict_debet(
     for key, pattern in reference_patterns.items():
         if pattern.get("_ambiguous"):
             continue
-        if (  # noqa: SIM102
+        if (
             pattern.get("credit_account") == credit
             and pattern.get("administration") == administration
             and pattern.get("confidence", 0) > 0
@@ -416,7 +416,10 @@ def predict_debet(
         best_pattern = resolve_pattern_conflicts(
             matching_patterns, transaction, administration, is_bank_account_fn
         )
-        if best_pattern and best_pattern[1].get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT:
+        if (
+            best_pattern
+            and best_pattern[1].get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT
+        ):
             key, pattern = best_pattern
             return {
                 "value": pattern.get("debet_account"),
@@ -514,7 +517,7 @@ def predict_credit(
     for key, pattern in reference_patterns.items():
         if pattern.get("_ambiguous"):
             continue
-        if (  # noqa: SIM102
+        if (
             pattern.get("debet_account") == debet
             and pattern.get("administration") == administration
             and pattern.get("confidence", 0) > 0
@@ -532,7 +535,10 @@ def predict_credit(
         best_pattern = resolve_pattern_conflicts(
             matching_patterns, transaction, administration, is_bank_account_fn
         )
-        if best_pattern and best_pattern[1].get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT:
+        if (
+            best_pattern
+            and best_pattern[1].get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT
+        ):
             key, pattern = best_pattern
             return {
                 "value": pattern.get("credit_account"),
@@ -640,7 +646,7 @@ def predict_reference(
         # Only exact verb matches or very close company matches
         if pattern.get("verb") == verb:
             matching_patterns.append((key, pattern, "exact_verb", 1.0))
-        elif (  # noqa: SIM102
+        elif (
             is_compound
             and pattern.get("verb_company") == verb_company
             and pattern.get("is_compound")
@@ -662,7 +668,10 @@ def predict_reference(
         key, pattern, match_type, score = best_match
 
         # Require minimum confidence threshold
-        if score >= CONFIDENCE_THRESHOLD_CONFIDENT and pattern.get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT:
+        if (
+            score >= CONFIDENCE_THRESHOLD_CONFIDENT
+            and pattern.get("confidence", 0) >= CONFIDENCE_THRESHOLD_CONFIDENT
+        ):
             return {
                 "value": pattern.get("reference_number"),
                 "confidence": pattern.get("confidence", 1.0) * score,

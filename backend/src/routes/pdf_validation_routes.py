@@ -59,7 +59,7 @@ def pdf_validate_urls_stream(
                 if progress_data.get("validation_results") is not None:
                     validation_results = progress_data["validation_results"]
                     for result in validation_results:
-                        if "record" in result and "TransactionDate" in result["record"]:  # noqa: SIM102
+                        if "record" in result and "TransactionDate" in result["record"]:
                             if result["record"]["TransactionDate"]:
                                 date_obj = result["record"]["TransactionDate"]
                                 if hasattr(date_obj, "strftime"):
@@ -75,7 +75,7 @@ def pdf_validate_urls_stream(
                 else:
                     yield f"data: {json.dumps({'type': 'progress', **progress_data}, default=str)}\n\n"
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
     return Response(
@@ -128,7 +128,7 @@ def pdf_validate_urls(
         # Format dates in validation results
         validation_results = results.get("validation_results", [])
         for result in validation_results:
-            if "record" in result and "TransactionDate" in result["record"]:  # noqa: SIM102
+            if "record" in result and "TransactionDate" in result["record"]:
                 if result["record"]["TransactionDate"]:
                     # Convert datetime to YYYY-MM-DD format
                     date_obj = result["record"]["TransactionDate"]
@@ -149,7 +149,7 @@ def pdf_validate_urls(
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -192,7 +192,7 @@ def pdf_update_record(
                 }
             ), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Update error: {e}")
         import traceback
 
@@ -217,7 +217,7 @@ def pdf_get_administrations(
 
         return jsonify({"success": True, "administrations": filtered})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -251,5 +251,5 @@ def pdf_validate_single_url(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "status": result["status"]})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

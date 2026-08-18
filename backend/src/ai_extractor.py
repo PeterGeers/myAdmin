@@ -136,7 +136,7 @@ class AIExtractor:
                     f"{model.model_id} timeout after {model.timeout} seconds, trying next model"
                 )
                 continue
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"{model.model_id} error: {e}, trying next model")
                 continue
 
@@ -147,26 +147,26 @@ class AIExtractor:
     def _validate_date(self, date_str):
         """Validate and format date"""
         if not date_str:
-            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+            return datetime.now().strftime("%Y-%m-%d")
 
         try:
             # Try to parse various date formats
             for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
                 try:
-                    parsed = datetime.strptime(date_str, fmt)  # noqa: DTZ007
+                    parsed = datetime.strptime(date_str, fmt)
                     return parsed.strftime("%Y-%m-%d")
                 except ValueError:
                     continue
 
             # If no format matches, return current date
-            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
-        except Exception:  # noqa: BLE001
-            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+            return datetime.now().strftime("%Y-%m-%d")
+        except Exception:
+            return datetime.now().strftime("%Y-%m-%d")
 
     def _fallback_data(self, vendor_hint):
         """Return fallback data when AI fails"""
         return {
-            "date": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+            "date": datetime.now().strftime("%Y-%m-%d"),
             "total_amount": 0.0,
             "vat_amount": 0.0,
             "description": f"{vendor_hint or 'Unknown'} invoice",

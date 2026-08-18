@@ -114,7 +114,7 @@ def reprovision_tenant(user_email, user_roles, administration) -> ResponseReturn
 
         return jsonify(response), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error re-provisioning tenant {administration}: {e}")
         import traceback
 
@@ -307,7 +307,7 @@ def resend_invitation(user_email, user_roles, administration) -> ResponseReturnV
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error resending invitation for {administration}: {e}")
         import traceback
 

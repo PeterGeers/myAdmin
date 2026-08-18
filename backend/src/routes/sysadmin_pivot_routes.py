@@ -139,7 +139,7 @@ def list_datasources(
 
         return jsonify({"success": True, "data": data})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error listing pivot datasources: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -312,7 +312,7 @@ def update_datasources(
 
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error updating pivot datasources: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -392,7 +392,7 @@ def _auto_create_defaults(db, ps, source_name, created_by) -> None:
             force_groupable,
         )
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # Non-fatal: log warning but don't fail the PUT request
         logger.warning(
             "Failed to auto-create defaults for '%s': %s",

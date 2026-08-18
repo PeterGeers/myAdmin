@@ -68,7 +68,7 @@ def has_fin_module(tenant: str) -> bool:
 
         return bool(result and result[0].get("is_active"))
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error checking FIN module for tenant {tenant}: {e}")
         return False
 
@@ -120,7 +120,7 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
 
         return result[0].get("count", 0) if result else 0
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error checking account usage for {account}: {e}")
         return 0
 
@@ -153,7 +153,7 @@ def lookup_accounts(
 
         return jsonify({"success": True, "accounts": accounts or []})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Account lookup failed for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to load accounts"}), 500
 
@@ -295,7 +295,7 @@ def list_accounts(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error listing accounts for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to list accounts", "details": str(e)}), 500
 
@@ -365,7 +365,7 @@ def get_account(user_email, user_roles, account) -> ResponseReturnValue:
 
         return jsonify({"success": True, "account": result[0]})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting account {account} for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to get account", "details": str(e)}), 500
 
@@ -506,7 +506,7 @@ def create_account(user_email, user_roles) -> ResponseReturnValue:
             }
         ), 201
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error creating account for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to create account", "details": str(e)}), 500
 
@@ -692,7 +692,7 @@ def update_account(user_email, user_roles, account) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error updating account {account} for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to update account", "details": str(e)}), 500
 
@@ -780,6 +780,6 @@ def delete_account(user_email, user_roles, account) -> ResponseReturnValue:
 
         return jsonify({"success": True, "message": "Account deleted"})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error deleting account {account} for tenant {tenant}: {e}")
         return jsonify({"error": "Failed to delete account", "details": str(e)}), 500

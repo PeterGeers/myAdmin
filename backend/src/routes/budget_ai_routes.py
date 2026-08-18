@@ -98,7 +98,7 @@ def budget_copy(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
             return jsonify(result), 201
         else:
             return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget copy error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -150,7 +150,7 @@ def budget_ai_narrative(
         else:
             # Graceful degradation — return 200 even on AI failure
             return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget AI narrative error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -201,7 +201,7 @@ def budget_ai_query(
                     hierarchy_context = [
                         {"code": a["code"], "name": a["name"]} for a in accounts[:100]
                     ]
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 pass
 
         # Translate query via AI
@@ -250,7 +250,7 @@ def budget_ai_query(
         }
 
         return jsonify({"success": True, "data": response_data})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget AI query error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -303,7 +303,7 @@ def budget_ai_draft_suggestions(
                         for line in budget_lines
                         if line.get("account_code") in valid_accounts
                     ]
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 pass
 
         # Enrich lines with account names
@@ -324,7 +324,7 @@ def budget_ai_draft_suggestions(
                         line["account_name"] = name_map.get(
                             line.get("account_code", ""), ""
                         )
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 pass
 
         # Check payload limit
@@ -348,7 +348,7 @@ def budget_ai_draft_suggestions(
         else:
             # Graceful degradation — return 200 even on AI failure
             return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget AI draft suggestions error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -390,7 +390,7 @@ def budget_ai_generate_lines(
                 (tenant,),
             )
             chart_of_accounts = accounts if accounts else []
-        except Exception:  # noqa: BLE001, S110
+        except Exception:
             pass
 
         # Get prior-year actuals summary
@@ -406,7 +406,7 @@ def budget_ai_generate_lines(
                 (tenant, prior_year),
             )
             prior_actuals = actuals if actuals else []
-        except Exception:  # noqa: BLE001, S110
+        except Exception:
             pass
 
         # Call AI to generate proposed lines
@@ -422,6 +422,6 @@ def budget_ai_generate_lines(
             return jsonify(result)
         else:
             return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Budget AI generate lines error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500

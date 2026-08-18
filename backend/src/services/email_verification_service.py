@@ -108,7 +108,7 @@ class EmailVerificationService:
                 "status": "failed",
                 "error": f"{error_code}: {error_msg}",
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 f"Unexpected error calling SES for {email} "
                 f"(tenant: {administration}): {e}"
@@ -153,7 +153,7 @@ class EmailVerificationService:
             status = self._map_ses_status(ses_status)
 
             # Update DB with new status and last_checked timestamp
-            now = datetime.utcnow()  # noqa: DTZ003
+            now = datetime.utcnow()
             self._update_verification_status(administration, email, status, now)
 
             last_checked_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -183,7 +183,7 @@ class EmailVerificationService:
                 "status": record["status"],
                 "last_checked": last_checked_str,
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 f"Unexpected error checking status for {email} "
                 f"(tenant: {administration}): {e}"
@@ -215,7 +215,7 @@ class EmailVerificationService:
         # Rate limiting check
         last_resend = record.get("last_resend_at")
         if last_resend:
-            elapsed = (datetime.utcnow() - last_resend).total_seconds()  # noqa: DTZ003
+            elapsed = (datetime.utcnow() - last_resend).total_seconds()
             if elapsed < RESEND_COOLDOWN_SECONDS:
                 return {
                     "success": False,
@@ -237,7 +237,7 @@ class EmailVerificationService:
                 f"(tenant: {administration}): [{error_code}] {error_msg}"
             )
             return {"success": False, "error": f"{error_code}: {error_msg}"}
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 f"Unexpected error resending for {email} "
                 f"(tenant: {administration}): {e}"
@@ -245,7 +245,7 @@ class EmailVerificationService:
             return {"success": False, "error": str(e)}
 
         # Update record: set status to pending, update last_resend_at
-        now = datetime.utcnow()  # noqa: DTZ003
+        now = datetime.utcnow()
         try:
             self.db.execute_query(
                 """UPDATE email_verifications
@@ -377,7 +377,7 @@ class EmailVerificationService:
             email: Email address.
             status: Verification status to set.
         """
-        now = datetime.utcnow()  # noqa: DTZ003
+        now = datetime.utcnow()
         verified_at = now if status == "verified" else None
 
         try:

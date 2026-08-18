@@ -100,7 +100,7 @@ def generate_btw_report(
             "year": year,
             "quarter": quarter,
             "end_date": end_date,
-            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # noqa: DTZ005
+            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
         # Step 7: Return structured data
@@ -112,7 +112,7 @@ def generate_btw_report(
             "success": True,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Failed to generate BTW report: {e}")
         return {"success": False, "error": str(e)}
 
@@ -201,7 +201,7 @@ def _get_balance_data(
         logger.info(f"Retrieved {len(results)} balance records for {administration}")
         return results
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting balance data: {e}")
         import traceback
 
@@ -245,7 +245,7 @@ def _get_opening_balance_vat(
         total = df_filtered["Amount"].sum()
 
         return {"amount": total}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting opening balance VAT: {e}")
         return None
 
@@ -290,7 +290,7 @@ def _get_current_year_vat(
         results = grouped.to_dict("records")
 
         return results
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting current year VAT: {e}")
         return []
 
@@ -345,7 +345,7 @@ def _get_quarter_data(
         logger.info(f"Retrieved {len(results)} quarter records for {administration}")
         return results
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting quarter data: {e}")
         return []
 
@@ -396,7 +396,7 @@ def _calculate_btw_amounts(
             "payment_instruction": payment_instruction,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error calculating BTW amounts: {e}")
         return {
             "total_balance": 0,

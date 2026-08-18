@@ -67,7 +67,7 @@ def cache_warmup(user_email, user_roles) -> ResponseReturnValue:
                 else None,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in cache_warmup: {e}", flush=True)
         import traceback
 
@@ -95,7 +95,7 @@ def cache_status(user_email, user_roles) -> ResponseReturnValue:
                 "refresh_threshold_minutes": 30,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -124,7 +124,7 @@ def cache_refresh(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
                 else None,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in cache_refresh: {e}", flush=True)
         import traceback
 
@@ -143,7 +143,7 @@ def cache_invalidate_endpoint(
         invalidate_cache()
 
         return jsonify({"success": True, "message": "Cache invalidated successfully"})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in cache_invalidate: {e}", flush=True)
         import traceback
 
@@ -161,7 +161,7 @@ def bnb_cache_status(user_email, user_roles) -> ResponseReturnValue:
         status = bnb_cache.get_stats()
 
         return jsonify({"success": True, **status})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -180,7 +180,7 @@ def bnb_cache_refresh(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(
             {"success": True, "message": "BNB cache refreshed successfully", **status}
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -195,5 +195,5 @@ def bnb_cache_invalidate(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(
             {"success": True, "message": "BNB cache invalidated successfully"}
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

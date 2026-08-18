@@ -188,7 +188,7 @@ def validate_file_upload(file, allowed_types=None, max_size=None) -> dict:
         validation_result["issues"].append("No file extension")
         validation_result["valid"] = False
 
-    if allowed_types:  # noqa: SIM102
+    if allowed_types:
         if file_extension.lower() not in [f".{ext.lower()}" for ext in allowed_types]:
             validation_result["issues"].append(
                 f"File type {file_extension} not allowed"

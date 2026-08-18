@@ -91,7 +91,7 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -152,7 +152,7 @@ def aangifte_ib_details(
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         import traceback
 
         error_details = traceback.format_exc()
@@ -236,7 +236,7 @@ def aangifte_ib_export(
         template_data = {
             "year": str(year),
             "administration": administration if administration != "all" else "All",
-            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # noqa: DTZ005
+            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "table_rows": table_rows_html,
         }
 
@@ -248,7 +248,7 @@ def aangifte_ib_export(
             metadata = template_service.get_template_metadata(
                 administration, template_type
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             if logger:
                 logger.warning(f"Could not get template metadata from database: {e}")
 
@@ -261,7 +261,7 @@ def aangifte_ib_export(
                     metadata["template_file_id"], administration
                 )
                 field_mappings = metadata.get("field_mappings", {})
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 if logger:
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
@@ -343,7 +343,7 @@ def aangifte_ib_export(
                 }
             )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in aangifte_ib_export: {e}", flush=True)
         import traceback
 
@@ -450,7 +450,7 @@ def aangifte_ib_xlsx_export(
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -507,7 +507,7 @@ def aangifte_ib_xlsx_export_stream(
                 ):
                     yield f"data: {json.dumps(progress_data, default=str)}\n\n"
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 import traceback
 
                 traceback.print_exc()
@@ -523,7 +523,7 @@ def aangifte_ib_xlsx_export_stream(
             },
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         import traceback
 
         traceback.print_exc()
@@ -606,7 +606,7 @@ def aangifte_ib_xlsx_download(
 
             atexit.register(lambda: os.path.exists(tmp_path) and os.remove(tmp_path))
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         import traceback
 
         traceback.print_exc()

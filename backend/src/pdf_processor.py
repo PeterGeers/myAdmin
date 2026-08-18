@@ -94,7 +94,7 @@ class PDFProcessor:
             ai_result
             if ai_result
             else {
-                "date": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+                "date": datetime.now().strftime("%Y-%m-%d"),
                 "total_amount": 0.0,
                 "vat_amount": 0.0,
                 "description": f"{folder_name} invoice",
@@ -150,7 +150,7 @@ class PDFProcessor:
                 if len(last_transactions) > 1
                 else main_debet
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error getting last transactions: {e}")
             main_debet, main_credit = "4000", "1300"
             vat_debet, vat_credit = "2010", "4000"
@@ -220,7 +220,7 @@ class PDFProcessor:
                 print(
                     f"Duplicate detected for {reference_number}: {duplicate_info['duplicate_count']} matches found"
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error during duplicate detection: {e}")
 
         return transactions
@@ -299,7 +299,7 @@ class PDFProcessor:
         except ImportError as e:
             print(f"Duplicate checker not available: {e}")
             return None
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error during duplicate detection: {e}")
             return None
 

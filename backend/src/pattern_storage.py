@@ -254,7 +254,9 @@ def load_patterns_from_database(
 
         reference_patterns = {}
         for row in verb_results:
-            pattern_key = f"{row['administration'].lower()}_{row['bank_account']}_{row['verb']}"
+            pattern_key = (
+                f"{row['administration'].lower()}_{row['bank_account']}_{row['verb']}"
+            )
             reference_patterns[pattern_key] = {
                 "administration": row["administration"],
                 "bank_account": row["bank_account"],
@@ -317,7 +319,7 @@ def load_patterns_from_database(
         print(f"✅ Loaded {result['patterns_discovered']} patterns from database")
         return result
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Error loading patterns from database: {e}")
         # Fallback to empty patterns
         return {
@@ -353,9 +355,9 @@ def should_refresh_patterns(db: DatabaseManager, administration: str) -> bool:
             return True
 
         # Refresh if last analysis was more than 24 hours ago
-        return datetime.now() - last_analysis > timedelta(hours=24)  # noqa: DTZ005
+        return datetime.now() - last_analysis > timedelta(hours=24)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Warning: Could not check pattern refresh status: {e}")
         return True  # Default to refresh on error
 
@@ -506,7 +508,7 @@ def get_incremental_update_stats(
             },
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return {
             "administration": administration,
             "incremental_updates_available": False,
@@ -584,7 +586,7 @@ def get_pattern_storage_stats(
             "unified_table_approach": True,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return {
             "error": f"Could not retrieve storage stats: {e}",
             "database_storage_active": False,

@@ -68,14 +68,14 @@ def check_database_health() -> dict:
             "status": "healthy",
             "responseTime": response_time,
             "message": f"Connected to MySQL {version}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
             "details": {
                 "host": os.getenv("DB_HOST", "localhost"),
                 "database": os.getenv("DB_NAME", "finance"),
                 "connections": connections,
             },
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"Database health check failed: {e}")
         return {
@@ -83,7 +83,7 @@ def check_database_health() -> dict:
             "status": "unhealthy",
             "responseTime": response_time,
             "message": f"Database connection failed: {e!s}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
         }
 
 
@@ -109,13 +109,13 @@ def check_cognito_health() -> dict:
             "status": status,
             "responseTime": response_time,
             "message": "AWS Cognito accessible",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
             "details": {
                 "userPoolId": USER_POOL_ID,
                 "userPoolName": response["UserPool"].get("Name", "Unknown"),
             },
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"Cognito health check failed: {e}")
         return {
@@ -123,7 +123,7 @@ def check_cognito_health() -> dict:
             "status": "unhealthy",
             "responseTime": response_time,
             "message": f"AWS Cognito error: {e!s}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
         }
 
 
@@ -143,7 +143,7 @@ def check_sns_health() -> dict:
             "status": "healthy",
             "responseTime": 0,
             "message": "AWS SNS not configured (optional)",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
         }
 
     try:
@@ -160,7 +160,7 @@ def check_sns_health() -> dict:
             "status": status,
             "responseTime": response_time,
             "message": "AWS SNS accessible",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
             "details": {
                 "topicArn": SNS_TOPIC_ARN,
                 "subscriptions": response["Attributes"].get(
@@ -168,7 +168,7 @@ def check_sns_health() -> dict:
                 ),
             },
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"SNS health check failed: {e}")
         return {
@@ -176,7 +176,7 @@ def check_sns_health() -> dict:
             "status": "unhealthy",
             "responseTime": response_time,
             "message": f"AWS SNS error: {e!s}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
         }
 
 
@@ -197,7 +197,7 @@ def check_openrouter_health() -> dict:
             "status": "healthy",
             "responseTime": 0,
             "message": "OpenRouter not configured (optional)",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
         }
 
     try:
@@ -224,9 +224,9 @@ def check_openrouter_health() -> dict:
             "status": status,
             "responseTime": response_time,
             "message": message,
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         response_time = int((time.time() - start_time) * 1000)
         logger.error(f"OpenRouter health check failed: {e}")
         return {
@@ -234,7 +234,7 @@ def check_openrouter_health() -> dict:
             "status": "unhealthy",
             "responseTime": response_time,
             "message": f"OpenRouter error: {e!s}",
-            "lastChecked": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+            "lastChecked": datetime.utcnow().isoformat() + "Z",
         }
 
 
@@ -278,11 +278,11 @@ def get_system_health(user_email, user_roles) -> ResponseReturnValue:
             {
                 "overall": overall,
                 "services": services,
-                "timestamp": datetime.utcnow().isoformat() + "Z",  # noqa: DTZ003
+                "timestamp": datetime.utcnow().isoformat() + "Z",
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting system health: {e}")
         import traceback
 

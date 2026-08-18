@@ -130,7 +130,7 @@ class BudgetAIService:
             except requests.exceptions.Timeout:
                 logger.warning(f"Budget AI: timeout for model {model.model_id}")
                 continue
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(f"Budget AI: error for model {model.model_id}: {e}")
                 continue
 

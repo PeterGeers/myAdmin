@@ -32,11 +32,11 @@ from pattern_detection import (
     is_valid_verb,
 )
 from pattern_scoring import (
-    build_reference_account_index,
-    predict_account_from_reference,
     CONFIDENCE_THRESHOLD_CONFIDENT,
+    build_reference_account_index,
     calculate_statistics_from_db_patterns,
     generate_pattern_statistics,
+    predict_account_from_reference,
     predict_credit,
     predict_debet,
     predict_reference,
@@ -120,7 +120,7 @@ class PatternAnalyzer:
         print(f"🔍 Analyzing historical patterns {filter_desc}...")
 
         # Get transactions from last 1 year with optional filtering
-        one_year_ago = datetime.now() - timedelta(days=365)  # noqa: DTZ005
+        one_year_ago = datetime.now() - timedelta(days=365)
 
         # Build dynamic query with filters
         query_conditions = [
@@ -194,22 +194,26 @@ class PatternAnalyzer:
             "credit_patterns": credit_patterns,
             "reference_patterns": reference_patterns_result,
             "statistics": statistics,
-            "analysis_date": datetime.now().isoformat(),  # noqa: DTZ005
+            "analysis_date": datetime.now().isoformat(),
             "date_range": {
                 "from": one_year_ago.strftime("%Y-%m-%d"),
-                "to": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+                "to": datetime.now().strftime("%Y-%m-%d"),
             },
         }
 
         # Store patterns in database for persistent storage (REQ-PAT-005)
         # Guard: only store if patterns were actually discovered (avoid overwriting good data with nothing)
-        if not reference_number and not debet_account and not credit_account:
-            if len(reference_patterns_result) > 0:
-                store_verb_patterns_to_database(
-                    self.db, administration, reference_patterns_result, result
-                )
-                # Invalidate persistent cache since we have new patterns
-                self.persistent_cache.invalidate_cache(administration)
+        if (
+            not reference_number
+            and not debet_account
+            and not credit_account
+            and len(reference_patterns_result) > 0
+        ):
+            store_verb_patterns_to_database(
+                self.db, administration, reference_patterns_result, result
+            )
+            # Invalidate persistent cache since we have new patterns
+            self.persistent_cache.invalidate_cache(administration)
 
         # Cache the results with filter-specific key for backward compatibility
         cache_key = build_cache_key(
@@ -246,7 +250,9 @@ class PatternAnalyzer:
         patterns = self.get_filtered_patterns(administration)
 
         # Build reference-account index from existing verb patterns (no extra DB query)
-        reference_account_index = build_reference_account_index(patterns["reference_patterns"])
+        reference_account_index = build_reference_account_index(
+            patterns["reference_patterns"]
+        )
 
         results = {
             "total_transactions": len(transactions),
@@ -282,7 +288,10 @@ class PatternAnalyzer:
             # ─── Step 2: Reference Lookup for counter-account (NEW) ───
             account_predicted_via_ref = False
 
-            if updated_tx.get("ReferenceNumber") and ref_confidence >= CONFIDENCE_THRESHOLD_CONFIDENT:
+            if (
+                updated_tx.get("ReferenceNumber")
+                and ref_confidence >= CONFIDENCE_THRESHOLD_CONFIDENT
+            ):
                 # Identify bank account for this transaction
                 bank_account = None
                 if self.is_bank_account(updated_tx.get("Debet", ""), administration):
@@ -305,24 +314,31 @@ class PatternAnalyzer:
                             # Bank is credit → predict debet
                             if not updated_tx.get("Debet"):
                                 updated_tx["Debet"] = ref_lookup_result["value"]
-                                updated_tx["_debet_confidence"] = ref_lookup_result["confidence"]
+                                updated_tx["_debet_confidence"] = ref_lookup_result[
+                                    "confidence"
+                                ]
                                 updated_tx["_prediction_method"] = "reference_lookup"
-                                updated_tx["_uncertain"] = ref_lookup_result["uncertain"]
+                                updated_tx["_uncertain"] = ref_lookup_result[
+                                    "uncertain"
+                                ]
                                 results["predictions_made"]["debet"] += 1
                                 results["prediction_methods"]["reference_lookup"] += 1
                                 tx_predictions.append(ref_lookup_result["confidence"])
                                 account_predicted_via_ref = True
-                        elif bank_account == updated_tx.get("Debet", ""):
+                        elif bank_account == updated_tx.get(
+                            "Debet", ""
+                        ) and not updated_tx.get("Credit"):
                             # Bank is debet → predict credit
-                            if not updated_tx.get("Credit"):
-                                updated_tx["Credit"] = ref_lookup_result["value"]
-                                updated_tx["_credit_confidence"] = ref_lookup_result["confidence"]
-                                updated_tx["_prediction_method"] = "reference_lookup"
-                                updated_tx["_uncertain"] = ref_lookup_result["uncertain"]
-                                results["predictions_made"]["credit"] += 1
-                                results["prediction_methods"]["reference_lookup"] += 1
-                                tx_predictions.append(ref_lookup_result["confidence"])
-                                account_predicted_via_ref = True
+                            updated_tx["Credit"] = ref_lookup_result["value"]
+                            updated_tx["_credit_confidence"] = ref_lookup_result[
+                                "confidence"
+                            ]
+                            updated_tx["_prediction_method"] = "reference_lookup"
+                            updated_tx["_uncertain"] = ref_lookup_result["uncertain"]
+                            results["predictions_made"]["credit"] += 1
+                            results["prediction_methods"]["reference_lookup"] += 1
+                            tx_predictions.append(ref_lookup_result["confidence"])
+                            account_predicted_via_ref = True
 
             # ─── Step 3: Verb-matching fallback (existing, unchanged) ───
             if not account_predicted_via_ref:
@@ -340,7 +356,10 @@ class PatternAnalyzer:
                         updated_tx["Debet"] = debet_prediction["value"]
                         updated_tx["_debet_confidence"] = debet_prediction["confidence"]
                         updated_tx["_prediction_method"] = "verb_matching"
-                        updated_tx["_uncertain"] = debet_prediction["confidence"] < CONFIDENCE_THRESHOLD_CONFIDENT
+                        updated_tx["_uncertain"] = (
+                            debet_prediction["confidence"]
+                            < CONFIDENCE_THRESHOLD_CONFIDENT
+                        )
                         results["predictions_made"]["debet"] += 1
                         results["prediction_methods"]["verb_matching"] += 1
                         tx_predictions.append(debet_prediction["confidence"])
@@ -357,9 +376,14 @@ class PatternAnalyzer:
                     )
                     if credit_prediction:
                         updated_tx["Credit"] = credit_prediction["value"]
-                        updated_tx["_credit_confidence"] = credit_prediction["confidence"]
+                        updated_tx["_credit_confidence"] = credit_prediction[
+                            "confidence"
+                        ]
                         updated_tx["_prediction_method"] = "verb_matching"
-                        updated_tx["_uncertain"] = credit_prediction["confidence"] < CONFIDENCE_THRESHOLD_CONFIDENT
+                        updated_tx["_uncertain"] = (
+                            credit_prediction["confidence"]
+                            < CONFIDENCE_THRESHOLD_CONFIDENT
+                        )
                         results["predictions_made"]["credit"] += 1
                         results["prediction_methods"]["verb_matching"] += 1
                         tx_predictions.append(credit_prediction["confidence"])
@@ -460,7 +484,7 @@ class PatternAnalyzer:
             )
 
             # Step 4: Analyze complete dataset to discover new patterns
-            two_years_ago = datetime.now() - timedelta(days=730)  # noqa: DTZ005
+            two_years_ago = datetime.now() - timedelta(days=730)
             all_transactions = self.db.execute_query(
                 """
                 SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
@@ -511,10 +535,10 @@ class PatternAnalyzer:
                 "credit_patterns": {},
                 "reference_patterns": patterns_to_store,
                 "statistics": statistics,
-                "analysis_date": datetime.now().isoformat(),  # noqa: DTZ005
+                "analysis_date": datetime.now().isoformat(),
                 "date_range": {
                     "from": last_analysis_date.strftime("%Y-%m-%d"),
-                    "to": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+                    "to": datetime.now().strftime("%Y-%m-%d"),
                 },
             }
 
@@ -556,7 +580,7 @@ class PatternAnalyzer:
                     "patterns_discovered", 0
                 ),
                 "efficiency_gain": f"Analyzed {len(new_transactions)} new transactions vs {len(all_transactions)} total",
-                "time_range": f"{last_analysis_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}",  # noqa: DTZ005
+                "time_range": f"{last_analysis_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}",
                 "pattern_application_results": application_results,
             }
 
@@ -567,7 +591,7 @@ class PatternAnalyzer:
 
             return final_result
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"❌ Error in incremental analysis: {e}")
             print("🔄 Falling back to full analysis...")
             return self.analyze_historical_patterns(administration)

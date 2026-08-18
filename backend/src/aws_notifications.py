@@ -46,7 +46,7 @@ class AWSNotificationService:
             try:
                 self.sns_client = boto3.client("sns", region_name=self.region)
                 logger.info(f"AWS SNS client initialized for region: {self.region}")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.error(f"Failed to initialize SNS client: {e}")
                 self.sns_client = None
 
@@ -87,7 +87,7 @@ class AWSNotificationService:
             # Add timestamp
             sns_attributes["timestamp"] = {
                 "DataType": "String",
-                "StringValue": datetime.now().isoformat(),  # noqa: DTZ005
+                "StringValue": datetime.now().isoformat(),
             }
 
             # Publish to SNS
@@ -108,7 +108,7 @@ class AWSNotificationService:
             logger.error(f"AWS SNS Error [{error_code}]: {error_message}")
             return False
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to send notification: {e}")
             return False
 
@@ -144,7 +144,7 @@ Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 Message:
 {message}
-"""  # noqa: DTZ005
+"""
 
         if details:
             formatted_message += "\n\nDetails:\n"
@@ -263,7 +263,7 @@ If you received this email, your AWS SNS notification system is working correctl
 Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 Region: {self.region}
 Topic ARN: {self.topic_arn}
-""",  # noqa: DTZ005
+""",
             message_attributes={"type": "test"},
         )
 

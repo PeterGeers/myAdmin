@@ -14,7 +14,7 @@ from pypdf import PdfReader
 
 try:
     import pytesseract
-    from PIL import Image  # noqa: F401
+    from PIL import Image
 
     pytesseract.pytesseract.tesseract_cmd = (
         r"C:\Program Files\Tesseract-OCR\tesseract.exe"
@@ -47,9 +47,9 @@ def process_pdf(file_path, drive_result, config, folder_name="Unknown"):
                     text = page.extract_text()
                     if text.strip():
                         text_lines.extend(text.split("\n"))
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     print(f"PyPDF2 error on page: {e}")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"PyPDF2 error: {e}")
 
     # If PyPDF2 failed or extracted no text, try pdfplumber
@@ -62,7 +62,7 @@ def process_pdf(file_path, drive_result, config, folder_name="Unknown"):
                     if text:
                         text_lines.extend(text.split("\n"))
             print(f"pdfplumber extracted {len(text_lines)} lines")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"pdfplumber error: {e}")
             text_lines = [f"[Error reading PDF with both libraries: {e!s}]"]
     else:
@@ -102,7 +102,7 @@ def process_image(file_path, drive_result, config, folder_name="Unknown", tenant
 
         db = DatabaseManager()
         previous_transactions = db.get_previous_transactions(folder_name, limit=3)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Could not get previous transactions: {e}")
 
     # Use AI vision processor
@@ -110,7 +110,7 @@ def process_image(file_path, drive_result, config, folder_name="Unknown", tenant
         from database import DatabaseManager
 
         db_for_tracker = DatabaseManager()
-    except Exception:  # noqa: BLE001
+    except Exception:
         db_for_tracker = None
     processor = ImageAIProcessor(db=db_for_tracker, tenant=tenant)
     result = processor.process_image(file_path, folder_name, previous_transactions)
@@ -176,7 +176,7 @@ def process_csv(file_path, drive_result, config, folder_name="Unknown"):
 
         print(f"CSV processed: {len(text_lines)} info lines")
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"CSV processing error: {e}")
         text_lines = [f"[Error processing CSV: {e!s}]"]
 
@@ -244,7 +244,7 @@ def process_mhtml(file_path, drive_result, config, folder_name="Unknown"):
                     "december": "12",
                 }
                 if month.lower() in month_map:
-                    current_year = datetime.now().year  # noqa: DTZ005
+                    current_year = datetime.now().year
                     delivery_date = (
                         f"{current_year}-{month_map[month.lower()]}-{date_num.zfill(2)}"
                     )
@@ -268,7 +268,7 @@ def process_mhtml(file_path, drive_result, config, folder_name="Unknown"):
 
         text_lines.extend(lines[:50])
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         text_lines = [f"[Error processing MHTML: {e!s}]"]
 
     storage_folder = config.get_storage_folder(folder_name)
@@ -370,7 +370,7 @@ def process_eml(file_path, drive_result, config, folder_name="Unknown"):
         plain_lines = [line.strip() for line in plain_text.split("\n") if line.strip()]
         text_lines.extend(plain_lines)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         text_lines = [f"[Error processing EML: {e!s}]"]
 
     storage_folder = config.get_storage_folder(folder_name)

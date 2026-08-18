@@ -25,7 +25,7 @@ class ZZPInvoiceService(FieldConfigMixin):
     """Invoice lifecycle: create, calculate, number, send, credit, copy."""
 
     FIELD_CONFIG_KEY = "invoice_field_config"
-    ALWAYS_REQUIRED = ["contact_id", "invoice_date"]  # noqa: RUF012
+    ALWAYS_REQUIRED = ["contact_id", "invoice_date"]
 
     def __init__(
         self,

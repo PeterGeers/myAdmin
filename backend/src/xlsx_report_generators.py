@@ -132,7 +132,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
                                 )
                 else:
                     print("Could not get Google Drive service")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"Error downloading files: {e}")
                 import traceback
 
@@ -277,7 +277,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
                         "result": result,
                     }
 
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     print(f"Error processing {administration} {year}: {e!s}")
                     import traceback
 
@@ -393,7 +393,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
         if len(df_drive) > 0:
             try:
                 service = self._get_drive_service(administration)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"Error initializing Drive service: {e}")
 
         for index, (_, row) in enumerate(combined_df.iterrows()):
@@ -550,7 +550,7 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
         if len(df_drive) > 0:
             try:
                 service = self._get_drive_service(administration)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"Error initializing Drive service: {e}")
 
         for index, (_, row) in enumerate(combined_df.iterrows()):

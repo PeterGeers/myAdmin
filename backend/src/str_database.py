@@ -21,7 +21,9 @@ class STRDatabase(DatabaseManager):
             channel = booking.get("channel", "")
             code = booking.get("reservationCode", "")
             admin = booking.get("administration", "")
-            existing_codes = self.get_existing_reservation_codes_for_channel(channel, admin if admin else None)
+            existing_codes = self.get_existing_reservation_codes_for_channel(
+                channel, admin if admin else None
+            )
             if code not in existing_codes:
                 new_bookings.append(booking)
 
@@ -94,7 +96,11 @@ class STRDatabase(DatabaseManager):
 
             # Get unique channel/listing/administration combinations from new bookings
             channel_listing_admins = {
-                (booking.get("channel", ""), booking.get("listing", ""), booking.get("administration", ""))
+                (
+                    booking.get("channel", ""),
+                    booking.get("listing", ""),
+                    booking.get("administration", ""),
+                )
                 for booking in bookings
             }
 
@@ -187,7 +193,9 @@ class STRDatabase(DatabaseManager):
         except DatabaseError:
             return 0
 
-    def get_existing_reservation_codes_for_channel(self, channel: str, tenant: str | None = None) -> set:
+    def get_existing_reservation_codes_for_channel(
+        self, channel: str, tenant: str | None = None
+    ) -> set:
         """Get existing reservation codes for a specific channel from bnb table"""
         try:
             cursor = self.connection.cursor()
@@ -248,7 +256,7 @@ class STRDatabase(DatabaseManager):
             # Get current date
             from datetime import date
 
-            current_date = date.today().strftime("%Y-%m-%d")  # noqa: DTZ011
+            current_date = date.today().strftime("%Y-%m-%d")
 
             # Check for existing records with same date and delete them
             delete_query = "DELETE FROM bnbfuture WHERE date = %s"
@@ -367,7 +375,12 @@ class STRDatabase(DatabaseManager):
         except DatabaseError:
             return {}
 
-    def upsert_direct_bookings(self, bookings: list[dict], status_updates: list[dict] | None = None, tenant: str | None = None) -> dict:
+    def upsert_direct_bookings(
+        self,
+        bookings: list[dict],
+        status_updates: list[dict] | None = None,
+        tenant: str | None = None,
+    ) -> dict:
         """
         Insert or update dfDirect bookings using reservationCode as composite key.
 
@@ -385,7 +398,7 @@ class STRDatabase(DatabaseManager):
             return {"inserted": 0, "updated": 0}
 
         try:
-            with self.transaction() as (cursor, conn):
+            with self.transaction() as (cursor, _conn):
                 # Step 1: Query existing reservation codes for channel "dfDirect"
                 if tenant:
                     cursor.execute(
@@ -509,14 +522,18 @@ class STRDatabase(DatabaseManager):
                         status = update.get("status", "")
                         if code and status and code in existing_codes:
                             if tenant:
-                                cursor.execute(status_update_query, (status, code, tenant))
+                                cursor.execute(
+                                    status_update_query, (status, code, tenant)
+                                )
                             else:
                                 cursor.execute(status_update_query, (status, code))
 
             return {
                 "inserted": len(new_bookings),
                 "updated": len(existing_bookings),
-                "updated_codes": [b.get("reservationCode", "") for b in existing_bookings],
+                "updated_codes": [
+                    b.get("reservationCode", "") for b in existing_bookings
+                ],
             }
 
         except DatabaseError as e:
@@ -594,7 +611,18 @@ class STRDatabase(DatabaseManager):
                     fee = round(stripe_fee, 2)
                     cursor.execute(
                         update_with_fee_query,
-                        (phone, country, fee, fee, fee, email, email, email, code, tenant),
+                        (
+                            phone,
+                            country,
+                            fee,
+                            fee,
+                            fee,
+                            email,
+                            email,
+                            email,
+                            code,
+                            tenant,
+                        ),
                     )
                 else:
                     cursor.execute(

@@ -79,7 +79,7 @@ class ZZPInvoiceFactoryHelper:
 
         invoice_data = {
             "contact_id": contact_id,
-            "invoice_date": data.get("invoice_date", date.today().isoformat()),  # noqa: DTZ011
+            "invoice_date": data.get("invoice_date", date.today().isoformat()),
             "payment_terms_days": data.get("payment_terms_days"),
             "currency": data.get("currency"),
             "notes": data.get("notes"),
@@ -165,7 +165,7 @@ class ZZPInvoiceFactoryHelper:
 
         invoice_data = {
             "contact_id": contact_id,
-            "invoice_date": data.get("invoice_date", date.today().isoformat()),  # noqa: DTZ011
+            "invoice_date": data.get("invoice_date", date.today().isoformat()),
             "payment_terms_days": data.get("payment_terms_days"),
             "currency": data.get("currency"),
             "notes": data.get("notes"),
@@ -265,7 +265,7 @@ class ZZPInvoiceFactoryHelper:
         if original.get("invoice_type") == "credit_note":
             raise ValueError("Cannot credit a credit note")
 
-        invoice_date = date.today()  # noqa: DTZ011
+        invoice_date = date.today()
         cn_prefix = get_credit_note_prefix_fn(tenant)
         cn_number = generate_invoice_number_fn(tenant, cn_prefix, invoice_date.year)
 

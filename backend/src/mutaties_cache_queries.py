@@ -51,7 +51,7 @@ class MutatisCacheQueriesMixin:
             source = snapshot
         elif tenant and tenant in self._tenant_data:
             entry = self._tenant_data[tenant]
-            entry.last_accessed = datetime.now()  # noqa: DTZ005
+            entry.last_accessed = datetime.now()
             source = entry.data
         elif self.data is not None:
             source = self.data
@@ -61,7 +61,7 @@ class MutatisCacheQueriesMixin:
         year_int = int(year)
 
         # Check if year is in cache, load if needed
-        if source is not None and year_int not in source["jaar"].unique():  # noqa: SIM102
+        if source is not None and year_int not in source["jaar"].unique():
             if db_manager:
                 logger.info(f"Year {year_int} not in cache, loading on-demand...")
                 self.load_additional_year(db_manager, year_int, tenant=tenant)
@@ -132,7 +132,7 @@ class MutatisCacheQueriesMixin:
             source = snapshot
         elif tenant and tenant in self._tenant_data:
             entry = self._tenant_data[tenant]
-            entry.last_accessed = datetime.now()  # noqa: DTZ005
+            entry.last_accessed = datetime.now()
             source = entry.data
         elif self.data is not None:
             source = self.data
@@ -203,7 +203,7 @@ class MutatisCacheQueriesMixin:
                     result = pd.read_sql(query, conn)
                 conn.close()
                 return [str(int(y)) for y in result["year"].dropna()]
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"Could not query database for years: {e}, falling back to cache"
                 )

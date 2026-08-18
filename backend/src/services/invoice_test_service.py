@@ -133,7 +133,7 @@ class InvoiceTestService:
 
                     pipeline_result["raw_text"] = raw_text
                     pipeline_result["raw_text_truncated"] = raw_text_truncated
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     errors.append(
                         {
                             "stage": "file_parsing",
@@ -198,7 +198,7 @@ class InvoiceTestService:
                     pipeline_result["extraction_result"] = extraction_result
                     pipeline_result["formatted_transactions"] = transactions
 
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     errors.append(
                         {
                             "stage": "transaction_formatting",
@@ -220,7 +220,7 @@ class InvoiceTestService:
                         pipeline_result["prepared_transactions"] = prepared
                     else:
                         pipeline_result["prepared_transactions"] = []
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     errors.append(
                         {
                             "stage": "transaction_preparation",

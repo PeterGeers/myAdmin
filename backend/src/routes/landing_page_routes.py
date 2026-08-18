@@ -100,7 +100,7 @@ def _record_audit_event(
             fetch=False,
             commit=True,
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Failed to record audit event for tenant {tenant}: {e}")
 
 
@@ -127,7 +127,7 @@ def get_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
 
         return jsonify({"success": True, "data": {"slug": slug}})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting slug for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -169,7 +169,7 @@ def set_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error setting slug for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -204,7 +204,7 @@ def validate_slug(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error validating slug for tenant {tenant}: {e}")
         return jsonify({"valid": False, "error": str(e)}), 500
 
@@ -235,7 +235,7 @@ def get_domains(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
 
         return jsonify({"success": True, "data": result}), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting domains for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -265,7 +265,7 @@ def enable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error enabling Jabaki for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -296,7 +296,7 @@ def disable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error disabling Jabaki for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -347,7 +347,7 @@ def register_custom_domain(
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error registering custom domain for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -383,7 +383,7 @@ def verify_custom_domain(
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error verifying custom domain for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -416,7 +416,7 @@ def delete_custom_domain(
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error removing custom domain for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -459,7 +459,7 @@ def get_draft(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
 
         return jsonify({"success": True, "data": draft})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting draft for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -510,7 +510,7 @@ def save_draft(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
         else:
             return jsonify(result), 500
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error saving draft for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -573,7 +573,7 @@ def list_versions(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 
         return jsonify({"success": True, "data": versions})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error listing versions for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -612,7 +612,7 @@ def get_version_detail(
 
         return jsonify({"success": True, "data": version_data})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting version {version} for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -666,7 +666,7 @@ def delete_version(
 
         return jsonify({"success": True, "message": f"Version {version} deleted."})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error deleting version {version} for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -747,7 +747,7 @@ def rollback_landing_page(
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error rolling back landing page for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -787,7 +787,7 @@ def publish_landing_page(
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error publishing landing page for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -822,7 +822,7 @@ def unpublish_landing_page(
         else:
             return jsonify(result), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error unpublishing landing page for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -926,7 +926,7 @@ def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
     except ClientError as e:
         logger.error(f"S3 upload error for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": "Failed to upload image"}), 500
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error uploading image for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1079,7 +1079,7 @@ def get_branding_settings(
 
         return jsonify({"success": True, "data": result})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error loading branding settings for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1207,7 +1207,7 @@ def save_branding_settings(
         logger.info(f"Branding settings saved for tenant {tenant} by {user_email}")
         return jsonify({"success": True, "message": "Settings saved successfully"})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error saving branding settings for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1244,7 +1244,7 @@ def resolve_slug(slug: str) -> ResponseReturnValue:
         else:
             return jsonify({"success": False, "error": "Slug not found"}), 404
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error resolving slug '{slug}': {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -1357,7 +1357,7 @@ def _verify_recaptcha(token: str, client_ip: str | None) -> str | None:
 
         return None
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # On verification error, allow the submission (graceful degradation)
         logger.error("reCAPTCHA verification error: %s", e)
         return None
@@ -1448,7 +1448,7 @@ def _send_contact_notification(
                 f"{result.get('error')}"
             )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Never fail the submission because of notification errors
         logger.error(
             f"Error sending contact notification for tenant '{administration}': {e}"
@@ -1564,7 +1564,7 @@ def submit_contact(slug: str) -> ResponseReturnValue:
 
         return jsonify({"success": True, "message": "Your message has been sent."})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error processing contact form for slug '{slug}': {e}")
         return jsonify(
             {
@@ -1606,6 +1606,6 @@ def run_verification_check(
 
         return jsonify({"success": True, "data": result}), 200
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error running domain verification check: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

@@ -30,7 +30,7 @@ class AIUsageTracker:
 
     # Model pricing per 1M tokens (input/output average)
     # Source: OpenRouter pricing as of January 2026
-    MODEL_PRICING = {  # noqa: RUF012
+    MODEL_PRICING = {
         "google/gemini-flash-1.5": 0.0,  # FREE
         "meta-llama/llama-3.2-3b-instruct:free": 0.0,  # FREE
         "deepseek/deepseek-chat": 0.685,  # Average of $0.27 input + $1.10 output
@@ -95,7 +95,7 @@ class AIUsageTracker:
 
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to log AI usage: {e}")
             # Don't fail the main operation if logging fails
             return False
@@ -136,7 +136,7 @@ class AIUsageTracker:
 
             return cost
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to calculate cost: {e}")
             # Return 0 if calculation fails
             return Decimal("0.000000")
@@ -216,7 +216,7 @@ class AIUsageTracker:
                 "by_feature": by_feature,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to get usage summary: {e}")
             return {
                 "total_requests": 0,

@@ -37,7 +37,7 @@ class TripService(FieldConfigMixin):
     """
 
     FIELD_CONFIG_KEY = "trip_field_config"
-    ALWAYS_REQUIRED = [  # noqa: RUF012
+    ALWAYS_REQUIRED = [
         "vehicle_id",
         "trip_date",
         "start_address",
@@ -49,7 +49,7 @@ class TripService(FieldConfigMixin):
     ]
 
     # Fields that can be updated via update_trip (excludes distance_km which is generated)
-    UPDATABLE_FIELDS = [  # noqa: RUF012
+    UPDATABLE_FIELDS = [
         "trip_date",
         "start_time",
         "end_time",
@@ -257,7 +257,7 @@ class TripService(FieldConfigMixin):
             return value.date()
         if isinstance(value, str):
             try:
-                return datetime.strptime(value, "%Y-%m-%d").date()  # noqa: DTZ007
+                return datetime.strptime(value, "%Y-%m-%d").date()
             except (ValueError, TypeError):
                 raise ValueError(
                     f"Invalid trip_date format: '{value}'. Expected YYYY-MM-DD."

@@ -94,7 +94,7 @@ def validate_schema(schema_name):
                     success=False,
                     status_code=400,
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 return standard_response(
                     error=f"Schema validation failed: {e!s}",
                     success=False,
@@ -120,6 +120,6 @@ def validate_response_schema(data, schema_name):
     except jsonschema.ValidationError as e:
         print(f"Response validation error for {schema_name}: {e.message}")
         return False
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Response validation failed: {e!s}")
         return False

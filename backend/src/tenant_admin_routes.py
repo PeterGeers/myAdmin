@@ -123,7 +123,7 @@ def has_fin_module(tenant: str) -> bool:
 
         return bool(result and result[0].get("is_active"))
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error checking FIN module for tenant {tenant}: {e}")
         return False
 
@@ -204,7 +204,7 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
 
         return result[0].get("count", 0) if result else 0
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(
             f"Error checking account usage for {account} in tenant {tenant}: {e}"
         )
@@ -219,7 +219,7 @@ def get_user_attribute(user: dict[str, Any], attribute_name: str) -> Any:
             if attribute_name == "custom:tenants":
                 try:
                     return json.loads(value)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     return [value] if value else []
             return value
     return None
@@ -232,6 +232,6 @@ def get_user_groups(username: str) -> list[str]:
             UserPoolId=USER_POOL_ID, Username=username
         )
         return [group["GroupName"] for group in response.get("Groups", [])]
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error getting user groups: {e}", flush=True)
         return []

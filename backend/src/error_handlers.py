@@ -86,7 +86,7 @@ class DuplicateDetectionErrorHandler:
             "technical_message": error_info["technical_message"],
             "recovery_suggestions": recovery_suggestions,
             "can_continue": can_continue,
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "operation_id": operation_context.get("operation_id", "unknown"),
             "retry_recommended": error_info.get("retry_recommended", False),
             "contact_support": error_info["severity"]
@@ -315,7 +315,7 @@ class DuplicateDetectionErrorHandler:
             "operation_id": context.get("operation_id", "unknown"),
             "operation_type": context.get("operation_type", "unknown"),
             "user_id": user_id,
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "context": context,
         }
 

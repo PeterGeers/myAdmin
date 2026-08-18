@@ -101,7 +101,7 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
                         user_data["name"] = attr["Value"]
                         break
 
-            except (ClientError, Exception) as e:  # noqa: BLE001
+            except (ClientError, Exception) as e:
                 logger.warning(f"Could not fetch user details: {e}")
                 user_data["name"] = recipient_email.split("@")[0]
 
@@ -177,7 +177,7 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error sending email: {e}")
         import traceback
 
@@ -217,7 +217,7 @@ def list_email_templates(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "templates": templates})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error listing email templates: {e}")
         return jsonify({"error": "Failed to list templates", "message": str(e)}), 500
 
@@ -319,7 +319,7 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                 if attr["Name"] == "name":
                     user_name = attr["Value"]
                     break
-        except Exception:  # noqa: BLE001, S110
+        except Exception:
             pass
 
         # Resolve frontend URL from request context
@@ -404,7 +404,7 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 500
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error resending invitation: {e}")
         import traceback
 

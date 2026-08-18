@@ -26,7 +26,7 @@ def extract_with_ai(lines: list[str], folder_name: str) -> dict | None:
 
             db = DatabaseManager()
             previous_transactions = db.get_previous_transactions(folder_name, limit=3)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Could not get previous transactions: {e}")
 
         text_content = "\n".join(lines)
@@ -47,7 +47,7 @@ def extract_with_ai(lines: list[str], folder_name: str) -> dict | None:
             )
             return ai_result  # Return the zero-amount result
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"AI extraction error for {folder_name}: {e}", flush=True)
         return None
 
@@ -84,6 +84,6 @@ def log_ai_usage(
             tokens_used=tokens_used,
             model_used=model_used,
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Never fail the extraction because of logging
         print(f"Could not log AI usage: {e}")

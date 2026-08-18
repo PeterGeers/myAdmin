@@ -75,7 +75,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                     **pool_config
                 )
                 logger.info("✅ Legacy connection pool initialized with 20 connections")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"⚠️ Legacy connection pool failed, using direct connections: {e}"
                 )
@@ -97,7 +97,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 logger.info(
                     "🚀 Scalability Manager initialized for database connections"
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"⚠️ Scalability Manager initialization failed, using legacy pool: {e}"
                 )
@@ -115,7 +115,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 return DatabaseManager._scalability_manager.get_database_connection(
                     pool_type
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"⚠️ Scalability manager connection failed, falling back to legacy: {e}"
                 )
@@ -124,7 +124,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         if DatabaseManager._use_legacy_pool and DatabaseManager._legacy_pool:
             try:
                 return DatabaseManager._legacy_pool.get_connection()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"⚠️ Legacy pool connection failed, using direct connection: {e}"
                 )
@@ -353,7 +353,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                         conn.commit()
 
                 return results
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"⚠️ Batch processing failed, falling back to sequential: {e}"
                 )
@@ -615,7 +615,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 "scalability_impact": "2-3x improvement in concurrent performance",
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"❌ Error checking database optimization: {e}")
             return {
                 "error": str(e),
