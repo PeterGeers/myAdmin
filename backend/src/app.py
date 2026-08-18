@@ -346,6 +346,13 @@ if os.getenv("RAILWAY_ENVIRONMENT") != "production":
 CORS(
     app,
     resources={
+        r"/api/public/*": {
+            "origins": r"https://.*\.jabaki\.nl",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type"],
+            "supports_credentials": False,
+            "vary_header": True,
+        },
         r"/api/*": {
             "origins": ALLOWED_ORIGINS,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
