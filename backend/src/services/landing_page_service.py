@@ -322,6 +322,92 @@ class LandingPageService:
             )
             return 0
 
+    # ========================================================================
+    # Slug Migration
+    # ========================================================================
+
+    def migrate_slug(self, old_slug: str, new_slug: str) -> dict:
+        """
+        Migrate all DynamoDB items from old_slug to new_slug.
+
+        Copies each item (draft + all versions) with the new PK, then deletes
+        the original. Uses copy-then-delete pattern for safety.
+
+        Args:
+            old_slug: Current slug (source PK prefix)
+            new_slug: New slug (target PK prefix)
+
+        Returns:
+            Dict with success, migrated count, and any warnings.
+        """
+        warnings = []
+        migrated = 0
+
+        try:
+            # Query ALL items under the old slug PK
+            response = self._table.query(
+                KeyConditionExpression="PK = :pk",
+                ExpressionAttributeValues={":pk": f"TENANT#{old_slug}"},
+            )
+            items = response.get("Items", [])
+
+            if not items:
+                logger.info(
+                    "No DynamoDB items found for old_slug=%s, nothing to migrate",
+                    old_slug,
+                )
+                return {"success": True, "migrated": 0, "warnings": []}
+
+            # Copy each item to the new PK
+            for item in items:
+                old_sk = item["SK"]
+                new_item = {**item, "PK": f"TENANT#{new_slug}"}
+
+                try:
+                    self._table.put_item(Item=new_item)
+                    migrated += 1
+                except ClientError as e:
+                    msg = f"Failed to copy item SK={old_sk}: {e.response['Error']['Message']}"
+                    logger.error("DynamoDB migrate_slug copy failed: %s", msg)
+                    warnings.append(msg)
+
+            # Delete originals (only items that were successfully copied)
+            deleted = 0
+            for item in items:
+                old_sk = item["SK"]
+                try:
+                    self._table.delete_item(
+                        Key={"PK": f"TENANT#{old_slug}", "SK": old_sk}
+                    )
+                    deleted += 1
+                except ClientError as e:
+                    msg = f"Failed to delete old item SK={old_sk}: {e.response['Error']['Message']}"
+                    logger.warning("DynamoDB migrate_slug delete failed: %s", msg)
+                    warnings.append(msg)
+
+            logger.info(
+                "Migrated %d DynamoDB items from slug=%s to slug=%s (deleted %d originals)",
+                migrated,
+                old_slug,
+                new_slug,
+                deleted,
+            )
+
+            return {"success": True, "migrated": migrated, "warnings": warnings}
+
+        except ClientError as e:
+            logger.error(
+                "DynamoDB migrate_slug query failed for old_slug=%s: %s",
+                old_slug,
+                e.response["Error"]["Message"],
+            )
+            return {
+                "success": False,
+                "migrated": migrated,
+                "warnings": warnings,
+                "error": f"DynamoDB query failed: {e.response['Error']['Message']}",
+            }
+
     def list_versions(self, slug: str) -> list[dict]:
         """
         Query all version snapshots for a tenant, sorted descending.

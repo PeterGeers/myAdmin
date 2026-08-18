@@ -161,7 +161,7 @@ def set_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             return jsonify({"success": False, "error": "Slug cannot be empty"}), 400
 
         service = _get_slug_service()
-        result = service.set_slug(tenant, slug)
+        result = service.set_slug(tenant, slug, user_email=user_email)
 
         if result["success"]:
             logger.info(f"Slug set to '{slug}' for tenant {tenant} by {user_email}")
