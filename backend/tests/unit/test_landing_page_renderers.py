@@ -600,8 +600,8 @@ class TestRenderSectionsHtml:
         assert 'style="' in html
         assert "background-color: #ff0000" in html
         assert "padding: 4rem 1.5rem" in html
-        # Section wrapper has class="section"
-        assert '<section class="section"' in html
+        # Section wrapper preserves original classes
+        assert 'class="faq section"' in html
 
     def test_section_with_settings_contained_max_width(self, renderer):
         """Settings with max_width=contained wraps content in container div."""
