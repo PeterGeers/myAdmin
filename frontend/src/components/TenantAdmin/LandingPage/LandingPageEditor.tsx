@@ -39,8 +39,6 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
   const [slugError, setSlugError] = useState<string | null>(null);
   const [slugSaving, setSlugSaving] = useState(false);
   const [needsSlug, setNeedsSlug] = useState(false);
-  const [editingSlug, setEditingSlug] = useState(false);
-  const [slugRenameConfirm, setSlugRenameConfirm] = useState(false);
 
   // Core state
   const [sections, setSections] = useState<Section[]>([]);
@@ -118,39 +116,11 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
         return;
       }
 
-      // If renaming, show confirmation first
-      if (slug && slug !== slugInput && !slugRenameConfirm) {
-        setSlugRenameConfirm(true);
-        setSlugSaving(false);
-        return;
-      }
-
-      // Save slug (handles both first-time and rename on backend)
+      // Save slug (first-time setup only — rename is in DomainSettings)
       const resp = await setSlug(slugInput);
       if (resp.success) {
-        const wasRename = !!slug && slug !== slugInput;
         setSlugState(slugInput);
         setNeedsSlug(false);
-        setEditingSlug(false);
-        setSlugRenameConfirm(false);
-
-        if (wasRename) {
-          toast({
-            title: t('landingPage.editor.slugRenamed'),
-            description: `${resp.renamed_from || slug} → ${slugInput}`,
-            status: 'success',
-            duration: 5000,
-          });
-          if (resp.warnings && resp.warnings.length > 0) {
-            toast({
-              title: t('landingPage.editor.slugRenameWarnings'),
-              description: resp.warnings.join(', '),
-              status: 'warning',
-              duration: 8000,
-            });
-          }
-        }
-        // Reload draft (PK changed in DynamoDB on rename)
         await loadDraft();
       } else {
         setSlugError(resp.error || 'Failed to save slug');
@@ -377,82 +347,6 @@ export default function LandingPageEditor({ tenant, tenantModules }: LandingPage
 
   return (
     <Box>
-      {/* Slug display with edit capability */}
-      {slug && (
-        <HStack mb={3} p={2} bg="gray.800" borderRadius="md" spacing={3} align="center">
-          {!editingSlug ? (
-            <>
-              <Text color="gray.400" fontSize="sm">URL:</Text>
-              <Badge colorScheme="orange" fontSize="sm">{slug}.jabaki.nl</Badge>
-              <Button
-                size="xs"
-                variant="ghost"
-                colorScheme="orange"
-                onClick={() => { setSlugInput(slug); setEditingSlug(true); setSlugError(null); setSlugRenameConfirm(false); }}
-              >
-                {t('landingPage.editor.changeSlug')}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Box
-                as="input"
-                w="200px"
-                px={2}
-                py={1}
-                bg="gray.700"
-                color="white"
-                borderRadius="md"
-                border="1px solid"
-                borderColor={slugError ? 'red.400' : 'gray.600'}
-                fontSize="sm"
-                value={slugInput}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                  setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
-                  setSlugError(null);
-                  setSlugRenameConfirm(false);
-                }}
-                _focus={{ borderColor: 'orange.400', outline: 'none' }}
-              />
-              <Text color="gray.500" fontSize="sm">.jabaki.nl</Text>
-              {slugRenameConfirm ? (
-                <>
-                  <Text color="yellow.300" fontSize="xs">
-                    {t('landingPage.editor.slugRenameWarning')}
-                  </Text>
-                  <Button
-                    size="xs"
-                    colorScheme="red"
-                    onClick={handleSaveSlug}
-                    isLoading={slugSaving}
-                  >
-                    {t('landingPage.editor.confirmRename')}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  size="xs"
-                  colorScheme="orange"
-                  onClick={handleSaveSlug}
-                  isLoading={slugSaving}
-                  isDisabled={slugInput.length < 3 || slugInput === slug}
-                >
-                  {t('landingPage.editor.saveSlug')}
-                </Button>
-              )}
-              <Button
-                size="xs"
-                variant="ghost"
-                onClick={() => { setEditingSlug(false); setSlugError(null); setSlugRenameConfirm(false); }}
-              >
-                {t('landingPage.editor.cancel')}
-              </Button>
-              {slugError && <Text color="red.300" fontSize="xs">{slugError}</Text>}
-            </>
-          )}
-        </HStack>
-      )}
-
       {/* Toolbar — single row */}
       <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
         <HStack spacing={3}>
