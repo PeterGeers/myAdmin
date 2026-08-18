@@ -102,6 +102,12 @@ class LandingPagePublishService:
                 "logo_url": branding.get("logo_url", ""),
                 "color_primary": branding.get("color_primary", ""),
                 "color_accent": branding.get("color_accent", ""),
+                "font_heading": branding.get("font_heading", ""),
+                "font_body": branding.get("font_body", ""),
+                "base_spacing": branding.get("base_spacing", ""),
+                "border_radius_global": branding.get("border_radius_global", ""),
+                "shadow_style": branding.get("shadow_style", ""),
+                "section_bg": branding.get("section_bg", ""),
             },
             "footer": footer,
             "seo": seo,
@@ -453,6 +459,9 @@ class LandingPagePublishService:
             "font_heading",
             "font_body",
             "section_bg",
+            "base_spacing",
+            "border_radius_global",
+            "shadow_style",
         ]
         result = {}
         for field in fields:
