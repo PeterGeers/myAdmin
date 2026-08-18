@@ -63,7 +63,7 @@ def extract_country_from_phone(phone: str) -> str | None:
     except phonenumbers.NumberParseException as e:
         logger.debug(f"Could not parse phone number '{phone}': {e}")
         return None
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(f"Unexpected error parsing phone number '{phone}': {e}")
         return None
 
@@ -120,7 +120,7 @@ def extract_country_from_booking_addinfo(addinfo: str) -> str | None:
 
         return None
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(f"Error parsing Booking.com addInfo: {e}")
         return None
 
@@ -205,7 +205,7 @@ def get_country_name(country_code: str) -> str | None:
 
         country = pycountry.countries.get(alpha_2=country_code.upper())
         return country.name if country else None
-    except Exception:  # noqa: BLE001
+    except Exception:
         # Fallback: basic mapping for common countries
         country_names = {
             "AE": "United Arab Emirates",

@@ -29,8 +29,8 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
     """Calculate STR channel revenue for a specific month and year"""
     try:
         data = request.get_json()
-        year = data.get("year", datetime.now().year)  # noqa: DTZ005
-        month = data.get("month", datetime.now().month)  # noqa: DTZ005
+        year = data.get("year", datetime.now().year)
+        month = data.get("month", datetime.now().month)
         administration = data.get("administration", tenant)  # Default to current tenant
         test_mode = data.get("test_mode", True)
 
@@ -109,7 +109,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         # btw_accommodation rates are stored with tax_type='btw_accommodation'
         # and tax_code='high' or 'low' depending on the effective date.
         # We query all active btw_accommodation codes and pick the one valid for this date.
-        transaction_date = datetime.strptime(end_date, "%Y-%m-%d").date()  # noqa: DTZ007
+        transaction_date = datetime.strptime(end_date, "%Y-%m-%d").date()
         tax_svc = TaxRateService(db)
 
         # Try btw_accommodation codes (high, low) for the transaction date
@@ -202,8 +202,8 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
-        logging.error(f"Error calculating STR channel revenue: {e!s}")  # noqa: LOG015
+    except Exception as e:
+        logging.error(f"Error calculating STR channel revenue: {e!s}")
         logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -290,8 +290,8 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
             {"success": True, "saved_count": saved_count, "table": table_name}
         )
 
-    except Exception as e:  # noqa: BLE001
-        logging.error(f"Error saving STR channel transactions: {e!s}")  # noqa: LOG015
+    except Exception as e:
+        logging.error(f"Error saving STR channel transactions: {e!s}")
         logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -303,8 +303,8 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
 def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
     """Preview STR channel data for a specific month"""
     try:
-        year = int(request.args.get("year", datetime.now().year))  # noqa: DTZ005
-        month = int(request.args.get("month", datetime.now().month))  # noqa: DTZ005
+        year = int(request.args.get("year", datetime.now().year))
+        month = int(request.args.get("month", datetime.now().month))
         administration = request.args.get(
             "administration", tenant
         )  # Default to current tenant
@@ -368,7 +368,7 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
             }
         )
 
-    except Exception as e:  # noqa: BLE001
-        logging.error(f"Error previewing STR channel data: {e!s}")  # noqa: LOG015
+    except Exception as e:
+        logging.error(f"Error previewing STR channel data: {e!s}")
         logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500

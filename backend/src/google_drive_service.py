@@ -84,7 +84,7 @@ class GoogleDriveService:
             )
 
             if not oauth_creds:
-                raise Exception(  # noqa: TRY002
+                raise Exception(
                     f"Google Drive OAuth credentials not found for administration '{self.administration}'. "
                     "Please run the migration script to store credentials in the database."
                 )
@@ -116,7 +116,7 @@ class GoogleDriveService:
                     logger.info(
                         f"Loaded existing token for administration: {self.administration}"
                     )
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning(f"Failed to load token: {e}")
                     creds = None
 
@@ -138,7 +138,7 @@ class GoogleDriveService:
                         logger.info(
                             f"✅ Refreshed token stored for administration: {self.administration}"
                         )
-                    except Exception as refresh_error:  # noqa: BLE001
+                    except Exception as refresh_error:
                         # Token refresh failed - likely the refresh token is invalid/expired
                         logger.error(
                             f"❌ Token refresh failed for {self.administration}: {refresh_error}"
@@ -258,7 +258,7 @@ class GoogleDriveService:
                 )
 
             return sorted(all_subfolders, key=lambda x: x["name"].lower())
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Could not access Facturen folder: {e}")
             return []
 
@@ -320,7 +320,7 @@ class GoogleDriveService:
                     },
                 }
             return {"exists": False}
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error checking file existence: {e}")
             return {"exists": False}
 
@@ -353,9 +353,9 @@ class GoogleDriveService:
 
             return content
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error downloading file content: {e}", flush=True)
-            raise Exception(f"Failed to download file from Google Drive: {e!s}")  # noqa: TRY002
+            raise Exception(f"Failed to download file from Google Drive: {e!s}")
 
     def create_folder(self, folder_name, parent_id):
         file_metadata = {

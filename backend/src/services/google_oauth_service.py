@@ -140,12 +140,12 @@ def test_google_drive_connectivity(
                                 logger.info(
                                     f"Refreshed token persisted for tenant {tenant}"
                                 )
-                            except Exception as persist_error:  # noqa: BLE001
+                            except Exception as persist_error:
                                 logger.warning(
                                     f"Token refresh succeeded but persistence failed: {persist_error}"
                                 )
 
-                    except Exception as refresh_error:  # noqa: BLE001
+                    except Exception as refresh_error:
                         logger.error(f"Token refresh failed: {refresh_error}")
                         return {
                             "success": False,
@@ -186,7 +186,7 @@ def test_google_drive_connectivity(
             "message": "Google Drive libraries not installed",
             "accessible": False,
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Google Drive connectivity test failed: {e}")
         import traceback
 
@@ -244,7 +244,7 @@ def exchange_google_code_for_tokens(code, client_id, client_secret) -> dict | No
 
         # Calculate expiry datetime
         expires_in = token_response.get("expires_in", 3600)  # Default 1 hour
-        expiry = datetime.utcnow() + timedelta(seconds=expires_in)  # noqa: DTZ003
+        expiry = datetime.utcnow() + timedelta(seconds=expires_in)
 
         # Build complete token structure
         complete_token = {
@@ -263,7 +263,7 @@ def exchange_google_code_for_tokens(code, client_id, client_secret) -> dict | No
 
         return complete_token
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error exchanging code for tokens: {e}")
         import traceback
 

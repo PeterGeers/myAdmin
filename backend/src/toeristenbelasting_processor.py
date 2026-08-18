@@ -57,7 +57,7 @@ class ToeristenbelastingProcessor:
                     metadata = template_service.get_template_metadata(
                         administration, template_type
                     )
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning(
                         f"Could not get template metadata from database: {e}"
                     )
@@ -74,7 +74,7 @@ class ToeristenbelastingProcessor:
                         metadata["template_file_id"], administration
                     )
                     field_mappings = metadata.get("field_mappings", {})
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                     # Fallback to filesystem
                     metadata = None
@@ -116,7 +116,7 @@ class ToeristenbelastingProcessor:
 
             return {"success": True, "html_report": html_report, "data": raw_data}
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error generating toeristenbelasting report: {e}", flush=True)
             import traceback
 

@@ -165,7 +165,7 @@ class TenantProvisioningService:
                     f"'{contact_email}' (tenant: {administration}): "
                     f"{verification_result.get('error')}"
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(
                 f"Email verification initiation failed for '{contact_email}' "
                 f"(tenant: {administration}): {e} — provisioning continues"
@@ -193,7 +193,7 @@ class TenantProvisioningService:
                     locale=locale,
                 )
                 results["initial_admin"] = admin_result
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     f"Initial admin user creation failed for '{administration}': {e}"
                 )
@@ -318,7 +318,7 @@ class TenantProvisioningService:
                     login_url,
                 )
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             msg = (
                 f"Failed to create initial admin user {email} "
                 f"for '{administration}': {exc}"
@@ -515,7 +515,7 @@ class TenantProvisioningService:
                     email=email,
                     error_message=f"SES send failed: {result.get('error')}",
                 )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(f"Failed to send invitation email to {email}: {exc}")
             invitation_service.mark_invitation_failed(
                 administration=administration,
@@ -586,7 +586,7 @@ class TenantProvisioningService:
                     f"Failed to send tenant-added notification to {email}: "
                     f"{result.get('error')}"
                 )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(
                 f"Failed to send tenant-added notification to {email}: {exc}"
             )
@@ -750,7 +750,7 @@ class TenantProvisioningService:
             )
             return {"status": "created", "rows": inserted}
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             msg = (
                 f"Failed to load chart of accounts for '{administration}': {e}. "
                 f"Add chart manually."

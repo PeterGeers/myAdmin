@@ -490,7 +490,7 @@ class CognitoService:
                     f"(type={type(current_tenants).__name__}, value={current_tenants!r}). "
                     f"Refusing to delete. Manual intervention required."
                 )
-                raise ValueError(  # noqa: TRY004
+                raise ValueError(
                     f"Malformed tenants attribute for {username}. "
                     f"Cannot safely remove tenant. Contact SysAdmin."
                 )
@@ -629,7 +629,7 @@ Login URL: {self._get_frontend_url()}
                 )
                 return False
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to send invitation to {email}: {e}")
             import traceback
 
@@ -646,7 +646,7 @@ Login URL: {self._get_frontend_url()}
             from utils.frontend_url import get_frontend_url
 
             return get_frontend_url()
-        except Exception:  # noqa: BLE001
+        except Exception:
             return os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     def _get_user_attribute(

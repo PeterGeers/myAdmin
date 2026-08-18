@@ -18,14 +18,14 @@ class InvoiceBookingHelper:
 
     # Mapping from booking param key to the rekeningschema.parameters JSON flag.
     # The flag marks which account in the chart of accounts serves this role.
-    LEDGER_FLAG_MAP = {  # noqa: RUF012
+    LEDGER_FLAG_MAP = {
         "debtor_account": "zzp_debtor_account",
         "creditor_account": "zzp_creditor_account",
         "revenue_account": "zzp_revenue_ledger",
     }
 
     # Required parameters that must be configured per tenant — no hardcoded defaults.
-    REQUIRED_BOOKING_PARAMS = {  # noqa: RUF012
+    REQUIRED_BOOKING_PARAMS = {
         "debtor_account": "zzp.debtor_account",
         "creditor_account": "zzp.creditor_account",
         "revenue_account": "zzp.revenue_account",
@@ -327,7 +327,7 @@ class InvoiceBookingHelper:
                 )
                 if rows and rows[0].get("Account"):
                     return str(rows[0]["Account"])
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(
                     "Ledger flag lookup failed for %s/%s: %s", tenant, key, e
                 )

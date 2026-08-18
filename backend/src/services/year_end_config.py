@@ -20,7 +20,7 @@ class YearEndConfigService:
     """Service for managing year-end closure configuration"""
 
     # Required account purposes for year-end closure
-    REQUIRED_PURPOSES = {  # noqa: RUF012
+    REQUIRED_PURPOSES = {
         "equity_result": {
             "description": "Equity result account (where net P&L is recorded)",
             "expected_vw": "N",  # Balance sheet account

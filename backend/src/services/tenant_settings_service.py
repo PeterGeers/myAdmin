@@ -62,7 +62,7 @@ class TenantSettingsService:
                 if value and (value.startswith(("{", "["))):
                     try:
                         value = json.loads(value)
-                    except Exception:  # noqa: BLE001, S110
+                    except Exception:
                         pass  # Keep as string if not valid JSON
 
                 # Build nested structure from dot notation (e.g., "storage.facturen_folder_id")
@@ -177,8 +177,8 @@ class TenantSettingsService:
                 end_date = date_range.get("end_date")
             else:
                 # Default to last 30 days
-                end_date = datetime.now().isoformat()  # noqa: DTZ005
-                start_date = (datetime.now() - timedelta(days=30)).isoformat()  # noqa: DTZ005
+                end_date = datetime.now().isoformat()
+                start_date = (datetime.now() - timedelta(days=30)).isoformat()
 
             # Get activity from audit_log table
             activity_stats = {
@@ -268,7 +268,7 @@ class TenantSettingsService:
                     for row in results
                 ]
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # Audit log table might not exist or be accessible
                 logger.warning(f"Could not retrieve audit log data: {e}")
                 activity_stats["error"] = "Audit log not available"

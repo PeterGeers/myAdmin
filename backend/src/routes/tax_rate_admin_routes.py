@@ -76,7 +76,7 @@ def list_tax_rates(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
             )
 
         return jsonify({"success": True, "tenant": tenant, "tax_rates": rates})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error listing tax rates: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -131,7 +131,7 @@ def create_tax_rate(
         return jsonify({"success": True, "id": rate_id, "message": "Tax rate created"})
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         if "1062" in str(e) or "Duplicate" in str(e):
             return jsonify({"success": False, "error": "Duplicate tax rate"}), 409
         logger.error("Error creating tax rate: %s", e)
@@ -200,7 +200,7 @@ def update_tax_rate(
         svc._invalidate_cache()
 
         return jsonify({"success": True, "message": "Tax rate updated"})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error updating tax rate %s: %s", rate_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -251,6 +251,6 @@ def delete_tax_rate(
         return jsonify({"success": False, "error": "Delete failed"}), 500
     except PermissionError as e:
         return jsonify({"success": False, "error": str(e)}), 403
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error deleting tax rate %s: %s", rate_id, e)
         return jsonify({"success": False, "error": str(e)}), 500

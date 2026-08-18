@@ -216,9 +216,7 @@ class DatabaseBankingQueriesMixin:
 
         except DatabaseError as e:
             print(f"Database error during duplicate check: {e}")
-            raise Exception(  # noqa: TRY002
-                f"Database connection failed during duplicate check: {e!s}"
-            )
-        except Exception as e:  # noqa: BLE001
+            raise Exception(f"Database connection failed during duplicate check: {e!s}")
+        except Exception as e:
             print(f"Unexpected error during duplicate check: {e}")
-            raise Exception(f"Duplicate check failed: {e!s}")  # noqa: TRY002
+            raise Exception(f"Duplicate check failed: {e!s}")

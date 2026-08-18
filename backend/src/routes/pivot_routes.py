@@ -140,7 +140,7 @@ def execute_pivot(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
     except RuntimeError as e:
         logger.error("Pivot query execution failed: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Unexpected error executing pivot: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -170,7 +170,7 @@ def get_available_columns(
         return jsonify({"success": True, **columns})
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error fetching columns for %s: %s", source, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -190,7 +190,7 @@ def get_registered_sources(
         service = _get_service()
         sources = service.get_registered_sources()
         return jsonify({"success": True, "data": sources})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error fetching registered sources: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -213,7 +213,7 @@ def list_models(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         store = _get_store()
         models = store.list_models(tenant)
         return jsonify({"success": True, "data": models})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error listing pivot models: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -265,7 +265,7 @@ def save_model(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
         if "not found" in error_msg.lower():
             return jsonify({"success": False, "error": error_msg}), 404
         return jsonify({"success": False, "error": error_msg}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error saving pivot model: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -310,7 +310,7 @@ def update_model(
         if "not found" in error_msg.lower():
             return jsonify({"success": False, "error": error_msg}), 404
         return jsonify({"success": False, "error": error_msg}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error updating pivot model %s: %s", model_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -338,7 +338,7 @@ def load_model(
         if "not found" in error_msg.lower():
             return jsonify({"success": False, "error": error_msg}), 404
         return jsonify({"success": False, "error": error_msg}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error loading pivot model %s: %s", model_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -363,7 +363,7 @@ def delete_model(
         if not deleted:
             return jsonify({"success": False, "error": "Pivot model not found"}), 404
         return jsonify({"success": True})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error deleting pivot model %s: %s", model_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -418,6 +418,6 @@ def export_underlying(
     except RuntimeError as e:
         logger.error("Export execution failed: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Unexpected error exporting pivot data: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500

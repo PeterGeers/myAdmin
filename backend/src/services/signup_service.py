@@ -238,7 +238,7 @@ class SignupService:
                     "locale": locale,
                 },
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Admin notification failed (non-critical): {e}")
 
         return {"userId": cognito_user_id}
@@ -301,7 +301,7 @@ class SignupService:
                     "name": f"{signup['first_name']} {signup['last_name']}",
                 },
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Admin notification failed (non-critical): {e}")
 
         return {"redirectUrl": self.redirect_url}
@@ -323,7 +323,7 @@ class SignupService:
         # Rate limit: 60 seconds between resends
         last_resend = signup.get("last_resend_at")
         if last_resend:
-            elapsed = (datetime.utcnow() - last_resend).total_seconds()  # noqa: DTZ003
+            elapsed = (datetime.utcnow() - last_resend).total_seconds()
             if elapsed < 60:
                 raise ResendRateLimitError(
                     f"Please wait {int(60 - elapsed)} seconds before resending"
@@ -348,7 +348,7 @@ class SignupService:
                 (email,),
             )
             conn.commit()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"DB update for last_resend_at failed: {e}")
         finally:
             cursor.close()
@@ -387,7 +387,7 @@ class SignupService:
                 service.send_business_notification(title, message, data)
             else:
                 logger.info(f"SNS disabled — would send: {title}: {message}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"Notification send failed: {e}")
 
 

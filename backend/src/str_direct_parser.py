@@ -90,9 +90,7 @@ def _parse_guesty_date(date_str: str) -> str | None:
         return None
 
     # Pattern 1: "YYYY-MM-DD HH:MM AM/PM"
-    match = re.match(
-        r"^(\d{4})-(\d{2})-(\d{2})\s+\d{1,2}:\d{2}\s*[AaPp][Mm]$", cleaned
-    )
+    match = re.match(r"^(\d{4})-(\d{2})-(\d{2})\s+\d{1,2}:\d{2}\s*[AaPp][Mm]$", cleaned)
     if match:
         year_str, month_str, day_str = match.group(1), match.group(2), match.group(3)
         return _validate_date_parts(year_str, month_str, day_str)
@@ -164,6 +162,7 @@ def _calculate_direct_row(
     Returns:
         Booking dict on success, or dict with "_skip_reason" key on skip.
     """
+
     # Helper to get a trimmed string value from the row
     def _get_str(col_key: str) -> str:
         actual_col = col_map.get(col_key, "")
@@ -186,7 +185,7 @@ def _calculate_direct_row(
     payout_str = _get_str("total payout")
     try:
         payout_decimal = Decimal(payout_str)
-    except Exception:  # noqa: BLE001
+    except Exception:
         print(
             f"Warning: Row {row_number} ({confirmation_code}): "
             f"non-numeric TOTAL PAYOUT '{payout_str}', skipping.",
@@ -253,8 +252,9 @@ def _calculate_direct_row(
     # --- Financial calculations ---
     # Channel fee: 4% of gross, half-up rounding to 2dp
     amount_channel_fee = float(
-        (payout_decimal * Decimal("0.04"))
-        .quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        (payout_decimal * Decimal("0.04")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
     )
 
     # Tax calculation
@@ -270,21 +270,21 @@ def _calculate_direct_row(
 
     # --- Derive date-based fields ---
     try:
-        checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()  # noqa: DTZ007
-        reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d").date()  # noqa: DTZ007
+        checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()
+        reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d").date()
         year = checkin_dt.year
         quarter = (checkin_dt.month - 1) // 3 + 1
         month = checkin_dt.month
         days_before_reservation = (checkin_dt - reservation_dt).days
-    except Exception:  # noqa: BLE001
-        year = datetime.now().year  # noqa: DTZ005
+    except Exception:
+        year = datetime.now().year
         quarter = 1
         month = 1
         days_before_reservation = 0
-        checkin_dt = date.today()  # noqa: DTZ011
+        checkin_dt = date.today()
 
     # --- Booking status ---
-    today = date.today()  # noqa: DTZ011
+    today = date.today()
     if checkin_dt > today:
         booking_status = "planned"
     else:
@@ -367,7 +367,7 @@ def process_direct_csv(
     # --- Read CSV ---
     try:
         df = pd.read_csv(file_path, dtype=str, keep_default_na=False)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise ValueError(f"Failed to parse CSV: {e}") from e
 
     # --- Build column map (normalized lowercase/stripped → actual column name) ---
@@ -379,7 +379,7 @@ def process_direct_csv(
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
 
     # --- Build sourceFile label ---
-    today_str = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+    today_str = datetime.now().strftime("%Y-%m-%d")
     source_file = f"{today_str} {os.path.basename(file_path)}"
 
     # --- Iterate rows and collect results ---
@@ -428,10 +428,12 @@ def process_direct_csv(
                         if val:
                             status_val = str(val).strip()
 
-                    status_updates.append({
-                        "reservationCode": reservation_code,
-                        "status": status_val,
-                    })
+                    status_updates.append(
+                        {
+                            "reservationCode": reservation_code,
+                            "status": status_val,
+                        }
+                    )
         else:
             # Normal booking dict
             bookings.append(result)

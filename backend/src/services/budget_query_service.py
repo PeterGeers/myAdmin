@@ -345,7 +345,7 @@ class BudgetQueryService:
             return quarters[period]
 
         if period == "ytd":
-            return list(range(1, datetime.now().month + 1))  # noqa: DTZ005
+            return list(range(1, datetime.now().month + 1))
 
         # 'full' or unrecognized defaults to full year
         return list(range(1, 13))

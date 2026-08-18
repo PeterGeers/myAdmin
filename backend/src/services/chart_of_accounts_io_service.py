@@ -88,7 +88,7 @@ class ChartOfAccountsIOService:
         output.seek(0)
 
         filename = (
-            f"chart_of_accounts_{tenant}_{datetime.now().strftime('%Y%m%d')}.xlsx"  # noqa: DTZ005
+            f"chart_of_accounts_{tenant}_{datetime.now().strftime('%Y%m%d')}.xlsx"
         )
         return output, filename, len(accounts)
 
@@ -108,7 +108,7 @@ class ChartOfAccountsIOService:
         try:
             wb = openpyxl.load_workbook(file_stream)
             ws = wb.active
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {
                 "success": False,
                 "error": "Failed to parse Excel file",

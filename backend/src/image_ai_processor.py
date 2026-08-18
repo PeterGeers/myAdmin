@@ -56,7 +56,7 @@ class ImageAIProcessor:
                 f"image/{ext[1:]}" if ext in [".jpg", ".jpeg", ".png"] else "image/jpeg"
             )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error encoding image: {e}")
             return None
 
@@ -154,7 +154,7 @@ Return ONLY valid JSON:
             except json.JSONDecodeError as e:
                 print(f"{model.model_id} JSON error: {e}")
                 continue
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"{model.model_id} failed: {str(e)[:200]}")
                 continue
 
@@ -170,7 +170,7 @@ Return ONLY valid JSON:
                 capture_output=True,
                 check=True,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             print("Tesseract not installed")
             return self._fallback_data(vendor_hint)
 
@@ -199,26 +199,26 @@ Return ONLY valid JSON:
             print("✓ Tesseract OCR + AI extraction successful")
             return result
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Tesseract error: {e}")
             return self._fallback_data(vendor_hint)
 
     def _validate_date(self, date_str):
         if not date_str:
-            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+            return datetime.now().strftime("%Y-%m-%d")
         try:
             for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
                 try:
-                    return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")  # noqa: DTZ007
+                    return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
                 except ValueError:
                     continue
-            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
-        except Exception:  # noqa: BLE001
-            return datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
+            return datetime.now().strftime("%Y-%m-%d")
+        except Exception:
+            return datetime.now().strftime("%Y-%m-%d")
 
     def _fallback_data(self, vendor_hint):
         return {
-            "date": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+            "date": datetime.now().strftime("%Y-%m-%d"),
             "total_amount": 0.0,
             "vat_amount": 0.0,
             "description": f"{vendor_hint or 'Unknown'} invoice",

@@ -114,7 +114,7 @@ class SESEmailService:
                         subject=subject,
                         sent_by=sent_by,
                     )
-                except Exception as log_err:  # noqa: BLE001
+                except Exception as log_err:
                     logger.warning(f"Email sent but logging failed: {log_err}")
 
             return {"success": True, "message_id": message_id}
@@ -134,12 +134,12 @@ class SESEmailService:
                         error_message=f"{error_code}: {error_msg}",
                         sent_by=sent_by,
                     )
-                except Exception as log_err:  # noqa: BLE001
+                except Exception as log_err:
                     logger.warning(f"Email failed and logging also failed: {log_err}")
 
             return {"success": False, "error": f"{error_code}: {error_msg}"}
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Unexpected error sending email to {to_email}: {e}")
             return {"success": False, "error": str(e)}
 
@@ -274,7 +274,7 @@ class SESEmailService:
                         subject=subject,
                         sent_by=sent_by,
                     )
-                except Exception as log_err:  # noqa: BLE001
+                except Exception as log_err:
                     logger.warning(f"Email sent but logging failed: {log_err}")
 
             return {"success": True, "message_id": message_id}
@@ -293,12 +293,12 @@ class SESEmailService:
                         error_message=f"{error_code}: {error_msg}",
                         sent_by=sent_by,
                     )
-                except Exception as log_err:  # noqa: BLE001
+                except Exception as log_err:
                     logger.warning(f"Email failed and logging also failed: {log_err}")
 
             return {"success": False, "error": f"{error_code}: {error_msg}"}
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(
                 f"Unexpected error sending email with attachments to {to_email}: {e}"
             )

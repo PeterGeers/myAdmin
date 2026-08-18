@@ -72,7 +72,7 @@ class AssetService:
         )
 
         if not asset_id:
-            raise Exception("Failed to retrieve asset ID after insert")  # noqa: TRY002
+            raise Exception("Failed to retrieve asset ID after insert")
 
         logger.info(
             f"Asset {asset_id} created for '{administration}': "

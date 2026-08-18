@@ -56,7 +56,7 @@ def list_products(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         )
         products = svc.list_products(tenant, include_inactive=include_inactive)
         return jsonify({"success": True, "data": products})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("list_products error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -75,7 +75,7 @@ def get_product(
         if not product:
             return jsonify({"success": False, "error": "Product not found"}), 404
         return jsonify({"success": True, "data": product})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_product error for %s/%s: %s", tenant, product_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -95,7 +95,7 @@ def create_product(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         return jsonify({"success": True, "data": product}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_product error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -117,7 +117,7 @@ def update_product(
         return jsonify({"success": True, "data": product})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("update_product error for %s/%s: %s", tenant, product_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -136,7 +136,7 @@ def delete_product(
         return jsonify({"success": True, "message": "Product deactivated"})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("delete_product error for %s/%s: %s", tenant, product_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -158,7 +158,7 @@ def toggle_product_public(
         return jsonify({"success": True, "data": product})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("toggle_product_public error for %s/%s: %s", tenant, product_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -175,6 +175,6 @@ def get_product_types(
         svc = _get_service()
         types = svc.get_product_types(tenant)
         return jsonify({"success": True, "data": types})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_product_types error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

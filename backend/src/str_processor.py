@@ -104,7 +104,7 @@ class STRProcessor:
                         ".xlsx"
                     ):
                         files["direct"].append(file_path)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error scanning folder: {e}")
 
         return files
@@ -127,7 +127,7 @@ class STRProcessor:
             try:
                 bookings = self._process_single_file(file_path, platform)
                 all_bookings.extend(bookings)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"Error processing {file_path}: {e}")
 
         return all_bookings
@@ -215,7 +215,7 @@ class STRProcessor:
                     print(
                         f"VRBO: Unknown file type (first column: '{first_col}'): {fp}"
                     )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"VRBO: Error reading header of {fp}: {e}")
 
         reservations = {}
@@ -248,7 +248,7 @@ class STRProcessor:
         """Parse a VRBO Reservations CSV."""
         try:
             df = pd.read_csv(file_path)
-            src = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"  # noqa: DTZ005
+            src = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
             col_map = {
                 "reservationCode": "Reservation ID",
                 "listingNumber": "Listing Number",
@@ -275,7 +275,7 @@ class STRProcessor:
                 )
                 results.append(rec)
             return results
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"VRBO: Error parsing reservations {file_path}: {e}")
             return []
 
@@ -307,26 +307,26 @@ class STRProcessor:
                     continue
                 results.append((code, parse_amount(str(row.get(amount_col, "0")))))
             return results
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"VRBO: Error parsing payouts {file_path}: {e}")
             return []
 
     def _build_vrbo_booking(self, res: dict, payout_amount: float | None) -> dict:
         """Build a standard booking dict from VRBO reservation + payout data."""
-        today = date.today()  # noqa: DTZ011
+        today = date.today()
         checkin_date = parse_date(res["checkinDate"])
         checkout_date = parse_date(res["checkoutDate"])
         reservation_date = parse_date(res["reservationDate"])
 
         try:
-            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()  # noqa: DTZ007
+            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d").date()
             if "cancel" in res["csvStatus"].lower():
                 booking_status = "cancelled"
             elif checkin_dt > today:
                 booking_status = "planned"
             else:
                 booking_status = "realised"
-        except Exception:  # noqa: BLE001
+        except Exception:
             booking_status = "realised"
 
         if payout_amount and payout_amount > 0:
@@ -340,16 +340,16 @@ class STRProcessor:
         )
 
         try:
-            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d")  # noqa: DTZ007
-            reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d")  # noqa: DTZ007
+            checkin_dt = datetime.strptime(checkin_date, "%Y-%m-%d")
+            reservation_dt = datetime.strptime(reservation_date, "%Y-%m-%d")
             year, quarter, month = (
                 checkin_dt.year,
                 (checkin_dt.month - 1) // 3 + 1,
                 checkin_dt.month,
             )
             days_before = (checkin_dt - reservation_dt).days
-        except Exception:  # noqa: BLE001
-            year, quarter, month, days_before = datetime.now().year, 1, 1, 0  # noqa: DTZ005
+        except Exception:
+            year, quarter, month, days_before = datetime.now().year, 1, 1, 0
 
         nights = res["nights"] or 0
         guests = res["adults"] + res["children"]
@@ -445,7 +445,7 @@ class STRProcessor:
                 "planned": planned,
                 "already_loaded": already_loaded,
             }
-        except Exception:  # noqa: BLE001
+        except Exception:
             return {
                 "realised": [
                     b for b in bookings if b.get("status") in ["realised", "cancelled"]
@@ -465,5 +465,5 @@ class STRProcessor:
             .reset_index()
         )
         summary.columns = ["channel", "listing", "amount", "items"]
-        summary["date"] = date.today().strftime("%Y-%m-%d")  # noqa: DTZ011
+        summary["date"] = date.today().strftime("%Y-%m-%d")
         return summary.to_dict("records")

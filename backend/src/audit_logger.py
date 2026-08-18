@@ -80,7 +80,7 @@ class AuditLogger:
             self.db.execute_query(
                 query,
                 (
-                    datetime.now(),  # noqa: DTZ005
+                    datetime.now(),
                     reference_number,
                     transaction_date,
                     transaction_amount,
@@ -100,7 +100,7 @@ class AuditLogger:
             )
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to create audit log entry: {e}")
             return False
 
@@ -180,7 +180,7 @@ class AuditLogger:
             )
             return results if results else []
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to query audit logs: {e}")
             return []
 
@@ -236,7 +236,7 @@ class AuditLogger:
 
             return 0
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to get decision count: {e}")
             return 0
 
@@ -261,7 +261,7 @@ class AuditLogger:
                 "report_period": {
                     "start_date": start_date,
                     "end_date": end_date,
-                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
+                    "generated_at": datetime.now().isoformat(),
                 },
                 "summary": {},
                 "details": [] if include_details else None,
@@ -360,14 +360,14 @@ class AuditLogger:
             logger.info(f"Compliance report generated for {start_date} to {end_date}")
             return report
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to generate compliance report: {e}")
             return {
                 "error": str(e),
                 "report_period": {
                     "start_date": start_date,
                     "end_date": end_date,
-                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
+                    "generated_at": datetime.now().isoformat(),
                 },
             }
 
@@ -396,7 +396,7 @@ class AuditLogger:
                 "report_period": {
                     "start_date": start_date or "all",
                     "end_date": end_date or "all",
-                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
+                    "generated_at": datetime.now().isoformat(),
                 },
                 "summary": {},
                 "recent_decisions": [],
@@ -453,7 +453,7 @@ class AuditLogger:
             logger.info(f"User activity report generated for user: {user_id}")
             return report
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to generate user activity report: {e}")
             return {
                 "error": str(e),
@@ -461,7 +461,7 @@ class AuditLogger:
                 "report_period": {
                     "start_date": start_date or "all",
                     "end_date": end_date or "all",
-                    "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
+                    "generated_at": datetime.now().isoformat(),
                 },
             }
 
@@ -478,7 +478,7 @@ class AuditLogger:
         Requirements: 6.5
         """
         try:
-            cutoff_date = datetime.now() - timedelta(days=retention_days)  # noqa: DTZ005
+            cutoff_date = datetime.now() - timedelta(days=retention_days)
 
             # First, count how many records will be deleted
             count_query = f"""
@@ -509,7 +509,7 @@ class AuditLogger:
             )
             return True, delete_count
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to cleanup old audit logs: {e}")
             return False, 0
 
@@ -573,7 +573,7 @@ class AuditLogger:
             logger.info(f"Exported {len(logs)} audit log entries to {output_file}")
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to export audit logs to CSV: {e}")
             return False
 
@@ -613,6 +613,6 @@ class AuditLogger:
             )
             return results if results else []
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to get audit trail for transaction: {e}")
             return []

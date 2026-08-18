@@ -59,7 +59,7 @@ def get_status() -> ResponseReturnValue:
                 "folder": folder_name,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
@@ -94,7 +94,7 @@ def get_db_config() -> ResponseReturnValue:
         config["MYSQL_PASSWORD"] = "SET" if os.getenv("MYSQL_PASSWORD") else "NOT_SET"
 
         return jsonify(config)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
@@ -120,7 +120,7 @@ def test_db_connection() -> ResponseReturnValue:
                 "test_query_result": result,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify(
             {"status": "error", "message": str(e), "error_type": type(e).__name__}
         ), 500
@@ -188,7 +188,7 @@ def _collect_cache_stats() -> dict:
             "total_rows": stats.get("total_rows", 0),
             "memory_mb": stats.get("memory_mb", 0.0),
         }
-    except Exception:  # noqa: BLE001
+    except Exception:
         caches["mutaties"] = {"error": "unavailable"}
 
     # BnbCache stats
@@ -202,7 +202,7 @@ def _collect_cache_stats() -> dict:
             "total_rows": stats.get("total_rows", 0),
             "memory_mb": stats.get("memory_mb", 0.0),
         }
-    except Exception:  # noqa: BLE001
+    except Exception:
         caches["bnb"] = {"error": "unavailable"}
 
     # QueryCache stats
@@ -216,7 +216,7 @@ def _collect_cache_stats() -> dict:
             "max_size": stats.get("max_size", 0),
             "hit_rate_percent": stats.get("hit_rate_percent", 0.0),
         }
-    except Exception:  # noqa: BLE001
+    except Exception:
         caches["query_cache"] = {"error": "unavailable"}
 
     return caches
@@ -229,7 +229,7 @@ def _collect_process_stats() -> dict:
     try:
         rss_bytes = psutil.Process().memory_info().rss
         rss_mb = round(rss_bytes / 1024 / 1024, 1)
-    except Exception:  # noqa: BLE001
+    except Exception:
         rss_mb = 0.0
 
     result = {
@@ -283,10 +283,10 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                     expiry_date = datetime.fromisoformat(
                         expiry_str.replace("Z", "+00:00")
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     try:
-                        expiry_date = datetime.strptime(expiry_str, "%d-%m-%Y %H:%M:%S")  # noqa: DTZ007
-                    except Exception:  # noqa: BLE001
+                        expiry_date = datetime.strptime(expiry_str, "%d-%m-%Y %H:%M:%S")
+                    except Exception:
                         results[tenant] = {
                             "status": "error",
                             "message": f"Invalid expiry format: {expiry_str}",
@@ -294,7 +294,7 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                         }
                         continue
 
-                now = datetime.now()  # noqa: DTZ005
+                now = datetime.now()
                 if expiry_date.tzinfo:
                     from datetime import timezone
 
@@ -330,7 +330,7 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                         "action_required": False,
                     }
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 results[tenant] = {
                     "status": "error",
                     "message": str(e),
@@ -350,9 +350,9 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
             {
                 "overall_status": overall_status,
                 "tenants": results,
-                "checked_at": datetime.now().isoformat(),  # noqa: DTZ005
+                "checked_at": datetime.now().isoformat(),
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"overall_status": "error", "message": str(e)}), 500

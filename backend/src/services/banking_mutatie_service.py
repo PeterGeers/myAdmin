@@ -40,7 +40,7 @@ class BankingMutatieService:
             table_name = "mutaties_test" if self.test_mode else "mutaties"
 
             # Get filter parameters
-            years = filters.get("years", [str(datetime.now().year)])  # noqa: DTZ005
+            years = filters.get("years", [str(datetime.now().year)])
             administration = filters.get("administration", "all")
             limit = int(filters.get("limit", 1000))
             offset = int(filters.get("offset", 0))
@@ -129,7 +129,7 @@ class BankingMutatieService:
                 "table": table_name,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Get mutaties error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
@@ -195,7 +195,7 @@ class BankingMutatieService:
             # Convert date to proper format
             transaction_date = data.get("TransactionDate")
             if transaction_date and "GMT" in str(transaction_date):
-                transaction_date = datetime.strptime(  # noqa: DTZ007
+                transaction_date = datetime.strptime(
                     transaction_date, "%a, %d %b %Y %H:%M:%S %Z"
                 ).strftime("%Y-%m-%d")
 
@@ -232,7 +232,7 @@ class BankingMutatieService:
                 "message": f"Record {mutatie_id} updated successfully",
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Update error: {e}", flush=True)
             import traceback
 

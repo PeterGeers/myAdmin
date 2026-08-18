@@ -100,7 +100,7 @@ class TemplateHtmlProcessor:
                     }
                 )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             errors.append(
                 {
                     "type": "syntax_error",
@@ -329,6 +329,6 @@ class TemplateHtmlProcessor:
 
             return rendered
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to render template: {e}")
             return template_content

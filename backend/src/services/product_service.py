@@ -21,7 +21,7 @@ class ProductService(FieldConfigMixin):
     """Shared product/service CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "product_field_config"
-    ALWAYS_REQUIRED = ["product_code", "name"]  # noqa: RUF012
+    ALWAYS_REQUIRED = ["product_code", "name"]
 
     def __init__(self, db, tax_rate_service=None, parameter_service=None):
         """Initialise with database handle and optional collaborators."""
@@ -208,7 +208,7 @@ class ProductService(FieldConfigMixin):
                 tenant,
                 "btw",
                 vat_code,
-                date.today(),  # noqa: DTZ011
+                date.today(),
             )
             if rate is None:
                 raise ValueError(

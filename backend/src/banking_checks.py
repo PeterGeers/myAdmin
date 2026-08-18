@@ -38,8 +38,8 @@ def _get_opening_balance_date(db, administration):
         if rows and rows[0]["last_closed_year"]:
             return f"{rows[0]['last_closed_year'] + 1}-01-01"
         return None
-    except Exception as e:  # noqa: BLE001
-        logging.warning(  # noqa: LOG015
+    except Exception as e:
+        logging.warning(
             f"Could not fetch opening balance date for {administration}: {e}"
         )
         return None
@@ -483,17 +483,17 @@ class BankingChecks:
                     datetime_str = ref2_parts[2]
                     tx["ref2_datetime_str"] = datetime_str
                     try:
-                        tx["ref2_datetime_obj"] = datetime.strptime(  # noqa: DTZ007
+                        tx["ref2_datetime_obj"] = datetime.strptime(
                             datetime_str, "%Y-%m-%d %H:%M:%S"
                         )
                     except ValueError:
-                        tx["ref2_datetime_obj"] = datetime.strptime(  # noqa: DTZ007
+                        tx["ref2_datetime_obj"] = datetime.strptime(
                             str(tx["TransactionDate"]), "%Y-%m-%d"
                         )
                         tx["ref2_datetime_str"] = str(tx["TransactionDate"])
                 else:
                     tx["ref2_datetime_str"] = str(tx["TransactionDate"])
-                    tx["ref2_datetime_obj"] = datetime.strptime(  # noqa: DTZ007
+                    tx["ref2_datetime_obj"] = datetime.strptime(
                         str(tx["TransactionDate"]), "%Y-%m-%d"
                     )
 
@@ -630,7 +630,7 @@ class BankingChecks:
                 },
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             cursor.close()
             conn.close()
             return {"success": False, "error": str(e)}

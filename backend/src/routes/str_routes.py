@@ -73,16 +73,20 @@ def str_upload_authenticated(
         # File extension validation for direct platform
         if platform == "direct":
             filename_check = uploaded_files[0].filename.lower()
-            if filename_check.endswith(('.xls', '.xlsx')):
-                return jsonify({
-                    "success": False,
-                    "error": "Only CSV files are supported for the direct platform. Excel files (.xls/.xlsx) are no longer accepted."
-                }), 400
-            if not filename_check.endswith('.csv'):
-                return jsonify({
-                    "success": False,
-                    "error": "Unsupported file type for direct platform. Please upload a .csv file."
-                }), 400
+            if filename_check.endswith((".xls", ".xlsx")):
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "Only CSV files are supported for the direct platform. Excel files (.xls/.xlsx) are no longer accepted.",
+                    }
+                ), 400
+            if not filename_check.endswith(".csv"):
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "Unsupported file type for direct platform. Please upload a .csv file.",
+                    }
+                ), 400
 
         temp_paths = []
         for file in uploaded_files:
@@ -108,7 +112,9 @@ def str_upload_authenticated(
             summary = {}
 
         # Enhance summary for dfDirect platform (add even when no bookings)
-        if platform == "direct" and hasattr(str_processor, '_direct_processing_summary'):
+        if platform == "direct" and hasattr(
+            str_processor, "_direct_processing_summary"
+        ):
             direct_summary = str_processor._direct_processing_summary
             summary["total_bookings"] = len(bookings) if bookings else 0
             summary["total_rows"] = direct_summary.get("total_rows", 0)
@@ -146,7 +152,7 @@ def str_upload_authenticated(
 
         return jsonify(response_data)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -199,20 +205,23 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
 
             # Populate already_loaded with bookings that were updated (duplicates)
             already_loaded = [
-                b for b in realised_bookings
+                b
+                for b in realised_bookings
                 if b.get("reservationCode") in updated_codes
             ]
 
-            return jsonify({
-                "success": True,
-                "results": {
-                    "inserted": inserted_count,
-                    "updated": updated_count,
-                    "planned_saved": planned_count,
-                },
-                "already_loaded": already_loaded,
-                "message": f"dfDirect: {inserted_count} inserted, {updated_count} updated for {tenant}",
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "results": {
+                        "inserted": inserted_count,
+                        "updated": updated_count,
+                        "planned_saved": planned_count,
+                    },
+                    "already_loaded": already_loaded,
+                    "message": f"dfDirect: {inserted_count} inserted, {updated_count} updated for {tenant}",
+                }
+            )
 
         # Standard flow for non-direct platforms
         str_processor = STRProcessor(test_mode=test_mode)
@@ -242,7 +251,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -268,11 +277,11 @@ def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
                 "success": True,
                 "result": result,
                 "listing": listing,
-                "generated_at": datetime.now().isoformat(),  # noqa: DTZ005
+                "generated_at": datetime.now().isoformat(),
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -328,7 +337,7 @@ def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
             {"success": True, "recommendations": results, "count": len(results)}
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -403,7 +412,7 @@ def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -432,7 +441,7 @@ def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
             }
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -490,7 +499,7 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "multipliers": results, "listing": listing})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if "cursor" in locals():
@@ -525,7 +534,7 @@ def str_write_future(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -620,7 +629,7 @@ def str_import_payout_authenticated(user_email, user_roles) -> ResponseReturnVal
 
         return jsonify(response)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in Payout import: {e!s}", flush=True)
         import traceback
 
@@ -641,7 +650,7 @@ def str_summary(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "summary": summary})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -675,14 +684,16 @@ def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "data": results})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 @str_bp.route("/api/str/enrich-direct", methods=["POST"])
 @cognito_required(required_permissions=["str_create"])
 @tenant_required()
-def str_enrich_direct(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def str_enrich_direct(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Enrich recently imported dfDirect bookings with Stripe customer data."""
     try:
         from str_stripe_enrichment import enrich_direct_bookings
@@ -695,24 +706,34 @@ def str_enrich_direct(user_email, user_roles, tenant, user_tenants) -> ResponseR
             codes = str_db.get_unenriched_direct_codes(tenant)
 
         if not codes:
-            return jsonify({"success": True, "message": "No bookings to enrich", "enriched": 0})
+            return jsonify(
+                {"success": True, "message": "No bookings to enrich", "enriched": 0}
+            )
 
         result = enrich_direct_bookings(codes)
 
-        print(f"[Stripe Enrichment] codes={codes}, enriched={len(result['enrichments'])}, not_found={result['not_found']}, errors={result['errors']}", flush=True)
+        print(
+            f"[Stripe Enrichment] codes={codes}, enriched={len(result['enrichments'])}, not_found={result['not_found']}, errors={result['errors']}",
+            flush=True,
+        )
         if result["enrichments"]:
             for e in result["enrichments"]:
-                print(f"[Stripe Enrichment] {e['reservationCode']}: phone={e.get('phone')}, country={e.get('country')}, email={e.get('email')}, fee={e.get('stripe_fee')}", flush=True)
+                print(
+                    f"[Stripe Enrichment] {e['reservationCode']}: phone={e.get('phone')}, country={e.get('country')}, email={e.get('email')}, fee={e.get('stripe_fee')}",
+                    flush=True,
+                )
             str_db = STRDatabase(test_mode=test_mode)
             str_db.apply_stripe_enrichments(result["enrichments"], tenant)
 
-        return jsonify({
-            "success": True,
-            "enriched": len(result["enrichments"]),
-            "not_found": len(result["not_found"]),
-            "errors": result["errors"],
-        })
-    except Exception as e:  # noqa: BLE001
+        return jsonify(
+            {
+                "success": True,
+                "enriched": len(result["enrichments"]),
+                "not_found": len(result["not_found"]),
+                "errors": result["errors"],
+            }
+        )
+    except Exception as e:
         print(f"Error in str_enrich_direct: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -753,5 +774,5 @@ def str_calculate_taxes(user_email, user_roles) -> ResponseReturnValue:
                 "taxRates": result.get("tax_rates_used", {}),
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"error": str(e)}), 500

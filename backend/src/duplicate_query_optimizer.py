@@ -75,7 +75,7 @@ class QueryCache:
             entry = self.cache[cache_key]
 
             # Check if entry has expired
-            if datetime.now() < entry["expires_at"]:  # noqa: DTZ005
+            if datetime.now() < entry["expires_at"]:
                 self.hits += 1
                 logger.debug(f"Cache hit for key: {cache_key}")
                 return entry["data"]
@@ -122,11 +122,11 @@ class QueryCache:
             self._evict_oldest()
 
         ttl = ttl or self.default_ttl
-        expires_at = datetime.now() + timedelta(seconds=ttl)  # noqa: DTZ005
+        expires_at = datetime.now() + timedelta(seconds=ttl)
 
         self.cache[cache_key] = {
             "data": data,
-            "cached_at": datetime.now(),  # noqa: DTZ005
+            "cached_at": datetime.now(),
             "expires_at": expires_at,
             "ttl": ttl,
         }
@@ -191,7 +191,7 @@ class QueryCache:
         Returns:
             Number of entries removed
         """
-        now = datetime.now()  # noqa: DTZ005
+        now = datetime.now()
         expired_keys = [
             key for key, entry in self.cache.items() if now >= entry["expires_at"]
         ]

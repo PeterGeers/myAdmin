@@ -107,7 +107,7 @@ def migrate(dry_run: bool = False):
             )
             migrated += 1
             logger.info(f"  OK {tenant}: {config_key} -> {namespace}.{key}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"  FAIL {tenant}: {config_key} -> {e}")
             skipped += 1
 

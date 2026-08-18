@@ -50,7 +50,7 @@ def get_tenant_functions(
         service = _get_service()
         functions = service.get_all_functions(tenant)
         return jsonify({"success": True, "data": functions})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting tenant functions: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -133,6 +133,6 @@ def toggle_tenant_function(
         else:
             return jsonify(result), 500
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error toggling tenant function: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

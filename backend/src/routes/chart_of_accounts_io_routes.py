@@ -81,7 +81,7 @@ def export_accounts(user_email, user_roles) -> ResponseReturnValue:
             download_name=filename,
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error exporting accounts: {e}")
         return jsonify({"error": "Failed to export accounts", "details": str(e)}), 500
 
@@ -152,6 +152,6 @@ def import_accounts(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error importing accounts: {e}")
         return jsonify({"error": "Failed to import accounts", "details": str(e)}), 500

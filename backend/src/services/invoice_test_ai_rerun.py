@@ -180,7 +180,7 @@ def rerun_with_custom_prompt(
         # Override feature to match the expected format
         ai_usage_preview["feature"] = "invoice_extraction_rerun"
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         errors.append(
             {
                 "stage": "ai_extraction",
@@ -358,7 +358,7 @@ Return ONLY valid JSON in this exact format:
             )
             print(f"Custom prompt re-run: {model.model_id} timeout")
             continue
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             model_failures.append(
                 {
                     "model": model.model_id,
@@ -429,7 +429,7 @@ def get_vendor_history(folder_name: str, administration: str | None = None) -> l
 
         return result
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Handle vendor not found or any other error gracefully
         print(f"Error retrieving vendor history for '{folder_name}': {e}")
         return []

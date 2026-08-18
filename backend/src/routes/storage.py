@@ -84,7 +84,7 @@ def get_presigned_url(
 
         return jsonify({"success": True, "url": url, "expires_in": 300})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error generating pre-signed URL: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -185,6 +185,6 @@ def upload_logo(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
 
         return jsonify({"success": True, "key": s3_key})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error uploading logo: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

@@ -60,7 +60,7 @@ def enrich_direct_bookings(
             # Respect Stripe rate limits (25 req/s in live mode)
             time.sleep(0.05)
         except stripe.error.StripeError as e:
-            errors.append(f"{code}: {str(e)}")
+            errors.append(f"{code}: {e!s}")
 
     return {"enrichments": enrichments, "not_found": not_found, "errors": errors}
 
@@ -164,6 +164,7 @@ def _country_from_phone(phone_str: str) -> str | None:
     """Derive ISO country code from phone number using phonenumbers library."""
     try:
         import phonenumbers
+
         # Ensure phone starts with + for parsing
         clean = phone_str.strip()
         if not clean.startswith("+"):
@@ -171,7 +172,7 @@ def _country_from_phone(phone_str: str) -> str | None:
         parsed = phonenumbers.parse(clean, None)
         country = phonenumbers.region_code_for_number(parsed)
         return country if country else None
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 
@@ -193,9 +194,8 @@ def _extract_customer_data(payment_intent) -> dict:
         shipping = payment_intent.shipping
         if shipping.phone:
             data["phone"] = shipping.phone
-        if shipping.address:
-            if shipping.address.country:
-                data["country"] = shipping.address.country
+        if shipping.address and shipping.address.country:
+            data["country"] = shipping.address.country
 
     # Source 2: receipt_email on PaymentIntent
     data["email"] = payment_intent.receipt_email

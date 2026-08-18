@@ -248,41 +248,58 @@ class TestSTRProcessor:
         
         assert len(result) == 0  # Should be skipped
     
-    @patch('pandas.read_excel')
-    def test_process_direct_success(self, mock_read_excel, str_processor, sample_direct_data):
+    @patch('str_direct_parser.process_direct_csv')
+    def test_process_direct_success(self, mock_process_csv, str_processor, sample_direct_data):
         """Test successful direct booking processing"""
-        mock_df = pd.DataFrame([sample_direct_data])
-        mock_read_excel.return_value = mock_df
+        mock_process_csv.return_value = {
+            'bookings': [{
+                'channel': 'dfDirect',
+                'listing': 'Child Friendly',
+                'nights': 3,
+                'guestName': 'Bob Johnson',
+                'reservationCode': 'DIR789',
+            }],
+            'summary': {},
+            'status_updates': [],
+        }
         
-        with patch('os.path.basename', return_value='test.xlsx'):
-            result = str_processor._process_direct('test.xlsx')
+        result = str_processor._process_direct('test.xlsx')
         
         assert len(result) == 1
-        assert result[0]['channel'] == 'dfDirect'  # goodwin -> dfDirect
+        assert result[0]['channel'] == 'dfDirect'
         assert result[0]['listing'] == 'Child Friendly'
         assert result[0]['nights'] == 3
         assert result[0]['guestName'] == 'Bob Johnson'
         assert result[0]['reservationCode'] == 'DIR789'
     
-    @patch('pandas.read_excel')
-    def test_process_direct_vrbo_channel(self, mock_read_excel, str_processor, sample_direct_data):
+    @patch('str_direct_parser.process_direct_csv')
+    def test_process_direct_vrbo_channel(self, mock_process_csv, str_processor, sample_direct_data):
         """Test direct booking VRBO channel detection"""
-        sample_direct_data['typeTrade'] = 'vrbo booking'
-        mock_df = pd.DataFrame([sample_direct_data])
-        mock_read_excel.return_value = mock_df
+        mock_process_csv.return_value = {
+            'bookings': [{
+                'channel': 'VRBO',
+                'listing': 'Child Friendly',
+                'nights': 3,
+                'guestName': 'Bob Johnson',
+                'reservationCode': 'DIR789',
+            }],
+            'summary': {},
+            'status_updates': [],
+        }
         
-        with patch('os.path.basename', return_value='test.xlsx'):
-            result = str_processor._process_direct('test.xlsx')
+        result = str_processor._process_direct('test.xlsx')
         
         assert len(result) == 1
         assert result[0]['channel'] == 'VRBO'
     
-    @patch('pandas.read_excel')
-    def test_process_direct_skip_non_reservation(self, mock_read_excel, str_processor, sample_direct_data):
+    @patch('str_direct_parser.process_direct_csv')
+    def test_process_direct_skip_non_reservation(self, mock_process_csv, str_processor, sample_direct_data):
         """Test direct booking skips non-reservation records"""
-        sample_direct_data['type'] = 'payment'
-        mock_df = pd.DataFrame([sample_direct_data])
-        mock_read_excel.return_value = mock_df
+        mock_process_csv.return_value = {
+            'bookings': [],
+            'summary': {'skipped_count': 1, 'skipped_reasons': {'non_reservation': 1}},
+            'status_updates': [],
+        }
         
         result = str_processor._process_direct('test.xlsx')
         

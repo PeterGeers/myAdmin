@@ -180,7 +180,7 @@ def process_file(user_email, user_roles) -> ResponseReturnValue:
         ), 200
 
     except Exception as e:
-        logger.error(f"Process file error: {e}", exc_info=True)  # noqa: G201
+        logger.error(f"Process file error: {e}", exc_info=True)
         print(f"Process file error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -239,7 +239,7 @@ def rerun_prompt(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"Rerun prompt error: {e}", exc_info=True)  # noqa: G201
+        logger.error(f"Rerun prompt error: {e}", exc_info=True)
         print(f"Rerun prompt error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -286,6 +286,6 @@ def vendor_history(user_email, user_roles) -> ResponseReturnValue:
         ), 200
 
     except Exception as e:
-        logger.error(f"Vendor history error: {e}", exc_info=True)  # noqa: G201
+        logger.error(f"Vendor history error: {e}", exc_info=True)
         print(f"Vendor history error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500

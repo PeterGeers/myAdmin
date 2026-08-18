@@ -121,7 +121,7 @@ class EmailTemplateService:
             )
             return None
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error loading template from storage backend: {e}")
             return None
 
@@ -199,7 +199,7 @@ class EmailTemplateService:
 
             return rendered_content
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error rendering template {template_name}: {e}")
             return None
 
@@ -268,7 +268,7 @@ class EmailTemplateService:
             if user_lang and user_lang in ["nl", "en"]:
                 logger.debug(f"Using user language: {user_lang}")
                 return user_lang
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.debug(f"Could not get user language: {e}")
 
         try:
@@ -279,7 +279,7 @@ class EmailTemplateService:
             if tenant_lang and tenant_lang in ["nl", "en"]:
                 logger.debug(f"Using tenant language: {tenant_lang}")
                 return tenant_lang
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.debug(f"Could not get tenant language: {e}")
 
         # Default to Dutch

@@ -587,7 +587,7 @@ class TestProperty6ScopedOverwriteInvariant:
     )
     @settings(max_examples=20, derandomize=True, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
     def test_delete_only_imported_pairs(self, imported_pairs, other_pairs):
-        """DELETE is called only for (channel, listing) pairs in the incoming bookings."""
+        """DELETE is called only for (channel, listing, subcategory) tuples in the incoming bookings."""
         # Ensure other_pairs does not overlap with imported_pairs
         imported_set = set(imported_pairs)
         other_pairs = [p for p in other_pairs if p not in imported_set]
@@ -614,7 +614,7 @@ class TestProperty6ScopedOverwriteInvariant:
                 if 'DELETE' in str(call)
             ]
 
-            # Extract the (channel, listing) pairs that were deleted
+            # Extract the (channel, listing, administration) 3-tuples that were deleted
             deleted_pairs = set()
             for call in delete_calls:
                 args = call[0]  # positional args to cursor.execute(query, params)
@@ -623,17 +623,21 @@ class TestProperty6ScopedOverwriteInvariant:
                     if 'DELETE' in query:
                         deleted_pairs.add(params)
 
-            # Verify: every imported pair was deleted
-            for pair in imported_pairs:
-                assert pair in deleted_pairs, (
-                    f"Expected DELETE for {pair} but it was not called. "
+            # The service now passes 3-tuples (channel, listing, administration).
+            # Test bookings have no 'administration' key, so it defaults to ''.
+            # Verify: every imported pair was deleted (as 3-tuple with empty admin)
+            for channel, listing in imported_pairs:
+                expected_tuple = (channel, listing, '')
+                assert expected_tuple in deleted_pairs, (
+                    f"Expected DELETE for {expected_tuple} but it was not called. "
                     f"Deleted pairs: {deleted_pairs}"
                 )
 
             # Verify: no other pair was deleted
-            for pair in other_pairs:
-                assert pair not in deleted_pairs, (
-                    f"Unexpected DELETE for {pair} which is not in the import. "
+            for channel, listing in other_pairs:
+                unexpected_tuple = (channel, listing, '')
+                assert unexpected_tuple not in deleted_pairs, (
+                    f"Unexpected DELETE for {unexpected_tuple} which is not in the import. "
                     f"Deleted pairs: {deleted_pairs}"
                 )
 
@@ -818,19 +822,19 @@ class TestExampleBasedMultiFileImport:
 
             db.insert_planned_bookings(bookings)
 
-            # Collect DELETE calls
+            # Collect DELETE calls — params are now 3-tuples (channel, listing, administration)
             delete_pairs = set()
             for call in mock_cursor.execute.call_args_list:
                 args = call[0]
                 if len(args) >= 2 and 'DELETE' in str(args[0]):
                     delete_pairs.add(args[1])
 
-            # Green Studio and Red Studio must be deleted
-            assert ('booking.com', 'Green Studio') in delete_pairs
-            assert ('booking.com', 'Red Studio') in delete_pairs
+            # Green Studio and Red Studio must be deleted (with empty admin)
+            assert ('booking.com', 'Green Studio', '') in delete_pairs
+            assert ('booking.com', 'Red Studio', '') in delete_pairs
 
             # Child Friendly must NOT be deleted
-            assert ('booking.com', 'Child Friendly') not in delete_pairs
+            assert ('booking.com', 'Child Friendly', '') not in delete_pairs
 
     # -- Test 3: Response structure has expected keys (Req 5.2) -----------------
 
@@ -895,8 +899,8 @@ class TestExampleBasedMultiFileImport:
     def test_single_file_uses_delete_by_channel_listing_strategy(self):
         """
         When a single booking file is saved via insert_planned_bookings, the
-        same delete-by-(channel, listing) strategy is applied: DELETE is called
-        for the pair and INSERT is called for each booking.
+        same delete-by-(channel, listing, administration) strategy is applied:
+        DELETE is called for the tuple and INSERT is called for each booking.
 
         Validates: Requirements 7.3
         """
@@ -919,7 +923,7 @@ class TestExampleBasedMultiFileImport:
 
             result = db.insert_planned_bookings(bookings)
 
-            # Verify DELETE was called for (booking.com, Green Studio)
+            # Verify DELETE was called for (booking.com, Green Studio, '')
             delete_calls = [
                 c for c in mock_cursor.execute.call_args_list
                 if 'DELETE' in str(c)
@@ -928,7 +932,7 @@ class TestExampleBasedMultiFileImport:
                 f"Expected exactly 1 DELETE call, got {len(delete_calls)}"
             )
             delete_args = delete_calls[0][0]
-            assert delete_args[1] == ('booking.com', 'Green Studio')
+            assert delete_args[1] == ('booking.com', 'Green Studio', '')
 
             # Verify INSERT was called for each booking
             insert_calls = [

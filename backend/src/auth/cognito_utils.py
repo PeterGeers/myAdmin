@@ -345,7 +345,7 @@ def extract_user_credentials(
         # Fallback: base64 payload decoding (no cryptographic verification)
         return _extract_with_base64(jwt_token)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(
             f"Error extracting user credentials: {type(e).__name__}", exc_info=False
         )
@@ -441,7 +441,7 @@ def _extract_with_base64(
     try:
         payload_decoded = base64.urlsafe_b64decode(payload_encoded)
         payload = json.loads(payload_decoded)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.debug(f"JWT base64 decode error: {type(e).__name__}")
         return (
             None,
@@ -469,7 +469,7 @@ def _extract_with_base64(
     # Check token expiration (optional but recommended for fallback)
     exp = payload.get("exp")
     if exp:
-        current_time = datetime.utcnow().timestamp()  # noqa: DTZ003
+        current_time = datetime.utcnow().timestamp()
         if current_time > exp:
             return None, None, create_error_response(401, "Token has expired")
 
@@ -560,7 +560,7 @@ def log_successful_access(
         details: Optional additional details
     """
     log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),  # noqa: DTZ003
+        "timestamp": datetime.utcnow().isoformat(),
         "user_email": user_email,
         "user_roles": user_roles,
         "operation": operation,
@@ -648,7 +648,7 @@ def cognito_required(
             )
 
             # Check required roles (if specified)
-            if required_roles:  # noqa: SIM102
+            if required_roles:
                 if not any(role in user_roles for role in required_roles):
                     logger.debug(
                         f"Role check failed for {f.__name__}. Required: {required_roles}, User has: {user_roles}"

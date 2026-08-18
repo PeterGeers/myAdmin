@@ -20,7 +20,7 @@ class TimeTrackingService(FieldConfigMixin):
     """Time entry CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "time_entry_field_config"
-    ALWAYS_REQUIRED = ["contact_id", "entry_date", "hours", "hourly_rate"]  # noqa: RUF012
+    ALWAYS_REQUIRED = ["contact_id", "entry_date", "hours", "hourly_rate"]
 
     def __init__(self, db, parameter_service=None):
         self.db = db

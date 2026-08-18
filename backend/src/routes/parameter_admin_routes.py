@@ -112,7 +112,7 @@ def list_parameters(
             grouped[ns].append(p)
 
         return jsonify({"success": True, "tenant": tenant, "parameters": grouped})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error listing parameters: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -162,7 +162,7 @@ def create_parameter(
         )
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error creating parameter: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -216,7 +216,7 @@ def update_parameter(
         return jsonify({"success": True, "message": "Parameter updated"})
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error updating parameter %s: %s", param_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -258,7 +258,7 @@ def delete_parameter(
         if deleted:
             return jsonify({"success": True, "message": "Parameter deleted"})
         return jsonify({"success": False, "error": "Delete failed"}), 500
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error deleting parameter %s: %s", param_id, e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -332,7 +332,7 @@ def get_parameter_default(
 
         # 3. No default
         return jsonify({"success": True, "has_default": False})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error fetching parameter default: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -378,6 +378,6 @@ def get_parameter_schema(
                 "schema": result,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Error getting parameter schema: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500

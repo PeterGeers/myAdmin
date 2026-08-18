@@ -325,9 +325,11 @@ class TenantSlugService:
                 )
             elif dynamo_result.get("warnings"):
                 warnings.extend(dynamo_result["warnings"])
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             warnings.append(f"DynamoDB migration error: {e}")
-            logger.error("DynamoDB migration failed for rename %s→%s: %s", old_slug, new_slug, e)
+            logger.error(
+                "DynamoDB migration failed for rename %s→%s: %s", old_slug, new_slug, e
+            )
 
         # Step 3: Update tenant_custom_domains.slug
         try:
@@ -376,7 +378,7 @@ class TenantSlugService:
                     s3_client.delete_object(Bucket=bucket, Key=key)
                 except ClientError as e:
                     warnings.append(f"Failed to delete S3 key {key}: {e}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             warnings.append(f"S3 cleanup error: {e}")
             logger.warning("S3 cleanup failed for old slug %s: %s", old_slug, e)
 
@@ -399,9 +401,11 @@ class TenantSlugService:
                 warnings.append(
                     f"Republish failed: {publish_result.get('error', 'unknown')}"
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             warnings.append(f"Republish error: {e}")
-            logger.warning("Republish failed after rename %s→%s: %s", old_slug, new_slug, e)
+            logger.warning(
+                "Republish failed after rename %s→%s: %s", old_slug, new_slug, e
+            )
 
         # Step 7: Update CloudFront KVS if custom domain exists
         try:
@@ -420,9 +424,11 @@ class TenantSlugService:
                         warnings.append(
                             f"Failed to update KVS mapping for domain {domain}"
                         )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             warnings.append(f"KVS update error: {e}")
-            logger.warning("KVS update failed for rename %s→%s: %s", old_slug, new_slug, e)
+            logger.warning(
+                "KVS update failed for rename %s→%s: %s", old_slug, new_slug, e
+            )
 
         # Step 8: Invalidate CloudFront cache for old slug
         try:
@@ -444,9 +450,11 @@ class TenantSlugService:
                         "CallerReference": f"rename-{old_slug}-{new_slug}-{int(__import__('time').time())}",
                     },
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             warnings.append(f"CloudFront invalidation error: {e}")
-            logger.warning("CloudFront invalidation failed for old slug %s: %s", old_slug, e)
+            logger.warning(
+                "CloudFront invalidation failed for old slug %s: %s", old_slug, e
+            )
 
         return {
             "success": True,

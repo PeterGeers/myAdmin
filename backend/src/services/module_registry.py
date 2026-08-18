@@ -187,7 +187,7 @@ def has_module(db, tenant: str, module_name: str) -> bool:
         """
         result = db.execute_query(query, (tenant, module_name))
         return bool(result and result[0].get("is_active"))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(
             "Error checking module %s for tenant %s: %s", module_name, tenant, e
         )

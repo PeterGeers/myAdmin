@@ -517,7 +517,7 @@ class ParameterService:
             if row["is_secret"] and self.credential_service:
                 try:
                     parsed = self.credential_service.decrypt_credential(parsed)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.warning(
                         "Failed to decrypt secret param %s.%s", namespace, key
                     )
@@ -625,7 +625,7 @@ class ParameterService:
         if row["is_secret"] and self.credential_service:
             try:
                 parsed = self.credential_service.decrypt_credential(parsed)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning(
                     "Failed to decrypt secret param %s.%s at scope %s",
                     namespace,

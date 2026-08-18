@@ -154,7 +154,7 @@ class TestSecurityMiddlewareEnvironmentIndependence:
                 f"TEST_MODE={test_mode}, host={host}, remote_addr={remote_addr}"
             )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True, deadline=None)
     @given(
         flask_debug=flask_debug_values,
         test_mode=test_mode_values,

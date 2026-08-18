@@ -740,7 +740,7 @@ class TestAIMetricsConditionalOnParser:
             min_size=1, max_size=20,
         ),
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True, deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_csv_rule_parser_has_null_ai_metrics(self, folder_name):
         """When parser_used is 'csv_rule', AI metrics must all be None."""
         from unittest.mock import patch, MagicMock

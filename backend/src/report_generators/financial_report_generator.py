@@ -137,7 +137,7 @@ def prepare_financial_report_data(db, administration: str, year: int) -> dict[st
         metadata = {
             "administration": administration,
             "year": year,
-            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # noqa: DTZ005
+            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "record_count": len(ledger_data),
         }
 
@@ -148,6 +148,6 @@ def prepare_financial_report_data(db, administration: str, year: int) -> dict[st
 
         return {"ledger_data": ledger_data, "metadata": metadata}
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Failed to prepare financial report data: {e}")
-        raise Exception(f"Failed to prepare financial report data: {e!s}")  # noqa: TRY002
+        raise Exception(f"Failed to prepare financial report data: {e!s}")

@@ -47,7 +47,7 @@ def resolve_storage_provider(tenant: str, parameter_service=None) -> str:
 
         return "s3_shared"
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(
             "Failed to resolve storage provider for tenant '%s': %s. "
             "Defaulting to 's3_shared'.",
@@ -158,7 +158,7 @@ def list_s3_folders(
 
         return sorted(folder_names)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(
             "Failed to list S3 folders for tenant '%s', category '%s': %s",
             tenant,
@@ -197,7 +197,7 @@ def create_s3_folder(tenant: str, folder_name: str, parameter_service=None) -> d
         logger.info("Created S3 folder marker: s3://%s/%s", storage.bucket, key)
         return {"id": key, "name": folder_name, "url": key}
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(
             "Failed to create S3 folder '%s' for tenant '%s': %s",
             folder_name,

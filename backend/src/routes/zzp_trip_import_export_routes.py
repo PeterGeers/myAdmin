@@ -158,7 +158,7 @@ def export_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
     except RuntimeError as re:
         logger.error("export_trips runtime error for %s: %s", tenant, re)
         return jsonify({"success": False, "error": str(re)}), 500
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("export_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -198,7 +198,7 @@ def import_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         return jsonify(validation_result)
     except json.JSONDecodeError:
         return jsonify({"success": False, "error": "Invalid column_mapping JSON"}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("import_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -233,7 +233,7 @@ def commit_import(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 
         result = svc.commit_import(tenant, int(vehicle_id), rows, created_by=user_email)
         return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("commit_import error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -255,7 +255,7 @@ def get_import_template(
             "attachment; filename=ritten_template.csv"
         )
         return response
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_import_template error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -320,6 +320,6 @@ def create_invoice_from_trips(
     except RuntimeError as re:
         logger.error("create_invoice_from_trips runtime error for %s: %s", tenant, re)
         return jsonify({"success": False, "error": str(re)}), 500
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_invoice_from_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

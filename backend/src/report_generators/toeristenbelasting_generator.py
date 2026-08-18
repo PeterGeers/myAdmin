@@ -143,7 +143,7 @@ def generate_toeristenbelasting_report(
 
         return {"success": True, "template_data": template_data, "raw_data": raw_data}
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Failed to generate Toeristenbelasting report: {e}")
         return {"success": False, "error": str(e)}
 
@@ -207,7 +207,7 @@ def _get_bnb_data(
             "realised_bookings": realised_bookings,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting BNB data: {e}")
         return {"all_bookings": [], "cancelled_bookings": [], "realised_bookings": []}
 
@@ -377,7 +377,7 @@ def _get_tourist_tax_from_account(
 
         return tourist_tax
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error calculating tourist tax: {e}")
         return 0
 
@@ -405,7 +405,7 @@ def _get_total_revenue_8003(
 
         return df_filtered["Amount"].sum()
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting total revenue 8003: {e}")
         return 0
 
@@ -433,7 +433,7 @@ def _get_service_fees(
 
         return df_filtered["Amount"].sum()
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"Error getting service fees 4007: {e}")
         return 0
 
@@ -503,7 +503,7 @@ def _prepare_template_data(
         Dictionary with template placeholders as keys and formatted values
     """
     next_year = int(year) + 1
-    datum = datetime.now().strftime("%d-%m-%Y")  # noqa: DTZ005
+    datum = datetime.now().strftime("%d-%m-%Y")
 
     return {
         "year": str(year),

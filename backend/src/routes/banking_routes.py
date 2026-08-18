@@ -47,7 +47,7 @@ def banking_scan_files(
             return jsonify(result)
         else:
             return jsonify(result), 500
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Banking scan files error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -72,7 +72,7 @@ def banking_process_files(
             status_code = 403 if "Access denied" in result.get("error", "") else 400
             return jsonify(result), status_code
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Banking process files error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -93,7 +93,7 @@ def banking_check_sequences(
         result = banking_service.check_sequences(iban, sequences, test_mode, tenant)
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -115,7 +115,7 @@ def banking_apply_patterns(
         )
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Pattern matching error: {e}", flush=True)
         import traceback
 
@@ -142,7 +142,7 @@ def banking_save_transactions(
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Banking save transactions error: {e}", flush=True)
         import traceback
 
@@ -165,7 +165,7 @@ def banking_lookups(
         else:
             return jsonify(result), 500
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Banking lookups error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -203,7 +203,7 @@ def banking_mutaties(
             status_code = 403 if "Access denied" in result.get("error", "") else 500
             return jsonify(result), status_code
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -255,7 +255,7 @@ def banking_filter_options(
             {"success": True, "years": years, "administrations": administrations}
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -311,7 +311,7 @@ def banking_update_mutatie(
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Update error: {e}", flush=True)
         import traceback
 
@@ -369,7 +369,7 @@ def banking_insert_mutatie(
         print(f"Closed period error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 400
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Insert error: {e}", flush=True)
         import traceback
 
@@ -393,7 +393,7 @@ def banking_check_accounts(
         else:
             return jsonify(result), 500
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Banking check accounts error: {e}", flush=True)
         import traceback
 
@@ -430,7 +430,7 @@ def banking_check_sequence(
         )
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Check sequence error: {e}", flush=True)
         import traceback
 
@@ -456,7 +456,7 @@ def banking_check_revolut_balance(
         )
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Check Revolut balance error: {e}", flush=True)
         import traceback
 
@@ -500,7 +500,7 @@ def banking_check_revolut_balance_debug(user_email, user_roles) -> ResponseRetur
         else:
             return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Check Revolut balance debug error: {e}", flush=True)
         import traceback
 
@@ -541,7 +541,7 @@ def banking_opening_balance_date(
                 }
             )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Opening balance date error: {e}", flush=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -555,7 +555,7 @@ def banking_migrate_revolut_ref2(user_email, user_roles) -> ResponseReturnValue:
 
         result = migrate_revolut_ref2(test_mode=banking_service.test_mode)
         return jsonify(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Migration error: {e}", flush=True)
         import traceback
 

@@ -158,7 +158,7 @@ def format_date(value: str | datetime, format_type: str = "DD-MM-YYYY") -> str:
             date_obj = None
             for fmt in date_formats:
                 try:
-                    date_obj = datetime.strptime(value, fmt)  # noqa: DTZ007
+                    date_obj = datetime.strptime(value, fmt)
                     break
                 except ValueError:
                     continue
@@ -185,7 +185,7 @@ def format_date(value: str | datetime, format_type: str = "DD-MM-YYYY") -> str:
         strftime_format = format_map.get(format_type, "%d-%m-%Y")
         return date_obj.strftime(strftime_format)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(f"Failed to format date '{value}': {e}")
         return str(value)
 
@@ -220,7 +220,7 @@ def format_datetime(
             datetime_obj = None
             for fmt in datetime_formats:
                 try:
-                    datetime_obj = datetime.strptime(value, fmt)  # noqa: DTZ007
+                    datetime_obj = datetime.strptime(value, fmt)
                     break
                 except ValueError:
                     continue
@@ -244,7 +244,7 @@ def format_datetime(
         else:
             return datetime_obj.strftime("%d-%m-%Y %H:%M:%S")
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(f"Failed to format datetime '{value}': {e}")
         return str(value)
 

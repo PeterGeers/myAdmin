@@ -114,7 +114,7 @@ def _get_param_list(parameter_service, key: str) -> list:
         val = parameter_service.get_param(namespace="ui.pivot", key=key)
         if val and isinstance(val, list):
             return val
-    except Exception:  # noqa: BLE001, S110
+    except Exception:
         pass
     return []
 
@@ -127,7 +127,7 @@ def _get_param_str(parameter_service, key: str) -> str | None:
         val = parameter_service.get_param(namespace="ui.pivot", key=key)
         if val and isinstance(val, str):
             return val
-    except Exception:  # noqa: BLE001, S110
+    except Exception:
         pass
     return None
 
@@ -142,7 +142,11 @@ def build_registry_from_db(db, parameter_service=None) -> None:
     Raises:
         RuntimeError: if any data source cannot be introspected.
     """
-    global SYSTEM_ALLOWED_COLUMNS, COLUMN_TYPE_MAP, DATA_SOURCE_LABELS, DATA_SOURCE_MODULES  # noqa: PLW0602
+    global \
+        SYSTEM_ALLOWED_COLUMNS, \
+        COLUMN_TYPE_MAP, \
+        DATA_SOURCE_LABELS, \
+        DATA_SOURCE_MODULES
     global _registry_initialised
 
     # Which views/tables to register
@@ -197,7 +201,7 @@ def ensure_registry(db=None, parameter_service=None) -> None:
     are ``None`` the function creates throwaway instances using the
     current ``TEST_MODE`` environment variable.
     """
-    global _registry_initialised  # noqa: PLW0602
+    global _registry_initialised
     if _registry_initialised:
         return
 
@@ -338,7 +342,7 @@ class AllowedColumnsRegistry:
             )
             if value and isinstance(value, dict):
                 return value
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "Failed to read tenant column restriction for %s / %s",
                 data_source,

@@ -98,7 +98,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
             metadata = template_service.get_template_metadata(
                 administration, template_type
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             if logger:
                 logger.warning(f"Could not get template metadata from database: {e}")
 
@@ -111,7 +111,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
                     metadata["template_file_id"], administration
                 )
                 field_mappings = metadata.get("field_mappings", {})
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 if logger:
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
@@ -204,7 +204,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
                 }
             )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Check if it's a Google Drive authentication error
         from google_drive_service import GoogleDriveAuthenticationError
 
@@ -241,7 +241,7 @@ def btw_save_transaction(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -276,7 +276,7 @@ def btw_upload_report(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -348,7 +348,7 @@ def toeristenbelasting_generate_report(
 
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -359,12 +359,12 @@ def toeristenbelasting_available_years(user_email, user_roles) -> ResponseReturn
     try:
         from datetime import datetime
 
-        current_year = datetime.now().year  # noqa: DTZ005
+        current_year = datetime.now().year
 
         # Generate years: current year and 3 years back
         years = [str(current_year - i) for i in range(4)]
 
         return jsonify({"success": True, "years": years})
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

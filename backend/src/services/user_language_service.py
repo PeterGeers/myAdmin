@@ -61,7 +61,7 @@ def get_user_language(user_email: str) -> str:
     except client.exceptions.UserNotFoundException:
         print(f"❌ User not found in Cognito: {user_email}")
         return "nl"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Error getting user language from Cognito: {e}")
         return "nl"
 
@@ -103,7 +103,7 @@ def update_user_language(user_email: str, language: str) -> bool:
     except client.exceptions.UserNotFoundException:
         print(f"❌ User not found in Cognito: {user_email}")
         return False
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Error updating user language in Cognito: {e}")
         return False
 

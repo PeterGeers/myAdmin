@@ -70,7 +70,7 @@ def list_vehicles(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             active_only = True
         vehicles = svc.list_vehicles(tenant, active_only=active_only)
         return jsonify({"success": True, "data": vehicles})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("list_vehicles error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -90,7 +90,7 @@ def create_vehicle(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         return jsonify({"success": True, "data": vehicle}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_vehicle error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -112,7 +112,7 @@ def update_vehicle(
         return jsonify({"success": True, "data": vehicle})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("update_vehicle error for %s/%s: %s", tenant, vehicle_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -133,7 +133,7 @@ def deactivate_vehicle(
         )
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("deactivate_vehicle error for %s/%s: %s", tenant, vehicle_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -183,7 +183,7 @@ def list_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
         )
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("list_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -211,7 +211,7 @@ def create_trip(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         return jsonify(response), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_trip error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -254,7 +254,7 @@ def create_gap_fill(
         return jsonify({"success": True, "data": result}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_gap_fill error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -276,7 +276,7 @@ def list_gaps(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
         return jsonify({"success": True, "data": gaps})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("list_gaps error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -305,7 +305,7 @@ def get_unbilled_trips(
         return jsonify({"success": True, "data": trips})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_unbilled_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -340,7 +340,7 @@ def get_trip_summary(
         return jsonify({"success": True, "data": summary})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_trip_summary error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -361,7 +361,7 @@ def get_trip(
         return jsonify({"success": True, "data": trip})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_trip error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -395,7 +395,7 @@ def update_trip(
         return jsonify({"success": True, "data": trip})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("update_trip error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -427,7 +427,7 @@ def cancel_trip(
         return jsonify({"success": True, "data": {"id": trip_id, "is_cancelled": True}})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("cancel_trip error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -449,7 +449,7 @@ def get_trip_history(
         return jsonify({"success": True, "data": history})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_trip_history error for %s/%s: %s", tenant, trip_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -469,7 +469,7 @@ def list_route_presets(
         svc = _get_route_preset_service()
         presets = svc.get_suggestions(tenant)
         return jsonify({"success": True, "data": presets})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("list_route_presets error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -491,7 +491,7 @@ def create_route_preset(
         return jsonify({"success": True, "data": preset}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_route_preset error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -513,7 +513,7 @@ def update_route_preset(
         return jsonify({"success": True, "data": preset})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("update_route_preset error for %s/%s: %s", tenant, preset_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -532,6 +532,6 @@ def delete_route_preset(
         return jsonify({"success": True, "data": {"id": preset_id, "deleted": True}})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("delete_route_preset error for %s/%s: %s", tenant, preset_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

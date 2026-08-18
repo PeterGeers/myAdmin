@@ -127,7 +127,7 @@ try:
     scalability_manager = None
     print("⚠️ Scalability Manager disabled to avoid database pool issues", flush=True)
 
-except Exception as e:  # noqa: BLE001
+except Exception as e:
     print(f"⚠️ Scalability Manager initialization failed: {e}", flush=True)
     scalability_manager = None
 
@@ -232,7 +232,7 @@ def serve_docs(path="index.html"):
         response.headers["X-Frame-Options"] = "ALLOWALL"
         response.headers["Content-Security-Policy"] = ""
         return response
-    except Exception:  # noqa: BLE001
+    except Exception:
         return jsonify({"error": "Documentation not found"}), 404
 
 
@@ -324,7 +324,7 @@ try:
         "openapi": "3.0.2",
     }
     swagger = Swagger(app, template=template)
-except Exception as e:  # noqa: BLE001
+except Exception as e:
     print(f"Warning: Could not load OpenAPI spec: {e}")
     swagger = Swagger(app, config=swagger_config)
 
@@ -473,7 +473,7 @@ for _attempt in range(5):
         print("✅ Pivot registry initialized from database schema", flush=True)
         _pivot_registry_ok = True
         break
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         if _attempt < 4:
             import time as _time
 
@@ -551,7 +551,7 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
             "duplicate_info": None,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in early duplicate check: {e}", flush=True)
         # On error, allow processing to continue (graceful degradation)
         return {
@@ -716,7 +716,7 @@ if __name__ == "__main__":
                 if expires:
                     from datetime import datetime
 
-                    if datetime.now() > expires:  # noqa: DTZ005
+                    if datetime.now() > expires:
                         return jsonify(
                             {
                                 "error": "Trial expired",
@@ -725,7 +725,7 @@ if __name__ == "__main__":
                                 "expired_at": expires.isoformat(),
                             }
                         ), 403
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Don't block requests if plan check fails
             print(f"Plan check error (non-blocking): {e}", flush=True)
 

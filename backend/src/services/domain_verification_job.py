@@ -113,7 +113,7 @@ def run_domain_verification_check(db=None, cf_service=None):
                     f"(status: {status}, tenant: {administration})"
                 )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             failed += 1
             logger.error(
                 f"Domain verification job: unexpected error processing "

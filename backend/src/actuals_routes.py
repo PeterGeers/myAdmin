@@ -125,7 +125,7 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
             return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logging.error(f"Error in get_actuals_balance: {e!s}", exc_info=True)  # noqa: G201, LOG015
+        logging.error(f"Error in get_actuals_balance: {e!s}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -148,8 +148,8 @@ def _get_closed_years(db, administration):
         """
         rows = db.execute_query(query, [administration])
         return [int(row["year"]) for row in rows] if rows else []
-    except Exception as e:  # noqa: BLE001
-        logging.warning(f"Could not fetch closed years for {administration}: {e}")  # noqa: LOG015
+    except Exception as e:
+        logging.warning(f"Could not fetch closed years for {administration}: {e}")
         return []
 
 
@@ -227,5 +227,5 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logging.error(f"Error in get_actuals_profitloss: {e!s}", exc_info=True)  # noqa: G201, LOG015
+        logging.error(f"Error in get_actuals_profitloss: {e!s}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500

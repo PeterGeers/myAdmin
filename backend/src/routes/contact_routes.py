@@ -57,7 +57,7 @@ def list_contacts(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             tenant, contact_type=contact_type, include_inactive=include_inactive
         )
         return jsonify({"success": True, "data": contacts})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("list_contacts error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -76,7 +76,7 @@ def get_contact(
         if not contact:
             return jsonify({"success": False, "error": "Contact not found"}), 404
         return jsonify({"success": True, "data": contact})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_contact error for %s/%s: %s", tenant, contact_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -96,7 +96,7 @@ def create_contact(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         return jsonify({"success": True, "data": contact}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_contact error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -118,7 +118,7 @@ def update_contact(
         return jsonify({"success": True, "data": contact})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("update_contact error for %s/%s: %s", tenant, contact_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -137,7 +137,7 @@ def delete_contact(
         return jsonify({"success": True, "message": "Contact deactivated"})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("delete_contact error for %s/%s: %s", tenant, contact_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -154,6 +154,6 @@ def get_contact_types(
         svc = _get_service()
         types = svc.get_contact_types(tenant)
         return jsonify({"success": True, "data": types})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_contact_types error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

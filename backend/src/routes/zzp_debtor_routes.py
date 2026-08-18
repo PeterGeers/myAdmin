@@ -47,8 +47,8 @@ def _resolve_debtor_account(db, tenant: str) -> str:
         value = param_service.get_param("zzp", "debtor_account", tenant=tenant)
         if value:
             return value
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:
+        logger.debug("ParameterService lookup for debtor_account failed: %s", e)
 
     # Fallback: look up from chart of accounts (rekeningschema)
     try:
@@ -61,8 +61,8 @@ def _resolve_debtor_account(db, tenant: str) -> str:
         )
         if rows:
             return str(rows[0]["Account"])
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:
+        logger.debug("Chart of accounts lookup for debtor_account failed: %s", e)
 
     logger.warning("No debtor account configured for tenant %s", tenant)
     return "1600"
@@ -80,8 +80,8 @@ def _resolve_creditor_account(db, tenant: str) -> str:
         value = param_service.get_param("zzp", "creditor_account", tenant=tenant)
         if value:
             return value
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:
+        logger.debug("ParameterService lookup for creditor_account failed: %s", e)
 
     # Fallback: look up from chart of accounts (rekeningschema)
     try:
@@ -94,8 +94,8 @@ def _resolve_creditor_account(db, tenant: str) -> str:
         )
         if rows:
             return str(rows[0]["Account"])
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:
+        logger.debug("Chart of accounts lookup for creditor_account failed: %s", e)
 
     logger.warning("No creditor account configured for tenant %s", tenant)
     return "1300"
@@ -136,7 +136,13 @@ def get_receivables(
                 GROUP BY ReferenceNumber
                 HAVING SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) -
                        SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) > 0""",
-                (debtor_account, debtor_account, tenant, debtor_account, debtor_account),
+                (
+                    debtor_account,
+                    debtor_account,
+                    tenant,
+                    debtor_account,
+                    debtor_account,
+                ),
             )
             or []
         )
@@ -179,15 +185,11 @@ def get_receivables(
                     fetch=False,
                     commit=True,
                 )
-        except Exception as recon_err:  # noqa: BLE001
-            logger.warning(
-                "Status reconciliation failed for %s: %s", tenant, recon_err
-            )
+        except Exception as recon_err:
+            logger.warning("Status reconciliation failed for %s: %s", tenant, recon_err)
 
         if not balance_by_client:
-            return jsonify(
-                {"success": True, "data": [], "total_outstanding": 0.0}
-            )
+            return jsonify({"success": True, "data": [], "total_outstanding": 0.0})
         # to provide display data (invoice numbers, dates, company names)
         placeholders = ", ".join(["%s"] * len(balance_by_client))
         invoice_rows = (
@@ -237,9 +239,7 @@ def get_receivables(
                     "total": balance,
                 }
 
-        total_outstanding = round(
-            sum(entry["total"] for entry in grouped.values()), 2
-        )
+        total_outstanding = round(sum(entry["total"] for entry in grouped.values()), 2)
 
         return jsonify(
             {
@@ -248,7 +248,7 @@ def get_receivables(
                 "total_outstanding": total_outstanding,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_receivables error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -285,7 +285,13 @@ def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
                 GROUP BY ReferenceNumber
                 HAVING SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) -
                        SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) != 0""",
-                (creditor_account, creditor_account, tenant, creditor_account, creditor_account),
+                (
+                    creditor_account,
+                    creditor_account,
+                    tenant,
+                    creditor_account,
+                    creditor_account,
+                ),
             )
             or []
         )
@@ -298,9 +304,7 @@ def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         }
 
         if not balance_by_client:
-            return jsonify(
-                {"success": True, "data": [], "total_outstanding": 0.0}
-            )
+            return jsonify({"success": True, "data": [], "total_outstanding": 0.0})
 
         # Try to enrich with contact details from the contacts table
         placeholders = ", ".join(["%s"] * len(balance_by_client))
@@ -328,20 +332,21 @@ def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         # Build grouped response
         grouped = {}
         for client_id, balance in balance_by_client.items():
-            contact = contact_by_client.get(client_id, {
-                "id": None,
-                "client_id": client_id,
-                "company_name": client_id,
-            })
+            contact = contact_by_client.get(
+                client_id,
+                {
+                    "id": None,
+                    "client_id": client_id,
+                    "company_name": client_id,
+                },
+            )
             grouped[client_id] = {
                 "contact": contact,
                 "invoices": [],
                 "total": balance,
             }
 
-        total_outstanding = round(
-            sum(entry["total"] for entry in grouped.values()), 2
-        )
+        total_outstanding = round(sum(entry["total"] for entry in grouped.values()), 2)
 
         return jsonify(
             {
@@ -350,7 +355,7 @@ def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
                 "total_outstanding": total_outstanding,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_payables error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -382,7 +387,13 @@ def get_aging(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
                 GROUP BY ReferenceNumber
                 HAVING SUM(CASE WHEN Debet = %s THEN TransactionAmount ELSE 0 END) -
                        SUM(CASE WHEN Credit = %s THEN TransactionAmount ELSE 0 END) > 0""",
-                (debtor_account, debtor_account, tenant, debtor_account, debtor_account),
+                (
+                    debtor_account,
+                    debtor_account,
+                    tenant,
+                    debtor_account,
+                    debtor_account,
+                ),
             )
             or []
         )
@@ -492,7 +503,7 @@ def get_aging(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
                 },
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_aging error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -542,7 +553,7 @@ def send_reminder(
         if result.get("success"):
             return jsonify(result)
         return jsonify(result), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("send_reminder error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -638,7 +649,7 @@ def validate_booking_param(
         )
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("validate_booking_param error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -691,6 +702,6 @@ def get_invoice_ledger_accounts(
                 ]
 
         return jsonify({"success": True, "data": accounts})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_invoice_ledger_accounts error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

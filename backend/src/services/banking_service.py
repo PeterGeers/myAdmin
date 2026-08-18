@@ -50,7 +50,7 @@ class BankingService:
             files = self.processor.get_csv_files(folder_path)
 
             return {"success": True, "files": files, "folder": folder_path}
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Banking scan files error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
@@ -100,7 +100,7 @@ class BankingService:
                     "tenant": None,
                     "warning": f"IBAN {iban} not found in lookup table",
                 }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error validating IBAN: {e}", flush=True)
             return {"valid": False, "error": str(e)}
 
@@ -155,7 +155,7 @@ class BankingService:
                 "test_mode": test_mode,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Banking process files error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
@@ -197,7 +197,7 @@ class BankingService:
                 "duplicates": duplicates,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Check sequences error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
@@ -336,7 +336,7 @@ class BankingService:
                     "method": "legacy",
                 }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Pattern matching error: {e}", flush=True)
             import traceback
 
@@ -421,7 +421,7 @@ class BankingService:
         except ClosedPeriodError:
             raise
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Banking save transactions error: {e}", flush=True)
             import traceback
 
@@ -478,7 +478,7 @@ class BankingService:
                 else None,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Banking lookups error: {e}", flush=True)
             return {"success": False, "error": str(e)}
 
@@ -523,7 +523,7 @@ class BankingService:
 
             return {"success": True, "balances": balances}
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Banking check accounts error: {e}", flush=True)
             import traceback
 
@@ -573,7 +573,7 @@ class BankingService:
             else:
                 return result
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Check Revolut balance error: {e}", flush=True)
             import traceback
 

@@ -115,7 +115,7 @@ class ReportingService:
 
             return {"success": True, "data": results}
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {"success": False, "error": str(e)}
 
 
@@ -125,8 +125,8 @@ class ReportingService:
 def get_str_revenue(user_email, user_roles, tenant, user_tenants):
     """Get STR revenue summary with tenant filtering"""
     try:
-        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))  # noqa: DTZ005
-        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
+        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
+        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
         test_mode = request.args.get("testMode", "false").lower() == "true"
 
         service = ReportingService(test_mode=test_mode)
@@ -134,7 +134,7 @@ def get_str_revenue(user_email, user_roles, tenant, user_tenants):
 
         return jsonify(result)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -147,8 +147,8 @@ def get_account_summary(user_email, user_roles, tenant, user_tenants):
         service = ReportingService(
             request.args.get("testMode", "false").lower() == "true"
         )
-        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))  # noqa: DTZ005
-        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
+        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
+        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
         administration = request.args.get(
             "administration", tenant
         )  # Default to current tenant
@@ -189,7 +189,7 @@ def get_account_summary(user_email, user_roles, tenant, user_tenants):
             results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -221,9 +221,9 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
             # Date range
             date_from = request.args.get(
                 "dateFrom",
-                datetime.now().strftime("%Y-01-01"),  # noqa: DTZ005
+                datetime.now().strftime("%Y-01-01"),
             )
-            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))  # noqa: DTZ005
+            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
             where_parts.append("TransactionDate BETWEEN %s AND %s")
             params.extend([date_from, date_to])
 
@@ -245,11 +245,11 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
                 "date_range": {
                     "from": request.args.get(
                         "dateFrom",
-                        datetime.now().strftime("%Y-01-01"),  # noqa: DTZ005
+                        datetime.now().strftime("%Y-01-01"),
                     ),
                     "to": request.args.get(
                         "dateTo",
-                        datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+                        datetime.now().strftime("%Y-%m-%d"),
                     ),
                 },
                 "administration": administration,
@@ -274,7 +274,7 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
 
         normalize_dates(results, ["TransactionDate"])
         return jsonify({"success": True, "data": results})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -374,7 +374,7 @@ def get_filter_options(user_email, user_roles, tenant, user_tenants):
                 "references": references,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in get_filter_options: {e}", flush=True)
         import traceback
 
@@ -408,7 +408,7 @@ def get_available_data(data_type, user_email, user_roles, tenant, user_tenants):
             values = [str(row["value"]) for row in cursor.fetchall()]
 
         return jsonify({"success": True, data_type: values})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -491,7 +491,7 @@ def get_check_reference(user_email, user_roles, tenant, user_tenants):
         return jsonify(
             {"success": True, "transactions": transactions, "summary": summary}
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Error in get_check_reference: {e}", flush=True)
         import traceback
 
@@ -532,7 +532,7 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
             years = [str(row["value"]) for row in cursor.fetchall()]
 
         return jsonify({"success": True, "years": years})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 

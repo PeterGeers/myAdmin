@@ -95,7 +95,7 @@ class PersistentPatternCache:
                 f"✅ Cache warmed up in {self.stats['startup_time']:.3f}s with {len(self._memory_cache)} entries"
             )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"❌ Cache initialization failed: {e}")
             self._memory_cache = {}
 
@@ -334,7 +334,7 @@ class PersistentPatternCache:
             last_analysis = metadata[0]["last_analysis_date"]
 
             # Check if analysis is recent (within 24 hours)
-            if datetime.now() - last_analysis > timedelta(hours=24):  # noqa: DTZ005
+            if datetime.now() - last_analysis > timedelta(hours=24):
                 return None
 
             # Load patterns from database
@@ -356,9 +356,7 @@ class PersistentPatternCache:
             # Convert to pattern format
             reference_patterns = {}
             for row in verb_results:
-                pattern_key = (
-                    f"{row['administration'].lower()}_{row['bank_account']}_{row['verb']}"
-                )
+                pattern_key = f"{row['administration'].lower()}_{row['bank_account']}_{row['verb']}"
                 reference_patterns[pattern_key] = {
                     "administration": row["administration"],
                     "bank_account": row["bank_account"],
@@ -386,8 +384,8 @@ class PersistentPatternCache:
                 "patterns_discovered": len(reference_patterns),
                 "analysis_date": last_analysis.isoformat(),
                 "date_range": {
-                    "from": (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d"),  # noqa: DTZ005
-                    "to": datetime.now().strftime("%Y-%m-%d"),  # noqa: DTZ005
+                    "from": (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d"),
+                    "to": datetime.now().strftime("%Y-%m-%d"),
                 },
                 "statistics": {
                     "patterns_by_type": {
@@ -398,7 +396,7 @@ class PersistentPatternCache:
                 },
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error loading from database cache: {e}")
             return None
 
@@ -421,7 +419,7 @@ class PersistentPatternCache:
 
             logger.info(f"📁 Loaded {loaded_count} entries from file cache")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error loading file cache: {e}")
 
     def _load_from_file_cache_key(self, cache_key: str) -> dict[str, Any] | None:
@@ -440,7 +438,7 @@ class PersistentPatternCache:
 
             return None
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error loading from file cache key {cache_key}: {e}")
             return None
 
@@ -469,14 +467,14 @@ class PersistentPatternCache:
 
             # Update metadata
             metadata = {
-                "last_updated": datetime.now().isoformat(),  # noqa: DTZ005
+                "last_updated": datetime.now().isoformat(),
                 "total_entries": len(file_cache),
                 "cache_version": "1.0",
             }
             with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error storing in file cache: {e}")
 
     def _remove_from_file_cache(self, administration: str):
@@ -499,7 +497,7 @@ class PersistentPatternCache:
             with open(self.patterns_file, "w", encoding="utf-8") as f:
                 json.dump(file_cache, f, indent=2, default=str)
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error removing from file cache: {e}")
 
     def _validate_and_refresh_cache(self):
@@ -519,7 +517,7 @@ class PersistentPatternCache:
                     cache_key = self._build_cache_key(admin)
                     self._store_in_memory_cache(cache_key, db_patterns)
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Error validating cache: {e}")
 
 

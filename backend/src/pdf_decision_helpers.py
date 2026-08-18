@@ -105,7 +105,7 @@ def validate_duplicate_decision_inputs(
 
         return {"valid": True}
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return {
             "valid": False,
             "error_response": create_error_response(
@@ -135,7 +135,7 @@ def initialize_duplicate_components() -> dict:
             if test_connection:
                 test_connection.close()
             else:
-                raise Exception("Could not establish database connection")  # noqa: TRY002
+                raise Exception("Could not establish database connection")
 
         except ImportError as e:
             return {
@@ -143,7 +143,7 @@ def initialize_duplicate_components() -> dict:
                 "error": f"DatabaseManager not available: {e!s}",
                 "component": "database_manager",
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {
                 "success": False,
                 "error": f"Database initialization failed: {e!s}",
@@ -161,7 +161,7 @@ def initialize_duplicate_components() -> dict:
                 "error": f"DuplicateChecker not available: {e!s}",
                 "component": "duplicate_checker",
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {
                 "success": False,
                 "error": f"DuplicateChecker initialization failed: {e!s}",
@@ -179,7 +179,7 @@ def initialize_duplicate_components() -> dict:
                 "error": f"FileCleanupManager not available: {e!s}",
                 "component": "file_cleanup_manager",
             }
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {
                 "success": False,
                 "error": f"FileCleanupManager initialization failed: {e!s}",
@@ -193,7 +193,7 @@ def initialize_duplicate_components() -> dict:
             "file_cleanup_manager": file_cleanup_manager,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return {
             "success": False,
             "error": f"Unexpected error during component initialization: {e!s}",
@@ -251,7 +251,7 @@ def log_duplicate_decision_with_retry(
                         "error_type": "audit_logging_failed",
                     }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             error_msg = f"Audit logging attempt {attempt + 1} error: {e!s}"
             print(error_msg)
 
@@ -305,7 +305,7 @@ def handle_continue_decision_enhanced(
                     k: v for k, v in transaction.items() if k != "duplicate_info"
                 }
                 clean_transactions.append(clean_transaction)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(f"Error cleaning transaction data: {e!s}")
 
         if not clean_transactions and transactions:
@@ -340,7 +340,7 @@ def handle_continue_decision_enhanced(
             "audit_logged": audit_success,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         error_msg = f"Error in enhanced continue decision handling: {e!s}"
         errors.append(error_msg)
         print(error_msg)
@@ -377,7 +377,7 @@ def handle_cancel_decision_enhanced(
                 warnings.append("No file URL found for cleanup")
                 cleanup_details.append("No file URL available for cleanup.")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             error_msg = f"Error extracting file information: {e!s}"
             errors.append(error_msg)
             cleanup_errors.append(error_msg)
@@ -408,7 +408,7 @@ def handle_cancel_decision_enhanced(
                                 cleanup_details.append(
                                     "File cleanup attempted but may have failed."
                                 )
-                        except Exception as cleanup_error:  # noqa: BLE001
+                        except Exception as cleanup_error:
                             error_msg = f"File cleanup error: {cleanup_error!s}"
                             cleanup_errors.append(error_msg)
                             warnings.append("File cleanup failed")
@@ -420,7 +420,7 @@ def handle_cancel_decision_enhanced(
                             "File URLs match - no cleanup performed."
                         )
 
-                except Exception as comparison_error:  # noqa: BLE001
+                except Exception as comparison_error:
                     error_msg = f"URL comparison error: {comparison_error!s}"
                     cleanup_errors.append(error_msg)
                     warnings.append("Could not compare file URLs")
@@ -439,7 +439,7 @@ def handle_cancel_decision_enhanced(
                         cleanup_details.append(
                             "File cleanup attempted but may have failed."
                         )
-                except Exception as cleanup_error:  # noqa: BLE001
+                except Exception as cleanup_error:
                     error_msg = f"File cleanup error: {cleanup_error!s}"
                     cleanup_errors.append(error_msg)
                     warnings.append("File cleanup failed")
@@ -447,7 +447,7 @@ def handle_cancel_decision_enhanced(
                         "File cleanup failed - manual cleanup may be required."
                     )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             error_msg = f"Error processing existing transactions: {e!s}"
             errors.append(error_msg)
             cleanup_errors.append(error_msg)
@@ -478,7 +478,7 @@ def handle_cancel_decision_enhanced(
             "cleanup_details": cleanup_details,
         }
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         error_msg = f"Error in enhanced cancel decision handling: {e!s}"
         errors.append(error_msg)
         print(error_msg)
@@ -553,7 +553,7 @@ def create_error_response(
         "errors": errors or [],
         "warnings": warnings or [],
         "user_message": user_message or "An error occurred. Please try again.",
-        "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+        "timestamp": datetime.now().isoformat(),
         "action_taken": "error",
         "transactions": [],
         "cleanup_performed": False,

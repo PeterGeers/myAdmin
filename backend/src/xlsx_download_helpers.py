@@ -95,7 +95,7 @@ class XLSXDownloadHelpersMixin:
             print(f"Document '{document_name}' not found in folder")
             return False
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error searching folder: {e}")
             return False
 
@@ -114,7 +114,7 @@ class XLSXDownloadHelpersMixin:
             print(f"Successfully downloaded: {filename}")
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error downloading file {filename}: {e}")
             return False
 
@@ -133,7 +133,7 @@ class XLSXDownloadHelpersMixin:
                 return None
             drive_service = GoogleDriveService(administration)
             return drive_service.service
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Could not initialize Google Drive service: {e}")
         return None
 
@@ -157,7 +157,7 @@ class XLSXDownloadHelpersMixin:
                 f.write(file_data)
             print(f"Successfully downloaded S3 file: {filename}")
             return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error downloading S3 file {key}: {e}")
             return False
 
@@ -216,6 +216,6 @@ class XLSXDownloadHelpersMixin:
             print(f"Successfully downloaded: {filename}")
             return True
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error downloading file {doc_url}: {e}")
             return False

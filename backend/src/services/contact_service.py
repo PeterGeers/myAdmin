@@ -25,7 +25,7 @@ class ContactService(FieldConfigMixin):
     """Shared contact CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "contact_field_config"
-    ALWAYS_REQUIRED = ["client_id", "company_name"]  # noqa: RUF012
+    ALWAYS_REQUIRED = ["client_id", "company_name"]
 
     def __init__(self, db, parameter_service=None):
         self.db = db

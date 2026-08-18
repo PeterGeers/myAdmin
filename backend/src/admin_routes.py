@@ -95,7 +95,7 @@ def list_users(user_email, user_roles):
                 user_data["groups"] = [
                     g["GroupName"] for g in groups_response.get("Groups", [])
                 ]
-            except Exception:  # noqa: BLE001
+            except Exception:
                 user_data["groups"] = []
 
             users.append(user_data)

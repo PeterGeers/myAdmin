@@ -131,7 +131,7 @@ class TemplatePreviewService:
                 "sample_data_info": sample_data_info,
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to generate preview: {e}")
             return {
                 "success": False,
@@ -237,7 +237,7 @@ class TemplatePreviewService:
                 ],
             }
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Template validation failed: {e}")
             return {
                 "is_valid": False,
@@ -284,7 +284,7 @@ class TemplatePreviewService:
             else:
                 return self.renderer.fetch_generic_sample()
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to fetch sample data: {e}")
             return None
 
@@ -393,12 +393,12 @@ class TemplatePreviewService:
             if previous_file_id:
                 result["previous_version"] = {
                     "file_id": previous_file_id,
-                    "archived_at": datetime.now().isoformat(),  # noqa: DTZ005
+                    "archived_at": datetime.now().isoformat(),
                 }
 
             return result
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to approve template: {e}")
             return {
                 "success": False,
@@ -457,9 +457,9 @@ class TemplatePreviewService:
 
             return file_id
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to save template to Google Drive: {e}")
-            raise Exception(f"Failed to save template to Google Drive: {e!s}")  # noqa: TRY002
+            raise Exception(f"Failed to save template to Google Drive: {e!s}")
 
     def _update_template_metadata(
         self,
@@ -554,9 +554,9 @@ class TemplatePreviewService:
 
             logger.info(f"Updated template metadata for type '{template_type}'")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to update template metadata: {e}")
-            raise Exception(f"Failed to update template metadata: {e!s}")  # noqa: TRY002
+            raise Exception(f"Failed to update template metadata: {e!s}")
 
     def _log_template_approval(
         self,
@@ -600,6 +600,6 @@ class TemplatePreviewService:
 
             logger.info(f"Logged template approval for type '{template_type}'")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f"Failed to log template approval: {e}")
             # Don't raise - logging failure shouldn't block approval

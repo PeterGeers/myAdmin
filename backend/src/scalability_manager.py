@@ -114,7 +114,7 @@ class AdvancedConnectionPool:
 
             self.pools["primary"] = pooling.MySQLConnectionPool(**pool_config)
             self.pool_stats["primary"] = {
-                "created_at": datetime.now(),  # noqa: DTZ005
+                "created_at": datetime.now(),
                 "connections_created": 0,
                 "connections_used": 0,
                 "avg_response_time": 0.0,
@@ -149,7 +149,7 @@ class AdvancedConnectionPool:
 
             self.pools["readonly"] = pooling.MySQLConnectionPool(**pool_config)
             self.pool_stats["readonly"] = {
-                "created_at": datetime.now(),  # noqa: DTZ005
+                "created_at": datetime.now(),
                 "connections_created": 0,
                 "connections_used": 0,
                 "avg_response_time": 0.0,
@@ -158,7 +158,7 @@ class AdvancedConnectionPool:
 
             logger.info("✅ Read-only connection pool created")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"⚠️ Failed to create read-only pool, will use primary: {e}")
 
     def _create_analytics_pool(self):
@@ -181,7 +181,7 @@ class AdvancedConnectionPool:
 
             self.pools["analytics"] = pooling.MySQLConnectionPool(**pool_config)
             self.pool_stats["analytics"] = {
-                "created_at": datetime.now(),  # noqa: DTZ005
+                "created_at": datetime.now(),
                 "connections_created": 0,
                 "connections_used": 0,
                 "avg_response_time": 0.0,
@@ -190,7 +190,7 @@ class AdvancedConnectionPool:
 
             logger.info("✅ Analytics connection pool created")
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(f"⚠️ Failed to create analytics pool, will use primary: {e}")
 
     @contextmanager
@@ -232,7 +232,7 @@ class AdvancedConnectionPool:
             if connection:
                 try:
                     connection.close()
-                except Exception:  # noqa: BLE001, S110
+                except Exception:
                     pass
 
             # Update response time statistics
@@ -272,10 +272,10 @@ class AdvancedConnectionPool:
                                 f"⚠️ Pool {pool_name} performance degraded: {avg_response:.3f}s"
                             )
 
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         logger.error(f"❌ Error monitoring pool {pool_name}: {e}")
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.error(f"❌ Pool monitoring error: {e}")
 
     def get_pool_statistics(self) -> dict[str, Any]:
@@ -324,7 +324,7 @@ class ScalabilityManager:
         self.resource_monitor = ResourceMonitor(self.config)
 
         # Performance tracking
-        self.start_time = datetime.now()  # noqa: DTZ005
+        self.start_time = datetime.now()
         self.request_count = 0
         self.total_response_time = 0.0
         self.stats_lock = threading.Lock()
@@ -371,7 +371,7 @@ class ScalabilityManager:
                 if self.request_count > 0
                 else 0.0
             )
-            uptime = datetime.now() - self.start_time  # noqa: DTZ005
+            uptime = datetime.now() - self.start_time
             requests_per_second = (
                 self.request_count / uptime.total_seconds()
                 if uptime.total_seconds() > 0

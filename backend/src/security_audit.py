@@ -41,7 +41,7 @@ class SecurityAudit:
     def audit_authentication_mechanisms(self):
         """Review and audit authentication mechanisms"""
         audit_report = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "authentication_methods": [],
             "security_issues": [],
             "recommendations": [],
@@ -67,7 +67,7 @@ class SecurityAudit:
                             content = f.read()
 
                             for auth_type, pattern in auth_patterns.items():
-                                if re.search(pattern, content):  # noqa: SIM102
+                                if re.search(pattern, content):
                                     if auth_type not in [
                                         a["type"]
                                         for a in audit_report["authentication_methods"]
@@ -79,7 +79,7 @@ class SecurityAudit:
                                                 "pattern": pattern,
                                             }
                                         )
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         self.logger.error(f"Error reading {filepath}: {e}")
 
         # Check for security issues
@@ -133,7 +133,7 @@ class SecurityAudit:
     def audit_security_headers(self, app):
         """Audit security-related HTTP headers"""
         headers_audit = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "headers_checked": [],
             "missing_headers": [],
             "security_issues": [],
@@ -180,7 +180,7 @@ class SecurityAudit:
     def generate_security_report(self):
         """Generate comprehensive security audit report"""
         report = {
-            "timestamp": datetime.now().isoformat(),  # noqa: DTZ005
+            "timestamp": datetime.now().isoformat(),
             "authentication": self.audit_authentication_mechanisms(),
             "input_validation": {
                 "rules_defined": len(self.input_validation_rules),

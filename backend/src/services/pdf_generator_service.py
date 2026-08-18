@@ -251,7 +251,7 @@ class PDFGeneratorService:
             else:
                 return s
             return babel_format_date(d, format="short", locale=locale)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return s
 
     def _get_invoice_iban(self, tenant: str) -> str | None:
@@ -279,7 +279,7 @@ class PDFGeneratorService:
                     if iban and isinstance(iban, str) and iban != "null":
                         return iban
             return None
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Could not fetch invoice IBAN from rekeningschema: %s", e)
             return None
 
@@ -293,7 +293,7 @@ class PDFGeneratorService:
                 (contact_id, tenant),
             )
             return rows[0] if rows else None
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
 
     def _html_to_pdf(self, html: str) -> BytesIO:
@@ -326,7 +326,7 @@ class PDFGeneratorService:
                     if os.path.exists(path):
                         with open(path, "r", encoding="utf-8") as f:
                             return f.read()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning("Failed to load tenant template, using default: %s", e)
 
         return self._default_template()

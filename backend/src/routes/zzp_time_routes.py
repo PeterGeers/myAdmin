@@ -72,7 +72,7 @@ def list_time_entries(
         entries = svc.list_entries(tenant, filters)
         entries = svc.enrich_with_contacts(tenant, entries)
         return jsonify({"success": True, "data": entries})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("list_time_entries error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -98,7 +98,7 @@ def create_time_entry(
         return jsonify({"success": True, "data": entry}), 201
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("create_time_entry error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -120,7 +120,7 @@ def update_time_entry(
         return jsonify({"success": True, "data": entry})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("update_time_entry error for %s/%s: %s", tenant, entry_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -139,7 +139,7 @@ def delete_time_entry(
         return jsonify({"success": True, "message": "Time entry deleted"})
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("delete_time_entry error for %s/%s: %s", tenant, entry_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
@@ -162,6 +162,6 @@ def get_time_summary(
         period = request.args.get("period", "month")
         summary = svc.get_summary(tenant, group_by=group_by, period=period)
         return jsonify({"success": True, "data": summary})
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("get_time_summary error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

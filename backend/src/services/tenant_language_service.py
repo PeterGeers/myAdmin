@@ -51,7 +51,7 @@ def get_tenant_language(administration: str) -> str:
         )
         return "nl"
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Error getting tenant language: {e}")
         return "nl"
     finally:
@@ -107,7 +107,7 @@ def update_tenant_language(administration: str, language: str) -> bool:
             print(f"❌ Tenant not found: {administration}")
             return False
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Error updating tenant language: {e}")
         if conn:
             conn.rollback()

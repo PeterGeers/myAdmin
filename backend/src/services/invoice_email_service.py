@@ -379,7 +379,7 @@ class InvoiceEmailService:
         try:
             n = float(val or 0)
             return format_currency(n, currency_code, locale=locale)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return f"{currency_code} {val}"
 
     def _format_date(self, val, locale: str) -> str:
@@ -393,7 +393,7 @@ class InvoiceEmailService:
             else:
                 return s
             return babel_format_date(d, format="long", locale=locale)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return s
 
     # ── Legacy Helpers (existing send/reminder flow) ────────
@@ -631,7 +631,7 @@ class InvoiceEmailService:
             company_name = self.parameter_service.get_param(
                 "zzp_branding", "company_name", tenant=tenant
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             # ParameterService unavailable — skip signature entirely
             return ""
 
@@ -643,7 +643,7 @@ class InvoiceEmailService:
             contact_email = self.parameter_service.get_param(
                 "zzp_branding", "contact_email", tenant=tenant
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             contact_email = None
 
         # Resolve logo (returns base64 data URI or None)
@@ -652,7 +652,7 @@ class InvoiceEmailService:
             logo_data_uri = resolve_tenant_logo(
                 tenant, "zzp_branding", self.parameter_service
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Logo fetch failed — render without logo
             logo_data_uri = None
 
