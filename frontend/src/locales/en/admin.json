@@ -702,6 +702,11 @@
       "unpublished": "Landing page taken offline",
       "unpublishError": "Failed to unpublish",
       "unpublishTooltip": "Take landing page offline",
+      "changeSlug": "Change",
+      "slugRenamed": "URL renamed successfully",
+      "slugRenameWarnings": "Rename completed with warnings",
+      "slugRenameWarning": "This will change your public URL. Continue?",
+      "confirmRename": "Confirm rename",
       "itemEditorComingSoon": "Item editor coming in next phase",
       "liveDataBlock": "This block shows live data from your module",
       "tabContent": "Content",
@@ -981,6 +986,7 @@
     "domains": {
       "title": "Domain Settings",
       "description": "Configure how visitors reach your landing page.",
+      "slugLabel": "URL slug",
       "retry": "Retry",
 
       "jabakiTitle": "Jabaki Subdomain",

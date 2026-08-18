@@ -20,6 +20,9 @@ export interface SlugResponse {
 
 export interface SetSlugResponse {
   success: boolean;
+  slug?: string;
+  renamed_from?: string;
+  warnings?: string[];
   data?: {
     slug: string;
   };
