@@ -982,6 +982,7 @@
     "domains": {
       "title": "Domeininstellingen",
       "description": "Stel in hoe bezoekers je landingspagina bereiken.",
+      "slugLabel": "URL-slug",
       "retry": "Opnieuw proberen",
 
       "jabakiTitle": "Jabaki Subdomein",

@@ -986,6 +986,7 @@
     "domains": {
       "title": "Domain Settings",
       "description": "Configure how visitors reach your landing page.",
+      "slugLabel": "URL slug",
       "retry": "Retry",
 
       "jabakiTitle": "Jabaki Subdomain",
