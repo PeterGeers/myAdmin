@@ -710,7 +710,32 @@ def str_enrich_direct(
                 {"success": True, "message": "No bookings to enrich", "enriched": 0}
             )
 
-        result = enrich_direct_bookings(codes)
+        # Fetch per-tenant Stripe credentials from parameter system
+        from services.parameter_service import ParameterService
+        from services.credential_service import CredentialService
+
+        db = DatabaseManager(test_mode=test_mode)
+        credential_service = CredentialService(db)
+        param_svc = ParameterService(db, credential_service=credential_service)
+        stripe_key = param_svc.get_param("str", "stripe_secret_key", tenant=tenant)
+        if not stripe_key:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": (
+                        "Stripe credentials not configured for this tenant. "
+                        "Please configure stripe_secret_key in Tenant Admin > Parameters."
+                    ),
+                }
+            ), 400
+
+        metadata_key = param_svc.get_param(
+            "str", "stripe_guesty_metadata_key", tenant=tenant
+        ) or "confirmationCode"
+
+        result = enrich_direct_bookings(
+            codes, api_key=stripe_key, metadata_key=metadata_key
+        )
 
         print(
             f"[Stripe Enrichment] codes={codes}, enriched={len(result['enrichments'])}, not_found={result['not_found']}, errors={result['errors']}",

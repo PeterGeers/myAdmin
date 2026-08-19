@@ -8,18 +8,16 @@ and the actual Stripe processing fee.
 This module is self-contained and does not depend on other project modules.
 """
 
-import os
 import time
 
 import stripe
-
-# Configurable metadata key — determined by inspecting Stripe Dashboard
-GUESTY_METADATA_KEY = os.getenv("STRIPE_GUESTY_METADATA_KEY", "confirmationCode")
 
 
 def enrich_direct_bookings(
     reservation_codes: list[str],
     amounts: dict[str, float] | None = None,
+    api_key: str = "",
+    metadata_key: str = "confirmationCode",
 ) -> dict:
     """
     Enrich dfDirect bookings with Stripe customer data.
@@ -27,22 +25,21 @@ def enrich_direct_bookings(
     Args:
         reservation_codes: List of GY-XXXX confirmation codes to look up
         amounts: Optional dict of {reservation_code: amount_in_euros} for fallback search
+        api_key: Stripe secret key for this tenant (required)
+        metadata_key: Guesty metadata key name in Stripe (per-tenant configurable)
 
     Returns:
         dict with:
             - enrichments: list[dict] — successful lookups with email/phone/country/stripe_fee
             - not_found: list[str] — codes with no Stripe match
             - errors: list[str] — codes that failed due to API errors
-    """
-    api_key = os.getenv("STRIPE_SECRET_KEY")
-    if not api_key:
-        return {
-            "enrichments": [],
-            "not_found": reservation_codes,
-            "errors": ["STRIPE_SECRET_KEY not configured"],
-        }
 
-    stripe.api_key = api_key
+    Raises:
+        ValueError: If api_key is empty or not provided
+    """
+    if not api_key:
+        raise ValueError("api_key is required")
+
     enrichments = []
     not_found = []
     errors = []
@@ -50,7 +47,10 @@ def enrich_direct_bookings(
     for code in reservation_codes:
         try:
             customer_data = _lookup_payment(
-                code, amounts.get(code) if amounts else None
+                code,
+                amounts.get(code) if amounts else None,
+                api_key=api_key,
+                metadata_key=metadata_key,
             )
             if customer_data:
                 customer_data["reservationCode"] = code
@@ -66,7 +66,10 @@ def enrich_direct_bookings(
 
 
 def _lookup_payment(
-    reservation_code: str, amount_eur: float | None = None
+    reservation_code: str,
+    amount_eur: float | None = None,
+    api_key: str = "",
+    metadata_key: str = "confirmationCode",
 ) -> dict | None:
     """
     Three-stage lookup strategy for a Guesty reservation in Stripe.
@@ -76,70 +79,77 @@ def _lookup_payment(
     Stage 3: Search by exact amount in cents (least reliable, single match only)
     """
     # Stage 1: Metadata search
-    result = _search_by_metadata(reservation_code)
+    result = _search_by_metadata(reservation_code, api_key=api_key, metadata_key=metadata_key)
     if result:
         return result
 
     # Stage 2: Description search
-    result = _search_by_description(reservation_code)
+    result = _search_by_description(reservation_code, api_key=api_key)
     if result:
         return result
 
     # Stage 3: Amount-based fallback (only if amount provided)
     if amount_eur and amount_eur > 0:
-        result = _search_by_amount(amount_eur)
+        result = _search_by_amount(amount_eur, api_key=api_key)
         if result:
             return result
 
     return None
 
 
-def _search_by_metadata(reservation_code: str) -> dict | None:
+def _search_by_metadata(
+    reservation_code: str,
+    api_key: str = "",
+    metadata_key: str = "confirmationCode",
+) -> dict | None:
     """
     Search Stripe PaymentIntents by the configured Guesty metadata key.
 
-    Uses Stripe's Search API:
-        stripe.PaymentIntent.search(query='metadata["key"]:"value"')
-
-    The metadata key is configurable via STRIPE_GUESTY_METADATA_KEY env var,
-    defaulting to "confirmationCode". Inspect Stripe Dashboard to confirm
-    the actual key Guesty uses in your account.
+    Uses Stripe's Search API with per-call api_key for tenant isolation.
+    The metadata key is configurable per-tenant via the metadata_key parameter.
     """
     try:
         result = stripe.PaymentIntent.search(
-            query=f'metadata["{GUESTY_METADATA_KEY}"]:"{reservation_code}"',
+            query=f'metadata["{metadata_key}"]:"{reservation_code}"',
             limit=1,
+            api_key=api_key,
         )
         if result.data:
-            return _extract_customer_data(result.data[0])
+            return _extract_customer_data(result.data[0], api_key=api_key)
     except stripe.error.InvalidRequestError:
         pass
     return None
 
 
-def _search_by_description(reservation_code: str) -> dict | None:
+def _search_by_description(
+    reservation_code: str,
+    api_key: str = "",
+) -> dict | None:
     """
     Search Stripe PaymentIntents where description contains the reservation code.
 
     Guesty often sets the payment description to something like:
     "Payment for reservation GY-XiBFAZHQ - Annemie Gertzen"
 
-    Uses Stripe's fuzzy description search:
-        stripe.PaymentIntent.search(query='description~"GY-XiBFAZHQ"')
+    Uses Stripe's fuzzy description search with per-call api_key.
     """
     try:
         result = stripe.PaymentIntent.search(
             query=f'description~"{reservation_code}"',
             limit=1,
+            api_key=api_key,
         )
         if result.data:
-            return _extract_customer_data(result.data[0])
+            return _extract_customer_data(result.data[0], api_key=api_key)
     except stripe.error.InvalidRequestError:
         pass
     return None
 
 
-def _search_by_amount(amount_eur: float) -> dict | None:
+def _search_by_amount(
+    amount_eur: float,
+    api_key: str = "",
+) -> dict | None:
     """
     Fallback: search by exact amount in cents with status succeeded.
 
@@ -151,10 +161,11 @@ def _search_by_amount(amount_eur: float) -> dict | None:
         result = stripe.PaymentIntent.search(
             query=f'amount:{amount_cents} AND status:"succeeded"',
             limit=3,
+            api_key=api_key,
         )
         # Only use if exactly one match (avoid false positives)
         if len(result.data) == 1:
-            return _extract_customer_data(result.data[0])
+            return _extract_customer_data(result.data[0], api_key=api_key)
     except stripe.error.InvalidRequestError:
         pass
     return None
@@ -176,7 +187,7 @@ def _country_from_phone(phone_str: str) -> str | None:
         return None
 
 
-def _extract_customer_data(payment_intent) -> dict:
+def _extract_customer_data(payment_intent, api_key: str = "") -> dict:
     """
     Extract email, phone, country, and Stripe fee from a matched PaymentIntent.
 
@@ -203,7 +214,9 @@ def _extract_customer_data(payment_intent) -> dict:
     # Source 3: Customer object (has email and phone)
     if payment_intent.customer:
         try:
-            customer = stripe.Customer.retrieve(payment_intent.customer)
+            customer = stripe.Customer.retrieve(
+                payment_intent.customer, api_key=api_key
+            )
             if not data["email"]:
                 data["email"] = customer.email
             if not data["phone"] and customer.phone:
@@ -214,7 +227,9 @@ def _extract_customer_data(payment_intent) -> dict:
     # Source 4: PaymentMethod billing_details
     if payment_intent.payment_method:
         try:
-            pm = stripe.PaymentMethod.retrieve(payment_intent.payment_method)
+            pm = stripe.PaymentMethod.retrieve(
+                payment_intent.payment_method, api_key=api_key
+            )
             billing = pm.billing_details
             if billing:
                 if not data["phone"] and billing.phone:
@@ -230,12 +245,13 @@ def _extract_customer_data(payment_intent) -> dict:
     if not data["country"] and data["phone"]:
         data["country"] = _country_from_phone(data["phone"])
 
-    # Source 5: Stripe processing fee from the Charge's BalanceTransaction
+    # Source 6: Stripe processing fee from the Charge's BalanceTransaction
     if payment_intent.latest_charge:
         try:
             charge = stripe.Charge.retrieve(
                 payment_intent.latest_charge,
                 expand=["balance_transaction"],
+                api_key=api_key,
             )
             if charge.balance_transaction and charge.balance_transaction.fee:
                 # fee is in cents, convert to euros

@@ -65,7 +65,7 @@ class TestLookupPaymentFallback:
         result = _lookup_payment("GY-ABC123", amount_eur=150.0)
 
         assert result == {"email": "guest@example.com", "phone": None, "country": None, "stripe_fee": None}
-        mock_meta.assert_called_once_with("GY-ABC123")
+        mock_meta.assert_called_once_with("GY-ABC123", api_key="", metadata_key="confirmationCode")
         mock_desc.assert_not_called()
         mock_amount.assert_not_called()
 
@@ -80,8 +80,8 @@ class TestLookupPaymentFallback:
         result = _lookup_payment("GY-DEF456", amount_eur=200.0)
 
         assert result == {"email": "found@desc.com", "phone": "+31612345678", "country": "NL", "stripe_fee": None}
-        mock_meta.assert_called_once_with("GY-DEF456")
-        mock_desc.assert_called_once_with("GY-DEF456")
+        mock_meta.assert_called_once_with("GY-DEF456", api_key="", metadata_key="confirmationCode")
+        mock_desc.assert_called_once_with("GY-DEF456", api_key="")
         mock_amount.assert_not_called()
 
     @patch('str_stripe_enrichment._search_by_amount')
@@ -96,9 +96,9 @@ class TestLookupPaymentFallback:
         result = _lookup_payment("GY-GHI789", amount_eur=350.0)
 
         assert result == {"email": "amount@find.com", "phone": None, "country": "DE", "stripe_fee": 2.50}
-        mock_meta.assert_called_once_with("GY-GHI789")
-        mock_desc.assert_called_once_with("GY-GHI789")
-        mock_amount.assert_called_once_with(350.0)
+        mock_meta.assert_called_once_with("GY-GHI789", api_key="", metadata_key="confirmationCode")
+        mock_desc.assert_called_once_with("GY-GHI789", api_key="")
+        mock_amount.assert_called_once_with(350.0, api_key="")
 
     @patch('str_stripe_enrichment._search_by_amount')
     @patch('str_stripe_enrichment._search_by_description')
@@ -253,22 +253,18 @@ class TestExtractCustomerData:
 class TestEnrichDirectBookings:
     """Test the main enrich_direct_bookings function."""
 
-    @patch.dict(os.environ, {}, clear=True)
-    def test_no_api_key_returns_not_found(self):
-        """When STRIPE_SECRET_KEY is not set, all codes go to not_found."""
-        # Ensure no STRIPE_SECRET_KEY in env
-        os.environ.pop("STRIPE_SECRET_KEY", None)
-
+    def test_no_api_key_raises_value_error(self):
+        """When api_key is not provided or empty, raises ValueError."""
         codes = ["GY-CODE1", "GY-CODE2", "GY-CODE3"]
-        result = enrich_direct_bookings(codes)
 
-        assert result["enrichments"] == []
-        assert result["not_found"] == codes
-        assert "STRIPE_SECRET_KEY not configured" in result["errors"]
+        with pytest.raises(ValueError, match="api_key is required"):
+            enrich_direct_bookings(codes)
+
+        with pytest.raises(ValueError, match="api_key is required"):
+            enrich_direct_bookings(codes, api_key="")
 
     @patch('str_stripe_enrichment.time.sleep')
     @patch('str_stripe_enrichment._lookup_payment')
-    @patch.dict(os.environ, {"STRIPE_SECRET_KEY": "sk_test_123"})
     def test_enrichment_success(self, mock_lookup, mock_sleep):
         """1 code found → enrichment dict includes reservationCode."""
         mock_lookup.return_value = {
@@ -278,7 +274,7 @@ class TestEnrichDirectBookings:
             "stripe_fee": 2.75,
         }
 
-        result = enrich_direct_bookings(["GY-FOUND1"])
+        result = enrich_direct_bookings(["GY-FOUND1"], api_key="sk_test_123")
 
         assert len(result["enrichments"]) == 1
         enrichment = result["enrichments"][0]
@@ -292,13 +288,12 @@ class TestEnrichDirectBookings:
 
     @patch('str_stripe_enrichment.time.sleep')
     @patch('str_stripe_enrichment._lookup_payment')
-    @patch.dict(os.environ, {"STRIPE_SECRET_KEY": "sk_test_123"})
     def test_stripe_error_goes_to_errors(self, mock_lookup, mock_sleep):
         """StripeError → code goes to errors list."""
         import stripe as stripe_mod
         mock_lookup.side_effect = stripe_mod.error.StripeError("Rate limit exceeded")
 
-        result = enrich_direct_bookings(["GY-ERROR1"])
+        result = enrich_direct_bookings(["GY-ERROR1"], api_key="sk_test_123")
 
         assert result["enrichments"] == []
         assert result["not_found"] == []
@@ -308,13 +303,12 @@ class TestEnrichDirectBookings:
 
     @patch('str_stripe_enrichment._lookup_payment')
     @patch('str_stripe_enrichment.time.sleep')
-    @patch.dict(os.environ, {"STRIPE_SECRET_KEY": "sk_test_123"})
     def test_rate_limiting(self, mock_sleep, mock_lookup):
         """Verify time.sleep(0.05) is called between iterations."""
         mock_lookup.return_value = None  # All not found
 
         codes = ["GY-A", "GY-B", "GY-C"]
-        enrich_direct_bookings(codes)
+        enrich_direct_bookings(codes, api_key="sk_test_123")
 
         # time.sleep should be called once per code
         assert mock_sleep.call_count == 3
@@ -346,6 +340,7 @@ class TestAmountSearch:
         mock_stripe.PaymentIntent.search.assert_called_once_with(
             query='amount:15000 AND status:"succeeded"',
             limit=3,
+            api_key="",
         )
 
     @patch('str_stripe_enrichment.stripe')
