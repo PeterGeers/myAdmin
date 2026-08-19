@@ -267,6 +267,21 @@ PARAMETER_SCHEMA = {
                 "default": ["airbnb", "booking"],
                 "description": "List of active booking platforms",
             },
+            "stripe_secret_key": {
+                "label": "Stripe Secret Key",
+                "label_nl": "Stripe Geheime Sleutel",
+                "type": "secret",
+                "required": False,
+                "description": "Stripe API secret key for payment enrichment (per-tenant)",
+            },
+            "stripe_guesty_metadata_key": {
+                "label": "Stripe Guesty Metadata Key",
+                "label_nl": "Stripe Guesty Metadata Sleutel",
+                "type": "string",
+                "required": False,
+                "default": "confirmationCode",
+                "description": "Metadata key name used by Guesty in Stripe PaymentIntents",
+            },
         },
     },
 }
