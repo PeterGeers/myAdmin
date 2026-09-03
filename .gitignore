@@ -425,6 +425,3 @@ __marimo__/
 
 # Added by ggshield
 .cache_ggshield
-
-# Local Kiro skill notes (may contain infra details) — keep local, do not track
-.kiro/skills/
