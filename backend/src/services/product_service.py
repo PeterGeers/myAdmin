@@ -9,6 +9,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.2
 
 import logging
 from datetime import date
+from typing import ClassVar
 
 from services.field_config_mixin import FieldConfigMixin
 
@@ -21,7 +22,7 @@ class ProductService(FieldConfigMixin):
     """Shared product/service CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "product_field_config"
-    ALWAYS_REQUIRED = ["product_code", "name"]
+    ALWAYS_REQUIRED: ClassVar[list[str]] = ["product_code", "name"]
 
     def __init__(self, db, tax_rate_service=None, parameter_service=None):
         """Initialise with database handle and optional collaborators."""

@@ -42,6 +42,19 @@ export interface LookupData {
   exchange_rate_account: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Account Resolution Types
+// ---------------------------------------------------------------------------
+
+/** A configured bank account entry from the tenant's chart of accounts. */
+export type BankAccount = { rekeningNummer: string; Account: string; administration: string };
+
+/** Result of resolving which bank account a file targets. */
+export type ResolutionResult =
+  | { status: 'resolved'; account: BankAccount }
+  | { status: 'ambiguous'; candidates: BankAccount[] }
+  | { status: 'none' };
+
 export interface BankingBalance {
   Reknum: string;
   Administration: string;

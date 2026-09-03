@@ -490,7 +490,11 @@ class CognitoService:
                     f"(type={type(current_tenants).__name__}, value={current_tenants!r}). "
                     f"Refusing to delete. Manual intervention required."
                 )
-                raise ValueError(
+                # Suppression kept intentionally: the route handler in
+                # tenant_admin_users.delete_tenant_user catches ValueError to
+                # return HTTP 400 for this safety-guard case. Switching to
+                # TypeError would change that to a 500. Behaviour preserved.
+                raise ValueError(  # noqa: TRY004
                     f"Malformed tenants attribute for {username}. "
                     f"Cannot safely remove tenant. Contact SysAdmin."
                 )

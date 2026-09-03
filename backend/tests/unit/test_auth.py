@@ -10,7 +10,7 @@ Tests the core authentication functions:
 import pytest
 import json
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 from src.auth.cognito_utils import (
     extract_user_credentials,
@@ -100,7 +100,7 @@ class TestExtractUserCredentials:
         payload = {
             'email': 'user@example.com',
             'cognito:groups': ['Administrators', 'Finance_CRUD'],
-            'exp': (datetime.utcnow() + timedelta(hours=1)).timestamp()
+            'exp': (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
         }
         token = self.create_jwt_token(payload)
         
@@ -122,7 +122,7 @@ class TestExtractUserCredentials:
         payload = {
             'email': 'accountant@example.com',
             'cognito:groups': ['Accountants'],
-            'exp': (datetime.utcnow() + timedelta(hours=1)).timestamp()
+            'exp': (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
         }
         token = self.create_jwt_token(payload)
         
@@ -201,7 +201,7 @@ class TestExtractUserCredentials:
         payload = {
             'email': 'user@example.com',
             'cognito:groups': ['Viewers'],
-            'exp': (datetime.utcnow() - timedelta(hours=1)).timestamp()  # Expired 1 hour ago
+            'exp': (datetime.now(timezone.utc) - timedelta(hours=1)).timestamp()  # Expired 1 hour ago
         }
         token = self.create_jwt_token(payload)
         
@@ -225,7 +225,7 @@ class TestExtractUserCredentials:
         payload = {
             'username': 'testuser',
             'cognito:groups': ['Viewers'],
-            'exp': (datetime.utcnow() + timedelta(hours=1)).timestamp()
+            'exp': (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
         }
         token = self.create_jwt_token(payload)
         
@@ -245,7 +245,7 @@ class TestExtractUserCredentials:
         payload = {
             'sub': '12345-67890',
             'cognito:groups': ['Viewers'],
-            'exp': (datetime.utcnow() + timedelta(hours=1)).timestamp()
+            'exp': (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
         }
         token = self.create_jwt_token(payload)
         
@@ -264,7 +264,7 @@ class TestExtractUserCredentials:
         """Test extracting credentials when user has no groups"""
         payload = {
             'email': 'user@example.com',
-            'exp': (datetime.utcnow() + timedelta(hours=1)).timestamp()
+            'exp': (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
         }
         token = self.create_jwt_token(payload)
         
@@ -285,7 +285,7 @@ class TestExtractUserCredentials:
         payload = {
             'email': 'user@example.com',
             'cognito:groups': ['Viewers'],
-            'exp': (datetime.utcnow() + timedelta(hours=1)).timestamp()
+            'exp': (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
         }
         token = self.create_jwt_token(payload)
         

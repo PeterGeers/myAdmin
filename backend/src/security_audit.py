@@ -67,18 +67,17 @@ class SecurityAudit:
                             content = f.read()
 
                             for auth_type, pattern in auth_patterns.items():
-                                if re.search(pattern, content):
-                                    if auth_type not in [
-                                        a["type"]
-                                        for a in audit_report["authentication_methods"]
-                                    ]:
-                                        audit_report["authentication_methods"].append(
-                                            {
-                                                "type": auth_type,
-                                                "file": filepath,
-                                                "pattern": pattern,
-                                            }
-                                        )
+                                if re.search(pattern, content) and auth_type not in [
+                                    a["type"]
+                                    for a in audit_report["authentication_methods"]
+                                ]:
+                                    audit_report["authentication_methods"].append(
+                                        {
+                                            "type": auth_type,
+                                            "file": filepath,
+                                            "pattern": pattern,
+                                        }
+                                    )
                     except Exception as e:
                         self.logger.error(f"Error reading {filepath}: {e}")
 

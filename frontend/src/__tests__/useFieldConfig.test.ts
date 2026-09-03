@@ -17,7 +17,7 @@ describe('useFieldConfig', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns loading true initially', () => {
-    vi.mocked(getFieldConfig).mockReturnValue(new Promise(() => {})); // never resolves
+    vi.mocked(getFieldConfig).mockReturnValue(new Promise(() => { })); // never resolves
     const { result } = renderHook(() => useFieldConfig('contacts'));
     expect(result.current.loading).toBe(true);
   });
@@ -43,6 +43,7 @@ describe('useFieldConfig', () => {
     vi.mocked(getFieldConfig).mockResolvedValue({
       success: false,
       error: 'Not found',
+      data: {},
     });
 
     const { result } = renderHook(() => useFieldConfig('products'));

@@ -233,20 +233,23 @@ class FileCleanupManager:
             file_url = cleanup_context["file_url"]
             if not self._actions.is_google_drive_url(file_url):
                 local_path = self._actions.get_file_path_from_url(file_url)
-                if local_path and os.path.exists(local_path):
-                    if not os.access(local_path, os.W_OK):
-                        logger.warning(
-                            f"[{operation_id}] File not writable, attempting permission fix"
+                if (
+                    local_path
+                    and os.path.exists(local_path)
+                    and not os.access(local_path, os.W_OK)
+                ):
+                    logger.warning(
+                        f"[{operation_id}] File not writable, attempting permission fix"
+                    )
+                    try:
+                        os.chmod(local_path, 0o666)
+                        cleanup_context["recovery_actions"].append(
+                            f"permission_fix_attempt_{failed_attempt}"
                         )
-                        try:
-                            os.chmod(local_path, 0o666)
-                            cleanup_context["recovery_actions"].append(
-                                f"permission_fix_attempt_{failed_attempt}"
-                            )
-                        except OSError as perm_error:
-                            logger.warning(
-                                f"[{operation_id}] Could not fix permissions: {perm_error}"
-                            )
+                    except OSError as perm_error:
+                        logger.warning(
+                            f"[{operation_id}] Could not fix permissions: {perm_error}"
+                        )
 
             cleanup_context["recovery_actions"].append(
                 f"recovery_attempt_{failed_attempt}"

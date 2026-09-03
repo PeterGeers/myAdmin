@@ -1,3 +1,7 @@
+---
+inclusion: auto
+---
+
 # Project Structure
 
 ## Root Directory

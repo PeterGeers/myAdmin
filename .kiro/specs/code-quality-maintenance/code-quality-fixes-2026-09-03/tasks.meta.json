@@ -1,0 +1,233 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**C1. Decide and apply ruff lint policy for BLE001 + DTZ family (795 of 869 errors).** [L]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131142
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447143890
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788448292670
+      }
+    ],
+    "**C2. Auto-fix the 3 mechanically-fixable lint errors.** [S]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131302
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788448315402
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788449549572
+      }
+    ],
+    "**C3. Fix ruff format on 5 files.** [S]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131424
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788449554220
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788449651580
+      }
+    ],
+    "**C4. Resolve remaining manual lint rules after C1.** [M]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131539
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788449656363
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788456545988
+      }
+    ],
+    "**H1. Fix S3_SHARED_BUCKET / credentials failures module-wide (32 failures).** [M] ⚠️ 4th cycle — fix ONCE.": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131641
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788456557773
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788457523764
+      }
+    ],
+    "**H2. Stabilize 4 Hypothesis flaky tests.** [S] ⚠️ 5th cycle — apply directly, don't rely on shared profile.": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131757
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788457529929
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788458151106
+      }
+    ],
+    "**H3. Fix parameter schema `secret` type assertion (1 failure).** [S]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131873
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788458156441
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788458259704
+      }
+    ],
+    "**M1. Split `media_asset_service.py` (2984 lines).** [L]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447131973
+      },
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788458267233
+      }
+    ],
+    "**M2. Split the other 3 files > 1000 lines.** [L]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447132067
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788461057323
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788461067757
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788462880215
+      }
+    ],
+    "**M3. Add responsive wrappers to Medium-severity mobile tables.** [S]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447132161
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788461057473
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788462886101
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788463544396
+      }
+    ],
+    "**L1. Add responsive wrappers to Low-severity mobile tables.** [S]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447132274
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788461057562
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788463550701
+      }
+    ],
+    "**L2. Tighten service-layer TypeScript types.** [M]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447132387
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788461057646
+      }
+    ],
+    "**L3. Refactor 500–1000 line files opportunistically.** [L]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447132492
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788461057736
+      }
+    ],
+    "**L4. Pin ruff version to prevent surprise rule expansions.** [S]": [
+      {
+        "executionId": "833d3667-c3e5-46dd-ab78-39197fc1ce97",
+        "chatSessionId": "sess_3595b9fe-45c2-4518-b01e-a624cbc095bd",
+        "timestamp": 1788447132593
+      },
+      {
+        "executionId": "3cb898fb-0f00-4b51-a443-dad8b4af94b5",
+        "chatSessionId": "sess_8f84ad07-1308-4094-aab2-f1ec00fba1c8",
+        "timestamp": 1788461057829
+      }
+    ]
+  }
+}

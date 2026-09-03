@@ -13,7 +13,7 @@ Extracted from app.py during refactoring (Phase 2.1)
 import os
 import shutil
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from database import DatabaseManager
 from dialect_helpers import dialect
@@ -25,7 +25,15 @@ from transaction_logic import TransactionLogic
 class InvoiceService:
     """Service class for invoice processing operations"""
 
-    ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}
+    ALLOWED_EXTENSIONS: ClassVar[set[str]] = {
+        "pdf",
+        "jpg",
+        "jpeg",
+        "png",
+        "csv",
+        "mhtml",
+        "eml",
+    }
 
     def __init__(self, test_mode=False):
         """

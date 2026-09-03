@@ -9,6 +9,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.1
 
 import logging
 import re
+from typing import ClassVar
 
 from services.field_config_mixin import FieldConfigMixin
 
@@ -25,7 +26,7 @@ class ContactService(FieldConfigMixin):
     """Shared contact CRUD scoped by tenant."""
 
     FIELD_CONFIG_KEY = "contact_field_config"
-    ALWAYS_REQUIRED = ["client_id", "company_name"]
+    ALWAYS_REQUIRED: ClassVar[list[str]] = ["client_id", "company_name"]
 
     def __init__(self, db, parameter_service=None):
         self.db = db

@@ -100,7 +100,7 @@ const STRInvoice: React.FC = () => {
       if (data.success) {
         setAllBookings(data.bookings || []);
         console.log(`Loaded ${data.bookings?.length || 0} bookings`);
-        
+
         if (data.bookings && data.bookings.length > 0) {
           toast({
             title: t('invoice.messages.bookingsLoadedSuccess'),
@@ -137,10 +137,10 @@ const STRInvoice: React.FC = () => {
   const generateInvoice = async (booking: Booking) => {
     setLoading(true);
     try {
-      const billingData = showBillingForm && (customBilling.name || customBilling.address || customBilling.city) 
-        ? customBilling 
+      const billingData = showBillingForm && (customBilling.name || customBilling.address || customBilling.city)
+        ? customBilling
         : {};
-      
+
       const response = await authenticatedPost('/api/str-invoice/generate-invoice', {
         reservationCode: booking.reservationCode,
         language: language,
@@ -189,7 +189,7 @@ const STRInvoice: React.FC = () => {
     <Box p={6}>
       <VStack spacing={6} align="stretch">
         <Text fontSize="2xl" fontWeight="bold">{t('invoice.title')}</Text>
-        
+
         <Alert status="info" bg="blue.500" color="white">
           <AlertIcon />
           {loading ? t('invoice.loadingBookings') : t('invoice.bookingsLoaded', { count: allBookings.length })}
@@ -199,7 +199,7 @@ const STRInvoice: React.FC = () => {
         <Box borderWidth={1} borderRadius="md" p={4}>
           <VStack spacing={4} align="stretch">
             <Text fontSize="lg" fontWeight="semibold">{t('invoice.filterBookings')}</Text>
-            
+
             <HStack>
               <FormControl maxW="180px">
                 <FormLabel fontSize="sm">{t('invoice.startDate')}</FormLabel>
@@ -228,8 +228,8 @@ const STRInvoice: React.FC = () => {
               </FormControl>
               <FormControl maxW="150px">
                 <FormLabel fontSize="sm">&nbsp;</FormLabel>
-                <Button 
-                  colorScheme="green" 
+                <Button
+                  colorScheme="green"
                   onClick={loadAllBookings}
                   isLoading={loading}
                   loadingText={t('invoice.reloading')}
@@ -256,99 +256,101 @@ const STRInvoice: React.FC = () => {
             <Text fontSize="lg" fontWeight="semibold" mb={4} color="white">
               {t('invoice.filteredResults', { filtered: processedData.length, total: allBookings.length })}
             </Text>
-            
-            <Table size="sm">
-              <Thead>
-                <Tr>
-                  <FilterableHeader
-                    label={t('invoice.table.reservationCode')}
-                    filterValue={filters.reservationCode}
-                    onFilterChange={(v) => setFilter('reservationCode', v)}
-                    sortable
-                    sortDirection={sortField === 'reservationCode' ? sortDirection : null}
-                    onSort={() => handleSort('reservationCode')}
-                  />
-                  <FilterableHeader
-                    label={t('invoice.table.guestName')}
-                    filterValue={filters.guestName}
-                    onFilterChange={(v) => setFilter('guestName', v)}
-                    sortable
-                    sortDirection={sortField === 'guestName' ? sortDirection : null}
-                    onSort={() => handleSort('guestName')}
-                  />
-                  <FilterableHeader
-                    label={t('invoice.table.channel')}
-                    filterValue={filters.channel}
-                    onFilterChange={(v) => setFilter('channel', v)}
-                    sortable
-                    sortDirection={sortField === 'channel' ? sortDirection : null}
-                    onSort={() => handleSort('channel')}
-                  />
-                  <FilterableHeader
-                    label={t('invoice.table.listing')}
-                    filterValue={filters.listing}
-                    onFilterChange={(v) => setFilter('listing', v)}
-                    sortable
-                    sortDirection={sortField === 'listing' ? sortDirection : null}
-                    onSort={() => handleSort('listing')}
-                  />
-                  <FilterableHeader
-                    label={t('invoice.table.checkIn')}
-                    filterValue={filters.checkinDate}
-                    onFilterChange={(v) => setFilter('checkinDate', v)}
-                    sortable
-                    sortDirection={sortField === 'checkinDate' ? sortDirection : null}
-                    onSort={() => handleSort('checkinDate')}
-                  />
-                  <FilterableHeader
-                    label={t('invoice.table.nights')}
-                    filterValue={filters.nights}
-                    onFilterChange={(v) => setFilter('nights', v)}
-                    sortable
-                    sortDirection={sortField === 'nights' ? sortDirection : null}
-                    onSort={() => handleSort('nights')}
-                    isNumeric
-                  />
-                  <FilterableHeader
-                    label={t('invoice.table.amount')}
-                    filterValue={filters.amountGross}
-                    onFilterChange={(v) => setFilter('amountGross', v)}
-                    sortable
-                    sortDirection={sortField === 'amountGross' ? sortDirection : null}
-                    onSort={() => handleSort('amountGross')}
-                    isNumeric
-                  />
-                  <Th>{t('invoice.table.action')}</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {processedData.map((booking, index) => (
-                  <Tr key={index} _hover={{ bg: 'gray.700' }}>
-                    <Td color="white">{booking.reservationCode}</Td>
-                    <Td color="white">{booking.guestName}</Td>
-                    <Td color="white">{booking.channel}</Td>
-                    <Td color="white">{booking.listing}</Td>
-                    <Td color="white">{booking.checkinDate}</Td>
-                    <Td color="white">{booking.nights}</Td>
-                    <Td color="white">€{booking.amountGross?.toFixed(2)}</Td>
-                    <Td>
-                      <VStack spacing={2}>
-                        <Button
-                          size="sm"
-                          colorScheme="green"
-                          onClick={() => {
-                            setSelectedBooking(booking);
-                            setShowBillingForm(true);
-                          }}
-                        >
-                          {t('invoice.table.generateInvoice')}
-                        </Button>
-                      </VStack>
-                    </Td>
+
+            <Box overflowX="auto">
+              <Table size="sm">
+                <Thead>
+                  <Tr>
+                    <FilterableHeader
+                      label={t('invoice.table.reservationCode')}
+                      filterValue={filters.reservationCode}
+                      onFilterChange={(v) => setFilter('reservationCode', v)}
+                      sortable
+                      sortDirection={sortField === 'reservationCode' ? sortDirection : null}
+                      onSort={() => handleSort('reservationCode')}
+                    />
+                    <FilterableHeader
+                      label={t('invoice.table.guestName')}
+                      filterValue={filters.guestName}
+                      onFilterChange={(v) => setFilter('guestName', v)}
+                      sortable
+                      sortDirection={sortField === 'guestName' ? sortDirection : null}
+                      onSort={() => handleSort('guestName')}
+                    />
+                    <FilterableHeader
+                      label={t('invoice.table.channel')}
+                      filterValue={filters.channel}
+                      onFilterChange={(v) => setFilter('channel', v)}
+                      sortable
+                      sortDirection={sortField === 'channel' ? sortDirection : null}
+                      onSort={() => handleSort('channel')}
+                    />
+                    <FilterableHeader
+                      label={t('invoice.table.listing')}
+                      filterValue={filters.listing}
+                      onFilterChange={(v) => setFilter('listing', v)}
+                      sortable
+                      sortDirection={sortField === 'listing' ? sortDirection : null}
+                      onSort={() => handleSort('listing')}
+                    />
+                    <FilterableHeader
+                      label={t('invoice.table.checkIn')}
+                      filterValue={filters.checkinDate}
+                      onFilterChange={(v) => setFilter('checkinDate', v)}
+                      sortable
+                      sortDirection={sortField === 'checkinDate' ? sortDirection : null}
+                      onSort={() => handleSort('checkinDate')}
+                    />
+                    <FilterableHeader
+                      label={t('invoice.table.nights')}
+                      filterValue={filters.nights}
+                      onFilterChange={(v) => setFilter('nights', v)}
+                      sortable
+                      sortDirection={sortField === 'nights' ? sortDirection : null}
+                      onSort={() => handleSort('nights')}
+                      isNumeric
+                    />
+                    <FilterableHeader
+                      label={t('invoice.table.amount')}
+                      filterValue={filters.amountGross}
+                      onFilterChange={(v) => setFilter('amountGross', v)}
+                      sortable
+                      sortDirection={sortField === 'amountGross' ? sortDirection : null}
+                      onSort={() => handleSort('amountGross')}
+                      isNumeric
+                    />
+                    <Th>{t('invoice.table.action')}</Th>
                   </Tr>
-                ))}
-              </Tbody>
-            </Table>
+                </Thead>
+                <Tbody>
+                  {processedData.map((booking, index) => (
+                    <Tr key={index} _hover={{ bg: 'gray.700' }}>
+                      <Td color="white">{booking.reservationCode}</Td>
+                      <Td color="white">{booking.guestName}</Td>
+                      <Td color="white">{booking.channel}</Td>
+                      <Td color="white">{booking.listing}</Td>
+                      <Td color="white">{booking.checkinDate}</Td>
+                      <Td color="white">{booking.nights}</Td>
+                      <Td color="white">€{booking.amountGross?.toFixed(2)}</Td>
+                      <Td>
+                        <VStack spacing={2}>
+                          <Button
+                            size="sm"
+                            colorScheme="green"
+                            onClick={() => {
+                              setSelectedBooking(booking);
+                              setShowBillingForm(true);
+                            }}
+                          >
+                            {t('invoice.table.generateInvoice')}
+                          </Button>
+                        </VStack>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
           </Box>
         )}
 
@@ -382,19 +384,19 @@ const STRInvoice: React.FC = () => {
                 <Input
                   placeholder={t('invoice.billingAddress.defaultName', { name: selectedBooking?.guestName })}
                   value={customBilling.name}
-                  onChange={(e) => setCustomBilling({...customBilling, name: e.target.value})}
+                  onChange={(e) => setCustomBilling({ ...customBilling, name: e.target.value })}
                   size="sm"
                 />
                 <Input
                   placeholder={t('invoice.billingAddress.defaultAddress', { channel: selectedBooking?.channel })}
                   value={customBilling.address}
-                  onChange={(e) => setCustomBilling({...customBilling, address: e.target.value})}
+                  onChange={(e) => setCustomBilling({ ...customBilling, address: e.target.value })}
                   size="sm"
                 />
                 <Input
                   placeholder={t('invoice.billingAddress.defaultCity', { code: selectedBooking?.reservationCode })}
                   value={customBilling.city}
-                  onChange={(e) => setCustomBilling({...customBilling, city: e.target.value})}
+                  onChange={(e) => setCustomBilling({ ...customBilling, city: e.target.value })}
                   size="sm"
                 />
                 <HStack spacing={4} w="full">

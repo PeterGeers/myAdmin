@@ -1,1 +1,12 @@
-{"terminal.integrated.cwd": "/home/peter/projects/myAdmin"}
+{
+  "terminal.integrated.cwd": "/home/peter/projects/myAdmin",
+  "terminal.integrated.defaultProfile.windows": "Ubuntu (WSL)",
+  "terminal.integrated.profiles.windows": {
+    "Ubuntu (WSL)": {
+      "path": "wsl.exe",
+      "args": ["-d", "Ubuntu"],
+      "icon": "terminal-linux"
+    }
+  }
+}
+

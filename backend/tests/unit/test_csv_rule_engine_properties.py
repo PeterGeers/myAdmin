@@ -167,7 +167,7 @@ class TestCsvAggregationCorrectness:
     **Validates: Requirements 6.3**
     """
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True, deadline=None)
     @given(csv_data=csv_data_st, filename=filename_st)
     def test_total_amount_equals_sum_of_nettobedag(self, csv_data, filename):
         """

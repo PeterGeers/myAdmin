@@ -146,7 +146,7 @@ class TestSchemaStructureValidity:
                 assert 'type' in param_def, (
                     f"Param '{param_name}' in '{ns}' missing 'type'"
                 )
-                assert param_def['type'] in ('string', 'number', 'json')
+                assert param_def['type'] in ('string', 'number', 'json', 'secret')
 
     def test_all_params_have_label(self):
         """Every parameter must define a label."""

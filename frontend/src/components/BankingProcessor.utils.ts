@@ -6,7 +6,7 @@
  * BankingFileUpload and other components.
  */
 
-import type { Transaction, LookupData } from './BankingProcessor.types';
+import type { Transaction, LookupData, BankAccount, ResolutionResult } from './BankingProcessor.types';
 
 // ---------------------------------------------------------------------------
 // CSV Parsing
@@ -30,6 +30,54 @@ export const parseCSVRow = (row: string): string[] => {
   }
   columns.push(current.trim());
   return columns;
+};
+
+// ---------------------------------------------------------------------------
+// Account Resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves which configured bank account a file targets.
+ *
+ * Returns:
+ * - 'resolved' with the single matching account (auto-select)
+ * - 'ambiguous' with all matching candidates (user must choose)
+ * - 'none' when no configured account matches the file
+ *
+ * Credit card files are handled by a separate lookup mechanism and
+ * short-circuit with a 'resolved' status.
+ */
+export const resolveAccountCandidates = (
+  file: File,
+  fileContent: string,
+  bankAccounts: BankAccount[]
+): ResolutionResult => {
+  const fileName = file.name.toLowerCase();
+
+  // Credit card files use a separate lookup mechanism — not in scope
+  if (file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_')) {
+    return { status: 'resolved', account: bankAccounts[0] ?? (null as unknown as BankAccount) };
+  }
+
+  const isRevolutFile = fileName.endsWith('.tsv') || fileName.startsWith('account-statement');
+
+  let candidates: BankAccount[];
+
+  if (isRevolutFile) {
+    // Revolut files contain no IBAN — match by REVO in the account number
+    candidates = bankAccounts.filter(ba => ba.rekeningNummer.includes('REVO'));
+  } else {
+    // Rabobank / other: extract IBAN from first data row, column 0
+    const rows = fileContent.split('\n').filter(r => r.trim());
+    const firstDataRow = rows[1]; // skip header row
+    const columns = firstDataRow ? parseCSVRow(firstDataRow) : [];
+    const iban = columns[0]?.trim().replace(/"/g, '') || '';
+    candidates = bankAccounts.filter(ba => ba.rekeningNummer === iban);
+  }
+
+  if (candidates.length === 0) return { status: 'none' };
+  if (candidates.length === 1) return { status: 'resolved', account: candidates[0] };
+  return { status: 'ambiguous', candidates };
 };
 
 // ---------------------------------------------------------------------------

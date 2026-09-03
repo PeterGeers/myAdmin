@@ -1,6 +1,5 @@
 # Gunicorn configuration optimized for 10x concurrent users
 import multiprocessing
-import os
 
 # Server socket
 bind = "127.0.0.1:5000"

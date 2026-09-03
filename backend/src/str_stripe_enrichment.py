@@ -79,7 +79,9 @@ def _lookup_payment(
     Stage 3: Search by exact amount in cents (least reliable, single match only)
     """
     # Stage 1: Metadata search
-    result = _search_by_metadata(reservation_code, api_key=api_key, metadata_key=metadata_key)
+    result = _search_by_metadata(
+        reservation_code, api_key=api_key, metadata_key=metadata_key
+    )
     if result:
         return result
 

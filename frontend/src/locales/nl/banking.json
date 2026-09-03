@@ -1,5 +1,11 @@
 {
   "title": "Bankverwerking",
+  "accountSelection": {
+    "title": "Selecteer Bankrekening",
+    "description": "Meerdere bankrekeningen komen overeen met dit bestand. Selecteer in welke rekening u wilt importeren.",
+    "cancel": "Annuleren",
+    "noAccountConfigured": "Geen passende bankrekening geconfigureerd voor dit bestandstype."
+  },
   "tabs": {
     "fileProcessing": "Bestandsverwerking",
     "mutaties": "Mutaties",

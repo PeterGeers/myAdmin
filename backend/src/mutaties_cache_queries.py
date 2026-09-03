@@ -61,15 +61,18 @@ class MutatisCacheQueriesMixin:
         year_int = int(year)
 
         # Check if year is in cache, load if needed
-        if source is not None and year_int not in source["jaar"].unique():
-            if db_manager:
-                logger.info(f"Year {year_int} not in cache, loading on-demand...")
-                self.load_additional_year(db_manager, year_int, tenant=tenant)
-                # Re-read source after load
-                if tenant and tenant in self._tenant_data:
-                    source = self._tenant_data[tenant].data
-                else:
-                    source = self.data
+        if (
+            source is not None
+            and year_int not in source["jaar"].unique()
+            and db_manager
+        ):
+            logger.info(f"Year {year_int} not in cache, loading on-demand...")
+            self.load_additional_year(db_manager, year_int, tenant=tenant)
+            # Re-read source after load
+            if tenant and tenant in self._tenant_data:
+                source = self._tenant_data[tenant].data
+            else:
+                source = self.data
 
         df = source
 

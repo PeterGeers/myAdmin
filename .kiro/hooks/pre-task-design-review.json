@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Pre-Task Design Review",
+      "trigger": "PreTaskExec",
+      "description": "Reminds the agent to review the relevant spec's design.md and requirements.md before starting implementation of a spec task.",
+      "action": {
+        "type": "agent",
+        "prompt": "Before starting this spec task, review the spec's design.md and requirements.md to ensure your implementation aligns with the planned approach. Check for:\n- API contracts and endpoint specifications\n- Database schema requirements\n- Security considerations\n- Error handling patterns\n- Any dependencies on other tasks that should be completed first"
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "**/test_*.py,**/*.test.ts,**/*.test.tsx"
+fileMatchPattern: "**/test_*.py"
 ---
 
 # Testing Standards
@@ -98,26 +98,6 @@ Rules are defined in `backend/tests/test-compliance-rules.json` and checked by t
 - Flask route wiring (covered by API tests)
 - Third-party library internals
 - Simple getters/setters
-
-## Frontend (Vitest + React Testing Library)
-
-### Naming
-
-Format: `describe('ComponentName') > it('should do X when Y')`
-
-### Approach
-
-- Test behavior, not implementation details
-- Use `screen.getByRole`, `screen.getByText` over `getByTestId`
-- Avoid testing internal state — test what the user sees
-- Import `render` from `src/test-utils` (wraps with providers), not from `@testing-library/react`
-- Use MSW (`setupServer`) for API mocking — bare `fetch()` or `axios` calls without MSW are flagged
-- Use `vi.fn()`, `vi.mock()`, `vi.spyOn()` — never `jest.*`
-
-### Coverage
-
-- Target: 80% for new components
-- Run: `npx vitest run --coverage`
 
 ## Test Maintenance Framework
 

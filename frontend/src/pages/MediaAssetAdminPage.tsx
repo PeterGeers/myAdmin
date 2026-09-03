@@ -210,28 +210,30 @@ function DashboardTab({ dashboard, loading, error }: DashboardTabProps) {
         <Text color="gray.200" fontWeight="bold" mb={3}>
           Storage by Category
         </Text>
-        <Table variant="simple" size="sm">
-          <Thead>
-            <Tr>
-              <Th color="gray.400">Category</Th>
-              <Th color="gray.400" isNumeric>Count</Th>
-              <Th color="gray.400" isNumeric>Size</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {Object.entries(dashboard.storage_by_category).map(([category, info]) => (
-              <Tr key={category}>
-                <Td color="gray.200">
-                  <Badge colorScheme="orange" variant="subtle">
-                    {category}
-                  </Badge>
-                </Td>
-                <Td color="gray.300" isNumeric>{info.count}</Td>
-                <Td color="gray.300" isNumeric>{formatBytes(info.bytes)}</Td>
+        <Box overflowX="auto">
+          <Table variant="simple" size="sm">
+            <Thead>
+              <Tr>
+                <Th color="gray.400">Category</Th>
+                <Th color="gray.400" isNumeric>Count</Th>
+                <Th color="gray.400" isNumeric>Size</Th>
               </Tr>
-            ))}
-          </Tbody>
-        </Table>
+            </Thead>
+            <Tbody>
+              {Object.entries(dashboard.storage_by_category).map(([category, info]) => (
+                <Tr key={category}>
+                  <Td color="gray.200">
+                    <Badge colorScheme="orange" variant="subtle">
+                      {category}
+                    </Badge>
+                  </Td>
+                  <Td color="gray.300" isNumeric>{info.count}</Td>
+                  <Td color="gray.300" isNumeric>{formatBytes(info.bytes)}</Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Box>
       </Box>
 
       {/* ── Top Orphans ───────────────────────────────────────── */}
@@ -240,26 +242,28 @@ function DashboardTab({ dashboard, loading, error }: DashboardTabProps) {
           <Text color="gray.200" fontWeight="bold" mb={3}>
             Top Orphaned Assets
           </Text>
-          <Table variant="simple" size="sm">
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Filename</Th>
-                <Th color="gray.400" isNumeric>Size</Th>
-                <Th color="gray.400" isNumeric>Days Orphaned</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {dashboard.top_orphans.map((orphan) => (
-                <Tr key={orphan.id}>
-                  <Td color="gray.200" maxW="300px" isTruncated>
-                    {orphan.filename}
-                  </Td>
-                  <Td color="gray.300" isNumeric>{formatBytes(orphan.size)}</Td>
-                  <Td color="orange.300" isNumeric>{orphan.days_orphaned}</Td>
+          <Box overflowX="auto">
+            <Table variant="simple" size="sm">
+              <Thead>
+                <Tr>
+                  <Th color="gray.400">Filename</Th>
+                  <Th color="gray.400" isNumeric>Size</Th>
+                  <Th color="gray.400" isNumeric>Days Orphaned</Th>
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
+              </Thead>
+              <Tbody>
+                {dashboard.top_orphans.map((orphan) => (
+                  <Tr key={orphan.id}>
+                    <Td color="gray.200" maxW="300px" isTruncated>
+                      {orphan.filename}
+                    </Td>
+                    <Td color="gray.300" isNumeric>{formatBytes(orphan.size)}</Td>
+                    <Td color="orange.300" isNumeric>{orphan.days_orphaned}</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
         </Box>
       )}
     </VStack>

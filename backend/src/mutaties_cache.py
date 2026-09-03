@@ -310,6 +310,5 @@ def invalidate_cache(tenant=None):
     Args:
         tenant: If provided, only invalidate that tenant. Otherwise invalidate all.
     """
-    global _cache
     if _cache:
         _cache.invalidate(tenant=tenant)

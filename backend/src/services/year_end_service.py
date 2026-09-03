@@ -148,12 +148,15 @@ class YearEndClosureService:
 
         # Check if previous year is closed (except for first year)
         first_year = self._get_first_year(administration)
-        if first_year and year > first_year:
-            if not self._is_year_closed(administration, year - 1):
-                validation["can_close"] = False
-                validation["errors"].append(
-                    f"Previous year {year - 1} must be closed first"
-                )
+        if (
+            first_year
+            and year > first_year
+            and not self._is_year_closed(administration, year - 1)
+        ):
+            validation["can_close"] = False
+            validation["errors"].append(
+                f"Previous year {year - 1} must be closed first"
+            )
 
         # Check if required accounts are configured
         config_validation = self.config_service.validate_configuration(administration)
@@ -312,7 +315,7 @@ class YearEndClosureService:
         validation = self.validate_year_closure(administration, year)
         if not validation["can_close"]:
             error_msg = "; ".join(validation["errors"])
-            raise Exception(f"Cannot close year {year}: {error_msg}")
+            raise RuntimeError(f"Cannot close year {year}: {error_msg}")
 
         # Get database connection
         conn = self.db.get_connection()
@@ -364,7 +367,7 @@ class YearEndClosureService:
         except Exception as e:
             # Rollback on any error
             conn.rollback()
-            raise Exception(f"Failed to close year {year}: {e!s}")
+            raise RuntimeError(f"Failed to close year {year}: {e!s}") from e
 
         finally:
             cursor.close()
@@ -451,18 +454,18 @@ class YearEndClosureService:
         """
         # Step 1: Validate year can be reopened
         if not self._is_year_closed(administration, year):
-            raise Exception(f"Year {year} is not closed")
+            raise RuntimeError(f"Year {year} is not closed")
 
         # Check if next year is closed (can't reopen if next year is closed)
         if self._is_year_closed(administration, year + 1):
-            raise Exception(
+            raise RuntimeError(
                 f"Cannot reopen year {year} because year {year + 1} is already closed"
             )
 
         # Get closure information
         closure_info = self.get_year_status(administration, year)
         if not closure_info:
-            raise Exception(f"No closure information found for year {year}")
+            raise RuntimeError(f"No closure information found for year {year}")
 
         closure_txn = closure_info.get("closure_transaction_number")
         opening_txn = closure_info.get("opening_balance_transaction_number")
@@ -510,7 +513,7 @@ class YearEndClosureService:
         except Exception as e:
             # Rollback on any error
             conn.rollback()
-            raise Exception(f"Failed to reopen year {year}: {e!s}")
+            raise RuntimeError(f"Failed to reopen year {year}: {e!s}") from e
 
         finally:
             cursor.close()

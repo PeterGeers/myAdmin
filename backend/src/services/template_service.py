@@ -13,7 +13,7 @@ import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from io import BytesIO
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class TemplateService:
     """
 
     # Mapping of template_type to local default files
-    _LOCAL_DEFAULTS = {
+    _LOCAL_DEFAULTS: ClassVar[dict[str, dict[str, str]]] = {
         "aangifte_ib_html_report": {
             "template": "html/aangifte_ib_template.html",
             "field_mappings": "html/aangifte_ib_field_mappings.json",
@@ -134,7 +134,7 @@ class TemplateService:
 
         except Exception as e:
             logger.error(f"Failed to get template metadata: {e}")
-            raise Exception(f"Failed to retrieve template metadata: {e!s}")
+            raise RuntimeError(f"Failed to retrieve template metadata: {e!s}") from e
 
     def _get_local_default_metadata(self, template_type: str) -> dict[str, Any] | None:
         """
@@ -205,7 +205,7 @@ class TemplateService:
                 return content
             except Exception as e:
                 logger.error(f"Failed to read local template {local_path}: {e}")
-                raise Exception(f"Failed to read local template: {e!s}")
+                raise RuntimeError(f"Failed to read local template: {e!s}") from e
 
         # Google Drive path
         try:
@@ -246,7 +246,7 @@ class TemplateService:
 
         except Exception as e:
             logger.error(f"Failed to fetch template from Google Drive: {e}")
-            raise Exception(f"Failed to fetch template: {e!s}")
+            raise RuntimeError(f"Failed to fetch template: {e!s}") from e
 
     def apply_field_mappings(
         self, template_xml: str, data: dict[str, Any], mappings: dict[str, Any]
@@ -319,7 +319,7 @@ class TemplateService:
 
         except Exception as e:
             logger.error(f"Failed to apply field mappings: {e}")
-            raise Exception(f"Failed to apply field mappings: {e!s}")
+            raise RuntimeError(f"Failed to apply field mappings: {e!s}") from e
 
     def generate_output(
         self, template: str, data: dict[str, Any], output_format: str
@@ -360,7 +360,7 @@ class TemplateService:
 
         except Exception as e:
             logger.error(f"Failed to generate output: {e}")
-            raise Exception(f"Failed to generate output: {e!s}")
+            raise RuntimeError(f"Failed to generate output: {e!s}") from e
 
     # Helper methods
 

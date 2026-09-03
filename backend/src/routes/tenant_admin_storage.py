@@ -404,8 +404,9 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
             # Clean up - delete test file
             try:
                 drive_service.service.files().delete(fileId=test_file_id).execute()
-            except Exception:
-                pass  # Ignore cleanup errors
+            except Exception as exc:
+                # Cleanup of the write-test file is best-effort.
+                logger.debug("Could not delete storage write-test file: %s", exc)
 
         except Exception as e:
             write_error = str(e)

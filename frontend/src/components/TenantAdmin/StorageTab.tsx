@@ -1,42 +1,27 @@
 /**
  * Storage Tab - Provider-driven storage configuration
- * 
+ *
  * Consolidates: provider selection + credentials + folder config
  * Replaces: Credentials, Configuration, Settings tabs for storage
- * 
+ *
  * Flow: Pick provider → configure that provider → folder mappings
+ *
+ * Logic (data loading, save/upload/OAuth handlers) lives in useStorageTab;
+ * this file is the render layer only.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Box, VStack, HStack, Text, Spinner, useToast, Badge,
+  Box, VStack, HStack, Text, Spinner, Badge,
   FormControl, FormLabel, Select, Input, Button,
   SimpleGrid, Alert, AlertIcon,
   Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon,
-  Table, Thead, Tbody, Tr, Th, Td, useDisclosure,
+  Table, Thead, Tbody, Tr, Th, Td,
 } from '@chakra-ui/react';
 import { ExternalLinkIcon, RepeatIcon, CheckCircleIcon, AttachmentIcon } from '@chakra-ui/icons';
 import { FiFolder } from 'react-icons/fi';
-import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
-import { getParameterSchema } from '../../services/parameterSchemaService';
-import { createParameter } from '../../services/parameterService';
-import { authenticatedFormData, buildEndpoint } from '../../services/apiService';
 import { AssetPicker } from '../common/AssetPicker/AssetPicker';
-import type { MediaAsset } from '@/types/mediaAsset';
-import { useDuplicateNotification } from '@/hooks/useDuplicateNotification';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-interface CredentialInfo {
-  type: string;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-interface FolderConfig {
-  [key: string]: string;
-}
+import { useStorageTab } from './useStorageTab';
 
 interface StorageTabProps {
   tenant: string;
@@ -44,340 +29,17 @@ interface StorageTabProps {
 
 export default function StorageTab({ tenant }: StorageTabProps) {
   const { t } = useTypedTranslation('admin');
-  const toast = useToast();
-  const { notifyDuplicate } = useDuplicateNotification();
-
-  // Provider state
-  const [provider, setProvider] = useState('');
-  const [providerLoading, setProviderLoading] = useState(true);
-  const [providerSaving, setProviderSaving] = useState(false);
-  const [providerOptions, setProviderOptions] = useState<{value: string; label: string}[]>([]);
-
-  // Credentials state
-  const [credentials, setCredentials] = useState<CredentialInfo[]>([]);
-  const [credsLoading, setCredsLoading] = useState(false);
-
-  // Folder config state
-  const [folderConfig, setFolderConfig] = useState<FolderConfig>({});
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [foldersLoading, setFoldersLoading] = useState(false);
-
-  // Google Drive specific
-  const [gdFolderId, setGdFolderId] = useState('');
-
-  // Logo upload state (S3 tenants)
-  const [logoUploading, setLogoUploading] = useState(false);
-  const [logoS3Key, setLogoS3Key] = useState('');
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const { isOpen: isLogoPickerOpen, onOpen: onLogoPickerOpen, onClose: onLogoPickerClose } = useDisclosure();
-
-  /** Handle selecting an existing asset as the logo */
-  const handleLogoAssetSelect = useCallback((asset: MediaAsset) => {
-    if (asset.presigned_url) {
-      try {
-        const url = new URL(asset.presigned_url);
-        const s3Key = decodeURIComponent(url.pathname.slice(1));
-        setLogoS3Key(s3Key);
-        toast({
-          title: 'Logo selected',
-          description: asset.original_filename,
-          status: 'success',
-          duration: 3000,
-        });
-      } catch {
-        setLogoS3Key(asset.id);
-        toast({
-          title: 'Logo selected',
-          description: asset.original_filename,
-          status: 'success',
-          duration: 3000,
-        });
-      }
-    } else {
-      setLogoS3Key(asset.id);
-      toast({
-        title: 'Logo selected',
-        description: asset.original_filename,
-        status: 'success',
-        duration: 3000,
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]);
-
-  const getToken = async () => {
-    const session = await fetchAuthSession();
-    return session.tokens?.idToken?.toString() || '';
-  };
-
-  const authHeaders = async () => {
-    const token = await getToken();
-    return {
-      'Authorization': `Bearer ${token}`,
-      'X-Tenant': tenant,
-      'Content-Type': 'application/json',
-    };
-  };
-
-  // Load provider from parameter schema
-  const loadProvider = useCallback(async () => {
-    setProviderLoading(true);
-    try {
-      const data = await getParameterSchema();
-      const storageSection = data.schema?.storage;
-      if (storageSection?.params?.invoice_provider) {
-        const def = storageSection.params.invoice_provider;
-        setProviderOptions(def.options || []);
-        const current = def.current_value ?? def.default ?? '';
-        setProvider(String(current));
-
-        // Also grab google_drive_folder_id if present
-        const gdFolder = storageSection.params.google_drive_folder_id;
-        if (gdFolder?.current_value) {
-          setGdFolderId(String(gdFolder.current_value));
-        }
-      }
-
-      // Load company_logo_s3_key from branding namespace if available
-      const brandingSection = data.schema?.str_branding || data.schema?.zzp_branding;
-      if (brandingSection?.params?.company_logo_s3_key) {
-        const logoKey = brandingSection.params.company_logo_s3_key.current_value;
-        if (logoKey) setLogoS3Key(String(logoKey));
-      }
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ title: 'Failed to load storage settings', description: message, status: 'error', duration: 5000 });
-    } finally {
-      setProviderLoading(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]);
-
-  // Load credentials
-  const loadCredentials = useCallback(async () => {
-    setCredsLoading(true);
-    try {
-      const token = await getToken();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'X-Tenant': tenant },
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        setCredentials(data.credentials || []);
-      }
-    } catch { /* ignore */ }
-    finally { setCredsLoading(false); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenant]);
-
-  // Load folder config
-  const loadFolderConfig = useCallback(async () => {
-    setFoldersLoading(true);
-    try {
-      const token = await getToken();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/storage/config`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'X-Tenant': tenant },
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        setFolderConfig(data.config || {});
-      }
-    } catch { /* ignore */ }
-    finally { setFoldersLoading(false); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenant]);
-
-  useEffect(() => {
-    loadProvider();
-    loadCredentials();
-    loadFolderConfig();
-  }, [loadProvider, loadCredentials, loadFolderConfig]);
-
-  // Save provider selection
-  const handleProviderSave = async () => {
-    setProviderSaving(true);
-    try {
-      const res = await createParameter({
-        scope: 'tenant', namespace: 'storage', key: 'invoice_provider',
-        value: provider, value_type: 'string', is_secret: false,
-      });
-      if (res.success) {
-        toast({ title: 'Provider saved', status: 'success', duration: 2000 });
-        await loadProvider();
-      } else {
-        toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
-      }
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ title: 'Save failed', description: message, status: 'error', duration: 5000 });
-    } finally { setProviderSaving(false); }
-  };
-
-  // Save Google Drive folder ID
-  const handleGdFolderSave = async () => {
-    setProviderSaving(true);
-    try {
-      const res = await createParameter({
-        scope: 'tenant', namespace: 'storage', key: 'google_drive_folder_id',
-        value: gdFolderId, value_type: 'string', is_secret: false,
-      });
-      if (res.success) {
-        toast({ title: 'Folder ID saved', status: 'success', duration: 2000 });
-      } else {
-        toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
-      }
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ title: 'Save failed', description: message, status: 'error', duration: 5000 });
-    } finally { setProviderSaving(false); }
-  };
-
-  // Upload logo file (S3 tenants)
-  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml'];
-    if (!allowedTypes.includes(file.type)) {
-      toast({ title: 'Invalid file type', description: 'Please select a PNG, JPG, or SVG image.', status: 'warning', duration: 4000 });
-      event.target.value = '';
-      return;
-    }
-
-    const maxSize = 2 * 1024 * 1024; // 2MB
-    if (file.size > maxSize) {
-      toast({ title: 'File too large', description: 'Maximum file size is 2MB.', status: 'warning', duration: 4000 });
-      event.target.value = '';
-      return;
-    }
-
-    setLogoUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const resp = await authenticatedFormData(buildEndpoint('/api/storage/upload-logo'), formData);
-      const data = await resp.json();
-
-      if (resp.ok && data.success) {
-        setLogoS3Key(data.key);
-        notifyDuplicate(data);
-        toast({ title: 'Logo uploaded', description: `Stored as: ${data.key}`, status: 'success', duration: 3000 });
-      } else {
-        toast({ title: 'Upload failed', description: data.error || 'Unknown error', status: 'error', duration: 5000 });
-      }
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ title: 'Upload failed', description: message, status: 'error', duration: 5000 });
-    } finally {
-      setLogoUploading(false);
-      event.target.value = '';
-    }
-  };
-
-  // Start Google Drive OAuth
-  const handleStartOAuth = async () => {
-    try {
-      const headers = await authHeaders();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials/oauth/start`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ service: 'google_drive' }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error(err.error || 'Failed to start OAuth');
-      }
-      const data = await resp.json();
-
-      const messageHandler = async (event: MessageEvent) => {
-        if (event.data.type === 'oauth_success') {
-          window.removeEventListener('message', messageHandler);
-          try {
-            const completeResp = await fetch(`${API_URL}/api/tenant-admin/credentials/oauth/complete`, {
-              method: 'POST', headers,
-              body: JSON.stringify({ code: event.data.code, state: event.data.state, service: 'google_drive' }),
-            });
-            if (completeResp.ok) {
-              toast({ title: 'Google Drive connected', status: 'success', duration: 5000 });
-              loadCredentials();
-            }
-          } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : String(e);
-            toast({ title: 'OAuth failed', description: message, status: 'error', duration: 5000 });
-          }
-        } else if (event.data.type === 'oauth_error') {
-          window.removeEventListener('message', messageHandler);
-          toast({ title: 'OAuth failed', description: event.data.error, status: 'error', duration: 5000 });
-        }
-      };
-      window.addEventListener('message', messageHandler);
-
-      const popup = window.open(data.oauth_url, '_blank', 'width=600,height=700');
-      if (!popup) {
-        window.removeEventListener('message', messageHandler);
-        toast({ title: 'Popup blocked', description: 'Please allow popups', status: 'warning', duration: 5000 });
-      }
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ title: 'OAuth failed', description: message, status: 'error', duration: 5000 });
-    }
-  };
-
-  // Upload credentials file
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !file.name.endsWith('.json')) {
-      toast({ title: 'Please select a JSON file', status: 'warning', duration: 3000 });
-      return;
-    }
-    try {
-      const token = await getToken();
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('credential_type', 'google_drive');
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'X-Tenant': tenant },
-        body: formData,
-      });
-      if (resp.ok) {
-        toast({ title: 'Credentials uploaded', status: 'success', duration: 3000 });
-        loadCredentials();
-      } else {
-        const err = await resp.json();
-        throw new Error(err.error || 'Upload failed');
-      }
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ title: 'Upload failed', description: message, status: 'error', duration: 5000 });
-    }
-    event.target.value = '';
-  };
-
-  // Test credential connection
-  const handleTestConnection = async () => {
-    try {
-      const headers = await authHeaders();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials/test`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ credential_type: 'google_drive_credentials' }),
-      });
-      const data = await resp.json();
-      const result = data.test_result;
-      toast({
-        title: result?.success ? 'Connection OK' : 'Connection failed',
-        description: result?.message,
-        status: result?.success ? 'success' : 'error',
-        duration: 5000,
-      });
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ title: 'Test failed', description: message, status: 'error', duration: 5000 });
-    }
-  };
-
-  const formatDate = (d: string | null) => d ? new Date(d).toLocaleString() : 'N/A';
-  const hasGdCreds = credentials.some(c => c.type.startsWith('google_drive'));
+  const {
+    provider, setProvider, providerLoading, providerSaving, providerOptions,
+    credentials, credsLoading, loadCredentials,
+    folderConfig,
+    gdFolderId, setGdFolderId,
+    logoUploading, logoS3Key, logoInputRef,
+    isLogoPickerOpen, onLogoPickerOpen, onLogoPickerClose, handleLogoAssetSelect,
+    handleProviderSave, handleGdFolderSave, handleLogoUpload,
+    handleStartOAuth, handleFileUpload, handleTestConnection,
+    formatDate, hasGdCreds,
+  } = useStorageTab(tenant);
 
   if (providerLoading) {
     return <Box p={4}><Spinner color="orange.400" /><Text color="gray.400" ml={2} display="inline">Loading storage settings...</Text></Box>;

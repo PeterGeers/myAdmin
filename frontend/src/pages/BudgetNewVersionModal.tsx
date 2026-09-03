@@ -33,6 +33,15 @@ interface ProposedLine {
   selected: boolean;
 }
 
+/** Response from the AI generate-lines endpoint (server omits the client-side `selected` flag). */
+interface AiGenerateLinesResponse {
+  success: boolean;
+  error?: string;
+  data?: {
+    proposed_lines: Omit<ProposedLine, 'selected'>[];
+  };
+}
+
 const createVersionSchema = Yup.object({
   name: Yup.string().required('Name is required').max(100),
   fiscal_year: Yup.number().required('Fiscal year is required').min(2000).max(2099),
@@ -84,17 +93,18 @@ const BudgetNewVersionModal: React.FC<BudgetNewVersionModalProps> = ({
         const err = await response.json();
         throw new Error(err.error || 'AI generation failed');
       }
-      const result = await response.json();
+      const result: AiGenerateLinesResponse = await response.json();
       if (result.success && result.data?.proposed_lines) {
         setProposedLines(
-          result.data.proposed_lines.map((line: any) => ({ ...line, selected: true }))
+          result.data.proposed_lines.map((line) => ({ ...line, selected: true }))
         );
         setAiGenerated(true);
       } else {
         toast({ title: result.error || 'No lines generated', status: 'warning', duration: 4000 });
       }
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'AI generation failed';
+      toast({ title: message, status: 'error', duration: 4000 });
     } finally {
       setAiLoading(false);
     }
@@ -164,8 +174,9 @@ const BudgetNewVersionModal: React.FC<BudgetNewVersionModalProps> = ({
           onCreated(resp.data.id);
         }
       }
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create version';
+      toast({ title: message, status: 'error', duration: 4000 });
     } finally {
       setSubmitting(false);
       setProposedLines([]);

@@ -124,7 +124,7 @@ class OutputService:
 
         except Exception as e:
             logger.error(f"Failed to prepare download: {e}")
-            raise Exception(f"Failed to prepare download: {e!s}")
+            raise RuntimeError(f"Failed to prepare download: {e!s}") from e
 
     def _handle_gdrive_upload(
         self,
@@ -203,7 +203,7 @@ class OutputService:
 
         except Exception as e:
             logger.error(f"Failed to upload to Google Drive: {e}")
-            raise Exception(f"Failed to upload to Google Drive: {e!s}")
+            raise RuntimeError(f"Failed to upload to Google Drive: {e!s}") from e
 
     def _handle_s3_upload(
         self, content, filename: str, administration: str, content_type: str
@@ -254,7 +254,7 @@ class OutputService:
             )
 
             if not result["success"]:
-                raise Exception(result.get("error", "Asset registration failed"))
+                raise RuntimeError(result.get("error", "Asset registration failed"))
 
             s3_key = result["asset"]["s3_key"]
             logger.info(f"Successfully uploaded to S3: {filename} (ref: {s3_key})")
@@ -270,7 +270,7 @@ class OutputService:
 
         except Exception as e:
             logger.error(f"Failed to upload to S3: {e}")
-            raise Exception(f"Failed to upload to S3: {e!s}")
+            raise RuntimeError(f"Failed to upload to S3: {e!s}") from e
 
     def check_health(self, destination: str, administration: str) -> dict[str, Any]:
         """
@@ -371,7 +371,7 @@ class OutputService:
             )
 
             if not parent_folder_id:
-                raise Exception("Parent folder ID not configured in environment")
+                raise RuntimeError("Parent folder ID not configured in environment")
 
             # Check if Reports folder exists
             reports_folder_name = f"Reports_{administration}"
@@ -393,4 +393,4 @@ class OutputService:
 
         except Exception as e:
             logger.error(f"Failed to get or create Reports folder: {e}")
-            raise Exception(f"Failed to get or create Reports folder: {e!s}")
+            raise RuntimeError(f"Failed to get or create Reports folder: {e!s}") from e

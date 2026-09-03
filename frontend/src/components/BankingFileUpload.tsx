@@ -25,6 +25,13 @@ import {
   FormLabel,
   HStack,
   Input,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
   Text,
   VStack,
 } from '@chakra-ui/react';
@@ -33,7 +40,8 @@ import { useTenant } from '../context/TenantContext';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { processCreditCardTransactions } from './banking/CreditCardProcessor';
 import type { Transaction, LookupData } from './BankingProcessor';
-import { parseCSVRow, processRevolutTransaction, processRabobankTransaction } from './BankingProcessor';
+import type { BankAccount } from './BankingProcessor.types';
+import { parseCSVRow, processRevolutTransaction, processRabobankTransaction, resolveAccountCandidates } from './BankingProcessor';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +86,13 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
   const { t } = useTypedTranslation('banking');
   const { currentTenant } = useTenant();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [accountCandidates, setAccountCandidates] = useState<BankAccount[]>([]);
+  const [pendingProcessing, setPendingProcessing] = useState<{
+    files: File[];
+    lookupData: LookupData;
+    resolvedAccount?: BankAccount;
+  } | null>(null);
 
   // -------------------------------------------------------------------------
   // Handlers
@@ -97,7 +112,14 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
     setSelectedFiles([]);
   }, []);
 
-  const processFiles = useCallback(async () => {
+  const handleAccountSelectionCancel = useCallback(() => {
+    setShowAccountDialog(false);
+    setAccountCandidates([]);
+    setPendingProcessing(null);
+    setMessage('');
+  }, [setMessage]);
+
+  const processFiles = useCallback(async (overrideAccount?: BankAccount) => {
     if (selectedFiles.length === 0) {
       setMessage(t('messages.selectFiles'));
       return;
@@ -124,59 +146,67 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
         return;
       }
 
-      // Validate IBANs in files belong to current tenant BEFORE processing
-      for (const file of selectedFiles) {
-        const text = await file.text();
-        const allRows = text.split('\n').filter(row => row.trim());
+      // --- Account Resolution Step ---
+      // Determine which bank account to use for non-CC files.
+      // If overrideAccount is provided (user already selected), skip resolution.
+      let resolvedAccount: BankAccount | undefined = overrideAccount;
 
-        if (allRows.length > 1) {
-          let iban = '';
+      if (!resolvedAccount) {
+        for (const file of selectedFiles) {
+          const isCreditCard = file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_');
+          if (isCreditCard) continue; // CC files use separate lookup
 
-          // Determine IBAN based on file type
-          const isRevolutFile = file.name.toLowerCase().endsWith('.tsv') ||
-                               file.name.toLowerCase().startsWith('account-statement');
+          const text = await file.text();
+          const resolution = resolveAccountCandidates(file, text, currentLookupData.bank_accounts);
 
-          if (isRevolutFile) {
-            // Revolut files - find Revolut account from tenant's bank accounts
-            const revolutAccount = currentLookupData.bank_accounts.find(ba => ba.rekeningNummer.includes('REVO'));
-            if (!revolutAccount) {
-              setMessage('No Revolut bank account configured for this tenant. Please add it in Chart of Accounts with the bank_account flag.');
-              setLoading(false);
-              return;
-            }
-            iban = revolutAccount.rekeningNummer;
-          } else {
-            // Other CSV files - extract IBAN from first column
-            const firstDataRow = allRows[1]; // Skip header
-            const columns = parseCSVRow(firstDataRow);
-            iban = columns[0] || '';
+          if (resolution.status === 'ambiguous') {
+            // Multiple candidates — show selection dialog, pause processing
+            setAccountCandidates(resolution.candidates);
+            setPendingProcessing({ files: selectedFiles, lookupData: currentLookupData });
+            setShowAccountDialog(true);
+            setLoading(false);
+            return;
           }
 
-          if (iban) {
-            const isCreditCardFile = file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_');
+          if (resolution.status === 'none') {
+            setMessage(t('accountSelection.noAccountConfigured'));
+            setLoading(false);
+            return;
+          }
 
-            if (isCreditCardFile) {
-              // Credit card files: look up IBAN in credit_card_accounts
-              const ccLookup = currentLookupData.credit_card_accounts?.find(cc => cc.iban === iban);
-              if (!ccLookup) {
-                setMessage(t('messages.accessDenied', { iban, file: file.name }));
-                setLoading(false);
-                return;
-              }
-            } else {
-              // Regular bank files: look up IBAN in bank_accounts
-              const bankLookup = currentLookupData.bank_accounts.find(ba => ba.rekeningNummer === iban);
-              if (!bankLookup) {
-                setMessage(t('messages.accessDenied', { iban, file: file.name }));
-                setLoading(false);
-                return;
-              }
-            }
+          // status === 'resolved' — use this account
+          resolvedAccount = resolution.account;
+          break; // First non-CC file determines the account for the batch
+        }
+      }
+
+      // --- Validation Step ---
+      // Credit card files still need their own validation.
+      // Bank files are already validated by resolveAccountCandidates above.
+      for (const file of selectedFiles) {
+        const isCreditCardFile = file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_');
+        if (!isCreditCardFile) continue; // Bank files already resolved
+
+        const text = await file.text();
+        const allRows = text.split('\n').filter(row => row.trim());
+        if (allRows.length <= 1) continue;
+
+        const firstDataRow = allRows[1]; // Skip header
+        const columns = parseCSVRow(firstDataRow);
+        const iban = columns[0] || '';
+
+        if (iban) {
+          const ccLookup = currentLookupData.credit_card_accounts?.find(cc => cc.iban === iban);
+          if (!ccLookup) {
+            setMessage(t('messages.accessDenied', { iban, file: file.name }));
+            setLoading(false);
+            return;
           }
         }
       }
 
-      // Process files into transactions
+      // --- Processing Step ---
+      // Use resolvedAccount for Revolut transactions instead of .find()
       const allTransactions: Transaction[] = [];
       let transactionIndex = 0;
 
@@ -200,11 +230,9 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
             const header = file.name.toLowerCase().endsWith('.tsv')
               ? headerRow.split('\t').map(col => col.trim())
               : parseCSVRow(headerRow);
+            // Use the resolved account (from resolution or user selection)
             const revolutTransactions = processRevolutTransaction(
-              columns, currentIndex,
-              currentLookupData.bank_accounts.find(ba => ba.rekeningNummer.includes('REVO')),
-              file.name,
-              header
+              columns, currentIndex, resolvedAccount, file.name, header
             );
             allTransactions.push(...revolutTransactions);
           } else if (file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_')) {
@@ -258,6 +286,14 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
     }
   }, [selectedFiles, lookupData, testMode, t, setLoading, setMessage, onTransactionsLoaded, mapLookupData, setLookupData]);
 
+  const handleAccountSelected = useCallback((account: BankAccount) => {
+    setShowAccountDialog(false);
+    setAccountCandidates([]);
+    setPendingProcessing(null);
+    // Resume processing with the user-selected account
+    processFiles(account);
+  }, [processFiles]);
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -290,7 +326,7 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
             ))}
             <HStack>
               <Button
-                onClick={processFiles}
+                onClick={() => processFiles()}
                 isLoading={loading}
                 colorScheme="blue"
                 loadingText={t('fileProcessing.processing')}
@@ -318,6 +354,39 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
           {message}
         </Alert>
       )}
+
+      {/* Account Selection Dialog */}
+      <Modal isOpen={showAccountDialog} onClose={handleAccountSelectionCancel} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>{t('accountSelection.title')}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text mb={4}>{t('accountSelection.description')}</Text>
+            <VStack align="stretch" spacing={2}>
+              {accountCandidates.map((account) => (
+                <Button
+                  key={account.Account}
+                  variant="outline"
+                  justifyContent="flex-start"
+                  onClick={() => handleAccountSelected(account)}
+                  py={6}
+                >
+                  <VStack align="start" spacing={0}>
+                    <Text fontWeight="bold">Account {account.Account}</Text>
+                    <Text fontSize="sm" color="gray.600">{account.rekeningNummer}</Text>
+                  </VStack>
+                </Button>
+              ))}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={handleAccountSelectionCancel}>
+              {t('accountSelection.cancel')}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </VStack>
   );
 };

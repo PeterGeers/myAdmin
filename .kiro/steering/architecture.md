@@ -1,3 +1,7 @@
+---
+inclusion: auto
+---
+
 # System Architecture
 
 ## The Transaction-Centric Model

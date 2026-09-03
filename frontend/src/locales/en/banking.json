@@ -1,5 +1,11 @@
 {
   "title": "Banking Processor",
+  "accountSelection": {
+    "title": "Select Bank Account",
+    "description": "Multiple bank accounts match this file. Please select which account to import into.",
+    "cancel": "Cancel",
+    "noAccountConfigured": "No matching bank account configured for this file type."
+  },
   "tabs": {
     "fileProcessing": "File Processing",
     "mutaties": "Transactions",

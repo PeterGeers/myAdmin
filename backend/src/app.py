@@ -367,7 +367,7 @@ CORS(
             "supports_credentials": True,
             "expose_headers": ["Content-Type", "Authorization"],
             "vary_header": True,  # Adds Vary: Origin for cache correctness
-        }
+        },
     },
 )
 

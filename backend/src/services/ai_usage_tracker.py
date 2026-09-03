@@ -11,7 +11,7 @@ This service logs all AI API requests to the ai_usage_log table, enabling:
 
 import logging
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
 
 from dialect_helpers import dialect
 
@@ -30,7 +30,7 @@ class AIUsageTracker:
 
     # Model pricing per 1M tokens (input/output average)
     # Source: OpenRouter pricing as of January 2026
-    MODEL_PRICING = {
+    MODEL_PRICING: ClassVar[dict[str, float]] = {
         "google/gemini-flash-1.5": 0.0,  # FREE
         "meta-llama/llama-3.2-3b-instruct:free": 0.0,  # FREE
         "deepseek/deepseek-chat": 0.685,  # Average of $0.27 input + $1.10 output

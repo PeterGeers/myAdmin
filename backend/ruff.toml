@@ -1,2 +1,31 @@
+# Ruff configuration for the myAdmin backend.
+#
+# Policy decisions (see spec code-quality-fixes-2026-09-03, task C1):
+#
+# BLE001 (blind-except): broad `except Exception` is the deliberate house style,
+#   especially in route handlers where any unexpected error must be caught and
+#   turned into a controlled HTTP response rather than crashing the worker.
+#   Disabled project-wide as a policy decision, not a per-site suppression.
+#
+# DTZ family (datetime without timezone): the application intentionally reports
+#   in local time. Audit-log and report `generated_at` timestamps are local by
+#   design. Genuinely UTC-sensitive sites are fixed explicitly to use
+#   timezone-aware UTC (see auth/cognito_utils.py JWT `exp` expiry check),
+#   rather than relying on these rules. The remaining naive-datetime usages are
+#   intentional local-time reporting, so the DTZ family is disabled at config
+#   level instead of mechanically rewriting hundreds of call sites.
+[lint]
+ignore = [
+    "BLE001",  # blind-except: broad exception handling is the house style
+    "DTZ003",  # datetime.utcnow(): local-time reporting is intentional
+    "DTZ005",  # datetime.now() without tz: local-time reporting is intentional
+    "DTZ007",  # strptime() without %z: inputs are local-time by design
+    "DTZ011",  # date.today(): local-time reporting is intentional
+]
+
 [lint.per-file-ignores]
-"src/routes/*.py" = ["BLE001"]
+# gunicorn expects its config module to be named `gunicorn.conf.py` by
+# convention (loaded via `gunicorn -c src/gunicorn.conf.py`). The dotted
+# module name is required by the tool, so N999 (invalid-module-name) does not
+# apply here. Renaming would break the gunicorn config discovery contract.
+"src/gunicorn.conf.py" = ["N999"]

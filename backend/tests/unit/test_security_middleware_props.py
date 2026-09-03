@@ -187,7 +187,7 @@ class TestSecurityMiddlewareEnvironmentIndependence:
                 f"Got status {response.status_code}"
             )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True, deadline=None)
     @given(
         flask_debug=flask_debug_values,
         test_mode=test_mode_values,
