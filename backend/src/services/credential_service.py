@@ -160,7 +160,9 @@ class CredentialService:
 
         except Exception as e:
             logger.error(f"Encryption failed: {type(e).__name__}")
-            raise Exception(f"Failed to encrypt credential: {type(e).__name__}")
+            raise RuntimeError(
+                f"Failed to encrypt credential: {type(e).__name__}"
+            ) from e
 
     def decrypt_credential(
         self, encrypted_value: str, tenant: str | None = None
@@ -217,7 +219,9 @@ class CredentialService:
             if tenant:
                 raise CredentialDecryptionError(tenant, "unknown")
             logger.error(f"Decryption failed: {type(e).__name__}")
-            raise Exception(f"Failed to decrypt credential: {type(e).__name__}")
+            raise RuntimeError(
+                f"Failed to decrypt credential: {type(e).__name__}"
+            ) from e
 
     def store_credential(
         self, administration: str, credential_type: str, value: Any
@@ -266,7 +270,7 @@ class CredentialService:
 
         except Exception as e:
             logger.error(f"Failed to store credential: {type(e).__name__}")
-            raise Exception(f"Failed to store credential: {type(e).__name__}")
+            raise RuntimeError(f"Failed to store credential: {type(e).__name__}") from e
 
     def get_credential(self, administration: str, credential_type: str) -> Any | None:
         """
@@ -424,7 +428,9 @@ class CredentialService:
 
         except Exception as e:
             logger.error(f"Failed to delete credential: {type(e).__name__}")
-            raise Exception(f"Failed to delete credential: {type(e).__name__}")
+            raise RuntimeError(
+                f"Failed to delete credential: {type(e).__name__}"
+            ) from e
 
     def list_credential_types(self, administration: str) -> list:
         """
@@ -464,7 +470,7 @@ class CredentialService:
 
         except Exception as e:
             logger.error(f"Failed to list credentials: {type(e).__name__}")
-            raise Exception(f"Failed to list credentials: {type(e).__name__}")
+            raise RuntimeError(f"Failed to list credentials: {type(e).__name__}") from e
 
     def credential_exists(self, administration: str, credential_type: str) -> bool:
         """

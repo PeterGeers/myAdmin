@@ -9,6 +9,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.4
 """
 
 import logging
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +19,14 @@ class InvoiceBookingHelper:
 
     # Mapping from booking param key to the rekeningschema.parameters JSON flag.
     # The flag marks which account in the chart of accounts serves this role.
-    LEDGER_FLAG_MAP = {
+    LEDGER_FLAG_MAP: ClassVar[dict[str, str]] = {
         "debtor_account": "zzp_debtor_account",
         "creditor_account": "zzp_creditor_account",
         "revenue_account": "zzp_revenue_ledger",
     }
 
     # Required parameters that must be configured per tenant — no hardcoded defaults.
-    REQUIRED_BOOKING_PARAMS = {
+    REQUIRED_BOOKING_PARAMS: ClassVar[dict[str, str]] = {
         "debtor_account": "zzp.debtor_account",
         "creditor_account": "zzp.creditor_account",
         "revenue_account": "zzp.revenue_account",

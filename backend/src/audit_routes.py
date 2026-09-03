@@ -331,20 +331,21 @@ def export_logs_to_csv(user_email, user_roles):
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
 
-        # Create temporary file for export
-        temp_file = tempfile.NamedTemporaryFile(
+        # Create temporary file for export. The context manager guarantees the
+        # handle is closed before export_logs_to_csv() reopens it by name.
+        with tempfile.NamedTemporaryFile(
             mode="w", delete=False, suffix=".csv", prefix="audit_logs_"
-        )
-        temp_file.close()
+        ) as temp_file:
+            temp_file_name = temp_file.name
 
         # Export logs
         audit_logger = get_audit_logger()
         success = audit_logger.export_logs_to_csv(
-            output_file=temp_file.name, start_date=start_date, end_date=end_date
+            output_file=temp_file_name, start_date=start_date, end_date=end_date
         )
 
         if not success:
-            os.unlink(temp_file.name)
+            os.unlink(temp_file_name)
             return jsonify(
                 {
                     "success": False,
@@ -358,7 +359,7 @@ def export_logs_to_csv(user_email, user_roles):
 
         # Send file
         response = send_file(
-            temp_file.name,
+            temp_file_name,
             mimetype="text/csv",
             as_attachment=True,
             download_name=filename,
@@ -368,7 +369,7 @@ def export_logs_to_csv(user_email, user_roles):
         @response.call_on_close
         def cleanup():
             try:
-                os.unlink(temp_file.name)
+                os.unlink(temp_file_name)
             except Exception as e:
                 logger.error(f"Failed to delete temporary file: {e}")
 

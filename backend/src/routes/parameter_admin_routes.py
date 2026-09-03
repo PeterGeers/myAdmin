@@ -29,6 +29,7 @@ flag = os.getenv("TEST_MODE", "false").lower() == "true"
 def _get_service() -> "ParameterService":
     db = DatabaseManager(test_mode=flag)
     from services.credential_service import CredentialService
+
     credential_service = CredentialService(db)
     return ParameterService(db, credential_service=credential_service)
 

@@ -150,4 +150,4 @@ def prepare_financial_report_data(db, administration: str, year: int) -> dict[st
 
     except Exception as e:
         logger.error(f"Failed to prepare financial report data: {e}")
-        raise Exception(f"Failed to prepare financial report data: {e!s}")
+        raise RuntimeError(f"Failed to prepare financial report data: {e!s}") from e

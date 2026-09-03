@@ -118,8 +118,10 @@ def forgot_password() -> ResponseReturnValue:
 
                     tenants = json.loads(attr["Value"])
                     administration = tenants[0] if tenants else None
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # Malformed custom:tenants attribute is non-fatal here — the
+                    # tenant is only used for optional email logging below.
+                    logger.debug("Could not parse custom:tenants attribute: %s", exc)
 
         # Generate code and store in password_reset_codes table
         code = _generate_code()

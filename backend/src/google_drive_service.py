@@ -84,7 +84,7 @@ class GoogleDriveService:
             )
 
             if not oauth_creds:
-                raise Exception(
+                raise RuntimeError(
                     f"Google Drive OAuth credentials not found for administration '{self.administration}'. "
                     "Please run the migration script to store credentials in the database."
                 )
@@ -355,7 +355,9 @@ class GoogleDriveService:
 
         except Exception as e:
             print(f"Error downloading file content: {e}", flush=True)
-            raise Exception(f"Failed to download file from Google Drive: {e!s}")
+            raise RuntimeError(
+                f"Failed to download file from Google Drive: {e!s}"
+            ) from e
 
     def create_folder(self, folder_name, parent_id):
         file_metadata = {

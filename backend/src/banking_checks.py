@@ -14,6 +14,8 @@ from datetime import datetime
 
 from database import DatabaseManager
 
+logger = logging.getLogger(__name__)
+
 
 def _get_opening_balance_date(db, administration):
     """Get the opening balance date based on the last closed year.
@@ -39,8 +41,8 @@ def _get_opening_balance_date(db, administration):
             return f"{rows[0]['last_closed_year'] + 1}-01-01"
         return None
     except Exception as e:
-        logging.warning(
-            f"Could not fetch opening balance date for {administration}: {e}"
+        logger.warning(
+            "Could not fetch opening balance date for %s: %s", administration, e
         )
         return None
 

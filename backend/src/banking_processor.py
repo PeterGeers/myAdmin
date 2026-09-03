@@ -14,7 +14,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from banking_checks import BankingChecks, _get_opening_balance_date
+from banking_checks import BankingChecks
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 from pattern_analyzer import PatternAnalyzer

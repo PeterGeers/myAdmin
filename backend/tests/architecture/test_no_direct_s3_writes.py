@@ -6,6 +6,8 @@ direct boto3 S3 write/delete calls that should go through MediaAssetService.
 
 Allow-listed files:
 - media_asset_service.py: The exclusive gateway itself
+- media_asset/helpers.py: Gateway internals — raw _upload_raw/_delete_raw
+- media_asset/lifecycle.py: Gateway internals — unregistered-object cleanup
 - s3_shared_storage.py: Internal _upload_raw/_delete_raw methods
 - s3_tenant_storage.py: Internal _upload_raw/_delete_raw methods
 - storage_resolver.py: Folder marker creation (excluded from registry)
@@ -22,6 +24,11 @@ import pytest
 # Files allowed to contain S3 write/delete operations
 ALLOWED_FILES = {
     'media_asset_service.py',
+    # media_asset_service.py was split into concern mixins under
+    # services/media_asset/; the raw S3 write/delete calls live in these two.
+    # They are the gateway internals, so they remain allow-listed.
+    'helpers.py',
+    'lifecycle.py',
     's3_shared_storage.py',
     's3_tenant_storage.py',
     'storage_resolver.py',

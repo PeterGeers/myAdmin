@@ -62,8 +62,9 @@ class TenantSettingsService:
                 if value and (value.startswith(("{", "["))):
                     try:
                         value = json.loads(value)
-                    except Exception:
-                        pass  # Keep as string if not valid JSON
+                    except Exception as exc:
+                        # Not valid JSON — keep the original string value.
+                        logger.debug("Config value for %s is not JSON: %s", key, exc)
 
                 # Build nested structure from dot notation (e.g., "storage.facturen_folder_id")
                 if "." in key:

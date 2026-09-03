@@ -319,8 +319,9 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                 if attr["Name"] == "name":
                     user_name = attr["Value"]
                     break
-        except Exception:
-            pass
+        except Exception as exc:
+            # Display name is optional; fall back to the local part of the email.
+            logger.debug("Could not resolve Cognito display name: %s", exc)
 
         # Resolve frontend URL from request context
         from utils.frontend_url import get_frontend_url

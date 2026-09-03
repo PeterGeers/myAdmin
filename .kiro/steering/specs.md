@@ -1,3 +1,7 @@
+---
+inclusion: auto
+---
+
 # Spec-Driven Development
 
 This project uses formal specifications for feature development. Specs provide structured documentation from requirements through implementation.

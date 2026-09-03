@@ -10,6 +10,8 @@ Handles:
 - AI budget line generation (POST /api/budget/ai/generate-lines)
 """
 
+import logging
+
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
@@ -17,6 +19,8 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.budget_ai_service import BudgetAIService
 from services.budget_service import BudgetService
+
+logger = logging.getLogger(__name__)
 
 # Create blueprint
 budget_ai_bp = Blueprint("budget_ai", __name__)
@@ -201,8 +205,10 @@ def budget_ai_query(
                     hierarchy_context = [
                         {"code": a["code"], "name": a["name"]} for a in accounts[:100]
                     ]
-            except Exception:
-                pass
+            except Exception as exc:
+                # Hierarchy context is optional enrichment; the AI query proceeds
+                # without it if the lookup fails.
+                logger.debug("Could not load hierarchy context for AI query: %s", exc)
 
         # Translate query via AI
         result = budget_ai_service.translate_query(
@@ -303,8 +309,10 @@ def budget_ai_draft_suggestions(
                         for line in budget_lines
                         if line.get("account_code") in valid_accounts
                     ]
-            except Exception:
-                pass
+            except Exception as exc:
+                # Account filtering is best-effort; fall back to the unfiltered
+                # budget lines if the lookup fails.
+                logger.debug("Could not filter budget lines by account: %s", exc)
 
         # Enrich lines with account names
         if budget_lines:
@@ -324,8 +332,9 @@ def budget_ai_draft_suggestions(
                         line["account_name"] = name_map.get(
                             line.get("account_code", ""), ""
                         )
-            except Exception:
-                pass
+            except Exception as exc:
+                # Account-name enrichment is cosmetic; lines are usable without it.
+                logger.debug("Could not enrich budget lines with names: %s", exc)
 
         # Check payload limit
         if len(budget_lines) > 100:
@@ -390,8 +399,9 @@ def budget_ai_generate_lines(
                 (tenant,),
             )
             chart_of_accounts = accounts if accounts else []
-        except Exception:
-            pass
+        except Exception as exc:
+            # Chart of accounts is optional context for line generation.
+            logger.debug("Could not load chart of accounts for AI: %s", exc)
 
         # Get prior-year actuals summary
         prior_year = fiscal_year - 1
@@ -406,8 +416,9 @@ def budget_ai_generate_lines(
                 (tenant, prior_year),
             )
             prior_actuals = actuals if actuals else []
-        except Exception:
-            pass
+        except Exception as exc:
+            # Prior-year actuals are optional context for line generation.
+            logger.debug("Could not load prior-year actuals for AI: %s", exc)
 
         # Call AI to generate proposed lines
         result = budget_ai_service.generate_lines(

@@ -31,7 +31,7 @@ jobs:
         working-directory: backend
         run: |
           pip install -r requirements.txt
-          pip install ruff vulture
+          pip install ruff==0.16.5 vulture
 
       - name: Ruff lint
         working-directory: backend

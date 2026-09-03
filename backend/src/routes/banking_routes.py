@@ -516,7 +516,7 @@ def banking_opening_balance_date(
 ) -> ResponseReturnValue:
     """Get the opening balance date based on the last annual closure"""
     try:
-        from banking_processor import _get_opening_balance_date
+        from banking_checks import _get_opening_balance_date
         from database import DatabaseManager
 
         db = DatabaseManager(test_mode=banking_service.test_mode)

@@ -12,7 +12,7 @@ Reference: .kiro/specs/zzp-module/design.md §2 (Field Visibility & Validation)
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class FieldConfigMixin:
 
     # Subclasses must define these
     FIELD_CONFIG_KEY: str = ""
-    ALWAYS_REQUIRED: list[str] = []
+    ALWAYS_REQUIRED: ClassVar[list[str]] = []
 
     def get_field_config(self, tenant: str) -> dict[str, str]:
         """Get field config for tenant, merging defaults with overrides.

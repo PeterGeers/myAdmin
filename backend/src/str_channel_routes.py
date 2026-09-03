@@ -203,7 +203,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         )
 
     except Exception as e:
-        logging.error(f"Error calculating STR channel revenue: {e!s}")
+        logger.error("Error calculating STR channel revenue: %s", e)
         logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -291,7 +291,7 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
         )
 
     except Exception as e:
-        logging.error(f"Error saving STR channel transactions: {e!s}")
+        logger.error("Error saving STR channel transactions: %s", e)
         logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -369,6 +369,6 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
         )
 
     except Exception as e:
-        logging.error(f"Error previewing STR channel data: {e!s}")
+        logger.error("Error previewing STR channel data: %s", e)
         logger.error(f"Error in endpoint: {e!s}")
         return jsonify({"success": False, "error": "Internal server error"}), 500

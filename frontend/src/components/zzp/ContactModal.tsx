@@ -8,7 +8,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, Button, FormControl, FormLabel,
-  Input, Select, IconButton, HStack, VStack, Table, Thead, Tbody,
+  Input, Select, IconButton, HStack, VStack, Box, Table, Thead, Tbody,
   Tr, Th, Td, Text, useToast, useDisclosure, Badge, FormErrorMessage,
 } from '@chakra-ui/react';
 import { AddIcon, DeleteIcon, EmailIcon } from '@chakra-ui/icons';
@@ -129,155 +129,157 @@ export const ContactModal: React.FC<ContactModalProps> = ({
 
   return (
     <>
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" closeOnOverlayClick={false}>
-      <ModalOverlay />
-      <ModalContent bg="gray.800" color="white">
-        <ModalHeader>{isEdit ? contact?.company_name : t('contacts.newContact')}</ModalHeader>
-        <ModalCloseButton />
-        <Formik initialValues={initialValues} validationSchema={validationSchema}
-          onSubmit={handleSubmit} enableReinitialize>
-          {({ isSubmitting }) => (
-            <Form>
-              <ModalBody maxH="70vh" overflowY="auto">
-                <VStack spacing={3}>
-                  {renderField('client_id', t('contacts.clientId'))}
-                  {isVisible('contact_type') && (
-                    <FormControl isRequired={isRequired('contact_type')}>
-                      <FormLabel color="gray.300" fontSize="sm">Type</FormLabel>
-                      <Field as={Select} name="contact_type" size="sm" bg="gray.700"
-                        color="white" borderColor="gray.600">
-                        <option value="client">{t('contacts.type.client')}</option>
-                        <option value="supplier">{t('contacts.type.supplier')}</option>
-                        <option value="both">{t('contacts.type.both')}</option>
-                        <option value="other">{t('contacts.type.other')}</option>
-                      </Field>
-                    </FormControl>
-                  )}
-                  {renderField('company_name', t('contacts.companyName'))}
-                  {renderField('contact_person', t('contacts.contactPerson'))}
-                  {renderField('street_address', t('contacts.streetAddress'))}
-                  <HStack w="full">
-                    {isVisible('postal_code') && (
-                      <FormControl flex={1}>
-                        <FormLabel color="gray.300" fontSize="sm">{t('contacts.postalCode')}</FormLabel>
-                        <Field as={Input} name="postal_code" size="sm" bg="gray.700"
-                          color="white" borderColor="gray.600" />
+      <Modal isOpen={isOpen} onClose={onClose} size="xl" closeOnOverlayClick={false}>
+        <ModalOverlay />
+        <ModalContent bg="gray.800" color="white">
+          <ModalHeader>{isEdit ? contact?.company_name : t('contacts.newContact')}</ModalHeader>
+          <ModalCloseButton />
+          <Formik initialValues={initialValues} validationSchema={validationSchema}
+            onSubmit={handleSubmit} enableReinitialize>
+            {({ isSubmitting }) => (
+              <Form>
+                <ModalBody maxH="70vh" overflowY="auto">
+                  <VStack spacing={3}>
+                    {renderField('client_id', t('contacts.clientId'))}
+                    {isVisible('contact_type') && (
+                      <FormControl isRequired={isRequired('contact_type')}>
+                        <FormLabel color="gray.300" fontSize="sm">Type</FormLabel>
+                        <Field as={Select} name="contact_type" size="sm" bg="gray.700"
+                          color="white" borderColor="gray.600">
+                          <option value="client">{t('contacts.type.client')}</option>
+                          <option value="supplier">{t('contacts.type.supplier')}</option>
+                          <option value="both">{t('contacts.type.both')}</option>
+                          <option value="other">{t('contacts.type.other')}</option>
+                        </Field>
                       </FormControl>
                     )}
-                    {isVisible('city') && (
-                      <FormControl flex={2}>
-                        <FormLabel color="gray.300" fontSize="sm">{t('contacts.city')}</FormLabel>
-                        <Field as={Input} name="city" size="sm" bg="gray.700"
-                          color="white" borderColor="gray.600" />
-                      </FormControl>
+                    {renderField('company_name', t('contacts.companyName'))}
+                    {renderField('contact_person', t('contacts.contactPerson'))}
+                    {renderField('street_address', t('contacts.streetAddress'))}
+                    <HStack w="full">
+                      {isVisible('postal_code') && (
+                        <FormControl flex={1}>
+                          <FormLabel color="gray.300" fontSize="sm">{t('contacts.postalCode')}</FormLabel>
+                          <Field as={Input} name="postal_code" size="sm" bg="gray.700"
+                            color="white" borderColor="gray.600" />
+                        </FormControl>
+                      )}
+                      {isVisible('city') && (
+                        <FormControl flex={2}>
+                          <FormLabel color="gray.300" fontSize="sm">{t('contacts.city')}</FormLabel>
+                          <Field as={Input} name="city" size="sm" bg="gray.700"
+                            color="white" borderColor="gray.600" />
+                        </FormControl>
+                      )}
+                    </HStack>
+                    {renderField('country', t('contacts.country'))}
+                    {renderField('vat_number', t('contacts.vatNumber'))}
+                    {renderField('kvk_number', t('contacts.kvkNumber'))}
+                    {renderField('phone', t('contacts.phone'))}
+                    {renderField('iban', t('contacts.iban'))}
+
+                    {/* Email addresses — clickable link opens sub-modal */}
+                    {isVisible('emails') && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        w="full"
+                        leftIcon={<EmailIcon />}
+                        colorScheme="gray"
+                        color="gray.300"
+                        borderColor="gray.600"
+                        justifyContent="space-between"
+                        onClick={onEmailOpen}
+                      >
+                        <HStack spacing={2}>
+                          <Text>{t('contacts.emails')}</Text>
+                          <Badge colorScheme="orange" variant="solid" fontSize="xs">
+                            {emails.filter(e => e.email).length}
+                          </Badge>
+                        </HStack>
+                      </Button>
                     )}
-                  </HStack>
-                  {renderField('country', t('contacts.country'))}
-                  {renderField('vat_number', t('contacts.vatNumber'))}
-                  {renderField('kvk_number', t('contacts.kvkNumber'))}
-                  {renderField('phone', t('contacts.phone'))}
-                  {renderField('iban', t('contacts.iban'))}
+                  </VStack>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="ghost" mr={3} onClick={onClose}>{t('common.cancel')}</Button>
+                  <Button colorScheme="orange" type="submit" isLoading={isSubmitting}>
+                    {t('common.save')}
+                  </Button>
+                </ModalFooter>
+              </Form>
+            )}
+          </Formik>
+        </ModalContent>
+      </Modal>
 
-                  {/* Email addresses — clickable link opens sub-modal */}
-                  {isVisible('emails') && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      w="full"
-                      leftIcon={<EmailIcon />}
-                      colorScheme="gray"
-                      color="gray.300"
-                      borderColor="gray.600"
-                      justifyContent="space-between"
-                      onClick={onEmailOpen}
-                    >
-                      <HStack spacing={2}>
-                        <Text>{t('contacts.emails')}</Text>
-                        <Badge colorScheme="orange" variant="solid" fontSize="xs">
-                          {emails.filter(e => e.email).length}
-                        </Badge>
-                      </HStack>
-                    </Button>
-                  )}
-                </VStack>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="ghost" mr={3} onClick={onClose}>{t('common.cancel')}</Button>
-                <Button colorScheme="orange" type="submit" isLoading={isSubmitting}>
-                  {t('common.save')}
-                </Button>
-              </ModalFooter>
-            </Form>
-          )}
-        </Formik>
-      </ModalContent>
-    </Modal>
-
-    {/* Email management sub-modal */}
-    <Modal isOpen={isEmailOpen} onClose={onEmailClose} size="md" isCentered>
-      <ModalOverlay />
-      <ModalContent bg="gray.800" color="white">
-        <ModalHeader>{t('contacts.emails')}</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody>
-          <VStack spacing={3} align="stretch">
-            <Table size="sm" variant="simple">
-              <Thead>
-                <Tr>
-                  <Th color="gray.400">Email</Th>
-                  <Th color="gray.400">Type</Th>
-                  <Th color="gray.400">Primary</Th>
-                  <Th w="40px" />
-                </Tr>
-              </Thead>
-              <Tbody>
-                {emails.map((em, idx) => (
-                  <Tr key={idx}>
-                    <Td>
-                      <FormControl isInvalid={!!emailErrors[idx]}>
-                        <Input size="sm" bg="gray.700" color="white" borderColor={emailErrors[idx] ? 'red.400' : 'gray.600'}
-                          placeholder="email@example.com"
-                          value={em.email || ''} onChange={e => updateEmail(idx, 'email', e.target.value)} />
-                        {emailErrors[idx] && (
-                          <FormErrorMessage fontSize="xs">{emailErrors[idx]}</FormErrorMessage>
-                        )}
-                      </FormControl>
-                    </Td>
-                    <Td>
-                      <Select size="sm" bg="gray.700" color="white" borderColor="gray.600"
-                        value={em.email_type || 'general'}
-                        onChange={e => updateEmail(idx, 'email_type', e.target.value)}>
-                        <option value="general">General</option>
-                        <option value="invoice">Invoice</option>
-                        <option value="other">Other</option>
-                      </Select>
-                    </Td>
-                    <Td textAlign="center">
-                      <input type="checkbox" checked={em.is_primary || false}
-                        onChange={e => updateEmail(idx, 'is_primary', e.target.checked)} />
-                    </Td>
-                    <Td>
-                      <IconButton aria-label="Remove" icon={<DeleteIcon />} size="xs"
-                        variant="ghost" colorScheme="red" onClick={() => removeEmail(idx)} />
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-            <Button size="sm" leftIcon={<AddIcon />} variant="outline" colorScheme="orange"
-              onClick={addEmail}>
-              {t('contacts.addEmail', 'Add email')}
+      {/* Email management sub-modal */}
+      <Modal isOpen={isEmailOpen} onClose={onEmailClose} size="md" isCentered>
+        <ModalOverlay />
+        <ModalContent bg="gray.800" color="white">
+          <ModalHeader>{t('contacts.emails')}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={3} align="stretch">
+              <Box overflowX="auto">
+                <Table size="sm" variant="simple">
+                  <Thead>
+                    <Tr>
+                      <Th color="gray.400">Email</Th>
+                      <Th color="gray.400">Type</Th>
+                      <Th color="gray.400">Primary</Th>
+                      <Th w="40px" />
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {emails.map((em, idx) => (
+                      <Tr key={idx}>
+                        <Td>
+                          <FormControl isInvalid={!!emailErrors[idx]}>
+                            <Input size="sm" bg="gray.700" color="white" borderColor={emailErrors[idx] ? 'red.400' : 'gray.600'}
+                              placeholder="email@example.com"
+                              value={em.email || ''} onChange={e => updateEmail(idx, 'email', e.target.value)} />
+                            {emailErrors[idx] && (
+                              <FormErrorMessage fontSize="xs">{emailErrors[idx]}</FormErrorMessage>
+                            )}
+                          </FormControl>
+                        </Td>
+                        <Td>
+                          <Select size="sm" bg="gray.700" color="white" borderColor="gray.600"
+                            value={em.email_type || 'general'}
+                            onChange={e => updateEmail(idx, 'email_type', e.target.value)}>
+                            <option value="general">General</option>
+                            <option value="invoice">Invoice</option>
+                            <option value="other">Other</option>
+                          </Select>
+                        </Td>
+                        <Td textAlign="center">
+                          <input type="checkbox" checked={em.is_primary || false}
+                            onChange={e => updateEmail(idx, 'is_primary', e.target.checked)} />
+                        </Td>
+                        <Td>
+                          <IconButton aria-label="Remove" icon={<DeleteIcon />} size="xs"
+                            variant="ghost" colorScheme="red" onClick={() => removeEmail(idx)} />
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </Box>
+              <Button size="sm" leftIcon={<AddIcon />} variant="outline" colorScheme="orange"
+                onClick={addEmail}>
+                {t('contacts.addEmail', 'Add email')}
+              </Button>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="orange" onClick={onEmailClose}>
+              {t('common.confirm', 'Done')}
             </Button>
-          </VStack>
-        </ModalBody>
-        <ModalFooter>
-          <Button colorScheme="orange" onClick={onEmailClose}>
-            {t('common.confirm', 'Done')}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   );
 };

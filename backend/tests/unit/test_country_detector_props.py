@@ -8,6 +8,7 @@ Requirements: 3.2
 Reference: .kiro/specs/missing-py-tests/design.md
 """
 
+import phonenumbers
 import pytest
 from hypothesis import given, strategies as st, settings
 
@@ -38,26 +39,11 @@ COUNTRY_CODES = {
     '52': 'MX',     # Mexico
 }
 
-# All valid ISO 3166-1 alpha-2 codes (subset for validation)
-VALID_ISO_CODES = set(COUNTRY_CODES.values()) | {
-    'AF', 'AL', 'DZ', 'AD', 'AO', 'AG', 'AR', 'AM', 'AT', 'AZ',
-    'BS', 'BH', 'BD', 'BB', 'BY', 'BZ', 'BJ', 'BT', 'BO', 'BA',
-    'BW', 'BN', 'BG', 'BF', 'BI', 'KH', 'CM', 'CA', 'CV', 'CF',
-    'TD', 'CL', 'CO', 'KM', 'CG', 'CR', 'HR', 'CU', 'CY', 'CZ',
-    'DK', 'DJ', 'DM', 'DO', 'EC', 'EG', 'SV', 'GQ', 'ER', 'EE',
-    'ET', 'FJ', 'FI', 'GA', 'GM', 'GE', 'GH', 'GR', 'GD', 'GT',
-    'GN', 'GW', 'GY', 'HT', 'HN', 'HU', 'IS', 'ID', 'IR', 'IQ',
-    'IE', 'JM', 'JO', 'KZ', 'KE', 'KI', 'KP', 'KR', 'KW', 'KG',
-    'LA', 'LV', 'LB', 'LS', 'LR', 'LY', 'LI', 'LT', 'LU', 'MK',
-    'MG', 'MW', 'MY', 'MV', 'ML', 'MT', 'MH', 'MR', 'MU', 'MD',
-    'MC', 'MN', 'ME', 'MA', 'MZ', 'MM', 'NA', 'NR', 'NP', 'NZ',
-    'NI', 'NE', 'NG', 'OM', 'PK', 'PW', 'PA', 'PG', 'PY', 'PE',
-    'PH', 'PT', 'QA', 'RO', 'RW', 'KN', 'LC', 'VC', 'WS', 'SM',
-    'ST', 'SA', 'SN', 'RS', 'SC', 'SL', 'SG', 'SK', 'SI', 'SB',
-    'SO', 'ZA', 'SS', 'LK', 'SD', 'SR', 'SZ', 'CH', 'SY', 'TW',
-    'TJ', 'TZ', 'TH', 'TL', 'TG', 'TO', 'TT', 'TN', 'TR', 'TM',
-    'TV', 'UG', 'UA', 'UY', 'UZ', 'VU', 'VE', 'VN', 'YE', 'ZM', 'ZW',
-}
+# All valid ISO 3166-1 alpha-2 region codes, sourced from the authoritative
+# set the function itself uses (phonenumbers.SUPPORTED_REGIONS, ~245 codes).
+# This includes region codes like IM, GG, JE that the phonenumbers library
+# returns for certain calling codes.
+VALID_ISO_CODES = set(phonenumbers.SUPPORTED_REGIONS)
 
 
 # Strategy: generate valid E.164 phone numbers from known country codes

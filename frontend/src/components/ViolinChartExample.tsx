@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import type { Data, Layout } from 'plotly.js';
 import Plot from './PlotlyChart';
 import { Box, VStack, Text } from '@chakra-ui/react';
 
@@ -26,13 +27,21 @@ export const ViolinChartExample: React.FC = () => {
   }, {} as Record<string, number[]>);
 
   // Create Plotly traces
-  const plotData = Object.entries(grouped).map(([name, values]) => ({
+  const plotData: Data[] = Object.entries(grouped).map(([name, values]) => ({
     type: 'violin' as const,
     y: values,
     name: name,
     box: { visible: true },
     meanline: { visible: true },
   }));
+
+  const layout: Partial<Layout> = {
+    title: { text: 'Price Distribution by Listing' },
+    yaxis: { title: { text: 'Price (€)' } },
+    xaxis: { title: { text: 'Listing' } },
+    showlegend: false,
+    height: 400,
+  };
 
   return (
     <VStack spacing={4}>
@@ -41,14 +50,8 @@ export const ViolinChartExample: React.FC = () => {
       </Text>
       <Box w="100%" bg="white" p={4} borderRadius="md">
         <Plot
-          data={plotData as any}
-          layout={{
-            title: 'Price Distribution by Listing',
-            yaxis: { title: { text: 'Price (€)' } },
-            xaxis: { title: { text: 'Listing' } },
-            showlegend: false,
-            height: 400,
-          } as any}
+          data={plotData}
+          layout={layout}
           config={{
             responsive: true,
             displayModeBar: true,

@@ -13,6 +13,8 @@ from utils.closure_helpers import get_closure_aware_start_year
 # testnow for the second time
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 actuals_bp = Blueprint("actuals", __name__)
 
 
@@ -125,7 +127,7 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
             return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logging.error(f"Error in get_actuals_balance: {e!s}", exc_info=True)
+        logger.exception("Error in get_actuals_balance")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -149,7 +151,7 @@ def _get_closed_years(db, administration):
         rows = db.execute_query(query, [administration])
         return [int(row["year"]) for row in rows] if rows else []
     except Exception as e:
-        logging.warning(f"Could not fetch closed years for {administration}: {e}")
+        logger.warning("Could not fetch closed years for %s: %s", administration, e)
         return []
 
 
@@ -227,5 +229,5 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logging.error(f"Error in get_actuals_profitloss: {e!s}", exc_info=True)
+        logger.exception("Error in get_actuals_profitloss")
         return jsonify({"success": False, "error": str(e)}), 500

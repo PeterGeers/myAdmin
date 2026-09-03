@@ -548,8 +548,9 @@ class TripImportService:
                 )
                 if categories:
                     return categories
-            except Exception:
-                pass
+            except Exception as exc:
+                # Optional config; fall back to None (no category constraint).
+                logger.debug("Could not read trip_categories param: %s", exc)
         return None
 
     def _get_trip_purposes(self, tenant: str) -> list[str] | None:
@@ -561,8 +562,9 @@ class TripImportService:
                 )
                 if purposes:
                     return purposes
-            except Exception:
-                pass
+            except Exception as exc:
+                # Optional config; fall back to None (no purpose constraint).
+                logger.debug("Could not read trip_purposes param: %s", exc)
         return None
 
     @staticmethod
@@ -707,16 +709,19 @@ class TripImportService:
         prev_end = None
         for row in rows:
             start = row.get("start_odometer")
-            if prev_end is not None and isinstance(start, (int, float)):
-                if start != prev_end:
-                    gap = start - prev_end
-                    row["_messages"].append(
-                        f"Km-stand niet aansluitend binnen import: "
-                        f"verwacht {prev_end}, gevonden {start} "
-                        f"(verschil: {gap} km)"
-                    )
-                    if row["_status"] == "ok":
-                        row["_status"] = "warning"
+            if (
+                prev_end is not None
+                and isinstance(start, (int, float))
+                and start != prev_end
+            ):
+                gap = start - prev_end
+                row["_messages"].append(
+                    f"Km-stand niet aansluitend binnen import: "
+                    f"verwacht {prev_end}, gevonden {start} "
+                    f"(verschil: {gap} km)"
+                )
+                if row["_status"] == "ok":
+                    row["_status"] = "warning"
 
             end = row.get("end_odometer")
             if isinstance(end, (int, float)):

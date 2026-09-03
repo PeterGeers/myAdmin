@@ -268,69 +268,71 @@ const BalancesTable: React.FC<BalancesTableProps> = ({
                               ? new Date(balance.last_transaction_date).toLocaleDateString('nl-NL')
                               : 'N/A'}
                           </Text>
-                          <Table size="xs" variant="simple">
-                            <Thead>
-                              <Tr>
-                                <Th color="gray.300" fontSize="xs">
-                                  Description
-                                </Th>
-                                <Th color="gray.300" fontSize="xs" isNumeric pr={4}>
-                                  Amount
-                                </Th>
-                                <Th color="gray.300" fontSize="xs" pl={4}>
-                                  Debet
-                                </Th>
-                                <Th color="gray.300" fontSize="xs">
-                                  Credit
-                                </Th>
-                                <Th color="gray.300" fontSize="xs">
-                                  Ref2
-                                </Th>
-                                <Th color="gray.300" fontSize="xs">
-                                  Ref3
-                                </Th>
-                              </Tr>
-                            </Thead>
-                            <Tbody>
-                              {balance.last_transactions.map((transaction, txIndex) => (
-                                <Tr key={txIndex}>
-                                  <Td
-                                    color="gray.300"
-                                    fontSize="xs"
-                                    maxW="200px"
-                                    isTruncated
-                                    title={transaction.TransactionDescription}
-                                  >
-                                    {transaction.TransactionDescription}
-                                  </Td>
-                                  <Td color="gray.300" fontSize="xs" isNumeric pr={4}>
-                                    €
-                                    {Number(transaction.TransactionAmount).toLocaleString('nl-NL', {
-                                      minimumFractionDigits: 2,
-                                    })}
-                                  </Td>
-                                  <Td color="gray.300" fontSize="xs" pl={4}>
-                                    {transaction.Debet}
-                                  </Td>
-                                  <Td color="gray.300" fontSize="xs">
-                                    {transaction.Credit}
-                                  </Td>
-                                  <Td color="gray.300" fontSize="xs">
-                                    {transaction.Ref2}
-                                  </Td>
-                                  <Td
-                                    color="gray.300"
-                                    fontSize="xs"
-                                    maxW="100px"
-                                    isTruncated
-                                    title={transaction.Ref3}
-                                  >
-                                    {transaction.Ref3}
-                                  </Td>
+                          <TableContainer>
+                            <Table size="xs" variant="simple">
+                              <Thead>
+                                <Tr>
+                                  <Th color="gray.300" fontSize="xs">
+                                    Description
+                                  </Th>
+                                  <Th color="gray.300" fontSize="xs" isNumeric pr={4}>
+                                    Amount
+                                  </Th>
+                                  <Th color="gray.300" fontSize="xs" pl={4}>
+                                    Debet
+                                  </Th>
+                                  <Th color="gray.300" fontSize="xs">
+                                    Credit
+                                  </Th>
+                                  <Th color="gray.300" fontSize="xs">
+                                    Ref2
+                                  </Th>
+                                  <Th color="gray.300" fontSize="xs">
+                                    Ref3
+                                  </Th>
                                 </Tr>
-                              ))}
-                            </Tbody>
-                          </Table>
+                              </Thead>
+                              <Tbody>
+                                {balance.last_transactions.map((transaction, txIndex) => (
+                                  <Tr key={txIndex}>
+                                    <Td
+                                      color="gray.300"
+                                      fontSize="xs"
+                                      maxW="200px"
+                                      isTruncated
+                                      title={transaction.TransactionDescription}
+                                    >
+                                      {transaction.TransactionDescription}
+                                    </Td>
+                                    <Td color="gray.300" fontSize="xs" isNumeric pr={4}>
+                                      €
+                                      {Number(transaction.TransactionAmount).toLocaleString('nl-NL', {
+                                        minimumFractionDigits: 2,
+                                      })}
+                                    </Td>
+                                    <Td color="gray.300" fontSize="xs" pl={4}>
+                                      {transaction.Debet}
+                                    </Td>
+                                    <Td color="gray.300" fontSize="xs">
+                                      {transaction.Credit}
+                                    </Td>
+                                    <Td color="gray.300" fontSize="xs">
+                                      {transaction.Ref2}
+                                    </Td>
+                                    <Td
+                                      color="gray.300"
+                                      fontSize="xs"
+                                      maxW="100px"
+                                      isTruncated
+                                      title={transaction.Ref3}
+                                    >
+                                      {transaction.Ref3}
+                                    </Td>
+                                  </Tr>
+                                ))}
+                              </Tbody>
+                            </Table>
+                          </TableContainer>
                         </Box>
                       </Td>
                     </Tr>
@@ -407,54 +409,56 @@ const SequenceResults: React.FC<SequenceResultsProps> = ({ sequenceResult }) => 
             : 'Sequence Issues'}{' '}
           Found:
         </Text>
-        <Table size="sm" variant="simple">
-          <Thead>
-            <Tr>
-              <Th color="gray.300" fontSize="xs">
-                Expected
-              </Th>
-              <Th color="gray.300" fontSize="xs">
-                Found
-              </Th>
-              <Th color="gray.300" fontSize="xs">
-                Gap
-              </Th>
-              <Th color="gray.300" fontSize="xs">
-                Date
-              </Th>
-              <Th color="gray.300" fontSize="xs">
-                Description
-              </Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {sequenceResult.sequence_issues.map((issue, index) => (
-              <Tr key={index}>
-                <Td color="gray.300" fontSize="xs">
-                  {issue.expected}
-                </Td>
-                <Td color="gray.300" fontSize="xs">
-                  {issue.found}
-                </Td>
-                <Td color="gray.300" fontSize="xs">
-                  {issue.gap > 0 ? `+${issue.gap}` : issue.gap}
-                </Td>
-                <Td color="gray.300" fontSize="xs">
-                  {issue.date ? new Date(issue.date).toLocaleDateString('nl-NL') : ''}
-                </Td>
-                <Td
-                  color="gray.300"
-                  fontSize="xs"
-                  maxW="200px"
-                  isTruncated
-                  title={issue.description}
-                >
-                  {issue.description}
-                </Td>
+        <TableContainer>
+          <Table size="sm" variant="simple">
+            <Thead>
+              <Tr>
+                <Th color="gray.300" fontSize="xs">
+                  Expected
+                </Th>
+                <Th color="gray.300" fontSize="xs">
+                  Found
+                </Th>
+                <Th color="gray.300" fontSize="xs">
+                  Gap
+                </Th>
+                <Th color="gray.300" fontSize="xs">
+                  Date
+                </Th>
+                <Th color="gray.300" fontSize="xs">
+                  Description
+                </Th>
               </Tr>
-            ))}
-          </Tbody>
-        </Table>
+            </Thead>
+            <Tbody>
+              {sequenceResult.sequence_issues.map((issue, index) => (
+                <Tr key={index}>
+                  <Td color="gray.300" fontSize="xs">
+                    {issue.expected}
+                  </Td>
+                  <Td color="gray.300" fontSize="xs">
+                    {issue.found}
+                  </Td>
+                  <Td color="gray.300" fontSize="xs">
+                    {issue.gap > 0 ? `+${issue.gap}` : issue.gap}
+                  </Td>
+                  <Td color="gray.300" fontSize="xs">
+                    {issue.date ? new Date(issue.date).toLocaleDateString('nl-NL') : ''}
+                  </Td>
+                  <Td
+                    color="gray.300"
+                    fontSize="xs"
+                    maxW="200px"
+                    isTruncated
+                    title={issue.description}
+                  >
+                    {issue.description}
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </TableContainer>
       </Box>
     ) : (
       <Text color="green.300" fontWeight="bold">

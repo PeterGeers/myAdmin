@@ -7,6 +7,7 @@ and meta-instructions embedded in document content.
 
 import re
 from dataclasses import dataclass
+from typing import ClassVar
 
 
 @dataclass
@@ -29,7 +30,7 @@ class AISanitizer:
     MAX_TEXT_LENGTH = 10000
     REJECTION_THRESHOLD = 0.50  # Reject if >50% of content stripped
 
-    INJECTION_PATTERNS = [
+    INJECTION_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"(?i)\b(you are now|act as|pretend to be|assume the role)\b"),
         re.compile(
             r"(?i)\b(ignore previous|disregard above|forget all|override instructions)\b"

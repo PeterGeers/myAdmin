@@ -280,4 +280,4 @@ def prepare_invoice_data(
 
     except Exception as e:
         logger.error(f"Failed to prepare invoice data: {e}")
-        raise Exception(f"Failed to prepare invoice data: {e!s}")
+        raise RuntimeError(f"Failed to prepare invoice data: {e!s}") from e

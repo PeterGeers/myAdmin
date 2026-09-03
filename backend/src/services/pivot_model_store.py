@@ -243,12 +243,15 @@ class PivotModelStore:
             except (json.JSONDecodeError, TypeError) as e:
                 raise ValueError(f"Invalid JSON in model definition: {e}") from e
         else:
-            raise ValueError(
+            # ValueError kept (not TypeError): pivot route handlers catch
+            # ValueError to return HTTP 400 for invalid definitions.
+            raise ValueError(  # noqa: TRY004
                 f"Expected JSON string or dict, got {type(json_str).__name__}"
             )
 
         if not isinstance(definition, dict):
-            raise ValueError("Model definition must be a JSON object")
+            # ValueError kept for the HTTP-400 contract (see above).
+            raise ValueError("Model definition must be a JSON object")  # noqa: TRY004
 
         # Validate required fields
         PivotModelStore.validate_definition(definition)
@@ -269,7 +272,9 @@ class PivotModelStore:
             ValueError: with a descriptive message if validation fails.
         """
         if not isinstance(definition, dict):
-            raise ValueError("Model definition must be a dict")
+            # ValueError kept (not TypeError): documented in the method
+            # docstring and relied on by pivot route handlers for HTTP 400.
+            raise ValueError("Model definition must be a dict")  # noqa: TRY004
 
         # data_source
         ds = definition.get("data_source")

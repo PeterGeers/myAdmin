@@ -216,7 +216,9 @@ class DatabaseBankingQueriesMixin:
 
         except DatabaseError as e:
             print(f"Database error during duplicate check: {e}")
-            raise Exception(f"Database connection failed during duplicate check: {e!s}")
+            raise RuntimeError(
+                f"Database connection failed during duplicate check: {e!s}"
+            ) from e
         except Exception as e:
             print(f"Unexpected error during duplicate check: {e}")
-            raise Exception(f"Duplicate check failed: {e!s}")
+            raise RuntimeError(f"Duplicate check failed: {e!s}") from e

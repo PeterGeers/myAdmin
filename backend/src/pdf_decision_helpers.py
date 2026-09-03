@@ -135,7 +135,7 @@ def initialize_duplicate_components() -> dict:
             if test_connection:
                 test_connection.close()
             else:
-                raise Exception("Could not establish database connection")
+                raise RuntimeError("Could not establish database connection")
 
         except ImportError as e:
             return {

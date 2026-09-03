@@ -59,17 +59,18 @@ def pdf_validate_urls_stream(
                 if progress_data.get("validation_results") is not None:
                     validation_results = progress_data["validation_results"]
                     for result in validation_results:
-                        if "record" in result and "TransactionDate" in result["record"]:
-                            if result["record"]["TransactionDate"]:
-                                date_obj = result["record"]["TransactionDate"]
-                                if hasattr(date_obj, "strftime"):
-                                    result["record"]["TransactionDate"] = (
-                                        date_obj.strftime("%Y-%m-%d")
-                                    )
-                                else:
-                                    result["record"]["TransactionDate"] = str(date_obj)[
-                                        :10
-                                    ]
+                        if (
+                            "record" in result
+                            and "TransactionDate" in result["record"]
+                            and result["record"]["TransactionDate"]
+                        ):
+                            date_obj = result["record"]["TransactionDate"]
+                            if hasattr(date_obj, "strftime"):
+                                result["record"]["TransactionDate"] = date_obj.strftime(
+                                    "%Y-%m-%d"
+                                )
+                            else:
+                                result["record"]["TransactionDate"] = str(date_obj)[:10]
 
                     yield f"data: {json.dumps({'type': 'complete', 'validation_results': validation_results, 'total_records': progress_data['total'], 'ok_count': progress_data['ok_count'], 'failed_count': progress_data['failed_count']}, default=str)}\n\n"
                 else:
@@ -128,16 +129,17 @@ def pdf_validate_urls(
         # Format dates in validation results
         validation_results = results.get("validation_results", [])
         for result in validation_results:
-            if "record" in result and "TransactionDate" in result["record"]:
-                if result["record"]["TransactionDate"]:
-                    # Convert datetime to YYYY-MM-DD format
-                    date_obj = result["record"]["TransactionDate"]
-                    if hasattr(date_obj, "strftime"):
-                        result["record"]["TransactionDate"] = date_obj.strftime(
-                            "%Y-%m-%d"
-                        )
-                    else:
-                        result["record"]["TransactionDate"] = str(date_obj)[:10]
+            if (
+                "record" in result
+                and "TransactionDate" in result["record"]
+                and result["record"]["TransactionDate"]
+            ):
+                # Convert datetime to YYYY-MM-DD format
+                date_obj = result["record"]["TransactionDate"]
+                if hasattr(date_obj, "strftime"):
+                    result["record"]["TransactionDate"] = date_obj.strftime("%Y-%m-%d")
+                else:
+                    result["record"]["TransactionDate"] = str(date_obj)[:10]
 
         return jsonify(
             {

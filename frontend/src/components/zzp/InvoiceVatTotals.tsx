@@ -33,29 +33,31 @@ export const InvoiceVatTotals: React.FC<InvoiceVatTotalsProps> = ({
           <Text fontSize="sm" fontWeight="bold" color="gray.300" mb={2}>
             {t('invoices.vatSummary', 'VAT Summary')}
           </Text>
-          <Table size="sm" variant="simple">
-            <Thead>
-              <Tr>
-                <Th color="gray.400">{t('invoices.vatCode', 'VAT Code')}</Th>
-                <Th color="gray.400" isNumeric>{t('invoices.vatRate', 'Rate')}</Th>
-                <Th color="gray.400" isNumeric>{t('invoices.baseAmount', 'Base')}</Th>
-                <Th color="gray.400" isNumeric>{t('invoices.vatAmount', 'VAT')}</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {displayVatSummary.map((vs, idx) => (
-                <Tr key={idx}>
-                  <Td color="white" fontSize="sm">{vs.vat_code}</Td>
-                  <Td color="white" fontSize="sm" isNumeric>{vs.vat_rate}%</Td>
-                  <Td color="white" fontSize="sm" isNumeric>{formatCurrency(vs.base_amount, currency)}</Td>
-                  <Td color="white" fontSize="sm" isNumeric>{formatCurrency(vs.vat_amount, currency)}</Td>
+          <Box overflowX="auto">
+            <Table size="sm" variant="simple">
+              <Thead>
+                <Tr>
+                  <Th color="gray.400">{t('invoices.vatCode', 'VAT Code')}</Th>
+                  <Th color="gray.400" isNumeric>{t('invoices.vatRate', 'Rate')}</Th>
+                  <Th color="gray.400" isNumeric>{t('invoices.baseAmount', 'Base')}</Th>
+                  <Th color="gray.400" isNumeric>{t('invoices.vatAmount', 'VAT')}</Th>
                 </Tr>
-              ))}
-              {displayVatSummary.length === 0 && (
-                <Tr><Td colSpan={4}><Text color="gray.500" fontSize="sm">—</Text></Td></Tr>
-              )}
-            </Tbody>
-          </Table>
+              </Thead>
+              <Tbody>
+                {displayVatSummary.map((vs, idx) => (
+                  <Tr key={idx}>
+                    <Td color="white" fontSize="sm">{vs.vat_code}</Td>
+                    <Td color="white" fontSize="sm" isNumeric>{vs.vat_rate}%</Td>
+                    <Td color="white" fontSize="sm" isNumeric>{formatCurrency(vs.base_amount, currency)}</Td>
+                    <Td color="white" fontSize="sm" isNumeric>{formatCurrency(vs.vat_amount, currency)}</Td>
+                  </Tr>
+                ))}
+                {displayVatSummary.length === 0 && (
+                  <Tr><Td colSpan={4}><Text color="gray.500" fontSize="sm">—</Text></Td></Tr>
+                )}
+              </Tbody>
+            </Table>
+          </Box>
         </Box>
       )}
 

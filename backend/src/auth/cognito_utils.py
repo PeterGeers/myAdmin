@@ -16,7 +16,7 @@ import functools
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -469,7 +469,11 @@ def _extract_with_base64(
     # Check token expiration (optional but recommended for fallback)
     exp = payload.get("exp")
     if exp:
-        current_time = datetime.utcnow().timestamp()
+        # JWT `exp` is seconds since the Unix epoch in UTC (RFC 7519). Use a
+        # timezone-aware UTC datetime so `.timestamp()` converts correctly
+        # regardless of the server's local timezone. A naive `utcnow()` would
+        # be interpreted as local time by `.timestamp()`, skewing the check.
+        current_time = datetime.now(timezone.utc).timestamp()
         if current_time > exp:
             return None, None, create_error_response(401, "Token has expired")
 
@@ -560,7 +564,7 @@ def log_successful_access(
         details: Optional additional details
     """
     log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "user_email": user_email,
         "user_roles": user_roles,
         "operation": operation,
@@ -648,17 +652,18 @@ def cognito_required(
             )
 
             # Check required roles (if specified)
-            if required_roles:
-                if not any(role in user_roles for role in required_roles):
-                    logger.debug(
-                        f"Role check failed for {f.__name__}. Required: {required_roles}, User has: {user_roles}"
-                    )
-                    return jsonify(
-                        {
-                            "error": "Insufficient permissions",
-                            "details": f"Required roles: {', '.join(required_roles)}",
-                        }
-                    ), 403
+            if required_roles and not any(
+                role in user_roles for role in required_roles
+            ):
+                logger.debug(
+                    f"Role check failed for {f.__name__}. Required: {required_roles}, User has: {user_roles}"
+                )
+                return jsonify(
+                    {
+                        "error": "Insufficient permissions",
+                        "details": f"Required roles: {', '.join(required_roles)}",
+                    }
+                ), 403
 
             # Check required permissions (if specified)
             if required_permissions:

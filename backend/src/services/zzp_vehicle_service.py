@@ -107,11 +107,11 @@ class VehicleService:
         if (
             "start_odometer" in data
             and int(data["start_odometer"]) != existing["start_odometer"]
+            and self._has_trips(tenant, vehicle_id)
         ):
-            if self._has_trips(tenant, vehicle_id):
-                raise ValueError(
-                    "Cannot change start_odometer: trips already exist for this vehicle"
-                )
+            raise ValueError(
+                "Cannot change start_odometer: trips already exist for this vehicle"
+            )
 
         # Validate vehicle_type if being changed
         if "vehicle_type" in data:
@@ -123,9 +123,8 @@ class VehicleService:
                 )
 
         # Validate odometer_unit if being changed
-        if "odometer_unit" in data:
-            if data["odometer_unit"] not in ("km", "miles"):
-                raise ValueError("odometer_unit must be 'km' or 'miles'")
+        if "odometer_unit" in data and data["odometer_unit"] not in ("km", "miles"):
+            raise ValueError("odometer_unit must be 'km' or 'miles'")
 
         # Build dynamic update
         updatable_fields = [

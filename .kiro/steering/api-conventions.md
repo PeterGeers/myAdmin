@@ -1,6 +1,6 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "backend/src/**/*.py"
+fileMatchPattern: "backend/src/routes/**/*.py,backend/src/services/**/*.py"
 ---
 
 # API Conventions

@@ -1,3 +1,7 @@
+---
+inclusion: auto
+---
+
 # Tech Stack
 
 ## Frontend

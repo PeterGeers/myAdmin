@@ -372,10 +372,13 @@ class MutatisCacheLoaderMixin:
 
         # Legacy: check if year exists in any tenant's data
         for entry in self._tenant_data.values():
-            if entry.data is not None and "jaar" in entry.data.columns:
-                if year in entry.data["jaar"].unique():
-                    logger.info(f"Year {year} already in cache")
-                    return False
+            if (
+                entry.data is not None
+                and "jaar" in entry.data.columns
+                and year in entry.data["jaar"].unique()
+            ):
+                logger.info(f"Year {year} already in cache")
+                return False
 
         # Load for all tenants
         with self.lock:

@@ -326,7 +326,7 @@ class TestScopeLevelDeleteIsolation:
         # System value is untouched
         assert ('system', '_system_', ns, key) in db._stored
 
-    @settings(max_examples=100, derandomize=True)
+    @settings(max_examples=100, derandomize=True, deadline=None)
     @given(
         ns=namespace_st,
         key=key_st,

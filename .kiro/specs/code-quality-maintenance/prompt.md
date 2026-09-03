@@ -92,6 +92,34 @@ Run these locally and capture output:
 
 5. **Ruff version alignment**: Compare local `ruff --version` with CI version (check workflow file or CI logs). If mismatched, note in findings.
 
+6. **Mobile compliance**: Verify that all frontend functions/components are optimized for mobile devices unless a component is explicitly marked as not requiring it. Treat any function/component that renders UI, handles user interaction, or affects layout as requiring mobile optimization. Flag violations where:
+
+   - Fixed pixel widths/heights that don't adapt to small viewports (e.g. `width: 1200px`, non-responsive `min-width`) instead of responsive units (`%`, `rem`, `vw`, `clamp()`) or responsive breakpoints.
+   - Missing responsive breakpoints — components with desktop-only layouts and no mobile/tablet handling (no media queries, no responsive Tailwind/MUI breakpoints like `sm:`/`md:` or `xs`/`sm` props).
+   - Touch targets smaller than 44x44px (buttons, links, icons meant to be tapped).
+   - Horizontal overflow risks — wide tables, grids, or flex rows without `overflow-x` handling or a mobile stacked/card fallback.
+   - Hover-only interactions with no touch/tap equivalent (e.g. tooltips or menus that only appear on `:hover`).
+   - Non-responsive font sizes or spacing hardcoded for desktop.
+   - Viewport/meta issues — check `index.html` has `<meta name="viewport" content="width=device-width, initial-scale=1">`.
+
+   A function/component is **exempt** only if it carries an explicit marker that it is not required to be mobile-optimized — e.g. a `// mobile-exempt:` comment, a `data-mobile-exempt` attribute, or an entry in a documented exemption list. Record exempt items separately (do not count them as violations) so reviewers can audit the exemptions.
+
+   Suggested scan:
+
+   ```bash
+   # Fixed pixel widths (heuristic — review matches)
+   grep -rn "width:\s*[0-9]\{3,\}px\|minWidth:\s*[0-9]\{3,\}\|min-width:\s*[0-9]\{3,\}px" frontend/src/ --include="*.ts" --include="*.tsx" --include="*.css" | grep -vi "mobile-exempt"
+
+   # Components with no responsive breakpoints (no media queries / no responsive props)
+   grep -rLn "@media\|sm:\|md:\|lg:\|breakpoints\|useMediaQuery" frontend/src/ --include="*.tsx" | grep -vi "mobile-exempt"
+
+   # Hover-only interactions
+   grep -rn ":hover" frontend/src/ --include="*.css" --include="*.tsx" | grep -vi "mobile-exempt"
+
+   # Explicitly exempt items (record separately, do not flag)
+   grep -rn "mobile-exempt" frontend/src/
+   ```
+
 Exclude: test files, `.venv/`, `node_modules/`, `__pycache__/`, `build/`, `dist/`, `.hypothesis/`, `mysql_data/`.
 
 ### Step 5: Generate the spec
@@ -106,6 +134,7 @@ Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YY
 - Dead code: N items
 - Missing test coverage: N modules without tests
 - Type safety: N issues
+- Mobile compliance: N components/functions not mobile-optimized (plus M explicitly exempt, listed separately)
 - Stale documentation: N outdated files
 
 **tasks.md**: Actionable fix tasks grouped by priority:
@@ -114,6 +143,8 @@ Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YY
 2. **High** — test assertion failures (tests that run but fail), ruff lint errors (CI-blocking)
 3. **Medium** — file length violations over 1000 lines, dead code removal
 4. **Low** — missing test coverage, type hints, stale documentation, files 500-1000 lines
+
+Mobile compliance violations should be prioritized by user impact: **High** for components that are unusable on mobile (horizontal overflow, touch targets too small, no responsive layout on primary user flows), **Medium** for degraded-but-usable issues (hover-only interactions with keyboard/tap fallback missing, non-responsive spacing), **Low** for cosmetic issues on secondary/admin-only screens.
 
 Each task should have: file path, specific action, estimated effort (S/M/L).
 
@@ -257,3 +288,14 @@ ruff check src/ --exclude src/validate_pattern/
 ruff format --check src/ --exclude src/validate_pattern/
 vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
 ```
+
+### Rule 14: Mobile-first is the default — desktop-only is the exception
+
+Every frontend function/component that renders UI or handles interaction must be mobile-optimized unless it carries an explicit exemption marker (`// mobile-exempt: <reason>`, `data-mobile-exempt`, or a documented exemption list entry). When adding or refactoring a component:
+
+1. Use responsive units and breakpoints (`%`, `rem`, `vw`, `clamp()`, Tailwind `sm:`/`md:`, MUI `useMediaQuery`/breakpoint props) instead of fixed pixel dimensions.
+2. Ensure tap targets are at least 44x44px.
+3. Give wide tables/grids a mobile fallback (horizontal scroll container or stacked card layout).
+4. Provide a touch/tap equivalent for any hover-only interaction.
+
+If a component genuinely does not need mobile support (e.g. an internal desktop-only admin tool), add the exemption marker with a reason so it is recorded — never silently skip it. The mobile compliance scan (Step 4, item 6) must run every cycle, and violations must appear in tasks.md prioritized by user impact.

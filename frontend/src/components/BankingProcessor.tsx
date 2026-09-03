@@ -17,7 +17,7 @@ import { useBankingProcessor } from '../hooks/useBankingProcessor';
 
 // Re-export types and utilities for backward compatibility
 export type { Transaction, CreditCardAccount, LookupData } from './BankingProcessor.types';
-export { parseCSVRow, processRevolutTransaction, processRabobankTransaction } from './BankingProcessor.utils';
+export { parseCSVRow, processRevolutTransaction, processRabobankTransaction, resolveAccountCandidates } from './BankingProcessor.utils';
 
 const BankingProcessor: React.FC = () => {
   const bp = useBankingProcessor();

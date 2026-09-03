@@ -1,3 +1,7 @@
+---
+inclusion: auto
+---
+
 # Product Overview
 
 myAdmin is a comprehensive financial transaction processing and administrative tooling system for managing invoices, banking transactions, and short-term rental (STR) operations.

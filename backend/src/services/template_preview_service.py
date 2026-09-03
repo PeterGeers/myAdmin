@@ -459,7 +459,7 @@ class TemplatePreviewService:
 
         except Exception as e:
             logger.error(f"Failed to save template to Google Drive: {e}")
-            raise Exception(f"Failed to save template to Google Drive: {e!s}")
+            raise RuntimeError(f"Failed to save template to Google Drive: {e!s}") from e
 
     def _update_template_metadata(
         self,
@@ -556,7 +556,7 @@ class TemplatePreviewService:
 
         except Exception as e:
             logger.error(f"Failed to update template metadata: {e}")
-            raise Exception(f"Failed to update template metadata: {e!s}")
+            raise RuntimeError(f"Failed to update template metadata: {e!s}") from e
 
     def _log_template_approval(
         self,

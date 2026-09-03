@@ -403,14 +403,14 @@ def predict_debet(
             and pattern.get("administration") == administration
             and pattern.get("confidence", 0) > 0
             and pattern.get("occurrences", 0) >= 1
-        ):
             # Match on full verb or company
-            if (
+            and (
                 pattern.get("verb") == verb
                 or pattern.get("verb_company") == verb_company
                 and not is_compound
-            ):
-                matching_patterns.append((key, pattern))
+            )
+        ):
+            matching_patterns.append((key, pattern))
 
     if matching_patterns:
         best_pattern = resolve_pattern_conflicts(
@@ -522,14 +522,14 @@ def predict_credit(
             and pattern.get("administration") == administration
             and pattern.get("confidence", 0) > 0
             and pattern.get("occurrences", 0) >= 1
-        ):
             # Match on full verb or company
-            if (
+            and (
                 pattern.get("verb") == verb
                 or pattern.get("verb_company") == verb_company
                 and not is_compound
-            ):
-                matching_patterns.append((key, pattern))
+            )
+        ):
+            matching_patterns.append((key, pattern))
 
     if matching_patterns:
         best_pattern = resolve_pattern_conflicts(
@@ -650,12 +650,11 @@ def predict_reference(
             is_compound
             and pattern.get("verb_company") == verb_company
             and pattern.get("is_compound")
+            # Both compound: same company, different reference (high confidence only).
+            # Require 2+ occurrences for compound matching.
+            and pattern.get("occurrences", 0) >= 2
         ):
-            # Both compound: same company, different reference (high confidence only)
-            if (
-                pattern.get("occurrences", 0) >= 2
-            ):  # Require 2+ occurrences for compound matching
-                matching_patterns.append((key, pattern, "company_match", 0.8))
+            matching_patterns.append((key, pattern, "company_match", 0.8))
 
     if matching_patterns:
         # Sort by match quality and confidence

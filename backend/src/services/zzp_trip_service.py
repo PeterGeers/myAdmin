@@ -20,6 +20,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 import logging
 from datetime import date, datetime
 from decimal import Decimal
+from typing import ClassVar
 
 from services.field_config_mixin import FieldConfigMixin
 from services.zzp_trip_calculation_service import TripCalculationService
@@ -37,7 +38,7 @@ class TripService(FieldConfigMixin):
     """
 
     FIELD_CONFIG_KEY = "trip_field_config"
-    ALWAYS_REQUIRED = [
+    ALWAYS_REQUIRED: ClassVar[list[str]] = [
         "vehicle_id",
         "trip_date",
         "start_address",
@@ -49,7 +50,7 @@ class TripService(FieldConfigMixin):
     ]
 
     # Fields that can be updated via update_trip (excludes distance_km which is generated)
-    UPDATABLE_FIELDS = [
+    UPDATABLE_FIELDS: ClassVar[list[str]] = [
         "trip_date",
         "start_time",
         "end_time",

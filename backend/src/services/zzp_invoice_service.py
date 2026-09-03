@@ -11,6 +11,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.3
 
 import logging
 from datetime import date, timedelta
+from typing import ClassVar
 
 from dialect_helpers import dialect
 from services.field_config_mixin import FieldConfigMixin
@@ -25,7 +26,7 @@ class ZZPInvoiceService(FieldConfigMixin):
     """Invoice lifecycle: create, calculate, number, send, credit, copy."""
 
     FIELD_CONFIG_KEY = "invoice_field_config"
-    ALWAYS_REQUIRED = ["contact_id", "invoice_date"]
+    ALWAYS_REQUIRED: ClassVar[list[str]] = ["contact_id", "invoice_date"]
 
     def __init__(
         self,

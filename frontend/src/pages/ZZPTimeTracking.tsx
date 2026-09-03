@@ -95,7 +95,7 @@ const QuickAddBar: React.FC<QuickAddBarProps> = ({ contacts, onAdded }) => {
 
 /* ─── Summary Tabs ─── */
 interface SummaryTabsProps {
-  t: (key: string, options?: Record<string, any>) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
 }
 
 const SummaryTabs: React.FC<SummaryTabsProps> = ({ t }) => {
@@ -126,7 +126,7 @@ const SummaryTabs: React.FC<SummaryTabsProps> = ({ t }) => {
     <Box bg="gray.700" p={4} borderRadius="md" mt={4}>
       <Text fontSize="md" fontWeight="bold" color="white" mb={3}>{t('timeTracking.summary')}</Text>
       <Tabs variant="soft-rounded" colorScheme="orange" size="sm"
-        onChange={idx => setGroupBy(['contact', 'project', 'period'][idx] as any)}>
+        onChange={idx => setGroupBy((['contact', 'project', 'period'] as const)[idx])}>
         <TabList>
           <Tab color="gray.300" _selected={{ color: 'white', bg: 'orange.500' }}>{t('timeTracking.byContact')}</Tab>
           <Tab color="gray.300" _selected={{ color: 'white', bg: 'orange.500' }}>{t('timeTracking.byProject')}</Tab>

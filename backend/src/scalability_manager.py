@@ -232,8 +232,10 @@ class AdvancedConnectionPool:
             if connection:
                 try:
                     connection.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # Errors while returning/closing a pooled connection are
+                    # non-fatal and must not mask the original request outcome.
+                    logger.debug("Error closing pooled connection: %s", exc)
 
             # Update response time statistics
             response_time = time.time() - start_time

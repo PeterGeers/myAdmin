@@ -1,3 +1,7 @@
+---
+inclusion: auto
+---
+
 # Shell Environment
 
 ## Critical: This is a WSL workspace

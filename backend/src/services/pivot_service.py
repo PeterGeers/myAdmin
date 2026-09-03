@@ -114,8 +114,9 @@ def _get_param_list(parameter_service, key: str) -> list:
         val = parameter_service.get_param(namespace="ui.pivot", key=key)
         if val and isinstance(val, list):
             return val
-    except Exception:
-        pass
+    except Exception as exc:
+        # Missing/unreadable parameter falls back to an empty list.
+        logger.debug("Could not read list param ui.pivot/%s: %s", key, exc)
     return []
 
 
@@ -127,8 +128,9 @@ def _get_param_str(parameter_service, key: str) -> str | None:
         val = parameter_service.get_param(namespace="ui.pivot", key=key)
         if val and isinstance(val, str):
             return val
-    except Exception:
-        pass
+    except Exception as exc:
+        # Missing/unreadable parameter falls back to None.
+        logger.debug("Could not read str param ui.pivot/%s: %s", key, exc)
     return None
 
 
@@ -142,11 +144,9 @@ def build_registry_from_db(db, parameter_service=None) -> None:
     Raises:
         RuntimeError: if any data source cannot be introspected.
     """
-    global \
-        SYSTEM_ALLOWED_COLUMNS, \
-        COLUMN_TYPE_MAP, \
-        DATA_SOURCE_LABELS, \
-        DATA_SOURCE_MODULES
+    # SYSTEM_ALLOWED_COLUMNS, COLUMN_TYPE_MAP, DATA_SOURCE_LABELS and
+    # DATA_SOURCE_MODULES are mutated in place (item assignment), so no
+    # `global` declaration is required for them.
     global _registry_initialised
 
     # Which views/tables to register
@@ -201,7 +201,8 @@ def ensure_registry(db=None, parameter_service=None) -> None:
     are ``None`` the function creates throwaway instances using the
     current ``TEST_MODE`` environment variable.
     """
-    global _registry_initialised
+    # _registry_initialised is only read here (assignment happens inside
+    # build_registry_from_db), so no `global` declaration is needed.
     if _registry_initialised:
         return
 

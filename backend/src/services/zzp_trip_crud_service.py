@@ -16,6 +16,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 
 import json
 import logging
+from typing import ClassVar
 
 from db_exceptions import IntegrityError
 
@@ -26,7 +27,7 @@ class TripCrudService:
     """Trip CRUD operations: create, update, cancel, gap-fill."""
 
     # Fields that can be updated via update_trip (excludes distance_km which is generated)
-    UPDATABLE_FIELDS = [
+    UPDATABLE_FIELDS: ClassVar[list[str]] = [
         "trip_date",
         "start_time",
         "end_time",

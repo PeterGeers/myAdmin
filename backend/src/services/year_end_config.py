@@ -11,7 +11,7 @@ Account Purposes:
 Note: Opening balances use equity_result account for balancing (no separate interim account needed).
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from database import DatabaseManager
 
@@ -20,7 +20,7 @@ class YearEndConfigService:
     """Service for managing year-end closure configuration"""
 
     # Required account purposes for year-end closure
-    REQUIRED_PURPOSES = {
+    REQUIRED_PURPOSES: ClassVar[dict[str, dict[str, str]]] = {
         "equity_result": {
             "description": "Equity result account (where net P&L is recorded)",
             "expected_vw": "N",  # Balance sheet account

@@ -290,9 +290,10 @@ class FileCleanupActions:
                     f"Path traversal attempt detected in URL: {file_url}"
                 )
 
-        if file_url.startswith(("file://", "ftp://", "sftp://")):
-            if not file_url.startswith("file://") or not self._is_development_mode():
-                raise SecurityError(f"Suspicious protocol in URL: {file_url}")
+        if file_url.startswith(("file://", "ftp://", "sftp://")) and (
+            not file_url.startswith("file://") or not self._is_development_mode()
+        ):
+            raise SecurityError(f"Suspicious protocol in URL: {file_url}")
 
         logger.debug(
             f"[{operation_id}] File URL security validation passed: {file_url}"

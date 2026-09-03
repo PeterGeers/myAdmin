@@ -12,6 +12,65 @@ from db_exceptions import IntegrityError
 from services.media_asset_service import MediaAssetService
 
 
+# ============================================================================
+# Module-level test environment
+# ============================================================================
+#
+# Every test in this module exercises MediaAssetService, whose bucket
+# resolution reads S3_SHARED_BUCKET / LANDING_PAGES_BUCKET from os.environ at
+# CALL time (not at construction). Several tests also reach code paths that
+# instantiate a real boto3 S3 client.
+#
+# On CI there is no .env file, so neither the bucket env vars nor AWS
+# credentials are present. Previous per-class `service_with_env` fixtures set
+# the env var inside a `with patch.dict(...)` block but returned the service
+# from inside that block, so the patch was torn down before the test body ran
+# — meaning the env var was never actually set during the test. Locally this
+# went unnoticed because database.py calls load_dotenv() at import, leaking the
+# developer's real .env (bucket names + AWS credentials) into os.environ.
+#
+# This autouse, module-scoped fixture fixes it once for the ENTIRE module: it
+# guarantees the bucket env vars are set for the duration of every test and
+# replaces boto3.client with a MagicMock so no real AWS credentials are ever
+# required. Newly added test classes inherit this automatically, so the
+# recurring S3_SHARED_BUCKET / NoCredentialsError failures cannot regress.
+#
+# Tests that patch `services.media_asset_service.boto3.client` themselves (e.g.
+# TestUploadRaw, TestDeleteRaw, TestGetPresignedUrl) still work: their inner
+# `with patch(...)` overrides this default mock for the test body and restores
+# it on exit. TestResolveBucket::test_missing_env_var_raises_valueerror clears
+# os.environ within its own `with patch.dict(..., clear=True)` block, so it is
+# also unaffected.
+@pytest.fixture(autouse=True)
+def media_asset_test_env():
+    """Set bucket env vars and mock boto3 for the whole media-asset test module.
+
+    autouse so every test class (TestStoreAndRegister, TestLifecycle,
+    TestReconcileReferences, TestImportLegacyAssets, TestImportIntegration, ...)
+    inherits it without per-class wiring.
+    """
+    bucket_env = {
+        'S3_SHARED_BUCKET': 'test-shared-bucket',
+        'LANDING_PAGES_BUCKET': 'test-public-pages-bucket',
+    }
+    # LandingPageService talks to DynamoDB via a boto3 *resource* (not the s3
+    # client), so mocking boto3.client alone is not enough for the reconcile
+    # path that resolves landing_page references. Patch the service class where
+    # it is imported (lazily, inside _reconcile_references) so no real AWS
+    # resource / credentials are ever needed. get_draft returns a truthy value
+    # by default (entity exists); tests that need a "missing" draft override the
+    # instance on the service under test.
+    mock_landing_page_service = MagicMock()
+    mock_landing_page_service.get_draft.return_value = {'slug': 'exists'}
+    with patch.dict(os.environ, bucket_env), \
+            patch('services.media_asset_service.boto3.client', return_value=MagicMock()), \
+            patch(
+                'services.landing_page_service.LandingPageService',
+                return_value=mock_landing_page_service,
+            ):
+        yield
+
+
 @pytest.fixture
 def mock_db():
     db = MagicMock()

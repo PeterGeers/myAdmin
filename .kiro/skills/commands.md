@@ -1,5 +1,5 @@
 ---
-inclusion: manual
+inclusion: auto
 ---
 
 # Commands & Environment
@@ -25,9 +25,8 @@ npm run preview              # Serve production build locally
 
 ```bash
 cd backend
-.\.venv\Scripts\Activate.ps1  # Activate venv (Windows)
+source .venv/bin/activate     # Activate venv (WSL/Linux)
 python src/app.py             # Flask server (port 5000)
-.\powershell\start_backend.ps1  # Or use PowerShell script
 
 pytest                        # All tests
 pytest tests/unit/            # Unit tests only
@@ -35,7 +34,6 @@ pytest tests/unit/test_maintenance/ -v  # Test maintenance framework tests
 pytest tests/api/             # API tests only
 pytest tests/integration/     # Integration tests only
 pytest --cov=src tests/       # With coverage
-.\powershell\run_tests.ps1    # Or use PowerShell script
 ```
 
 ## Test Maintenance Tools
@@ -73,40 +71,26 @@ docker-compose up -d --build  # Rebuild
 ## Database
 
 ```bash
-mysql -u peter -p             # Connect to MySQL
+mysql -u peter -p             # Connect to local MySQL
 python scripts/database/fix_database_views.py  # Run migrations
 ```
 
+> For Railway DB connections and migration details, use `#database` skill.
+
 ## Railway (Production)
 
-All scripts in `backend/powershell/`. Run from the `backend/` directory.
-
-```powershell
-# Run SQL queries against Railway MySQL
-.\powershell\railway-sql.ps1 -Query "SELECT COUNT(*) FROM mutaties"
-.\powershell\railway-sql.ps1 -File "sql/migration.sql"
-.\powershell\railway-sql.ps1 -TestDb -Query "SHOW TABLES"
-
-# Run Python scripts against Railway MySQL (migrations, data fixes, ad-hoc testing)
-.\powershell\railway-run.ps1 -Script "scripts/database/fix_database_views.py"
-.\powershell\railway-run.ps1 -Script "src/app.py"        # Local backend, Railway DB
-.\powershell\railway-run.ps1 -TestDb -Script "my_fix.py"  # Against testfinance
-
-# Local frontend pointing at Railway backend
-.\powershell\connect-railway-backend.ps1
-```
-
-Railway MySQL proxy: `shinkansen.proxy.rlwy.net:42375`
 Railway backend: `https://invigorating-celebration-production.up.railway.app`
 
-**Railway DB connection from Python (Kiro):**
+> For Railway MySQL connection details, use `#database` skill.
 
-- Get password: `railway variables` → use `DB_PASSWORD` from the backend service
-- Connect to database `railway`, then `USE finance` (the data lives in `finance`)
-- The `railway-run.ps1` scripts prompt for password interactively — for Kiro, set env vars directly:
-  ```
-  $env:DB_HOST='shinkansen.proxy.rlwy.net'; $env:DB_PORT='42375'; $env:DB_USER='root'; $env:DB_PASSWORD='<from railway variables>'; $env:DB_NAME='railway'
-  ```
+### PowerShell scripts (Windows terminal only)
+
+The `backend/powershell/` directory contains convenience scripts for Railway operations.
+These must be run from a Windows PowerShell terminal, not from WSL:
+
+- `railway-sql.ps1` — Run SQL queries against Railway MySQL
+- `railway-run.ps1` — Run Python scripts against Railway MySQL
+- `connect-railway-backend.ps1` — Local frontend pointing at Railway backend
 
 ## Environment Configuration
 

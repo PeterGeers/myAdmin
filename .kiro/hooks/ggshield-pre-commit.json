@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Local Secret Scan (pre-commit)",
+      "trigger": "PreToolUse",
+      "description": "Syncs auth layer, then runs local regex secret scanner on staged files. Blocks commit if secrets found.",
+      "matcher": ".*git_commit.*",
+      "action": {
+        "type": "command",
+        "command": "bash -c 'cd /home/peter/projects/myAdmin && src=\"backend/shared/auth_utils.py\" && dst=\"backend/layers/auth-layer/python/shared/auth_utils.py\" && if [ -f \"$src\" ] && [ -f \"$dst\" ]; then if [ \"$(md5sum \"$src\" | cut -d\" \" -f1)\" != \"$(md5sum \"$dst\" | cut -d\" \" -f1)\" ]; then cp \"$src\" \"$dst\" && git add \"$dst\" && echo \"Auth layer synced\"; fi; fi && ./scripts/scan-secrets-local.sh'",
+        "timeout": 15
+      }
+    }
+  ]
+}

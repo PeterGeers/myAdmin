@@ -408,7 +408,7 @@ Format your response as JSON:
 
             # Validate structure
             if not isinstance(parsed, dict):
-                raise ValueError("Response is not a dictionary")
+                raise TypeError("Response is not a dictionary")
 
             # Ensure required fields exist
             if "analysis" not in parsed:
@@ -526,19 +526,17 @@ Format your response as JSON:
                     template = template.replace("</head>", f"{code_to_add}\n</head>", 1)
                     return template
 
-            elif "footer" in location_lower:
-                # Try to add in footer section
-                if "<footer" in template:
-                    template = template.replace(
-                        "</footer>", f"{code_to_add}\n</footer>", 1
-                    )
-                    return template
+            elif "footer" in location_lower and "<footer" in template:
+                # Try to add in footer section, before closing footer tag
+                template = template.replace("</footer>", f"{code_to_add}\n</footer>", 1)
+                return template
 
-            elif "body" in location_lower or "main" in location_lower:
+            elif ("body" in location_lower or "main" in location_lower) and (
+                "<main" in template
+            ):
                 # Try to add in body/main section
-                if "<main" in template:
-                    template = template.replace("</main>", f"{code_to_add}\n</main>", 1)
-                    return template
+                template = template.replace("</main>", f"{code_to_add}\n</main>", 1)
+                return template
 
             # Default: add before closing body tag
             if "</body>" in template:

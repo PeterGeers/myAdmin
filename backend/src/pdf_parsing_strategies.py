@@ -14,7 +14,9 @@ from pypdf import PdfReader
 
 try:
     import pytesseract
-    from PIL import Image
+    from PIL import (
+        Image,  # noqa: F401  # availability probe: OCR path is skipped if Pillow is absent
+    )
 
     pytesseract.pytesseract.tesseract_cmd = (
         r"C:\Program Files\Tesseract-OCR\tesseract.exe"

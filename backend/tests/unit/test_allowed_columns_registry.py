@@ -137,7 +137,7 @@ disallowed_col_st = st.text(
 class TestColumnResolutionIntersection:
     """Resolved columns = intersection of system max and tenant restriction."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True, deadline=None)
     @given(restriction=tenant_restriction_st())
     def test_with_tenant_restriction(self, restriction):
         """With a tenant restriction, result is intersection."""
