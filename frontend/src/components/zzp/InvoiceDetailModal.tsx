@@ -20,10 +20,15 @@ interface InvoiceDetailModalProps {
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   isOpen, onClose, invoiceId, onSaved,
 }) => (
-  <Modal isOpen={isOpen} onClose={onClose} size="4xl" closeOnOverlayClick={false}
-    scrollBehavior="inside">
+  <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '4xl' }}
+    closeOnOverlayClick={false} scrollBehavior="inside">
     <ModalOverlay />
-    <ModalContent bg="gray.800" color="white" maxW="900px">
+    <ModalContent
+      bg="gray.800"
+      color="white"
+      maxW={{ base: '100%', md: '900px' }}
+      maxH={{ base: '100vh', md: '85vh' }}
+    >
       <ModalCloseButton />
       <ZZPInvoiceDetail
         invoiceId={invoiceId}
