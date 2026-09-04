@@ -225,12 +225,12 @@ export const TripModal: React.FC<TripModalProps> = ({
   /* ─── Read-only view for billed/cancelled trips ─── */
   if (isReadOnly && trip) {
     return (
-      <Modal isOpen={isOpen} onClose={onClose} size="xl" closeOnOverlayClick={false}>
+      <Modal isOpen={isOpen} onClose={onClose} size="xl" scrollBehavior="inside" closeOnOverlayClick={false}>
         <ModalOverlay />
         <ModalContent bg="gray.800" color="white">
           <ModalHeader>{trip.trip_date} — {trip.start_address} → {trip.end_address}</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
+          <ModalBody maxH="70vh" overflowY="auto">
             <Text color="orange.300" mb={4}>
               {isBilled
                 ? t('trips.readOnly.billed')
@@ -264,222 +264,222 @@ export const TripModal: React.FC<TripModalProps> = ({
 
   /* ─── Editable form ─── */
   return (
-  <>
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" closeOnOverlayClick={false}>
-      <ModalOverlay />
-      <ModalContent bg="gray.800" color="white">
-        <ModalHeader>
-          {isEdit
-            ? `${trip!.trip_date} — ${trip!.start_address} → ${trip!.end_address}`
-            : t('trips.newTrip')}
-        </ModalHeader>
-        <ModalCloseButton />
-        <Formik
-          initialValues={initialValues}
-          validationSchema={validationSchema}
-          onSubmit={handleSubmit}
-          enableReinitialize
-        >
-          {({ isSubmitting, values, setFieldValue, errors, touched }) => (
-            <Form>
-              <ModalBody>
-                <VStack spacing={3}>
-                  {/* Date + Times */}
-                  <HStack w="full" spacing={3}>
-                    <FormControl isRequired isInvalid={!!errors.trip_date && !!touched.trip_date} flex={2}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.date')}</FormLabel>
-                      <Field as={Input} name="trip_date" type="date" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                      <FormErrorMessage>{errors.trip_date}</FormErrorMessage>
-                    </FormControl>
-                    <FormControl flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.startTime')}</FormLabel>
-                      <Field as={Input} name="start_time" type="time" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                    </FormControl>
-                    <FormControl flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.endTime')}</FormLabel>
-                      <Field as={Input} name="end_time" type="time" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                    </FormControl>
-                  </HStack>
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} size="xl" scrollBehavior="inside" closeOnOverlayClick={false}>
+        <ModalOverlay />
+        <ModalContent bg="gray.800" color="white">
+          <ModalHeader>
+            {isEdit
+              ? `${trip!.trip_date} — ${trip!.start_address} → ${trip!.end_address}`
+              : t('trips.newTrip')}
+          </ModalHeader>
+          <ModalCloseButton />
+          <Formik
+            initialValues={initialValues}
+            validationSchema={validationSchema}
+            onSubmit={handleSubmit}
+            enableReinitialize
+          >
+            {({ isSubmitting, values, setFieldValue, errors, touched }) => (
+              <Form>
+                <ModalBody maxH="70vh" overflowY="auto">
+                  <VStack spacing={3}>
+                    {/* Date + Times */}
+                    <HStack w="full" spacing={3}>
+                      <FormControl isRequired isInvalid={!!errors.trip_date && !!touched.trip_date} flex={2}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.date')}</FormLabel>
+                        <Field as={Input} name="trip_date" type="date" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                        <FormErrorMessage>{errors.trip_date}</FormErrorMessage>
+                      </FormControl>
+                      <FormControl flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.startTime')}</FormLabel>
+                        <Field as={Input} name="start_time" type="time" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                      </FormControl>
+                      <FormControl flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.endTime')}</FormLabel>
+                        <Field as={Input} name="end_time" type="time" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                      </FormControl>
+                    </HStack>
 
-                  {/* Start / End Address */}
-                  <HStack w="full" spacing={3}>
-                    <FormControl isRequired isInvalid={!!errors.start_address && !!touched.start_address} flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.startAddress')}</FormLabel>
-                      <Field as={Input} name="start_address" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                      <FormErrorMessage>{errors.start_address}</FormErrorMessage>
-                    </FormControl>
-                    <FormControl isRequired isInvalid={!!errors.end_address && !!touched.end_address} flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.endAddress')}</FormLabel>
-                      <Field as={Input} name="end_address" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                      <FormErrorMessage>{errors.end_address}</FormErrorMessage>
-                    </FormControl>
-                  </HStack>
+                    {/* Start / End Address */}
+                    <HStack w="full" spacing={3}>
+                      <FormControl isRequired isInvalid={!!errors.start_address && !!touched.start_address} flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.startAddress')}</FormLabel>
+                        <Field as={Input} name="start_address" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                        <FormErrorMessage>{errors.start_address}</FormErrorMessage>
+                      </FormControl>
+                      <FormControl isRequired isInvalid={!!errors.end_address && !!touched.end_address} flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.endAddress')}</FormLabel>
+                        <Field as={Input} name="end_address" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                        <FormErrorMessage>{errors.end_address}</FormErrorMessage>
+                      </FormControl>
+                    </HStack>
 
-                  {/* Odometers */}
-                  <HStack w="full" spacing={3}>
-                    <FormControl isRequired isInvalid={!!errors.start_odometer && !!touched.start_odometer} flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.startOdometer')}</FormLabel>
-                      <Field as={Input} name="start_odometer" type="number" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                      <FormErrorMessage>{errors.start_odometer}</FormErrorMessage>
-                    </FormControl>
-                    <FormControl isRequired isInvalid={!!errors.end_odometer && !!touched.end_odometer} flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.endOdometer')}</FormLabel>
-                      <Field as={Input} name="end_odometer" type="number" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                      <FormErrorMessage>{errors.end_odometer}</FormErrorMessage>
-                    </FormControl>
-                  </HStack>
+                    {/* Odometers */}
+                    <HStack w="full" spacing={3}>
+                      <FormControl isRequired isInvalid={!!errors.start_odometer && !!touched.start_odometer} flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.startOdometer')}</FormLabel>
+                        <Field as={Input} name="start_odometer" type="number" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                        <FormErrorMessage>{errors.start_odometer}</FormErrorMessage>
+                      </FormControl>
+                      <FormControl isRequired isInvalid={!!errors.end_odometer && !!touched.end_odometer} flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.endOdometer')}</FormLabel>
+                        <Field as={Input} name="end_odometer" type="number" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                        <FormErrorMessage>{errors.end_odometer}</FormErrorMessage>
+                      </FormControl>
+                    </HStack>
 
-                  {/* Category + Purpose */}
-                  <HStack w="full" spacing={3}>
-                    <FormControl isRequired isInvalid={!!errors.trip_category && !!touched.trip_category} flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.category')}</FormLabel>
-                      <Field as={Select} name="trip_category" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" placeholder="—">
-                        {TRIP_CATEGORIES.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
+                    {/* Category + Purpose */}
+                    <HStack w="full" spacing={3}>
+                      <FormControl isRequired isInvalid={!!errors.trip_category && !!touched.trip_category} flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.category')}</FormLabel>
+                        <Field as={Select} name="trip_category" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" placeholder="—">
+                          {TRIP_CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </Field>
+                        <FormErrorMessage>{errors.trip_category}</FormErrorMessage>
+                      </FormControl>
+                      <FormControl isRequired isInvalid={!!errors.trip_purpose && !!touched.trip_purpose} flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.purpose')}</FormLabel>
+                        <Field as={Select} name="trip_purpose" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" placeholder="—">
+                          {TRIP_PURPOSES.map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </Field>
+                        <FormErrorMessage>{errors.trip_purpose}</FormErrorMessage>
+                      </FormControl>
+                    </HStack>
+
+                    {/* Contact + Project */}
+                    <HStack w="full" spacing={3}>
+                      <FormControl flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.client')}</FormLabel>
+                        <Field as={Select} name="contact_id" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" placeholder="—">
+                          {contacts.map(c => (
+                            <option key={c.id} value={c.id}>{c.company_name}</option>
+                          ))}
+                        </Field>
+                      </FormControl>
+                      <FormControl flex={1}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.project')}</FormLabel>
+                        <Field as={Input} name="project_name" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600" />
+                      </FormControl>
+                    </HStack>
+
+                    {/* Notes */}
+                    <FormControl>
+                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.notes')}</FormLabel>
+                      <Field as={Textarea} name="notes" size="sm" rows={2}
+                        bg="gray.700" color="white" borderColor="gray.600" />
+                    </FormControl>
+
+                    {/* Billable toggle */}
+                    <FormControl display="flex" alignItems="center">
+                      <FormLabel color="gray.300" fontSize="sm" mb={0}>{t('trips.labels.billable')}</FormLabel>
+                      <Field name="is_billable">
+                        {({ field }: FieldProps) => (
+                          <Switch
+                            isChecked={field.value}
+                            onChange={(e) => setFieldValue('is_billable', e.target.checked)}
+                            colorScheme="orange"
+                          />
+                        )}
                       </Field>
-                      <FormErrorMessage>{errors.trip_category}</FormErrorMessage>
                     </FormControl>
-                    <FormControl isRequired isInvalid={!!errors.trip_purpose && !!touched.trip_purpose} flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.purpose')}</FormLabel>
-                      <Field as={Select} name="trip_purpose" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" placeholder="—">
-                        {TRIP_PURPOSES.map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </Field>
-                      <FormErrorMessage>{errors.trip_purpose}</FormErrorMessage>
-                    </FormControl>
-                  </HStack>
 
-                  {/* Contact + Project */}
-                  <HStack w="full" spacing={3}>
-                    <FormControl flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.client')}</FormLabel>
-                      <Field as={Select} name="contact_id" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" placeholder="—">
-                        {contacts.map(c => (
-                          <option key={c.id} value={c.id}>{c.company_name}</option>
-                        ))}
-                      </Field>
-                    </FormControl>
-                    <FormControl flex={1}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.project')}</FormLabel>
-                      <Field as={Input} name="project_name" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600" />
-                    </FormControl>
-                  </HStack>
-
-                  {/* Notes */}
-                  <FormControl>
-                    <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.notes')}</FormLabel>
-                    <Field as={Textarea} name="notes" size="sm" rows={2}
-                      bg="gray.700" color="white" borderColor="gray.600" />
-                  </FormControl>
-
-                  {/* Billable toggle */}
-                  <FormControl display="flex" alignItems="center">
-                    <FormLabel color="gray.300" fontSize="sm" mb={0}>{t('trips.labels.billable')}</FormLabel>
-                    <Field name="is_billable">
-                      {({ field }: FieldProps) => (
-                        <Switch
-                          isChecked={field.value}
-                          onChange={(e) => setFieldValue('is_billable', e.target.checked)}
-                          colorScheme="orange"
-                        />
-                      )}
-                    </Field>
-                  </FormControl>
-
-                  {/* Correction reason — edit mode only */}
+                    {/* Correction reason — edit mode only */}
+                    {isEdit && (
+                      <FormControl isRequired isInvalid={!!errors.correction_reason && !!touched.correction_reason}>
+                        <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.correctionReason')}</FormLabel>
+                        <Field as={Input} name="correction_reason" size="sm"
+                          bg="gray.700" color="white" borderColor="gray.600"
+                          placeholder={t('trips.placeholders.correctionReason')} />
+                        <FormErrorMessage>{errors.correction_reason}</FormErrorMessage>
+                      </FormControl>
+                    )}
+                  </VStack>
+                </ModalBody>
+                <ModalFooter>
                   {isEdit && (
-                    <FormControl isRequired isInvalid={!!errors.correction_reason && !!touched.correction_reason}>
-                      <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.correctionReason')}</FormLabel>
-                      <Field as={Input} name="correction_reason" size="sm"
-                        bg="gray.700" color="white" borderColor="gray.600"
-                        placeholder={t('trips.placeholders.correctionReason')} />
-                      <FormErrorMessage>{errors.correction_reason}</FormErrorMessage>
-                    </FormControl>
+                    <Button
+                      colorScheme="red"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCancelConfirm(true)}
+                      mr="auto"
+                    >
+                      {t('trips.actions.cancelTrip')}
+                    </Button>
                   )}
-                </VStack>
-              </ModalBody>
-              <ModalFooter>
-                {isEdit && (
-                  <Button
-                    colorScheme="red"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowCancelConfirm(true)}
-                    mr="auto"
-                  >
-                    {t('trips.actions.cancelTrip')}
+                  <Button variant="ghost" mr={3} onClick={onClose}>{t('common.cancel')}</Button>
+                  <Button colorScheme="orange" type="submit" isLoading={isSubmitting}>
+                    {t('common.save')}
                   </Button>
-                )}
-                <Button variant="ghost" mr={3} onClick={onClose}>{t('common.cancel')}</Button>
-                <Button colorScheme="orange" type="submit" isLoading={isSubmitting}>
-                  {t('common.save')}
-                </Button>
-              </ModalFooter>
-            </Form>
-          )}
-        </Formik>
-      </ModalContent>
-    </Modal>
+                </ModalFooter>
+              </Form>
+            )}
+          </Formik>
+        </ModalContent>
+      </Modal>
 
-    {/* Cancel Trip Confirmation Dialog */}
-    <AlertDialog
-      isOpen={showCancelConfirm}
-      leastDestructiveRef={cancelRef}
-      onClose={() => { setShowCancelConfirm(false); setCancelReason(''); }}
-    >
-      <AlertDialogOverlay>
-        <AlertDialogContent bg="gray.800" color="white">
-          <AlertDialogHeader fontSize="lg" fontWeight="bold">
-            {t('trips.actions.cancelTrip')}
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            <Text mb={3} color="gray.300">
-              {t('trips.cancelConfirm.message')}
-            </Text>
-            <Input
-              placeholder={t('trips.placeholders.cancelReason')}
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              bg="gray.700"
-              borderColor="gray.600"
-              color="white"
-              _placeholder={{ color: 'gray.400' }}
-            />
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <Button
-              ref={cancelRef}
-              variant="ghost"
-              onClick={() => { setShowCancelConfirm(false); setCancelReason(''); }}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              colorScheme="red"
-              onClick={handleCancelTrip}
-              isLoading={cancelling}
-              isDisabled={!cancelReason.trim()}
-              ml={3}
-            >
-              {t('trips.actions.confirmCancel')}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialogOverlay>
-    </AlertDialog>
-  </>
+      {/* Cancel Trip Confirmation Dialog */}
+      <AlertDialog
+        isOpen={showCancelConfirm}
+        leastDestructiveRef={cancelRef}
+        onClose={() => { setShowCancelConfirm(false); setCancelReason(''); }}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.800" color="white">
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              {t('trips.actions.cancelTrip')}
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              <Text mb={3} color="gray.300">
+                {t('trips.cancelConfirm.message')}
+              </Text>
+              <Input
+                placeholder={t('trips.placeholders.cancelReason')}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                bg="gray.700"
+                borderColor="gray.600"
+                color="white"
+                _placeholder={{ color: 'gray.400' }}
+              />
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={cancelRef}
+                variant="ghost"
+                onClick={() => { setShowCancelConfirm(false); setCancelReason(''); }}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleCancelTrip}
+                isLoading={cancelling}
+                isDisabled={!cancelReason.trim()}
+                ml={3}
+              >
+                {t('trips.actions.confirmCancel')}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+    </>
   );
 };

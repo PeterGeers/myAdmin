@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Box, Text, Spinner, useToast, Divider,
+  Box, Flex, Text, Spinner, useToast, Divider,
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { useFieldConfig } from '../hooks/useFieldConfig';
@@ -164,14 +164,14 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   const displayGrandTotal = isEditable ? liveGrandTotal : (invoice?.grand_total ?? 0);
   const displayVatSummary: VatSummaryLine[] = isEditable
     ? Object.values(
-        liveLines.reduce((acc, l) => {
-          const code = l.vat_code || 'high';
-          if (!acc[code]) acc[code] = { vat_code: code, vat_rate: l.vat_rate || 0, base_amount: 0, vat_amount: 0 };
-          acc[code].base_amount += l.line_total || 0;
-          acc[code].vat_amount += l.vat_amount || 0;
-          return acc;
-        }, {} as Record<string, VatSummaryLine>)
-      )
+      liveLines.reduce((acc, l) => {
+        const code = l.vat_code || 'high';
+        if (!acc[code]) acc[code] = { vat_code: code, vat_rate: l.vat_rate || 0, base_amount: 0, vat_amount: 0 };
+        acc[code].base_amount += l.line_total || 0;
+        acc[code].vat_amount += l.vat_amount || 0;
+        return acc;
+      }, {} as Record<string, VatSummaryLine>)
+    )
     : (invoice?.vat_summary || []);
 
   // ── Build invoice payload (shared by save + saveForPreview) ──
@@ -437,8 +437,14 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   }
 
   return (
-    <Box p={4}>
-      {/* Header: invoice number + status + actions */}
+    // Flex column that fills the (bounded) modal height. The action bar is a
+    // fixed top row (pinned, always visible), and everything below it lives in
+    // a flexible, scrollable region. The line-items editor has its own inner
+    // scroll (see InvoiceLineEditor), so in normal use the header fields and
+    // totals stay put and only the lines scroll; the outer overflow here is a
+    // safety net for very short viewports (e.g. mobile in landscape).
+    <Flex direction="column" p={4} h="100%" maxH={{ base: '100vh', md: '85vh' }} overflow="hidden">
+      {/* Header: invoice number + status + actions — PINNED */}
       <InvoiceActionBar
         invoice={invoice}
         isEditable={isEditable}
@@ -458,71 +464,76 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         t={tProp}
       />
 
-      <Divider borderColor="gray.600" mb={4} />
+      {/* Scrollable content region (fills remaining height below pinned bar) */}
+      <Box flex="1" minH={0} overflowY="auto" mt={4}>
+        <Divider borderColor="gray.600" mb={4} />
 
-      {/* Invoice header fields */}
-      <InvoiceHeaderFields
-        contactId={contactId}
-        invoiceDate={invoiceDate}
-        paymentTermsDays={paymentTermsDays}
-        currency={currency}
-        exchangeRate={exchangeRate}
-        notes={notes}
-        revenueAccount={revenueAccount}
-        contacts={contacts}
-        ledgerAccounts={ledgerAccounts}
-        invoice={invoice}
-        isEditable={isEditable}
-        isDraft={isDraft}
-        isVisible={isVisible}
-        isRequired={isRequired}
-        onContactIdChange={v => setContactId(v)}
-        onInvoiceDateChange={setInvoiceDate}
-        onPaymentTermsDaysChange={setPaymentTermsDays}
-        onCurrencyChange={setCurrency}
-        onExchangeRateChange={setExchangeRate}
-        onNotesChange={setNotes}
-        onRevenueAccountChange={setRevenueAccount}
-        t={tProp}
-      />
-
-      <Divider borderColor="gray.600" mb={4} />
-
-      {/* Line items */}
-      <Text fontSize="sm" fontWeight="bold" color="gray.300" mb={2}>
-        {t('invoices.lineItems', 'Line Items')}
-      </Text>
-      <Box overflowX="auto" mb={4}>
-        <InvoiceLineEditor
-          lines={lines}
-          products={products}
-          readOnly={!isEditable}
-          onChange={setLines}
+        {/* Invoice header fields */}
+        <InvoiceHeaderFields
+          contactId={contactId}
+          invoiceDate={invoiceDate}
+          paymentTermsDays={paymentTermsDays}
+          currency={currency}
+          exchangeRate={exchangeRate}
+          notes={notes}
+          revenueAccount={revenueAccount}
+          contacts={contacts}
+          ledgerAccounts={ledgerAccounts}
+          invoice={invoice}
+          isEditable={isEditable}
+          isDraft={isDraft}
+          isVisible={isVisible}
+          isRequired={isRequired}
+          onContactIdChange={v => setContactId(v)}
+          onInvoiceDateChange={setInvoiceDate}
+          onPaymentTermsDaysChange={setPaymentTermsDays}
+          onCurrencyChange={setCurrency}
+          onExchangeRateChange={setExchangeRate}
+          onNotesChange={setNotes}
+          onRevenueAccountChange={setRevenueAccount}
+          t={tProp}
         />
-      </Box>
 
-      <Divider borderColor="gray.600" mb={4} />
+        <Divider borderColor="gray.600" mb={4} />
 
-      {/* VAT summary + totals */}
-      <InvoiceVatTotals
-        displayVatSummary={displayVatSummary}
-        displaySubtotal={displaySubtotal}
-        displayVatTotal={displayVatTotal}
-        displayGrandTotal={displayGrandTotal}
-        currency={currency}
-        isNew={isNew}
-        formatCurrency={formatCurrency}
-        t={tProp}
-      />
-
-      {/* Sent info */}
-      {invoice?.sent_at && (
-        <Text color="gray.500" fontSize="xs" mt={4}>
-          {t('invoices.sentAt', 'Sent')}: {new Date(invoice.sent_at).toLocaleString('nl-NL')}
+        {/* Line items */}
+        <Text fontSize="sm" fontWeight="bold" color="gray.300" mb={2}>
+          {t('invoices.lineItems', 'Line Items')}
         </Text>
-      )}
+        <Box mb={4}>
+          {/* Horizontal + vertical scroll handled inside InvoiceLineEditor */}
+          <InvoiceLineEditor
+            lines={lines}
+            products={products}
+            readOnly={!isEditable}
+            onChange={setLines}
+          />
+        </Box>
 
-      {/* Email preview panel */}
+        <Divider borderColor="gray.600" mb={4} />
+
+        {/* VAT summary + totals */}
+        <InvoiceVatTotals
+          displayVatSummary={displayVatSummary}
+          displaySubtotal={displaySubtotal}
+          displayVatTotal={displayVatTotal}
+          displayGrandTotal={displayGrandTotal}
+          currency={currency}
+          isNew={isNew}
+          formatCurrency={formatCurrency}
+          t={tProp}
+        />
+
+        {/* Sent info */}
+        {invoice?.sent_at && (
+          <Text color="gray.500" fontSize="xs" mt={4}>
+            {t('invoices.sentAt', 'Sent')}: {new Date(invoice.sent_at).toLocaleString('nl-NL')}
+          </Text>
+        )}
+      </Box>
+      {/* End scrollable content region */}
+
+      {/* Email preview panel (renders in a portal) */}
       <EmailPreviewPanel
         isOpen={emailPreviewOpen}
         onClose={() => setEmailPreviewOpen(false)}
@@ -531,14 +542,14 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         isSending={sending}
       />
 
-      {/* PDF Preview modal */}
+      {/* PDF Preview modal (renders in a portal) */}
       <InvoicePreviewModal
         isOpen={previewModalOpen}
         onClose={handlePreviewClose}
         pdfBlobUrl={previewBlobUrl}
         invoiceNumber={invoice?.invoice_number || ''}
       />
-    </Box>
+    </Flex>
   );
 };
 

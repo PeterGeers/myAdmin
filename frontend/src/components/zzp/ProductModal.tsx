@@ -88,7 +88,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   if (configLoading) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg" closeOnOverlayClick={false}>
+    <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside" closeOnOverlayClick={false}>
       <ModalOverlay />
       <ModalContent bg="gray.800" color="white">
         <ModalHeader>{isEdit ? product?.name : t('products.newProduct')}</ModalHeader>
@@ -97,7 +97,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           onSubmit={handleSubmit} enableReinitialize>
           {({ isSubmitting }) => (
             <Form>
-              <ModalBody>
+              <ModalBody maxH="70vh" overflowY="auto">
                 <VStack spacing={3}>
                   {renderField('product_code', t('products.productCode'))}
                   {renderField('name', t('products.name'))}
