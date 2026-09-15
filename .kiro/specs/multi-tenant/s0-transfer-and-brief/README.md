@@ -2,86 +2,91 @@
 
 - Status: In Progress
 - Purpose: carry the multi-tenant analysis **and the decisions made so far** into
-  myAdmin, so Step 1 can be authored **here in myAdmin, grounded in real code** —
-  not reconstructed from memory in a separate workspace. This spec is the handoff.
+  myAdmin, so **Step 1 can be (re)done here in myAdmin, grounded in real code**.
+  Step 0 is only the handoff. **The real next work is redoing S1.**
 
 ## Why this exists
 
 Earlier analysis was done in a separate `mysaas` workspace under the assumption it
-would be a new platform trunk. **That assumption was reversed.** Working outside
-myAdmin meant the model (e.g. `tenant_modules`) kept being guessed at. Step 0 moves
-the artifacts + the settled intent into myAdmin and hands off; Step 1 is authored
-here against the actual codebase.
+would be a new platform trunk. **That assumption was reversed** (see the pivot
+below). Because that worldview is baked through the analysis docs and the earlier
+S1, **S1 must be redone** to reflect myAdmin-as-base — and the analysis docs must be
+reconciled to match. Doing this in myAdmin (not a separate workspace) is deliberate:
+the model (`tenant_modules`, the two-account setup, real steering) must be read from
+actual code, not guessed.
 
 ## THE PIVOT (decided — do not relitigate)
 
 - **myAdmin IS the platform base / trunk.** We evolve myAdmin in place. There is no
-  separate `mysaas` trunk to build.
-- This **supersedes** the imported `docs/decisions/0001` (new target workspace) and
-  `0002` (myAdmin = pattern source, not trunk). Those ADRs are kept as history but
-  are **superseded** — Step 1 should record a new ADR (0003) stating "myAdmin is the
-  platform base; evolve in place; import h-dcn-like apps as platform modules."
-- myAdmin's **existing** `.kiro/steering` is the real, authoritative governance of
-  the live system. It is the **base**. New multi-tenant/identity concepts are
-  **folded in**, not overwritten by the mysaas-era steering.
+  separate `mysaas` trunk.
+- This **supersedes** imported `docs/decisions/0001` (new target workspace) and
+  `0002` (myAdmin = pattern source, not trunk). Kept as history; S1 records a new
+  ADR (0003): "myAdmin is the platform base; evolve in place; import h-dcn-like apps
+  as platform **modules**."
+- myAdmin's **existing** `.kiro/steering` is the authoritative base governance. New
+  concepts are **folded in**, never overwritten by mysaas-era steering.
 
-## WHAT STEP 1 IS (scope — decided)
+## THE WORK: REDO S1 (this is the focus)
 
-**Step 1 = Phase 1: prepare the current myAdmin environment to receive h-dcn-like
-apps as multi-tenant applications.** Generic platform capability only. Five items:
+The earlier S1 ("establish a new mysaas trunk") is void. **Redo S1 as Phase 1:
+prepare the current myAdmin environment to receive h-dcn-like apps as multi-tenant
+applications.** Generic platform capability only. S1 has two parts:
 
-1. **Generic Cognito pool** — the shared identity plane, ready to serve incoming
-   apps (the generic pool capability; not any app's specific users).
-2. **SAM apps come in as MODULES of the platform (NOT as tenants).** Extend
-   myAdmin's existing `tenant_modules` so a module can be **backed by an AWS SAM
-   (Lambda + DynamoDB) application**, alongside existing in-Flask modules. Define the
-   generic plug-in contract: how a SAM-backed module registers, is entitled via
-   `tenant_modules`, authorizes from the verified token, and scopes data by
-   `tenant_id`.
-3. **The two-AWS-account share** — identity account (Cognito) + nonprofit infra/data
-   account (DynamoDB/S3/SES/etc.): topology, roles/profiles, how they're shared
-   across the platform. Phase 1 = readiness/design, not deploying a real SAM app.
-4. **Refactoring pattern** for h-dcn-like apps to fit myAdmin as SAM applications —
-   the generic contract an incoming portal-style app must satisfy. Generic only.
-5. **Review the imported analysis files** — confirm what still holds vs what the
-   pivot superseded; mark superseded framing.
+### Part A — Reconcile the analysis to the new model (do FIRST, in myAdmin)
 
-## EXPLICITLY OUT OF SCOPE FOR STEP 1
+Every imported analysis doc still speaks the old "mysaas separate trunk" language
+and must be reconciled forward to **myAdmin-as-base + SAM-apps-as-modules**. Per the
+`specs-reference` rule: mark superseded framing visibly; supersede, don't erase. Per
+doc:
 
-- **Any h-dcn-specific work** — members, webshop, events, its data/domain logic.
-  Step 1 is about making myAdmin *ready to receive* generic SAM-backed modules, not
-  importing h-dcn.
-- Deploying an actual SAM app (that's a later phase).
+- [ ] `overall_roadmap.md` — reframe: myAdmin is the base; drop mysaas-trunk S1/S1b/
+      S6b "lift into mysaas" framing; steps are changes *to myAdmin*.
+- [ ] `second_thoughts.md` — the workspace-strategy / "new target workspace" section
+      is superseded by the pivot; mark it.
+- [ ] `myadmin_as_base.md` — largely aligns already; confirm and promote.
+- [ ] `migration_plan.md` — reframe as "into myAdmin," not into a new trunk.
+- [ ] `tenant_field_config.md`, `rewrite_vs_refactor.md`, `first_thoughts.md`,
+      `frontend_merge.md`, `frontend_ui_standards.md`, `environments_and_testing.md`
+      — review each; fix trunk/mysaas-layout references; confirm the module framing.
+- [ ] Mark ADR 0001/0002 superseded; draft ADR 0003 (pivot).
 
-## WHAT TRANSFERRED (already copied in this branch)
+### Part B — Define S1 readiness (author after Part A), five capabilities
 
-- `.kiro/specs/multi-tenant/Analysis/` — 10 analysis docs (the reasoning).
-- `.kiro/specs/multi-tenant/s2-jwt-verification/` — the S2 spec (next after S1).
-- `docs/decisions/0001, 0002` — ADRs (now superseded by the pivot; see above).
+1. **Generic Cognito pool** — shared identity plane ready to serve incoming apps.
+2. **SAM apps as MODULES (not tenants)** — extend myAdmin's `tenant_modules` so a
+   module can be backed by an AWS SAM (Lambda + DynamoDB) app; define the generic
+   plug-in contract (register, entitle via `tenant_modules`, authorize from verified
+   token, scope by `tenant_id`).
+3. **Two-AWS-account share** — identity account (Cognito) + nonprofit infra/data
+   account; topology, roles/profiles. Phase 1 = readiness/design.
+4. **Refactoring pattern** for h-dcn-like apps to fit myAdmin as SAM applications
+   (generic contract only).
+5. (Part A's analysis review feeds this.)
 
-## OPEN / TO DECIDE IN STEP 1 (grounded in real myAdmin code)
+## OUT OF SCOPE FOR S1
 
-- Exactly how `tenant_modules` is extended for SAM-backed modules (read the real
-  schema + code first).
-- Governance reconciliation: keep myAdmin's steering as base; fold in the *new*
-  concepts (two-pool `identity`, `environments-and-testing`, SAM-module contract) —
-  file by file, not wholesale.
-- Archive plan: where stale material goes (candidates: the killed `Commerce` spec,
-  root `*_COMPLETE.md` status docs, mysaas-era trunk framing). Confirm against the
-  real tree.
-- Standing test Cognito pool (S2 prerequisite) — S2 code (`jwt_verifier.py`) already
-  lives in myAdmin.
+- **Any h-dcn-specific work** (members, webshop, events, its data). S1 makes myAdmin
+  *ready to receive* generic SAM-backed modules.
+- Deploying an actual SAM app.
+- **S2 (JWT verification) is NOT this step.** The S2 spec was transferred for
+  continuity only; it comes *after* a proper S1. Do not start S2 work here.
 
-## HOW TO START STEP 1
+## WHAT TRANSFERRED (already in this branch)
 
-Open a session **in the myAdmin workspace**. Read: this brief, the imported
-Analysis, and myAdmin's own `.kiro/steering` + `tenant_modules` code. Then author
-`.kiro/specs/multi-tenant/s1-prepare-platform/` (requirements / design / tasks) with
-the scope above — grounded in the real code, not re-derived.
+- `.kiro/specs/multi-tenant/Analysis/` — 10 analysis docs (to be reconciled — Part A).
+- `.kiro/specs/multi-tenant/s2-jwt-verification/` — later step; parked, not now.
+- `docs/decisions/0001, 0002` — superseded by the pivot.
+
+## HOW TO START (next session, in myAdmin)
+
+Read: this brief → myAdmin's own `.kiro/steering` + `tenant_modules` code → the
+imported Analysis. Then **do S1 Part A first** (reconcile the analysis docs), then
+Part B (author `.kiro/specs/multi-tenant/s1-prepare-platform/` requirements/design/
+tasks) — grounded in real code.
 
 ## Step 0 tasks
 
-- [x] Copy Analysis, S2 spec, and ADRs into myAdmin.
-- [x] Write this brief (pivot + Step 1 scope + out-of-scope).
+- [x] Copy Analysis, (parked) S2 spec, and ADRs into myAdmin.
+- [x] Write this brief (pivot + redo-S1 focus + analysis-reconcile-first).
 - [ ] Commit on a branch; review.
-- [ ] (Next session, in myAdmin) author the Step 1 spec grounded in real code.
+- [ ] (Next session, in myAdmin) redo S1 — Part A reconcile analysis, then Part B.
