@@ -19,10 +19,10 @@ actual code, not guessed.
 
 - **myAdmin IS the platform base / trunk.** We evolve myAdmin in place. There is no
   separate `mysaas` trunk.
-- This **supersedes** imported `docs/decisions/0001` (new target workspace) and
-  `0002` (myAdmin = pattern source, not trunk). Kept as history; S1 records a new
-  ADR (0003): "myAdmin is the platform base; evolve in place; import h-dcn-like apps
-  as platform **modules**."
+- This **replaces** imported `docs/decisions/0001` (new target workspace) and
+  `0002` (myAdmin = pattern source, not trunk). S1 records a new ADR (0003) —
+  "myAdmin is the platform base; evolve in place; import h-dcn-like apps as platform
+  **modules**" — and retires 0001/0002 (their reasoning stays in git history).
 - myAdmin's **existing** `.kiro/steering` is the authoritative base governance. New
   concepts are **folded in**, never overwritten by mysaas-era steering.
 
@@ -32,23 +32,28 @@ The earlier S1 ("establish a new mysaas trunk") is void. **Redo S1 as Phase 1:
 prepare the current myAdmin environment to receive h-dcn-like apps as multi-tenant
 applications.** Generic platform capability only. S1 has two parts:
 
-### Part A — Reconcile the analysis to the new model (do FIRST, in myAdmin)
+### Part A — Rewrite the analysis to the new model (do FIRST, in myAdmin)
 
-Every imported analysis doc still speaks the old "mysaas separate trunk" language
-and must be reconciled forward to **myAdmin-as-base + SAM-apps-as-modules**. Per the
-`specs-reference` rule: mark superseded framing visibly; supersede, don't erase. Per
-doc:
+Every imported analysis doc still speaks the old "mysaas separate trunk" language.
+**Rewrite each doc clean** to the settled model — **myAdmin-as-base +
+SAM-apps-as-modules** — as if that had always been the plan. Do NOT keep the old
+separate-trunk text with supersession markers; remove it. The old worldview is
+decided against and does not need to persist in the live docs. (The prior versions
+remain recoverable in git history, so rewriting is not lossy — the decision trail
+lives in the commit log, not the documents.) Per doc:
 
-- [ ] `overall_roadmap.md` — reframe: myAdmin is the base; drop mysaas-trunk S1/S1b/
-      S6b "lift into mysaas" framing; steps are changes *to myAdmin*.
-- [ ] `second_thoughts.md` — the workspace-strategy / "new target workspace" section
-      is superseded by the pivot; mark it.
+- [ ] `overall_roadmap.md` — rewrite: myAdmin is the base; remove the mysaas-trunk
+      S1/S1b/S6b "lift into mysaas" framing entirely; steps are changes *to myAdmin*.
+- [ ] `second_thoughts.md` — rewrite/remove the workspace-strategy / "new target
+      workspace" content; keep only what still holds under the pivot.
 - [ ] `myadmin_as_base.md` — largely aligns already; confirm and promote.
-- [ ] `migration_plan.md` — reframe as "into myAdmin," not into a new trunk.
+- [ ] `migration_plan.md` — rewrite as "into myAdmin," not into a new trunk.
 - [ ] `tenant_field_config.md`, `rewrite_vs_refactor.md`, `first_thoughts.md`,
       `frontend_merge.md`, `frontend_ui_standards.md`, `environments_and_testing.md`
-      — review each; fix trunk/mysaas-layout references; confirm the module framing.
-- [ ] Mark ADR 0001/0002 superseded; draft ADR 0003 (pivot).
+      — rewrite each: strip trunk/mysaas-layout references; state the module framing
+      directly.
+- [ ] Replace ADR 0001/0002 with ADR 0003 (pivot: myAdmin is the base). Delete or
+      retire 0001/0002 rather than keeping them as active decisions.
 
 ### Part B — Define S1 readiness (author after Part A), five capabilities
 
@@ -89,4 +94,4 @@ tasks) — grounded in real code.
 - [x] Copy Analysis, (parked) S2 spec, and ADRs into myAdmin.
 - [x] Write this brief (pivot + redo-S1 focus + analysis-reconcile-first).
 - [ ] Commit on a branch; review.
-- [ ] (Next session, in myAdmin) redo S1 — Part A reconcile analysis, then Part B.
+- [ ] (Next session, in myAdmin) redo S1 — Part A rewrite analysis, then Part B.
