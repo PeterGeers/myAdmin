@@ -14,8 +14,10 @@ The platform (myAdmin, evolved in place) spans two AWS accounts plus Railway.
 
 - **Identity account (personal, 344561557829):** home of the Cognito pools — the
   tenant-neutral access function for the whole platform.
-  - **Pool A (admins):** the existing myAdmin pool `eu-west-1_Hdp40eWmu`, kept in
-    place (not migrated) — Plus tier. PRODUCTION.
+  - **Pool A (admins):** the existing Cognito pool **named `myAdmin`** (pool id
+    `eu-west-1_Hdp40eWmu`, app client `myAdmin-client`), kept in place (not migrated)
+    — Plus tier. PRODUCTION. ("Pool A" is the audience-role label; `myAdmin` is the
+    pool's actual name.)
   - **Pool B (end-users):** a NEW Essentials pool (to create).
   - **Standing test pool:** a NEW permanent Essentials-tier pool mirroring Pool A's
     app-client config, claim shapes, groups, and Pre-Token-Generation trigger, with

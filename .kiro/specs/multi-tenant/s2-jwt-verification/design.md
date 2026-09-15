@@ -34,8 +34,10 @@ Given an incoming access token:
 
 - A small config map: `iss` → `{ jwks_uri, audience/client_id, pool_label }`.
 - Populated per environment via fail-fast env vars (missing → throw, no default).
-- **Now:** the test pool. **Later:** add Pool A, then Pool B — configuration only,
-  no code change (R3.2).
+- **Validation first:** the standing **test pool** (the validation environment).
+  **In scope for S2:** add **production Pool A** (`eu-west-1_Hdp40eWmu`) as a registry
+  entry and validate against it in production — S2's terminal step, not deferred.
+  **Later:** Pool B, when it exists. Each is configuration only, no code change (R3.2).
 - Both planes read the same conceptual registry (each in its own language).
 
 ## JWKS fetch + cache (R3.3)

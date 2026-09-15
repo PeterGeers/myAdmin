@@ -6,9 +6,15 @@
 
 ## Phase 1 — Test environment (prerequisite, in-scope)
 
-- [~] **T1. Stand up the standing test Cognito pool** (R4, `environments_and_testing.md`)
-  - Create a permanent Essentials-tier pool in the identity (personal) account,
-    mirroring Pool A's app-client config, claim shapes, and groups.
+- [~] **T1. Stand up the standing test Cognito pool** (R4, R6.0, `environments_and_testing.md`)
+  - Create a standing Essentials-tier pool in the identity (personal) account that
+    **mirrors production Pool A** (app-client config, claim shapes, groups, and the
+    Pre-Token-Generation trigger). This pool becomes a **permanent part of the
+    test/dev environment** — the pool that local dev and the test suite authenticate
+    against for all identity work (S2/S3/S4), alongside Docker MySQL + `test_`
+    DynamoDB. It is **NOT** a second production pool; production stays on the existing
+    Pool A — the Cognito pool **named `myAdmin`** (`eu-west-1_Hdp40eWmu`) — which S2
+    updates in place (R6.0).
   - Seed a small set of throwaway test users (one per role / claim shape).
   - Record the pool id, issuer (`iss`), `jwks_uri`, and app-client id.
   - Update `aws-accounts.md` with the created pool's real id (replace "to create").
@@ -21,8 +27,10 @@
 
 - [~] **T3. Define the issuer→pool registry** (R3.1, R3.2)
   - Config map `iss → { jwks_uri, audience/client_id, pool_label }`, env-driven,
-    fail-fast. Seed with the test pool; structured so Pool A / Pool B are added as
-    config later.
+    fail-fast. Pools are **configuration, not code**: the test pool is the first
+    registry entry (validation environment); **production Pool A
+    (`eu-west-1_Hdp40eWmu`) is added as a registry entry in Phase 6**, Pool B later.
+    Adding a pool is never a code change.
 - [~] **T4. Implement JWKS fetch + cache with rotation handling** (R3.3)
   - Cache by `iss`; `kid` miss → single refetch; still unknown → 401.
   - Flask plane: module-level cache + TTL. Module plane: global/execution-env scope.
@@ -64,16 +72,28 @@
   - All test-matrix + header-trust tests green against the test pool + Docker MySQL
     + `test_` DynamoDB. This is the gate for Phase 6.
 
-## Phase 6 — Gated promotion to production (the shippable outcome) (R4.2, R6)
+## Phase 6 — Update the existing production pool (Pool A) in place, gated (R4.2, R6)
 
-- [~] **T13a. Add Pool A as a verified issuer** (R3, R6.1)
-  - Extend the issuer→pool registry so production myAdmin verifies real Pool A tokens
-    (`eu-west-1_Hdp40eWmu`), alongside the test pool.
-- [~] **T13b. Promote verified-JWT behavior to myAdmin production** (R6.1, R6.3)
+> Production stays on the **existing** Pool A (`eu-west-1_Hdp40eWmu`). No new
+> production pool is created — whatever pool-side change S2 needs was first validated
+> on the standing **test pool** (T1, the permanent test/dev fixture) and is now
+> applied to Pool A itself. (R6.0)
+
+- [~] **T13a. Apply the S2 pool-side change to the existing Pool A (rehearsed on the test pool)** (R6.0, R6.1)
+  - Make on Pool A (`eu-west-1_Hdp40eWmu`) whatever pool-side change S2 requires —
+    e.g. app-client audience, claim shape, or Pre-Token-Generation trigger — identical
+    to the change already validated on the test pool. **Update in place; do not create
+    a new pool.** If S2 needs no pool-side change, record that and skip to T13b.
+  - Register Pool A's `iss` / `jwks_uri` in the issuer→pool registry (config, not code)
+    so production myAdmin verifies real Pool A tokens alongside the test pool.
+- [~] **T13b. Promote verified-JWT behavior to myAdmin production and validate against Pool A** (R6.1, R6.3, R3.2)
   - Deploy through myAdmin's existing production pipeline (myAdmin is the base,
     evolved in place — no trunk cutover). Gate: test matrix green, staging/dry-run
     pass, rollback path ready.
-  - Verify real Pool A tokens pass and header-trust removal causes no regression.
+  - **Terminal step:** confirm **real Pool A tokens verify against Pool A's JWKS in
+    production** and that header-trust removal causes no regression. S2 is not done
+    until the change is validated against the **existing production pool**, not only
+    the test pool.
 - [~] **T13c. Deploy module-plane signature verification to its (greenfield) production** (R6.2)
   - The h-dcn SAM stack (members/events/webshop, one shared deployment). Low-stakes
     (~one real user). Tenant-claim completion remains S5.
@@ -101,6 +121,11 @@
   fully hardened, incl. tenant/roles from the verified token), promoted after test
   validation. The module plane has signature verification deployed to its greenfield
   production; module plane **tenant-from-token is deferred to S5** and does not block S2.
+- **Existing production pool updated in place:** the change is validated first on the
+  standing **test pool** (a permanent test/dev fixture), then applied to and verified
+  against the **existing production pool Pool A** (`eu-west-1_Hdp40eWmu`). No new
+  production pool is created; the test pool is the durable validation environment, not
+  the destination (R6.0, R3.2).
 - **Both live systems still work** — no half-broken intermediate state (the
   roadmap's shippable-step principle).
 - Auth steering + ADR exist and match the implemented behavior.
