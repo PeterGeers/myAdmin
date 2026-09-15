@@ -80,7 +80,7 @@ output "ses_setup_instructions" {
 variable "backend_webhook_url" {
   description = "Backend URL for SES delivery notification webhook"
   type        = string
-  default     = "https://myadmin-backend-production.up.railway.app/api/webhooks/ses"
+  default     = "https://invigorating-celebration-production.up.railway.app/api/webhooks/ses"
 }
 
 # Dedicated SNS topic for SES delivery events (separate from app notifications)
