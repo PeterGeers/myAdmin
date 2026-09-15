@@ -98,6 +98,20 @@ resource "aws_cloudfront_function" "public_pages_url_rewrite" {
       var uri = request.uri;
       var host = request.headers.host ? request.headers.host.value : '';
 
+      // --- Static subdomain redirects (Squarespace migration) ---
+      var redirects = {
+        'gscheckin.jabaki.nl':  'https://sites.google.com/pgeers.nl/jabaki/checkingreenstudio',
+        'rscheckin.jabaki.nl':  'https://sites.google.com/pgeers.nl/jabaki/checkinredstudio',
+        'gascheckin.jabaki.nl': 'https://sites.google.com/pgeers.nl/jabaki/checkingardenstudio',
+      };
+      if (redirects[host]) {
+        return {
+          statusCode: 302,
+          statusDescription: 'Found',
+          headers: { location: { value: redirects[host] } },
+        };
+      }
+
       // --- Host-based routing: Jabaki subdomain (slug.jabaki.nl) ---
       if (host.endsWith('.jabaki.nl')) {
         var slug = host.replace('.jabaki.nl', '');
