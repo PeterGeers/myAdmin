@@ -1,7 +1,12 @@
 # ADR 0001 — New target workspace (mysaas) seeded from analysis; legacy workspaces remain live
 
-- Status: Accepted
+- Status: Superseded by ADR 0003
 - Date: 2026-09-15
+
+> **Superseded (2026-09-15) by [ADR 0003](0003-myadmin-is-platform-base-modules-as-sam-apps.md).**
+> The `mysaas` new-trunk approach was pursued and did not work; the platform now
+> evolves myAdmin in place and imports apps as SAM-backed modules. The original text
+> is retained below as the decision trail.
 
 ## Context
 

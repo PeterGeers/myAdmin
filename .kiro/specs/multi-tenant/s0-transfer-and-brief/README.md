@@ -11,7 +11,7 @@ Earlier analysis was done in a separate `mysaas` workspace under the assumption 
 would be a new platform trunk. **That assumption was reversed** (see the pivot
 below). Because that worldview is baked through the analysis docs and the earlier
 S1, **S1 must be redone** to reflect myAdmin-as-base — and the analysis docs must be
-reconciled to match. Doing this in myAdmin (not a separate workspace) is deliberate:
+rewritten to match. Doing this in myAdmin (not a separate workspace) is deliberate:
 the model (`tenant_modules`, the two-account setup, real steering) must be read from
 actual code, not guessed.
 
@@ -78,7 +78,7 @@ lives in the commit log, not the documents.) Per doc:
 
 ## WHAT TRANSFERRED (already in this branch)
 
-- `.kiro/specs/multi-tenant/Analysis/` — 10 analysis docs (to be reconciled — Part A).
+- `.kiro/specs/multi-tenant/Analysis/` — 10 analysis docs (to be rewritten — Part A).
 - `.kiro/specs/multi-tenant/s2-jwt-verification/` — later step; parked, not now.
 - `docs/decisions/0001, 0002` — superseded by the pivot.
 

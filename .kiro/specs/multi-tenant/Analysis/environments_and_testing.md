@@ -1,10 +1,10 @@
 # Environments & Test Strategy
 
 > How the platform is tested without touching production — the missing environment
-> axis behind the roadmap's identity/data work. `mysaas` decides *where code lives*
-> (the trunk); this doc decides *which environment code runs against*. Those are
-> separate concerns and both must be answered. Companion to `aws-accounts.md`
-> (steering) and the identity steps (S2/S3/S4). Analysis + decisions.
+> axis behind the roadmap's identity/data work. myAdmin is the platform base and is
+> evolved in place; this doc decides *which environment that work runs against* so
+> production is never the first target. Companion to `aws-accounts.md` (steering) and
+> the identity steps (S2/S3/S4). Analysis + decisions.
 
 ## The three environment axes
 
@@ -41,8 +41,9 @@ cloud resource — so a dedicated test pool is required.
   validation, gated** — the same copy/verify/prove discipline the migration plan
   applies to data moves, applied to identity config.
 - Rationale: Cognito changes are among the riskiest (a bad app-client or trigger
-  change can lock real users out). Working in a clean `mysaas` repo does NOT by
-  itself protect production identity — the test pool is what does.
+  change can lock real users out). Because myAdmin is evolved in place, nothing about
+  *where* the code lives protects production identity — the standing test pool is
+  what does.
 
 ## The always-remote caveat
 

@@ -7,10 +7,15 @@
 
 Both planes converge on the same verification contract: **fetch the issuing pool's
 JWKS, verify the token's signature + standard claims, then read identity/roles/
-tenant only from the verified token.** The admin plane already has the pieces
-(`jwt_verifier.py`); the portal plane must gain them (replacing a base64-only
-decode). A small shared notion — an issuer→pool registry — makes both planes
-multi-pool aware without hard-coding one pool.
+tenant only from the verified token.** The Flask plane (myAdmin) already has the
+pieces (`jwt_verifier.py`); the module plane (the h-dcn SAM stack — the `members`,
+`events`, `webshop` modules, one shared deployment) must gain them (replacing a
+base64-only decode). Because the three modules share one stack, verification is
+replaced **once** for all of them. A small shared notion — an issuer→pool registry —
+makes both planes multi-pool aware without hard-coding one pool.
+
+This is the **Authorize seam** of the S1 module plug-in contract
+(`s1-prepare-platform/design.md`); S2 implements it.
 
 ## Verification contract (both planes)
 
@@ -36,14 +41,14 @@ Given an incoming access token:
 ## JWKS fetch + cache (R3.3)
 
 - Fetch JWKS from the pool's `jwks_uri`; cache in memory keyed by `iss`.
-- **Admin (Flask, always-on):** module-level cache with a TTL; refresh on TTL
-  expiry or on a `kid` cache-miss (handles key rotation).
-- **Portal (Lambda):** cache in the execution-environment/global scope so warm
+- **Flask plane (always-on):** module-level cache with a TTL; refresh on TTL expiry
+  or on a `kid` cache-miss (handles key rotation).
+- **Module plane (Lambda):** cache in the execution-environment/global scope so warm
   invocations reuse it; `kid` miss → refetch once. Never fetch JWKS per request on
   the hot path.
 - Rotation: an unknown `kid` triggers exactly one refetch; if still unknown → 401.
 
-## Admin plane (Flask/MySQL, `mysaas/admin/`)
+## Flask plane (myAdmin — Flask/MySQL)
 
 - **Reuse** `jwt_verifier.py` (already checks issuer + app-client id). Extend it to
   the issuer→pool registry so it can verify test-pool tokens now and multiple pools
@@ -53,10 +58,10 @@ Given an incoming access token:
   all of them (R1.1). Close any gaps.
 - **Remove header trust:** roles/tenant read from the verified token, not
   `X-Enhanced-Groups` / `X-Tenant` (R2).
-- Lands in `mysaas/admin/` (per S1b — written once on the trunk), validated against
-  the test pool.
+- Lands in myAdmin's Flask backend (`backend/src/...`), validated against the test
+  pool before promotion.
 
-## Portal plane (SAM/Lambda, h-dcn origin) — signature verification only in S2
+## Module plane (SAM/Lambda — the h-dcn SAM stack: members/events/webshop) — signature verification only in S2
 
 - **Replace** the base64-only decode in `auth_utils.py` with full JWKS verification
   per the contract above (signature + `iss`/`aud`/`exp`).
@@ -64,11 +69,11 @@ Given an incoming access token:
   the handler still reading claims only from the verified context; any in-handler
   decode must verify (never base64-only).
 - **Drop `X-Enhanced-Groups` trust**; derive groups from the verified token.
-- **Tenant-from-token is deferred to S5.** The portal is not tenant-aware yet, so
+- **Tenant-from-token is deferred to S5.** The module is not tenant-aware yet, so
   there is nothing for a `tenant` claim to bind to. S2 delivers signature
-  verification only on the portal; tenant scoping (partition key / LeadingKeys) and
-  reading tenant from the token both come with S5.
-- Portal production is greenfield/low-stakes (~one real user), so deploying the
+  verification only on the module plane; tenant scoping (partition key / LeadingKeys)
+  and reading tenant from the token both come with S5.
+- The module's production is greenfield/low-stakes (~one real user), so deploying the
   signature-verification change there is low-risk.
 
 ## Failure behavior (R1.3)
@@ -78,9 +83,10 @@ Given an incoming access token:
 
 ## Where code lands / environment (R4)
 
-- Admin verification code: `mysaas/admin/` (trunk), per S1b.
-- Portal verification code: portal origin (h-dcn) until its own lift; the *contract*
-  is identical either way.
+- Flask-plane verification code: myAdmin's Flask backend (`backend/src/...`).
+- Module-plane verification code: the h-dcn SAM stack (`auth_utils.py` / the API
+  Gateway authorizer shared by members/events/webshop, refactored in place); the
+  *contract* is identical either way.
 - All verification is **developed and validated first** against the **test Cognito
   pool** + Docker MySQL + `test_` DynamoDB.
 
@@ -89,14 +95,14 @@ Given an incoming access token:
 Test-first means validate-then-promote, not stop-at-test. After the test matrix
 passes:
 
-- **Admin plane → myAdmin production (the shippable outcome).** Promote the
+- **Flask plane → myAdmin production (the shippable outcome).** Promote the
   verified-JWT behavior to production myAdmin, gated on: test matrix green, a
-  staging/dry-run pass, and a rollback path. Independent of S6b — ships through
-  whatever pipeline currently deploys myAdmin production; the point is the behavior
-  reaches real users.
-- **Portal plane → its (greenfield) production.** Deploy the signature-verification
-  change; low-stakes given ~one real user. Its tenant-claim completion is S5, not a
-  blocker for S2.
+  staging/dry-run pass, and a rollback path. Ships through myAdmin's existing
+  production pipeline (myAdmin is the base, evolved in place — no trunk cutover); the
+  point is the behavior reaches real users.
+- **Module plane → its (greenfield) production.** Deploy the signature-verification
+  change to the h-dcn SAM stack (members/events/webshop); low-stakes given ~one real
+  user. Its tenant-claim completion is S5, not a blocker for S2.
 - **Gate to add Pool A as a verified issuer:** once production myAdmin verifies
   against Pool A's JWKS (not only the test pool), confirm real Pool A tokens pass and
   the header-trust removal has no regression before considering S2 done.

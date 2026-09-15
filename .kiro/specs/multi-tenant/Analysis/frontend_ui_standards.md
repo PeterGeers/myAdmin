@@ -146,11 +146,12 @@ space is chosen, so it is not a rival to the naming/structure choice.
    code identifiers) and is what the h-dcn tooling already validates.
 
 **Cost (asymmetric, accepted):** h-dcn keys already conform and drop in.
-**myAdmin's keys must be conformed on lift** — rename any camelCase, flatten any
-depth-3 (the `workflows`-style cases), and update the `t(...)` call sites — done as
-part of lifting the admin frontend. Do **not** inherit h-dcn's known `workflows`
-violation. The alternative (adopt myAdmin's convention) would flip the cost to
-h-dcn *and* discard h-dcn's test enforcement — strictly worse.
+**myAdmin's keys must be conformed** — rename any camelCase, flatten any depth-3 (the
+`workflows`-style cases), and update the `t(...)` call sites — done as part of the
+frontend-merge work (S8/S9), since myAdmin's frontend is the base the portal frontend
+merges into. Do **not** inherit h-dcn's known `workflows` violation. The alternative
+(adopt myAdmin's convention) would flip the cost to h-dcn *and* discard h-dcn's test
+enforcement — strictly worse.
 
 ### D3 — Admin-plane translation scope (DECIDED)
 
@@ -184,8 +185,8 @@ standard applies uniformly to both planes.
 
 Net: the externalization work is smaller and differently located than first stated
 — myAdmin's admin frontend does not need externalizing (only conforming), and the
-real externalization debt is h-dcn's admin-panel screens. Both are handled during
-their respective lifts, in the same pass as D2.
+real externalization debt is h-dcn's admin-panel screens, addressed when the portal
+frontend is brought in (S8/S9), in the same pass as D2.
 
 ### D4 — Locale set and formatting (DECIDED)
 
@@ -341,7 +342,8 @@ h-dcn's live workspace until S7, then retires.
    tenant is active. Residual sub-questions only: (a) presets vs validated-custom
    palettes (accessibility driver), (b) logo format/size/variants + placeholder.
 2. **D2** — DECIDED: h-dcn key convention (snake_case, depth-2, test-enforced) +
-   myAdmin's `useTypedTranslation` wrapper. Cost: conform myAdmin's keys on lift.
+   myAdmin's `useTypedTranslation` wrapper. Cost: conform myAdmin's keys during the
+   frontend merge (S8/S9).
 3. **D3** — DECIDED: whole platform translatable, no Dutch-only plane. Cost
    (verified): myAdmin's admin frontend is already i18n'd (nl+en) — only D2-conform
    + extend locales; the real externalization debt is h-dcn's admin-panel screens.

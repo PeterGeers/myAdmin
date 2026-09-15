@@ -1,8 +1,13 @@
 # ADR 0002 — myAdmin is the pattern source and admin-plane codebase, not the single trunk
 
-- Status: Accepted
+- Status: Superseded by ADR 0003
 
 - Date: 2026-09-15
+
+> **Superseded (2026-09-15) by [ADR 0003](0003-myadmin-is-platform-base-modules-as-sam-apps.md).**
+> myAdmin is now the platform base/trunk itself (evolved in place), not merely a
+> pattern source for a separate `mysaas` trunk. The original text is retained below
+> as the decision trail.
 
 ## Context
 
