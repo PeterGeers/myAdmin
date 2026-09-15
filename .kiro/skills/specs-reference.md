@@ -128,3 +128,36 @@ Decide   Approve     Deploy
 **By Feature**: Search spec folder names for keywords
 **By Status**: Check README.md or document headers for status indicators
 **By Cross-Reference**: Follow links from related specs or code comments
+
+## Multi-tenant platform specs (reasoning vs rules vs decisions)
+
+The `.kiro/specs/multi-tenant/` tree follows a three-layer convention — keep them
+distinct:
+
+- **Analysis (`.kiro/specs/multi-tenant/Analysis/`)** — the reasoning and open
+  decisions (the *why*). Start at `overall_roadmap.md`, the leading index of steps.
+- **ADRs (`docs/decisions/`)** — the durable decision log (append-only; supersede,
+  never rewrite). The settled model is **ADR 0003** (myAdmin is the platform base;
+  evolve in place; import apps as SAM-backed modules), which supersedes 0001/0002.
+- **Steering (`.kiro/steering/`)** — the active rules that must track current truth
+  (`architecture.md`, `identity.md`, `aws-accounts.md`, `product.md`).
+
+When a decision is settled: record it as an ADR and distil the rule into steering;
+keep the Analysis doc as the reasoning trail, marking superseded framing visibly.
+
+### Roadmap linkage
+
+Each roadmap step (S1, S2, …) gets its own step folder under
+`.kiro/specs/multi-tenant/` (e.g. `s1-prepare-platform/`,
+`s2-jwt-verification/`) with `requirements.md` / `design.md` / `tasks.md` and a
+`README.md`. Migration/execution docs tag each gate/phase back to the roadmap step it
+belongs to or depends on (see `Analysis/migration_plan.md` for the pattern). The
+roadmap is the index; per-step docs carry the detail.
+
+### Cross-referencing to code (platform)
+
+```markdown
+Implementation (Flask plane): `backend/src/...`
+Implementation (SAM-backed module): the module's own Lambda repo/subtree
+Module registry: `backend/src/services/module_registry.py`
+```

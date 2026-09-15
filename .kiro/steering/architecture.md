@@ -119,3 +119,64 @@ CSV upload → parse (Rabobank format) → pattern matching → duplicate check 
 | Shared UI components (filters, charts)?    | `Common/` specs, `components/common/` code |
 | Cross-tenant or system-wide?               | Admin module                               |
 | Reusable pattern (caching, i18n, filters)? | `Common/` spec + steering doc              |
+
+## Platform Evolution — myAdmin as the multi-tenant base
+
+myAdmin is not only the finance application; it is the **platform base** for a
+multi-tenant system that hosts additional applications as **modules**. This is a
+settled direction (see ADR 0003 and `.kiro/specs/multi-tenant/`), and it is evolved
+**in place** — there is no separate trunk or workspace.
+
+### The module system (already in code)
+
+Tenanted capability is governed by MySQL, keyed by the `administration` tenant key:
+
+- **`tenant_modules`** — which modules each tenant has enabled (`administration`,
+  `module_name`, `is_active`).
+- **`MODULE_REGISTRY` / `module_registry.py`** — the registry of available modules
+  and their metadata (name, description, `depends_on`, readonly).
+- **Provisioning** (`tenant_provisioning_service.py`, `provision_tenant.py`) inserts
+  `tenant_modules` rows when a tenant is created.
+- Today's modules: **FIN, ZZP, STR, TENADMIN**.
+
+Authorization is the **intersection** of the user's module permissions (from the
+token) and the tenant's enabled modules (from `tenant_modules`) — see
+`tenant_module_routes.py`.
+
+### Two service planes
+
+- **Plane A — Flask / MySQL (this codebase):** admin, finance (FIN/ZZP/STR),
+  tenant governance. Scopes by the `administration` key; queries MySQL directly.
+- **Plane B — AWS SAM / Lambda / DynamoDB (SAM-backed modules):** apps imported as
+  modules that keep a serverless stack (e.g. the h-dcn domain — the `members`,
+  `events`, `webshop` modules sharing one SAM stack). Scopes by a `tenant_id`
+  partition key.
+
+### The SAM-backed module contract (roadmap S1)
+
+A module may be **backed by an AWS SAM app** rather than in-process Flask code. The
+generic contract:
+
+1. **Register** the module in `MODULE_REGISTRY`.
+2. **Entitle** tenants via `tenant_modules` (unchanged mechanism).
+3. **Authorize** requests from the **verified** Cognito token — never from unverified
+   headers. A Lambda must **not** query MySQL per request; entitlement is projected
+   into the token (roadmap S4), and tenant-level governance is projected read-only
+   into DynamoDB (roadmap S3, one-directional MySQL→DynamoDB).
+4. **Scope** all data by `tenant_id` (partition key + IAM `LeadingKeys`).
+
+The full reference a module author follows — the four seams in detail, with the
+registry accessors, the no-request-time-MySQL rule, and the enabling dependencies — is
+`.kiro/specs/multi-tenant/s1-prepare-platform/module-contract.md`.
+
+### Governance rules for this evolution
+
+- **Fold platform rules into this steering set; do not fork it.** New rules extend
+  the existing `.kiro/steering` files (or add narrowly-scoped `fileMatch` files).
+- MySQL is the **system of record** for tenant governance (`tenants`,
+  `tenant_modules`, `user_tenant_roles`); any DynamoDB copy is a **read-only
+  projection**, never written back.
+- Identity uses **two audience-split Cognito pools** (Pool A admin/staff, Pool B
+  optional per-tenant end-users). See `.kiro/specs/multi-tenant/Analysis/`.
+- Each roadmap step (S1…S10) gets its own spec under `.kiro/specs/multi-tenant/`
+  before execution; `overall_roadmap.md` is the index.

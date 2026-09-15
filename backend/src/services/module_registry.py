@@ -5,8 +5,50 @@ tax rates, and roles per module.
 Provides has_module() to check if a tenant has a module enabled, and
 module_required() decorator to enforce module access on Flask routes.
 
-Requirements: 4.1, 4.4, 4.5, 4.6
+Module descriptor schema
+-------------------------
+Each MODULE_REGISTRY entry describes one module. All of the following keys apply
+identically regardless of how the module is backed:
+
+    description            human-readable label (string)
+    depends_on             list of module names that must be active first (optional)
+    required_params        dict of parameter name -> {type, default}
+    required_tax_rates     list of tax-rate keys the module needs
+    required_roles         list of Cognito role names granting access
+
+Backing (optional)
+------------------
+An entry MAY carry an optional ``backing`` block describing where the module's
+logic runs. When ``backing`` is absent the module is an in-process Flask module
+(today's behavior) — this is why FIN/ZZP/STR/TENADMIN carry no ``backing`` key.
+
+    backing.kind            "flask" (default when omitted) or "sam"
+    backing.api_base_env    (sam only) NAME of the env var that yields the
+                            module's API base URL. The registry never stores a
+                            URL, only the env var name.
+    backing.data_namespace  (sam only, optional) DynamoDB table prefix/namespace
+                            the module owns.
+
+Example of a SAM-backed entry::
+
+    "EXAMPLE": {
+        "description": "Example SAM-backed module",
+        "required_params": {},
+        "required_tax_rates": [],
+        "required_roles": ["Example_Read"],
+        "backing": {
+            "kind": "sam",
+            "api_base_env": "EXAMPLE_MODULE_API_BASE",
+            "data_namespace": "example",  # optional
+        },
+    }
+
+Entitlement (has_module / module_required / activate_module / provisioning) is
+identical for both kinds; only the backing block differs.
+
+Requirements: 4.1, 4.4, 4.5, 4.6, 1.1, 4.1 (S1 backing kind)
 Reference: .kiro/specs/parameter-driven-config/design.md
+Reference: .kiro/specs/multi-tenant/s1-prepare-platform/design.md
 """
 
 import functools
@@ -166,10 +208,91 @@ MODULE_REGISTRY: dict[str, dict] = {
 }
 
 
+def module_backing(module_name: str) -> str:
+    """
+    Return the backing kind for a module: "flask" or "sam".
+
+    Read-only accessor over MODULE_REGISTRY. Call sites should use this instead
+    of inspecting the descriptor's ``backing`` block directly, so the dict shape
+    stays contained here and future backing kinds don't leak into callers.
+
+    A module with no ``backing`` block, or a ``backing`` block without a ``kind``
+    key, is an in-process Flask module and reports "flask" (the default). This is
+    why FIN/ZZP/STR/TENADMIN — which carry no ``backing`` key — report "flask".
+
+    Args:
+        module_name: Registered module name (e.g. 'FIN', 'STR', 'TENADMIN').
+
+    Returns:
+        "flask" or "sam".
+
+    Raises:
+        ValueError: If the module is not in MODULE_REGISTRY.
+    """
+    module_def = MODULE_REGISTRY.get(module_name)
+    if module_def is None:
+        raise ValueError(f"Unknown module: {module_name}")
+
+    return module_def.get("backing", {}).get("kind", "flask")
+
+
+def resolve_module_api_base(module_name: str) -> str | None:
+    """
+    Resolve a SAM-backed module's API base URL from the environment.
+
+    The registry never stores a URL — a ``sam`` module only records the NAME of
+    the env var (``backing.api_base_env``) that yields its API base. This
+    accessor reads that env var at call time.
+
+    Resolution fails fast: if the named env var is unset or empty, this raises
+    rather than falling back to any default URL (per the no-dangerous-fallbacks
+    guardrail in design.md §1). A wrong or missing base URL must surface loudly.
+
+    Flask modules have no API base on the module plane and return ``None``.
+
+    Args:
+        module_name: Registered module name (e.g. 'FIN', 'STR', 'TENADMIN').
+
+    Returns:
+        The resolved API base URL (str) for a ``sam`` module, or ``None`` for a
+        ``flask`` module.
+
+    Raises:
+        ValueError: If the module is not in MODULE_REGISTRY (via module_backing),
+            if a ``sam`` module has no ``api_base_env`` configured, or if the
+            named env var is unset/empty.
+    """
+    # module_backing validates the module name and contains the dict-shape logic.
+    if module_backing(module_name) != "sam":
+        return None
+
+    backing = MODULE_REGISTRY[module_name].get("backing", {})
+    env_var_name = backing.get("api_base_env")
+    if not env_var_name:
+        raise ValueError(
+            f"SAM module '{module_name}' has no 'api_base_env' configured; "
+            "cannot resolve its API base URL"
+        )
+
+    api_base = os.environ.get(env_var_name)
+    if not api_base:
+        raise ValueError(
+            f"Environment variable '{env_var_name}' (API base for SAM module "
+            f"'{module_name}') is unset or empty; refusing to fall back to a "
+            "default URL"
+        )
+
+    return api_base
+
+
 def has_module(db, tenant: str, module_name: str) -> bool:
     """
     Check if a tenant has a specific module enabled.
     Replaces the duplicated has_fin_module() function.
+
+    Entitlement is backing-agnostic: this reads ``tenant_modules`` only and never
+    inspects the descriptor's backing kind. A ``sam``-backed module is entitled
+    exactly like an in-process ``flask`` one.
 
     Args:
         db: DatabaseManager instance
@@ -198,6 +321,10 @@ def module_required(module_name: str):
     """
     Decorator that checks whether the current tenant has the specified module enabled.
     Returns HTTP 403 if the module is not active.
+
+    Entitlement is backing-agnostic: the check delegates to has_module() and never
+    inspects the module's backing kind, so a ``sam``-backed module is gated exactly
+    like an in-process ``flask`` one.
 
     Must be used after @tenant_required() which injects 'tenant' into kwargs.
 
@@ -242,6 +369,10 @@ def activate_module(
 
     Checks that all modules listed in 'depends_on' are already active
     for the tenant before allowing activation.
+
+    Entitlement is backing-agnostic: depends_on / required_roles handling and the
+    ``tenant_modules`` insert never inspect the module's backing kind. Activating a
+    ``sam``-backed module is identical to activating an in-process ``flask`` one.
 
     Args:
         db: DatabaseManager instance
