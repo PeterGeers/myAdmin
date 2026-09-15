@@ -638,7 +638,12 @@ class TenantProvisioningService:
         return "created"
 
     def _insert_modules(self, administration: str, modules: list) -> list:
-        """Insert modules, skipping any that already exist."""
+        """Insert modules, skipping any that already exist.
+
+        Backing-agnostic: writes ``tenant_modules`` rows without inspecting each
+        module's backing kind, so provisioning a ``sam``-backed module is identical
+        to provisioning an in-process ``flask`` one.
+        """
         results = []
         for module in modules:
             existing = self.db.execute_query(

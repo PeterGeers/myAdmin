@@ -1,0 +1,345 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**T1.1** Add an optional `backing` block to the `MODULE_REGISTRY` schema in": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498315769
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498328218
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498408084
+      }
+    ],
+    "**T1.2** Add a read-only accessor `module_backing(module_name) -> \"flask\"|\"sam\"`": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498315859
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498413811
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498477544
+      }
+    ],
+    "**T1.3** Add `resolve_module_api_base(module_name)` that, for a `sam` module,": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498315922
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498484166
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498567961
+      }
+    ],
+    "**T1.4** Confirm `depends_on`, `required_roles`, `has_module()`,": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498315999
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498573134
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498670527
+      }
+    ],
+    "**T1.5 (tests)** Unit tests: existing four modules load and report `flask`; a": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316079
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498675486
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498783300
+      }
+    ],
+    "**T2.1** Write the contract as a reference doc a future module author follows:": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316138
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498787855
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498974567
+      }
+    ],
+    "**T2.2** In the contract, mark the enabling dependencies explicitly: Authorize": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316198
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498978920
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499055784
+      }
+    ],
+    "**T2.3** Record the two-plane data-ownership rule: MySQL is system of record;": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316260
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499060191
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499152372
+      }
+    ],
+    "**T3.1** Create `myAdmin/.kiro/steering/identity.md` from mysaas `identity.md` —": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316322
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499227709
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499312254
+      }
+    ],
+    "**T3.2** Create `myAdmin/.kiro/steering/aws-accounts.md` from mysaas": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316382
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499316924
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499382225
+      }
+    ],
+    "**T3.3** Fold the platform product framing (tenant shapes, two audiences,": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316456
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499386850
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499475511
+      }
+    ],
+    "**T3.4** Confirm the \"Platform Evolution\" section already added to myAdmin": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316519
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499479993
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499536680
+      }
+    ],
+    "**T3.5** Do **not** copy mysaas `structure.md` (trunk/definition-of-record) or": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316586
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499541479
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499674722
+      }
+    ],
+    "**T3.6 (skills)** Merge mysaas `pr-checklist.md`'s two-plane items into myAdmin": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316650
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499680373
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499784862
+      }
+    ],
+    "**T3.7 (skills)** Fold mysaas `specs-reference.md`'s reasoning-vs-ADR-vs-steering": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316747
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499789728
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499938791
+      }
+    ],
+    "**T4.1** Edit `s2-jwt-verification/requirements.md`, `design.md`, `tasks.md`:": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316814
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789499943187
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500111151
+      }
+    ],
+    "**T4.2** Grep the multi-tenant spec tree for remaining `mysaas`, `mysaas/admin`,": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316889
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500115923
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500252265
+      }
+    ],
+    "**T5.1** Confirm ADR 0003 covers S1's decisions. If Phase 1 settled a material": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498316960
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500257002
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500343406
+      }
+    ],
+    "**T5.2** Run the backend test suite (`pytest tests/unit/`) to confirm no": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498317035
+      },
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500349283
+      },
+      {
+        "executionId": "6e893ece-d391-495f-a889-9b8b6199fd91",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500990233
+      }
+    ],
+    "**T5.3** Verify the acceptance criteria in `requirements.md`: `sam` module": [
+      {
+        "executionId": "9184bc11-757a-46b3-a890-376d9ea27360",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789498317099
+      },
+      {
+        "executionId": "6e893ece-d391-495f-a889-9b8b6199fd91",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789500995306
+      },
+      {
+        "executionId": "6e893ece-d391-495f-a889-9b8b6199fd91",
+        "chatSessionId": "sess_76962963-7560-4128-8269-90e70ebe9ea8",
+        "timestamp": 1789501119975
+      }
+    ]
+  }
+}

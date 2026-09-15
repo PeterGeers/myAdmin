@@ -14,7 +14,13 @@ from unittest.mock import Mock, patch, MagicMock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from services.module_registry import MODULE_REGISTRY, has_module, module_required
+from services.module_registry import (
+    MODULE_REGISTRY,
+    has_module,
+    module_required,
+    module_backing,
+    resolve_module_api_base,
+)
 from services.parameter_service import ParameterService
 
 
@@ -237,3 +243,128 @@ class TestSeedModuleParams:
 
         assert count == 2
         assert svc.get_param('fin', 'default_currency', tenant='T1') == 'USD'
+
+
+# ---------------------------------------------------------------------------
+# Backing kind: module_backing / resolve_module_api_base (S1 backing kind)
+#
+# Requirements: 4.1 (four existing modules unchanged / backing-agnostic),
+#               4.2 (a SAM module is expressible and resolves its API base)
+# Reference: .kiro/specs/multi-tenant/s1-prepare-platform/tasks.md T1.5
+# ---------------------------------------------------------------------------
+
+# Names for the temporary SAM fixture entry. Kept module-local so they never
+# collide with a real registry module.
+_SAM_MODULE_NAME = "SAM_TEST_MODULE"
+_SAM_API_BASE_ENV = "SAM_TEST_MODULE_API_BASE"
+
+
+@pytest.fixture
+def sam_module(monkeypatch):
+    """
+    Inject a temporary SAM-backed module into MODULE_REGISTRY for the duration
+    of a single test, then remove it.
+
+    monkeypatch.setitem restores the registry to its prior state on teardown
+    (deleting the key we added), so the temporary entry never leaks between
+    tests or into the real registry. Returns the module name and env-var name
+    so tests can drive resolution.
+    """
+    entry = {
+        "description": "Temporary SAM-backed test module",
+        "required_params": {},
+        "required_tax_rates": [],
+        "required_roles": ["SamTest_Read"],
+        "backing": {
+            "kind": "sam",
+            "api_base_env": _SAM_API_BASE_ENV,
+            "data_namespace": "sam_test",
+        },
+    }
+    monkeypatch.setitem(MODULE_REGISTRY, _SAM_MODULE_NAME, entry)
+    return _SAM_MODULE_NAME, _SAM_API_BASE_ENV
+
+
+class TestModuleBacking:
+
+    def test_module_backing_fin_returns_flask(self):
+        assert module_backing("FIN") == "flask"
+
+    def test_module_backing_zzp_returns_flask(self):
+        assert module_backing("ZZP") == "flask"
+
+    def test_module_backing_str_returns_flask(self):
+        assert module_backing("STR") == "flask"
+
+    def test_module_backing_tenadmin_returns_flask(self):
+        assert module_backing("TENADMIN") == "flask"
+
+    def test_module_backing_all_existing_modules_are_flask(self):
+        # The four shipped modules carry no backing key and must stay implicitly flask.
+        for name in ("FIN", "ZZP", "STR", "TENADMIN"):
+            assert "backing" not in MODULE_REGISTRY[name], (
+                f"{name} unexpectedly gained a backing block"
+            )
+            assert module_backing(name) == "flask"
+
+    def test_module_backing_unknown_module_raises(self):
+        with pytest.raises(ValueError, match="Unknown module"):
+            module_backing("DOES_NOT_EXIST")
+
+    def test_module_backing_sam_fixture_returns_sam(self, sam_module):
+        name, _ = sam_module
+        assert module_backing(name) == "sam"
+
+    def test_sam_fixture_does_not_leak_into_registry(self):
+        # Runs without the sam_module fixture: the temporary entry must be gone.
+        assert _SAM_MODULE_NAME not in MODULE_REGISTRY
+
+
+class TestResolveModuleApiBase:
+
+    def test_resolve_flask_module_returns_none(self):
+        # Flask modules have no API base on the module plane.
+        for name in ("FIN", "ZZP", "STR", "TENADMIN"):
+            assert resolve_module_api_base(name) is None
+
+    def test_resolve_sam_module_reads_env_var(self, sam_module, monkeypatch):
+        name, env_var = sam_module
+        monkeypatch.setenv(env_var, "https://sam.example.com/prod")
+        assert resolve_module_api_base(name) == "https://sam.example.com/prod"
+
+    def test_resolve_sam_module_missing_env_var_raises(self, sam_module, monkeypatch):
+        name, env_var = sam_module
+        monkeypatch.delenv(env_var, raising=False)
+        with pytest.raises(ValueError, match="unset or empty"):
+            resolve_module_api_base(name)
+
+    def test_resolve_sam_module_empty_env_var_raises(self, sam_module, monkeypatch):
+        name, env_var = sam_module
+        monkeypatch.setenv(env_var, "")
+        with pytest.raises(ValueError, match="unset or empty"):
+            resolve_module_api_base(name)
+
+    def test_resolve_unknown_module_raises(self):
+        with pytest.raises(ValueError, match="Unknown module"):
+            resolve_module_api_base("DOES_NOT_EXIST")
+
+
+class TestIntersectionAuthUnchanged:
+    """
+    Guard that S1's backing kind did not alter the tenant module intersection-auth.
+    get_user_module_roles derives module access purely from Cognito role prefixes;
+    it must not inspect the backing kind. (R4.2)
+    """
+
+    def test_module_role_mapping_ignores_backing(self):
+        from tenant_module_routes import get_user_module_roles
+
+        modules = get_user_module_roles(
+            ["Finance_Read", "STR_CRUD", "ZZP_Export", "Unrelated_Role"]
+        )
+        assert set(modules) == {"FIN", "STR", "ZZP"}
+
+    def test_module_role_mapping_empty_roles(self):
+        from tenant_module_routes import get_user_module_roles
+
+        assert get_user_module_roles([]) == []
