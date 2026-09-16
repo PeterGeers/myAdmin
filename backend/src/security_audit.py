@@ -421,18 +421,27 @@ class SecurityAudit:
 
 # Security endpoint registration
 def register_security_endpoints(app):
-    """Register security audit and validation endpoints"""
+    """Register security audit and validation endpoints.
+
+    S2 T6 (R1.1): every security endpoint is SysAdmin-only and verified-JWT
+    protected. /api/security/audit walks the source tree and returns auth-code
+    file paths plus a security scorecard; the others run server-side security
+    checks. None of these may be reachable anonymously.
+    """
+    from auth.cognito_utils import cognito_required
 
     security_audit = SecurityAudit()
 
     @app.route("/api/security/audit", methods=["GET"])
-    def security_audit_endpoint():
+    @cognito_required(required_roles=["SysAdmin"])
+    def security_audit_endpoint(user_email, user_roles):
         """Get comprehensive security audit report"""
         report = security_audit.generate_security_report()
         return {"success": True, "security_report": report}
 
     @app.route("/api/security/validate-input", methods=["POST"])
-    def validate_input_endpoint():
+    @cognito_required(required_roles=["SysAdmin"])
+    def validate_input_endpoint(user_email, user_roles):
         """Validate user input for security"""
         data = request.get_json()
         input_data = data.get("input")
@@ -446,7 +455,8 @@ def register_security_endpoints(app):
         return {"success": validation["valid"], "validation": validation}
 
     @app.route("/api/security/check-sql", methods=["POST"])
-    def check_sql_injection_endpoint():
+    @cognito_required(required_roles=["SysAdmin"])
+    def check_sql_injection_endpoint(user_email, user_roles):
         """Check SQL query for injection vulnerabilities"""
         data = request.get_json()
         query = data.get("query")
@@ -459,7 +469,8 @@ def register_security_endpoints(app):
         return {"success": audit["safe"], "sql_audit": audit}
 
     @app.route("/api/security/validate-file", methods=["POST"])
-    def validate_file_upload_endpoint():
+    @cognito_required(required_roles=["SysAdmin"])
+    def validate_file_upload_endpoint(user_email, user_roles):
         """Validate file upload security"""
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file provided"}), 400
@@ -477,7 +488,8 @@ def register_security_endpoints(app):
         return {"success": validation["valid"], "file_validation": validation}
 
     @app.route("/api/security/check-password", methods=["POST"])
-    def check_password_strength_endpoint():
+    @cognito_required(required_roles=["SysAdmin"])
+    def check_password_strength_endpoint(user_email, user_roles):
         """Check password strength"""
         data = request.get_json()
         password = data.get("password")
@@ -492,7 +504,8 @@ def register_security_endpoints(app):
         }
 
     @app.route("/api/security/check-xss", methods=["POST"])
-    def check_xss_vulnerabilities_endpoint():
+    @cognito_required(required_roles=["SysAdmin"])
+    def check_xss_vulnerabilities_endpoint(user_email, user_roles):
         """Check templates for XSS vulnerabilities"""
         data = request.get_json()
         template_content = data.get("template")

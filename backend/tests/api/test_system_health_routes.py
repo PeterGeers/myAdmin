@@ -44,8 +44,17 @@ class TestPublicEndpoints:
         assert data['status'] == 'healthy'
         assert 'scalability' in data
 
-    def test_db_config_responds_without_auth(self, client):
-        """GET /api/db-config is public and returns config info."""
+    def test_db_config_unauthenticated_returns_401_or_403(self, client):
+        """GET /api/db-config is SysAdmin-only (S2 T6, R1.1).
+
+        This endpoint leaks DB host/user/database + env-var presence, so it is
+        no longer public — an unauthenticated request must be rejected.
+        """
+        response = client.get('/api/db-config')
+        assert response.status_code in (401, 403)
+
+    def test_db_config_sysadmin_returns_200(self, client, mock_auth_sysadmin):
+        """SysAdmin can still read /api/db-config for diagnostics."""
         with patch.dict('os.environ', {
             'DB_HOST': 'localhost',
             'DB_PORT': '3306',
@@ -53,7 +62,7 @@ class TestPublicEndpoints:
             'DB_NAME': 'testdb',
             'TEST_MODE': 'false'
         }, clear=False):
-            response = client.get('/api/db-config')
+            response = client.get('/api/db-config', headers=mock_auth_sysadmin)
 
         assert response.status_code == 200
         data = json.loads(response.data)

@@ -5,8 +5,11 @@ This module provides JWT token validation, role extraction, and permission check
 for AWS Cognito-based authentication in Flask applications.
 
 Uses cryptographic JWT verification via JWTVerifier when Cognito environment variables
-are configured. Falls back to base64 payload decoding only when env vars are missing
-(e.g., local development without Cognito access).
+are configured. It prefers the multi-pool issuer->pool registry (COGNITO_POOL_KEYS,
+S2 T3/T13a) so production Pool A and the standing test pool are both verified on the
+live auth path; it falls back to the legacy single-pool env vars when the registry is
+not declared. Falls back to base64 payload decoding only when no verifier can be
+configured (e.g., local development without Cognito access).
 
 Based on the implementation guide at .kiro/specs/Common/Cognito/implementation-guide.md
 """
@@ -32,13 +35,26 @@ def _get_jwt_verifier():
     """
     Get or create the singleton JWTVerifier instance.
 
-    Lazily initializes the verifier on first use using environment variables:
-    - COGNITO_USER_POOL_ID
-    - COGNITO_REGION
-    - COGNITO_APP_CLIENT_ID
+    Lazily initializes the verifier on first use. Selection order (S2 T13b, R3.2 —
+    pools are configuration, not code; R1.2/R1.3/R6.1):
+
+    1. **Multi-pool registry** — if ``COGNITO_POOL_KEYS`` is set and non-blank, build
+       a verifier over the full issuer->pool registry (:func:`load_pool_registry`).
+       This activates every registered pool, including the test pool and the T13a
+       production **Pool A** entry, on the live auth path. If the registry is
+       misconfigured (:class:`PoolRegistryError`), log the error and return ``None``
+       — verification is unavailable, never a token-accepting fallback.
+    2. **Legacy single pool** — else, if all of ``COGNITO_USER_POOL_ID`` /
+       ``COGNITO_REGION`` / ``COGNITO_APP_CLIENT_ID`` are set, build a
+       backward-compatible single-pool verifier (:meth:`JWTVerifier.from_single_pool`).
+    3. **Neither** — return ``None``; the base64 fallback applies (local dev / tests
+       without any Cognito config).
+
+    No dangerous fallback: a misconfigured registry returns ``None`` (verification
+    unavailable), it never returns a verifier that would accept unverified tokens.
 
     Returns:
-        JWTVerifier instance, or None if env vars are not configured.
+        JWTVerifier instance, or None if no verifier could be configured.
     """
     global _jwt_verifier_instance, _jwt_verifier_init_attempted
 
@@ -51,27 +67,57 @@ def _get_jwt_verifier():
 
     _jwt_verifier_init_attempted = True
 
+    from auth.jwt_verifier import JWTVerifier
+
+    # (1) Multi-pool registry path — pools are configuration (R3.2). When
+    # COGNITO_POOL_KEYS is declared, the registry is the source of truth; it
+    # includes the test pool and the T13a production Pool A entry.
+    pool_keys = os.environ.get("COGNITO_POOL_KEYS")
+    if pool_keys is not None and pool_keys.strip() != "":
+        from auth.pool_registry import PoolRegistryError, load_pool_registry
+
+        try:
+            registry = load_pool_registry()
+        except PoolRegistryError as e:
+            # Misconfigured registry: verification is UNAVAILABLE. Return None (no
+            # verifier) rather than any token-accepting path (no-dangerous-fallbacks,
+            # R1.3). This surfaces as the dev base64 fallback where no verifier was
+            # ever configured; it never weakens verification where one was expected.
+            logger.error(
+                "JWT cryptographic verification unavailable: issuer->pool registry "
+                "is misconfigured (%s). No verifier will be used.",
+                str(e),
+            )
+            return None
+
+        _jwt_verifier_instance = JWTVerifier(registry=registry)
+        logger.info(
+            "JWT verification enabled (registry: %s)",
+            ", ".join(registry.issuers()),
+        )
+        return _jwt_verifier_instance
+
+    # (2) Legacy single-pool path (backward compatible).
     user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
     region = os.environ.get("COGNITO_REGION")
     app_client_id = os.environ.get("COGNITO_APP_CLIENT_ID")
 
-    if not all([user_pool_id, region, app_client_id]):
-        logger.warning(
-            "JWT cryptographic verification disabled: missing one or more env vars "
-            "(COGNITO_USER_POOL_ID, COGNITO_REGION, COGNITO_APP_CLIENT_ID). "
-            "Falling back to base64 payload decoding."
+    if all([user_pool_id, region, app_client_id]):
+        _jwt_verifier_instance = JWTVerifier.from_single_pool(
+            user_pool_id=user_pool_id,
+            region=region,
+            app_client_id=app_client_id,
         )
-        return None
+        logger.info("JWT cryptographic verification enabled (single-pool).")
+        return _jwt_verifier_instance
 
-    from auth.jwt_verifier import JWTVerifier
-
-    _jwt_verifier_instance = JWTVerifier(
-        user_pool_id=user_pool_id,
-        region=region,
-        app_client_id=app_client_id,
+    # (3) Neither configured — base64 fallback for local dev / tests.
+    logger.warning(
+        "JWT cryptographic verification disabled: neither COGNITO_POOL_KEYS nor the "
+        "legacy single-pool env vars (COGNITO_USER_POOL_ID, COGNITO_REGION, "
+        "COGNITO_APP_CLIENT_ID) are configured. Falling back to base64 payload decoding."
     )
-    logger.info("JWT cryptographic verification enabled.")
-    return _jwt_verifier_instance
+    return None
 
 
 # Role-based permission mapping
@@ -218,7 +264,9 @@ def cors_headers() -> dict[str, str]:
     return {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "OPTIONS,GET,POST,PUT,DELETE,PATCH",
-        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Enhanced-Groups",
+        # R2 (S2): X-Enhanced-Groups is NOT accepted — roles come only from the
+        # verified token's cognito:groups, never from a client-supplied header.
+        "Access-Control-Allow-Headers": "Content-Type,Authorization",
         "Access-Control-Allow-Credentials": "false",
     }
 
@@ -404,6 +452,61 @@ def _extract_with_verifier(
         user_roles = [user_roles] if user_roles else []
 
     return user_email, user_roles, None
+
+
+def _normalize_tenants_claim(tenants: Any) -> list[str]:
+    """Normalize a ``custom:tenants`` claim into a list of tenant names.
+
+    Cognito may deliver ``custom:tenants`` as a real list, a JSON-encoded string,
+    or a JSON string with escaped quotes (e.g. ``[\\"ExampleTenant\\"]``). This
+    accepts all shapes and always returns a list. Purely a shape adapter — it does
+    no trust decision (the caller is responsible for using a *verified* payload).
+    """
+    if isinstance(tenants, list):
+        return tenants
+
+    if isinstance(tenants, str):
+        raw = tenants
+        try:
+            if raw.startswith("[") and "\\" in raw:
+                raw = raw.replace('\\"', '"').replace("\\'", "'")
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+            return [parsed] if parsed else []
+        except json.JSONDecodeError:
+            return [tenants] if tenants else []
+
+    return [tenants] if tenants else []
+
+
+def get_verified_tenants(jwt_token: str) -> list[str] | None:
+    """Return the ``custom:tenants`` list from a **cryptographically verified** token.
+
+    This is the R2.3 source of truth for tenant authorization on the Flask plane:
+    the tenant list is read only after the token's signature, issuer, audience, and
+    expiry are verified by :class:`JWTVerifier`. A client-supplied header is never a
+    source for this list.
+
+    Returns:
+        - A list of tenant names when the verifier is configured and the token
+          verifies (an empty list if the verified token carries no tenants).
+        - ``None`` when the verifier is not configured (missing Cognito env vars),
+          signalling the caller to use the base64 fallback used in local dev/tests.
+
+    Raises:
+        The underlying JWTVerifier exceptions (InvalidTokenError, TokenExpiredError,
+        ServiceUnavailableError) when a token is present but fails verification — an
+        unverified token must never yield a trusted tenant list.
+    """
+    verifier = _get_jwt_verifier()
+    if verifier is None:
+        # No cryptographic verification available (local dev / tests without
+        # Cognito env vars). Signal the caller to use the base64 fallback.
+        return None
+
+    payload = verifier.verify_token(jwt_token)
+    return _normalize_tenants_claim(payload.get("custom:tenants", []))
 
 
 def _extract_with_base64(
@@ -683,6 +786,12 @@ def cognito_required(
             kwargs["user_roles"] = user_roles
 
             return f(*args, **kwargs)
+
+        # Sentinel marker so route-coverage audits/tests (S2 T6, R1.1) can
+        # detect verified-JWT protection by introspection. functools.wraps
+        # above copied f's attributes onto the wrapper (including any inner
+        # marker); we set this AFTER wraps so it always reflects THIS layer.
+        decorated_function._cognito_required = True
 
         return decorated_function
 

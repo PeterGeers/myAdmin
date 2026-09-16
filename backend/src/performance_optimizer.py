@@ -392,13 +392,20 @@ class MemoryManager:
 
 # Performance optimization API endpoints
 def register_performance_endpoints(app):
-    """Register performance monitoring and optimization endpoints"""
+    """Register performance monitoring and optimization endpoints.
+
+    S2 T6 (R1.1): every performance/diagnostic endpoint is SysAdmin-only and
+    verified-JWT protected — these expose system internals (memory, profiling,
+    N+1 analysis) and must not be reachable anonymously.
+    """
+    from auth.cognito_utils import cognito_required
 
     profiler = PerformanceProfiler()
     memory_manager = MemoryManager()
 
     @app.route("/api/performance/status", methods=["GET"])
-    def performance_status():
+    @cognito_required(required_roles=["SysAdmin"])
+    def performance_status(user_email, user_roles):
         """Get current performance status"""
         report = profiler.get_performance_report()
         memory_report = memory_manager.get_memory_usage_report()
@@ -411,7 +418,8 @@ def register_performance_endpoints(app):
         }
 
     @app.route("/api/performance/analyze", methods=["POST"])
-    def analyze_performance():
+    @cognito_required(required_roles=["SysAdmin"])
+    def analyze_performance(user_email, user_roles):
         """Analyze performance data"""
         data = request.get_json()
         analysis = profiler.analyze_performance_bottlenecks(data)
@@ -419,14 +427,16 @@ def register_performance_endpoints(app):
         return {"success": True, "analysis": analysis}
 
     @app.route("/api/performance/memory-check", methods=["GET"])
-    def memory_check():
+    @cognito_required(required_roles=["SysAdmin"])
+    def memory_check(user_email, user_roles):
         """Check for memory leaks"""
         leak_report = profiler.check_memory_leaks()
 
         return {"success": True, "memory_report": leak_report}
 
     @app.route("/api/performance/optimize", methods=["POST"])
-    def optimize_performance():
+    @cognito_required(required_roles=["SysAdmin"])
+    def optimize_performance(user_email, user_roles):
         """Run performance optimization"""
         data = request.get_json()
         cache_config = data.get("caching", {})

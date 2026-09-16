@@ -1,0 +1,137 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**T1. Stand up the standing test Cognito pool** (R4, R6.0, `environments_and_testing.md`)": [
+      {
+        "executionId": "1ffb3ea4-1b3e-44d8-87c9-9fd043233e6c",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789503873012
+      },
+      {
+        "executionId": "ea131408-d00a-4324-9c76-3079e1b6d3ff",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789504746666
+      },
+      {
+        "executionId": "ea131408-d00a-4324-9c76-3079e1b6d3ff",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789504971750
+      }
+    ],
+    "**T2. Wire the test environment for local runs** (R4)": [
+      {
+        "executionId": "ea131408-d00a-4324-9c76-3079e1b6d3ff",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789504978918
+      }
+    ],
+    "**T3. Define the issuer→pool registry** (R3.1, R3.2)": [
+      {
+        "executionId": "778a6c1e-aa04-44ae-85c8-709c58581647",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789506542664
+      },
+      {
+        "executionId": "97fedb6e-ad0c-4891-a44d-e2694b384c45",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789507007585
+      }
+    ],
+    "**T4. Implement JWKS fetch + cache with rotation handling** (R3.3)": [
+      {
+        "executionId": "97fedb6e-ad0c-4891-a44d-e2694b384c45",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789507014594
+      },
+      {
+        "executionId": "97fedb6e-ad0c-4891-a44d-e2694b384c45",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789507312552
+      }
+    ],
+    "**T5. Extend `jwt_verifier.py` to the issuer→pool registry** (R1.2, R3)": [
+      {
+        "executionId": "97fedb6e-ad0c-4891-a44d-e2694b384c45",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789507318861
+      },
+      {
+        "executionId": "f9acaa67-2734-4bb2-b692-e250f16c4af4",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789508114200
+      }
+    ],
+    "**T6. Audit every authenticated route for verifier coverage** (R1.1)": [
+      {
+        "executionId": "f9acaa67-2734-4bb2-b692-e250f16c4af4",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789508142011
+      }
+    ],
+    "**T7. Remove unverified-header trust in the Flask plane** (R2)": [
+      {
+        "executionId": "0a5ae478-5e4f-4444-9139-67e665388a84",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789509291065
+      },
+      {
+        "executionId": "0a5ae478-5e4f-4444-9139-67e665388a84",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789509756736
+      }
+    ],
+    "**T9. Remove unverified-header trust in the module plane** (R2.1, R2.2)": [
+      {
+        "executionId": "ecd21f92-9ace-4029-856b-7e1d1520402f",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789510481505
+      },
+      {
+        "executionId": "5d2502ec-0995-4e03-a1b6-424ca88f444c",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789510762154
+      }
+    ],
+    "**T10. Verification test matrix — both planes** (acceptance criteria)": [
+      {
+        "executionId": "5d2502ec-0995-4e03-a1b6-424ca88f444c",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789510768912
+      },
+      {
+        "executionId": "5d2502ec-0995-4e03-a1b6-424ca88f444c",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789511355300
+      }
+    ],
+    "**T11. Header-trust negative tests** (R2)": [
+      {
+        "executionId": "5d2502ec-0995-4e03-a1b6-424ca88f444c",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789511361457
+      },
+      {
+        "executionId": "5d2502ec-0995-4e03-a1b6-424ca88f444c",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789511728822
+      }
+    ],
+    "**T12. Confirm test validation is complete before any prod promotion** (R4.1)": [
+      {
+        "executionId": "5d2502ec-0995-4e03-a1b6-424ca88f444c",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789511737841
+      },
+      {
+        "executionId": "c14e65f8-4242-40af-a8a9-86ffcf761000",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789512206056
+      },
+      {
+        "executionId": "c14e65f8-4242-40af-a8a9-86ffcf761000",
+        "chatSessionId": "sess_0798f2ed-e40d-4b1d-8198-d71aca936ac7",
+        "timestamp": 1789512524352
+      }
+    ]
+  }
+}

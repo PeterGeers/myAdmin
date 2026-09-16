@@ -12,22 +12,59 @@ import time
 from flask import Blueprint, jsonify, request
 
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required, validate_tenant_access
 from pattern_analyzer import PatternAnalyzer
 
 # Create blueprint
 pattern_storage_bp = Blueprint("pattern_storage", __name__)
 
 
+def _authorize_path_administration(administration, user_tenants):
+    """
+    Enforce that the tenant key taken from the URL path belongs to the
+    authenticated caller.
+
+    These routes accept ``<administration>`` from the request path. Per the
+    tenant-isolation rule (database-patterns.md), tenant scope must flow from
+    the authenticated session and must never be trusted from a client-supplied
+    path/param. ``@tenant_required()`` validates the *session* tenant and
+    injects ``user_tenants`` (from the verified token); here we additionally
+    require the path ``administration`` to be one the caller actually has
+    access to. Without this, a user could pass another tenant's administration
+    in the path and read/modify cross-tenant pattern data.
+
+    Returns:
+        None if authorized, otherwise a ``(json_response, status_code)`` tuple
+        the caller should return directly.
+    """
+    is_authorized, error_response = validate_tenant_access(user_tenants, administration)
+    if not is_authorized:
+        return jsonify(
+            {
+                "success": False,
+                "error": "Access denied to administration",
+                "details": error_response.get("details") if error_response else None,
+            }
+        ), 403
+    return None
+
+
 @pattern_storage_bp.route(
     "/api/patterns/storage/stats/<administration>", methods=["GET"]
 )
 @cognito_required(required_permissions=["banking_read"])
-def get_pattern_storage_stats(administration, user_email, user_roles):
+@tenant_required()
+def get_pattern_storage_stats(
+    administration, user_email, user_roles, tenant, user_tenants
+):
     """
     Get pattern storage statistics for an administration
 
     Returns performance metrics and storage information
     """
+    denied = _authorize_path_administration(administration, user_tenants)
+    if denied:
+        return denied
     try:
         analyzer = PatternAnalyzer()
         stats = analyzer.get_pattern_storage_stats(administration)
@@ -42,12 +79,18 @@ def get_pattern_storage_stats(administration, user_email, user_roles):
 
 @pattern_storage_bp.route("/api/patterns/analyze/<administration>", methods=["POST"])
 @cognito_required(required_permissions=["banking_process"])
-def analyze_patterns_with_storage(administration, user_email, user_roles):
+@tenant_required()
+def analyze_patterns_with_storage(
+    administration, user_email, user_roles, tenant, user_tenants
+):
     """
     Trigger pattern analysis with database storage
 
     Supports both full and incremental analysis
     """
+    denied = _authorize_path_administration(administration, user_tenants)
+    if denied:
+        return denied
     try:
         data = request.get_json() or {}
         incremental = data.get("incremental", False)
@@ -94,12 +137,18 @@ def analyze_patterns_with_storage(administration, user_email, user_roles):
 
 @pattern_storage_bp.route("/api/patterns/summary/<administration>", methods=["GET"])
 @cognito_required(required_permissions=["banking_read"])
-def get_pattern_summary_from_storage(administration, user_email, user_roles):
+@tenant_required()
+def get_pattern_summary_from_storage(
+    administration, user_email, user_roles, tenant, user_tenants
+):
     """
     Get pattern summary from database storage
 
     Fast retrieval of pattern information without recalculation
     """
+    denied = _authorize_path_administration(administration, user_tenants)
+    if denied:
+        return denied
     try:
         analyzer = PatternAnalyzer()
 
@@ -122,12 +171,18 @@ def get_pattern_summary_from_storage(administration, user_email, user_roles):
 
 @pattern_storage_bp.route("/api/patterns/apply/<administration>", methods=["POST"])
 @cognito_required(required_permissions=["banking_process"])
-def apply_patterns_from_storage(administration, user_email, user_roles):
+@tenant_required()
+def apply_patterns_from_storage(
+    administration, user_email, user_roles, tenant, user_tenants
+):
     """
     Apply patterns from database storage to transactions
 
     Fast pattern application using stored patterns
     """
+    denied = _authorize_path_administration(administration, user_tenants)
+    if denied:
+        return denied
     try:
         data = request.get_json()
         if not data or "transactions" not in data:
@@ -163,10 +218,16 @@ def apply_patterns_from_storage(administration, user_email, user_roles):
     "/api/patterns/performance-comparison/<administration>", methods=["GET"]
 )
 @cognito_required(required_permissions=["banking_read"])
-def get_performance_comparison(administration, user_email, user_roles):
+@tenant_required()
+def get_performance_comparison(
+    administration, user_email, user_roles, tenant, user_tenants
+):
     """
     Get performance comparison between database storage and traditional analysis
     """
+    denied = _authorize_path_administration(administration, user_tenants)
+    if denied:
+        return denied
     try:
         analyzer = PatternAnalyzer()
 
@@ -221,12 +282,18 @@ def get_performance_comparison(administration, user_email, user_roles):
     "/api/patterns/incremental-stats/<administration>", methods=["GET"]
 )
 @cognito_required(required_permissions=["banking_read"])
-def get_incremental_update_stats(administration, user_email, user_roles):
+@tenant_required()
+def get_incremental_update_stats(
+    administration, user_email, user_roles, tenant, user_tenants
+):
     """
     Get statistics about incremental pattern updates
 
     REQ-PAT-006: Performance improvement through incremental processing
     """
+    denied = _authorize_path_administration(administration, user_tenants)
+    if denied:
+        return denied
     try:
         analyzer = PatternAnalyzer()
 

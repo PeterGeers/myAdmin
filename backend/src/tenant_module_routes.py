@@ -22,50 +22,32 @@ db_manager = DatabaseManager()
 
 
 def get_user_tenants_from_jwt(request):
-    """Extract tenants from JWT token in request"""
-    try:
-        # Get token from Authorization header
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return []
+    """Extract tenants from the VERIFIED JWT token in the request (R2.3).
 
-        token = auth_header.replace("Bearer ", "")
+    Delegates to :func:`auth.tenant_context.get_user_tenants`, which reads
+    ``custom:tenants`` from the cryptographically verified token (base64 fallback
+    only when the verifier is not configured, e.g. local dev/tests). This replaces
+    the previous unverified base64 decode — the tenant list is never trusted from an
+    unverified token, and headers are never a source for it.
+    """
+    from auth.tenant_context import get_user_tenants
 
-        # Decode JWT (simplified - in production use proper JWT library)
-        import base64
-        import json
-
-        # Split token and get payload
-        parts = token.split(".")
-        if len(parts) != 3:
-            return []
-
-        # Decode payload
-        payload = parts[1]
-        # Add padding if needed
-        payload += "=" * (4 - len(payload) % 4)
-        decoded = base64.b64decode(payload)
-        payload_data = json.loads(decoded)
-
-        # Get custom:tenants attribute
-        tenants_value = payload_data.get("custom:tenants", [])
-
-        # Handle string (JSON encoded)
-        if isinstance(tenants_value, str):
-            # Unescape if needed
-            if '\\"' in tenants_value:
-                tenants_value = tenants_value.replace('\\"', '"')
-            tenants_value = json.loads(tenants_value)
-
-        return tenants_value if isinstance(tenants_value, list) else []
-
-    except Exception as e:
-        logger.error(f"Failed to extract tenants from JWT: {e}")
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
         return []
+
+    token = auth_header.replace("Bearer ", "").strip()
+    return get_user_tenants(token)
 
 
 def get_current_tenant(request):
-    """Get current tenant from X-Tenant header"""
+    """Get the requested tenant SELECTOR from the X-Tenant header.
+
+    R2 note: X-Tenant is only a *selector* — every caller in this module validates
+    it against the user's VERIFIED tenant list (``get_user_tenants_from_jwt``) before
+    granting access (``tenant not in user_tenants`` -> 403 / Tenant_Admin check). The
+    header is never itself a source of truth for tenant authorization.
+    """
     return request.headers.get("X-Tenant")
 
 
