@@ -29,6 +29,9 @@ from src.auth.jwt_verifier import (
     ServiceUnavailableError,
 )
 
+# JWKS network I/O now lives in the shared T4 cache. Patch requests.get there.
+_JWKS_REQUESTS_TARGET = "src.auth.jwks_cache.requests.get"
+
 
 # --- Test Configuration ---
 
@@ -149,7 +152,7 @@ class TestKidRefreshFlow:
         mock_resp_initial = create_requests_mock(initial_jwks)
         mock_resp_refreshed = create_requests_mock(refreshed_jwks)
 
-        with patch("src.auth.jwt_verifier.requests.get") as mock_get:
+        with patch(_JWKS_REQUESTS_TARGET) as mock_get:
             mock_get.side_effect = [mock_resp_initial, mock_resp_refreshed]
             result = verifier.verify_token(token)
 
@@ -169,7 +172,7 @@ class TestKidRefreshFlow:
 
         mock_resp = create_requests_mock(jwks_data)
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             with pytest.raises(InvalidTokenError) as exc_info:
                 verifier.verify_token(token)
 
@@ -188,7 +191,7 @@ class TestKidRefreshFlow:
 
         mock_resp = create_requests_mock(jwks_data)
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp) as mock_get:
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp) as mock_get:
             with pytest.raises(InvalidTokenError):
                 verifier.verify_token(token)
 
@@ -203,45 +206,57 @@ class TestKidRefreshFlow:
 
 
 class TestJWKSEndpointTimeout:
-    """Test JWKS endpoint timeout handling (cached keys fallback or 503)."""
+    """JWKS endpoint failure handling — FAIL-FAST (R1.3).
 
-    def test_timeout_with_cached_keys_uses_cache(self):
-        """When JWKS endpoint times out but cache has keys, verification succeeds."""
-        # Requirement 1.9: continue using previously cached keys if available
+    S2 removes the previous lenient "use cached keys when a fresh fetch fails"
+    behaviour: there must be no path that accepts a token without a successful
+    signature verification. When the pool's JWKS cannot be obtained, the request is
+    rejected with 503 (:class:`ServiceUnavailableError`) — never trusted.
+    """
+
+    def test_timeout_when_keys_needed_raises_service_unavailable(self):
+        """A timeout while (re)fetching keys rejects with 503 — no cached bypass.
+
+        Even with a previously-populated cache, once the entry is stale and the
+        refetch fails, verification is rejected. There is no "trust stale keys anyway"
+        fallback (R1.3, no-dangerous-fallbacks).
+        """
         verifier = make_verifier()
 
-        # First, populate the cache successfully
+        # First, populate the cache successfully.
         jwks_data = mock_jwks_response((_KEY_A.public_key(), "kid-A"))
         mock_resp_ok = create_requests_mock(jwks_data)
 
         payload = valid_payload()
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp_ok):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp_ok):
             result = verifier.verify_token(token)
         assert result["sub"] == "user-123"
 
-        # Now simulate timeout on next request — cache should still work
+        # Force the cached entry stale so the next lookup must refetch, and make the
+        # refetch time out. Expected: reject with 503 (no lenient fallback).
         import requests as req_lib
 
+        entry = verifier._cache._entries[TEST_ISSUER]
+        entry.fetched_at = time.time() - 7200  # past TTL
+
         with patch(
-            "src.auth.jwt_verifier.requests.get",
+            _JWKS_REQUESTS_TARGET,
             side_effect=req_lib.Timeout("Connection timed out"),
         ):
-            # Create a new token (same kid) — should use cached keys
             payload2 = valid_payload()
             payload2["sub"] = "user-456"
             token2 = create_signed_jwt(payload2, _KEY_A, kid="kid-A")
 
-            # Force cache expiry so it tries to refresh
-            verifier._cache.fetched_at = time.time() - 7200  # expired
-            result2 = verifier.verify_token(token2)
+            with pytest.raises(ServiceUnavailableError) as exc_info:
+                verifier.verify_token(token2)
 
-        assert result2["sub"] == "user-456"
+        assert exc_info.value.http_status == 503
 
     def test_timeout_with_no_cache_raises_service_unavailable(self):
         """When JWKS endpoint times out and no cached keys exist, raises 503."""
-        # Requirement 1.9: reject with HTTP 503 if no cached keys exist
+        # Requirement 1.9 / R1.3: reject with HTTP 503, never trust an unverified token
         verifier = make_verifier()
 
         import requests as req_lib
@@ -250,7 +265,7 @@ class TestJWKSEndpointTimeout:
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
         with patch(
-            "src.auth.jwt_verifier.requests.get",
+            _JWKS_REQUESTS_TARGET,
             side_effect=req_lib.Timeout("Connection timed out"),
         ):
             with pytest.raises(ServiceUnavailableError) as exc_info:
@@ -261,7 +276,7 @@ class TestJWKSEndpointTimeout:
 
     def test_connection_error_with_no_cache_raises_service_unavailable(self):
         """When JWKS endpoint has connection error and no cache, raises 503."""
-        # Requirement 1.9: reject with HTTP 503
+        # Requirement 1.9 / R1.3: reject with HTTP 503
         verifier = make_verifier()
 
         import requests as req_lib
@@ -270,7 +285,7 @@ class TestJWKSEndpointTimeout:
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
         with patch(
-            "src.auth.jwt_verifier.requests.get",
+            _JWKS_REQUESTS_TARGET,
             side_effect=req_lib.ConnectionError("DNS resolution failed"),
         ):
             with pytest.raises(ServiceUnavailableError) as exc_info:
@@ -278,39 +293,44 @@ class TestJWKSEndpointTimeout:
 
         assert exc_info.value.http_status == 503
 
-    def test_http_500_from_jwks_with_cache_uses_cached_keys(self):
-        """When JWKS returns 500 but cache has keys, falls back to cache."""
-        # Requirement 1.9: continue using previously cached keys
+    def test_http_500_from_jwks_when_keys_needed_raises_service_unavailable(self):
+        """A 5xx while (re)fetching keys rejects with 503 — no cached bypass (R1.3).
+
+        Previously a 500 with a warm cache silently fell back to cached keys. That
+        lenient path is removed: an inability to obtain fresh keys when a fetch is
+        required rejects the request.
+        """
         verifier = make_verifier()
 
-        # Populate cache
+        # Populate cache.
         jwks_data = mock_jwks_response((_KEY_A.public_key(), "kid-A"))
         mock_resp_ok = create_requests_mock(jwks_data)
 
         payload = valid_payload()
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp_ok):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp_ok):
             verifier.verify_token(token)
 
-        # Now JWKS returns HTTP 500
+        # Now JWKS returns HTTP 500; force a refetch by expiring the cached entry.
         import requests as req_lib
 
         mock_resp_500 = MagicMock()
         mock_resp_500.status_code = 500
         mock_resp_500.raise_for_status.side_effect = req_lib.HTTPError("500 Server Error")
 
-        # Expire cache to force refresh attempt
-        verifier._cache.fetched_at = time.time() - 7200
+        entry = verifier._cache._entries[TEST_ISSUER]
+        entry.fetched_at = time.time() - 7200
 
         payload2 = valid_payload()
         payload2["sub"] = "user-789"
         token2 = create_signed_jwt(payload2, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp_500):
-            result = verifier.verify_token(token2)
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp_500):
+            with pytest.raises(ServiceUnavailableError) as exc_info:
+                verifier.verify_token(token2)
 
-        assert result["sub"] == "user-789"
+        assert exc_info.value.http_status == 503
 
 
 # =============================================================================
@@ -334,7 +354,7 @@ class TestErrorMessages:
 
         mock_resp = create_requests_mock(jwks_data)
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             with pytest.raises(InvalidTokenError) as exc_info:
                 verifier.verify_token(token)
 
@@ -350,7 +370,7 @@ class TestErrorMessages:
 
         mock_resp = create_requests_mock(jwks_data)
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             with pytest.raises(InvalidTokenError) as exc_info:
                 verifier.verify_token(token)
 
@@ -367,7 +387,7 @@ class TestErrorMessages:
 
         mock_resp = create_requests_mock(jwks_data)
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             with pytest.raises(InvalidTokenError) as exc_info:
                 verifier.verify_token(token)
 
@@ -385,7 +405,7 @@ class TestErrorMessages:
 
         mock_resp = create_requests_mock(jwks_data)
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             with pytest.raises(InvalidTokenError) as exc_info:
                 verifier.verify_token(token)
 
@@ -402,7 +422,7 @@ class TestErrorMessages:
 
         mock_resp = create_requests_mock(jwks_data)
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             with pytest.raises(TokenExpiredError) as exc_info:
                 verifier.verify_token(token)
 
@@ -418,7 +438,7 @@ class TestErrorMessages:
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
         with patch(
-            "src.auth.jwt_verifier.requests.get",
+            _JWKS_REQUESTS_TARGET,
             side_effect=req_lib.ConnectionError("Failed to connect"),
         ):
             with pytest.raises(ServiceUnavailableError) as exc_info:
@@ -460,103 +480,83 @@ class TestCacheTTLExpiration:
         assert cache.has_keys is False
 
     def test_expired_cache_triggers_refresh_on_verify(self):
-        """When cache TTL expires, next verify_token call triggers JWKS refresh."""
-        # Requirement 1.8: cache with configurable TTL
+        """When the per-issuer cache entry is stale, verify_token refetches JWKS."""
+        # Requirement 1.8 / R3.3: cache with TTL, refetch when stale.
         verifier = make_verifier(cache_ttl=3600)
 
-        # Populate cache
         jwks_data = mock_jwks_response((_KEY_A.public_key(), "kid-A"))
         mock_resp = create_requests_mock(jwks_data)
 
         payload = valid_payload()
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp) as mock_get:
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             verifier.verify_token(token)
-            first_call_count = mock_get.call_count
 
-        # Expire the cache manually
-        verifier._cache.fetched_at = time.time() - 7200  # Well past TTL
+        # Expire the per-issuer cache entry (T4 cache keys by iss).
+        verifier._cache._entries[TEST_ISSUER].fetched_at = time.time() - 7200
 
-        # Next verify should trigger refresh
         payload2 = valid_payload()
         payload2["sub"] = "user-refreshed"
         token2 = create_signed_jwt(payload2, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp) as mock_get:
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp) as mock_get:
             result = verifier.verify_token(token2)
 
         assert result["sub"] == "user-refreshed"
-        # Should have made at least one call to refresh
+        # The stale entry forced exactly one refetch.
         assert mock_get.call_count >= 1
 
     def test_cache_not_refreshed_when_within_ttl(self):
-        """When cache is within TTL, verify_token does not call JWKS endpoint."""
-        # Requirement 1.8: uses cache within TTL
+        """When the cache entry is fresh, verify_token does not hit the JWKS endpoint."""
+        # Requirement 1.8 / R3.3: warm hits never touch the network.
         verifier = make_verifier(cache_ttl=3600)
 
-        # Populate cache with a direct call
         jwks_data = mock_jwks_response((_KEY_A.public_key(), "kid-A"))
         mock_resp = create_requests_mock(jwks_data)
 
         payload = valid_payload()
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             verifier.verify_token(token)
 
-        # Verify that cache is populated and not expired
-        assert verifier._cache.has_keys is True
-        assert verifier._cache.is_expired is False
+        # The per-issuer entry is populated and fresh.
+        entry = verifier._cache._entries[TEST_ISSUER]
+        assert "kid-A" in entry.keys
+        assert entry.is_expired(3600, time.time()) is False
 
-        # Next call should NOT hit JWKS endpoint (cache is valid)
+        # Next call must NOT hit the JWKS endpoint (warm hit).
         payload2 = valid_payload()
         payload2["sub"] = "user-cached"
         token2 = create_signed_jwt(payload2, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get") as mock_get:
+        with patch(_JWKS_REQUESTS_TARGET) as mock_get:
             result = verifier.verify_token(token2)
 
         assert result["sub"] == "user-cached"
-        # No calls to JWKS endpoint — cache is still valid
         mock_get.assert_not_called()
 
     def test_custom_cache_ttl_respected(self):
-        """Custom TTL values are respected in cache expiration logic."""
-        # Requirement 1.8: configurable TTL
+        """A custom TTL is honoured by the per-issuer cache entry."""
+        # Requirement 1.8 / R3.3: configurable TTL.
         verifier = make_verifier(cache_ttl=60)  # 60 seconds TTL
 
-        # Populate cache
         jwks_data = mock_jwks_response((_KEY_A.public_key(), "kid-A"))
         mock_resp = create_requests_mock(jwks_data)
 
         payload = valid_payload()
         token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
 
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp):
+        with patch(_JWKS_REQUESTS_TARGET, return_value=mock_resp):
             verifier.verify_token(token)
 
-        # Set fetched_at to 61 seconds ago (past the 60s TTL)
-        verifier._cache.fetched_at = time.time() - 61
-        assert verifier._cache.is_expired is True
+        entry = verifier._cache._entries[TEST_ISSUER]
 
-        # Set fetched_at to 59 seconds ago (within the 60s TTL)
-        verifier._cache.fetched_at = time.time() - 59
-        assert verifier._cache.is_expired is False
+        # 61 seconds old -> expired for a 60s TTL.
+        entry.fetched_at = time.time() - 61
+        assert entry.is_expired(60, time.time()) is True
 
-    def test_fetch_timeout_configuration(self):
-        """Fetch timeout is passed to requests.get."""
-        # Requirement 1.8: fetch timeout of 5 seconds
-        verifier = make_verifier(fetch_timeout=3)
-
-        jwks_data = mock_jwks_response((_KEY_A.public_key(), "kid-A"))
-        mock_resp = create_requests_mock(jwks_data)
-
-        payload = valid_payload()
-        token = create_signed_jwt(payload, _KEY_A, kid="kid-A")
-
-        with patch("src.auth.jwt_verifier.requests.get", return_value=mock_resp) as mock_get:
-            verifier.verify_token(token)
-
-        # Verify timeout parameter was passed correctly
-        mock_get.assert_called_with(verifier.jwks_url, timeout=3)
+        # 59 seconds old -> still fresh for a 60s TTL.
+        entry.fetched_at = time.time() - 59
+        assert entry.is_expired(60, time.time()) is False

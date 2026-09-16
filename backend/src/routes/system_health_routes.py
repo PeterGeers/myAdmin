@@ -64,8 +64,14 @@ def get_status() -> ResponseReturnValue:
 
 
 @system_health_bp.route("/api/db-config", methods=["GET"])
-def get_db_config() -> ResponseReturnValue:
-    """Get database configuration (for diagnostics) - Public endpoint"""
+@cognito_required(required_roles=["SysAdmin"])
+def get_db_config(user_email, user_roles) -> ResponseReturnValue:
+    """Get database configuration (for diagnostics).
+
+    S2 T6 (R1.1): SysAdmin-only. Exposes DB host/user/database and env-var
+    presence, which is infrastructure information disclosure if left open —
+    the JWT is now verified (via cognito_required) before any response.
+    """
     try:
         use_test = os.getenv("TEST_MODE", "false").lower() == "true"
 
@@ -99,8 +105,14 @@ def get_db_config() -> ResponseReturnValue:
 
 
 @system_health_bp.route("/api/db-test", methods=["GET"])
-def test_db_connection() -> ResponseReturnValue:
-    """Test database connection - Public endpoint"""
+@cognito_required(required_roles=["SysAdmin"])
+def test_db_connection(user_email, user_roles) -> ResponseReturnValue:
+    """Test database connection (for diagnostics).
+
+    S2 T6 (R1.1): SysAdmin-only. Connects to the DB and returns host/port/
+    user/database — this both proves connectivity and leaks connection
+    details, so the JWT is now verified before it runs.
+    """
     try:
         db = DatabaseManager()
 

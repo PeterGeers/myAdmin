@@ -477,7 +477,8 @@ class TestExtractWithVerifierActive:
         request = make_flask_request(token=token)
 
         with patch.dict(os.environ, env_vars):
-            with patch("auth.jwt_verifier.requests.get") as mock_get:
+            # JWKS network I/O now lives in the shared T4 cache module.
+            with patch("auth.jwks_cache.requests.get") as mock_get:
                 mock_response = MagicMock()
                 mock_response.status_code = 200
                 mock_response.json.return_value = jwks_data

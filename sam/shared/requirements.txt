@@ -1,0 +1,7 @@
+# Module-plane shared auth layer (S2 / T8) runtime dependencies.
+# Same libraries as the myAdmin Flask plane so the verification contract matches.
+# Ship these to Lambda as a layer or bundled dependencies. All pinned to exact
+# versions (supply-chain hygiene). No secrets here — only library pins.
+PyJWT==2.10.1
+cryptography==44.0.0
+requests==2.32.3
