@@ -21,8 +21,10 @@ app or tenant.
   tenant.
   - Tier: **Plus** (threat protection worthwhile for privileged users; tiny
     population, cost negligible).
-  - Is the existing myAdmin pool `eu-west-1_Hdp40eWmu` (identity account) — kept in
-    place, not migrated.
+  - **"Pool A" is an audience-role label, not the pool's name.** It is the existing
+    Cognito pool **named `myAdmin`** — pool id `eu-west-1_Hdp40eWmu`, app client
+    `myAdmin-client` (see `infrastructure/cognito.tf`), identity (personal) account —
+    kept in place, not migrated.
 - **Pool B — End-users.** Members / webshop customers of a tenant that enables them.
   Large, low-privilege. Carries a single `tenant_id` claim, no roles, no entitlement
   projection. **Optional per tenant** — enabled via a tenant module (`tenant_modules`).
