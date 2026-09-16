@@ -14,14 +14,21 @@ The platform (myAdmin, evolved in place) spans two AWS accounts plus Railway.
 
 - **Identity account (personal, 344561557829):** home of the Cognito pools — the
   tenant-neutral access function for the whole platform.
-  - **Pool A (admins):** the existing myAdmin pool `eu-west-1_Hdp40eWmu`, kept in
-    place (not migrated) — Plus tier. PRODUCTION.
+  - **Pool A (admins):** the existing Cognito pool **named `myAdmin`** (pool id
+    `eu-west-1_Hdp40eWmu`, app client `myAdmin-client`), kept in place (not migrated)
+    — Plus tier. PRODUCTION. ("Pool A" is the audience-role label; `myAdmin` is the
+    pool's actual name.)
   - **Pool B (end-users):** a NEW Essentials pool (to create).
-  - **Standing test pool:** a NEW permanent Essentials-tier pool mirroring Pool A's
-    app-client config, claim shapes, groups, and Pre-Token-Generation trigger, with
-    throwaway test users. All identity work (S2/S3/S4) is validated here first;
+  - **Standing test pool `myAdmin-test`** (pool id `eu-west-1_xyrlzfqbl`, app client
+    `myAdmin-test-client` = `43s15cm8qcgg8an85udt0e087u`): a permanent Essentials-tier
+    pool mirroring Pool A's app-client config, claim shapes, groups, and (like Pool A)
+    **no Pre-Token-Generation trigger** — Pool A's `LambdaConfig` is empty, so there is
+    nothing to mirror. Seeded with throwaway test users (one per role/claim shape plus
+    an empty-groups edge case). All identity work (S2/S3/S4) is validated here first;
     production Pool A changes only after gated validation. Permanent (Essentials =
     10k MAU free). See `environments_and_testing.md`.
+    - `iss`: `https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_xyrlzfqbl`
+    - `jwks_uri`: `https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_xyrlzfqbl/.well-known/jwks.json`
   - **Legacy pools to remove** (after confirming no dependency; high-risk,
     irreversible — run manually): `eu-west-1_OAT3oPCIm`, `eu-west-1_VtKQHhXGN`.
   - Profile: `personal` — Cognito/identity administration only.

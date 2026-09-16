@@ -1,25 +1,54 @@
 """
-JWT Cryptographic Signature Verification for myAdmin
+JWT Cryptographic Signature Verification for myAdmin (multi-pool, S2 / T5).
 
-This module provides cryptographic verification of JWT tokens against the
-AWS Cognito JWKS (JSON Web Key Set) endpoint, replacing the previous
-base64 payload decoding approach.
+This module verifies JWT access tokens against the *issuing* Cognito pool's JWKS.
+It is **multi-pool aware** (R3): instead of a single hard-coded pool, the verifier
+resolves the pool by the token's ``iss`` claim through the issuer->pool registry
+(T3, :mod:`auth.pool_registry`) and verifies against **that** pool's JWKS via the
+shared fail-fast cache (T4, :mod:`auth.jwks_cache`). Adding a pool (the standing test
+pool now, production Pool A in Phase 6, Pool B later) is a **registry entry, not a
+code change** (R3.2).
 
-Implements:
-- RS256 signature verification using Cognito public keys
-- JWKS caching with configurable TTL
-- Single refresh-on-miss for unknown key IDs
-- Claim validation (iss, aud/client_id, exp with clock skew)
-- Graceful degradation when JWKS endpoint is unreachable
+Verification contract (design.md "Verification contract", R1.2):
+
+1. Decode the header for ``kid`` + ``alg`` (must be RS256).
+2. Read the **unverified** ``iss`` *only* to select the pool via
+   :meth:`PoolRegistry.require` (unknown issuer -> 401).
+3. Fetch that pool's JWKS through the T4 cache and select the signing key by ``kid``
+   (unknown kid after one refetch -> 401).
+4. Verify the **RS256 signature**, ``iss`` matches the resolved pool, the
+   audience/``client_id`` matches the pool's audience, and ``exp`` (30s clock-skew
+   leeway). Any failure -> **401, no fallback, no partial trust** (R1.3).
+5. Only then return the decoded payload for claim reading (roles/tenant) upstream.
+
+**No dangerous fallback (R1.3):** there is no path that accepts a token without a
+successful RS256 signature verification. JWKS is obtained only through the T4 cache,
+which is fail-fast — a genuine inability to obtain keys surfaces as
+:class:`ServiceUnavailableError` (503) and *rejects* the request; it is never a way
+to skip verification.
+
+Backward compatibility: the historical single-pool constructor
+``JWTVerifier(user_pool_id, region, app_client_id, ...)`` still works — it builds a
+one-entry registry internally (:meth:`JWTVerifier.from_single_pool`) so existing
+callers (``cognito_utils.py``) and tests keep working unchanged.
 """
 
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import Optional
 
 import jwt
-import requests
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+
+from auth.jwks_cache import (
+    JWKSCache as PoolJWKSCache,
+    JWKSFetchError,
+    UnknownIssuerError,
+    UnknownKidError,
+)
+from auth.pool_registry import PoolRegistry
+from auth.test_pool_config import PoolConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +75,11 @@ class TokenExpiredError(Exception):
 
 
 class ServiceUnavailableError(Exception):
-    """Raised when JWKS endpoint is unreachable and no cached keys exist (HTTP 503)."""
+    """Raised when JWKS endpoint is unreachable so keys cannot be obtained (HTTP 503).
+
+    This is a genuine "cannot obtain the signing keys at all" outcome — it *rejects*
+    the request. It is **never** a way to skip signature verification (R1.3).
+    """
 
     def __init__(self, message: str = "Authentication service unavailable"):
         self.message = message
@@ -54,12 +87,17 @@ class ServiceUnavailableError(Exception):
         super().__init__(self.message)
 
 
-# --- JWKS Cache ---
+# --- Legacy JWKS cache dataclass (kept for backward-compatible imports) ---
 
 
 @dataclass
 class JWKSCache:
-    """In-memory cache for JWKS public keys."""
+    """In-memory JWKS cache shape retained for backward-compatible imports/tests.
+
+    The live verification path uses the shared, fail-fast per-issuer cache in
+    :mod:`auth.jwks_cache` (T4). This dataclass is preserved so existing imports
+    (``from auth.jwt_verifier import JWKSCache``) and TTL-behaviour tests keep working.
+    """
 
     keys: dict[str, dict] = field(default_factory=dict)  # kid -> JWK dict
     fetched_at: float = 0.0
@@ -82,17 +120,36 @@ class JWKSCache:
 
 
 class JWTVerifier:
-    """Cryptographic JWT verification against AWS Cognito JWKS.
+    """Multi-pool cryptographic JWT verification via the issuer->pool registry (R3).
 
-    Fetches and caches the Cognito User Pool's public keys,
-    then uses them to verify RS256 JWT token signatures and claims.
+    The verifier resolves the issuing pool from the token's ``iss`` claim using the
+    injected :class:`~auth.pool_registry.PoolRegistry`, then verifies the RS256
+    signature and standard claims against **that** pool's JWKS, obtained through the
+    shared fail-fast cache (:class:`auth.jwks_cache.JWKSCache`, T4). Adding a pool is
+    configuration (a registry entry), never a code change.
+
+    Prefer composition: construct with a ``registry`` (and optionally a shared
+    ``jwks_cache``) so one verifier serves every registered issuer::
+
+        verifier = JWTVerifier(registry=load_pool_registry())
+        payload = verifier.verify_token(token)
+
+    Backward compatibility: the historical single-pool signature
+    ``JWTVerifier(user_pool_id, region, app_client_id, ...)`` still works — it builds a
+    one-entry registry internally (see :meth:`from_single_pool`).
 
     Args:
-        user_pool_id: AWS Cognito User Pool ID (e.g., 'eu-west-1_abc123')
-        region: AWS region (e.g., 'eu-west-1')
-        app_client_id: Cognito App Client ID for audience validation
-        cache_ttl: JWKS cache TTL in seconds (default 3600)
-        fetch_timeout: HTTP timeout for JWKS endpoint in seconds (default 5)
+        registry: The issuer->pool registry (T3). Required unless the legacy
+            single-pool positional args are supplied.
+        jwks_cache: Optional shared :class:`auth.jwks_cache.JWKSCache`. If omitted,
+            the verifier creates its own instance bound to ``registry``.
+        user_pool_id: (legacy) AWS Cognito User Pool ID for the single-pool path.
+        region: (legacy) AWS region for the single-pool path.
+        app_client_id: (legacy) Cognito App Client ID (audience) for the single-pool
+            path.
+        cache_ttl: JWKS cache TTL in seconds (default 3600).
+        fetch_timeout: Retained for signature compatibility (the T4 cache owns the
+            HTTP timeout).
     """
 
     CLOCK_SKEW_SECONDS = 30
@@ -100,38 +157,102 @@ class JWTVerifier:
 
     def __init__(
         self,
+        user_pool_id: Optional[str] = None,
+        region: Optional[str] = None,
+        app_client_id: Optional[str] = None,
+        cache_ttl: int = 3600,
+        fetch_timeout: int = 5,
+        *,
+        registry: Optional[PoolRegistry] = None,
+        jwks_cache: Optional[PoolJWKSCache] = None,
+    ):
+        self.fetch_timeout = fetch_timeout
+
+        if registry is not None:
+            # --- Preferred multi-pool path (composition). ---
+            self._registry = registry
+            self._legacy_single_pool = False
+            self.user_pool_id = user_pool_id
+            self.region = region
+            self.app_client_id = app_client_id
+            self.issuer = None
+            self.jwks_url = None
+        elif user_pool_id is not None and region is not None and app_client_id is not None:
+            # --- Backward-compatible single-pool path: build a one-entry registry. ---
+            self._legacy_single_pool = True
+            self.user_pool_id = user_pool_id
+            self.region = region
+            self.app_client_id = app_client_id
+            self.issuer = (
+                f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
+            )
+            self.jwks_url = f"{self.issuer}/.well-known/jwks.json"
+            pool = PoolConfig(
+                iss=self.issuer,
+                jwks_uri=self.jwks_url,
+                audience=app_client_id,
+                pool_label=f"single-pool:{user_pool_id}",
+            )
+            self._registry = PoolRegistry([pool])
+        else:
+            raise ValueError(
+                "JWTVerifier requires either a `registry` (multi-pool) or the "
+                "single-pool args (user_pool_id, region, app_client_id)."
+            )
+
+        # The shared, fail-fast JWKS cache (T4). If not injected, build a private
+        # instance bound to this verifier's registry. A per-instance cache is used
+        # (rather than the process-wide module cache) so each verifier — including
+        # the legacy single-pool ones in tests — keeps an isolated key-set.
+        self._cache = jwks_cache or PoolJWKSCache(
+            registry=self._registry, ttl_seconds=cache_ttl
+        )
+
+    @classmethod
+    def from_single_pool(
+        cls,
         user_pool_id: str,
         region: str,
         app_client_id: str,
         cache_ttl: int = 3600,
         fetch_timeout: int = 5,
-    ):
-        self.user_pool_id = user_pool_id
-        self.region = region
-        self.app_client_id = app_client_id
-        self.fetch_timeout = fetch_timeout
-        self.issuer = f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
-        self.jwks_url = f"{self.issuer}/.well-known/jwks.json"
-        self._cache = JWKSCache(ttl=cache_ttl)
+    ) -> "JWTVerifier":
+        """Build a verifier for a single Cognito pool (a one-entry registry).
+
+        Convenience for callers that only know one pool's coordinates. Internally
+        this is identical to the multi-pool path with a registry of one entry, so
+        there is a single verification code path.
+        """
+        return cls(
+            user_pool_id=user_pool_id,
+            region=region,
+            app_client_id=app_client_id,
+            cache_ttl=cache_ttl,
+            fetch_timeout=fetch_timeout,
+        )
 
     def verify_token(self, token: str) -> dict:
-        """Verify JWT token signature and claims.
+        """Verify a JWT's signature and claims against its issuing pool.
 
-        Decodes and validates the token against Cognito JWKS public keys.
-        Checks RS256 signature, issuer, audience/client_id, and expiration.
+        Resolves the pool from the token's (unverified) ``iss``, fetches that pool's
+        JWKS through the fail-fast T4 cache, and verifies RS256 signature + ``iss`` +
+        audience/``client_id`` + ``exp`` (30s leeway). Any failure -> 401, with no
+        fallback path that would accept an unverified token (R1.3).
 
         Args:
-            token: Raw JWT token string (without 'Bearer ' prefix)
+            token: Raw JWT token string (without the 'Bearer ' prefix).
 
         Returns:
-            Decoded JWT payload as a dictionary.
+            The decoded, verified JWT payload as a dict.
 
         Raises:
-            InvalidTokenError: Signature, issuer, or audience validation failed.
-            TokenExpiredError: Token has expired beyond clock skew tolerance.
-            ServiceUnavailableError: JWKS endpoint unreachable with no cached keys.
+            InvalidTokenError: Malformed token, wrong algorithm, unknown issuer,
+                unknown signing key, bad signature, wrong issuer/audience (HTTP 401).
+            TokenExpiredError: Token expired beyond the clock-skew leeway (HTTP 401).
+            ServiceUnavailableError: The pool's JWKS could not be obtained at all
+                (HTTP 503) — the request is rejected, never trusted.
         """
-        # Decode header to get kid
+        # (1) Decode the header for kid + alg (no signature trust yet).
         try:
             unverified_header = jwt.get_unverified_header(token)
         except jwt.exceptions.DecodeError:
@@ -147,20 +268,41 @@ class JWTVerifier:
                 f"Unsupported algorithm: {algorithm}. Only {self.ALGORITHM} is accepted"
             )
 
-        # Get the signing key for this kid
-        signing_key = self._get_signing_key(kid)
+        # (2) Read the UNVERIFIED iss ONLY to select the pool. We do not trust any
+        # claim here — selection just picks which pool's keys/audience to verify
+        # against. Signature verification below is what establishes trust.
+        try:
+            unverified_claims = jwt.decode(
+                token, options={"verify_signature": False}
+            )
+        except jwt.exceptions.DecodeError:
+            raise InvalidTokenError("Invalid token format")
 
-        # Verify and decode the token
+        iss = unverified_claims.get("iss")
+        if not iss:
+            raise InvalidTokenError("Token missing issuer (iss)")
+
+        # Resolve the pool (unknown issuer -> 401, no guessed endpoint).
+        try:
+            pool = self._registry.require(iss)
+        except UnknownIssuerError:
+            logger.warning("Rejecting token from unregistered issuer '%s'", iss)
+            raise InvalidTokenError("Invalid token issuer")
+
+        # (3) Get the signing key for this (iss, kid) from the fail-fast T4 cache.
+        signing_key = self._get_signing_key(iss, kid)
+
+        # (4) Verify signature + iss + exp against the resolved pool's key.
         try:
             payload = jwt.decode(
                 token,
                 signing_key,
                 algorithms=[self.ALGORITHM],
-                issuer=self.issuer,
+                issuer=pool.iss,
                 options={
                     "verify_exp": True,
                     "verify_iss": True,
-                    "verify_aud": False,  # We handle aud/client_id manually
+                    "verify_aud": False,  # aud/client_id handled explicitly below
                     "require": ["exp", "iss"],
                 },
                 leeway=self.CLOCK_SKEW_SECONDS,
@@ -176,125 +318,71 @@ class JWTVerifier:
         except jwt.InvalidTokenError as e:
             raise InvalidTokenError(f"Invalid token: {e!s}")
 
-        # Validate audience (aud) or client_id claim
-        self._validate_audience(payload)
+        # (4b) Verify audience/client_id against THIS pool's configured audience.
+        self._validate_audience(payload, pool.audience)
 
         return payload
 
-    def _validate_audience(self, payload: dict) -> None:
-        """Validate the aud or client_id claim matches the app client ID.
+    def _validate_audience(self, payload: dict, expected_audience: str) -> None:
+        """Validate ``aud`` or ``client_id`` matches the resolved pool's audience.
 
-        Cognito access tokens use 'client_id', while ID tokens use 'aud'.
+        Cognito access tokens carry ``client_id``; ID tokens carry ``aud``. Either
+        matching the pool's configured app-client id is accepted.
 
         Args:
-            payload: Decoded JWT payload.
+            payload: The decoded (signature-verified) JWT payload.
+            expected_audience: The resolved pool's app-client id.
 
         Raises:
-            InvalidTokenError: Neither aud nor client_id matches.
+            InvalidTokenError: Neither ``aud`` nor ``client_id`` matches.
         """
         aud = payload.get("aud")
         client_id = payload.get("client_id")
 
-        # Check if either matches
-        if aud == self.app_client_id:
+        if aud == expected_audience:
             return
-        if client_id == self.app_client_id:
+        if client_id == expected_audience:
             return
-
-        # For aud as a list (rare but possible)
-        if isinstance(aud, list) and self.app_client_id in aud:
+        if isinstance(aud, list) and expected_audience in aud:
             return
 
         raise InvalidTokenError("Invalid token audience")
 
-    def _get_signing_key(self, kid: str) -> RSAPublicKey:
-        """Get the RSA public key for the given key ID.
+    def _get_signing_key(self, iss: str, kid: str) -> RSAPublicKey:
+        """Resolve the RSA public key for ``(iss, kid)`` via the fail-fast T4 cache.
 
-        Performs cache lookup first. If the kid is not found,
-        refreshes the cache once and retries.
+        The T4 cache owns fetching/caching and single-refetch rotation handling. Its
+        failures map to this verifier's contract:
+
+        - :class:`UnknownIssuerError` / :class:`UnknownKidError` -> 401
+          (:class:`InvalidTokenError`): the token was not signed by any key the pool
+          publishes.
+        - :class:`JWKSFetchError` -> 503 (:class:`ServiceUnavailableError`): keys
+          could not be obtained at all — the request is rejected, never trusted.
 
         Args:
-            kid: Key ID from the JWT header.
+            iss: The token issuer (already resolved to a registered pool).
+            kid: The signing key id from the token header.
 
         Returns:
-            RSA public key for signature verification.
-
-        Raises:
-            InvalidTokenError: Key not found even after refresh.
-            ServiceUnavailableError: Cannot fetch keys and no cache available.
+            The RSA public key for signature verification.
         """
-        # Ensure we have keys in cache
-        if not self._cache.has_keys or self._cache.is_expired:
-            self._refresh_cache()
+        try:
+            jwk_data = self._cache.get_signing_key(iss, kid)
+        except UnknownIssuerError:
+            # Defensive: iss was resolvable moments ago; treat as 401.
+            raise InvalidTokenError("Invalid token issuer")
+        except UnknownKidError:
+            raise InvalidTokenError("Token signing key not found")
+        except JWKSFetchError:
+            # Genuine "cannot obtain keys" — reject with 503, never skip verification.
+            logger.warning("JWKS unavailable for issuer '%s'; rejecting request", iss)
+            raise ServiceUnavailableError("Authentication service unavailable")
 
-        # Look up kid in cache
-        if kid in self._cache.keys:
-            return self._build_public_key(self._cache.keys[kid])
-
-        # Kid not found — refresh once and retry
-        self._refresh_cache()
-
-        if kid in self._cache.keys:
-            return self._build_public_key(self._cache.keys[kid])
-
-        # Still not found after refresh
-        raise InvalidTokenError("Token signing key not found")
+        return self._build_public_key(jwk_data)
 
     def _build_public_key(self, jwk_data: dict) -> RSAPublicKey:
-        """Convert a JWK dictionary to an RSA public key object.
-
-        Args:
-            jwk_data: JWK key dictionary from JWKS endpoint.
-
-        Returns:
-            RSA public key suitable for PyJWT verification.
-        """
+        """Convert a JWK dict to an RSA public key object for PyJWT verification."""
         from jwt import algorithms
 
         return algorithms.RSAAlgorithm.from_jwk(jwk_data)
-
-    def _fetch_jwks(self) -> dict:
-        """Fetch JWKS from the Cognito endpoint.
-
-        Makes an HTTP GET request to the JWKS URL with the configured timeout.
-
-        Returns:
-            JWKS response as a dictionary containing 'keys' array.
-
-        Raises:
-            ServiceUnavailableError: Endpoint unreachable with no cached keys.
-        """
-        try:
-            response = requests.get(self.jwks_url, timeout=self.fetch_timeout)
-            response.raise_for_status()
-            return response.json()
-        except (requests.RequestException, ValueError) as e:
-            logger.warning(f"Failed to fetch JWKS from {self.jwks_url}: {e}")
-            # If we have cached keys, we can continue with those
-            if self._cache.has_keys:
-                logger.info("Using cached JWKS keys due to endpoint failure")
-                return None
-            # No cache available — service unavailable
-            raise ServiceUnavailableError("Authentication service unavailable")
-
-    def _refresh_cache(self) -> None:
-        """Refresh the JWKS cache from the Cognito endpoint.
-
-        Fetches fresh keys and updates the cache. If fetch fails but
-        cached keys exist, the cache remains unchanged.
-        """
-        jwks_data = self._fetch_jwks()
-
-        if jwks_data is None:
-            # Fetch failed but we have cached keys — keep using them
-            return
-
-        keys = jwks_data.get("keys", [])
-        key_map = {}
-        for key in keys:
-            kid = key.get("kid")
-            if kid:
-                key_map[kid] = key
-
-        self._cache.keys = key_map
-        self._cache.fetched_at = time.time()

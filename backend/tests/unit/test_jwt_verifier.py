@@ -85,12 +85,16 @@ def mock_jwks_response(public_key, kid="test-kid-1"):
 
 
 def patch_jwks(jwks_data):
-    """Context manager to patch requests.get for JWKS fetching."""
+    """Context manager to patch requests.get for JWKS fetching.
+
+    JWKS fetching now lives in the shared T4 cache (``auth.jwks_cache``), so the
+    network call is patched there rather than in the verifier module.
+    """
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = jwks_data
     mock_response.raise_for_status = MagicMock()
-    return patch("src.auth.jwt_verifier.requests.get", return_value=mock_response)
+    return patch("src.auth.jwks_cache.requests.get", return_value=mock_response)
 
 
 def valid_payload(aud=None, client_id=None):

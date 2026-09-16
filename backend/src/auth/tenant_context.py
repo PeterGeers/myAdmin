@@ -17,14 +17,48 @@ from flask import jsonify, request
 
 def get_user_tenants(jwt_token: str) -> list[str]:
     """
-    Extract custom:tenants from JWT token
+    Extract custom:tenants from the JWT token — from the VERIFIED token.
+
+    R2.3 (S2): the tenant authorization list is the set of tenants the *verified*
+    token authorizes. This first attempts cryptographic verification via the shared
+    JWTVerifier singleton (:func:`auth.cognito_utils.get_verified_tenants`) and reads
+    ``custom:tenants`` only from the verified payload. The unverified base64 decode
+    below is used ONLY when the verifier is not configured (local dev / tests without
+    Cognito env vars), mirroring the auth fallback in ``cognito_utils`` — never as a
+    source of truth in a verifying environment.
+
+    A token that is present but fails verification yields an empty list (no access),
+    never a trusted tenant list from an unverified decode.
 
     Args:
         jwt_token: JWT token string
 
     Returns:
-        list: List of tenant names user has access to
+        list: List of tenant names the verified token authorizes
     """
+    # Preferred path: read tenants from the cryptographically verified token.
+    try:
+        from auth.cognito_utils import get_verified_tenants
+
+        verified = get_verified_tenants(jwt_token)
+        if verified is not None:
+            # Verifier is configured and the token verified: this list is the
+            # source of truth. (Empty list means the verified token has no tenants.)
+            return verified
+        # verified is None -> verifier not configured; fall through to base64
+        # fallback for local dev / tests without Cognito env vars.
+    except Exception as e:
+        # Verifier is configured but the token failed verification (bad signature,
+        # wrong issuer/audience, expired, malformed). An unverified token must NOT
+        # yield a trusted tenant list, so deny by returning no tenants.
+        print(
+            f"[Backend] Token failed verification; no tenants granted: "
+            f"{type(e).__name__}",
+            flush=True,
+        )
+        return []
+
+    # --- Fallback (verifier not configured): unverified base64 payload decode. ---
     try:
         # Split JWT token into parts
         parts = jwt_token.split(".")
@@ -228,6 +262,11 @@ def tenant_required(allow_sysadmin: bool = False):
             kwargs["user_tenants"] = user_tenants
 
             return f(*args, **kwargs)
+
+        # Sentinel marker so route-coverage audits/tests (S2 T6, R1.1) can
+        # detect tenant scoping by introspection. Set AFTER functools.wraps so
+        # it reflects THIS layer rather than an inner wrapped function.
+        decorated_function._tenant_required = True
 
         return decorated_function
 
