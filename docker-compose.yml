@@ -12,8 +12,35 @@ services:
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf
     ports:
       - "3306:3306"
+    networks:
+      - myadmin-local
     mem_limit: 2g
     cpus: 1.0
+    restart: unless-stopped
+
+  # Local DynamoDB (S3 spec Phase 0 / T0). Runs alongside MySQL + backend in one
+  # stack so the tenant-governance projection (S3 D3) and its property/integration
+  # tests run fully offline against a local table instead of the cloud
+  # test_/-Test tables. `-sharedDb` makes every client share one table set
+  # regardless of credentials/region (matches the h-dcn reference setup).
+  #
+  # Reachability:
+  #   - In-network: other containers (backend, `sam local invoke --docker-network
+  #     myadmin-local`) reach it at http://dynamodb-local:8000 via the network alias.
+  #   - Host:       seeding/teardown from the host use http://localhost:8000.
+  #
+  # Native WSL Docker only (not Docker Desktop). No volume: local test data is
+  # disposable and is (re)built by scripts/local/seed-dynamodb-local.py.
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
+    ports:
+      - "8000:8000"
+    networks:
+      myadmin-local:
+        aliases:
+          - dynamodb-local
+    mem_limit: 512m
     restart: unless-stopped
 
   backend:
@@ -23,17 +50,24 @@ services:
       - "5000:5000"
     depends_on:
       - mysql
+      - dynamodb-local
     env_file:
       - ./backend/.env
     environment:
       - DB_HOST=mysql
       - FLASK_DEBUG=true
       - DOCKER_ENV=true
+      # Point the S3 projection's DynamoDB client at the local container. This
+      # var is the SOLE switch for local DynamoDB (S3 R4.1) — when it is unset,
+      # boto3 resolves real AWS. In-network hostname, not localhost.
+      - AWS_ENDPOINT_URL_DYNAMODB=http://dynamodb-local:8000
     volumes:
       - ./backend:/app
       - ./frontend/build:/app/frontend/build
       - ./docs/site:/app/docs-site
       - /mnt/c/Users/peter/OneDrive/Admin/reports:/app/reports
+    networks:
+      - myadmin-local
     mem_limit: 512m
     cpus: 1.5
     restart: unless-stopped
@@ -43,6 +77,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+# Named network so `sam local invoke --docker-network myadmin-local` can reach
+# DynamoDB Local at dynamodb-local:8000 (mirrors the h-dcn `hdcn-local` network).
+networks:
+  myadmin-local:
+    name: myadmin-local
 
 # Removed - using host directory mapping instead
 # volumes:

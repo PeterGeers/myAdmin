@@ -1,0 +1,184 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**T0. Confirm the S4 test environment** (R6.1)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430072
+      },
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570437031
+      },
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789571685283
+      }
+    ],
+    "**T1. Implement the pure `resolve_entitlement` resolver** (R1.1, R1.2, R1.4)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430155
+      },
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789571692556
+      },
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789571881809
+      }
+    ],
+    "**T2. Prove resolver ≡ Flask decision** (R1.3, R4.1)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430224
+      },
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789571887192
+      }
+    ],
+    "**T3. Unit tests — resolver examples/edge cases** (R1.1)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430290
+      }
+    ],
+    "**T4. Implement the entitlement claim codec** (R3.1, R3.2, R3.3)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430381
+      }
+    ],
+    "**T5. Unit tests — codec + budget boundaries** (R3.1, R3.2, R3.3)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430446
+      }
+    ],
+    "**T6. Property test — resolver equivalence to the Flask plane** (R1.3, R4.1)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430508
+      }
+    ],
+    "**T7. Property test — only active-module capabilities are entitled** (R1.1)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430569
+      }
+    ],
+    "**T8. Property test — tenant isolation of entitlement** (R1.1)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430626
+      }
+    ],
+    "**T9. Property test — purity / determinism** (R1.2)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430686
+      }
+    ],
+    "**T10. Property test — claim round-trip + budget** (R3.1, R3.2, R3.3)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430746
+      }
+    ],
+    "**T11. Implement the PreTokenGen Lambda handler** (R2.1, R2.2, R2.4)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430842
+      }
+    ],
+    "**T12. Fail-safe + fail-fast wiring** (R2.3, R2.5)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430907
+      }
+    ],
+    "**T13. Unit tests — Lambda handler (mocked Cognito event + faked MySQL)** (R2.1–R2.5)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570430971
+      }
+    ],
+    "**T14. Module-plane reader** (R5.1, R5.2)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431040
+      }
+    ],
+    "**T15. Flask-plane reader (optional, additive)** (R5.3)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431162
+      }
+    ],
+    "**T16. Integration test — token carries entitlement (test pool)** (acceptance)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431235
+      }
+    ],
+    "**T17. Decide + document staleness + revocation** (R4.2, R4.3)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431306
+      }
+    ],
+    "**T18. Promote the PreTokenGen trigger to production Pool A, gated** (R6.2, R6.3)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431382
+      }
+    ],
+    "**T19. Author/extend architecture + auth steering** (R7.1)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431442
+      }
+    ],
+    "**T20. Record ADR 0006** (R7.2)": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431507
+      }
+    ],
+    "**T21. Mark the spec Complete** and update the roadmap S4 status + governance-delta row.": [
+      {
+        "executionId": "70638e59-6de1-42b9-9c6d-3b3e2b4bcb7c",
+        "chatSessionId": "sess_d6b72b6f-2551-439b-811a-f3f1b13abf88",
+        "timestamp": 1789570431580
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # S2 — Verify JWT Signatures on Both Backends — Tasks
 
-- Status: Draft
+- Status: Complete
 - Companion to `requirements.md` + `design.md` (same folder). Task refs cite the
   requirement(s) each satisfies.
 
@@ -68,7 +68,7 @@
 - [x] **T11. Header-trust negative tests** (R2)
   - Setting `X-Enhanced-Groups` / `X-Tenant` has **no effect** on the authorization
     decision, on both planes.
-- [ ] **T12. Confirm test validation is complete before any prod promotion** (R4.1)
+- [x] **T12. Confirm test validation is complete before any prod promotion** (R4.1)
   - All test-matrix + header-trust tests green against the test pool + Docker MySQL
     + `test_` DynamoDB. This is the gate for Phase 6.
 
@@ -79,6 +79,13 @@
 > on the standing **test pool** (T1, the permanent test/dev fixture) and is now
 > applied to Pool A itself. (R6.0)
 
+> **Plan change (ADR 0003):** myAdmin is the platform base and h-dcn modules are
+> **imported into it** — there is **no separate h-dcn SAM stack to deploy** in S2.
+> The module-plane signature-verification tooling is delivered as the self-contained
+> `sam/` module in the myAdmin repo and is the **mandated starting point** that
+> imported modules adopt (documented in S1 `module-contract.md`). So the module-plane
+> work below is "tooling shipped + documented for import," not a deploy.
+
 - [x] **T13a. Apply the S2 pool-side change to the existing Pool A (rehearsed on the test pool)** (R6.0, R6.1)
   - Make on Pool A (`eu-west-1_Hdp40eWmu`) whatever pool-side change S2 requires —
     e.g. app-client audience, claim shape, or Pre-Token-Generation trigger — identical
@@ -86,7 +93,7 @@
     a new pool.** If S2 needs no pool-side change, record that and skip to T13b.
   - Register Pool A's `iss` / `jwks_uri` in the issuer→pool registry (config, not code)
     so production myAdmin verifies real Pool A tokens alongside the test pool.
-- [ ] **T13b. Promote verified-JWT behavior to myAdmin production and validate against Pool A** (R6.1, R6.3, R3.2)
+- [x] **T13b. Promote verified-JWT behavior to myAdmin production and validate against Pool A** (R6.1, R6.3, R3.2)
   - Deploy through myAdmin's existing production pipeline (myAdmin is the base,
     evolved in place — no trunk cutover). Gate: test matrix green, staging/dry-run
     pass, rollback path ready.
@@ -94,22 +101,34 @@
     production** and that header-trust removal causes no regression. S2 is not done
     until the change is validated against the **existing production pool**, not only
     the test pool.
-- [ ] **T13c. Deploy module-plane signature verification to its (greenfield) production** (R6.2)
-  - The h-dcn SAM stack (members/events/webshop, one shared deployment). Low-stakes
-    (~one real user). Tenant-claim completion remains S5.
-- [ ] **T13d. Confirm both live systems still work** (R6.2)
-  - myAdmin fully hardened in prod; module plane signature-verified. No half-broken state.
+- [x] **T13c. Deliver module-plane signature verification as the `sam/` import starting point (no separate deploy)** (R6.2)
+  - **Plan corrected (ADR 0003):** there is **no separate h-dcn SAM stack to deploy**.
+    myAdmin is the platform base; h-dcn modules are **imported into it**. The
+    module-plane signature-verification tooling is delivered as the self-contained
+    `sam/` module in the myAdmin repo (`sam/shared/auth_utils.py`), and it is the
+    **mandated starting point** that imported modules adopt (vendored as a shared
+    module or Lambda layer). h-dcn's own stack is **not modified**.
+  - **Deliverable:** the `sam/` tooling **plus** its documentation as the import
+    starting point in S1 `module-contract.md` (Seam 3) — **not** a deploy. Nothing to
+    promote to a greenfield production. Tenant-claim completion remains **S5**.
+- [x] **T13d. Confirm myAdmin prod verified and module-plane tooling ready + documented for import** (R6.2)
+  - The **Flask plane (myAdmin)** is live/hardened in production and validated against
+    Pool A (forged token → 401, real token → 200). The **module plane** has **no
+    separate live system in S2** — its tooling ships as `sam/` for future imports. So
+    "both live systems still work" reduces to: **myAdmin prod verified; module-plane
+    tooling ready and documented for import** (`sam/` + S1 `module-contract.md`). No
+    half-broken state.
 
 ## Phase 7 — Governance (definition of done)
 
-- [ ] **T14. Author/extend auth steering** (R5.1)
+- [x] **T14. Author/extend auth steering** (R5.1)
   - Verified-JWT-only, no unverified-header trust, issuer→pool JWKS verification,
     cached JWKS + rotation (in `authentication.md` or extend `identity.md` /
     `architecture.md`).
-- [ ] **T15. Record the ADR** (R5.2)
+- [x] **T15. Record the ADR** (R5.2)
   - "Verified-JWT-only; no unverified-header trust; per-issuer JWKS verification."
     Append-only in `docs/decisions/`.
-- [ ] **T16. Mark the spec Complete** and update the roadmap S2 status.
+- [x] **T16. Mark the spec Complete** and update the roadmap S2 status.
 
 ## Definition of done
 

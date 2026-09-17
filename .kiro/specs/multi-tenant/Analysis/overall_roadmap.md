@@ -80,9 +80,9 @@ it is **not** a periodic "return to S1" sweep. Instead:
 | Step | Governance to update on completion |
 | --- | --- |
 | S1 | Prepare myAdmin as the platform base for SAM-backed modules: extend `architecture.md` / `tech.md` with the module-hosting contract and the two-plane picture; record ADR 0003 (myAdmin is the platform base; evolve in place; import apps as SAM-backed modules). Note the generic SAM-module plug-in contract in steering. |
-| S2 | Auth steering — signature-verified tokens on the module plane too, no trusting unverified headers; ADR |
-| S3 | Auth/tenant steering — the claim contract; two-pool (audience-split) identity ADR; **tenant system-of-record (MySQL) + one-directional MySQL→DynamoDB projection** steering + ADR |
-| S4 | Architecture steering — entitlement projected into token, not read from MySQL per request; ADR |
+| S2 | ✅ **Done.** Auth steering (`authentication.md`) + ADR 0004 — verified-JWT-only on both planes, issuer→pool JWKS verification, no unverified-header trust. Flask plane live in prod (Pool A); module-plane tooling shipped as `sam/` (import starting point). |
+| S3 | ✅ **Done.** Auth/tenant steering (`identity.md` + `architecture.md`) — the Pool A claim contract; two-pool (audience-split) identity + **tenant system-of-record (MySQL) + one-directional MySQL→DynamoDB projection** recorded in **ADR 0005**. |
+| S4 | ✅ **Done (functions available; live trigger deferred to S5).** `architecture.md` — entitlement projected into the token at issuance, read from the **DynamoDB projection** (not MySQL per request); **ADR 0006**. |
 | S5 | Schema-driven + DynamoDB steering for the SAM module plane — `tenant_id` key, isolation, overlay. **`tech.md` (SAM module, `fileMatch` the module subtree)** — SAM/Lambda/DynamoDB conventions, authored when the first SAM module lands. |
 | S6 | Infra steering — nonprofit account, bucket separation incl. myAdmin's bucket; update `migration_plan.md` status |
 | S7 | **`tech.md` (frontend) + `testing-frontend.md`** — React 19 + Vite + Vitest, `import.meta.env` fail-fast, per D6/D2 in `frontend_ui_standards.md` |
@@ -137,6 +137,7 @@ S10 (decommission)     ── last, needs S6 stable
   `second_thoughts.md` (identity + account model that S3/S6 build on).
 
 ### S2 — Verify JWT signatures on both planes
+- **Status:** ✅ **Complete** — shipped to myAdmin production (verified against Pool A: forged→401, real→200); module-plane verifier delivered as the self-contained `sam/` module (mandated import starting point, see S1 `module-contract.md`); ADR 0004 + `authentication.md` recorded. Module-plane tenant-from-token deferred to S5.
 - **What:** verify tokens against the Cognito pool JWKS on the SAM/module plane (a
   fresh SAM module must verify, not base64-decode), and confirm myAdmin's existing
   `jwt_verifier.py` is applied everywhere on the Flask plane. Stop trusting
@@ -151,6 +152,7 @@ S10 (decommission)     ── last, needs S6 stable
   `environments_and_testing.md` (test pool + gated promotion to prod).
 
 ### S3 — Define the tenant/role claims + tenant system-of-record + projection to DynamoDB
+- **Status:** ✅ **Complete.** D1 (Pool A claim contract) documented + validated; D2 (MySQL system-of-record) ratified and `tenant_role_allocation` retired; D3 (one-directional MySQL→DynamoDB projection) built with all six correctness properties passing and validated end-to-end against local DynamoDB. Pool A confirmed **as-is** (no pool-side change; settles `migration_plan.md` Gate 1); production `governance_projection` table created (empty until S5 registers real SAM-backed modules); **legacy pools `eu-west-1_OAT3oPCIm` and `eu-west-1_VtKQHhXGN` decommissioned** (Pool A + test pool untouched; `eu-west-1_fcUkvwjH5` retained while h-dcn runs). Governance: `identity.md` + `architecture.md` updated, ADR 0005 recorded. **Pool B remains deferred** (addable config-only via the S2 registry). Spec: `.kiro/specs/multi-tenant/s3-claims-and-projection/`.
 - **What (identity claims):** establish the **two-pool** identity model instead of a
   single pool (see `second_thoughts.md`, "Identity model rethink"):
   - **Pool A — admin/staff** (universal, always present): reuse the existing myAdmin
@@ -208,36 +210,78 @@ S10 (decommission)     ── last, needs S6 stable
   option", "Managing Pool B tenant relationships"); `myadmin_as_base.md` (identity
   plane, balance section).
 
-### S4 — Project resolved entitlement into the token (Pre-Token-Generation trigger)
-- **What:** a Cognito Pre-Token-Generation Lambda that computes each user's resolved
-  per-tenant access from MySQL once at login — for each tenant, their per-tenant
-  **roles** (`user_tenant_roles`) intersected with the tenant's enabled **modules**
-  (`tenant_modules`) — and stamps it into the token as a compact claim, so the
-  request path never queries MySQL for authorization. This is what lets a SAM-backed
-  module answer "what may this user do in this tenant?" from the token alone. It is
-  the **Lambda-plane equivalent of the Flask plane's `role_cache.py`**: the same
-  resolved per-tenant answer, carried in the token instead of a server-side cache
-  (myAdmin's Flask plane can read/cache MySQL cheaply today; a Lambda must not).
-- **Why independent:** improves both planes' authorization without changing business
-  logic; can ship after claims exist.
-- **Risk:** medium; one Lambda + a token-lifetime/revocation decision.
-- **Prereq:** S3.
-- **Ref:** `myadmin_as_base.md` ("The fix: system of record + projection").
+### S4 — Project resolved entitlement into the token (Pre-Token-Generation)
+- **Status:** ✅ **Functions built, tested, and available for adoption — live production
+  trigger DEFERRED to the first app migration (S5).** Delivered: a pure per-tenant
+  entitlement **resolver** (roles ∩ active modules; one rule shared with the Flask plane's
+  `role_cache.py`, proven equivalent by property tests), a compact versioned
+  `custom:entitlements` **codec** (overflow-signal, never truncated), the **V2
+  Pre-Token-Generation Lambda** (fail-safe: a resolution failure omits the claim so login
+  never breaks; fail-fast config; additive — never touches `cognito:groups` /
+  `custom:tenants`), and both-plane **readers** (`sam/shared` `get_entitlements` /
+  `has_capability`; an additive Flask reader). All 6 property tests + an end-to-end
+  integration test pass. **Governance:** `architecture.md` updated, **ADR 0006**.
+- **Key design decision (ADR 0006 / design amendment A):** the Lambda reads the **S3
+  DynamoDB projection, NOT MySQL** — keyed by the user's `custom:tenants` partitions, via
+  boto3 + IAM. This honors the S1 "no MySQL from a module Lambda" contract, avoids Railway
+  egress, and fits Cognito's ~5s budget. **Empty projection → empty entitlement** is a
+  valid, handled outcome. Per `aws-accounts.md`, the Lambda runs in the **data account**
+  (same-account projection read) and Pool A attaches its trigger **cross-account**.
+- **What is deferred and why:** wiring the **live production Pool A trigger** is moved to
+  **S5**, so it is driven by a real consumer (the Members migration) rather than deployed
+  in a vacuum. The functions are ready to vendor/adopt now; a module can validate against
+  the test pool first. This also means the S3 projection must be **widened** to carry
+  token-relevant governance for ordinary Pool A tenants (today it gates on SAM-backed
+  tenants) — an S3/S5 coordination item; until then tokens correctly carry empty
+  entitlement and the Flask plane stays authoritative.
+- **Prereq:** S3. **Spec:** `.kiro/specs/multi-tenant/s4-token-entitlement-projection/`.
+- **Ref:** `myadmin_as_base.md` ("system of record + projection"); ADR 0006.
 
-### S5 — Add the tenant dimension to the h-dcn SAM stack's data
-- **What:** for the h-dcn SAM stack (the `members`, `events`, `webshop` modules,
-  sharing one deployment), add a `tenant_id` partition key to its DynamoDB tables, key
-  + IAM `LeadingKeys` isolation, and the tenant-field overlay. Migrate existing h-dcn
-  data to carry its own `tenant_id` (dry-run first).
-- **Why independent:** makes the h-dcn modules tenant-aware; they keep working as a
-  single-tenant instance of the new model.
-- **Risk:** medium-high (data migration) — gated by dry-run + backup.
-- **Prereq:** S3 (claims exist to scope against).
-- **Ref:** `tenant_field_config.md`, `rewrite_vs_refactor.md` (DynamoDB tenancy).
+### S5 — First app migration: **Members** (h-dcn) → myAdmin platform, then Go/No-Go
+- **What:** migrate the **Members** app (the first h-dcn app) onto the myAdmin platform,
+  **in independently-deployable steps**, as the **pilot** that proves the platform tooling
+  and produces an explicit **Go/No-Go** decision (plus lessons learned) for migrating the
+  remaining apps (Events, Webshop). Members is the pilot because it is a bounded,
+  well-understood domain and was the original learning app.
+- **Best-practice target (not a 1:1 port):** h-dcn Members is ~18 one-Lambda-per-action
+  handlers — a learning-curve artifact. The migration consolidates to **ONE Members
+  module** (a single SAM-backed Lambda with internal routing), adopting the myAdmin
+  toolkit **once**: verified-auth + entitlement (`sam/shared` — S2/S4), module entitlement
+  (`MODULE_REGISTRY` + `tenant_modules` — S1/S3), the tenant-level projection (S3), and
+  `tenant_id` + IAM `LeadingKeys` scoping. **Reuse** h-dcn's business logic (regional
+  access, membership workflow, response shapes); **replace** the structure + the unverified
+  auth layer. Migrate **straight to best practice** — no port-then-refactor double work.
+- **Parallel-run, additive, reversible:** the migrated Members app uses **NEW
+  tenant-scoped tables** so the **live h-dcn keeps running** unchanged; nothing is cut over
+  until a pilot-tenant soak passes. Each step deploys on its own and is reversible.
+- **This is where the S4 live trigger lands (if needed):** the pilot wires the Pool A
+  Pre-Token-Generation trigger cross-account only when it needs live token entitlement,
+  and can validate against the test pool first.
+- **Ends at a Go/No-Go gate:** parity (authz incl. regional, data, API contract, workflow),
+  did-the-toolkit-hold, operational (deploy/rollback, latency, fail-safe), and effort/ROI —
+  recorded in `go-no-go.md`, feeding a roadmap revision. **Further app migrations are gated
+  on this decision.**
+- **Why independent:** delivers a working migrated Members app for a pilot tenant while the
+  live h-dcn is untouched; proves (or disproves) the whole platform approach cheaply.
+- **Risk:** medium — new tables + backfill (dry-run first, `migrationHDCNLedenbestand` is
+  prior art); the live app is the fallback throughout.
+- **Prereq:** S3 (projection) + S4 (entitlement toolkit available).
+- **Spec:** `.kiro/specs/multi-tenant/s5-members-first-migration/`
+  (`members-wireframe.md`, `migration-plan.md`, `go-no-go.md`).
+- **Ref:** `tenant_field_config.md`, `rewrite_vs_refactor.md` (DynamoDB tenancy); h-dcn
+  `.kiro/specs/Members/*`.
+
+> **Deferred until AFTER the first migration proves the pattern (user decision):** moving
+> myAdmin's shared AWS footprint (S3/SNS/SES/DynamoDB + the local-DynamoDB tooling) into the
+> shared portal/data account. It *can* be done, but only once the Members pilot validates
+> the approach — it is not a prerequisite for the migration. Sequenced with S6 below.
 
 ### S6 — Move myAdmin's AWS footprint to the nonprofit account
 - **What:** the existing detailed plan — recreate SNS/S3/DynamoDB in nonprofit, copy
   data, handle Cognito, repoint Railway `.env`. Railway/MySQL stay put.
+
+  **EXTRA.** The landing page function in myadmin reads/writes direct (no-SAM API) records in a personal account dynamo table.  ANd it pushes static html landing pages to cloudfront 
+
 - **Why independent:** infra relocation; once repointed, myAdmin runs unchanged from
   nonprofit resources.
 - **Risk:** high (production data) — its own gated plan.
