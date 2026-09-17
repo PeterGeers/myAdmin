@@ -37,8 +37,8 @@ network). Non-secret Cognito identifiers only — nothing here is a credential.
 import logging
 import threading
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Mapping, Optional
 
 import requests
 
@@ -51,13 +51,13 @@ from auth.test_pool_config import PoolConfig
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "JWKSCache",
     "JWKSCacheError",
     "JWKSFetchError",
-    "UnknownKidError",
     "UnknownIssuerError",
-    "JWKSCache",
-    "get_signing_key",
+    "UnknownKidError",
     "get_module_cache",
+    "get_signing_key",
     "reset_module_cache",
 ]
 
@@ -139,7 +139,7 @@ def _default_fetcher(jwks_uri: str) -> Mapping:
 class _IssuerEntry:
     """One issuer's cached key-set: ``kid -> JWK dict`` plus the fetch timestamp."""
 
-    keys: Dict[str, dict] = field(default_factory=dict)
+    keys: dict[str, dict] = field(default_factory=dict)
     fetched_at: float = 0.0
 
     def is_expired(self, ttl_seconds: int, now: float) -> bool:
@@ -172,13 +172,13 @@ class JWKSCache:
     def __init__(
         self,
         registry: PoolRegistry,
-        fetcher: Optional[JwksFetcher] = None,
+        fetcher: JwksFetcher | None = None,
         ttl_seconds: int = _DEFAULT_TTL_SECONDS,
     ):
         self._registry = registry
         self._fetcher = fetcher or _default_fetcher
         self._ttl_seconds = ttl_seconds
-        self._entries: Dict[str, _IssuerEntry] = {}
+        self._entries: dict[str, _IssuerEntry] = {}
         self._lock = threading.Lock()
 
     def get_signing_key(self, iss: str, kid: str) -> dict:
@@ -258,7 +258,7 @@ class JWKSCache:
         return entry
 
 
-def _index_keys_by_kid(document: Mapping) -> Dict[str, dict]:
+def _index_keys_by_kid(document: Mapping) -> dict[str, dict]:
     """Build a ``kid -> JWK`` map from a JWKS document, skipping keyless entries.
 
     Args:
@@ -278,7 +278,7 @@ def _index_keys_by_kid(document: Mapping) -> Dict[str, dict]:
         raise JWKSFetchError(
             "<jwks-document>", "response did not contain a 'keys' array"
         )
-    indexed: Dict[str, dict] = {}
+    indexed: dict[str, dict] = {}
     for key in keys:
         if isinstance(key, Mapping):
             kid = key.get("kid")
@@ -295,13 +295,13 @@ def _index_keys_by_kid(document: Mapping) -> Dict[str, dict]:
 # JWKS across the whole process. The module plane (Lambda) mirrors this by holding an
 # equivalent instance in execution-environment/global scope.
 
-_MODULE_CACHE: Optional[JWKSCache] = None
+_MODULE_CACHE: JWKSCache | None = None
 _MODULE_CACHE_LOCK = threading.Lock()
 
 
 def get_module_cache(
     registry: PoolRegistry,
-    fetcher: Optional[JwksFetcher] = None,
+    fetcher: JwksFetcher | None = None,
     ttl_seconds: int = _DEFAULT_TTL_SECONDS,
 ) -> JWKSCache:
     """Return the process-wide :class:`JWKSCache`, creating it on first use.
@@ -341,7 +341,7 @@ def get_signing_key(
     iss: str,
     kid: str,
     registry: PoolRegistry,
-    fetcher: Optional[JwksFetcher] = None,
+    fetcher: JwksFetcher | None = None,
     ttl_seconds: int = _DEFAULT_TTL_SECONDS,
 ) -> dict:
     """Module-level convenience: resolve ``(iss, kid)`` via the shared cache.

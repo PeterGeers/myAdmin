@@ -27,7 +27,7 @@ request path, stop: that work is the platform's, reached through the seams below
 | --- | --- | --- |
 | 1 — Register | Declares itself as a `sam`-backed `MODULE_REGISTRY` entry | `MODULE_REGISTRY`, `module_backing()`, `resolve_module_api_base()` |
 | 2 — Entitle | Nothing new — tenants enable it like any module | `tenant_modules` row + provisioning + sysadmin module-management |
-| 3 — Authorize | Trusts only the verified token; no request-time MySQL | Cognito authorizer + token claims (`cognito:groups`, projected entitlement) |
+| 3 — Authorize | Trusts only the verified token; no request-time MySQL. Adopts S2's delivered verifier (`sam/shared/auth_utils.py`) as its starting point — no hand-rolled verification | Cognito authorizer + token claims (`cognito:groups`, projected entitlement); S2 tooling in `sam/` (done) |
 | 4 — Scope | Scopes every record by `tenant_id` from the token | DynamoDB partition key + IAM `dynamodb:LeadingKeys` |
 
 ---
@@ -123,10 +123,60 @@ The `tenant_id` your handler scopes by (Seam 4) is derived only from this verifi
 token — not from a path parameter, query string, or request body a caller could forge.
 
 > **Enabling dependencies:** the verified token on this plane and the projected
-> entitlement claims are delivered by later roadmap steps (signature verification is
-> S2; the entitlement-in-token projection is S4). See the "Enabling dependencies"
+> entitlement claims are delivered by later roadmap steps. **Signature verification
+> (S2) is DONE** — the concrete tooling has shipped (see below); the
+> entitlement-in-token projection is still **S4**. See the "Enabling dependencies"
 > section below for the full mapping and the rule about not building against the module
 > plane before those steps land.
+
+### S2 has delivered the verification tooling — use it, don't hand-roll it
+
+S2 turned "trust only the signature-verified token" from a specification into
+**concrete, shipped code**. The module plane's verified-JWT tooling lives in
+**`sam/shared/auth_utils.py`** in the myAdmin repo. An imported module **MUST adopt
+this tooling** rather than write its own verification — there is no correct reason for
+a module to hand-roll JWKS/RS256 checks.
+
+**How it is consumed.** The tooling is developed inside myAdmin so both planes stay in
+lockstep, then **vendored by imported modules** — as a shared module or a Lambda layer.
+**h-dcn's own stack is not modified.** When h-dcn's modules are imported into this
+platform, they adopt `sam/shared/auth_utils.py` as their auth code; nothing in the
+external h-dcn workspace changes.
+
+**The handler entry points a module uses:**
+
+- `get_verified_claims(event)` — **prefers the API Gateway Cognito authorizer's
+  verified claims** (`requestContext.authorizer.claims` / `authorizer.jwt.claims`);
+  otherwise it verifies the raw `Authorization: Bearer` token itself via full
+  **RS256 + `iss` + `aud`/`client_id` + `exp`**. There is **no base64-only path** — an
+  in-handler decode always verifies.
+- `get_verified_identity(event)` — the **recommended, header-free entry point**;
+  returns `VerifiedIdentity(sub, email, groups, claims)` sourced only from the verified
+  token.
+- `get_groups(claims)` — roles from the verified **`cognito:groups`**.
+
+**What it never does:** no base64-only trust; no `X-Enhanced-Groups` / `X-Tenant`
+header trust; the only request header read is `Authorization` (to extract the bearer
+token that is then fully verified). Pools are **configuration, not code** via the same
+issuer→pool registry as the Flask plane — `COGNITO_POOL_KEYS` plus each pool's
+`{KEY}_COGNITO_*` vars (fail-fast, no defaults).
+
+**Starting point for a new/imported SAM-backed module.** Begin by **vendoring
+`sam/shared/auth_utils.py`** (shared module or Lambda layer) and calling
+`get_verified_identity(event)` in each handler. That single step satisfies Seam 3's
+"trust only the verified token" for **signature verification**. (Reading **TENANT**
+from the token is still **S5** — keep that deferral intact; this tooling deliberately
+reads roles but never a tenant claim.)
+
+```python
+from sam.shared.auth_utils import get_verified_identity
+
+def handler(event, context):
+    identity = get_verified_identity(event)   # one correct, header-free entry point
+    identity.sub                              # verified subject
+    identity.groups                           # roles from verified cognito:groups only
+    # ... module domain logic; tenant scoping (Seam 4) arrives with S5 ...
+```
 
 ## Seam 4 — Scope
 
@@ -153,21 +203,24 @@ place. The mapping below mirrors `design.md` §4 ("What S1 sets up for later ste
 
 | Seam / need | What S1 provides | Enabling step |
 | --- | --- | --- |
-| **Authorize** — signature verification on the module plane (Seam 3) | specifies "trust only the signature-verified token" | **S2** |
+| **Authorize** — signature verification on the module plane (Seam 3) | specifies "trust only the signature-verified token"; **S2 has since DELIVERED** the concrete verifier `sam/shared/auth_utils.py` that imported modules vendor and adopt | **S2 — done** |
 | **Authorize** — per-tenant entitlement (roles ∩ enabled modules) projected into the token (Seam 3) | requires it so no per-request MySQL read is needed — the Lambda-plane equivalent of `role_cache.py` | **S4** |
 | **Tenant-level module data** — facts too large or non-user-scoped for the token (Seam 3 / §3) | designs the read-only claim/projection seam, names the dependency | **S3** (read-only, one-directional MySQL→DynamoDB projection) |
 | **Scope** — `tenant_id` on a real module's data (Seam 4) | defines the rule (partition key + `LeadingKeys`) | **S5** (the first real module) |
 
 Read the two Authorize dependencies together: the seam is only usable once **both**
 land. **S2** makes the token *trustworthy* (its signature is verified on the module
-plane), and **S4** makes the token *sufficient* (the per-tenant entitlement is projected
-into it, so a Lambda never has to read `user_tenant_roles` / `tenant_modules` from MySQL
-on the request path). One without the other does not complete the seam:
+plane) — this is now **done**, delivered as the `sam/shared/auth_utils.py` tooling that
+imported modules adopt. **S4** makes the token *sufficient* (the per-tenant entitlement
+is projected into it, so a Lambda never has to read `user_tenant_roles` /
+`tenant_modules` from MySQL on the request path) — this is still **pending**. One
+without the other does not complete the seam:
 
-- With S2 but not S4, the token is verified but carries no per-tenant entitlement, so
-  there is no cheap, in-token way to answer "what may this user do in this tenant?"
-- With S4 but not S2, the entitlement claim exists but the token's signature is not
-  verified on this plane, so it cannot be trusted.
+- With S2 but not S4 (**where we are now**), the token is verified but carries no
+  per-tenant entitlement, so there is no cheap, in-token way to answer "what may this
+  user do in this tenant?"
+- With S4 but not S2, the entitlement claim would exist but the token's signature would
+  not be verified on this plane, so it could not be trusted.
 
 Tenant-level module data that does not fit in the token — facts too large or not scoped
 to the calling user — is reached only through **S3**'s read-only, one-directional
@@ -177,14 +230,17 @@ arrives with **S5**, the first real module.
 
 ### The hard rule
 
-**A module MUST NOT be built against the module plane until S2–S4 provide the token
-path.** Until signature verification (S2) and the entitlement-in-token projection (S4)
-are in place — with S3's projection available for any tenant-level facts the token
-cannot carry — there is no correct way to authorize a Lambda request. The contract
-**forbids the obvious stopgap**: a module may not fall back to a request-time MySQL read
-of `user_tenant_roles` / `tenant_modules` to bridge the gap. If the token path is not
-yet there, the module is not yet buildable on this plane — do not implement it against
-the module plane, and do not introduce a temporary MySQL call in its place.
+**A module MUST NOT be fully built against the module plane until S2–S4 provide the
+complete token path.** Signature verification (**S2**) is now **DONE** — its tooling
+ships as `sam/shared/auth_utils.py` and is the mandated starting point a module vendors
+and adopts. The entitlement-in-token projection (**S4**) is still **pending** — with
+S3's projection available for any tenant-level facts the token cannot carry. Until S4
+lands there is no correct way to answer per-tenant authorization on a Lambda request,
+so a module is not yet *fully* buildable on this plane. The contract **forbids the
+obvious stopgap**: a module may not fall back to a request-time MySQL read of
+`user_tenant_roles` / `tenant_modules` to bridge the gap. A module may adopt the S2
+verifier now (that satisfies Seam 3's signature-verification half), but it must not
+introduce a temporary MySQL call in place of the S4 entitlement claim.
 
 ## Data ownership (two planes, MySQL as system of record)
 

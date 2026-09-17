@@ -59,6 +59,16 @@ import requests
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from jwt import algorithms
 
+# Vendored, dependency-free decoder for the S4 entitlement claim (T14). It mirrors the
+# decode half of backend/src/auth/entitlement_claim_codec.py WITHOUT importing
+# backend/src, keeping this shared layer standalone (see entitlement_claim.py's
+# docstring; a drift test asserts the vendored copy decodes identically to the source).
+from sam.shared.entitlement_claim import (
+    CLAIM_NAME as ENTITLEMENT_CLAIM_NAME,
+    DecodedEntitlements,
+    decode_entitlements,
+)
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -83,6 +93,12 @@ __all__ = [
     "get_groups",
     "get_verified_identity",
     "VerifiedIdentity",
+    # Entitlement reader (S4 / T14) — per-tenant capability from the VERIFIED token
+    "DecodedEntitlements",
+    "ENTITLEMENT_CLAIM_NAME",
+    "get_entitlements",
+    "get_entitlements_from_claims",
+    "has_capability",
 ]
 
 
@@ -864,3 +880,135 @@ def get_verified_identity(
         groups=get_groups(claims),
         claims=claims,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Entitlement reader (S4 / T14) — per-tenant capability from the VERIFIED token
+# --------------------------------------------------------------------------- #
+#
+# S4 stamps each user's resolved per-tenant entitlement into the Pool A token at
+# issuance (the PreTokenGen Lambda, sam/pretokengen). The module plane authorizes the
+# PER-USER answer from that VERIFIED token claim alone — NO request-time MySQL and NO
+# S3 DynamoDB read for the per-user question (R5.2). (S3/DynamoDB is the TENANT-level
+# path; do not conflate the two.)
+#
+# Verified-only (R5.1): entitlement is read ONLY from claims that came out of
+# get_verified_claims / get_verified_identity — i.e. the API-Gateway-verified
+# authorizer context or a full in-handler RS256 verification. There is deliberately NO
+# code path that reads custom:entitlements from a raw/unverified header; the reader's
+# input is always the verified claims dict.
+#
+# Decode via the vendored codec (entitlement_claim.py). The decoder is TOTAL: an
+# unknown/missing version or a malformed value yields fallback_required=True, and an
+# over-budget token yields is_overflow=True. In BOTH cases the token does NOT answer
+# the per-user question and the reader surfaces that state (capabilities_for -> None)
+# rather than silently allowing or denying — see has_capability's caller contract.
+
+
+def get_entitlements_from_claims(
+    claims: Mapping[str, Any],
+) -> DecodedEntitlements:
+    """Decode the ``custom:entitlements`` claim from an already-verified claims dict.
+
+    Reads the claim ONLY from ``claims`` — which callers must obtain from
+    :func:`get_verified_claims` / :func:`get_verified_identity` (the
+    API-Gateway-verified authorizer context or a full RS256 verification). It never
+    consults a header (R5.1). Decoding is delegated to the vendored, total decoder, so
+    an absent claim, an unknown version, a malformed value, or an overflow signal all
+    return a well-defined :class:`DecodedEntitlements` rather than raising.
+
+    Args:
+        claims: Verified claims (from :func:`get_verified_claims`).
+
+    Returns:
+        A :class:`DecodedEntitlements`. When the claim is **absent**, the result is the
+        safe fallback (``fallback_required=True``, empty map) — identical to an
+        unknown-version claim: the token does not answer the per-user question, so the
+        caller must consult its own source of truth (the S3 projection / server) or
+        deny per the module's policy. Never a silent allow.
+    """
+    raw = claims.get(ENTITLEMENT_CLAIM_NAME)
+    if raw is None:
+        # No claim at all is treated exactly like an unrecognised claim: the token
+        # does not carry the per-user answer -> fallback_required (never a silent map).
+        return decode_entitlements(None)
+    return decode_entitlements(raw)
+
+
+def get_entitlements(
+    event: Mapping[str, Any],
+    verifier: Optional[JWTVerifier] = None,
+) -> DecodedEntitlements:
+    """Return the decoded entitlement from the request's VERIFIED token (R5.1, R5.2).
+
+    Convenience wrapper that first resolves the verified claims for the request
+    (:func:`get_verified_claims` — API-GW-authorizer preferred, else full RS256
+    verification) and then decodes ``custom:entitlements`` from them via
+    :func:`get_entitlements_from_claims`. The claim is therefore read **only** from
+    verified material; a client-supplied header carrying an entitlement is never
+    consulted (R5.1).
+
+    This does **no** MySQL query and **no** S3 read for the per-user answer — the token
+    is the per-user path (R5.2). If the token does not answer the question (absent /
+    unknown-version / malformed claim, or an overflow signal), the returned
+    :class:`DecodedEntitlements` says so (``fallback_required`` / ``is_overflow``); the
+    caller then decides to consult the S3 projection / server or deny.
+
+    Args:
+        event: The Lambda event (API Gateway proxy integration shape).
+        verifier: Optional verifier for the in-handler fallback path (tests inject one).
+
+    Returns:
+        A :class:`DecodedEntitlements` decoded from the verified token.
+
+    Raises:
+        InvalidTokenError: No token present, or the token failed verification (401).
+        ServiceUnavailableError: JWKS could not be obtained on the fallback path (503).
+    """
+    claims = get_verified_claims(event, verifier=verifier)
+    return get_entitlements_from_claims(claims)
+
+
+def has_capability(
+    claims: Mapping[str, Any],
+    tenant: str,
+    capability: str,
+) -> Optional[bool]:
+    """Answer "does this verified user hold ``capability`` for ``tenant``?" from the token.
+
+    Reads the per-user answer from the VERIFIED token's ``custom:entitlements`` claim
+    only (R5.1) — no MySQL, no S3 read (R5.2). The return is deliberately **three-state**
+    so an "the token can't answer this" case is never mistaken for a decision:
+
+    - ``True``  — the token authoritatively grants ``capability`` for ``tenant``.
+    - ``False`` — the token authoritatively denies it: the claim is present and usable,
+      lists ``tenant``, and ``capability`` is not among that tenant's capabilities.
+    - ``None``  — **the token does not answer this**; the caller must CONSULT its
+      fallback (the S3 DynamoDB projection / a server endpoint) or deny per the
+      module's policy. ``None`` arises when the claim is absent, an unknown version, or
+      malformed (``fallback_required``), when it is an **overflow** signal
+      (``is_overflow`` — the user's entitlement exceeded the token budget), or when the
+      usable claim simply does not list ``tenant`` (the token carries no per-user answer
+      for that tenant). It is NEVER a silent allow or deny.
+
+    Caller contract (document at the call site): treat ``None`` as "consult server / S3
+    or deny" — never as ``True`` and never as a blanket ``False``. A ``False`` from this
+    function is an authoritative token-backed denial; a ``None`` is an absence of an
+    answer that the caller must resolve elsewhere.
+
+    Args:
+        claims: Verified claims (from :func:`get_verified_claims` /
+            :func:`get_verified_identity`). The claim is read only from here (R5.1).
+        tenant: The administration / tenant key to check.
+        capability: The capability token (e.g. ``"finance_read"``).
+
+    Returns:
+        ``True`` / ``False`` for an authoritative token-backed decision, or ``None``
+        when the token does not answer (consult S3 / server or deny).
+    """
+    decoded = get_entitlements_from_claims(claims)
+    caps = decoded.capabilities_for(tenant)
+    if caps is None:
+        # fallback_required, overflow, or tenant not listed -> token doesn't answer.
+        return None
+    return capability in caps

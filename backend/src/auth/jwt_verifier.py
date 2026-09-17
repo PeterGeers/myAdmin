@@ -36,13 +36,14 @@ callers (``cognito_utils.py``) and tests keep working unchanged.
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
 from auth.jwks_cache import (
     JWKSCache as PoolJWKSCache,
+)
+from auth.jwks_cache import (
     JWKSFetchError,
     UnknownIssuerError,
     UnknownKidError,
@@ -157,14 +158,14 @@ class JWTVerifier:
 
     def __init__(
         self,
-        user_pool_id: Optional[str] = None,
-        region: Optional[str] = None,
-        app_client_id: Optional[str] = None,
+        user_pool_id: str | None = None,
+        region: str | None = None,
+        app_client_id: str | None = None,
         cache_ttl: int = 3600,
         fetch_timeout: int = 5,
         *,
-        registry: Optional[PoolRegistry] = None,
-        jwks_cache: Optional[PoolJWKSCache] = None,
+        registry: PoolRegistry | None = None,
+        jwks_cache: PoolJWKSCache | None = None,
     ):
         self.fetch_timeout = fetch_timeout
 
@@ -177,15 +178,17 @@ class JWTVerifier:
             self.app_client_id = app_client_id
             self.issuer = None
             self.jwks_url = None
-        elif user_pool_id is not None and region is not None and app_client_id is not None:
+        elif (
+            user_pool_id is not None
+            and region is not None
+            and app_client_id is not None
+        ):
             # --- Backward-compatible single-pool path: build a one-entry registry. ---
             self._legacy_single_pool = True
             self.user_pool_id = user_pool_id
             self.region = region
             self.app_client_id = app_client_id
-            self.issuer = (
-                f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
-            )
+            self.issuer = f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
             self.jwks_url = f"{self.issuer}/.well-known/jwks.json"
             pool = PoolConfig(
                 iss=self.issuer,
@@ -272,9 +275,7 @@ class JWTVerifier:
         # claim here — selection just picks which pool's keys/audience to verify
         # against. Signature verification below is what establishes trust.
         try:
-            unverified_claims = jwt.decode(
-                token, options={"verify_signature": False}
-            )
+            unverified_claims = jwt.decode(token, options={"verify_signature": False})
         except jwt.exceptions.DecodeError:
             raise InvalidTokenError("Invalid token format")
 

@@ -645,6 +645,14 @@ def update_tenant_modules(
 
         logger.info(f"Modules updated for tenant {administration} by {user_email}")
 
+        # S3 R5.7 — on-change projection sync trigger. tenant_modules enable/
+        # disable changes committed above; signal a projection sync for the
+        # affected tenant. Best-effort: never breaks the module update
+        # (reconciliation backstops a missed signal).
+        from services.projection_sync_trigger import enqueue_sync
+
+        enqueue_sync(administration)
+
         return jsonify(
             {
                 "success": True,

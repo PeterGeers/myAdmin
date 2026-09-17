@@ -7,8 +7,10 @@ security scoring calculation, and empty input handling.
 Requirements: 1.6, 2.1, 8.5
 """
 
+from functools import wraps
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from security_audit import SecurityAudit
 
@@ -1021,13 +1023,35 @@ class TestSecurityEndpointsIntegration:
 
     @pytest.fixture
     def app_with_endpoints(self, mock_db):
-        """Create Flask app with security endpoints registered."""
+        """Create Flask app with security endpoints registered.
+
+        The `/api/security/*` endpoints are intentionally SysAdmin-only and
+        verified-JWT protected (see `security_audit.register_security_endpoints`
+        docstring / S2 R1.1) — anonymous calls correctly get 401. To exercise the
+        endpoints' real authenticated behaviour, we patch `cognito_required` with a
+        passthrough that injects a verified SysAdmin identity. The patch must be
+        active BEFORE `register_security_endpoints` runs, because the decorator is
+        applied at registration time. This tests the authorized path; it does NOT
+        weaken the endpoints' auth.
+        """
         from flask import Flask
         from security_audit import register_security_endpoints
+
+        def _passthrough_sysadmin(required_roles=None, required_permissions=None):
+            def decorator(f):
+                @wraps(f)
+                def wrapper(*args, **kwargs):
+                    kwargs['user_email'] = 'sysadmin@test'
+                    kwargs['user_roles'] = ['SysAdmin']
+                    return f(*args, **kwargs)
+                return wrapper
+            return decorator
+
         app = Flask(__name__)
         app.config['TESTING'] = True
 
-        with patch('security_audit.DatabaseManager', return_value=mock_db):
+        with patch('auth.cognito_utils.cognito_required', side_effect=_passthrough_sysadmin), \
+             patch('security_audit.DatabaseManager', return_value=mock_db):
             register_security_endpoints(app)
 
         return app
