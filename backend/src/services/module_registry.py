@@ -421,6 +421,13 @@ def activate_module(
             tenant,
         )
 
+        # S3 R5.7 — on-change projection sync trigger. tenant_modules changed and
+        # committed; signal a projection sync for the affected tenant.
+        # Best-effort: never breaks module activation (reconciliation backstops).
+        from services.projection_sync_trigger import enqueue_sync
+
+        enqueue_sync(tenant)
+
         return True
     except Exception as e:
         logger.error(

@@ -1,0 +1,117 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "backend/**/*.py"
+---
+
+# Database Patterns (Flask / MySQL plane)
+
+> **Scope: the Flask / MySQL plane only** (`backend/**/*.py`). `DatabaseManager`, the
+> dialect helpers, MySQL migrations, and `administration`-keyed tenant isolation are
+> MySQL-plane rules — they do **not** apply to the SAM plane. SAM-backed modules persist
+> to **DynamoDB** (no `mysql.connector`, no `DatabaseManager`); their data patterns and
+> `tenant_id` + IAM `LeadingKeys` tenancy live in `35-sam-module-architecture-sam.md` and
+> `23-aws-accounts.md`.
+
+## Abstraction Layer
+
+All database access goes through `DatabaseManager`, `dialect_helpers`, and `db_exceptions`. No file outside `database.py` and `scalability_manager.py` may import `mysql.connector`.
+
+```python
+from database import DatabaseManager
+from dialect_helpers import dialect
+from db_exceptions import DatabaseError, IntegrityError, ConnectionError, OperationalError
+```
+
+## DatabaseManager
+
+```python
+db.execute_query(query, params, fetch=True)                          # read
+db.execute_query(query, params, fetch=False, commit=True)            # write
+db.execute_batch_queries([(q1, p1), (q2, p2)], commit=True)         # batch
+db.execute_ddl("ALTER TABLE ...")                                     # DDL
+with db.transaction() as (cursor, conn):                              # multi-statement
+    cursor.execute(...)
+with db.get_cursor() as (cursor, conn):                               # raw cursor
+    cursor.executemany(...)
+    conn.commit()
+```
+
+## Dialect Helpers
+
+Use `dialect` instead of raw MySQL syntax. Key methods: `json_extract`, `json_unquote_extract`, `json_set`, `json_contains`, `year`, `month`, `quarter`, `current_date`, `current_timestamp`, `date_subtract`, `date_add`, `date_diff`, `date_format`, `str_to_date`, `ifnull`, `quote_identifier`, `describe_table`, `get_view_definition`, `list_tables`.
+
+## Exceptions
+
+Catch `DatabaseError` (base), `IntegrityError`, `ConnectionError`, `OperationalError` — never `mysql.connector.Error`. All carry `error_code`, `original_error`, `__cause__`.
+
+## Reference
+
+Full spec: #[[file:.kiro/specs/database-abstraction-layer/design.md]]
+
+## Migrations
+
+- Migration JSON files live in `backend/src/migrations/` and are applied by `DatabaseMigration.run_all_migrations()`
+- Migrations are NOT auto-applied on app startup — run manually via `PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration(test_mode=False).run_all_migrations()"`
+- The migration system tracks applied migrations in the `database_migrations` table — it won't re-run them
+- **MySQL 9.4 does NOT support `IF NOT EXISTS` / `IF EXISTS` on `CREATE INDEX` or `DROP INDEX`** — never use these clauses in migration files. Idempotency is handled by the migration system itself (it skips already-applied migrations).
+- Use plain `CREATE INDEX idx_name ON table (columns)` and `DROP INDEX idx_name ON table`
+
+## Core Rules
+
+- Parameterized queries: always `%s` placeholders, never f-string interpolation
+- Tables: `snake_case`, views: `vw_` prefix, FKs: `{table}_id`
+- Environments: local Docker (dev), Railway (production) — database config comes from env vars, never hardcode
+
+## Tenant Isolation (REQ13 — Defense in Depth)
+
+Every tenant-scoped table and view must support direct tenant filtering without JOINs.
+
+### Table Creation Checklist
+
+When creating a new table that holds tenant data:
+
+1. **Add `administration VARCHAR(50) NOT NULL`** — no exceptions, even for child tables
+2. **Add `INDEX idx_administration (administration)`** — enables standalone tenant queries
+3. **Add a composite index** for the primary query pattern (e.g., `idx_admin_parent (administration, parent_id)`)
+4. **Do NOT rely on parent FKs for tenant scope** — a child table like `invoice_lines` must have its own `administration` column, not inherit it via JOIN to `invoices`
+
+### Query Rules
+
+- Every SELECT, UPDATE, DELETE on a tenant-scoped table must include `WHERE ... administration = %s`
+- The `administration` value comes from `@tenant_required()` — passed as `tenant` parameter through the service layer
+- INSERT statements must include the `administration` value explicitly
+
+### View Rules
+
+- Views over tenant-scoped tables must include `administration` in the SELECT list and GROUP BY clause
+- This allows consumers to filter by `WHERE administration = %s` directly on the view
+
+### Why Child Tables Need Their Own Column
+
+Relying on JOINs to parent tables for tenant filtering creates two risks:
+
+- **Performance**: every child query requires a JOIN just for access control
+- **Security**: if a developer forgets the JOIN, the query returns cross-tenant data
+
+The `administration` column on child tables is intentional denormalization for defense-in-depth. The application layer must ensure the child's `administration` matches the parent's.
+
+### Exceptions
+
+These table types do NOT need `administration`:
+
+- Generic/reference tables (e.g., `countries`, `database_migrations`)
+- System tables only accessible to SysAdmin
+- Tables explicitly documented as tenant-agnostic
+
+## Data Ownership
+
+Transaction data belongs to the business owner, not the system.
+
+- **Never modify, correct, or override existing data** unless the user explicitly requests it
+- **Never hardcode tenant names** in code — the `administration` value must always flow from the authenticated session (`@tenant_required()`) or be an explicit required parameter
+- **No silent defaults for `administration`** — if a tenant value is missing, raise an error rather than falling back to a hardcoded name
+- **Algorithms must work with data as-is** — pattern detection, predictions, and analytics interpret data but never alter it
+- **Docstring examples** should use generic placeholders (e.g., `"ExampleTenant"`) not real tenant names
+
+> Module-plane (DynamoDB) tenancy uses `tenant_id` + IAM `LeadingKeys` instead — see
+> `23-aws-accounts.md` and `35-sam-module-architecture-sam.md`.

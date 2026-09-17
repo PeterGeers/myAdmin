@@ -425,3 +425,6 @@ __marimo__/
 
 # Added by ggshield
 .cache_ggshield
+
+# Agent/task scratch output (logs, command dumps) — trusted, never committed
+.agent-output/
