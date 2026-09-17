@@ -17,7 +17,19 @@ if str(src_dir) not in sys.path:
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-# Hypothesis CI profile: deterministic, no deadline, suppress slow health check
+# Hypothesis profiles.
+#
+# Property-test wall-clock DEADLINES are unreliable on shared/variable hardware
+# (CI runners especially): a property that computes in <1ms locally can exceed a
+# 200ms first-run deadline on a busy runner and fail as "Flaky", even though the
+# property itself holds. That is a hardware-timing artifact, not a real defect.
+# So we disable the deadline for BOTH profiles (the property/coverage is unchanged
+# — only the timing guard is dropped). The "ci" profile additionally derandomizes
+# for reproducibility and suppresses the too-slow health check.
+hypothesis_settings.register_profile(
+    "default",
+    deadline=None,
+)
 hypothesis_settings.register_profile(
     "ci",
     derandomize=True,

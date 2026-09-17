@@ -314,7 +314,7 @@ class TestTenantIsolation:
 class TestColumnPivotConditionalAggregation:
     """For any config with column_pivot, SQL contains CASE WHEN expressions."""
 
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100)
     @given(
         config=valid_pivot_config_st(),
         tenant=tenant_st,
@@ -336,7 +336,7 @@ class TestColumnPivotConditionalAggregation:
             f"got {case_when_count}"
         )
 
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100)
     @given(
         config=valid_pivot_config_st(),
         tenant=tenant_st,
@@ -349,7 +349,7 @@ class TestColumnPivotConditionalAggregation:
         for pv in config['pivot_values']:
             assert pv in params
 
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100)
     @given(
         config=valid_pivot_config_st(),
         tenant=tenant_st,
