@@ -115,19 +115,19 @@ Verification results so far:
 
 ## Phase 7 — Verify green end-to-end (R7) + ship
 
-- [ ] **T14. Full local verification (mirror CI scope):**
+- [x] **T14. Full local verification (mirror CI scope):**
   - `cd backend && ruff check src/ --exclude src/validate_pattern/`  → clean
   - `ruff format --check src/ --exclude src/validate_pattern/`         → clean
   - `python -m pytest tests/unit/ -q`                                   → 0 failed
   - `cd ../sam && python -m pytest -q`                                  → pass
   - `cd ../frontend && npx vitest run`                                  → pass
-- [ ] **T15. Commit the fixes** on `feature/s2-jwt-verification` with a clear message
+- [x] **T15. Commit the fixes** on `feature/s2-jwt-verification` with a clear message
       (lint/format, remove dead MySQL reader, precise guard, security-audit fixture,
       property-test deadlines, CI exit-code fix). Stage specific files; no logs/scratch.
-- [ ] **T16. Push and re-run the Full Test Suite** (`gh workflow run full-test-suite.yml --ref
+- [x] **T16. Push and re-run the Full Test Suite** (`gh workflow run full-test-suite.yml --ref
       feature/s2-jwt-verification -f scope=both`). Download artifacts; confirm backend =
       0 failed, frontend = 0 failed, lint = pass, and the job conclusion is now a *true* success.
-- [ ] **T17. Prove R6 works** (deliberate check): confirm that with the CI fix, a failing test
+- [x] **T17. Prove R6 works** (deliberate check): confirm that with the CI fix, a failing test
       would fail the job — either by reasoning from the diff, or a one-off scratch test on a
       throwaway commit that is then reverted. (Optional but recommended.)
 - [ ] **T18. Merge PR #14 to `main`** once T14–T16 are green. (Merge commit to preserve the
@@ -147,3 +147,15 @@ Verification results so far:
   fixture authenticate as a verified SysAdmin (mock `@cognito_required` / inject verified claims).
   Do NOT make the endpoints public — that would be a security regression contradicting S2 R1.1.
 - **T13/T17:** optional hardening; skip for the minimal path to green + merge unless you want them.
+
+
+## Final result
+
+Run `35231015911` on `feature/s2-jwt-verification` (commit `8967c52`): **all green**.
+- Backend: **6291 passed, 10 skipped, 0 failed**
+- Frontend: **2386 passed, 12 skipped, 0 failed**
+- Ruff Lint ✅ / Ruff Format ✅ / Vulture ✅
+
+Failure chain resolved: 13 → 4 → 0. CI now reports honestly (the `|| true` removal
+made the prior run correctly go red, this run correctly green). R1–R7 satisfied.
+**T18 (merge PR #14 to main) pending user go-ahead.**
