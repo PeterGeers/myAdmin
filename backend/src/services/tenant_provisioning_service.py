@@ -214,6 +214,16 @@ class TenantProvisioningService:
             f"chart={results['chart']} ({results['chart_rows']} rows)"
             f"{admin_status}"
         )
+
+        # S3 R5.7 — on-change projection sync trigger. Provisioning has mutated
+        # the governance system-of-record (tenants / tenant_modules /
+        # user_tenant_roles) and everything above has committed, so signal a
+        # projection sync for the affected tenant. Best-effort: a failure here
+        # never breaks provisioning — the periodic reconciliation backstops it.
+        from services.projection_sync_trigger import enqueue_sync
+
+        enqueue_sync(administration)
+
         return results
 
     def create_initial_admin_user(

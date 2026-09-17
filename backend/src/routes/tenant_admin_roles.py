@@ -138,6 +138,13 @@ def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
 
         invalidate_cache(target_email, tenant)
 
+        # S3 R5.7 — on-change projection sync trigger. A user_tenant_roles grant
+        # committed above; signal a projection sync for the affected tenant.
+        # Best-effort: never breaks the role assignment (reconciliation backstops).
+        from services.projection_sync_trigger import enqueue_sync
+
+        enqueue_sync(tenant)
+
         print(
             f"AUDIT: Role {group_name} assigned to {username} by {user_email} in tenant {tenant}",
             flush=True,
@@ -229,6 +236,13 @@ def remove_user_group(
         from auth.role_cache import invalidate_cache
 
         invalidate_cache(target_email, tenant)
+
+        # S3 R5.7 — on-change projection sync trigger. A user_tenant_roles revoke
+        # committed above; signal a projection sync for the affected tenant.
+        # Best-effort: never breaks the role removal (reconciliation backstops).
+        from services.projection_sync_trigger import enqueue_sync
+
+        enqueue_sync(tenant)
 
         print(
             f"AUDIT: Role {group_name} removed from {username} by {user_email} in tenant {tenant}",
