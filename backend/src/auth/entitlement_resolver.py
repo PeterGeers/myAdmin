@@ -81,9 +81,7 @@ from auth.cognito_utils import ROLE_PERMISSIONS
 # Global roles whose authority is the cognito:groups claim (S3 contract, R1.4).
 # The resolver does not re-derive these; they are documented here for callers
 # that may want the passthrough set, but the per-tenant map never invents them.
-GLOBAL_ROLES: frozenset[str] = frozenset(
-    {"SysAdmin", "Administrators", "System_CRUD"}
-)
+GLOBAL_ROLES: frozenset[str] = frozenset({"SysAdmin", "Administrators", "System_CRUD"})
 
 
 def _roles_granting_active_modules(

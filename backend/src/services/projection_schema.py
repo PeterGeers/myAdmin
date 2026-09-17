@@ -41,7 +41,6 @@ defaulting, so nothing can silently point at the wrong table or at production.
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from services.dynamodb_client import (
     PROJECTION_TABLE_ENV_VAR,
@@ -187,7 +186,7 @@ def resolve_projection_table_name() -> str:
     return require_env(PROJECTION_TABLE_ENV_VAR)
 
 
-def get_projection_table_resource(*, region: Optional[str] = None):
+def get_projection_table_resource(*, region: str | None = None):
     """Return the boto3 Table handle for the projection table (fail-fast).
 
     Thin passthrough to :func:`services.dynamodb_client.get_projection_table`, so

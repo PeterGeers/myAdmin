@@ -50,8 +50,9 @@ fakes and never touch real AWS:
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Optional
+from typing import Any
 
 from boto3.dynamodb.conditions import Key
 
@@ -76,7 +77,7 @@ class _CacheEntry:
             stored, used for TTL expiry.
     """
 
-    item: Optional[dict]
+    item: dict | None
     version: Any
     cached_at: float
 
@@ -121,7 +122,7 @@ class ProjectionReader:
         *,
         table: Any = None,
         cache_ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
-        clock: Optional[Callable[[], float]] = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         self._table = table
         self._cache_ttl_seconds = cache_ttl_seconds
@@ -176,7 +177,7 @@ class ProjectionReader:
 
     def get_item(
         self, tenant_id: str, sort_key: str, *, refresh: bool = True
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Return one projection item for ``(tenant_id, sort_key)``, version-aware cached.
 
         Reads a single item scoped to ``tenant_id`` (its own partition, R5.4).
@@ -267,7 +268,7 @@ class ProjectionReader:
         """True iff ``entry`` is older than the TTL (bounded staleness, R5.8)."""
         return (now - entry.cached_at) >= self._cache_ttl_seconds
 
-    def _read_item(self, tenant_id: str, sort_key: str) -> Optional[dict]:
+    def _read_item(self, tenant_id: str, sort_key: str) -> dict | None:
         """Read one item by primary key, scoped to ``tenant_id`` (R5.4). Read-only.
 
         Builds the primary key through :func:`services.projection_schema.build_key`

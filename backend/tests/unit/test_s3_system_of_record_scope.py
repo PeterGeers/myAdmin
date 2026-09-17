@@ -34,6 +34,7 @@ tree (DDL files) and parses `sam/` sources with the `ast` module only.
 """
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -75,10 +76,9 @@ def _imported_roots(py_file: Path) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 roots.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            # Ignore relative imports (node.level > 0); they can't be a MySQL client.
-            if node.module and node.level == 0:
-                roots.add(node.module.split(".")[0])
+        # Ignore relative imports (node.level > 0); they can't be a MySQL client.
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            roots.add(node.module.split(".")[0])
     return roots
 
 
@@ -162,21 +162,43 @@ class TestModulePlaneHasNoMySQLClient:
         )
 
     def test_no_sam_source_reads_governance_tables_directly(self):
-        """No `sam/` source names the governance tables as raw SQL reads (R3.3).
+        """No `sam/` source issues a raw SQL read against a governance table (R3.3).
 
         Belt-and-suspenders on top of the import scan: even without a client, a raw
         governance-table SQL string under `sam/` would signal an attempt to treat the
         module plane as a reader/writer of the system of record.
+
+        Precise by construction: this scans **string literals only** (via the `ast`
+        module) and flags a governance table name only when it appears in a **SQL
+        context** — i.e. adjacent to a SQL verb (`FROM`/`JOIN`/`INTO`/`UPDATE`/`TABLE`).
+        Comments are not in the AST, and design **docstrings/prose** that merely name a
+        table (e.g. "reads the projection of `tenant_modules`") are NOT flagged — only a
+        genuine `SELECT ... FROM user_tenant_roles`-style string is. This keeps the
+        valid DynamoDB-projection reader's explanatory docstrings intact while still
+        catching a real MySQL read.
         """
+        # A table name is a SQL read/write only when a SQL verb immediately precedes it.
+        sql_verb = re.compile(
+            r"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+`?(user_tenant_roles|tenant_modules)`?",
+            re.IGNORECASE,
+        )
+
         offenders: list[str] = []
         for py_file in _iter_sam_py_files():
-            text = py_file.read_text(encoding="utf-8")
-            for table in ("user_tenant_roles", "tenant_modules"):
-                if table in text:
+            tree = ast.parse(py_file.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                    continue
+                literal = node.value
+                # Only string literals that read as SQL against a governance table.
+                match = sql_verb.search(literal)
+                if match:
                     rel = py_file.relative_to(_REPO_ROOT).as_posix()
-                    offenders.append(f"{rel}: references {table!r}")
+                    offenders.append(
+                        f"{rel}: SQL access to {match.group(1)!r} in a string literal"
+                    )
         assert not offenders, (
-            "module-plane source references a governance table directly; those facts "
+            "module-plane source issues raw SQL against a governance table; those facts "
             "reach a module via the token (S4) or the read-only projection (D3), never "
-            "a request-time MySQL read (R3.3):\n  " + "\n  ".join(offenders)
+            "a request-time MySQL read (R3.3):\n  " + "\n  ".join(sorted(set(offenders)))
         )

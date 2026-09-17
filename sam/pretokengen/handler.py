@@ -97,16 +97,9 @@ logger = logging.getLogger(__name__)
 # The config-error types that are FAIL-FAST: a deploy-time misconfiguration that
 # must PROPAGATE loudly, never be swallowed by the per-request fail-safe omit
 # (R2.5). ``DynamoDBConfigError`` is the projection reader's config error (missing
-# table/region env). ``GovernanceConfigError`` (the old MySQL seam's) is kept in
-# the propagate set as a harmless belt-and-braces if it is still importable, so a
-# config error can never be misread as a transient runtime error.
+# table/region env) — the only governance source this Lambda reads (Design
+# amendment A: the DynamoDB projection, never MySQL).
 _CONFIG_ERRORS: tuple[type[BaseException], ...] = (DynamoDBConfigError,)
-try:  # pragma: no cover - the MySQL seam may be removed from the bundle.
-    from sam.pretokengen.governance_reader import GovernanceConfigError  # noqa: E402
-
-    _CONFIG_ERRORS = (DynamoDBConfigError, GovernanceConfigError)
-except Exception:  # noqa: BLE001 - the MySQL reader is optional / not bundled.
-    pass
 
 
 def _identify_user(event: Mapping) -> str:

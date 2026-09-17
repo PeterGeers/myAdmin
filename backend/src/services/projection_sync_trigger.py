@@ -63,7 +63,8 @@ an in-memory fake queue and a fake sync, never touching real AWS / MySQL.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +129,9 @@ class SyncLike(Protocol):
     DynamoDB/MySQL. ``ProjectionSync`` satisfies this structurally.
     """
 
-    def sync_administration(self, administration: str) -> Any:
-        ...
+    def sync_administration(self, administration: str) -> Any: ...
 
-    def sync_all(self) -> Any:
-        ...
+    def sync_all(self) -> Any: ...
 
 
 # --- The trigger ------------------------------------------------------------
@@ -166,10 +165,10 @@ class ProjectionSyncTrigger:
 
     def __init__(
         self,
-        queue: Optional[SyncQueue] = None,
+        queue: SyncQueue | None = None,
         *,
-        sync: Optional[SyncLike] = None,
-        sync_factory: Optional[Callable[[], SyncLike]] = None,
+        sync: SyncLike | None = None,
+        sync_factory: Callable[[], SyncLike] | None = None,
         drain_on_enqueue: bool = True,
     ) -> None:
         self._queue: SyncQueue = queue if queue is not None else InMemorySyncQueue()
@@ -250,7 +249,7 @@ class ProjectionSyncTrigger:
 #: paths call :func:`enqueue_sync` / :func:`reconcile` which route through this,
 #: so callers never construct a trigger or the sync themselves. Tests reset it
 #: via :func:`set_default_trigger`.
-_default_trigger: Optional[ProjectionSyncTrigger] = None
+_default_trigger: ProjectionSyncTrigger | None = None
 
 
 def _build_default_trigger() -> ProjectionSyncTrigger:
@@ -284,7 +283,7 @@ def get_default_trigger() -> ProjectionSyncTrigger:
     return _default_trigger
 
 
-def set_default_trigger(trigger: Optional[ProjectionSyncTrigger]) -> None:
+def set_default_trigger(trigger: ProjectionSyncTrigger | None) -> None:
     """Override (or reset with ``None``) the process default trigger.
 
     Primarily for tests: inject a trigger backed by an in-memory queue + fake
@@ -294,7 +293,7 @@ def set_default_trigger(trigger: Optional[ProjectionSyncTrigger]) -> None:
     _default_trigger = trigger
 
 
-def enqueue_sync(administration: Optional[str]) -> bool:
+def enqueue_sync(administration: str | None) -> bool:
     """Best-effort on-change enqueue for a governance write path (R5.7).
 
     Call this **after** a governance write (provisioning / module enable-disable
@@ -324,7 +323,7 @@ def enqueue_sync(administration: Optional[str]) -> bool:
     try:
         get_default_trigger().enqueue(administration)
         return True
-    except Exception as exc:  # noqa: BLE001 — best-effort by design (R5.7)
+    except Exception as exc:
         # The governance write already committed; do NOT propagate. Log and let
         # the reconciliation backstop catch this tenant on its next pass.
         logger.warning(

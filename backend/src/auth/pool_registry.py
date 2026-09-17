@@ -42,7 +42,7 @@ to ``.env`` / ``.env.example``; the app-clients have no secret):
 """
 
 import os
-from typing import Dict, Iterable, Mapping, Optional
+from collections.abc import Iterable, Mapping
 
 # Reuse the T2 registry-entry type rather than duplicating it.
 from auth.test_pool_config import PoolConfig
@@ -123,7 +123,7 @@ def _load_pool_entry(pool_key: str, environ: Mapping[str, str]) -> PoolConfig:
     )
 
 
-def _parse_pool_keys(raw: Optional[str]) -> list:
+def _parse_pool_keys(raw: str | None) -> list:
     """Split the COGNITO_POOL_KEYS value into a clean, ordered, de-duplicated list.
 
     Args:
@@ -163,7 +163,7 @@ class PoolRegistry:
     """
 
     def __init__(self, entries: Iterable[PoolConfig]):
-        by_iss: Dict[str, PoolConfig] = {}
+        by_iss: dict[str, PoolConfig] = {}
         for entry in entries:
             if entry.iss in by_iss:
                 raise PoolRegistryError(
@@ -174,7 +174,7 @@ class PoolRegistry:
             by_iss[entry.iss] = entry
         self._by_iss = by_iss
 
-    def get(self, iss: str) -> Optional[PoolConfig]:
+    def get(self, iss: str) -> PoolConfig | None:
         """Return the pool for ``iss``, or ``None`` if the issuer is unknown."""
         return self._by_iss.get(iss)
 
@@ -200,7 +200,7 @@ class PoolRegistry:
         return iss in self._by_iss
 
 
-def load_pool_registry(environ: Optional[Mapping[str, str]] = None) -> PoolRegistry:
+def load_pool_registry(environ: Mapping[str, str] | None = None) -> PoolRegistry:
     """Load the issuer->pool registry from the environment (fail-fast, no defaults).
 
     Reads ``COGNITO_POOL_KEYS`` for the declared pool keys, then loads each pool's
