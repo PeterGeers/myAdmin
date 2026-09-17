@@ -37,7 +37,8 @@ from being written, which is the R5.5 guarantee.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from services import projection_schema as schema
 from services.projection_builder import ProjectionItem
@@ -75,9 +76,7 @@ def _is_blank(value: Any) -> bool:
     """
     if value is None:
         return True
-    if isinstance(value, str) and value.strip() == "":
-        return True
-    return False
+    return isinstance(value, str) and value.strip() == ""
 
 
 def _identity(item: ProjectionItem) -> str:
@@ -250,7 +249,7 @@ def is_valid_item(item: ProjectionItem) -> bool:
         return False
 
 
-def validate_items(items: "list[ProjectionItem]") -> "list[ProjectionItem]":
+def validate_items(items: list[ProjectionItem]) -> list[ProjectionItem]:
     """Validate a batch of items, failing loudly on the first invalid one (R5.5).
 
     Mirrors the sync's per-item write discipline: rather than silently dropping a

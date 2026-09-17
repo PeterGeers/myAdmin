@@ -58,13 +58,13 @@ must agree:
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from services import projection_schema as schema
 from services.projection_builder import ProjectionItem, build_projection_items
 from services.projection_validator import validate_items
-
 
 # --- Source-side seam (read-only MySQL) ------------------------------------
 
@@ -97,7 +97,7 @@ class SourceProvider(Protocol):
     with parameterized queries; tests substitute an in-memory fake.
     """
 
-    def get_tenant_source(self, administration: str) -> Optional[TenantSource]:
+    def get_tenant_source(self, administration: str) -> TenantSource | None:
         """Return the source rows for ``administration``, or ``None`` if absent."""
         ...
 
@@ -126,7 +126,7 @@ class DatabaseSourceProvider:
         )
         return [r["administration"] for r in (rows or []) if r.get("administration")]
 
-    def get_tenant_source(self, administration: str) -> Optional[TenantSource]:
+    def get_tenant_source(self, administration: str) -> TenantSource | None:
         if not administration:
             raise ValueError(
                 "administration must be non-empty — a blank tenant scope is a "
@@ -199,9 +199,7 @@ def _supersedes(incoming_version: Any, stored_version: Any) -> bool:
 # Placeholder-less condition guard for the real-store write. Written as a raw
 # expression string with an expression-attribute-name for the reserved word
 # ``version`` and a value placeholder for the incoming version.
-_CONDITION_EXPRESSION = (
-    f"attribute_not_exists(#v) OR #v < :incoming"
-)
+_CONDITION_EXPRESSION = "attribute_not_exists(#v) OR #v < :incoming"
 
 
 class ProjectionSync:
@@ -341,7 +339,7 @@ class ProjectionSync:
                 ExpressionAttributeNames={"#v": schema.VERSION_ATTR},
                 ExpressionAttributeValues={":incoming": item.version},
             )
-        except Exception as exc:  # noqa: BLE001 - narrow below
+        except Exception as exc:
             # A conditional-check failure means a concurrent writer already
             # advanced the stored version — a benign no-op (idempotence, R5.6),
             # not an error. Any other error propagates (fail loudly).

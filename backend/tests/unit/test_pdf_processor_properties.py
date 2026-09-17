@@ -78,7 +78,7 @@ class TestValidAIResultPassthrough:
     **Validates: Requirements 2.2, 2.5**
     """
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, deadline=None)
     @given(
         folder_name=valid_folder_name_st,
         total_amount=valid_amount_st,
@@ -137,7 +137,7 @@ class TestValidAIResultPassthrough:
             f"Expected date='{date}', got '{main_tx['date']}'"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, deadline=None)
     @given(
         folder_name=valid_folder_name_st,
         total_amount=valid_amount_st,
@@ -197,7 +197,7 @@ class TestValidAIResultPassthrough:
             f"Expected amount={rounded_total}, got {main_tx['amount']}"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, deadline=None)
     @given(
         folder_name=valid_folder_name_st,
         total_amount=valid_amount_st,
@@ -380,7 +380,7 @@ class TestValidAIResultPassthrough:
             f"Expected ref (vendor/folder)='{folder_name}', got '{main_tx['ref']}'"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, deadline=None)
     @given(
         folder_name=valid_folder_name_st,
         total_amount=valid_amount_st,

@@ -32,7 +32,6 @@ auditable.
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 import boto3
 
@@ -85,7 +84,7 @@ def require_env(name: str) -> str:
     return value.strip()
 
 
-def get_endpoint_url() -> Optional[str]:
+def get_endpoint_url() -> str | None:
     """Return the DynamoDB endpoint override, or ``None`` when unset.
 
     The override is used **only when ``AWS_ENDPOINT_URL_DYNAMODB`` is set** — the
@@ -102,7 +101,7 @@ def get_endpoint_url() -> Optional[str]:
     return value.strip()
 
 
-def get_dynamodb_resource(*, region: Optional[str] = None):
+def get_dynamodb_resource(*, region: str | None = None):
     """Build a boto3 DynamoDB *resource* for the projection.
 
     Points at the local ``dynamodb-local`` endpoint only when
@@ -141,7 +140,7 @@ def get_dynamodb_resource(*, region: Optional[str] = None):
     return boto3.resource("dynamodb", **kwargs)
 
 
-def get_projection_table(*, region: Optional[str] = None):
+def get_projection_table(*, region: str | None = None):
     """Return the boto3 Table handle for the governance projection table.
 
     Resolves the table name from ``GOVERNANCE_PROJECTION_TABLE`` (fail-fast) and

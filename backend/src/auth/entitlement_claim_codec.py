@@ -284,9 +284,7 @@ def decode_entitlements(claim_value: object) -> DecodedEntitlements:
 
     # Unknown/missing version — fall back (never mis-parse a future format).
     if version != CLAIM_VERSION:
-        return _unknown_fallback(
-            version=version if isinstance(version, int) else None
-        )
+        return _unknown_fallback(version=version if isinstance(version, int) else None)
 
     # Recognised version — is it the overflow signal?
     if parsed.get("overflow") is True:

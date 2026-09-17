@@ -164,13 +164,14 @@ jobs:
       - name: Run all unit tests
         working-directory: backend
         run: |
+          set -o pipefail
           mkdir -p reports
           python -m pytest tests/unit/ \
             --tb=short -q \
             --cov=src --cov-report=html:reports/coverage-html --cov-report=xml:reports/coverage.xml \
             --junitxml=reports/junit-results.xml \
             --html=reports/test-report.html --self-contained-html \
-            2>&1 | tee reports/test-output.txt || true
+            2>&1 | tee reports/test-output.txt
         env:
           TESTING: "true"
           DB_HOST: "localhost"
@@ -224,9 +225,10 @@ jobs:
       - name: Run all tests
         working-directory: frontend
         run: |
+          set -o pipefail
           mkdir -p reports
           npx vitest run --reporter=verbose --reporter=junit --outputFile=reports/junit-results.xml \
-            2>&1 | tee reports/test-output.txt || true
+            2>&1 | tee reports/test-output.txt
         env:
           VITE_API_URL: http://localhost:5000
           VITE_COGNITO_USER_POOL_ID: eu-west-1_TestPool123

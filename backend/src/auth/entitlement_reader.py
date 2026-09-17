@@ -68,8 +68,8 @@ from services.module_registry import MODULE_REGISTRY, has_module
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "resolve_capabilities",
     "has_capability",
+    "resolve_capabilities",
     "resolve_capabilities_from_db",
 ]
 

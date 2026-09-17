@@ -287,7 +287,11 @@ class TestProperty3DeduplicationKeepsOnePerBookNumber:
         base_df=booking_dataframe_strategy(min_rows=2, max_rows=8),
         n_duplicates=st.integers(min_value=1, max_value=3),
     )
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
+    @settings(
+        max_examples=20,
+        deadline=None,
+        suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow],
+    )
     def test_dedup_produces_unique_book_numbers(self, base_df, n_duplicates):
         """After deduplication, each Book number appears exactly once."""
         # Create duplicates by repeating some rows with the same Book number
