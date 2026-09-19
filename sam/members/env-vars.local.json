@@ -1,0 +1,8 @@
+{
+  "MembersFunction": {
+    "MEMBERS_TABLE": "sam-members-local",
+    "GOVERNANCE_PROJECTION_TABLE": "test_governance_projection",
+    "AWS_ENDPOINT_URL_DYNAMODB": "http://dynamodb-local:8000",
+    "AWS_REGION": "eu-west-1"
+  }
+}

@@ -18,8 +18,9 @@
 
 S5 migrates the h-dcn **Members** app onto the myAdmin platform as **one generic,
 tenant-agnostic membership module** with **h-dcn as its first tenant**. It is a **pilot**:
-built alongside the live h-dcn app on **new tenant-scoped tables**, cut over only for a
-single pilot tenant/region under a gate, and it ends at an explicit **Go/No-Go**.
+built alongside the existing h-dcn app on **new tenant-scoped tables**, exercised for a
+single pilot tenant/region under a gate (hands-on, not a production soak — h-dcn is
+demo-only, real data in a Google Sheet), and it ends at an explicit **Go/No-Go**.
 
 The design rests on four pillars, each traced to requirements:
 
@@ -30,9 +31,12 @@ The design rests on four pillars, each traced to requirements:
    service, and the pilot measures the distribution.
 3. **Fixed/variable data model + tenant isolation + scope dimension** (R2, R3) — a
    platform-fixed base registry plus a per-tenant overlay, all keyed by `tenant_id`, with a
-   tenant-configurable scope dimension generalizing h-dcn's "region".
-4. **Additive parallel-run + verified auth + gated cutover + Go/No-Go** (R5, R6, R7, R8) —
-   new tables, live h-dcn untouched, verified-token authorization, test-first, reversible.
+   tenant-configurable scope dimension generalizing h-dcn's "region", and the
+   **Lidmaatschap Beheer** membership-type catalog backing `membership_type` (C8).
+4. **Additive parallel-run + verified auth + gated hands-on validation + Go/No-Go**
+   (R5, R6, R7, R8) — new tables, live h-dcn untouched, verified-token authorization,
+   test-first, reversible. h-dcn Members is **demo-only** (real data in a Google Sheet), so
+   Step 6 is a hands-on walkthrough (how it works + look & feel), **not** a production soak.
 
 ## Architecture
 
@@ -65,14 +69,15 @@ the Go/No-Go pilot proves for Events/Webshop.
 ### Parallel-run topology (R5)
 
 ```
-                      live h-dcn Members (18 Lambdas)  ──►  live h-dcn tables (untouched)
-                            ▲  (fallback / source of truth until cutover)
+                      existing h-dcn Members (18 Lambdas)  ──►  h-dcn tables (untouched)
+                            ▲  (demo app; kept running in parallel — reference, not live SoR)
    pilot/shadow route ──►  migrated Members module (1 Lambda)  ──►  NEW tenant-scoped tables
                                                                      (tenant_id = "h-dcn")
 ```
 
-The migrated module runs beside the live app. Nothing is cut over until the Step 6 gate;
-cutover is a routing change limited to one pilot tenant/region and reverts by routing back.
+The migrated module runs beside the existing demo app. Routing the pilot tenant/region to
+it is a single change limited to that tenant/region and reverts by routing back. (Real
+member data is a Google Sheet, so neither app is the live system of record.)
 
 ### Where the platform tooling plugs in
 
@@ -146,6 +151,26 @@ safe generic default (no-op / pass).
   `tenant_modules`; confirm the S3 projection carries the tenant's `members` module + roles
   and that `has_capability("members", ...)` answers correctly.
 
+### C8 — Membership-type catalog (Lidmaatschap Beheer) — R2.4
+A **new coupling** (not in h-dcn today, whose type vocabulary is hardcoded): a tenant-scoped
+managed catalog that is the authoritative source of the `membership_type` enum.
+- **Entity** (fixed-domain, tenant-scoped): `membership_type` catalog entries keyed by
+  `tenant_id`, each `{ code, label (i18n nl/en), active, order }`. Stored in the tenant-scoped
+  data layer (`tenant_id` PK + `LeadingKeys`) via the repository (C6) — the only DynamoDB
+  touch-point.
+- **Reference from the member record:** `membership.membership_type` holds a catalog `code`.
+- **Authoritative validation (domain layer):** on member create/update, `MembershipService`
+  (C2) validates that `membership_type` references a **live** (`active`) catalog entry for
+  the tenant. React's dropdown is convenience only (per steering — never trust the frontend).
+- **Dropdown options:** the active catalog entries are surfaced through the resolved
+  field-config / catalog read endpoint (C3) so the frontend renders a dropdown listing
+  **only** that tenant's active types — no free text, no hardcoded vocabulary.
+- **Referential integrity:** retiring a type is a **soft-delete** (`active=false`) — existing
+  members keep their value; the type disappears from the dropdown for new/edited members
+  (no hard delete → no orphaned historical records).
+- **Generic, not h-dcn-specific:** empty-by-default and tenant-owned; h-dcn seeds its own
+  types (Erelid/Donateur/Sponsor/…) as **data** (Rung 1). No `if tenant == "h-dcn"`.
+
 ## Data Models
 
 ### Member record (tenant-scoped) — R2, R3
@@ -156,6 +181,7 @@ safe generic default (no-op / pass).
   // ── fixed base registry (platform-owned, identical every tenant) ──
   "personal":   { "name": "…", "contact": "…", "address": "…", "birthdate": "…" },
   "membership": { "member_number": "…", "status": "active",
+                  "membership_type": "erelid",   // → references a Lidmaatschap Beheer catalog code (C8)
                   "joined": "…", "left": null },
   // ── scope (platform-fixed field, tenant values) ──
   "scope_values": { "region": ["Noord"] },   // h-dcn: single-valued region
@@ -166,6 +192,20 @@ safe generic default (no-op / pass).
 - **Fixed** = first-class attributes (same shape for every tenant).
 - **Variable** = resolved from the per-tenant field config → adding a tenant needs **no
   schema change** (R2.2).
+
+### Membership-type catalog — Lidmaatschap Beheer (tenant-scoped) — R2.4 (C8)
+```jsonc
+{
+  "tenant_id": "h-dcn",           // PK — isolation boundary (LeadingKeys)
+  "type_code": "erelid",          // SK — referenced by member.membership.membership_type
+  "label":  { "nl": "Erelid", "en": "Honorary member" },
+  "active": true,                 // soft-delete: false → hidden from dropdown, existing members kept
+  "order":  10
+}
+```
+- The member's `membership_type` **references** `type_code`; the member-type input is a
+  **dropdown of active entries only** for the tenant. Domain layer validates the reference
+  authoritatively (C8). h-dcn seeds its types as data (Rung 1) — no code, no `if tenant`.
 
 ### Scope dimension config (tenant config) — R3.2, R3.4
 ```jsonc
@@ -221,7 +261,7 @@ No `if tenant == ...` in core; every difference is config/rule/hook, so adding a
 ### Property 6: Uniqueness under concurrency (data integrity)
 Member-number uniqueness per tenant holds even with concurrent writers, enforced by DynamoDB conditional writes.
 ### Property 7: Reversibility (R5.3, R7.2)
-At every step the live h-dcn app remains the working fallback; each step reverts (route back / drop new tables) with no data loss.
+At every step the existing h-dcn demo app keeps running in parallel as a behavioural reference; each step reverts (route back / drop new tables) with no data loss.
 
 ## Error Handling
 
@@ -235,8 +275,9 @@ At every step the live h-dcn app remains the working fallback; each step reverts
   access (R3.3).
 - **Data invariants:** uniqueness (member number per tenant) via DynamoDB **conditional
   writes**; the domain layer never assumes it holds the only writer.
-- **Parity + reversibility:** live h-dcn is the fallback/source of truth until cutover;
-  every step reverts (route back / drop new tables) (R5.3, R7.2).
+- **Parity + reversibility:** the existing h-dcn demo app keeps running in parallel as a
+  behavioural reference (real data is a Google Sheet, so neither app is the live SoR); every
+  step reverts (route back / drop new tables) (R5.3, R7.2).
 - **Authoritative validation in Lambda:** React validation is convenience only; the domain
   layer is the authority (per steering).
 
@@ -250,20 +291,23 @@ At every step the live h-dcn app remains the working fallback; each step reverts
 - **Handler/contract tests:** verified-auth gate, entitlement gate, route parity with the
   h-dcn API contract; run against the **test pool** (`eu-west-1_xyrlzfqbl`) first (R7.1).
 - **Backfill dry-run:** fidelity check vs. live h-dcn data before any real backfill (R5.2).
-- **Pilot soak + parity compare:** migrated vs. live h-dcn for one tenant/region — authz
-  incl. scope, data, contract, workflow, latency, error rate (R7.2 → feeds R8).
+- **Hands-on validation (Step 6):** exercise the migrated module for one pilot
+  tenant/region — authz incl. scope, data, API contract, workflow, and look & feel/UX.
+  **Not** a production soak against live traffic (h-dcn is demo-only; real data in a Google
+  Sheet) — parity is confirmed by walkthrough, not live-traffic comparison (R7.2 → feeds R8).
 
 ## Mapping: Steps → Requirements → Components
 
 | Step (migration-plan / requirements) | Requirements | Components |
 | --- | --- | --- |
-| 1 — Design + module skeleton + data model | R1, R2.1, R3.2, R3.3 | C1 skeleton, C2, C3, C4, C6, data models |
+| 1 — Design + module skeleton + data model | R1, R2.1, R2.4, R3.2, R3.3 | C1 skeleton, C2, C3, C4, C6, C8, data models |
 | 2 — Register Members as a module | R4.2, R6.1 | C7 |
-| 3 — Read path on myAdmin tooling | R1.2, R2.3, R3.1, R3.3, R6.1 | C1 read routes, C2, C3, C4, C6 |
+| 3 — Read path on myAdmin tooling | R1.2, R2.3, R2.4, R3.1, R3.3, R6.1 | C1 read routes, C2, C3, C4, C6, C8 |
 | 4 — New tenant-scoped tables + backfill | R5.1, R5.2 | C6, data models, backfill dry-run |
-| 5 — Write path + workflow | R1.4, R3.3, R4.3 | C1 write routes, C2, C5, C6 |
-| 6 — Pilot cutover + soak → Go/No-Go | R7.2, R8 | routing, parity harness, `go-no-go.md` |
+| 5 — Write path + workflow | R1.4, R2.4, R3.3, R4.3 | C1 write routes, C2, C5, C6, C8 |
+| 6 — Exercise module (workflow + look & feel) → Go/No-Go | R7.2, R8 | routing, parity/walkthrough harness, `go-no-go.md` |
 | 7 — (conditional) live Pool A trigger | R6.2, R6.3 | S4 PreTokenGen + projection widening |
+| 8 — Governance update on completion | R9.1 | steering + ADR (incl. C8 catalog coupling) |
 
 ## Deferred (explicit)
 

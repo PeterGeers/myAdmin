@@ -62,6 +62,16 @@ to preserve. The migration goes **straight to the best-practice shape** — we d
     schema change.
   - Split h-dcn's existing member fields accordingly (personal+membership → fixed base;
     club/Motor/region-specific → variable overlay). **Tenant `h-dcn`** is the first overlay.
+- **Lidmaatschap Beheer (membership-type catalog) — new coupling (see
+  `generic-membership-design.md`).** Add a tenant-scoped **managed catalog of membership
+  types** as a fixed-domain entity (`tenant_id` PK + `LeadingKeys`; entries carry
+  `code`/`label`(i18n)/`active`/order). The member record's **`membership_type` field
+  references this catalog**, so the member-type input is a **dropdown listing only that
+  tenant's Lidmaatschap Beheer entries** — not the free/hardcoded value h-dcn uses today.
+  h-dcn seeds its own types as data; the domain layer authoritatively validates the
+  reference (soft-delete via `active=false` to avoid orphaning historical members). Catalog
+  CRUD routes follow the same read/write split as the member routes (read in Step 3, write
+  in Step 5).
 
 ### Step 2 — Register Members as a myAdmin module (entitlement plumbing)
 - `members` entry in `MODULE_REGISTRY` (backing: sam) + entitle the pilot tenant via
@@ -85,26 +95,38 @@ to preserve. The migration goes **straight to the best-practice shape** — we d
 ### Step 5 — Members module write path + workflow
 - Add the WRITE/lifecycle routes to the module (create/update/transition/delegates/
   memberships) on the tenant-scoped tables + verified auth, reusing h-dcn's workflow
-  rules. Decide dual-write vs. read-replica-until-cutover. h-dcn stays the fallback.
-  **Deployable per route group; reversible.**
+  rules. **Deployable per route group; reversible.**
+- **No dual-write / no read-replica-until-cutover needed.** h-dcn Members is **not** a live
+  production system — it runs for **demo purposes only**, and the real member data lives in
+  a **Google Sheet** (the SoR outside both apps). There is no production traffic to keep in
+  sync and no live app to fall back to, so the migrated module can write directly to the
+  tenant-scoped tables without a parallel-write or replica strategy.
 
-### Step 6 — Pilot cutover for one tenant/region + soak
-- Route real Members traffic for one pilot tenant/region to the migrated module; soak and
-  compare against live h-dcn (parity: authz incl. regional, data, API contract, workflow;
-  error rates; latency). **Deployable (routing); reversible (route back to h-dcn).**
+### Step 6 — Exercise the migrated module (workflow + look & feel review)
+- Use the migrated Members module end-to-end for the pilot tenant to see **how the app
+  works** and evaluate the **look and feel** — walk the read + write/lifecycle routes,
+  confirm authz (incl. regional), data, API contract, and workflow behave as intended.
+- This is **not** a production cutover with a soak against live traffic (h-dcn Members is
+  demo-only; real data stays in the Google Sheet). It is a hands-on validation of the
+  migrated app's behaviour and UX to inform the Go/No-Go review.
+  **Deployable; reversible.**
 
 ## The Go / No-Go decision point (end of the first migration)
 
-After Step 7's soak, hold an explicit **Go / No-Go** review for migrating further apps
+After Step 6's hands-on validation, hold an explicit **Go / No-Go** review for migrating further apps
 (Events, Webshop). Decide against concrete criteria captured during the pilot:
 
-- **Parity:** migrated Members matches h-dcn behaviour (authz incl. regional, data, API
-  contract, workflow) for the pilot tenant.
+- **Parity:** migrated Members reproduces h-dcn's behaviour (authz incl. regional, data, API
+  contract, workflow) for the pilot tenant — verified via the Step 6 hands-on review, not a
+  live-traffic soak.
 - **The toolkit held:** the myAdmin verified-auth + entitlement + projection + tenant-scoping
   tooling was sufficient — what was reusable as-is, what needed change (feeds the roadmap).
-- **Operational:** deploy/rollback per step worked; cold-start/latency within budget; the
-  cross-account trigger (if the live Pool A PreTokenGen trigger was wired for the pilot)
-  behaved; fail-safe held (no broken logins).
+- **Look & feel / UX:** the migrated app behaves and presents as intended during the
+  hands-on walkthrough (Step 6).
+- **Operational:** deploy/rollback per step worked; the auth path (incl. the cross-account
+  Pool A PreTokenGen trigger, if wired for the pilot) behaved and logins were not broken.
+  Latency/cold-start are noted as observations, not a production budget — there is no live
+  traffic to soak against.
 - **Effort/ROI:** actual effort per step vs. estimate → is app-by-app migration worth
   continuing, or should the approach change?
 
@@ -112,14 +134,33 @@ Outcome is recorded (Go → proceed to the next app with the refined tooling; No
 document why + what would change the decision) in `go-no-go.md` (a deliverable of the
 pilot), with **lessons learned** feeding a roadmap revision.
 
+## The steps after the gate
+
+### Step 7 — (Conditional) wire the live Pool A PreTokenGen trigger
+- **Only if the pilot needs live-token entitlement.** Otherwise the module uses its
+  authoritative fallback and runs auth against the test pool — skip this step. The
+  entitlement functions (resolver, codec, PreTokenGen Lambda) are already built + tested;
+  this step is integration, not new build.
+- **Prerequisite:** widen the S3 projection to carry h-dcn's governance (today gated to
+  SAM-backed tenants); empty projection → empty entitlement stays a valid handled outcome.
+- Attach the Lambda **cross-account** to live Pool A, **validated on the test pool first**,
+  with **detach-to-rollback** and no broken logins. Highest blast radius (production login)
+  — hence done **after** the gate. **Reversible** (detach).
+
+### Step 8 — Governance update on completion
+- Record the generic membership model, the scope-dimension generalization, the
+  fixed/variable field model, and the **Lidmaatschap Beheer membership-type catalog
+  coupling** in steering + an ADR — the next-app migration template. **Additive** (docs).
+
 ## What this migration deliberately defers
 
 - **AWS-footprint consolidation** (move myAdmin's S3/SNS/SES/local-DynamoDB + shared
   services into the shared portal/data account) — **after** this first migration, informed
   by it. Not a prerequisite.
-- **Production Pool A PreTokenGen trigger** (S4 T18) — wired only if/when the pilot needs
-  live entitlement in the token; the functions are already built + tested and available to
-  adopt. The pilot can run against the test pool first.
+- **Production Pool A PreTokenGen trigger** (S4 T18) — **not** deferred indefinitely but
+  **conditional**: it is **Step 7** above, run only if/when the pilot needs live token
+  entitlement. The functions are already built + tested; the pilot can run against the test
+  pool first.
 - **Events / Webshop** migrations — gated behind the Go/No-Go.
 - **Frontend consolidation** — the pilot is backend-first; UI stays on h-dcn until parity.
 
@@ -130,4 +171,66 @@ pilot), with **lessons learned** feeding a roadmap revision.
 - `sam/shared/entitlement_claim.py` — the vendored claim decoder (S4).
 - `services/module_registry.py` + `tenant_modules` — module entitlement (S1/S3).
 - The S3 one-directional projection + `projection_schema` + `LeadingKeys` plan (S3).
-- The S4 entitlement resolver/codec + PreTokenGen Lambda (built + tested; trigger deferred).
+- The S4 entitlement resolver/codec + PreTokenGen Lambda (built + tested; trigger wired in
+  the conditional Step 7).
+
+### Frontend + UI framework (reuse, don't rebuild)
+
+The migrated Members UI is composed from myAdmin's existing frontend building blocks
+(React 19 + TypeScript + Vite, Chakra UI). Nothing here needs to be rebuilt for Members —
+it is adopted the same way any other module does:
+
+- **Filter / table / sort framework** — `frontend/src/hooks/useFilterableTable.ts`
+  (composes `useColumnFilters` + `useTableSort`, generic over `T`), plus the filter UI in
+  `frontend/src/components/filters/` (`GenericFilter<T>`, `YearFilter`, `FilterPanel`,
+  `FilterableHeader`, `types.ts`). Documented in `components/filters/README.md`; spec
+  `.kiro/specs/table-filter-framework-v2/design.md`. Member lists/exports use this rather
+  than a bespoke table. `FilterErrorBoundary` scopes filter failures.
+- **Standard header + generic user/session UI** — `frontend/src/components/MainMenu.tsx`
+  (top header bar) composing `UserMenu.tsx` (logged-in user: name/email, roles, tenants,
+  environment-mode badge, Settings + Logout), `TenantSelector.tsx`, `LanguageSelector.tsx`,
+  and `HelpButton`. Driven by `context/AuthContext.tsx` (`useAuth()`: `user`, role helpers)
+  and `context/TenantContext.tsx` (`useTenant()`: current/available tenants). Route
+  protection via `components/ProtectedRoute.tsx`; user settings under `components/settings/`.
+- **Authenticated API client** — `frontend/src/services/apiService.ts`
+  (`authenticatedRequest` + `authenticatedGet/Post/Put/Delete/FormData`). Auto-injects the
+  Cognito JWT (`Authorization: Bearer`), `X-Tenant`, `X-Language`, `X-Frontend-URL`; handles
+  401 refresh-and-retry. `config/api.ts` holds `API_BASE_URL`. The Members frontend service
+  is built on this, not raw `fetch`. (Usage: `services/API_USAGE_GUIDE.md`.)
+- **Forms, theming, notifications, errors** — Formik + Yup for forms/validation; Chakra UI
+  as the component library with the app theme in `frontend/src/theme.js` (dark + orange
+  accent convention); Chakra `useToast()` for notifications (app-wide convention, no custom
+  wrapper); `components/ErrorBoundary.tsx` for generic error boundaries. Shared table/CSV
+  utilities in `frontend/src/utils/` (`csvExport.ts`, `formatting.ts`).
+
+### i18n (internationalization) standard
+
+- **i18next + react-i18next + i18next-browser-languagedetector**, configured in
+  `frontend/src/i18n.ts` (nl/en, `fallbackLng: 'en'`, `defaultNS: 'common'`, detection
+  order `['localStorage','navigator']`, key `i18nextLng`).
+- Locale files under `frontend/src/locales/{nl,en}/*.json` organized by **namespace**
+  (`common, auth, reports, str, banking, admin, finance, errors, validation, zzp, budget`);
+  Members adds its own `members` namespace following the same layout.
+- Components consume the typed wrapper `hooks/useTypedTranslation.ts`
+  (`useTypedTranslation('namespace')`). The API client forwards the active language as the
+  `X-Language` header, so backend responses localize too (the Members module honours it).
+
+### Documentation standard (MkDocs)
+
+- End-user docs use **Material for MkDocs**, config `docs/mkdocs.yml` (default language `nl`,
+  red palette, nav tabs/sections), with `search` (nl+en), the `i18n` plugin (bilingual
+  nl/en builds) and `print-site`. Markdown source in `docs/docs/` organized per module;
+  ADRs in `docs/decisions/`; deployed to GitHub Pages.
+- Members follows the same standard: a new per-module docs section under `docs/docs/`,
+  bilingual, matching the existing module docs. Standards/spec:
+  `.kiro/specs/Common/end-user-documentation/`.
+
+### Per-tenant field config (fixed vs. variable overlay — Step 1)
+
+- Backend `backend/src/services/field_config_mixin.py` (`FieldConfigMixin`:
+  `get_field_config` / `validate_fields` / `strip_hidden_fields`, levels
+  required/optional/hidden; resolution `ParameterService` tenant override →
+  `MODULE_REGISTRY` default) + the `tenant_template_config` mechanism. Frontend counterparts
+  `services/fieldConfigService.ts` + `hooks/useFieldConfig.ts` (`isVisible`/`isRequired`).
+  This is the mechanism behind Step 1's variable per-tenant **club details** overlay over
+  the fixed personal+membership core.

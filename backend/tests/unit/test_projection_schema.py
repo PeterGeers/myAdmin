@@ -57,6 +57,25 @@ def test_build_sort_key_role_joins_all_segments():
     assert result == "role#a@b#Members_CRUD"
 
 
+def test_build_sort_key_config_scope_joins_with_separator():
+    # C1 config#scope — tenant-level, single id segment (no per-user email).
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") == "config#scope"
+
+
+def test_build_sort_key_config_fields_joins_with_separator():
+    # C1 config#fields — the other tenant-level config id.
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") == "config#fields"
+
+
+def test_build_sort_key_scopegrant_joins_all_segments():
+    # C1 scopegrant#<email>#<dimension> — per-user, 3-part arity. The email
+    # segment itself contains no "#", so the composite parses back unambiguously.
+    result = schema.build_sort_key(
+        schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
+    )
+    assert result == "scopegrant#alice@h-dcn.example#region"
+
+
 def test_build_sort_key_empty_record_type_raises():
     with pytest.raises(ValueError):
         schema.build_sort_key("")
@@ -91,6 +110,23 @@ def test_split_sort_key_role_returns_multiple_id_parts():
     )
 
 
+def test_split_sort_key_config_scope_returns_single_id_part():
+    assert schema.split_sort_key("config#scope") == ("config", ("scope",))
+
+
+def test_split_sort_key_config_fields_returns_single_id_part():
+    assert schema.split_sort_key("config#fields") == ("config", ("fields",))
+
+
+def test_split_sort_key_scopegrant_returns_email_and_dimension_parts():
+    # Splits back into (record_type, (<email>, <dimension>)) — the email keeps
+    # its own "@" and is a single segment because it contains no separator.
+    assert schema.split_sort_key("scopegrant#alice@h-dcn.example#region") == (
+        "scopegrant",
+        ("alice@h-dcn.example", "region"),
+    )
+
+
 def test_split_sort_key_empty_raises():
     with pytest.raises(ValueError):
         schema.split_sort_key("")
@@ -102,6 +138,9 @@ def test_split_sort_key_empty_raises():
         (schema.RECORD_TYPE_TENANT,),
         (schema.RECORD_TYPE_MODULE, "events"),
         (schema.RECORD_TYPE_ROLE, "user@example.invalid", "STR_Read"),
+        (schema.RECORD_TYPE_CONFIG, "scope"),
+        (schema.RECORD_TYPE_CONFIG, "fields"),
+        (schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"),
     ],
 )
 def test_split_is_inverse_of_build(segments):

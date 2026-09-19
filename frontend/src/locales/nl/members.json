@@ -1,0 +1,140 @@
+{
+  "overview": {
+    "title": "Leden Overzicht"
+  },
+  "actions": {
+    "add": "Nieuw lid",
+    "export": "Exporteren",
+    "edit": "Bewerken",
+    "delete": "Verwijderen",
+    "transition": "Status wijzigen"
+  },
+  "view": {
+    "compact": "Compact",
+    "full": "Volledig"
+  },
+  "columns": {
+    "name": "Naam",
+    "email": "E-mail",
+    "status": "Status",
+    "membershipType": "Lidmaatschapstype",
+    "region": "Regio"
+  },
+  "filters": {
+    "region": "Regio",
+    "status": "Status",
+    "type": "Type",
+    "placeholder": "Filteren..."
+  },
+  "table": {
+    "loading": "Leden laden...",
+    "empty": "Geen leden gevonden"
+  },
+  "export": {
+    "empty": "Geen leden om te exporteren",
+    "error": "Exporteren mislukt"
+  },
+  "modal": {
+    "title": "Lidgegevens",
+    "loading": "Lid laden...",
+    "close": "Sluiten",
+    "fields": {
+      "memberId": "Lidnummer",
+      "name": "Naam",
+      "email": "E-mail",
+      "status": "Status",
+      "membershipType": "Lidmaatschapstype",
+      "region": "Regio"
+    }
+  },
+  "addModal": {
+    "title": "Nieuw lid",
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "fields": {
+      "name": "Naam",
+      "email": "E-mail",
+      "membershipType": "Lidmaatschapstype",
+      "membershipTypePlaceholder": "Kies een lidmaatschapstype",
+      "region": "Regio",
+      "regionPlaceholder": "Kies een regio"
+    },
+    "validation": {
+      "nameRequired": "Naam is verplicht",
+      "emailRequired": "E-mail is verplicht",
+      "emailInvalid": "Ongeldig e-mailadres",
+      "membershipTypeRequired": "Lidmaatschapstype is verplicht",
+      "regionRequired": "Regio is verplicht"
+    },
+    "toast": {
+      "success": "Lid aangemaakt",
+      "error": "Aanmaken van lid mislukt"
+    }
+  },
+  "editModal": {
+    "title": "Lid bewerken",
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "fields": {
+      "name": "Naam",
+      "email": "E-mail",
+      "membershipType": "Lidmaatschapstype",
+      "membershipTypePlaceholder": "Kies een lidmaatschapstype",
+      "region": "Regio",
+      "regionPlaceholder": "Kies een regio"
+    },
+    "validation": {
+      "nameRequired": "Naam is verplicht",
+      "emailRequired": "E-mail is verplicht",
+      "emailInvalid": "Ongeldig e-mailadres",
+      "membershipTypeRequired": "Lidmaatschapstype is verplicht",
+      "regionRequired": "Regio is verplicht"
+    },
+    "toast": {
+      "success": "Lid bijgewerkt",
+      "error": "Bijwerken van lid mislukt"
+    }
+  },
+  "deleteConfirm": {
+    "title": "Lid verwijderen",
+    "body": "Weet je zeker dat je dit lid wilt verwijderen:",
+    "warning": "Deze actie kan niet ongedaan worden gemaakt.",
+    "confirm": "Verwijderen",
+    "cancel": "Annuleren",
+    "toast": {
+      "success": "Lid verwijderd",
+      "error": "Verwijderen van lid mislukt"
+    }
+  },
+  "transition": {
+    "title": "Status wijzigen",
+    "currentState": "Huidige status",
+    "toStateLabel": "Nieuwe status",
+    "toStatePlaceholder": "Kies een status",
+    "noTargets": "Er zijn geen toegestane overgangen vanuit de huidige status.",
+    "approvedLabel": "Aanvraag goedgekeurd",
+    "confirm": "Wijzigen",
+    "cancel": "Annuleren",
+    "toast": {
+      "success": "Status gewijzigd",
+      "error": "Status wijzigen mislukt"
+    }
+  },
+  "bulkTransition": {
+    "barLabel": "Bulk: status wijzigen ({{count}})",
+    "selectAll": "Alles selecteren",
+    "selectRow": "{{name}} selecteren",
+    "title": "Bulk status wijzigen",
+    "selectedCount": "{{count}} leden geselecteerd",
+    "toStateLabel": "Nieuwe status",
+    "toStatePlaceholder": "Kies een status",
+    "noTargets": "Er zijn geen toegestane statussen beschikbaar.",
+    "approvedLabel": "Aanvraag goedgekeurd",
+    "confirm": "Wijzigen",
+    "cancel": "Annuleren",
+    "toast": {
+      "success": "Status gewijzigd voor {{count}} leden",
+      "error": "Bulk status wijzigen mislukt"
+    }
+  }
+}

@@ -73,6 +73,25 @@ RECORD_TYPE_TENANT = "tenant"
 RECORD_TYPE_MODULE = "module"
 RECORD_TYPE_ROLE = "role"
 
+#: Tenant-level config rows (S5b design.md C1 "New projected record types").
+#: Two id parts are used, both tenant-level (no email/per-user segment):
+#:
+#:   * ``config#scope``  — the tenant's ``ScopeDimension`` shape.
+#:   * ``config#fields`` — the tenant's ``TenantOverlay`` (variable fields +
+#:     fixed-field overrides).
+#:
+#: Assembled/parsed only via :func:`build_sort_key` / :func:`split_sort_key`,
+#: e.g. ``build_sort_key(RECORD_TYPE_CONFIG, "scope") -> "config#scope"``.
+RECORD_TYPE_CONFIG = "config"
+
+#: Per-user scope-grant rows (S5b design.md C1 "New projected record types").
+#: Two id parts, ``<email>`` then ``<dimension>`` (per-user, so an email segment
+#: is present), yielding ``scopegrant#<email>#<dimension>``. Assembled/parsed
+#: only via :func:`build_sort_key` / :func:`split_sort_key`, e.g.
+#: ``build_sort_key(RECORD_TYPE_SCOPEGRANT, "a@b", "region")``
+#: ``-> "scopegrant#a@b#region"``.
+RECORD_TYPE_SCOPEGRANT = "scopegrant"
+
 
 # --- Sort-key composition / parsing ----------------------------------------
 
@@ -86,6 +105,9 @@ def build_sort_key(record_type: str, *id_parts: str) -> str:
         build_sort_key("tenant")                       -> "tenant"
         build_sort_key("module", "members")            -> "module#members"
         build_sort_key("role", "a@b", "Members_CRUD")  -> "role#a@b#Members_CRUD"
+        build_sort_key("config", "scope")              -> "config#scope"
+        build_sort_key("config", "fields")             -> "config#fields"
+        build_sort_key("scopegrant", "a@b", "region")  -> "scopegrant#a@b#region"
 
     This is the *only* place the "#"-join convention is applied, so the builder
     (T12) and read side (T19) cannot diverge on the format.

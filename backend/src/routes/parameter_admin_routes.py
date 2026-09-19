@@ -160,6 +160,16 @@ def create_parameter(
             created_by=user_email,
         )
 
+        # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
+        # parameter committed above; signal a projection sync for the affected
+        # tenant (the write's own scope, never a default). Only tenant-scope
+        # writes touch the tenant projection — system scope is not tenant-specific.
+        # Best-effort: never breaks the parameter write (reconciliation backstops).
+        if scope == "tenant":
+            from services.projection_sync_trigger import enqueue_sync
+
+            enqueue_sync(scope_id)
+
         return jsonify(
             {"success": True, "message": f"Parameter {namespace}.{key} created"}
         )
@@ -216,6 +226,17 @@ def update_parameter(
             created_by=user_email,
         )
 
+        # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
+        # parameter committed above; signal a projection sync for the affected
+        # tenant (the row's own scope_id, verified to equal this tenant above).
+        # Only tenant-scope writes touch the tenant projection — system scope is
+        # not tenant-specific. Best-effort: never breaks the parameter write
+        # (reconciliation backstops a missed signal).
+        if row["scope"] == "tenant":
+            from services.projection_sync_trigger import enqueue_sync
+
+            enqueue_sync(row["scope_id"])
+
         return jsonify({"success": True, "message": "Parameter updated"})
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -259,6 +280,17 @@ def delete_parameter(
         )
 
         if deleted:
+            # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
+            # parameter override was deleted and committed above; signal a
+            # projection sync for the affected tenant (the row's own scope_id,
+            # verified to equal this tenant above). Only tenant-scope writes touch
+            # the tenant projection — system scope is not tenant-specific.
+            # Best-effort: never breaks the delete (reconciliation backstops).
+            if row["scope"] == "tenant":
+                from services.projection_sync_trigger import enqueue_sync
+
+                enqueue_sync(row["scope_id"])
+
             return jsonify({"success": True, "message": "Parameter deleted"})
         return jsonify({"success": False, "error": "Delete failed"}), 500
     except Exception as e:
