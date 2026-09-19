@@ -205,6 +205,24 @@ MODULE_REGISTRY: dict[str, dict] = {
         "required_tax_rates": ["btw"],
         "required_roles": ["ZZP_CRUD", "ZZP_Read", "ZZP_Export"],
     },
+    "MEMBERS": {
+        "description": "Members / Membership Administration",
+        "required_params": {},
+        "required_tax_rates": [],
+        # Generic, tenant-agnostic role set following the <Module>_<Action>
+        # convention used by the other modules. Members_CRUD backs the
+        # scope-requiring capability (design C4/C7: required_for: ["Members_CRUD"])
+        # and covers member CRUD, membership lifecycle, delegates, member
+        # payments, and the Lidmaatschap Beheer (membership-type) catalog.
+        "required_roles": ["Members_CRUD", "Members_Read", "Members_Export"],
+        "backing": {
+            "kind": "sam",
+            # env var NAME only — resolve_module_api_base reads it at call time.
+            "api_base_env": "MEMBERS_MODULE_API_BASE",
+            # DynamoDB namespace this module owns (tenant_id-partitioned tables).
+            "data_namespace": "members",
+        },
+    },
 }
 
 

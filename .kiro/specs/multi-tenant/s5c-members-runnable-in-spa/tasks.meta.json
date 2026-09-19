@@ -1,0 +1,491 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**0.1 Remove the capability fallback.** Delete `_local_dev_group_grants_capability` and the": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639090
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830657149
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831078242
+      }
+    ],
+    "**0.2 Remove the tenant fallback.** Delete `MEMBERS_LOCAL_TENANT_ID` and its substitution;": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639200
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831084430
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831449772
+      }
+    ],
+    "**0.3 Remove prod-Pool-A coupling** from `env-vars.local.json` (drop `HDCN_COGNITO_ISSUER =": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639302
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831454344
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831565753
+      }
+    ],
+    "**0.4 Demote `onboard-hdcn-local.py`** to a data-track fixture (docstring + placement make": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639409
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831569822
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831647836
+      }
+    ],
+    "**0.5 Confirm no per-tenant `Members_*` Cognito group exists** on any pool (the prod one was": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639521
+      },
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789831652851
+      }
+    ],
+    "**0.6 Baseline tests green** after removals (the ~600 module tests + frontend suite) — the": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639637
+      }
+    ],
+    "**1.1 Finalize the classification table** for the h-dcn field set, rebuilt from": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639752
+      }
+    ],
+    "**1.2 Build the Fixed base — one `FixedField` per `Fixed` row** in": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639855
+      }
+    ],
+    "**1.3 Build the Calculated fields — one per `Calculated` row** as derived read-only": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830639966
+      }
+    ],
+    "**1.4 Seed the generic-placeholder overlay — the `Parameter` rows as ILLUSTRATIVE defaults**": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640058
+      }
+    ],
+    "**1.4a Add the functional-group model** to the domain: extend `OverlayField` with": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640152
+      }
+    ],
+    "**1.4b Member-number format constraint:** keep `member_number` a Fixed `string`; add a": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640237
+      }
+    ],
+    "**1.4c Enum-option model + value-level role gating + `show_when`:** model enum options as": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640342
+      }
+    ],
+    "**1.5 Tests + traceability check:** unit for calculated derivations; `FieldResolver` merge over": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640457
+      }
+    ],
+    "**2.1 Declare the `members` namespace** in `backend/src/services/parameter_schema.py`": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640532
+      }
+    ],
+    "**2.2 Add `backend/src/config/members_parameters.json`** — the typed-editor definitions,": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640625
+      }
+    ],
+    "**2.3 Add `GET /api/config/members-parameters`** in `config_routes.py` (analogous to": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640728
+      }
+    ],
+    "**2.4 Backend save validation:** on PUT of `members.view_contexts`, reject any `field_key` not": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640818
+      }
+    ],
+    "**2.5 Members typed editor UI** in `frontend/src/components/TenantAdmin/` reusing the": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830640920
+      }
+    ],
+    "**2.6 Save-once + unsaved-changes guard:** each sub-editor commits its whole object in one PUT;": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641024
+      }
+    ],
+    "**2.7 Tests:** namespace gating in `get_schema_for_tenant`; definition endpoint; save-once →": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641149
+      }
+    ],
+    "**3.1 Decide + implement the `view_contexts` projection shape** (Open Design Item 1: sibling": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641241
+      }
+    ],
+    "**3.2 View-contexts provider** in the module reader (mirrors `ScopeConfigProvider` /": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641324
+      }
+    ],
+    "**3.3 Generic renderer** on `MembersPage`: context dropdown gated by `permission_roles`;": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641408
+      }
+    ],
+    "**3.4 Seed 2–3 generic-placeholder contexts** (overview + one specialized) as onboarding data": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641521
+      }
+    ],
+    "**3.5 Tests:** Property 7 (reference resolution/skip); per-context column rendering; dropdown": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641622
+      }
+    ],
+    "**4.1 Parameter-driven columns + calculated columns** wired to the resolved field config +": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641737
+      }
+    ],
+    "**4.2 Scope badge + scope filtering** surfaced from the projected `scopegrant#` via": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641843
+      }
+    ],
+    "**4.3 Filters/sort/stats** via the shared toolkit per context (reuse). _(R5.4, C-SURFACE)_": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830641950
+      }
+    ],
+    "**4.4 View / edit / add / delete modals** over the resolved field set, **sectioned by": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830642059
+      }
+    ],
+    "**4.5 Export** wired to `export_members` (remove \"coming soon\"). _(R5.6, C-SURFACE)_": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830642192
+      }
+    ],
+    "**4.6 Single + bulk transitions, deliberately limited** — do not over-build the state machine.": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830642665
+      }
+    ],
+    "**4.7 Membership-type dropdown** of active catalog entries, domain-validated (reuse s5": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830642761
+      }
+    ],
+    "**4.8 Tests:** modals over resolved fields; scope badge + filtering; export; transition limits;": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830642847
+      }
+    ],
+    "**5.1 Repoint module Cognito config** to `myAdmin-test` for local + CI: `HDCN_COGNITO_ISSUER`": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830642933
+      }
+    ],
+    "**5.2 `[H]` Deploy the PreTokenGen Lambda to the data account (506221081911)**; confirm": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643007
+      }
+    ],
+    "**5.3 `[H]` Attach the trigger to `myAdmin-test` (identity account 344561557829)** + the": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643091
+      }
+    ],
+    "**5.4 Seed a `myAdmin-test` user** whose projected entitlement is non-empty (via the governance": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643218
+      }
+    ],
+    "**5.5 Prove the channel:** decoded test-pool token carries `custom:entitlements`; the module": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643361
+      }
+    ],
+    "**5.6 Prove fail-safe + detach-reversible:** resolution failure omits the claim (login still": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643481
+      }
+    ],
+    "**6.1 Governance track (SPA):** onboard the (test) h-dcn tenant via **SysAdmin** (tenant +": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643638
+      }
+    ],
+    "**6.2 Data/migration script — member import** (Google-Sheet → `sam-members` DynamoDB).": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643801
+      }
+    ],
+    "**6.3 Data/migration script — membership-type catalog seed:** idempotent, dry-run, verify.": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830643942
+      }
+    ],
+    "**6.4 Data/migration script — bulk Cognito user load** into `myAdmin-test` from an editable": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644063
+      }
+    ],
+    "**6.5 Confirm the reconciliation backstop** is scheduled/runnable in dev/test. _(R8.6,": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644178
+      }
+    ],
+    "**6.6 End-to-end dev/test verification:** a scoped user sees only their subset; a general user": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644328
+      }
+    ],
+    "**7.1 `[H]` Build → deploy** `sam-members` (+ `sam/pretokengen` if not already) to prod; confirm": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644441
+      }
+    ],
+    "**7.2 `[H]` Provision (governance track, prod SPA):** onboard h-dcn via SysAdmin + Tenant-Admin": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644543
+      }
+    ],
+    "**7.3 `[H]` Data track (prod):** run the **same** reused importer (6.2, `hdcn_backfill.py` via": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644649
+      }
+    ],
+    "**7.4 `[H]` Project:** run/observe the sync; confirm the prod projection carries the h-dcn": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644772
+      }
+    ],
+    "**7.5 `[H]` Gate: attach the Pool A (`eu-west-1_Hdp40eWmu`) PreTokenGen trigger** +": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830644896
+      }
+    ],
+    "**7.6 `[H]` Verify in prod:** a scoped user sees only their subset; a general user sees all;": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645029
+      }
+    ],
+    "**7.7 Confirm the reconciliation backstop** is scheduled/runnable in prod. _(R8.6)_": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645158
+      }
+    ],
+    "**7.8 Rehearse the non-destructive rollback** (in a safe window): detach trigger → remove": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645289
+      }
+    ],
+    "**8.1 End-user manual** — extend `docs/docs/members/` (nl + `*.en.md`) with the representative": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645388
+      }
+    ],
+    "**`23-aws-accounts.md`** — the standing note that `myAdmin-test` has \"no Pre-Token-Generation": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645473
+      }
+    ],
+    "**`20-platform-architecture.md`** — record the PreTokenGen entitlement channel as **switched": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645600
+      }
+    ],
+    "**`21-identity.md`** — record that Pool A now stamps `custom:entitlements` (the claim reality": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645669
+      }
+    ],
+    "**`35-sam-module-architecture-sam.md`** — record the field model (Fixed/Parameter/Calculated;": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645793
+      }
+    ],
+    "**`00-index.md`** — update current phase/status (single source) and mark **s5b SUPERSEDED by": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830645901
+      }
+    ],
+    "**ADR note (0006 area)** — the \"live Pool A trigger deferred\" framing is superseded: the": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830646012
+      }
+    ],
+    "Update the roadmap (`.kiro/specs/multi-tenant/Analysis/overall_roadmap.md`) to reflect s5c +": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830646110
+      }
+    ],
+    "**8.3 Confirm the deferred boundary held:** no generic config-editor framework and no": [
+      {
+        "executionId": "868590df-ac14-4afd-b480-79a90383bd5c",
+        "chatSessionId": "sess_a9df29bc-ffd6-4611-bf1d-db1ce170b7d3",
+        "timestamp": 1789830646212
+      }
+    ]
+  }
+}

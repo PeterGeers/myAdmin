@@ -65,6 +65,7 @@ export function useTenantModules() {
     hasFIN: modules.includes('FIN'),
     hasSTR: modules.includes('STR'),
     hasZZP: modules.includes('ZZP'),
+    hasMEMBERS: modules.includes('MEMBERS'),
   };
 }
 

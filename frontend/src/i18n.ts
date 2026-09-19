@@ -63,6 +63,8 @@ import zzpNl from './locales/nl/zzp.json';
 import zzpEn from './locales/en/zzp.json';
 import budgetNl from './locales/nl/budget.json';
 import budgetEn from './locales/en/budget.json';
+import membersNl from './locales/nl/members.json';
+import membersEn from './locales/en/members.json';
 
 /**
  * Initialize i18next with configuration
@@ -91,6 +93,7 @@ i18n
         validation: validationNl,
         zzp: zzpNl,
         budget: budgetNl,
+        members: membersNl,
       },
       en: {
         common: commonEn,
@@ -104,6 +107,7 @@ i18n
         validation: validationEn,
         zzp: zzpEn,
         budget: budgetEn,
+        members: membersEn,
       }
     },
     fallbackLng: 'en',

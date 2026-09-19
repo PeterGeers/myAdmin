@@ -39,6 +39,7 @@ import {
   ZZPDebtors,
   ZZPTripQuick,
   ZZPTripImport,
+  MembersPage,
   TenantAdminDashboard,
   SysAdminDashboard,
   PasskeySettings,
@@ -52,7 +53,7 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>(resolveInitialPage);
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout, refreshUserRoles } = useAuth();
-  const { hasFIN, hasSTR, hasZZP, loading: modulesLoading } = useTenantModules();
+  const { hasFIN, hasSTR, hasZZP, hasMEMBERS, loading: modulesLoading } = useTenantModules();
   const { hasFunction } = useTenantFunctions();
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
@@ -485,6 +486,19 @@ function AppContent() {
           </ProtectedRoute>
         );
 
+      case 'members':
+        return (
+          <ProtectedRoute
+            requiredRoles={['Members_Read', 'Members_CRUD']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`👥 ${t('members:overview.title')}`)}
+              <MembersPage />
+            </Box>
+          </ProtectedRoute>
+        );
+
       default:
         return (
           <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
@@ -497,6 +511,7 @@ function AppContent() {
               hasFIN={hasFIN}
               hasSTR={hasSTR}
               hasZZP={hasZZP}
+              hasMEMBERS={hasMEMBERS}
               hasFunction={hasFunction}
               modulesLoading={modulesLoading}
               showPasskeyPrompt={showPasskeyPrompt}

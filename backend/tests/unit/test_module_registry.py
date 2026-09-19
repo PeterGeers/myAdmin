@@ -349,6 +349,67 @@ class TestResolveModuleApiBase:
             resolve_module_api_base("DOES_NOT_EXIST")
 
 
+# ---------------------------------------------------------------------------
+# MEMBERS module registration (S5 C7)
+#
+# Requirements: R4.2 (h-dcn roles expressed as generic entitlement config),
+#               R6.1 (module authorizes via entitlement — sam-backed).
+# Reference: .kiro/specs/multi-tenant/s5-members-first-migration/design.md C7
+# ---------------------------------------------------------------------------
+
+_MEMBERS_API_BASE_ENV = "MEMBERS_MODULE_API_BASE"
+
+
+class TestMembersModuleRegistration:
+
+    def test_members_module_exists_with_required_keys(self):
+        assert "MEMBERS" in MODULE_REGISTRY
+        entry = MODULE_REGISTRY["MEMBERS"]
+        required_keys = {
+            "description",
+            "required_params",
+            "required_tax_rates",
+            "required_roles",
+        }
+        assert required_keys.issubset(entry.keys())
+
+    def test_module_backing_members_returns_sam(self):
+        assert module_backing("MEMBERS") == "sam"
+
+    def test_members_backing_stores_env_var_name_not_url(self):
+        backing = MODULE_REGISTRY["MEMBERS"]["backing"]
+        assert backing["api_base_env"] == _MEMBERS_API_BASE_ENV
+        # The registry must never store a URL — only the env var NAME.
+        assert "://" not in backing["api_base_env"]
+
+    def test_members_backing_declares_data_namespace(self):
+        assert MODULE_REGISTRY["MEMBERS"]["backing"]["data_namespace"] == "members"
+
+    def test_members_required_roles_present_and_generic(self):
+        roles = MODULE_REGISTRY["MEMBERS"]["required_roles"]
+        # Members_CRUD backs the scope-requiring capability (design C4/C7).
+        assert "Members_CRUD" in roles
+        # Follows the <Module>_<Action> convention used by other modules.
+        assert set(roles) == {"Members_CRUD", "Members_Read", "Members_Export"}
+
+    def test_resolve_members_api_base_reads_env_var(self, monkeypatch):
+        monkeypatch.setenv(_MEMBERS_API_BASE_ENV, "https://members.example.com/prod")
+        assert (
+            resolve_module_api_base("MEMBERS")
+            == "https://members.example.com/prod"
+        )
+
+    def test_resolve_members_api_base_unset_env_var_raises(self, monkeypatch):
+        monkeypatch.delenv(_MEMBERS_API_BASE_ENV, raising=False)
+        with pytest.raises(ValueError, match="unset or empty"):
+            resolve_module_api_base("MEMBERS")
+
+    def test_resolve_members_api_base_empty_env_var_raises(self, monkeypatch):
+        monkeypatch.setenv(_MEMBERS_API_BASE_ENV, "")
+        with pytest.raises(ValueError, match="unset or empty"):
+            resolve_module_api_base("MEMBERS")
+
+
 class TestIntersectionAuthUnchanged:
     """
     Guard that S1's backing kind did not alter the tenant module intersection-auth.

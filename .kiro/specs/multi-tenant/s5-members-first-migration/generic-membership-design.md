@@ -31,6 +31,37 @@ repository per the steering) owning what is the same for any club/association:
 - **Generic operations** — member CRUD, list/filter, export, membership transitions,
   delegate management. (The union of h-dcn's ~18 handlers, as internal routes.)
 
+### Lidmaatschap Beheer (membership-type management) — new coupling
+
+**New in the migration — not present in h-dcn today.** h-dcn treats the member's type as a
+free/hardcoded value (the "Erelid/Donateur/Sponsor" vocabulary is baked into its design
+system, per `Analysis/frontend_ui_standards.md`), **not** coupled to a managed catalog. The
+migrated module adds a first-class **Lidmaatschap Beheer** capability: a tenant-scoped,
+managed **catalog of membership types** that the member record's **member-type field
+references**.
+
+- **What it is:** a per-tenant CRUD catalog of membership-type entries (e.g. `code`,
+  `label` (i18n nl/en), `active`, ordering; and, as they land on the rungs below,
+  per-type rights/fees/required-fields). It is the authoritative source of the
+  `membership_type` enum — the same `membership_type` fixed field named in the cross-club
+  pressure test, now backed by a **managed list** instead of a static enum.
+- **The result (the coupling this adds):** the member administration's **member-type field
+  is a dropdown that lists ONLY entries from Lidmaatschap Beheer** for the current
+  `tenant_id`. No free text, no hardcoded vocabulary — a member can only be assigned a type
+  that exists (and is `active`) in that tenant's Lidmaatschap Beheer catalog.
+- **Generic, not h-dcn-specific:** the catalog is empty-by-default and tenant-owned, so
+  h-dcn seeds its own types (Erelid/Donateur/Sponsor/…) as **data** (Rung 1), a soccer club
+  seeds playing/non-playing/youth/family, etc. No `if tenant == "h-dcn"`.
+- **How it fits the layers:** the catalog is fixed-domain (a platform-owned entity), stored
+  in the tenant-scoped data layer (`tenant_id` PK + `LeadingKeys`); the domain service
+  **validates** that a member's `membership_type` references a live catalog entry
+  (authoritative check — React's dropdown is convenience only, per the steering); the
+  resolved-field-config/catalog endpoint feeds the frontend dropdown options.
+- **Referential integrity:** a member's `membership_type` must reference an existing
+  catalog entry for its tenant; deactivating a type keeps existing members valid but
+  removes it from the dropdown for new/edited members (soft-delete/`active=false`, not hard
+  delete, to avoid orphaning historical records).
+
 ### Generic extension mechanisms (customize without forking)
 - **Variable field overlay** — per-tenant "club details" fields via the field-config /
   `tenant_template_config` mechanism. Extends the **data shape** with **no schema change**.
@@ -115,7 +146,7 @@ whether the generic membership model scales to the next club and the next app.
 | --- | --- | --- |
 | **Sub-grouping** differs by club — region (h-dcn) / team / section / location / chapter / none | The **scope dimension** (`scope-dimension-design.md`): tenant sets `key`/`values`, or disables it | 1 (config) |
 | **Role × sub-group** (coach/manager scoped to a team; h-dcn regional roles) | role capability × `resolve_scope_access` | 1–2 |
-| **Membership types/categories** (playing/non-playing/honorary/youth/family) with different rights/fees/required fields | `membership_type` = fixed field with **tenant enum**; per-type required-fields via **declarative rules** | 1–2 |
+| **Membership types/categories** (playing/non-playing/honorary/youth/family) with different rights/fees/required fields | `membership_type` = fixed field whose enum is the **Lidmaatschap Beheer** managed catalog (per-tenant CRUD; member-type field is a dropdown of catalog entries); per-type required-fields via **declarative rules** | 1–2 |
 | **Age-based lifecycle / auto-transitions** (youth→senior at 18; season renewal) | the generic **lifecycle state machine** + date/age **declarative rules**; auto-promotion via `on_transition`/scheduled hook | 2–3 |
 | **Approval / registration flows** (self-signup + approval — h-dcn `verzoek_lid`; waitlists; federation transfers) | lifecycle states + `approval_required` config; waitlist/transfer as tenant states + hooks | 1–3 |
 | **Fees / payments** (per-type, per-season, family discount, SEPA direct debit, pro-rata) | payment linkage is fixed-domain; **fee calculation** is club-specific → `calculate_fee(tenant, member, period)` **hook** | 3 |

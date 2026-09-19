@@ -49,6 +49,8 @@ still well-formed and re-running on unchanged input is a no-op.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import date, datetime
+from decimal import Decimal
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -65,6 +67,48 @@ _VERSION_FIELDS = ("version", "updated_at", "revision", "modified_at")
 # value (not a clock read) keeps the builder pure and the sync idempotent (R5.6):
 # re-running on unchanged input reproduces the same version, so no version churn.
 _DEFAULT_VERSION = 0
+
+
+def _normalize_version(value: Any) -> Any:
+    """Coerce a source version value to a DynamoDB-serializable, order-preserving scalar.
+
+    A source row's version field may be a ``datetime``/``date`` (e.g. MySQL
+    ``updated_at``), which boto3's DynamoDB serializer rejects. ISO-8601 sorts
+    lexicographically in chronological order, so converting to ``isoformat()``
+    preserves the monotonic-version semantics the conditional write relies on
+    (R5.6) while being storable. Ints/strings/Decimals pass through unchanged.
+    """
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return value
+
+
+def _sanitize_for_dynamodb(value: Any) -> Any:
+    """Recursively coerce a value tree into DynamoDB-serializable Python types.
+
+    boto3's DynamoDB serializer rejects ``datetime``/``date`` and ``float``. This
+    normalizes, in place of the caller having to know the column shapes:
+
+    - ``datetime``/``date`` -> ISO-8601 string (order-preserving; see
+      :func:`_normalize_version`);
+    - ``float`` -> ``Decimal`` (DynamoDB's numeric type; via ``str`` to avoid
+      binary-float artifacts);
+    - ``dict``/``list``/``tuple`` -> sanitized element-wise (tuples become lists).
+
+    Applied at the serialization boundary (:meth:`ProjectionItem.to_dynamodb_item`)
+    so EVERY projected attribute (tenant fields like ``created_at``, config maps,
+    scopegrant value lists) is storable, for base and S5b C2 rows alike, without
+    the builders needing to enumerate columns.
+    """
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, Mapping):
+        return {k: _sanitize_for_dynamodb(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_for_dynamodb(v) for v in value]
+    return value
 
 
 @dataclass(frozen=True)
@@ -109,10 +153,10 @@ class ProjectionItem:
             attributes — ready for ``put_item`` once validated (T14) by the sync
             (T16).
         """
-        item: dict[str, Any] = dict(self.attributes)
+        item: dict[str, Any] = _sanitize_for_dynamodb(dict(self.attributes))
         item[schema.PARTITION_KEY_ATTR] = self.tenant_id
         item[schema.SORT_KEY_ATTR] = self.sort_key
-        item[schema.VERSION_ATTR] = self.version
+        item[schema.VERSION_ATTR] = _sanitize_for_dynamodb(self.version)
         return item
 
 
@@ -127,7 +171,7 @@ def _extract_version(row: Mapping[str, Any]) -> Any:
     for name in _VERSION_FIELDS:
         value = row.get(name)
         if value is not None:
-            return value
+            return _normalize_version(value)
     return _DEFAULT_VERSION
 
 
