@@ -1,0 +1,944 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 `[A]` Author `sam/members/template.yaml` — one `MembersFunction`": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737835696
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737850143
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738414559
+      }
+    ],
+    "1.2 `[A]` Verify `sam build` succeeds for function + layer; document the command.": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737835849
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738425082
+      },
+      {
+        "executionId": "eada3376-0862-4fad-91a6-2373b1cda52a",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738649444
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739446986
+      }
+    ],
+    "1.3 `[A]` Add local env config: `frontend/.env.local` (`MEMBERS_API_BASE_URL`) and a": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737835940
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738426852
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739942710
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740098842
+      }
+    ],
+    "2.1 `[A][R]` Remove `_enforce_pilot_routing` + `MEMBERS_PILOT_ROUTING` from": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836071
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737884109
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738416424
+      }
+    ],
+    "2.2 `[A]` Add a `hasMEMBERS` boolean to the App-level modules hook (mirroring": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836145
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738428251
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739524983
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739811018
+      }
+    ],
+    "2.3 `[A]` Unit-test `hasMEMBERS=true` for a `MEMBERS`-entitled tenant, false otherwise.": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836215
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738429701
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739817221
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739936935
+      }
+    ],
+    "3. Checkpoint — `sam build` passes, SPA compiles, pilot-routing removed. Ensure all": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836294
+      }
+    ],
+    "4.1 `[A]` Register `RECORD_TYPE_CONFIG = \"config\"` (ids `scope`/`fields`) and": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836366
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737885651
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738417715
+      }
+    ],
+    "4.2 `[A]` Unit-test the new SK round-trips": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836445
+      },
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789738430974
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739455285
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739519107
+      }
+    ],
+    "5.1 `[A]` Build `config#scope` from `tenant_template_config`/`ParameterService`": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836517
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740107387
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740313011
+      }
+    ],
+    "5.2 `[A]` Build `config#fields` from the field-config parameter system into the": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836591
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740318233
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740481797
+      }
+    ],
+    "5.3 `[A]` Build `scopegrant#<email>#<dimension>` from `user_tenant_roles` (decode": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836664
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740486417
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740709353
+      }
+    ],
+    "5.4 `[A]` Property test: config round-trips MySQL → row → resolved provider.": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836742
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789743767481
+      }
+    ],
+    "6.1 `[A]` Extend `ProjectionSync.sync_administration` to emit the C2 rows alongside": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836818
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740726606
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740993338
+      }
+    ],
+    "6.2 `[A]` Call `enqueue_sync(administration)` after committed writes to": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737836927
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789741099058
+      },
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789741433392
+      }
+    ],
+    "6.3 `[A]` Unit-test the trigger fires on config/grant change using an injected": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837001
+      },
+      {
+        "executionId": "d3e68a60-4620-4370-b4fd-e94e9d3dfbb6",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789742134704
+      }
+    ],
+    "7. Checkpoint — projection carries `config#*` + `scopegrant#*`; sync fires on change.": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837091
+      }
+    ],
+    "8.1 `[A]` Add a module projection reader (mirror": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837179
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789743773713
+      }
+    ],
+    "8.2 `[A]` Wire the reader into module cold start so `FieldResolver` +": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837280
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789743780776
+      }
+    ],
+    "8.3 `[A]` Integrate scope grants at the edge (C5): resolve the tenant `ScopeConfig`,": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837377
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789743791828
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744240677
+      }
+    ],
+    "8.4 `[A]` Property test: empty-is-valid collapse (no config → tenant-wide / fixed": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837468
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744251526
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744430972
+      }
+    ],
+    "8.5 `[A]` Property test: scope-grant deny-by-default (required_for + no grant → deny;": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837560
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744438560
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744705000
+      }
+    ],
+    "8.6 `[A]` Reader test: tenant isolation — one Query per partition, no cross-tenant": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837653
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744710931
+      },
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744888606
+      }
+    ],
+    "9. Checkpoint — the module resolves config/grants from projected rows; 612 S5 tests": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837740
+      }
+    ],
+    "10.1 `[H][R]` SysAdmin: create tenant `h-dcn` + seed initial admin via": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837823
+      }
+    ],
+    "10.2 `[H][R]` SysAdmin: entitle `MEMBERS` for `h-dcn` — via `enabled_modules` at": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737837906
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802341653
+      }
+    ],
+    "10.3 `[H][R]` SysAdmin: ensure `Members_*` role **definitions** exist — general": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838039
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802342901
+      }
+    ],
+    "11.1 `[H][R]` Tenant Admin: create `h-dcn` users via `createUser` →": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838131
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802349247
+      }
+    ],
+    "11.2 `[H][R]` Tenant Admin: assign each user a Members role (general all-access vs": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838223
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802355559
+      }
+    ],
+    "11.3 `[H]` Tenant Admin: author `h-dcn`'s region values (Noord/Zuid/Oost/West) +": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838306
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802350576
+      }
+    ],
+    "12.1 `[A]` Provide/verify a seed for `h-dcn`'s membership-type catalog into": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838411
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765661546
+      }
+    ],
+    "12.2 `[A]` Local: provision the `governance_projection` (prefixed) + `sam-members-local`": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838506
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765662989
+      }
+    ],
+    "13. Checkpoint — `h-dcn` provisioned (SysAdmin) + configured (Tenant Admin),": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838593
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802363620
+      }
+    ],
+    "14.1 `[A]` Start `dynamodb-local` + `myadmin-local` (background) and": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838688
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802365257
+      }
+    ],
+    "14.2 `[A]` Smoke-test routes via curl with a test-pool token: `GET /members`": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838777
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802374592
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802563095
+      }
+    ],
+    "15. Checkpoint — module serves scoped, seeded data locally over HTTP with CORS. Ensure": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838873
+      }
+    ],
+    "16.1 `[A]` Create `frontend/src/services/membersApiService.ts` targeting": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737838966
+      }
+    ],
+    "16.2 `[A]` Add `frontend/src/types/members.ts` (`Member`, `MemberRow`,": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839082
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765658825
+      }
+    ],
+    "16.3 `[A]` `useMemberFieldConfig` hook (pairs with `fieldConfigService.ts`/": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839182
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802579888
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802704670
+      }
+    ],
+    "16.4 `[A]` Vitest + MSW: each wrapper's method/path/headers; 401 refresh-retry.": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839273
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765711940
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765901352
+      }
+    ],
+    "17.1 `[A]` `appPages.tsx`: lazy `MembersPage`, `'members'` `PageType`, `'/leden'` in": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839372
+      }
+    ],
+    "17.2 `[A]` `frontend/src/pages/MembersPage.tsx` — REUSE the shared toolkit, do not": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839463
+      }
+    ],
+    "17.3 `[A]` Vitest + RTL + MSW: renders mocked rows; filter/sort; view-switch changes": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839560
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765712503
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765900048
+      }
+    ],
+    "18. Checkpoint — page reachable, renders real projected/seeded data, filters + scope": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839692
+      }
+    ],
+    "19.1 `[A]` View modal (row-click) from `GET /members/{member_id}`.": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737839923
+      },
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765660161
+      }
+    ],
+    "19.2 `[A]` Edit modal (Formik/Yup) → `PUT /members/{member_id}`; membership-type": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840168
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803180309
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803475209
+      }
+    ],
+    "19.3 `[A]` Delete (confirm → `DELETE /members/{member_id}`).": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840330
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803181443
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803476393
+      }
+    ],
+    "20.1 `[A]` Add / application modal (Formik/Yup) → `POST /members` (+ optional": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840497
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802720138
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803169899
+      }
+    ],
+    "20.2 `[A]` Export (`GET /members/export` or client-side CSV of loaded rows).": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840617
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802721329
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803171259
+      }
+    ],
+    "20.3 `[A]` Single transition →": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840713
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803485108
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789804259297
+      }
+    ],
+    "20.4 `[A]` Bulk actions incl. bulk transition over selected rows →": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840811
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803486074
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789804258303
+      }
+    ],
+    "20.5 `[A]` Vitest + RTL + MSW: edit/add request bodies; dropdown active-only; delete": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840894
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789804268440
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789804302253
+      }
+    ],
+    "21. Checkpoint — all views/modals/actions wired + tested. Ensure all tests pass, ask": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737840968
+      }
+    ],
+    "22.1 `[A]` Author `walkthrough.md`: from a clean start — `npm start` + docker": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841053
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789804310029
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789809214240
+      }
+    ],
+    "22.2 `[H]` Run the walkthrough end-to-end: confirm a Noord-scoped user sees only": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841135
+      }
+    ],
+    "23.1 `[A]` Author the `docs/docs/members/` MkDocs manual section (nl primary +": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841239
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789804311198
+      },
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789809509281
+      }
+    ],
+    "24.1 `[H]` `sam build` + `sam deploy` the Members SAM app to myAdmin prod": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841377
+      }
+    ],
+    "24.2 `[H][R]` Provision prod `sam-members` + confirm the prod `governance_projection`": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841478
+      }
+    ],
+    "24.3 `[H]` Author `h-dcn` config in prod: SysAdmin (`/api/sysadmin/*`) creates the": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841580
+      }
+    ],
+    "24.4 `[H]` Verify Leden Overzicht in myAdmin prod (scoped + general users).": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841677
+      }
+    ],
+    "24.5 `[H]` IF live-token entitlement is required, follow S5 Step 7 Pool A PreTokenGen": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841774
+      }
+    ],
+    "24.6 `[H]` Confirm reversible rollback via governance: remove the `MEMBERS`": [
+      {
+        "executionId": "dead6d9d-78db-45d6-83e0-ce6deb7a5418",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789737841878
+      }
+    ],
+    "4. New projected record types": [
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739519234
+      }
+    ],
+    "2. Remove the pilot-routing gate + add the `hasMEMBERS` SPA gate": [
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789739937112
+      }
+    ],
+    "1. Members SAM app packaging": [
+      {
+        "executionId": "0a56ec08-8a70-4ee4-a1be-3ea1fc337004",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789740098973
+      }
+    ],
+    "6. Sync + on-change trigger extension": [
+      {
+        "executionId": "d3e68a60-4620-4370-b4fd-e94e9d3dfbb6",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789742134844
+      }
+    ],
+    "5. Projection builders (MySQL sources → rows)": [
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789743767651
+      }
+    ],
+    "8. Reader + provider wiring": [
+      {
+        "executionId": "45d4d361-95ae-4efa-abbb-d09fbd490a6d",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789744888809
+      }
+    ],
+    "12. Seed module data + local projection provisioning (`[A]` for local; local onboarding writes the same MySQL rows the SysAdmin/Tenant-Admin endpoints would — the endpoints above are the production path)": [
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765663074
+      }
+    ],
+    "17. Register + build the table": [
+      {
+        "executionId": "729bda9a-3187-433d-bb62-876ea19ea5fe",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789765900181
+      }
+    ],
+    "10. SysAdmin provisioning — tenant + module entitlement + role definitions (`/api/sysadmin/*`, MySQL SoR)": [
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802343008
+      }
+    ],
+    "11. Tenant-Admin config — users + role assignment + tenant params (`/api/tenant-admin/*`, `X-Tenant`, MySQL SoR)": [
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802355660
+      }
+    ],
+    "14. Run + smoke test (long-running via `control_bash_process`)": [
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802563204
+      }
+    ],
+    "16. `membersApiService.ts` + types + hooks + i18n": [
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789802704776
+      }
+    ],
+    "19. View + edit + delete": [
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789803476500
+      }
+    ],
+    "20. Add + export + transitions": [
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789804302370
+      }
+    ],
+    "23. End-user documentation (MkDocs manual)": [
+      {
+        "executionId": "a8191fc6-0954-4e2d-92e3-4e0ba25c35a8",
+        "chatSessionId": "sess_5cc2dab4-07c9-4202-ab8a-efff8b220179",
+        "timestamp": 1789809509443
+      }
+    ]
+  }
+}

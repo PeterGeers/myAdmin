@@ -60,6 +60,7 @@ from routes.tenant_admin_credentials import tenant_admin_credentials_bp
 from routes.tenant_admin_details import tenant_admin_details_bp
 from routes.tenant_admin_email import tenant_admin_email_bp
 from routes.tenant_admin_roles import tenant_admin_roles_bp
+from routes.tenant_admin_scope import tenant_admin_scope_bp
 from routes.tenant_admin_settings import tenant_admin_settings_bp
 from routes.tenant_admin_storage import tenant_admin_storage_bp
 from routes.tenant_admin_template_ai_routes import tenant_admin_template_ai_bp
@@ -154,6 +155,7 @@ app.register_blueprint(tenant_function_bp)  # Tenant optional function toggles
 app.register_blueprint(sysadmin_bp)
 app.register_blueprint(tenant_admin_users_bp)
 app.register_blueprint(tenant_admin_roles_bp)
+app.register_blueprint(tenant_admin_scope_bp)
 app.register_blueprint(tenant_admin_credentials_bp)
 app.register_blueprint(tenant_admin_storage_bp)
 app.register_blueprint(tenant_admin_settings_bp)

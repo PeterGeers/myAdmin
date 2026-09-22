@@ -11,9 +11,18 @@
  */
 
 import React from 'react';
-import { Th, VStack, HStack, Text, Input, InputGroup, InputLeftElement } from '@chakra-ui/react';
+import { Th, VStack, HStack, Text, Input, InputGroup, InputLeftElement, Select } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
 import { FilterableHeaderProps } from './types';
+
+/** Normalize the two accepted `filterOptions` shapes to `{ value, label }[]`. */
+function normalizeFilterOptions(
+  options: string[] | { value: string; label: string }[],
+): { value: string; label: string }[] {
+  return options.map((opt) =>
+    typeof opt === 'string' ? { value: opt, label: opt } : opt,
+  );
+}
 
 /**
  * Table header cell with optional inline text filter and sort indicator.
@@ -38,10 +47,15 @@ export const FilterableHeader: React.FC<FilterableHeaderProps> = ({
   sortDirection,
   onSort,
   placeholder,
+  filterOptions,
   isNumeric = false,
   w,
   maxW,
 }) => {
+  const enumOptions =
+    filterOptions && filterOptions.length > 0
+      ? normalizeFilterOptions(filterOptions)
+      : null;
   const ariaSortValue = sortable
     ? sortDirection === 'asc'
       ? 'ascending'
@@ -82,8 +96,29 @@ export const FilterableHeader: React.FC<FilterableHeaderProps> = ({
           )}
         </HStack>
 
-        {/* Optional filter input */}
-        {filterValue !== undefined && (
+        {/* Optional filter control: an enum <Select> when `filterOptions` is
+            provided (e.g. a scope/region pre-filter drawn from the tenant's
+            config#scope dimension values), otherwise the free-text <Input>. Both
+            feed the same `onFilterChange`, so the shared `useColumnFilters`
+            substring match applies unchanged (an exact enum value matches
+            itself; the empty option clears the filter). */}
+        {filterValue !== undefined && enumOptions ? (
+          <Select
+            size="xs"
+            value={filterValue}
+            onChange={(e) => onFilterChange?.(e.target.value)}
+            bg="gray.600"
+            color="white"
+            aria-label={`Filter by ${label}`}
+          >
+            <option value="">{placeholder || 'Filter...'}</option>
+            {enumOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        ) : filterValue !== undefined ? (
           <InputGroup size="xs">
             <InputLeftElement pointerEvents="none" h="24px">
               <SearchIcon color="gray.300" boxSize="10px" />
@@ -102,7 +137,7 @@ export const FilterableHeader: React.FC<FilterableHeaderProps> = ({
               spellCheck={false}
             />
           </InputGroup>
-        )}
+        ) : null}
       </VStack>
     </Th>
   );

@@ -1,0 +1,13 @@
+{
+  "MembersFunction": {
+    "MEMBERS_TABLE": "sam-members-local",
+    "GOVERNANCE_PROJECTION_TABLE": "test_governance_projection",
+    "AWS_ENDPOINT_URL_DYNAMODB": "http://dynamodb-local:8000",
+    "AWS_REGION": "eu-west-1",
+    "COGNITO_POOL_KEYS": "MYADMIN",
+    "MYADMIN_COGNITO_ISSUER": "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_xyrlzfqbl",
+    "MYADMIN_COGNITO_JWKS_URI": "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_xyrlzfqbl/.well-known/jwks.json",
+    "MYADMIN_COGNITO_CLIENT_ID": "43s15cm8qcgg8an85udt0e087u",
+    "MYADMIN_COGNITO_POOL_LABEL": "myAdmin-test"
+  }
+}

@@ -1,5 +1,5 @@
 ---
-inclusion: auto
+inclusion: always
 ---
 
 # Shell Environment
@@ -8,14 +8,37 @@ inclusion: auto
 
 The workspace lives at `/home/peter/projects/myAdmin` on **WSL Ubuntu**. The paths appear as `\\wsl.localhost\Ubuntu\...` in the editor but the terminal runs **bash on Linux**.
 
+### Tool path split (UNC vs POSIX) — do not cross them
+
+Two different path forms are required depending on which tool you use:
+
+- **File / read / list / validate tools** (read_file, list_directory, format validators,
+  diagnostics) need the **UNC** path: `\\wsl.localhost\Ubuntu\home\peter\projects\myAdmin\...`.
+- **The bash / terminal tool** needs the **POSIX** path: `/home/peter/projects/myAdmin/...`.
+
+Crossing them fails: a POSIX path handed to a file tool will not resolve, and the UNC path
+handed to bash breaks. (Diagnostics / format validators have also been seen to mis-parse the
+UNC path character-by-character — if a validator emits per-character "policy" noise, that is
+the path artifact, not a real defect.)
+
 ## Shell rules
 
 - **Always use bash/Linux commands** — `wc -l`, `cat`, `grep`, `find`, etc.
 - **Never use** `wsl -d Ubuntu`, `Get-Content`, `Measure-Object`, PowerShell cmdlets, or Windows cmd commands
 - **Working directory** for terminal commands: `/home/peter/projects/myAdmin`
-- Use `cwd` parameter set to `/home/peter/projects/myAdmin` (or subdirectories) when running commands
+- **Never use the `cwd` parameter.** It emits Windows-style backslash paths
+  (`cd "\home\..."`) that do not resolve on Linux. **Always** put an **inline POSIX `cd`**
+  inside the command: `bash -lc 'cd /home/peter/projects/myAdmin && <cmd>'`.
 - Python virtual env is at `backend/.venv` — activate with `source backend/.venv/bin/activate`
 - Use `wc -l <file>` to count lines, `cat <file>` to view files in terminal
+- **Empty / absent output does NOT mean failure — and does NOT mean the command stopped.**
+  Many commands are still running when the terminal shows no output yet. Wait for the in-band
+  `<<<DONE marker=$?>>>` marker before concluding anything. Do **not** blindly re-run — a
+  mutating command may still be in flight. Piping to `tail`/`head`/`grep` can also swallow
+  output; if you truly need it, redirect to a file under `.agent-output/` and read that.
+- **Long-running processes** (dev servers, `sam local`, `docker compose up`, watchers) must
+  **never** run in the foreground — run them in the background / via `control_bash_process`,
+  not a blocking terminal call. See `42-local-dynamodb-testing.md`.
 
 ## Common patterns
 

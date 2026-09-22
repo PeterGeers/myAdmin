@@ -251,6 +251,28 @@ ROLE_PERMISSIONS = {
         "zzp_list",
         "zzp_export",
     ],
+    # Members Module (S5) — generic membership administration (sam-backed).
+    # The capability VOCABULARY is owned by the Members handler routes
+    # (sam/members/handler/routes.py: CAP_MEMBERS_READ/WRITE/EXPORT/ADMIN), which
+    # the handler edge (task 3.0) gates on via has_capability. These mappings make
+    # the shared resolver (auth.entitlement_resolver) expand each Members role into
+    # exactly those capability tokens, so the entitlement carried by the token /
+    # projection answers has_capability("members:*") correctly for an entitled
+    # tenant (S5 C7, R4.2/R6.1). Follows the <Module>_<Action> role convention:
+    # Read = read-only; CRUD = full incl. admin/export; Export = read + export.
+    "Members_Read": [
+        "members:read",
+    ],
+    "Members_CRUD": [
+        "members:read",
+        "members:write",
+        "members:export",
+        "members:admin",
+    ],
+    "Members_Export": [
+        "members:read",
+        "members:export",
+    ],
 }
 
 

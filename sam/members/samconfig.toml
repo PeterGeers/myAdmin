@@ -1,0 +1,48 @@
+# samconfig.toml — pinned SAM deploy config for the Members module (A.7).
+#
+# Makes `sam deploy` reproducible: the prod stack name, region, capabilities, and the
+# fail-fast parameter_overrides live here instead of inline flags, so the CI workflow
+# (deploy-sam-members.yml, plan B.3) and a manual `sam deploy --config-env prod` produce
+# the SAME stack. Deploys to the DATA account (nonprofit-deploy / 506221081911, eu-west-1)
+# via GitHub OIDC (NonprofitDeployRole) — see the rollout plan B.3. NO secrets here; the
+# Cognito identifiers below are PUBLIC (pool id / app-client id / JWKS URL).
+#
+# IMPORTANT (isolation): the stack name is `sam-members`, deliberately NOT `h-dcn` — the
+# existing h-dcn app owns the `h-dcn` stack in the same account; a distinct name keeps the
+# two CloudFormation stacks independent (see the plan's "Isolation from the existing h-dcn
+# app"). The `sam-members` + `governance_projection` tables are managed OUTSIDE this stack
+# (Retain); a deploy never creates/replaces them.
+#
+# COGNITO: the API authorizer + verified-auth edge use the **myAdmin** pool
+# `eu-west-1_Hdp40eWmu` in the PERSONAL account (344561557829) — NOT the h-dcn pool. The
+# authorizer references it cross-account by ARN (no cross-account role needed). The
+# `MyAdminCognito*` values are the pool-registry entry (key `MYADMIN`) the edge verifies
+# tokens against.
+
+version = 0.1
+
+# --- PROD (data account 506221081911, eu-west-1) --------------------------------------
+[prod.deploy.parameters]
+stack_name = "sam-members"
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3 = true
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = [
+  "Stage=prod",
+  "MembersTableName=sam-members",
+  "GovernanceProjectionTableName=governance_projection",
+  "Region=eu-west-1",
+  "CognitoUserPoolArn=arn:aws:cognito-idp:eu-west-1:344561557829:userpool/eu-west-1_Hdp40eWmu",
+  # Verified-auth edge pool registry (key MYADMIN) — the myAdmin pool, PUBLIC identifiers.
+  "CognitoPoolKeys=MYADMIN",
+  "MyAdminCognitoIssuer=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_Hdp40eWmu",
+  "MyAdminCognitoJwksUri=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_Hdp40eWmu/.well-known/jwks.json",
+  "MyAdminCognitoClientId=66tp0087h9tfbstggonnu5aghp",
+  "MyAdminCognitoPoolLabel=myAdmin",
+  # NOTE: DynamoDbEndpointUrl is LOCAL-ONLY and defaults to "" in template.yaml, so it is
+  # intentionally OMITTED here — passing `DynamoDbEndpointUrl=` (empty) is rejected by the
+  # SAM CLI parameter_overrides parser. Omitting it => the template's empty default => the
+  # DynamoDB client talks to real AWS (no endpoint override). Do NOT re-add an empty entry.
+]

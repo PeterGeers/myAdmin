@@ -5,6 +5,7 @@
  */
 
 import { fetchAuthSession } from 'aws-amplify/auth';
+import type { ScopeGrant, ScopeDimensionOption } from '../types/members';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -163,10 +164,10 @@ export async function createUser(userData: UserData): Promise<UserCreateResponse
 export async function listUsers(filters?: UserListFilters): Promise<UserListResponse> {
   const headers = await getAuthHeaders();
   const params = new URLSearchParams();
-  
+
   if (filters?.role) params.append('role', filters.role);
   if (filters?.search) params.append('search', filters.search);
-  
+
   const url = `${API_BASE_URL}/api/tenant-admin/users${params.toString() ? '?' + params.toString() : ''}`;
   const response = await fetch(url, { headers });
   return handleResponse(response);
@@ -367,11 +368,125 @@ export async function updateSettings(settings: Partial<TenantSettings>): Promise
 export async function getActivity(dateRange?: { start_date?: string; end_date?: string }): Promise<{ activity: ActivityStats }> {
   const headers = await getAuthHeaders();
   const params = new URLSearchParams();
-  
+
   if (dateRange?.start_date) params.append('start_date', dateRange.start_date);
   if (dateRange?.end_date) params.append('end_date', dateRange.end_date);
-  
+
   const url = `${API_BASE_URL}/api/tenant-admin/activity${params.toString() ? '?' + params.toString() : ''}`;
   const response = await fetch(url, { headers });
   return handleResponse(response);
+}
+
+// ============================================================================
+// Member-Scope Authoring API (s5d task 6.1)
+// ============================================================================
+//
+// Client for the Tenant_Admin scope-authoring routes (backend task 5.2/5.3,
+// `tenant_admin_scope.py`). All calls carry the `X-Tenant` header + Bearer token
+// via `getAuthHeaders()` and unwrap the JSON via `handleResponse()` — the tenant
+// is ALWAYS the verified context tenant, never a body value (Property 1). s5d
+// serves the `members` module path segment.
+
+/** Response shape of `GET /api/tenant-admin/users/<username>/scope/<module>`. */
+export interface UserScopeResponse extends ApiResponse {
+  tenant?: string;
+  module?: string;
+  username?: string;
+  /** The user's grant for this module — `{}` when none exists. */
+  scopes?: ScopeGrant;
+}
+
+/** Response shape of `GET /api/tenant-admin/scope-dimensions/<module>`. */
+export interface ScopeDimensionsResponse extends ApiResponse {
+  tenant?: string;
+  module?: string;
+  dimensions?: ScopeDimensionOption[];
+  count?: number;
+}
+
+/** Response shape of `POST /api/tenant-admin/projection/resync`. */
+export interface ResyncResponse extends ApiResponse {
+  tenant?: string;
+  /** Number of projection rows (re)written. */
+  written?: number;
+  /** Number of obsolete projection rows removed. */
+  removed?: number;
+}
+
+/**
+ * Fetch a user's current scope grant for the current tenant + module.
+ *
+ * `GET /api/tenant-admin/users/<username>/scope/<module>` → returns the `scopes`
+ * object (an empty object when the user has no grant). s5d serves `module = members`.
+ */
+export async function getUserScope(username: string, module: string): Promise<ScopeGrant> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(
+    `${API_BASE_URL}/api/tenant-admin/users/${encodeURIComponent(username)}/scope/${encodeURIComponent(module)}`,
+    { headers },
+  );
+  const data = await handleResponse<UserScopeResponse>(response);
+  return data.scopes ?? {};
+}
+
+/**
+ * Atomically overwrite a user's scope grant for the current tenant + module.
+ *
+ * `PUT /api/tenant-admin/users/<username>/scope/<module>` with body
+ * `{ "scopes": {...} }`. Clearing all dimensions removes the grant (deny). The
+ * backend validates each dimension key + value against the tenant's
+ * `<module>.scope_dimensions` and rejects unknown ones with a 400 — which
+ * `handleResponse` surfaces as a thrown validation error. Returns the normalized
+ * scopes the backend stored.
+ */
+export async function setUserScope(
+  username: string,
+  module: string,
+  scopes: ScopeGrant,
+): Promise<ScopeGrant> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(
+    `${API_BASE_URL}/api/tenant-admin/users/${encodeURIComponent(username)}/scope/${encodeURIComponent(module)}`,
+    {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ scopes }),
+    },
+  );
+  const data = await handleResponse<UserScopeResponse>(response);
+  return data.scopes ?? {};
+}
+
+/**
+ * Fetch the enabled scope dimensions + canonical values for the picker.
+ *
+ * `GET /api/tenant-admin/scope-dimensions/<module>` — sourced directly from the
+ * tenant's `<module>.scope_dimensions` param (D4/R5.1). Returns the dimension
+ * option list (empty when the tenant configures no scope dimensions).
+ */
+export async function getScopeDimensions(module: string): Promise<ScopeDimensionOption[]> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(
+    `${API_BASE_URL}/api/tenant-admin/scope-dimensions/${encodeURIComponent(module)}`,
+    { headers },
+  );
+  const data = await handleResponse<ScopeDimensionsResponse>(response);
+  return data.dimensions ?? [];
+}
+
+/**
+ * Force a full re-projection of the current tenant ("Re-sync now").
+ *
+ * `POST /api/tenant-admin/projection/resync` — a convenience/recovery action that
+ * returns a `{ written, removed }` summary. A backend failure answers 500 with
+ * `{ success: false, error }`, which `handleResponse` surfaces as a thrown error
+ * so the UI can show it.
+ */
+export async function resyncProjection(): Promise<ResyncResponse> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/api/tenant-admin/projection/resync`, {
+    method: 'POST',
+    headers,
+  });
+  return handleResponse<ResyncResponse>(response);
 }

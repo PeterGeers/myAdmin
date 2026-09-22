@@ -38,6 +38,34 @@ def _is_sysadmin(user_roles) -> bool:
     return "SysAdmin" in (user_roles or [])
 
 
+def _validate_members_config(svc, namespace, key, value, tenant) -> None:
+    """Fail-fast save-time validation for members.* config (s5c 2.4; no-op otherwise).
+
+    Delegates to services.members_config_validation. For members.view_contexts the
+    resolvable field set is widened by the tenant's sibling members.field_overlay and
+    members.scope_dimensions (read via the ParameterService), so a context may reference
+    the tenant's own parameter/overlay fields and scope dimensions. Raises
+    MembersConfigError (a ValueError → 400) if the config is invalid.
+    """
+    if namespace != "members":
+        return
+    from services.members_config_validation import validate_members_param
+
+    sibling_overlay = None
+    sibling_scope = None
+    if key == "view_contexts":
+        # Read the tenant's sibling members.* values so the tenant's added fields resolve.
+        sibling_overlay = svc.get_param("members", "field_overlay", tenant=tenant)
+        sibling_scope = svc.get_param("members", "scope_dimensions", tenant=tenant)
+
+    validate_members_param(
+        key,
+        value,
+        sibling_field_overlay=sibling_overlay,
+        sibling_scope_dimensions=sibling_scope,
+    )
+
+
 @parameter_admin_bp.route("/api/tenant-admin/parameters", methods=["GET"])
 @cognito_required(required_permissions=[])
 @tenant_required()
@@ -149,6 +177,12 @@ def create_parameter(
         scope_id = "_system_" if scope == "system" else tenant
 
         svc = _get_service()
+
+        # s5c R5.1a/R4.9 (Property 7) — authoritative save-time validation for members.*
+        # config (fail-fast, before the write, so a dangling reference / invalid overlay
+        # never corrupts the stored config or the projection). No-op for other namespaces.
+        _validate_members_config(svc, namespace, key, value, tenant)
+
         svc.set_param(
             scope,
             scope_id,
@@ -159,6 +193,16 @@ def create_parameter(
             is_secret=is_secret,
             created_by=user_email,
         )
+
+        # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
+        # parameter committed above; signal a projection sync for the affected
+        # tenant (the write's own scope, never a default). Only tenant-scope
+        # writes touch the tenant projection — system scope is not tenant-specific.
+        # Best-effort: never breaks the parameter write (reconciliation backstops).
+        if scope == "tenant":
+            from services.projection_sync_trigger import enqueue_sync
+
+            enqueue_sync(scope_id)
 
         return jsonify(
             {"success": True, "message": f"Parameter {namespace}.{key} created"}
@@ -205,6 +249,13 @@ def update_parameter(
             ), 404
 
         svc = _get_service()
+
+        # s5c R5.1a/R4.9 (Property 7) — authoritative save-time validation for members.*
+        # config on update (fail-fast, before the write). No-op for other namespaces.
+        _validate_members_config(
+            svc, row["namespace"], row["key"], value, row["scope_id"]
+        )
+
         svc.set_param(
             row["scope"],
             row["scope_id"],
@@ -215,6 +266,17 @@ def update_parameter(
             is_secret=row["is_secret"],
             created_by=user_email,
         )
+
+        # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
+        # parameter committed above; signal a projection sync for the affected
+        # tenant (the row's own scope_id, verified to equal this tenant above).
+        # Only tenant-scope writes touch the tenant projection — system scope is
+        # not tenant-specific. Best-effort: never breaks the parameter write
+        # (reconciliation backstops a missed signal).
+        if row["scope"] == "tenant":
+            from services.projection_sync_trigger import enqueue_sync
+
+            enqueue_sync(row["scope_id"])
 
         return jsonify({"success": True, "message": "Parameter updated"})
     except ValueError as e:
@@ -259,6 +321,17 @@ def delete_parameter(
         )
 
         if deleted:
+            # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
+            # parameter override was deleted and committed above; signal a
+            # projection sync for the affected tenant (the row's own scope_id,
+            # verified to equal this tenant above). Only tenant-scope writes touch
+            # the tenant projection — system scope is not tenant-specific.
+            # Best-effort: never breaks the delete (reconciliation backstops).
+            if row["scope"] == "tenant":
+                from services.projection_sync_trigger import enqueue_sync
+
+                enqueue_sync(row["scope_id"])
+
             return jsonify({"success": True, "message": "Parameter deleted"})
         return jsonify({"success": False, "error": "Delete failed"}), 500
     except Exception as e:

@@ -38,6 +38,7 @@ import {
   ZZPDebtors,
   ZZPTripQuick,
   ZZPTripImport,
+  MembersPage,
   TenantAdminDashboard,
   SysAdminDashboard,
   PasskeySettings,
@@ -59,6 +60,7 @@ export interface AppRoutesProps {
   hasFIN: boolean;
   hasSTR: boolean;
   hasZZP: boolean;
+  hasMEMBERS: boolean;
   hasFunction: (fn: string) => boolean;
   modulesLoading: boolean;
   showPasskeyPrompt: boolean;
@@ -69,7 +71,7 @@ export interface AppRoutesProps {
 export function AppRoutes(props: AppRoutesProps) {
   const {
     currentPage, setCurrentPage, status, user, logout,
-    hasFIN, hasSTR, hasZZP, hasFunction, modulesLoading,
+    hasFIN, hasSTR, hasZZP, hasMEMBERS, hasFunction, modulesLoading,
     showPasskeyPrompt, setShowPasskeyPrompt, dismissPasskeyPrompt,
   } = props;
   const { t } = useTranslation();
@@ -328,6 +330,19 @@ export function AppRoutes(props: AppRoutesProps) {
         </ProtectedRoute>
       );
 
+    case 'members':
+      return (
+        <ProtectedRoute
+          requiredRoles={['Members_Read', 'Members_CRUD']}
+          onLoginSuccess={() => setCurrentPage('menu')}
+        >
+          <Box minH="100vh" bg="gray.900">
+            {renderPageHeader(`👥 ${t('members:overview.title')}`)}
+            <MembersPage />
+          </Box>
+        </ProtectedRoute>
+      );
+
     case 'zzp-contacts':
       return (
         <ProtectedRoute
@@ -441,6 +456,7 @@ export function AppRoutes(props: AppRoutesProps) {
             hasFIN={hasFIN}
             hasSTR={hasSTR}
             hasZZP={hasZZP}
+            hasMEMBERS={hasMEMBERS}
             hasFunction={hasFunction}
             modulesLoading={modulesLoading}
             showPasskeyPrompt={showPasskeyPrompt}
