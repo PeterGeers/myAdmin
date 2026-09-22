@@ -90,9 +90,25 @@ def service(repo, hooks) -> MembershipService:
     )
 
 
+# Scope is driven by the caller's verified EMAIL via the PROJECTED grants (design C5), NOT the
+# token groups (s5c Phase 0 removed the group-derived scope path). The catalog-write walkthrough
+# uses an all-access caller, so grant that email region ["*"]; a Members_CRUD holder with NO
+# region grant would deny-by-default (covered by the sibling test_members_write_dispatch tests).
+_EMAIL_ALL = "all@h-dcn.test"  # all-access → region ["*"]
+
+_HDCN_GRANTS = {
+    ("h-dcn", _EMAIL_ALL): {"region": ["*"]},
+}
+
+
 @pytest.fixture(autouse=True)
 def inject_service(monkeypatch, service):
+    from sam.tests.conftest import FakeScopeGrantsReader
+
     monkeypatch.setattr(app, "_get_membership_service", lambda: service)
+    monkeypatch.setattr(
+        app, "_SCOPE_GRANTS_READER_OVERRIDE", FakeScopeGrantsReader(_HDCN_GRANTS)
+    )
     return service
 
 
@@ -115,7 +131,9 @@ def _entitlement(tenant, capabilities):
 
 def _event(method, path, *, tenant="h-dcn",
            capabilities=("members:read", "members:write", "members:admin", "members:export"),
-           groups=("Regio_All",), sub="admin-sub", body=None, query=None):
+           email=_EMAIL_ALL, groups=(), sub="admin-sub", body=None, query=None):
+    """A verified API-GW-authorizer event. Scope is driven by ``email`` (projected grants,
+    design C5) — not ``groups`` (s5c Phase 0 removed the group-derived scope path)."""
     return {
         "httpMethod": method,
         "path": path,
@@ -126,6 +144,7 @@ def _event(method, path, *, tenant="h-dcn",
             "authorizer": {
                 "claims": {
                     "sub": sub,
+                    "email": email,
                     "cognito:groups": list(groups),
                     "custom:entitlements": _entitlement(tenant, list(capabilities)),
                 }
@@ -139,15 +158,17 @@ def _data(resp):
 
 
 def _valid_member_body(*, region="Noord", member_number=None, status=None, membership_type="erelid"):
-    membership = {"membership_type": membership_type, "joined": "2024-01-01"}
+    membership = {"membership_type": membership_type, "joined_date": "2024-01-01"}
     if member_number is not None:
         membership["member_number"] = member_number
     if status is not None:
         membership["status"] = status
+    # S5d D1/R3.4: scope is a PLAIN member field — h-dcn's `region` dimension binds to the
+    # tenant-added `overlay.region` field, a scalar (no retired `scope_values` bucket).
     return {
-        "personal": {"name": "Alex", "contact": "alex@example.com"},
+        "personal": {"first_name": "Alex", "last_name": "de Vries", "email": "alex@example.com"},
         "membership": membership,
-        "scope_values": {"region": [region]},
+        "overlay": {"region": region},
     }
 
 
@@ -380,10 +401,10 @@ class TestMembershipTypeReferenceValidation:
         app.handler(_event("POST", "/members", body=body))
         app.handler(_event("DELETE", "/membership-types/erelid"))  # retire the type
         resp = app.handler(
-            _event("PUT", "/members/M-21", body={"personal": {"name": "Renamed"}})
+            _event("PUT", "/members/M-21", body={"personal": {"first_name": "Renamed"}})
         )
         assert resp["statusCode"] == 200
-        assert repo.get_member("h-dcn", "M-21")["personal"]["name"] == "Renamed"
+        assert repo.get_member("h-dcn", "M-21")["personal"]["first_name"] == "Renamed"
 
     def test_reference_check_is_tenant_scoped(self, repo):
         # 'erelid' is live for h-dcn only. A member create for h-dcn works; the same type is
@@ -398,5 +419,5 @@ class TestMembershipTypeReferenceValidation:
         body = _valid_member_body(member_number="5001", membership_type="ghost")
         body["member_id"] = "M-40"
         with pytest.raises(MemberValidationError) as exc:
-            service.create_member("h-dcn", body, ["*"])
+            service.create_member("h-dcn", body, {"region": ["*"]})
         assert "membership.membership_type" in exc.value.errors

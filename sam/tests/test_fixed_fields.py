@@ -35,17 +35,24 @@ from sam.members.domain.fixed_fields import (
 def _valid_member() -> dict:
     return {
         "personal": {
-            "name": "Jan Jansen",
-            "contact": "jan@example.org",
-            "address": "Straat 1, Amsterdam",
-            "birthdate": "1980-05-04",
+            "first_name": "Jan",
+            "last_name": "Jansen",
+            "name_infix": "de",
+            "initials": "J.J.",
+            "birth_date": "1980-05-04",
+            "gender": "M",
+            "email": "jan@example.org",
+            "phone": "+31 6 12345678",
+            "street": "Straat 1",
+            "postal_code": "1011 AB",
+            "city": "Amsterdam",
+            "country": "NL",
         },
         "membership": {
             "member_number": "H-0001",
             "status": MembershipStatus.ACTIVE.value,
             "membership_type": "erelid",
-            "joined": "2020-01-01",
-            "left": None,
+            "joined_date": "2020-01-01",
         },
     }
 
@@ -56,13 +63,27 @@ def _valid_member() -> dict:
 def test_registry_covers_personal_and_membership_fields():
     personal_keys = {f.key for f in PERSONAL_FIELDS}
     membership_keys = {f.key for f in MEMBERSHIP_FIELDS}
-    assert personal_keys == {"name", "contact", "address", "birthdate"}
+    assert personal_keys == {
+        "first_name",
+        "last_name",
+        "name_infix",
+        "initials",
+        "birth_date",
+        "gender",
+        "email",
+        "phone",
+        "street",
+        "postal_code",
+        "city",
+        "country",
+    }
     assert membership_keys == {
         "member_number",
         "status",
         "membership_type",
-        "joined",
-        "left",
+        "joined_date",
+        "created_at",
+        "updated_at",
     }
 
 
@@ -76,7 +97,7 @@ def test_canonical_keys_are_unique_and_dotted():
     keys = canonical_keys()
     assert len(keys) == len(set(keys)) == len(FIXED_FIELDS)
     assert "membership.status" in keys
-    assert "personal.name" in keys
+    assert "personal.first_name" in keys
 
 
 def test_field_by_key_round_trips_and_misses_gracefully():
@@ -105,9 +126,9 @@ def test_valid_member_passes():
 
 def test_optional_fields_may_be_absent_or_null():
     m = _valid_member()
-    del m["personal"]["address"]
-    m["personal"]["birthdate"] = None
-    m["membership"]["left"] = None
+    del m["personal"]["street"]
+    m["personal"]["birth_date"] = None
+    m["personal"]["phone"] = None
     validate_fixed_fields(m)  # optional → fine
 
 
@@ -117,12 +138,13 @@ def test_optional_fields_may_be_absent_or_null():
 @pytest.mark.parametrize(
     "group,key",
     [
-        ("personal", "name"),
-        ("personal", "contact"),
+        ("personal", "first_name"),
+        ("personal", "last_name"),
+        ("personal", "email"),
         ("membership", "member_number"),
         ("membership", "status"),
         ("membership", "membership_type"),
-        ("membership", "joined"),
+        ("membership", "joined_date"),
     ],
 )
 def test_missing_required_field_fails(group, key):
@@ -164,26 +186,26 @@ def test_invalid_status_enum_fails():
 @pytest.mark.parametrize("bad_date", ["2020-13-01", "01-01-2020", "2020/01/01", "not-a-date", ""])
 def test_invalid_date_fails(bad_date):
     m = _valid_member()
-    m["membership"]["joined"] = bad_date
+    m["membership"]["joined_date"] = bad_date
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    assert "membership.joined" in exc.value.errors
+    assert "membership.joined_date" in exc.value.errors
 
 
 def test_blank_required_string_fails():
     m = _valid_member()
-    m["personal"]["name"] = "   "
+    m["personal"]["first_name"] = "   "
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    assert "personal.name" in exc.value.errors
+    assert "personal.first_name" in exc.value.errors
 
 
 def test_wrong_type_string_fails():
     m = _valid_member()
-    m["personal"]["name"] = 12345
+    m["personal"]["first_name"] = 12345
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    assert "personal.name" in exc.value.errors
+    assert "personal.first_name" in exc.value.errors
 
 
 def test_all_errors_are_collected_at_once():
@@ -200,6 +222,10 @@ def test_all_errors_are_collected_at_once():
 def _value_for(fld: FixedField) -> st.SearchStrategy:
     """A generator that produces a valid value for a given fixed field."""
     if fld.type is FieldType.ENUM:
+        # A closed enum draws from its choices; an OPEN enum (choices=None, e.g. gender —
+        # tenant config, R4.2) accepts any non-blank string.
+        if fld.choices is None:
+            return st.text(min_size=1).filter(lambda s: s.strip() != "")
         return st.sampled_from(list(fld.choices))
     if fld.type is FieldType.DATE:
         return st.dates().map(lambda d: d.isoformat())

@@ -251,12 +251,12 @@ def repo(table) -> DynamoDbMembersRepository:
 def _member(member_id: str, member_number: str, *, region=None, name="Alex") -> dict:
     rec = {
         "member_id": member_id,
-        "personal": {"name": name, "contact": f"{member_id}@example.com"},
+        "personal": {"first_name": name, "last_name": name, "email": f"{member_id}@example.com"},
         "membership": {
             "member_number": member_number,
             "status": "active",
             "membership_type": "erelid",
-            "joined": "2024-01-01",
+            "joined_date": "2024-01-01",
         },
     }
     if region is not None:
@@ -339,7 +339,7 @@ class TestMemberCrudAndIsolation:
     def test_save_then_get_round_trips_the_member(self, repo):
         repo.save_member("h-dcn", _member("M-1", "1001"))
         got = repo.get_member("h-dcn", "M-1")
-        assert got["personal"]["name"] == "Alex"
+        assert got["personal"]["first_name"] == "Alex"
         assert got["membership"]["member_number"] == "1001"
 
     def test_get_missing_member_returns_none(self, repo):
@@ -416,7 +416,7 @@ class TestMemberNumberUniqueness:
         repo.save_member("h-dcn", _member("M-1", "1001", name="Alex"))
         # Re-saving the SAME member (same id + number) updates in place, no conflict.
         repo.save_member("h-dcn", _member("M-1", "1001", name="Alexandra"))
-        assert repo.get_member("h-dcn", "M-1")["personal"]["name"] == "Alexandra"
+        assert repo.get_member("h-dcn", "M-1")["personal"]["first_name"] == "Alexandra"
 
     def test_concurrent_writers_only_one_wins(self, table):
         """Two repositories racing for the same number: first wins, second conflicts.

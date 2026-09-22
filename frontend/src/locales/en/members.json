@@ -30,6 +30,12 @@
     "loading": "Loading members...",
     "empty": "No members found"
   },
+  "stats": {
+    "total": "Total members",
+    "filtered": "Filtered",
+    "active": "Active",
+    "regions": "Regions"
+  },
   "export": {
     "empty": "No members to export",
     "error": "Export failed"
@@ -57,14 +63,18 @@
       "membershipType": "Membership type",
       "membershipTypePlaceholder": "Select a membership type",
       "region": "Region",
-      "regionPlaceholder": "Select a region"
+      "regionPlaceholder": "Select a region",
+      "selectPlaceholder": "Select…",
+      "memberNumberHint": "Format e.g."
     },
     "validation": {
       "nameRequired": "Name is required",
       "emailRequired": "Email is required",
       "emailInvalid": "Invalid email address",
       "membershipTypeRequired": "Membership type is required",
-      "regionRequired": "Region is required"
+      "regionRequired": "Region is required",
+      "required": "This field is required",
+      "memberNumberFormat": "Does not match the required member-number format"
     },
     "toast": {
       "success": "Member created",

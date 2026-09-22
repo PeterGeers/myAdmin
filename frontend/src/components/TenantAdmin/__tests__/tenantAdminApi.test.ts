@@ -22,7 +22,7 @@ describe('Tenant Admin API Service', () => {
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks();
-    
+
     // Mock localStorage
     Storage.prototype.getItem = vi.fn((key) => {
       if (key === 'selectedTenant') return mockTenant;
@@ -407,6 +407,169 @@ describe('Tenant Admin API Service', () => {
         expect.stringContaining('end_date=2026-01-31'),
         expect.any(Object)
       );
+    });
+  });
+
+  // ============================================================================
+  // Member-Scope Authoring API Tests (s5d task 6.1)
+  // ============================================================================
+
+  describe('Member-Scope Authoring API', () => {
+    test('getUserScope sends GET request to the scope endpoint with tenant/auth headers', async () => {
+      const mockResponse = {
+        success: true,
+        tenant: mockTenant,
+        module: 'MEMBERS',
+        username: 'member@example.com',
+        scopes: { region: ['Oost', 'Friesland'] },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
+
+      const result = await api.getUserScope('member@example.com', 'members');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tenant-admin/users/member%40example.com/scope/members'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': `Bearer ${mockToken}`,
+            'X-Tenant': mockTenant,
+          }),
+        })
+      );
+      // Unwraps to the typed ScopeGrant.
+      expect(result).toEqual({ region: ['Oost', 'Friesland'] });
+    });
+
+    test('getUserScope returns an empty grant when the user has no scope', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { success: true, scopes: {} } })
+      );
+
+      const result = await api.getUserScope('nobody@example.com', 'members');
+
+      expect(result).toEqual({});
+    });
+
+    test('getUserScope defaults to {} when the body omits scopes', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { success: true } })
+      );
+
+      const result = await api.getUserScope('nobody@example.com', 'members');
+
+      expect(result).toEqual({});
+    });
+
+    test('setUserScope sends PUT with the scopes body and returns the normalized grant', async () => {
+      const normalized = { region: ['oost'] };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { success: true, scopes: normalized } })
+      );
+
+      const result = await api.setUserScope('member@example.com', 'members', { region: ['Oost'] });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tenant-admin/users/member%40example.com/scope/members'),
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            'Authorization': `Bearer ${mockToken}`,
+            'X-Tenant': mockTenant,
+          }),
+          body: JSON.stringify({ scopes: { region: ['Oost'] } }),
+        })
+      );
+      expect(result).toEqual(normalized);
+    });
+
+    test('setUserScope supports the all-access sentinel', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { success: true, scopes: { region: ['*'] } } })
+      );
+
+      await api.setUserScope('member@example.com', 'members', { region: ['*'] });
+
+      const callArgs = vi.mocked(global.fetch).mock.calls[0]!;
+      expect(callArgs[1]!.body).toBe(JSON.stringify({ scopes: { region: ['*'] } }));
+    });
+
+    test('setUserScope propagates a 400 validation error', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          body: { success: false, error: "Unknown dimension 'bogus'" },
+        })
+      );
+
+      await expect(
+        api.setUserScope('member@example.com', 'members', { bogus: ['x'] })
+      ).rejects.toThrow("Unknown dimension 'bogus'");
+    });
+
+    test('getScopeDimensions sends GET and returns the dimension options', async () => {
+      const dimensions = [
+        { key: 'region', label: 'Region', values: ['Oost', 'West'], field: 'region' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { success: true, dimensions, count: 1 } })
+      );
+
+      const result = await api.getScopeDimensions('members');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tenant-admin/scope-dimensions/members'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': `Bearer ${mockToken}`,
+            'X-Tenant': mockTenant,
+          }),
+        })
+      );
+      expect(result).toEqual(dimensions);
+    });
+
+    test('getScopeDimensions returns an empty list when none are configured', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { success: true, dimensions: [], count: 0 } })
+      );
+
+      const result = await api.getScopeDimensions('members');
+
+      expect(result).toEqual([]);
+    });
+
+    test('resyncProjection sends POST and returns the written/removed summary', async () => {
+      const mockResponse = { success: true, tenant: mockTenant, written: 3, removed: 1 };
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
+
+      const result = await api.resyncProjection();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tenant-admin/projection/resync'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Authorization': `Bearer ${mockToken}`,
+            'X-Tenant': mockTenant,
+          }),
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    test('resyncProjection propagates a 500 failure', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 500,
+          statusText: 'Internal Server Error',
+          body: { success: false, error: 'Projection sync failed' },
+        })
+      );
+
+      await expect(api.resyncProjection()).rejects.toThrow('Projection sync failed');
     });
   });
 });

@@ -266,10 +266,25 @@ function unwrapData<T>(payload: unknown): T {
   return payload as T;
 }
 
+/**
+ * The `personal` bucket of a nested member record. The module stores fixed
+ * personal fields under their REAL keys (`first_name`/`last_name`/`email`/...),
+ * not the legacy `name`/`contact` aliases. `display_name`/`name_infix` are
+ * optional convenience/derived keys used to build the table's `name` column.
+ */
+interface NestedPersonal {
+  display_name?: string;
+  first_name?: string;
+  name_infix?: string;
+  last_name?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
 /** The nested member record shape as returned by the module (pre-flatten). */
 interface NestedMemberRecord {
   member_id?: string;
-  personal?: { name?: string; contact?: string } | null;
+  personal?: NestedPersonal | null;
   membership?: {
     membership_id?: string;
     member_number?: string;
@@ -281,35 +296,73 @@ interface NestedMemberRecord {
 }
 
 /**
- * Map a nested member record to the FLAT `Member` shape the page/types expect.
+ * Build the `name` display value from the REAL personal shape.
  *
- * Any other top-level scalar/overlay fields are spread through first (so overlay
- * columns still resolve), then the explicit flat mappings win. The nested
- * containers (`personal`/`membership`/`scope_values`) are dropped so they can
- * never shadow the resolved flat keys.
+ * Prefers an explicit `display_name`; else joins `first_name`/`name_infix`/
+ * `last_name` (dropping blanks); else falls back to whichever single name part
+ * is present. Returns `undefined` when nothing is available so callers/render
+ * fall through to the placeholder dash.
+ */
+function personalDisplayName(personal: NestedPersonal | null | undefined): string | undefined {
+  if (!personal) return undefined;
+  if (personal.display_name) return personal.display_name;
+  const joined = [personal.first_name, personal.name_infix, personal.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  if (joined) return joined;
+  return personal.first_name || personal.last_name || undefined;
+}
+
+/**
+ * Normalise a member record to the `Member` shape the page/types read, WITHOUT
+ * discarding the nested storage buckets.
+ *
+ * The bug this fixes: the previous implementation DESTRUCTURED OUT
+ * `personal`/`membership`/`scope_values`, so the returned object no longer
+ * carried those buckets — and the shared `valueFor(member, group, key)`
+ * accessor (used by the view modal AND the overview table cells) reads
+ * `member[group][key]` first, then falls back to `member[key]`. With the
+ * buckets gone AND no flat aliases for the fixed personal/membership fields
+ * (first_name, last_name, birth_date, street, joined_date, ...), every fixed
+ * field resolved to nothing → a dash. Only `overlay`/top-level scalars (which
+ * rode along in `...rest`) displayed.
+ *
+ * The fix: spread the WHOLE record (`...rec`) so `personal`/`membership`/
+ * `overlay`/`scope_values` survive intact for the nested-first accessor, then
+ * layer the flat CONVENIENCE keys the default table columns read
+ * (`name`/`email`/`status`/`membership_type`/`member_number`/`membership_id`/
+ * `region`) ON TOP — now mapped to the REAL nested shape.
  *
  * @param raw - The (possibly nested) member record from the API.
- * @returns The flattened `Member`.
+ * @returns The normalised `Member` (nested buckets retained + flat aliases).
  */
 function flattenMember(raw: unknown): Member {
   const rec = (raw ?? {}) as NestedMemberRecord;
-  const { personal, membership, scope_values, ...rest } = rec;
+  const { personal, membership, scope_values } = rec;
 
   const regionValues = scope_values?.region;
   const region = Array.isArray(regionValues) ? regionValues[0] : undefined;
 
   return {
-    ...rest,
+    // Retain the nested buckets (personal/membership/overlay/scope_values) AND
+    // any top-level scalars/overlay fields so the nested-or-flat `valueFor`
+    // accessor can resolve fixed fields (personal.first_name, ...) and overlay
+    // fields alike.
+    ...rec,
     member_id: rec.member_id ?? '',
-    name: personal?.name,
-    email: personal?.contact,
+    // Convenience flat aliases for the table's default columns — mapped to the
+    // REAL nested shape (personal.email, a composed display name), not the
+    // stale personal.name/personal.contact keys that never existed.
+    name: personalDisplayName(personal),
+    email: personal?.email,
     status: membership?.status,
     membership_type: membership?.membership_type,
     member_number: membership?.member_number,
     // Surface the primary membership id (when the module returns one on the
     // nested `membership` object) so the single-transition action can target it
     // (POST /members/{id}/memberships/{membership_id}/transition). A top-level
-    // `membership_id` in `rest` still wins if present.
+    // `membership_id` on the record still wins if present.
     membership_id: rec.membership_id ?? membership?.membership_id,
     region,
   } as Member;
@@ -370,9 +423,22 @@ export async function deleteMember<T = unknown>(memberId: string): Promise<T> {
   return unwrapData<T>(await deleteJson<unknown>(`/members/${encodeURIComponent(memberId)}`));
 }
 
-/** GET /members/export — export members (scoped). */
-export async function exportMembers<T = unknown>(): Promise<T> {
-  return unwrapData<T>(await getJson<unknown>('/members/export'));
+/**
+ * GET /members/export — export the caller's members (scope-narrowed server-side).
+ *
+ * The `export_members` module action is AUTHORITATIVE for scope + resolved
+ * fields: it returns the same list-of-records shape as `GET /members`, already
+ * narrowed to the caller's scope server-side (R5.6, R8.7 — the SPA never invents
+ * scope). We unwrap the `{ data: [...] }` envelope and flatten each nested
+ * record to the flat `Member` shape (exactly like `listMembers`) so callers can
+ * serialize the resolved flat + overlay keys straight to CSV. Returns a
+ * `Member[]` regardless of the caller's generic `T`.
+ */
+export async function exportMembers<T = Member[]>(): Promise<T> {
+  const payload = await getJson<unknown>('/members/export');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? rows : [];
+  return list.map(flattenMember) as unknown as T;
 }
 
 /** GET /members/field-config — the resolved field configuration/overlay. */

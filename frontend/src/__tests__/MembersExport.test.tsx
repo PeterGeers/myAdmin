@@ -1,23 +1,26 @@
 /**
- * MembersPage export action tests — task 20.2 (R8.4, R8.7).
+ * MembersPage export action tests — task 4.5 (R5.6, R8.7).
  *
- * Verifies the header-right "Exporteren" action:
- * - clicking it produces a CSV containing the loaded rows' values, serialized via
- *   the shared `csvExport.ts` helper and handed to a browser download;
- * - the export reflects only the loaded, scoped rows — and, when a column filter
- *   narrows the visible set, exactly that filtered subset (R8.7: the page never
- *   invents scope; it exports what the module returned / what the list shows);
- * - the empty case is handled gracefully (an info toast, no download).
+ * Verifies the header-right "Exporteren" action is wired to the AUTHORITATIVE
+ * `export_members` module action (NOT a client-only CSV of the visible rows):
+ * - clicking it calls `membersApiService.exportMembers()` (GET /members/export),
+ *   whose rows are scope-narrowed SERVER-side (R8.7: the SPA never invents scope);
+ * - the action's returned rows are serialized via the shared `csvExport.ts`
+ *   helper and handed to a browser download;
+ * - because the export source is the server action — not the client-filtered
+ *   `processedData` — a client column filter does NOT change what is exported;
+ * - the empty case (action returns []) is handled gracefully (info toast, no
+ *   download), and an action failure surfaces an error toast with no download.
  *
  * Mocking approach (matches `MembersPage.test.tsx` + the repo's export tests):
  * the service layer is mocked with `vi.mock`, and the browser download is
  * captured by spying on `generateCsv` (the CSV string builder) from the shared
  * `csvExport.ts` util — the same util ZZP/pivot exports use — plus stubbing
- * `URL.createObjectURL` / anchor `click` so `downloadCsv` never touches jsdom
- * internals. In the test env `useTypedTranslation` returns raw i18n keys, so the
- * button/toast are asserted by their raw keys.
+ * `downloadCsv` so it never touches jsdom internals. In the test env
+ * `useTypedTranslation` returns raw i18n keys, so the button/toast are asserted
+ * by their raw keys.
  *
- * **Validates: Requirements 8.4, 8.7**
+ * **Validates: Requirements 5.6, 8.7**
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -29,9 +32,16 @@ import type { Member, FieldConfig } from '../types/members';
 
 vi.mock('../services/membersApiService');
 
+// MembersPage reads `useAuth().hasAnyRole` for the view-context dropdown (task
+// 3.3). A permissive stub keeps the default context available (dropdown hidden).
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ hasAnyRole: () => true }),
+}));
+
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
+const mockExportMembers = vi.mocked(membersApiService.exportMembers);
 
 // Spy on the shared CSV builder + download so we can assert what gets exported
 // without depending on jsdom Blob/anchor internals.
@@ -92,27 +102,34 @@ const waitForRows = async () => {
 /** The export button (label is the raw i18n key in the test env). */
 const exportButton = () => screen.getByRole('button', { name: /actions\.export/ });
 
-describe('MembersPage export action (R8.4, R8.7)', () => {
+describe('MembersPage export action (R5.6, R8.7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMembers.mockResolvedValue(mockMembers as never);
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
+    // The authoritative export action returns the scope-narrowed rows server-side.
+    mockExportMembers.mockResolvedValue(mockMembers as never);
     // Re-establish the download stub after clearAllMocks.
     downloadCsvSpy.mockImplementation(() => { });
   });
 
-  it('produces a CSV of the loaded rows and triggers a download', async () => {
+  it('calls the authoritative export_members action and downloads its rows', async () => {
     render(<MembersPage />);
     await waitForRows();
 
     fireEvent.click(exportButton());
 
-    // The shared CSV builder is invoked and a download is triggered.
-    expect(generateCsvSpy).toHaveBeenCalledTimes(1);
-    expect(downloadCsvSpy).toHaveBeenCalledTimes(1);
+    // The export is sourced from the AUTHORITATIVE module action, not a
+    // client-only CSV of the visible rows (R5.6).
+    await waitFor(() => expect(mockExportMembers).toHaveBeenCalledTimes(1));
 
-    // The generated CSV string carries every loaded row's values.
+    // The shared CSV builder is invoked with the action's rows and a download
+    // is triggered.
+    await waitFor(() => expect(downloadCsvSpy).toHaveBeenCalledTimes(1));
+    expect(generateCsvSpy).toHaveBeenCalledTimes(1);
+
+    // The generated CSV string carries every row the action returned.
     const csv = generateCsvSpy.mock.results[0].value as string;
     expect(csv).toContain('Jan');
     expect(csv).toContain('jan@h-dcn.example');
@@ -128,13 +145,14 @@ describe('MembersPage export action (R8.4, R8.7)', () => {
     expect(filename).toMatch(/^leden-\d{4}-\d{2}-\d{2}\.csv$/);
   });
 
-  it('exports only the filtered subset when a column filter is active (R8.7)', async () => {
+  it('exports the action result, not the client-filtered rows (scope is server-side, R8.7)', async () => {
     render(<MembersPage />);
     await waitForRows();
 
-    // Narrow to region "Noord" — only Jan should remain visible. The shared
-    // filter framework debounces, so wait until the non-matching rows drop out
-    // of the DOM before exporting (that is when `processedData` is narrowed).
+    // Narrow the VISIBLE table to region "Noord" — only Jan remains on screen.
+    // The export must NOT follow this client filter: it exports whatever the
+    // scope-narrowed server action returns (here: all three mock rows). This
+    // proves the SPA does not invent scope client-side (R8.7).
     const regionFilter = screen.getByLabelText('Filter by filters.region');
     fireEvent.change(regionFilter, { target: { value: 'Noord' } });
     await waitFor(() => {
@@ -145,30 +163,41 @@ describe('MembersPage export action (R8.4, R8.7)', () => {
 
     fireEvent.click(exportButton());
 
-    // Assert against the CSV from the most recent (this test's) export call.
+    await waitFor(() => expect(mockExportMembers).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(downloadCsvSpy).toHaveBeenCalledTimes(1));
+
     const lastIdx = generateCsvSpy.mock.results.length - 1;
     const csv = generateCsvSpy.mock.results[lastIdx].value as string;
-    // Only the filtered row is serialized.
+    // All three action rows are serialized despite the client filter hiding two.
     expect(csv).toContain('Jan');
-    expect(csv).not.toContain('Piet');
-    expect(csv).not.toContain('Marie');
+    expect(csv).toContain('Piet');
+    expect(csv).toContain('Marie');
   });
 
-  it('handles the empty case gracefully — no CSV built, no download', async () => {
-    mockListMembers.mockResolvedValue([] as never);
+  it('handles an empty action result gracefully — no CSV built, no download', async () => {
+    mockExportMembers.mockResolvedValue([] as never);
     render(<MembersPage />);
-
-    // Wait for the empty-table message to confirm loading finished.
-    await waitFor(() => {
-      expect(screen.getByText('table.empty')).toBeInTheDocument();
-    });
+    await waitForRows();
 
     fireEvent.click(exportButton());
 
-    // Nothing is serialized and no download is triggered (the empty guard fires
-    // an info toast instead — asserted by the absence of a CSV build/download,
-    // the meaningful, portal-independent behavior).
+    // The action is still called, but with no rows nothing is serialized and no
+    // download is triggered (the empty guard fires an info toast instead).
+    await waitFor(() => expect(mockExportMembers).toHaveBeenCalledTimes(1));
+    expect(generateCsvSpy).not.toHaveBeenCalled();
+    expect(downloadCsvSpy).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an error and skips the download when the action fails', async () => {
+    mockExportMembers.mockRejectedValue(new Error('export failed') as never);
+    render(<MembersPage />);
+    await waitForRows();
+
+    fireEvent.click(exportButton());
+
+    // The action was attempted; on failure no CSV is built and no download runs
+    // (the catch fires an error toast).
+    await waitFor(() => expect(mockExportMembers).toHaveBeenCalledTimes(1));
     expect(generateCsvSpy).not.toHaveBeenCalled();
     expect(downloadCsvSpy).not.toHaveBeenCalled();
   });

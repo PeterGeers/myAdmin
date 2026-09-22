@@ -19,6 +19,7 @@ from services.module_registry import (
     has_module,
     module_required,
     module_backing,
+    module_backing_or_none,
     resolve_module_api_base,
 )
 from services.parameter_service import ParameterService
@@ -318,6 +319,32 @@ class TestModuleBacking:
     def test_sam_fixture_does_not_leak_into_registry(self):
         # Runs without the sam_module fixture: the temporary entry must be gone.
         assert _SAM_MODULE_NAME not in MODULE_REGISTRY
+
+
+class TestModuleBackingOrNone:
+    """The non-raising accessor used by the reconciliation sweep (R8.6).
+
+    A known module resolves exactly as ``module_backing`` (validation unchanged);
+    only an UNREGISTERED name degrades to ``None`` instead of raising, so a stale
+    cross-tenant module row cannot abort the periodic backstop.
+    """
+
+    def test_known_flask_module_returns_flask(self):
+        assert module_backing_or_none("FIN") == "flask"
+
+    def test_known_sam_module_returns_sam(self):
+        assert module_backing_or_none("MEMBERS") == "sam"
+
+    def test_unknown_module_returns_none_not_raise(self):
+        # Legacy/unregistered names seen in dev MySQL (e.g. 'ADMIN', lowercase
+        # 'members'/'events'/'webshop') must NOT raise here.
+        assert module_backing_or_none("ADMIN") is None
+        assert module_backing_or_none("members") is None
+        assert module_backing_or_none("DOES_NOT_EXIST") is None
+
+    def test_none_or_empty_name_returns_none(self):
+        assert module_backing_or_none(None) is None
+        assert module_backing_or_none("") is None
 
 
 class TestResolveModuleApiBase:

@@ -17,9 +17,12 @@ Two concerns are split so the transform is unit-testable without any live system
    table READ-ONLY — reading is non-destructive, and it NEVER writes/modifies the source.
 
 2. **A pure transform** — :func:`map_hdcn_row` maps one raw row to a member record
-   ``{ tenant_id, member_id, personal{}, membership{}, scope_values{region:[...]}, overlay{} }``,
-   stamps ``tenant_id = "h-dcn"``, seeds ``scope_values.region`` from the h-dcn region field,
-   splits club/Motor fields into the variable ``overlay``, maps the h-dcn membership-type
+   ``{ tenant_id, member_id, personal{}, membership{}, overlay{region:<canonical>, ...} }``,
+   using the s5c **English canonical Fixed keys** (this is the one place the Dutch→EN column
+   translation happens). It stamps ``tenant_id = "h-dcn"``, normalizes the h-dcn region onto
+   the plain ``overlay.region`` scope FIELD via the shared ``scope_canon`` (S5d D1/R9.2 — the
+   retired ``scope_values`` bucket is gone), folds club/Motor + unmapped columns into ``overlay``,
+   maps the h-dcn membership-type
    value to a catalog ``type_code`` (C8), and validates the produced fixed fields via
    :func:`sam.members.domain.fixed_fields.validate_fixed_fields` so a bad mapping fails
    loudly in dry-run. It is storage-agnostic and tenant-agnostic in *mechanism* — the only
@@ -43,6 +46,8 @@ from sam.members.domain.fixed_fields import (
     FieldValidationError,
     validate_fixed_fields,
 )
+from sam.members.domain.scope_canon import scope_canon
+from sam.members.domain.scope_dimensions import HDCN_SCOPE_CONFIG
 
 __all__ = [
     "HDCN_TENANT_ID",
@@ -64,16 +69,25 @@ __all__ = [
 #: migrated records. It must NOT become an ``if tenant == "h-dcn"`` branch in the generic core.
 HDCN_TENANT_ID = "h-dcn"
 
-#: The default region-value normalization: h-dcn's live regions are Noord/Zuid/Oost/West and
-#: match the scope-dimension config (see ``scope_dimensions.HDCN_SCOPE_CONFIG``). Kept as a
-#: canonicalization map so exports carrying lowercase / accented variants still land on the
-#: canonical scope value; an unknown region is preserved verbatim and surfaced in the report
-#: (the transform does not silently drop data — R5.2 fidelity).
-_REGION_CANONICAL: Mapping[str, str] = {
-    "noord": "Noord",
-    "zuid": "Zuid",
-    "oost": "Oost",
-    "west": "West",
+#: The h-dcn ``region`` dimension's canonical value set (Noord/Zuid/Oost/West), sourced from
+#: ``scope_dimensions.HDCN_SCOPE_CONFIG`` so the importer and enforcement share ONE vocabulary
+#: (no drift). This is the closed set of canonical values the member's ``region`` field may
+#: hold after normalization.
+_HDCN_REGION_VALUES: tuple[str, ...] = next(
+    (tuple(d.values) for d in HDCN_SCOPE_CONFIG if d.key == "region"),
+    (),
+)
+
+#: Region normalization via the SHARED ``scope_canon`` (S5d R9.2, D5): a raw export value is
+#: matched against the dimension's canonical value set by canonical equality (``scope_canon``
+#: applied identically to both sides — case / diacritic / separator fold), so lowercase /
+#: accented / spacing variants land on the dimension's canonical spelling (e.g. ``"noord"`` →
+#: ``"Noord"``). This is the SAME canonicalizer enforcement uses, so a stored member value and
+#: a granted value share one vocabulary (Property 4). An unknown region (no canonical match) is
+#: preserved verbatim and surfaced in the report — the transform never silently drops data
+#: (R9.3), and the R9.5 verification (task 2.4) flags any such un-normalizable value.
+_REGION_CANONICAL_BY_CANON: Mapping[str, str] = {
+    scope_canon(v): v for v in _HDCN_REGION_VALUES
 }
 
 
@@ -83,21 +97,50 @@ _REGION_CANONICAL: Mapping[str, str] = {
 #: (Google Sheet) columns → member-record fixed fields. Any column NOT named here (and not the
 #: region/type columns below) is treated as a club/Motor detail and folded into ``overlay``.
 FIXED_SOURCE_COLUMNS: Mapping[str, str] = {
-    # source column      -> dotted member-record fixed key
+    # source column      -> dotted member-record fixed key (s5c canonical EN keys)
     "member_id": "member_id",
-    "naam": "personal.name",
-    "email": "personal.contact",
-    "adres": "personal.address",
-    "geboortedatum": "personal.birthdate",
+    # `naam` is h-dcn's single display-name column; the s5c base splits name into
+    # first_name/last_name/name_infix/initials. Splitting a free-form `naam` reliably is
+    # h-dcn's concern (its export can carry the parts), so for the reused backfill we map the
+    # single `naam` column onto the required `personal.last_name` (so a name-only export still
+    # produces a valid fixed record); an export that already carries `voornaam`/`achternaam`
+    # etc. maps them directly via the entries below. (Judgment aligned to the classification
+    # table; noted in the task report.)
+    "naam": "personal.last_name",
+    "voornaam": "personal.first_name",
+    "achternaam": "personal.last_name",
+    "tussenvoegsel": "personal.name_infix",
+    "initialen": "personal.initials",
+    "geslacht": "personal.gender",
+    "telefoon": "personal.phone",
+    "email": "personal.email",
+    # `adres` is h-dcn's single address column; the s5c base splits address into
+    # street/postal_code/city/country (all stored under `personal`). Map the single `adres`
+    # column onto `personal.street` (the primary address line); split columns map directly.
+    "adres": "personal.street",
+    "straat": "personal.street",
+    "postcode": "personal.postal_code",
+    "woonplaats": "personal.city",
+    "land": "personal.country",
+    "geboortedatum": "personal.birth_date",
     "lidnummer": "membership.member_number",
     "status": "membership.status",
     "lidmaatschapstype": "membership.membership_type",
-    "ingangsdatum": "membership.joined",
-    "einddatum": "membership.left",
+    "ingangsdatum": "membership.joined_date",
+    # NOTE: `einddatum` (the h-dcn "left" date) has no Fixed row in the s5c classification
+    # table (the `left` STATUS is kept via MembershipStatus; there is no `left` *field*), so it
+    # is an unmapped column and folds into `overlay` per the Phase 6 import rule.
 }
 
-#: The source column carrying the h-dcn region (seeds ``scope_values.region``).
+#: The source column carrying the h-dcn region (normalized onto the ``overlay.region`` field).
 _REGION_SOURCE_COLUMN = "regio"
+
+#: The member FIELD the region normalizes onto. S5d D1/R3.4: scope is a PLAIN member field —
+#: the retired ``scope_values`` bucket is gone. For h-dcn ``region`` is a TENANT-ADDED field, so
+#: its storage bucket is ``overlay`` (dotted key ``overlay.region``). The value is a SCALAR
+#: (a member is single-valued per scope field, R3.2), never a list.
+_REGION_STORAGE_GROUP = "overlay"
+_REGION_FIELD_KEY = "region"
 
 #: h-dcn's live status vocabulary (Dutch) → the platform's closed MembershipStatus values.
 #: h-dcn's export may carry either the Dutch or the canonical value; both map through.
@@ -162,6 +205,13 @@ class MembershipTypeMapper:
         "gewoon lid": "gewoon_lid",
         "regular member": "gewoon_lid",
         "lid": "gewoon_lid",
+        # Family memberships — real h-dcn export types (gezins_lid: ~200, gezins_donateur: ~17).
+        "gezins lid": "gezins_lid",
+        "gezinslid": "gezins_lid",
+        "family member": "gezins_lid",
+        "gezins donateur": "gezins_donateur",
+        "gezinsdonateur": "gezins_donateur",
+        "family donor": "gezins_donateur",
     }
 
     def __init__(
@@ -217,8 +267,19 @@ def _clean(value: Any) -> Optional[str]:
 
 
 def _canonical_region(value: str) -> str:
-    """Canonicalize a region value; unknown values are preserved verbatim (reported, not dropped)."""
-    return _REGION_CANONICAL.get(value.strip().lower(), value.strip())
+    """Normalize a raw region to the dimension's canonical value via the shared ``scope_canon``.
+
+    S5d R9.2/D5: the raw export value is matched against the dimension's canonical value set by
+    canonical equality (``scope_canon`` applied to both sides), so case / diacritic / separator
+    variants (``"noord"``, ``"NOORD"``, ``"Noord "``) all land on the canonical spelling
+    (``"Noord"``). This is the SAME canonicalizer enforcement uses, so a stored member value and
+    a granted value share one vocabulary (Property 4). An un-normalizable value (no canonical
+    match) is preserved verbatim rather than silently dropped (R9.3 — surfaced by the runner and
+    the R9.5 verification, task 2.4)."""
+    canon = scope_canon(value)
+    if not canon:
+        return value.strip()
+    return _REGION_CANONICAL_BY_CANON.get(canon, value.strip())
 
 
 def map_hdcn_row(
@@ -229,13 +290,15 @@ def map_hdcn_row(
 ) -> dict[str, Any]:
     """Map ONE raw h-dcn member row to a member record for the new model (pure, no I/O).
 
-    The produced record matches the design data model::
+    The produced record matches the design data model (S5d D1: NO ``scope_values`` bucket —
+    scope is a plain member field)::
 
         { tenant_id, member_id,
-          personal:   { name, contact, address, birthdate },
-          membership: { member_number, status, membership_type, joined, left },
-          scope_values: { region: [<region>] },        # h-dcn: single-valued
-          overlay:    { <club/Motor detail>: <value>, ... } }
+          personal:   { first_name, last_name, name_infix, initials, gender, email, phone,
+                        street, postal_code, city, country, birth_date },
+          membership: { member_number, status, membership_type, joined_date },
+          overlay:    { region: <canonical region>,     # h-dcn: the scope FIELD, a scalar
+                        <club/Motor + unmapped detail>: <value>, ... } }
 
     Steps:
     - **Fixed base split** — columns named in :data:`FIXED_SOURCE_COLUMNS` land under
@@ -243,8 +306,11 @@ def map_hdcn_row(
       from h-dcn's Dutch vocabulary to the closed platform enum.
     - **membership_type → catalog code** — the raw type value is mapped to a ``type_code``
       via ``type_mapper`` (C8; the catalog seed is task 4.2, kept decoupled).
-    - **scope_values.region** — seeded from the ``regio`` column (canonicalized), single-valued
-      per h-dcn (an absent region → an empty ``["*"]``-free list, reported by the runner).
+    - **overlay.region (the scope field)** — the ``regio`` column is normalized to the
+      dimension's canonical value via the shared ``scope_canon`` (S5d R9.2/D1) and stored as a
+      SCALAR on the ``overlay.region`` field (h-dcn's ``region`` is a tenant-added overlay
+      field). There is NO ``scope_values`` bucket — the member record has zero scope awareness.
+      An absent region omits the field (reported by the runner; a scoped user never matches it).
     - **variable overlay** — every remaining, non-empty source column (club/Motor details)
       folds into ``overlay`` unchanged, so no source data is silently dropped (fidelity).
     - **validation** — the fixed fields are validated with ``validate_fixed_fields`` so a bad
@@ -304,12 +370,18 @@ def map_hdcn_row(
     if not member_id:
         reasons["member_id"] = "source row has no member_id / lidnummer to key on"
 
+    # S5d D1/R3.4: the region is a PLAIN member field, not a `scope_values` bucket. h-dcn's
+    # `region` is a tenant-added field → its storage bucket is `overlay`. Store the CANONICAL
+    # value (normalized via the shared `scope_canon`, R9.2) as a SCALAR (single-valued per
+    # scope field, R3.2). An absent region omits the field entirely (no empty placeholder).
+    if region_raw:
+        overlay[_REGION_FIELD_KEY] = _canonical_region(region_raw)
+
     record: dict[str, Any] = {
         "tenant_id": tenant_id,
         "member_id": member_id,
         "personal": personal,
         "membership": membership,
-        "scope_values": {"region": [_canonical_region(region_raw)] if region_raw else []},
         "overlay": overlay,
     }
 
@@ -502,8 +574,8 @@ class BackfillPlan:
             for group in ("personal", "membership"):
                 for key in (rec.get(group) or {}):
                     counts[f"{group}.{key}"] = counts.get(f"{group}.{key}", 0) + 1
-            if rec.get("scope_values", {}).get("region"):
-                counts["scope_values.region"] = counts.get("scope_values.region", 0) + 1
+            # S5d D1: the scope field (region) is a plain `overlay.region` field now — it is
+            # counted by the overlay loop below (no separate `scope_values.region` count).
             for key in (rec.get("overlay") or {}):
                 counts[f"overlay.{key}"] = counts.get(f"overlay.{key}", 0) + 1
         return counts
@@ -537,7 +609,9 @@ def build_backfill_plan(
         member_id = record["member_id"]
         number = record["membership"]["member_number"]
         type_code = record["membership"]["membership_type"]
-        region = tuple(record.get("scope_values", {}).get("region", ()))
+        # S5d D1: region is a plain scalar field on `overlay.region` now (no `scope_values`).
+        region_value = record.get("overlay", {}).get(_REGION_FIELD_KEY)
+        region = (region_value,) if region_value else ()
 
         plan.transformed.append(
             TransformedRow(

@@ -25,10 +25,12 @@ to validate onboarding, drive the SPA endpoints — do not run this script.
 
 Scope of what it seeds (local-only, idempotent; does NOT touch AWS or prod):
   1. h-dcn tenant-scope params in MySQL: members.scope_dimensions (region:
-     Noord/Zuid/Oost/West, all_wildcard=Regio_All, required_for=[Members_CRUD])
+     Noord/Zuid/Oost/West, required_for=[Members_CRUD])
      + members.field_overlay (a small variable field).
-  2. webmaster@h-dcn.nl holding Regio_All (all-access) in user_tenant_roles, so
-     the projected scopegrant is ["*"] and the general-admin path renders locally.
+  2. webmaster@h-dcn.nl's all-access scope authored in user_tenant_scope
+     (module=MEMBERS, scopes={"region":["*"]}), so the projected scopegrant is
+     ["*"] and the general-admin path renders locally. s5d clean break (R2.2/R8.1):
+     scope is sourced from user_tenant_scope, NOT a Regio_* role name.
   3. The local governance projection table + a ProjectionSync run for h-dcn against
      dynamodb-local -> module#members / config#scope / config#fields / scopegrant#.
   4. sam-members-local + h-dcn's membership-type catalog + a few members
@@ -62,9 +64,9 @@ def step1_params(db):
         "key": "region",
         "label": {"nl": "Regio", "en": "Region"},
         "enabled": True,
-        "multi_valued": False,
         "values": ["Noord", "Zuid", "Oost", "West"],
-        "all_wildcard": "Regio_All",
+        # S5d clean break (R2.2/R8.1): no Regio_* all_wildcard role — scope is authored in
+        # user_tenant_scope (see step2), and the all-access sentinel is the ["*"] GRANT value.
         "required_for": ["Members_CRUD"],
     }]
     field_overlay = {
@@ -81,17 +83,26 @@ def step1_params(db):
     print("  [1] seeded members.scope_dimensions + members.field_overlay for", TENANT)
 
 
-def step2_role(db):
+def step2_scope(db):
+    # S5d clean break (R2.2/R8.1): the member-user's scope is AUTHORED in
+    # user_tenant_scope (per user-per-tenant-per-module, JSON values-only), NOT
+    # encoded in a Regio_* role name. All-access is the ["*"] sentinel in the
+    # scopes JSON — build_scopegrant_rows projects it to scopegrant#...=["*"].
+    scopes = json.dumps({"region": ["*"]})
     existing = db.execute_query(
-        "SELECT id FROM user_tenant_roles WHERE email=%s AND administration=%s AND role=%s",
-        (ADMIN, TENANT, "Regio_All"), fetch=True)
+        "SELECT id FROM user_tenant_scope WHERE email=%s AND administration=%s AND module=%s",
+        (ADMIN, TENANT, "MEMBERS"), fetch=True)
     if existing:
-        print("  [2] Regio_All already assigned to", ADMIN)
+        db.execute_query(
+            "UPDATE user_tenant_scope SET scopes=%s WHERE email=%s AND administration=%s AND module=%s",
+            (scopes, ADMIN, TENANT, "MEMBERS"), fetch=False, commit=True)
+        print("  [2] refreshed user_tenant_scope (region=[*]) for", ADMIN)
         return
     db.execute_query(
-        "INSERT INTO user_tenant_roles (email, administration, role, created_by) VALUES (%s,%s,%s,%s)",
-        (ADMIN, TENANT, "Regio_All", "onboard-hdcn-local"), fetch=False, commit=True)
-    print("  [2] assigned Regio_All (all-access) to", ADMIN)
+        "INSERT INTO user_tenant_scope (email, administration, module, scopes, created_by) "
+        "VALUES (%s,%s,%s,%s,%s)",
+        (ADMIN, TENANT, "MEMBERS", scopes, "onboard-hdcn-local"), fetch=False, commit=True)
+    print("  [2] authored all-access scope (region=[*]) in user_tenant_scope for", ADMIN)
 
 
 def step3_project(db):
@@ -161,11 +172,15 @@ def step4_members(db):
         ("M-4", "West", "Marie de Vries", "regulier"),
     ]
     for mid, region, name_, mtype in members:
+        # S5d D1/R3.4: scope is a PLAIN member field now — the retired `scope_values` bucket is
+        # gone. h-dcn's `region` dimension binds to the tenant-added `overlay.region` field, a
+        # SCALAR (single-valued per scope field). The seed values are already the dimension's
+        # canonical spelling (Noord/Zuid/Oost/West).
         member = {
             "personal": {"name": name_, "contact": f"{mid.lower()}@h-dcn.example"},
             "membership": {"member_number": mid.replace("M-", "100"),
                            "status": "active", "membership_type": mtype},
-            "scope_values": {"region": [region]},
+            "overlay": {"region": region},
         }
         tbl.put_item(Item=td.build_member_item(TENANT, mid, member))
     print(f"  [4] seeded 3 membership types + {len(members)} members into {name}")
@@ -176,7 +191,7 @@ def main():
     db = DatabaseManager(test_mode=False)
     print("Onboarding h-dcn locally (MySQL + dynamodb-local)...")
     step1_params(db)
-    step2_role(db)
+    step2_scope(db)
     step3_project(db)
     step4_members(db)
     print("DONE.")

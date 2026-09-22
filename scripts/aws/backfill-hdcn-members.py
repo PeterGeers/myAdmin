@@ -14,8 +14,9 @@ What it does
    Google Sheet, via ``sam.members.migration.hdcn_backfill.FileSourceAdapter``). The source is
    NEVER written to.
 2. Transforms each row with the pure ``map_hdcn_row`` transform: fixed base (personal +
-   membership) + variable overlay (club/Motor details), stamps ``tenant_id = "h-dcn"``, seeds
-   ``scope_values.region``, maps the membership-type value to a catalog ``type_code`` (C8),
+   membership) + variable overlay (club/Motor details), stamps ``tenant_id = "h-dcn"``,
+   normalizes the region onto the plain ``overlay.region`` scope field (S5d D1), maps the
+   membership-type value to a catalog ``type_code`` (C8),
    and validates the fixed fields (a bad mapping fails loudly, per-row).
 3. In **dry-run (the default)** prints a FIDELITY REPORT — counts, per-field mapping summary,
    validation errors, sample transformed records, and would-be member-number conflicts — and
@@ -39,21 +40,22 @@ Safety guards (aws-accounts.md guardrails, R5.2)
 
 Usage (from repo root, WSL)
 ---------------------------
-  # Dry run (default — writes nothing), fidelity report from a Google-Sheet CSV export:
+  # Dry run (default — writes nothing), fidelity report from a Google-Sheet CSV export.
+  # --tenant is REQUIRED (no hardcoded/default tenant):
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 \
       backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
-      --source path/to/hdcn-ledenbestand.csv
+      --source path/to/hdcn-ledenbestand.csv --tenant h-dcn
 
   # Actually write to real AWS (nonprofit data account) — only after a clean dry run:
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
       backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
-      --source path/to/hdcn-ledenbestand.csv --apply
+      --source path/to/hdcn-ledenbestand.csv --tenant h-dcn --apply
 
   # Local emulator apply (endpoint set → local DynamoDB, no real AWS):
-  MEMBERS_TABLE=sam-members-test AWS_REGION=eu-west-1 \
+  MEMBERS_TABLE=sam-members-local AWS_REGION=eu-west-1 \
       AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
       backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
-      --source sam/tests/fixtures/hdcn_ledenbestand_sample.csv --apply
+      --source sam/tests/fixtures/hdcn_ledenbestand_sample.csv --tenant h-dcn --apply
 """
 
 from __future__ import annotations
@@ -73,6 +75,7 @@ if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
 from sam.members.migration.hdcn_backfill import (
+    FIXED_SOURCE_COLUMNS,
     HDCN_TENANT_ID,
     BackfillPlan,
     FileSourceAdapter,
@@ -88,9 +91,48 @@ from sam.members.repository.members_repository import (
 DEFAULT_REGION = "eu-west-1"
 #: How many transformed records to show as samples in the fidelity report.
 _SAMPLE_COUNT = 3
+#: The h-dcn source column that seeds the ``overlay.region`` scope field (mapped, not "unmapped").
+_REGION_SOURCE_COLUMN = "regio"
 
 
-def _print_fidelity_report(plan: BackfillPlan, *, apply: bool, table_name: str) -> None:
+def _classify_source_columns(
+    adapter: FileSourceAdapter,
+) -> tuple[list[str], list[str]]:
+    """Inspect the source header READ-ONLY and split columns into (mapped, unmapped).
+
+    "Mapped" = a column the transform recognizes (a :data:`FIXED_SOURCE_COLUMNS` key or the
+    region column). "Unmapped/extra" = every other named column (folded into ``overlay`` by
+    ``map_hdcn_row``) plus the empty-named column (dropped). Task 6.2: unmapped/extra export
+    columns are OUT of scope — the importer TOLERATES them and LISTS them here; it does not
+    individually classify or surface them in the pilot UI. Case-insensitive, mirroring the
+    transform's own ``col_lower`` matching. Reads at most the first row (a header probe) — the
+    adapter stays read-only and the plan is still built from a fresh read.
+    """
+    known = set(FIXED_SOURCE_COLUMNS.keys()) | {_REGION_SOURCE_COLUMN}
+    columns: list[str] = []
+    for row in adapter.rows():
+        columns = [str(c) for c in row.keys()]
+        break  # a single header probe is enough — no need to walk the whole file
+    mapped: list[str] = []
+    unmapped: list[str] = []
+    for col in columns:
+        stripped = col.strip()
+        if stripped == "":
+            unmapped.append("(empty-named column — dropped)")
+        elif stripped.lower() in known:
+            mapped.append(stripped)
+        else:
+            unmapped.append(stripped)
+    return mapped, unmapped
+
+
+def _print_fidelity_report(
+    plan: BackfillPlan,
+    *,
+    apply: bool,
+    table_name: str,
+    unmapped_columns: list[str] | None = None,
+) -> None:
     """Render the dry-run fidelity report (counts, mapping, errors, samples, conflicts)."""
     print("=" * 68)
     print("h-dcn Members backfill — fidelity report")
@@ -115,6 +157,14 @@ def _print_fidelity_report(plan: BackfillPlan, *, apply: bool, table_name: str) 
     for key in sorted(summary):
         print(f"    {key:<28} {summary[key]}")
 
+    print("-" * 68)
+    print("  unmapped / extra source columns (OUT of scope — tolerated, not classified):")
+    if unmapped_columns:
+        for col in unmapped_columns:
+            print(f"    {col}  (folded into overlay / dropped)")
+    else:
+        print("    (none — every source column is a recognized fixed/region column)")
+
     if plan.duplicate_member_numbers:
         print("-" * 68)
         print("  DUPLICATE member numbers in this batch (repository would reject the 2nd):")
@@ -123,7 +173,7 @@ def _print_fidelity_report(plan: BackfillPlan, *, apply: bool, table_name: str) 
 
     if plan.rows_missing_region:
         print("-" * 68)
-        print(f"  rows with NO resolved region (scope_values.region empty): "
+        print(f"  rows with NO resolved region (overlay.region absent): "
               f"{plan.rows_missing_region}")
 
     if plan.errors:
@@ -168,6 +218,7 @@ def backfill(
     *,
     region: str,
     apply: bool,
+    tenant_id: str = HDCN_TENANT_ID,
     fmt: str | None = None,
     known_codes: list[str] | None = None,
     repo: DynamoDbMembersRepository | None = None,
@@ -178,6 +229,10 @@ def backfill(
     fidelity report, and — only if ``apply`` — persists via the repository's ``save_member``.
     The target table name is resolved fail-fast from ``MEMBERS_TABLE``. ``repo`` may be injected
     for tests; in production it is resolved lazily + fail-fast on first write.
+
+    ``tenant_id`` is the administration the records are stamped with. The CLI requires it as an
+    explicit ``--tenant`` argument (no hardcoded/default tenant — R8, steering 31); it defaults
+    to the pilot literal here only so the S5 task-4.1 call sites and tests keep working.
     """
     # Fail-fast table-name resolution up front (even in dry-run) so a misconfigured target is
     # caught before any transform work — mirrors the provisioner.
@@ -185,9 +240,15 @@ def backfill(
 
     type_mapper = MembershipTypeMapper(known_codes=known_codes) if known_codes else MembershipTypeMapper()
     adapter = FileSourceAdapter(source_path, fmt=fmt)
-    plan = build_backfill_plan(adapter, type_mapper=type_mapper, tenant_id=HDCN_TENANT_ID)
+    plan = build_backfill_plan(adapter, type_mapper=type_mapper, tenant_id=tenant_id)
 
-    _print_fidelity_report(plan, apply=apply, table_name=table_name)
+    # Classify the source header so the report LISTS the tolerated unmapped/extra columns
+    # (task 6.2). A fresh read-only adapter probe — the source is never written.
+    _, unmapped_columns = _classify_source_columns(FileSourceAdapter(source_path, fmt=fmt))
+
+    _print_fidelity_report(
+        plan, apply=apply, table_name=table_name, unmapped_columns=unmapped_columns
+    )
 
     if not apply:
         print("\nDRY-RUN: no writes made. Review the fidelity report, then re-run with "
@@ -228,6 +289,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the READ-ONLY h-dcn export (CSV or JSON — a Google-Sheet export).",
     )
     parser.add_argument(
+        "--tenant",
+        required=True,
+        help="The administration (tenant) the imported records are stamped with (e.g. "
+        "'h-dcn'). REQUIRED — there is no hardcoded/default tenant (R8, steering 31): the "
+        "script fails if it is missing so nothing can silently land in the wrong partition.",
+    )
+    parser.add_argument(
         "--format",
         choices=("csv", "json"),
         default=None,
@@ -247,11 +315,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("AWS_REGION", DEFAULT_REGION),
         help=f"AWS region (default: env AWS_REGION or {DEFAULT_REGION}).",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--apply",
         action="store_true",
         help="Actually write via the repository. Without this, the script only prints the "
         "fidelity report (dry-run is the default for safety).",
+    )
+    mode.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Explicitly request a dry-run (the DEFAULT): build + render the fidelity report "
+        "and write NOTHING. Mutually exclusive with --apply; provided so the safe default can "
+        "be stated on the command line.",
     )
     return parser
 
@@ -263,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
             args.source,
             region=args.region,
             apply=args.apply,
+            tenant_id=args.tenant,
             fmt=args.format,
             known_codes=args.known_codes,
         )

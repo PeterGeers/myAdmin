@@ -1,0 +1,484 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**0.1 Add the `user_tenant_scope` migration** (`backend/src/migrations/`): table keyed": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064880177
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064894833
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790065522361
+      }
+    ],
+    "**0.2 Add the shared `scope_canon` canonicalizer** — a pure function `scope_canon(value)`:": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064880404
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790065534786
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790065641855
+      }
+    ],
+    "**0.3 Cross-plane drift test for `scope_canon`** — a property test asserting the SAM and Flask": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064880574
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790065647010
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790065783751
+      }
+    ],
+    "**1.1 Refactor `ScopeDimension`** (`sam/members/domain/scope_dimensions.py`): ADD `field` (the": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064880786
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790065793468
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066109617
+      }
+    ],
+    "**1.2 Update the `scope_dimensions` editor def** (`backend/src/config/members_parameters.json`):": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064880965
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066120010
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066304064
+      }
+    ],
+    "**1.3 Update the projection reader** (`sam/members/repository/projection_config_reader.py`": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064881136
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066309050
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066516068
+      }
+    ],
+    "**2.1 Remove `_surface_scope_values` + the `scope_values` read** from": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064881335
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066527163
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066688249
+      }
+    ],
+    "**2.2 Refactor `_record_scope_values(member, dimension_key)`** to read the member's SCALAR value": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064881520
+      },
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790066694017
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790067030011
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790067915881
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790068088731
+      }
+    ],
+    "**2.3 Store the scope field as a normal field on member write/import** — the importer": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064881695
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790068097435
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790068713088
+      }
+    ],
+    "**2.4 Normalization verification (R9.5)** — a check/script asserting EVERY distinct member": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064881890
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790068718266
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790069036176
+      }
+    ],
+    "**3.1 Carry `user_tenant_scope` in the source** (`projection_sync.py`): `TenantSource` gains": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064882104
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790069042843
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790069152051
+      }
+    ],
+    "**3.2 Rewrite `build_scopegrant_rows`** to source from the table (signature": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064882299
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790069157372
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790069550127
+      }
+    ],
+    "**3.3 REMOVE the role-decode path** — delete `_decode_grant_for_dimension`,": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064882497
+      },
+      {
+        "executionId": "363ad581-49ad-4dff-a2aa-3b4ac52b0b6f",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790069555810
+      },
+      {
+        "executionId": "f76e97b3-6965-4302-a0a1-1e116a0dfcc4",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790070836966
+      },
+      {
+        "executionId": "f76e97b3-6965-4302-a0a1-1e116a0dfcc4",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790070843455
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790074355004
+      }
+    ],
+    "**3.4 Freshness fix — version bump (ODx4a)** — bump a per-tenant projection version (or": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064882719
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790074360570
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790074651861
+      }
+    ],
+    "**3.5 Freshness fix — diff-and-delete-obsolete (ODx4b)** — the scopegrant builder computes the": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064882898
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790074657075
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790074931537
+      }
+    ],
+    "**4.1 `allowed_scopes` → per-dimension map** — change `RouteContext.allowed_scopes` from": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064883099
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790074937473
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790075514018
+      }
+    ],
+    "**4.2 `_in_scope` iterates the map** — member visible only if it passes EVERY dimension": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064883348
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790075520574
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790076481495
+      }
+    ],
+    "**5.1 Scope service** (read/write `user_tenant_scope`): get a user's `scopes` for": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064883554
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790076489043
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790076730003
+      }
+    ],
+    "**5.2 Authoring routes** (`backend/src/routes/tenant_admin_scope.py`, `@cognito_required(": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064883749
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790076736367
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077149679
+      }
+    ],
+    "**5.3 Manual \"Re-sync now\"** — `POST /api/tenant-admin/projection/resync` (`Tenant_Admin`):": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064883959
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077182376
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077363545
+      }
+    ],
+    "**6.1 API client + types** (`frontend/src/services/…`, `frontend/src/types/members.ts`):": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064884162
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077369115
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077572419
+      }
+    ],
+    "**6.2 Scope editor in `UserManagement.tsx`** — for each user holding a Members capability role": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064884370
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077577675
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077946543
+      }
+    ],
+    "**6.3 Fuzzy typeahead in the picker** — diacritic/spacing-tolerant filter over the value list;": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064884561
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790077952652
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790078157995
+      }
+    ],
+    "**7.1 Backend unit** — `user_tenant_scope` service round-trip + per-tenant/per-module isolation;": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064884746
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790078171082
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790078416326
+      }
+    ],
+    "**7.2 SAM domain** — `_record_scope_values` reads the field (not `scope_values`); `_in_scope`": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064885044
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790078421884
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790078728574
+      }
+    ],
+    "**7.3 E2E** — Tenant-Admin sets `member-test@example.com` → `region:[\"Oost\"]` → projection": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064885326
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790078734057
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790079146466
+      }
+    ],
+    "**7.4 Frontend** — scope editor renders per-dimension multi-selects of plain values + All toggle": [
+      {
+        "executionId": "6d5ceea6-8feb-414d-9d82-463703acbb0c",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790064885512
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790079152874
+      },
+      {
+        "executionId": "d13dacb9-ee32-4ece-a844-df163cb416f3",
+        "chatSessionId": "sess_b35578f1-800c-457d-ab14-71f2f30e73be",
+        "timestamp": 1790079289767
+      }
+    ]
+  }
+}

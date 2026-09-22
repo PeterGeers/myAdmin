@@ -121,7 +121,8 @@ class TestSeedAlignsWithBackfill:
         row = {
             "member_id": "M-1",
             "lidnummer": "1001",
-            "naam": "Alex de Vries",
+            "voornaam": "Alex",
+            "naam": "de Vries",
             "email": "alex@example.com",
             "status": "actief",
             "lidmaatschapstype": raw_label,
@@ -231,16 +232,39 @@ class TestRunnerDryRun:
         assert "erelid" in out and "donateur" in out  # entries listed
 
     def test_apply_is_the_only_write_flag(self, members_env, fake_repo):
-        # The argparse default for --apply is False, so a CLI run with no flag is dry-run.
-        args = runner.build_parser().parse_args([])
+        # The argparse default for --apply is False, so a CLI run with only --tenant is dry-run.
+        args = runner.build_parser().parse_args(["--tenant", "h-dcn"])
         assert args.apply is False
 
     def test_fail_fast_when_members_table_missing(self, monkeypatch):
-        # main([]) resolves MEMBERS_TABLE fail-fast BEFORE any write; a missing var → exit 1.
+        # main resolves MEMBERS_TABLE fail-fast BEFORE any write; a missing var → exit 1.
         monkeypatch.delenv(td.MEMBERS_TABLE_ENV_VAR, raising=False)
         monkeypatch.setenv("AWS_REGION", "eu-west-1")
-        rc = runner.main([])
+        rc = runner.main(["--tenant", "h-dcn"])
         assert rc == 1  # DynamoDBConfigError surfaced as exit 1
+
+
+class TestRunnerRequiresTenant:
+    """The tenant is a REQUIRED arg — no hardcoded/default tenant on the CLI (R8, steering 31)."""
+
+    def test_missing_tenant_arg_is_rejected(self):
+        # argparse exits (SystemExit, code 2) when the required --tenant is omitted — nothing
+        # can silently land in the wrong (or a default) partition.
+        with pytest.raises(SystemExit):
+            runner.build_parser().parse_args([])
+
+    def test_apply_and_dry_run_are_mutually_exclusive(self):
+        with pytest.raises(SystemExit):
+            runner.build_parser().parse_args(["--tenant", "h-dcn", "--apply", "--dry-run"])
+
+    def test_tenant_arg_scopes_the_read_and_write(self, members_env, fake_repo):
+        # The catalog is seeded into the tenant passed on --tenant (not a hardcoded literal).
+        rc = runner.seed(region="eu-west-1", apply=True, tenant_id="other-club", repo=fake_repo)
+        assert rc == 0
+        seeded = {e.type_code for e in fake_repo.list_membership_types("other-club")}
+        assert seeded == {e.type_code for e in HDCN_MEMBERSHIP_TYPES}
+        # h-dcn's partition is untouched — the read + write were scoped to the passed tenant.
+        assert list(fake_repo.list_membership_types("h-dcn")) == []
 
 
 class TestRunnerApply:

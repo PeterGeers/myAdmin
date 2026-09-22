@@ -147,7 +147,7 @@ class TestGetFieldConfigDomain:
         assert "membership" in config["by_group"]
         # Every fixed field is present with origin=fixed.
         keys = {(f["group"], f["key"]) for f in config["fields"]}
-        assert ("personal", "name") in keys
+        assert ("personal", "first_name") in keys
         assert ("membership", "member_number") in keys
         assert ("membership", "membership_type") in keys
 
@@ -203,10 +203,14 @@ class TestGetFieldConfigDomain:
         assert [f["key"] for f in overlay_fields] == ["motor_type"]
         assert "overlay" in config["by_group"]
 
-    def test_empty_overlay_resolves_to_fixed_base_only(self, repo):
+    def test_empty_overlay_resolves_to_fixed_base_plus_calculated(self, repo):
+        # With no overlay, the resolved config = the fixed base ⊕ the platform CALCULATED
+        # (derived, read-only) fields — no VARIABLE (tenant overlay) fields (task 1.3).
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("h-dcn")
-        assert all(f["origin"] == FieldOrigin.FIXED.value for f in config["fields"])
+        origins = {f["origin"] for f in config["fields"]}
+        assert origins == {FieldOrigin.FIXED.value, FieldOrigin.CALCULATED.value}
+        assert not any(f["origin"] == FieldOrigin.VARIABLE.value for f in config["fields"])
 
     def test_config_is_json_serializable(self, repo):
         # The edge json.dumps the result — no enums/dataclasses may leak through.
@@ -218,7 +222,12 @@ class TestGetFieldConfigDomain:
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("h-dcn")
         status = next(f for f in config["fields"] if f["key"] == "status")
-        assert "active" in status["options"]
+        # S5c task 4.4: the status Fixed enum now surfaces RICH options ({value,label,roles?})
+        # so the modals can render bilingual labels (R4.11) — not a bare value list.
+        option_values = {o["value"] for o in status["options"]}
+        assert "active" in option_values
+        active = next(o for o in status["options"] if o["value"] == "active")
+        assert active["label"] == {"nl": "Actief", "en": "Active"}
 
     def test_tenant_with_no_catalog_has_empty_options(self, repo):
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
@@ -304,3 +313,272 @@ def test_field_config_route_requires_auth():
     # No verified claims → 401 (the task-3.0 gate still applies to this route).
     resp = app.handler({"httpMethod": "GET", "path": "/members/field-config", "headers": {}})
     assert resp["statusCode"] in (401, 403)
+
+
+# ---------------------------------------------------------------------------
+# S5c Task 3.2 — view contexts exposed on the field-config payload (design C-VIEW, R5.1)
+#
+# The tenant's view contexts land as a sibling top-level ``view_contexts`` field on the
+# field-config response. Empty-is-valid: a tenant that authored none surfaces EXACTLY ONE
+# default context (over all visible fields), never a crash and never an empty list.
+#
+# Validates: Requirements 5.1
+# ---------------------------------------------------------------------------
+
+from sam.members.domain.view_contexts import (
+    DEFAULT_CONTEXT_KEY,
+    StaticViewContextsProvider,
+    ViewContext,
+)
+
+
+def _financial_context():
+    return ViewContext(
+        key="financial",
+        label={"nl": "Financieel", "en": "Financial"},
+        permission_roles=("Penningmeester",),
+        columns=("member_number", "iban", "payment_method"),
+        filterable_columns=("payment_method",),
+        default_sort={"field": "member_number", "direction": "asc"},
+        page_size=25,
+    )
+
+
+class TestGetFieldConfigViewContextsDomain:
+    def test_view_contexts_populated_case_round_trips_authored_contexts(self, repo):
+        provider = StaticViewContextsProvider({"h-dcn": [_financial_context()]})
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            view_contexts_provider=provider,
+        )
+        config = service.get_field_config("h-dcn")
+
+        assert [vc["key"] for vc in config["view_contexts"]] == ["financial"]
+        vc = config["view_contexts"][0]
+        assert vc["label"] == {"nl": "Financieel", "en": "Financial"}
+        assert vc["permission_roles"] == ["Penningmeester"]
+        assert vc["columns"] == ["member_number", "iban", "payment_method"]
+        assert vc["filterable_columns"] == ["payment_method"]
+        assert vc["default_sort"] == {"field": "member_number", "direction": "asc"}
+        assert vc["page_size"] == 25
+        assert vc["is_default"] is False
+
+    def test_view_contexts_empty_case_returns_exactly_one_default_context(self, repo):
+        # A tenant that authored NO contexts → exactly one default context (empty-is-valid).
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            view_contexts_provider=StaticViewContextsProvider({}),
+        )
+        config = service.get_field_config("h-dcn")
+
+        assert len(config["view_contexts"]) == 1
+        default = config["view_contexts"][0]
+        assert default["key"] == DEFAULT_CONTEXT_KEY
+        assert default["is_default"] is True
+        # The default context references no field keys ("all visible fields" sentinel).
+        assert default["columns"] == []
+        assert default["filterable_columns"] == []
+
+    def test_view_contexts_default_when_no_provider_injected(self, repo):
+        # A service built without a view-contexts provider still surfaces one default context.
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+
+        assert len(config["view_contexts"]) == 1
+        assert config["view_contexts"][0]["key"] == DEFAULT_CONTEXT_KEY
+
+    def test_view_contexts_are_json_serializable(self, repo):
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            view_contexts_provider=StaticViewContextsProvider({"h-dcn": [_financial_context()]}),
+        )
+        config = service.get_field_config("h-dcn")
+        json.dumps(config)  # must not raise (labels + primitives are pure JSON)
+
+    def test_view_contexts_are_tenant_scoped(self, repo):
+        provider = StaticViewContextsProvider({"h-dcn": [_financial_context()]})
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            view_contexts_provider=provider,
+        )
+        h = service.get_field_config("h-dcn")
+        other = service.get_field_config("other")
+        assert [vc["key"] for vc in h["view_contexts"]] == ["financial"]
+        # 'other' authored none → its own single default, never h-dcn's context.
+        assert [vc["key"] for vc in other["view_contexts"]] == [DEFAULT_CONTEXT_KEY]
+
+
+# ---------------------------------------------------------------------------
+# S5c Task 3.2 — edge dispatch: GET /members/field-config carries view_contexts
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def inject_service_with_contexts(monkeypatch, repo):
+    service = MembershipService(
+        repo,
+        overlay_provider=StaticOverlayProvider({}),
+        view_contexts_provider=StaticViewContextsProvider({"h-dcn": [_financial_context()]}),
+    )
+    monkeypatch.setattr(app, "_get_membership_service", lambda: service)
+    return service
+
+
+def test_field_config_route_carries_authored_view_contexts(inject_service_with_contexts):
+    resp = app.handler(_event("GET", "/members/field-config"))
+    assert resp["statusCode"] == 200
+    data = _data(resp)
+    assert [vc["key"] for vc in data["view_contexts"]] == ["financial"]
+    assert data["view_contexts"][0]["label"] == {"nl": "Financieel", "en": "Financial"}
+
+
+def test_field_config_route_returns_one_default_context_when_none_authored(inject_service):
+    # inject_service wires a service with NO view-contexts provider → one default context.
+    resp = app.handler(_event("GET", "/members/field-config"))
+    assert resp["statusCode"] == 200
+    data = _data(resp)
+    assert len(data["view_contexts"]) == 1
+    assert data["view_contexts"][0]["key"] == DEFAULT_CONTEXT_KEY
+    assert data["view_contexts"][0]["is_default"] is True
+
+
+# ---------------------------------------------------------------------------
+# S5c Task 4.6 — the module's declared lifecycle exposed on the field-config payload
+# (design C2 / C-SURFACE, R5.7). The single + bulk transition modals read their
+# candidate target states from this block ONLY (never a hardcoded status list):
+#
+#   - a tenant WITH a configured lifecycle → the declarative transition graph is
+#     projected as `allowed_transitions` ({fromState: [toState, ...]}) + `initial_state`
+#     + `allowed_states`, and the `context.approved`-guarded edges are surfaced in
+#     `requires_approval` (deliberately limited — only what the module already models);
+#   - a tenant with NO configured lifecycle → `lifecycle` is `None`, so the SPA offers
+#     NO transition targets (deny-by-default at the UI). The module stays authoritative
+#     regardless (it re-validates every transition and answers 409 with reasons).
+#
+# Validates: Requirements 5.7
+# ---------------------------------------------------------------------------
+
+from sam.members.domain.fixed_fields import MembershipStatus as _MS
+from sam.members.domain.lifecycle_config import (
+    HDCN_LIFECYCLE_CONFIG,
+    StaticLifecycleConfigProvider,
+)
+
+
+class TestGetFieldConfigLifecycleDomain:
+    def test_lifecycle_absent_when_no_provider_injected(self, repo):
+        # Deliberately limited + deny-by-default: a service built without a lifecycle
+        # provider surfaces `lifecycle: None`, so the SPA offers no transition targets.
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        assert config["lifecycle"] is None
+
+    def test_lifecycle_none_for_tenant_without_configured_lifecycle(self, repo):
+        # The provider knows h-dcn only → any OTHER tenant gets `lifecycle: None`.
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        )
+        config = service.get_field_config("other")
+        assert config["lifecycle"] is None
+
+    def test_lifecycle_projects_the_declared_transition_graph(self, repo):
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        )
+        lifecycle = service.get_field_config("h-dcn")["lifecycle"]
+
+        assert lifecycle is not None
+        # The state vocabulary + initial state come straight from the module config.
+        assert lifecycle["allowed_states"] == [
+            "application", "pending", "active", "suspended", "lapsed", "left",
+        ]
+        assert lifecycle["initial_state"] == "application"
+
+        # `allowed_transitions` is the {fromState: [toState, ...]} map the single modal
+        # reads for a member's current state (and the bulk modal unions). It carries
+        # EXACTLY the module's declared edges — never a hardcoded status list.
+        at = lifecycle["allowed_transitions"]
+        assert at["application"] == ["pending"]
+        assert at["pending"] == ["active", "left"]
+        assert set(at["active"]) == {"suspended", "lapsed", "left"}
+        # A terminal state declares no outgoing edges → it is not a key (no targets).
+        assert "left" not in at
+
+    def test_lifecycle_requires_approval_derived_from_context_guard(self, repo):
+        # The only `context.approved`-guarded edge in h-dcn's graph is application->pending;
+        # it surfaces in `requires_approval` so the modal renders the approval checkbox.
+        # Derived from the guard DATA — never a hardcoded edge list.
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        )
+        lifecycle = service.get_field_config("h-dcn")["lifecycle"]
+        assert lifecycle["requires_approval"] == ["application->pending"]
+
+    def test_lifecycle_targets_match_the_engines_allowed_to_states(self, repo):
+        # The projected candidate targets for each state agree with what the engine itself
+        # would permit at the graph level (the UI list is a faithful convenience view of
+        # the authoritative graph — server stays authoritative on guards).
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        )
+        at = service.get_field_config("h-dcn")["lifecycle"]["allowed_transitions"]
+        for state in _MS:
+            engine_targets = [
+                t.value for t in HDCN_LIFECYCLE_CONFIG.allowed_to_states(state)
+            ]
+            if engine_targets:
+                assert at[state.value] == engine_targets
+            else:
+                assert state.value not in at
+
+    def test_lifecycle_block_is_json_serializable(self, repo):
+        service = MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({}),
+            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        )
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# S5c Task 4.6 — edge dispatch: GET /members/field-config carries the lifecycle block
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def inject_service_with_lifecycle(monkeypatch, repo):
+    service = MembershipService(
+        repo,
+        overlay_provider=StaticOverlayProvider({}),
+        lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+    )
+    monkeypatch.setattr(app, "_get_membership_service", lambda: service)
+    return service
+
+
+def test_field_config_route_carries_the_declared_lifecycle(inject_service_with_lifecycle):
+    resp = app.handler(_event("GET", "/members/field-config"))
+    assert resp["statusCode"] == 200
+    data = _data(resp)
+    assert data["lifecycle"] is not None
+    assert data["lifecycle"]["allowed_transitions"]["pending"] == ["active", "left"]
+    assert data["lifecycle"]["requires_approval"] == ["application->pending"]
+
+
+def test_field_config_route_lifecycle_none_without_provider(inject_service):
+    # inject_service wires a service with NO lifecycle provider → deny-by-default at the UI.
+    resp = app.handler(_event("GET", "/members/field-config"))
+    assert resp["statusCode"] == 200
+    assert _data(resp)["lifecycle"] is None

@@ -4,8 +4,8 @@ S5 Task 4.1 — tests for the h-dcn member **backfill** (dry-run first, non-dest
 Three layers, none of which touch Google or live DynamoDB (per the task constraints):
 
 - **The pure transform** (``map_hdcn_row``): fixed/overlay split, ``tenant_id`` +
-  ``scope_values.region`` stamping, membership_type → catalog code mapping, and loud
-  validation failure on a bad row. No I/O.
+  ``overlay.region`` scope-field normalization (S5d D1 — no ``scope_values`` bucket),
+  membership_type → catalog code mapping, and loud validation failure on a bad row. No I/O.
 - **The source adapters** (``FileSourceAdapter`` / ``IterableSourceAdapter``): read a CSV/JSON
   fixture READ-ONLY; the legacy-DynamoDB adapter is a deliberate stub.
 - **The runner** (``scripts/aws/backfill-hdcn-members.py``): dry-run writes NOTHING and emits a
@@ -68,7 +68,8 @@ def _raw(**overrides):
     row = {
         "member_id": "M-1",
         "lidnummer": "1001",
-        "naam": "Alex de Vries",
+        "voornaam": "Alex",
+        "naam": "de Vries",
         "email": "alex@example.com",
         "adres": "Dorpsstraat 1",
         "geboortedatum": "1980-05-12",
@@ -95,14 +96,17 @@ class TestMapHdcnRow:
 
     def test_splits_fixed_base_personal_and_membership(self):
         rec = map_hdcn_row(_raw())
+        # s5c canonical EN keys: the single `naam` column maps to the required `last_name`;
+        # `adres` → `street` (primary address line); `email`/`geboortedatum` map directly.
         assert rec["personal"] == {
-            "name": "Alex de Vries",
-            "contact": "alex@example.com",
-            "address": "Dorpsstraat 1",
-            "birthdate": "1980-05-12",
+            "first_name": "Alex",
+            "last_name": "de Vries",
+            "email": "alex@example.com",
+            "street": "Dorpsstraat 1",
+            "birth_date": "1980-05-12",
         }
         assert rec["membership"]["member_number"] == "1001"
-        assert rec["membership"]["joined"] == "2010-01-01"
+        assert rec["membership"]["joined_date"] == "2010-01-01"
         assert rec["member_id"] == "M-1"
 
     def test_maps_dutch_status_to_the_closed_enum(self):
@@ -111,21 +115,40 @@ class TestMapHdcnRow:
         # already-canonical value passes through
         assert map_hdcn_row(_raw(status="active"))["membership"]["status"] == "active"
 
-    def test_seeds_scope_values_region_single_valued(self):
+    def test_stores_region_on_the_overlay_field_as_a_scalar(self):
+        # S5d D1/R3.4: scope is a PLAIN member field — the region lands on `overlay.region`
+        # as a SCALAR (single-valued per scope field, R3.2), NOT a `scope_values` bucket/list.
         rec = map_hdcn_row(_raw(regio="Noord"))
-        assert rec["scope_values"]["region"] == ["Noord"]
+        assert rec["overlay"]["region"] == "Noord"
+        assert "scope_values" not in rec
 
-    def test_canonicalizes_region_casing(self):
+    def test_canonicalizes_region_casing_via_scope_canon(self):
+        # R9.2: normalization uses the shared `scope_canon` to match variant spellings against
+        # the dimension's canonical value set, landing on the canonical spelling ("Zuid").
         rec = map_hdcn_row(_raw(regio="zuid"))
-        assert rec["scope_values"]["region"] == ["Zuid"]
+        assert rec["overlay"]["region"] == "Zuid"
+
+    def test_canonicalizes_region_separator_and_diacritic_variants(self):
+        # `scope_canon` folds case / spacing so a scruffy export value still lands canonical.
+        assert map_hdcn_row(_raw(regio="  OOST "))["overlay"]["region"] == "Oost"
+        assert map_hdcn_row(_raw(regio="wEsT"))["overlay"]["region"] == "West"
 
     def test_unknown_region_is_preserved_not_dropped(self):
+        # R9.3: an un-normalizable value is kept verbatim (surfaced by the R9.5 check), never
+        # silently dropped nor forced to a wrong canonical value.
         rec = map_hdcn_row(_raw(regio="Centraal"))
-        assert rec["scope_values"]["region"] == ["Centraal"]
+        assert rec["overlay"]["region"] == "Centraal"
 
-    def test_missing_region_yields_empty_scope_list(self):
+    def test_missing_region_omits_the_field(self):
+        # An absent region omits the field entirely (no empty placeholder / no `scope_values`).
         rec = map_hdcn_row(_raw(regio=""))
-        assert rec["scope_values"]["region"] == []
+        assert "region" not in rec["overlay"]
+        assert "scope_values" not in rec
+
+    def test_no_scope_values_bucket_is_written(self):
+        # Clean break (D1): the member record has ZERO scope awareness — no `scope_values`.
+        rec = map_hdcn_row(_raw())
+        assert "scope_values" not in rec
 
     def test_club_columns_fold_into_overlay(self):
         rec = map_hdcn_row(_raw(motortype="Honda CB500", kenteken="AB-12-CD"))
@@ -143,12 +166,12 @@ class TestMapHdcnRow:
         # No name → validate_fixed_fields fails → RowTransformError.
         with pytest.raises(RowTransformError) as exc:
             map_hdcn_row(_raw(naam=""))
-        assert "personal.name" in exc.value.reasons
+        assert "personal.last_name" in exc.value.reasons
 
     def test_bad_row_fails_loudly_invalid_date(self):
         with pytest.raises(RowTransformError) as exc:
             map_hdcn_row(_raw(ingangsdatum="not-a-date"))
-        assert "membership.joined" in exc.value.reasons
+        assert "membership.joined_date" in exc.value.reasons
 
     def test_missing_member_id_is_reported(self):
         with pytest.raises(RowTransformError) as exc:
@@ -180,7 +203,8 @@ class TestSourceAdapters:
         rows = list(adapter.rows())
         assert len(rows) == 4
         assert rows[0]["lidnummer"] == "1001"
-        assert rows[0]["naam"] == "Alex de Vries"
+        assert rows[0]["voornaam"] == "Alex"
+        assert rows[0]["naam"] == "de Vries"
 
     def test_file_adapter_reads_json(self, tmp_path):
         path = tmp_path / "export.json"
@@ -206,7 +230,7 @@ class TestSourceAdapters:
         adapter = IterableSourceAdapter(rows)
         out = list(adapter.rows())
         out[0]["naam"] = "changed"
-        assert rows[0]["naam"] == "Alex de Vries"  # source untouched
+        assert rows[0]["naam"] == "de Vries"  # source untouched
 
     def test_legacy_dynamo_adapter_is_a_readonly_stub(self):
         adapter = LegacyDynamoSourceAdapter("LegacyMembers", region="eu-west-1")
@@ -254,8 +278,9 @@ class TestBackfillPlan:
         adapter = IterableSourceAdapter([_raw(), _raw(member_id="M-2", lidnummer="1002")])
         summary = build_backfill_plan(adapter).field_mapping_summary()
         assert summary["membership.member_number"] == 2
-        assert summary["personal.name"] == 2
-        assert summary["scope_values.region"] == 2
+        assert summary["personal.last_name"] == 2
+        # S5d D1: the scope field is a plain `overlay.region` field now (no `scope_values`).
+        assert summary["overlay.region"] == 2
         assert summary["overlay.motortype"] == 2
 
 
@@ -310,14 +335,14 @@ class TestRunnerDryRun:
 
     def test_dry_run_is_the_cli_default(self, members_env, capsys, monkeypatch):
         # main() without --apply must not write. Inject nothing → dry-run never builds a repo.
-        rc = runner.main(["--source", FIXTURE])
+        rc = runner.main(["--source", FIXTURE, "--tenant", "h-dcn"])
         assert rc == 0
         assert "DRY-RUN" in capsys.readouterr().out
 
     def test_fail_fast_when_members_table_missing(self, monkeypatch, capsys):
         monkeypatch.delenv(td.MEMBERS_TABLE_ENV_VAR, raising=False)
         monkeypatch.setenv("AWS_REGION", "eu-west-1")
-        rc = runner.main(["--source", FIXTURE])
+        rc = runner.main(["--source", FIXTURE, "--tenant", "h-dcn"])
         assert rc == 1  # DynamoDBConfigError surfaced as exit 1
 
 
@@ -327,10 +352,12 @@ class TestRunnerApply:
         assert rc == 0
         listed = fake_repo.list_members("h-dcn")
         assert sorted(m["member_id"] for m in listed) == ["M-1001", "M-1002", "M-1003", "M-1004"]
-        # tenant stamped + scope + overlay landed via the transform
+        # tenant stamped + scope field + overlay landed via the transform (S5d D1: the scope
+        # value lands on the plain `overlay.region` field, a scalar — no `scope_values` bucket).
         m1 = fake_repo.get_member("h-dcn", "M-1001")
         assert m1["tenant_id"] == "h-dcn"
-        assert m1["scope_values"]["region"] == ["Noord"]
+        assert m1["overlay"]["region"] == "Noord"
+        assert "scope_values" not in m1
         assert m1["overlay"]["motortype"] == "Honda CB500"
         assert m1["membership"]["membership_type"] == "erelid"
 
@@ -353,7 +380,7 @@ class TestRunnerApply:
         assert "conflicts : 1" in out
         assert "CONFLICT" in out
         # The FIRST writer stands; the conflicting one did NOT overwrite it.
-        assert fake_repo.get_member("h-dcn", "M-1")["personal"]["name"] == "Alex"
+        assert fake_repo.get_member("h-dcn", "M-1")["personal"]["last_name"] == "Alex"
         assert fake_repo.get_member("h-dcn", "M-2") is None
 
     def test_apply_refuses_a_batch_with_mapping_errors(self, members_env, fake_repo, capsys, tmp_path):
@@ -374,3 +401,65 @@ class TestRunnerApply:
         # Re-apply the SAME member — repository idempotent re-save, no conflict.
         assert runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo) == 0
         assert len(fake_repo.list_members("h-dcn")) == 1
+
+
+# ---------------------------------------------------------------------------
+# S5c Task 6.2 — the runnable host-script CLI (required --tenant, no default;
+# unmapped/extra columns tolerated + listed; tenant threaded into the writes).
+# ---------------------------------------------------------------------------
+
+
+class TestRunnerCliTenant:
+    """The importer is a runnable host script with a REQUIRED --tenant (no default tenant)."""
+
+    def test_tenant_is_a_required_cli_arg(self, members_env, capsys):
+        # argparse must reject a missing --tenant (SystemExit(2)) — no hardcoded/default tenant.
+        with pytest.raises(SystemExit) as exc:
+            runner.main(["--source", FIXTURE])
+        assert exc.value.code == 2
+        err = capsys.readouterr().err
+        assert "--tenant" in err
+
+    def test_dry_run_report_names_the_supplied_tenant(self, members_env, capsys):
+        rc = runner.main(["--source", FIXTURE, "--tenant", "h-dcn"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "tenant        : h-dcn" in out
+
+    def test_apply_stamps_the_supplied_tenant_not_a_default(self, members_env, fake_repo, tmp_path):
+        # A non-pilot tenant proves the stamp comes from --tenant, never a hardcoded literal.
+        export = tmp_path / "one.json"
+        export.write_text(json.dumps([_raw(member_id="M-1", lidnummer="9001")]), encoding="utf-8")
+        rc = runner.backfill(str(export), region="eu-west-1", apply=True, tenant_id="other-org", repo=fake_repo)
+        assert rc == 0
+        # The record landed in the "other-org" partition, stamped with that tenant.
+        assert fake_repo.list_members("h-dcn") == []
+        m = fake_repo.get_member("other-org", "M-1")
+        assert m is not None and m["tenant_id"] == "other-org"
+
+    def test_dry_run_lists_unmapped_extra_columns(self, members_env, capsys):
+        # The fixture carries motortype/kenteken/einddatum — none are fixed/region columns, so
+        # they are tolerated (folded into overlay) and LISTED in the report (task 6.2 OUT-scope).
+        runner.main(["--source", FIXTURE, "--tenant", "h-dcn"])
+        out = capsys.readouterr().out
+        assert "unmapped / extra source columns" in out
+        assert "motortype" in out
+        assert "kenteken" in out
+        assert "einddatum" in out
+        # A recognized fixed column must NOT be listed as unmapped.
+        section = out.split("unmapped / extra source columns")[1].split("=" * 68)[0]
+        assert "lidnummer" not in section
+
+    def test_empty_named_column_is_tolerated_and_listed_as_dropped(self, members_env, capsys, tmp_path):
+        # A trailing empty-named column (a common Google-Sheet export artifact) is dropped, not
+        # a crash, and is surfaced in the report.
+        export = tmp_path / "with_empty_col.csv"
+        export.write_text(
+            "lidnummer,naam,email,status,lidmaatschapstype,ingangsdatum,regio,\n"
+            "1001,Alex,a@x.com,actief,Erelid,2010-01-01,Noord,junk\n",
+            encoding="utf-8",
+        )
+        rc = runner.main(["--source", str(export), "--tenant", "h-dcn"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "empty-named column" in out

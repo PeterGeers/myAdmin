@@ -49,11 +49,16 @@ def _members_config_providers():
         HDCN_SCOPE_CONFIG,
         StaticScopeConfigProvider,
     )
+    from sam.members.domain.view_contexts import StaticViewContextsProvider
 
     members_app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
         {"h-dcn": HDCN_SCOPE_CONFIG}
     )
     members_app._OVERLAY_PROVIDER_OVERRIDE = StaticOverlayProvider({})
+    # S5c task 3.2: the view-contexts seam. Default the edge to an EMPTY static provider so an
+    # unconfigured tenant surfaces exactly one default context on GET /members/field-config
+    # (empty-is-valid, R5.1); tests that exercise authored contexts install their own provider.
+    members_app._VIEW_CONTEXTS_PROVIDER_OVERRIDE = StaticViewContextsProvider({})
     # S5b task 8.3: the caller's scope now comes from PROJECTED grants (design C5), not the
     # token groups. Default the grant reader to "no grants for anyone" so a granted capability
     # resolves to deny-by-default (empty allowed_scopes) unless a test injects grants. Tests
@@ -63,6 +68,7 @@ def _members_config_providers():
     members_app._SCOPE_CONFIG_PROVIDER_OVERRIDE = None
     members_app._OVERLAY_PROVIDER_OVERRIDE = None
     members_app._SCOPE_GRANTS_READER_OVERRIDE = None
+    members_app._VIEW_CONTEXTS_PROVIDER_OVERRIDE = None
 
 
 class FakeScopeGrantsReader:

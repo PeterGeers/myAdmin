@@ -241,7 +241,7 @@ def test_handler_supports_http_api_v2_event_shape(monkeypatch):
     # route the same as the v1 shape. get_self is a pure self-service read (task 3.2); with a
     # matching own record it now returns 200 (routing + parsing + dispatch all wired).
     class _FakeService:
-        def get_self(self, tenant_id, requester_sub, *, dimension_key=None):
+        def get_self(self, tenant_id, requester_sub):
             assert tenant_id == "h-dcn"
             return {"member_id": "self-1", "sub": requester_sub}
 

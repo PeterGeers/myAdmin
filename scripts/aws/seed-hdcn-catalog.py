@@ -40,18 +40,19 @@ Safety guards (aws-accounts.md guardrails, C8)
 
 Usage (from repo root, WSL)
 ---------------------------
-  # Dry run (default — writes nothing): show what would be seeded for h-dcn:
+  # Dry run (default — writes nothing): show what would be seeded. --tenant is REQUIRED
+  # (no hardcoded/default tenant):
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 \
-      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py
+      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn
 
   # Actually write to real AWS (nonprofit data account) — only after a clean dry run:
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --apply
+      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn --apply
 
   # Local emulator apply (endpoint set → local DynamoDB, no real AWS):
   MEMBERS_TABLE=sam-members-test AWS_REGION=eu-west-1 \
       AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
-      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --apply
+      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn --apply
 """
 
 from __future__ import annotations
@@ -135,6 +136,7 @@ def seed(
     *,
     region: str,
     apply: bool,
+    tenant_id: str = HDCN_TENANT_ID,
     repo: DynamoDbMembersRepository | None = None,
 ) -> int:
     """Run the seed (dry-run or apply). Returns a process exit code.
@@ -143,14 +145,18 @@ def seed(
     and — only if ``apply`` — upserts the create/update entries via ``save_membership_type``.
     The target table name is resolved fail-fast from ``MEMBERS_TABLE``. ``repo`` may be
     injected for tests; in production it is resolved lazily + fail-fast on first use.
+
+    ``tenant_id`` is the administration whose catalog is seeded. The CLI requires it as an
+    explicit ``--tenant`` argument (no hardcoded/default tenant — R8, steering 31); it defaults
+    to the pilot literal here only so the S5 task-4.2 call sites and tests keep working.
     """
     # Fail-fast table-name resolution up front (even in dry-run) so a misconfigured target is
     # caught before any work — mirrors the provisioner / backfill.
     table_name = td.resolve_members_table_name()
 
     repository = repo or DynamoDbMembersRepository()
-    existing = repository.list_membership_types(HDCN_TENANT_ID)
-    plan = build_seed_plan(existing, seed=HDCN_MEMBERSHIP_TYPES, tenant_id=HDCN_TENANT_ID)
+    existing = repository.list_membership_types(tenant_id)
+    plan = build_seed_plan(existing, seed=HDCN_MEMBERSHIP_TYPES, tenant_id=tenant_id)
 
     _print_seed_plan(plan, apply=apply, table_name=table_name)
 
@@ -178,15 +184,31 @@ def build_parser() -> argparse.ArgumentParser:
         "Idempotent + never destructive.",
     )
     parser.add_argument(
+        "--tenant",
+        required=True,
+        help="The administration (tenant) whose Lidmaatschap Beheer catalog is seeded (e.g. "
+        "'h-dcn'). REQUIRED — there is no hardcoded/default tenant (R8, steering 31): the "
+        "script fails if it is missing so nothing can silently land in the wrong partition.",
+    )
+    parser.add_argument(
         "--region",
         default=os.environ.get("AWS_REGION", DEFAULT_REGION),
         help=f"AWS region (default: env AWS_REGION or {DEFAULT_REGION}).",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--apply",
         action="store_true",
         help="Actually write via the repository. Without this, the script only prints the "
         "seed plan (dry-run is the default for safety).",
+    )
+    mode.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Explicitly request a dry-run (the DEFAULT): build + render the seed plan and "
+        "write NOTHING. Mutually exclusive with --apply; provided so the safe default can be "
+        "stated on the command line.",
     )
     return parser
 
@@ -194,7 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        return seed(region=args.region, apply=args.apply)
+        return seed(region=args.region, apply=args.apply, tenant_id=args.tenant)
     except Exception as exc:  # noqa: BLE001 — surface any failure to the CLI
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

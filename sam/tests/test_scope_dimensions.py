@@ -1,8 +1,9 @@
 """
 S5 Task 1.3 — tests for the scope-dimension model (multi-valued-capable; h-dcn = region).
 
-Unit tests pin the model's shape (a LIST of dimensions, each with enabled / multi_valued /
-values / all_wildcard / required_for), its config validation (fail fast on a
+Unit tests pin the model's shape (a LIST of dimensions, each with field / enabled /
+values / required_for — s5d clean break removed the ``Regio_*`` ``all_wildcard`` role
+encoding, R2.2/R8.1), its config validation (fail fast on a
 misconfiguration), the tenant-wide collapse when a dimension is disabled, the provider seam
 (empty config for unknown tenants), and the h-dcn wiring (single, single-valued region). A
 property test asserts that any list of enabled dimensions with distinct keys and non-empty,
@@ -47,18 +48,16 @@ def test_scope_dimensions_is_a_list_supporting_multiple_dimensions():
 def test_dimension_carries_all_configured_facets():
     d = ScopeDimension(
         key="region",
+        field="region",
         label={"nl": "Regio", "en": "Region"},
         enabled=True,
-        multi_valued=False,
         values=("Noord", "Zuid"),
-        all_wildcard="Regio_All",
         required_for=("Members_CRUD",),
     )
     assert d.key == "region"
+    assert d.field == "region"
     assert d.enabled is True
-    assert d.multi_valued is False
     assert d.values == ("Noord", "Zuid")
-    assert d.all_wildcard == "Regio_All"
     assert d.required_for == ("Members_CRUD",)
 
 
@@ -69,12 +68,19 @@ def test_dimension_is_immutable():
 
 
 def test_dimension_defaults_are_conservative():
-    # A bare dimension is single-valued, has no wildcard/required_for, empty values/label.
+    # A bare dimension binds to its own key, has no required_for, empty values/label.
     d = ScopeDimension(key="region", values=("Noord",))
-    assert d.multi_valued is False
-    assert d.all_wildcard is None
+    assert d.field == "region"  # field defaults to key
     assert d.required_for == ()
     assert dict(d.label) == {}
+
+
+def test_field_defaults_to_key_but_can_differ():
+    # field defaults to key (back-compat) but a tenant may bind a dimension to another field.
+    assert ScopeDimension(key="region", values=("Noord",)).field == "region"
+    d = ScopeDimension(key="area", field="region", values=("Noord",))
+    assert d.key == "area"
+    assert d.field == "region"
 
 
 def test_allows_value_and_normalized_values():
@@ -177,19 +183,6 @@ def test_duplicate_scope_values_rejected():
     assert "region" in exc.value.reasons
 
 
-def test_all_wildcard_must_not_be_a_scope_value():
-    with pytest.raises(ScopeConfigError) as exc:
-        ScopeConfig(
-            tenant_id="club",
-            dimensions=(
-                ScopeDimension(
-                    key="region", values=("Noord", "Regio_All"), all_wildcard="Regio_All"
-                ),
-            ),
-        )
-    assert "region" in exc.value.reasons
-
-
 def test_all_config_errors_collected_at_once():
     with pytest.raises(ScopeConfigError) as exc:
         ScopeConfig(
@@ -234,7 +227,7 @@ def test_static_provider_satisfies_protocol():
     assert isinstance(StaticScopeConfigProvider(), ScopeConfigProvider)
 
 
-# ── h-dcn wiring (single, single-valued region — R3.4) ───────────────────────────────
+# ── h-dcn wiring (single region dimension binding to the region field — R3.4) ────────
 
 
 def test_hdcn_is_a_single_single_valued_region_dimension():
@@ -243,9 +236,8 @@ def test_hdcn_is_a_single_single_valued_region_dimension():
     assert len(enabled) == 1
     region = enabled[0]
     assert region.key == "region"
-    assert region.multi_valued is False
+    assert region.field == "region"  # defaults to key — binds to the region field
     assert region.enabled is True
-    assert region.all_wildcard == "Regio_All"
     assert set(region.values) == {"Noord", "Zuid", "Oost", "West"}
     assert "Members_CRUD" in region.required_for
 
@@ -255,11 +247,10 @@ def test_hdcn_disabled_collapses_to_tenant_wide():
     region = HDCN_SCOPE_CONFIG[0]
     disabled = ScopeDimension(
         key=region.key,
+        field=region.field,
         label=region.label,
         enabled=False,
-        multi_valued=region.multi_valued,
         values=region.values,
-        all_wildcard=region.all_wildcard,
         required_for=region.required_for,
     )
     cfg = ScopeConfig(tenant_id="h-dcn", dimensions=(disabled,))
@@ -283,7 +274,6 @@ def _enabled_dimensions(draw) -> tuple[ScopeDimension, ...]:
             ScopeDimension(
                 key=k,
                 enabled=True,
-                multi_valued=draw(st.booleans()),
                 values=tuple(values),
             )
         )
@@ -305,7 +295,6 @@ def test_property_disabling_all_dimensions_is_tenant_wide(dims):
         ScopeDimension(
             key=d.key,
             enabled=False,
-            multi_valued=d.multi_valued,
             values=d.values,
         )
         for d in dims

@@ -34,7 +34,8 @@ interface UserManagementProps {
 // ---------------------------------------------------------------------------
 
 export default function UserManagement({ tenant }: UserManagementProps) {
-  const { t } = useTypedTranslation('admin');
+  const { t, i18n } = useTypedTranslation('admin');
+  const lang = i18n.language;
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -427,6 +428,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         onDelete={handleDeleteUser}
         onOpenEdit={openEditModal}
         t={t}
+        lang={lang}
       />
     </VStack>
   );

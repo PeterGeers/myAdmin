@@ -1,0 +1,40 @@
+{
+  "//": "EDITABLE INPUT FILE for scripts/aws/load-cognito-users.py (S5c task 6.4).",
+  "//pool": "Target Cognito pool: myAdmin-test = eu-west-1_xyrlzfqbl (identity account 344561557829, profile 'personal'). Pass it explicitly via --pool-id (NEVER hardcoded in the script).",
+  "//shape": "Derived from the h-dcn pool shape: ~10 region-scoped + ~10 general (all-region) + 3 extra users. HARD SEPARATION (R8.1/R8.2, C-PLAYBOOK): this file drives (a) Cognito user creation + custom attributes BY THE SCRIPT, and (b) the Members role assignment VIA THE GOVERNANCE ENDPOINT (POST /api/tenant-admin/users/<email>/groups) — the script NEVER writes user_tenant_roles / the projection directly.",
+  "//fields": {
+    "email": "Cognito username + email (throwaway placeholder — NOT a real person).",
+    "tenants": "Sets custom:tenants. A single tenant name (scalar) => one tenant; a JSON array => many (see auth.cognito_utils._normalize_tenants_claim). Here we always emit it as the pilot tenant.",
+    "role": "The Members capability INTENT — the role assigned VIA THE GOVERNANCE ENDPOINT (not written by the script). Members_CRUD = full capability; Members_Read = read-only.",
+    "scope": "Region scope carried as custom attributes / conveyed to the governance assignment. 'all' => every region (general user, role Members_CRUD all-access); a list => a region subset (scoped user).",
+    "password": "OPTIONAL throwaway permanent password. Omit to have the script generate one and report it in the summary."
+  },
+  "default_tenant": "h-dcn-test",
+  "users": [
+    { "email": "member-scoped-601@example.com", "role": "Members_Read", "scope": ["Noord"] },
+    { "email": "member-scoped-602@example.com", "role": "Members_Read", "scope": ["Zuid"] },
+    { "email": "member-scoped-603@example.com", "role": "Members_Read", "scope": ["Oost"] },
+    { "email": "member-scoped-604@example.com", "role": "Members_Read", "scope": ["West"] },
+    { "email": "member-scoped-605@example.com", "role": "Members_CRUD", "scope": ["Noord"] },
+    { "email": "member-scoped-606@example.com", "role": "Members_CRUD", "scope": ["Zuid"] },
+    { "email": "member-scoped-607@example.com", "role": "Members_CRUD", "scope": ["Oost"] },
+    { "email": "member-scoped-608@example.com", "role": "Members_CRUD", "scope": ["West"] },
+    { "email": "member-scoped-609@example.com", "role": "Members_Read", "scope": ["Noord", "Zuid"] },
+    { "email": "member-scoped-610@example.com", "role": "Members_CRUD", "scope": ["Oost", "West"] },
+
+    { "email": "member-general-701@example.com", "role": "Members_CRUD", "scope": "all" },
+    { "email": "member-general-702@example.com", "role": "Members_CRUD", "scope": "all" },
+    { "email": "member-general-703@example.com", "role": "Members_CRUD", "scope": "all" },
+    { "email": "member-general-704@example.com", "role": "Members_CRUD", "scope": "all" },
+    { "email": "member-general-705@example.com", "role": "Members_CRUD", "scope": "all" },
+    { "email": "member-general-706@example.com", "role": "Members_Read", "scope": "all" },
+    { "email": "member-general-707@example.com", "role": "Members_Read", "scope": "all" },
+    { "email": "member-general-708@example.com", "role": "Members_Read", "scope": "all" },
+    { "email": "member-general-709@example.com", "role": "Members_Read", "scope": "all" },
+    { "email": "member-general-710@example.com", "role": "Members_Read", "scope": "all" },
+
+    { "email": "member-extra-801@example.com", "role": "Members_CRUD", "scope": "all", "tenants": "h-dcn-test" },
+    { "email": "member-extra-802@example.com", "role": "Members_Read", "scope": ["Noord"] },
+    { "email": "member-extra-803@example.com", "role": "Members_Read", "scope": ["Zuid", "Oost", "West"] }
+  ]
+}

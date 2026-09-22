@@ -283,6 +283,17 @@
       "passwordReset": "Password Reset",
       "accountUpdate": "Account Update Notification"
     },
+    "scope": {
+      "title": "Member Scope",
+      "all": "All",
+      "allSelected": "All values (unrestricted access)",
+      "filterPlaceholder": "Filter values...",
+      "filterValues": "Filter {{dimension}} values",
+      "noValues": "No matching values",
+      "noDimensions": "This tenant has no scope dimensions configured.",
+      "save": "Save Scope",
+      "saved": "Scope saved"
+    },
     "messages": {
       "errorLoading": "Error loading data",
       "userCreated": "User created",
@@ -988,7 +999,6 @@
       "description": "Configure how visitors reach your landing page.",
       "slugLabel": "URL slug",
       "retry": "Retry",
-
       "jabakiTitle": "Jabaki Subdomain",
       "jabakiDescription": "Free subdomain on jabaki.nl — no DNS setup required.",
       "jabakiEnabled": "Jabaki subdomain enabled",
@@ -998,7 +1008,6 @@
       "jabakiDisabledLabel": "Enable subdomain",
       "noSlugWarning": "Set a slug first before enabling the Jabaki subdomain.",
       "statusActive": "Active",
-
       "customTitle": "Custom Domain",
       "customDescription": "Connect your own domain for a fully branded experience.",
       "register": "Register",
@@ -1022,12 +1031,10 @@
       "domainNeedsDot": "Must include a TLD (e.g., .nl, .com)",
       "domainNoJabaki": "Cannot use jabaki.nl subdomains",
       "domainInvalid": "Invalid domain format",
-
       "statusPending": "Pending DNS",
       "statusValidating": "Validating",
       "statusFailed": "Failed",
       "statusRevoked": "Revoked",
-
       "dnsTitle": "DNS Configuration",
       "dnsExplanation": "Add the following DNS records at your domain registrar. Verification typically takes 5–30 minutes after records are added.",
       "dnsType": "Type",

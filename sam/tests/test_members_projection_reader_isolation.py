@@ -148,9 +148,9 @@ def _scopegrant_item(tenant_id, email, dimension, values, version=1):
 def _dimension(key, values, **overrides):
     base = {
         "key": key,
+        "field": key,
         "label": {"en": key.title()},
         "enabled": True,
-        "multi_valued": False,
         "values": list(values),
         "all_wildcard": None,
         "required_for": ["Members_CRUD"],

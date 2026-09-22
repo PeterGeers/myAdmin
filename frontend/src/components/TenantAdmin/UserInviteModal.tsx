@@ -13,6 +13,7 @@ import {
 } from '@chakra-ui/react';
 import { EditIcon } from '@chakra-ui/icons';
 import { UserRoleEditor, Role } from './UserRoleEditor';
+import { UserScopeEditor, holdsMembersCapabilityRole } from './UserScopeEditor';
 import type { User } from './UserTable';
 
 // ---------------------------------------------------------------------------
@@ -58,6 +59,8 @@ interface UserInviteModalProps {
   onDelete: (user: User) => void;
   onOpenEdit: (user: User) => void;
   t: (key: string, params?: Record<string, unknown>) => string;
+  /** Current UI language, for localized scope-dimension labels. */
+  lang: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +94,7 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
   onDelete,
   onOpenEdit,
   t,
+  lang,
 }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
@@ -117,6 +121,7 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
               onOpenEdit={onOpenEdit}
               onClose={onClose}
               t={t}
+              lang={lang}
             />
           ) : (
             <CreateEditForm
@@ -178,6 +183,7 @@ interface DetailsViewProps {
   onOpenEdit: (user: User) => void;
   onClose: () => void;
   t: (key: string, params?: Record<string, unknown>) => string;
+  lang: string;
 }
 
 const DetailsView: React.FC<DetailsViewProps> = ({
@@ -193,6 +199,7 @@ const DetailsView: React.FC<DetailsViewProps> = ({
   onOpenEdit,
   onClose,
   t,
+  lang,
 }) => (
   <VStack spacing={4} align="stretch">
     {/* User Information */}
@@ -244,6 +251,11 @@ const DetailsView: React.FC<DetailsViewProps> = ({
         ))}
       </HStack>
     </Box>
+
+    {/* Scope Editor (R4.6) — only for users holding a Members capability role */}
+    {holdsMembersCapabilityRole(user.groups) && (
+      <UserScopeEditor username={user.username} t={t} lang={lang} />
+    )}
 
     {/* Send Email Section */}
     <Box bg="gray.700" p={4} borderRadius="md" borderWidth="1px" borderColor="orange.500">

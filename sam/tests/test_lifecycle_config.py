@@ -366,7 +366,7 @@ def test_hdcn_pending_to_active_requires_number_and_contact():
     rule = HDCN_LIFECYCLE_CONFIG.transition(MS.PENDING, MS.ACTIVE)
     assert rule is not None
     incomplete = {"membership": {}, "personal": {}}
-    complete = {"membership": {"member_number": "M-1"}, "personal": {"contact": "a@b.nl"}}
+    complete = {"membership": {"member_number": "M-1"}, "personal": {"email": "a@b.nl"}}
     assert evaluate_guards(rule.guards, incomplete).denied is True
     assert evaluate_guards(rule.guards, complete).allowed is True
 

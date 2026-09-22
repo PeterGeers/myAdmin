@@ -114,9 +114,9 @@ cutover (Phase 7) and close-out (Phase 8).
   eu-west-1_Hdp40eWmu`). _(R2.3, R6.3, C-UNWIND)_
 - [x] **0.4 Demote `onboard-hdcn-local.py`** to a data-track fixture (docstring + placement make
   clear it never substitutes for SPA governance onboarding). _(R6.5, C-UNWIND)_
-- [ ] **0.5 Confirm no per-tenant `Members_*` Cognito group exists** on any pool (the prod one was
+- [x] **0.5 Confirm no per-tenant `Members_*` Cognito group exists** on any pool (the prod one was
   removed 2026-09-19); add a check to the verify script. _(R6.4, C-UNWIND)_
-- [ ] **0.6 Baseline tests green** after removals (the ~600 module tests + frontend suite) — the
+- [x] **0.6 Baseline tests green** after removals (the ~600 module tests + frontend suite) — the
   page will now correctly DENY without a real channel; assert that deny is the expected pre-wiring
   state. _(R12.1)_
 
@@ -133,13 +133,13 @@ cutover (Phase 7) and close-out (Phase 8).
 > Traceability rule: each row → exactly one definition in the right place; no field is defined that
 > is not a table row, and no table row (except `OUT`) is left unimplemented.
 
-- [ ] **1.1 Finalize the classification table** for the h-dcn field set, rebuilt from
+- [x] **1.1 Finalize the classification table** for the h-dcn field set, rebuilt from
   `/home/peter/projects/h-dcn/frontend/src/config/memberFields/`, in `design.md`'s table form:
   Platform key (canonical EN for Fixed/Calculated; tenant-authored for Parameter) · functional Group
   · Classification · h-dcn source key · enum-values/format source. Apply the R4.2 rule (Fixed field
   may have Parameter enum values / format). This table is the authoring contract 1.2–1.4 consume.
   _(R4.1, R4.2, C-FIELDS; design Data Models → classification table)_
-- [ ] **1.2 Build the Fixed base — one `FixedField` per `Fixed` row** in
+- [x] **1.2 Build the Fixed base — one `FixedField` per `Fixed` row** in
   `sam/members/domain/fixed_fields.py` (REFACTOR from ~9 fields), using the table's **English
   canonical `snake_case` keys** + `{nl, en}` labels, `type`, `required`, and storage group
   (`personal`/`membership`). Covers: `first_name`, `last_name`, `name_infix`, `initials`,
@@ -148,11 +148,11 @@ cutover (Phase 7) and close-out (Phase 8).
   `joined_date`, plus system `created_at`/`updated_at`. Keep tenant-agnostic; no h-dcn specifics.
   `member_number` = Fixed **`string`** (never numeric) + tenant format pattern + manual entry (h-dcn's
   counter stays in its `derive_member_number` hook, R4.8). _(R4.3, R4.6, R4.7, R4.8, C-FIELDS)_
-- [ ] **1.3 Build the Calculated fields — one per `Calculated` row** as derived read-only
+- [x] **1.3 Build the Calculated fields — one per `Calculated` row** as derived read-only
   `ResolvedField`s (never stored), with English canonical keys + `{nl, en}` labels and their inputs
   per the table: `display_name` (name parts), `age` + `birthday` (`birth_date`), `years_member`
   (`joined_date`), `application_year` (record creation year). _(R4.4, R4.6, R4.7, C-FIELDS)_
-- [ ] **1.4 Seed the generic-placeholder overlay — the `Parameter` rows as ILLUSTRATIVE defaults**
+- [x] **1.4 Seed the generic-placeholder overlay — the `Parameter` rows as ILLUSTRATIVE defaults**
   in a `members.field_overlay` sample (`functional_groups` catalog + `fields` + `fixed_overrides`).
   The table's Parameter rows (`guardian_name`; communication prefs; motor `motor_brand`/`motor_type`/
   `build_year`/`license_plate`; `iban`/`payment_method`; `notes`/`signature_date`) are h-dcn's real
@@ -161,22 +161,22 @@ cutover (Phase 7) and close-out (Phase 8).
   the functional-group reassignments (e.g. address fields → "address" display group). `region` is a
   scope dimension (`members.scope_dimensions`), NOT the field overlay. `welcome_pack_*` is `OUT`
   (R11.2) — not defined anywhere. _(R4.5, R4.9, C-FIELDS)_
-- [ ] **1.4a Add the functional-group model** to the domain: extend `OverlayField` with
+- [x] **1.4a Add the functional-group model** to the domain: extend `OverlayField` with
   `functional_group` and `FixedFieldOverride` with `functional_group`; add a `functional_groups`
   catalog to `TenantOverlay`; `FieldResolver` surfaces `functional_group` on each `ResolvedField`
   (default from the base for fixed/calculated). Storage group (`personal`/`membership`/`overlay`)
   stays fixed by origin — unchanged. _(R4.9, C-FIELDS)_
-- [ ] **1.4b Member-number format constraint:** keep `member_number` a Fixed `string`; add a
+- [x] **1.4b Member-number format constraint:** keep `member_number` a Fixed `string`; add a
   **tenant-configurable format pattern** (prefix + zero-padded width, e.g. `Nr-0001`, or a regex) to
   its fixed-field config; the domain layer authoritatively validates create/edit/import input against
   the pattern (uniqueness unchanged; generation OUT). _(R4.2, R4.8, C-FIELDS)_
-- [ ] **1.4c Enum-option model + value-level role gating + `show_when`:** model enum options as
+- [x] **1.4c Enum-option model + value-level role gating + `show_when`:** model enum options as
   `{ value, label{nl,en}, roles? }` for both fixed-field enum values and overlay-field `choices`;
   resolve options onto the `ResolvedField`. The **domain layer authoritatively rejects** a create/
   edit that sets an option value the caller's role is not permitted (422/403). Carry a per-field
   `show_when` condition on the resolved field (already in the field-config shape) so hidden fields are
   not required server-side. _(R4.11, R4.12, C-FIELDS)_
-- [ ] **1.5 Tests + traceability check:** unit for calculated derivations; `FieldResolver` merge over
+- [x] **1.5 Tests + traceability check:** unit for calculated derivations; `FieldResolver` merge over
   the broadened base; Property 2 (config round-trip) extended to the broadened base. **Traceability:**
   assert every classification-table row (except `OUT`) maps to exactly one definition — each `Fixed`
   row → a `FixedField`, each `Calculated` row → a derived field, each `Parameter` row → an overlay
@@ -192,31 +192,31 @@ classification table (Fixed base + calculated fields + seeded overlay), table �
 
 > The direct fix for "authoring UI unreachable" (analysis B.3). Flask/MySQL plane only.
 
-- [ ] **2.1 Declare the `members` namespace** in `backend/src/services/parameter_schema.py`
+- [x] **2.1 Declare the `members` namespace** in `backend/src/services/parameter_schema.py`
   (`module: "MEMBERS"` gate) for `field_overlay`, `scope_dimensions`, `view_contexts` (each a `json`
   param). Verify `get_schema_for_tenant([...,"MEMBERS"])` includes it and `parameter_admin_routes.py`
   permits it. _(R3.1, C-SCHEMA)_
-- [ ] **2.2 Add `backend/src/config/members_parameters.json`** — the typed-editor definitions,
+- [x] **2.2 Add `backend/src/config/members_parameters.json`** — the typed-editor definitions,
   extending the ledger def language with `list<object>` (scope_dimensions, view_contexts,
   `functional_groups`) and `map<field_def>` (field_overlay, each field carrying `functional_group`).
   _(R3.1, R3.2, R4.9, C-SCHEMA)_
-- [ ] **2.3 Add `GET /api/config/members-parameters`** in `config_routes.py` (analogous to
+- [x] **2.3 Add `GET /api/config/members-parameters`** in `config_routes.py` (analogous to
   `ledger-parameters`) serving 2.2. _(R3.1, C-SCHEMA)_
-- [ ] **2.4 Backend save validation:** on PUT of `members.view_contexts`, reject any `field_key` not
+- [x] **2.4 Backend save validation:** on PUT of `members.view_contexts`, reject any `field_key` not
   resolvable in the tenant's field set; on `members.field_overlay`, reuse
   `FieldResolver._reject_invalid_overlay` semantics (fail-fast) AND reject any `functional_group` not
   present in the `functional_groups` catalog. _(R5.1a, R4.9, C-SCHEMA/C-VIEW; Property 7)_
-- [ ] **2.5 Members typed editor UI** in `frontend/src/components/TenantAdmin/` reusing the
+- [x] **2.5 Members typed editor UI** in `frontend/src/components/TenantAdmin/` reusing the
   `AccountModal.tsx` renderer, extended for `list<object>` + `map<field_def>`: sub-editors for the
   functional-group catalog, field overlay (each field assigned a `functional_group` from the
   catalog + `fixed_overrides` incl. `functional_group`), scope dimensions, and view contexts.
   **Enum options** are authored as `{ value, label{nl,en}, roles? }` (per-option role restriction,
   R4.12) on fixed-field enum values + overlay-field `choices`. Pickers offer only defined groups /
   resolvable field keys. _(R3.2, R4.9, R4.11, R4.12, C-EDITOR)_
-- [ ] **2.6 Save-once + unsaved-changes guard:** each sub-editor commits its whole object in one PUT;
+- [x] **2.6 Save-once + unsaved-changes guard:** each sub-editor commits its whole object in one PUT;
   warn on navigate-away with unsaved edits. No draft/publish, no raw-JSON path. _(R3.3, R3.5, R3.6,
   C-EDITOR; Property 8)_
-- [ ] **2.7 Tests:** namespace gating in `get_schema_for_tenant`; definition endpoint; save-once →
+- [x] **2.7 Tests:** namespace gating in `get_schema_for_tenant`; definition endpoint; save-once →
   single `enqueue_sync` (Property 8); dangling-reference rejection for BOTH view-context `field_key`s
   and field `functional_group`s (Property 7); editor rendering of the composite types
   (functional-group catalog, field overlay w/ group assignment, scope dimensions, view contexts) +
@@ -230,19 +230,19 @@ channel.
 
 ## Phase 3 — View contexts end-to-end (parameter → projection → generic renderer)
 
-- [ ] **3.1 Decide + implement the `view_contexts` projection shape** (Open Design Item 1: sibling
+- [x] **3.1 Decide + implement the `view_contexts` projection shape** (Open Design Item 1: sibling
   `config#views` row vs fold into `config#fields`). Extend `projection_sync.py` builder + the module
   reader accordingly; empty → one default context. _(R5.1, C-VIEW; design Open Item 1)_
-- [ ] **3.2 View-contexts provider** in the module reader (mirrors `ScopeConfigProvider` /
+- [x] **3.2 View-contexts provider** in the module reader (mirrors `ScopeConfigProvider` /
   `TenantOverlayProvider`); expose contexts on `GET /members/field-config` (or a sibling field on the
   resolved config). _(R5.1, C-VIEW)_
-- [ ] **3.3 Generic renderer** on `MembersPage`: context dropdown gated by `permission_roles`;
+- [x] **3.3 Generic renderer** on `MembersPage`: context dropdown gated by `permission_roles`;
   per-selected-context hand `{columns, filterableColumns, defaultSort, pageSize}` to the existing
   `useFilterableTable` / `FilterableHeader`. Unresolvable key → skipped, not crash. _(R5.1, R5.1a,
   C-VIEW; Property 7)_
-- [ ] **3.4 Seed 2–3 generic-placeholder contexts** (overview + one specialized) as onboarding data
+- [x] **3.4 Seed 2–3 generic-placeholder contexts** (overview + one specialized) as onboarding data
   (not code). _(R5.1, R4.5)_
-- [ ] **3.5 Tests:** Property 7 (reference resolution/skip); per-context column rendering; dropdown
+- [x] **3.5 Tests:** Property 7 (reference resolution/skip); per-context column rendering; dropdown
   permission gating; empty-is-valid default context. _(R5.1, R5.1a, Property 7)_
 
 **Dependencies:** Phase 2. **Deliverable:** multiple selectable, parameter-driven view contexts.
@@ -251,13 +251,13 @@ channel.
 
 ## Phase 4 — Representative surface + modals (broaden the s5b frontend)
 
-- [ ] **4.1 Parameter-driven columns + calculated columns** wired to the resolved field config +
+- [x] **4.1 Parameter-driven columns + calculated columns** wired to the resolved field config +
   selected view context. _(R5.1, R5.2, C-SURFACE)_
-- [ ] **4.2 Scope badge + scope filtering** surfaced from the projected `scopegrant#` via
+- [x] **4.2 Scope badge + scope filtering** surfaced from the projected `scopegrant#` via
   `resolve_scope_access` (reuse); values from `config#scope`. Applies regardless of context. _(R5.3,
   R5.4, C-SCOPE)_
-- [ ] **4.3 Filters/sort/stats** via the shared toolkit per context (reuse). _(R5.4, C-SURFACE)_
-- [ ] **4.4 View / edit / add / delete modals** over the resolved field set, **sectioned by
+- [x] **4.3 Filters/sort/stats** via the shared toolkit per context (reuse). _(R5.4, C-SURFACE)_
+- [x] **4.4 View / edit / add / delete modals** over the resolved field set, **sectioned by
   `functional_group`** (display), honoring field-level view/edit permissions, **`show_when`
   conditional visibility**, and **value-level role-restricted enum options** (dropdowns render options
   from the correct source per R4.11, filtered to the caller's permitted values; the domain rejects
@@ -265,12 +265,12 @@ channel.
   `Members_CRUD` (typed, validated against the tenant format pattern, then held unique by the
   repository); do NOT build platform auto-numbering — h-dcn's auto-counter stays in its
   `derive_member_number` tenant hook. _(R5.5, R4.8, R4.9, R4.11, R4.12, C-SURFACE)_
-- [ ] **4.5 Export** wired to `export_members` (remove "coming soon"). _(R5.6, C-SURFACE)_
-- [ ] **4.6 Single + bulk transitions, deliberately limited** — do not over-build the state machine.
+- [x] **4.5 Export** wired to `export_members` (remove "coming soon"). _(R5.6, C-SURFACE)_
+- [x] **4.6 Single + bulk transitions, deliberately limited** — do not over-build the state machine.
   _(R5.7, C-SURFACE)_
-- [ ] **4.7 Membership-type dropdown** of active catalog entries, domain-validated (reuse s5
+- [x] **4.7 Membership-type dropdown** of active catalog entries, domain-validated (reuse s5
   catalog). _(R5.8, C-SURFACE)_
-- [ ] **4.8 Tests:** modals over resolved fields; scope badge + filtering; export; transition limits;
+- [x] **4.8 Tests:** modals over resolved fields; scope badge + filtering; export; transition limits;
   catalog dropdown; **value-level role-restricted enum** (frontend filters options by role; domain
   rejects a disallowed value — 422/403); **`show_when`** conditional visibility (hidden field not
   required). _(R5, R4.11, R4.12)_
@@ -286,19 +286,19 @@ channel.
 > `<<<DONE marker>>>`, exit `-1` ≠ failure, `--output json`) and `23-aws-accounts.md` (profiles:
 > identity `personal`/344561557829, data `nonprofit-deploy`/506221081911; `eu-west-1`).
 
-- [ ] **5.1 Repoint module Cognito config** to `myAdmin-test` for local + CI: `HDCN_COGNITO_ISSUER`
+- [x] **5.1 Repoint module Cognito config** to `myAdmin-test` for local + CI: `HDCN_COGNITO_ISSUER`
   = `…/eu-west-1_xyrlzfqbl`, matching JWKS URI, `HDCN_COGNITO_CLIENT_ID` =
   `43s15cm8qcgg8an85udt0e087u`. _(R2.1, R2.2, C-POOL)_
-- [ ] **5.2 `[H]` Deploy the PreTokenGen Lambda to the data account (506221081911)**; confirm
+- [x] **5.2 `[H]` Deploy the PreTokenGen Lambda to the data account (506221081911)**; confirm
   same-account read of `governance_projection`. _(R1.2, R1.5, C-PTG)_
-- [ ] **5.3 `[H]` Attach the trigger to `myAdmin-test` (identity account 344561557829)** + the
+- [x] **5.3 `[H]` Attach the trigger to `myAdmin-test` (identity account 344561557829)** + the
   cross-account `aws_lambda_permission` (invoke crosses accounts; data read does not). _(R1.1, R1.2,
   C-PTG)_
-- [ ] **5.4 Seed a `myAdmin-test` user** whose projected entitlement is non-empty (via the governance
+- [x] **5.4 Seed a `myAdmin-test` user** whose projected entitlement is non-empty (via the governance
   path — Phase 6 onboarding, or a throwaway Members-enabled test tenant). _(R1.3, C-PTG)_
-- [ ] **5.5 Prove the channel:** decoded test-pool token carries `custom:entitlements`; the module
+- [x] **5.5 Prove the channel:** decoded test-pool token carries `custom:entitlements`; the module
   authorizes off it with **zero `cognito:groups`** reliance (Property 5). _(R1.3, Property 5)_
-- [ ] **5.6 Prove fail-safe + detach-reversible:** resolution failure omits the claim (login still
+- [x] **5.6 Prove fail-safe + detach-reversible:** resolution failure omits the claim (login still
   succeeds); detaching the trigger restores prior behavior (Property 6). _(R1.4, R12.5, Property 6)_
 
 **Dependencies:** Phase 0 (fallbacks gone). Runs in parallel with Phases 1–4. **Deliverable:** the
@@ -313,11 +313,11 @@ capability channel is real in dev/test.
 > `42-local-dynamodb-testing.md` (Docker `myadmin-local`, `dynamodb-local`); Flask-plane writes obey
 > `31-backend-database-flask-mysql.md`.
 
-- [ ] **6.1 Governance track (SPA):** onboard the (test) h-dcn tenant via **SysAdmin** (tenant +
+- [x] **6.1 Governance track (SPA):** onboard the (test) h-dcn tenant via **SysAdmin** (tenant +
   `MEMBERS` entitlement + role definitions) and **Tenant-Admin** (user role assignments + author the
   three `members.*` params via the Phase 2 editor). Observe `enqueue_sync` → projection at each write
   (F.8). Role assignments flow through the endpoints only. _(R8.1, R8.5, C-PLAYBOOK)_
-- [ ] **6.2 Data/migration script — member import** (Google-Sheet → `sam-members` DynamoDB).
+- [x] **6.2 Data/migration script — member import** (Google-Sheet → `sam-members` DynamoDB).
   **REUSE `sam/members/migration/hdcn_backfill.py`** (already built): the Google Sheet is consumed as
   a **CSV/JSON export file** via `FileSourceAdapter` (no live Google API); `map_hdcn_row` transforms +
   `validate_fixed_fields` each row; `build_backfill_plan` produces the dry-run report
@@ -335,14 +335,14 @@ capability channel is real in dev/test.
     `dynamodb-local` (`localhost:8000`, steering 42) for dev/test; prod `sam-members` in Phase 7.3
     (`nonprofit-deploy` profile). Idempotent, **dry-run first**, verify summary; the export file /
     logs under `.agent-output/`. _(R8.2, R8.3, R4.6, R4.8, C-PLAYBOOK)_
-- [ ] **6.3 Data/migration script — membership-type catalog seed:** idempotent, dry-run, verify.
+- [x] **6.3 Data/migration script — membership-type catalog seed:** idempotent, dry-run, verify.
   _(R8.2, R8.3, C-PLAYBOOK)_
-- [ ] **6.4 Data/migration script — bulk Cognito user load** into `myAdmin-test` from an editable
+- [x] **6.4 Data/migration script — bulk Cognito user load** into `myAdmin-test` from an editable
   file derived from the h-dcn pool (~10×2 + 3 users, capability + scope); users by script, role
   assignments via the governance endpoint. Idempotent, dry-run, verify. _(R8.2, R8.3, C-PLAYBOOK)_
-- [ ] **6.5 Confirm the reconciliation backstop** is scheduled/runnable in dev/test. _(R8.6,
+- [x] **6.5 Confirm the reconciliation backstop** is scheduled/runnable in dev/test. _(R8.6,
   C-PLAYBOOK)_
-- [ ] **6.6 End-to-end dev/test verification:** a scoped user sees only their subset; a general user
+- [x] **6.6 End-to-end dev/test verification:** a scoped user sees only their subset; a general user
   sees all; capability via `custom:entitlements`; all three channels demonstrably propagate a real
   SPA write to a module read. _(R7.4 analog in dev/test, R8, Properties 2/4/5)_
 
