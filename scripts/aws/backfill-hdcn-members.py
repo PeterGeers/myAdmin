@@ -221,6 +221,7 @@ def backfill(
     tenant_id: str = HDCN_TENANT_ID,
     fmt: str | None = None,
     known_codes: list[str] | None = None,
+    members_config_path: str | None = None,
     repo: DynamoDbMembersRepository | None = None,
 ) -> int:
     """Run the backfill (dry-run or apply). Returns a process exit code.
@@ -239,8 +240,31 @@ def backfill(
     table_name = td.resolve_members_table_name()
 
     type_mapper = MembershipTypeMapper(known_codes=known_codes) if known_codes else MembershipTypeMapper()
+
+    # A.10/D17: the canonical region vocabulary is TENANT DATA — loaded from the onboarding
+    # members-config file (the SAME source that fills `members.scope_dimensions`), NEVER a core
+    # constant. Without it, regions are kept verbatim (and would surface as R9.5 offenders), so
+    # for a real apply the caller SHOULD pass --members-config so importer + enforcement agree.
+    region_canonicalizer = None
+    if members_config_path:
+        import importlib.util
+
+        _loader_path = os.path.join(
+            _REPO_ROOT, "scripts", "aws", "h-dcn", "members_config_loader.py"
+        )
+        _spec = importlib.util.spec_from_file_location("members_config_loader", _loader_path)
+        _loader = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_loader)  # type: ignore[union-attr]
+        cfg = _loader.load_members_config(members_config_path)
+        region_canonicalizer = _loader.region_canonicalizer(cfg)
+
     adapter = FileSourceAdapter(source_path, fmt=fmt)
-    plan = build_backfill_plan(adapter, type_mapper=type_mapper, tenant_id=tenant_id)
+    plan = build_backfill_plan(
+        adapter,
+        type_mapper=type_mapper,
+        tenant_id=tenant_id,
+        region_canonicalizer=region_canonicalizer,
+    )
 
     # Classify the source header so the report LISTS the tolerated unmapped/extra columns
     # (task 6.2). A fresh read-only adapter probe — the source is never written.
@@ -315,6 +339,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("AWS_REGION", DEFAULT_REGION),
         help=f"AWS region (default: env AWS_REGION or {DEFAULT_REGION}).",
     )
+    parser.add_argument(
+        "--members-config",
+        default=None,
+        help="Path to the tenant members-config JSON (e.g. scripts/aws/h-dcn/members_config.json) "
+        "— the SAME file that fills members.scope_dimensions. Its region values are the canonical "
+        "target the importer normalizes `region` onto (D17: tenant data, not a core constant). "
+        "STRONGLY recommended for a real --apply so member regions match the scope grants; if "
+        "omitted, regions are kept verbatim (and would surface as R9.5 offenders).",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--apply",
@@ -343,6 +376,7 @@ def main(argv: list[str] | None = None) -> int:
             tenant_id=args.tenant,
             fmt=args.format,
             known_codes=args.known_codes,
+            members_config_path=args.members_config,
         )
     except Exception as exc:  # noqa: BLE001 — surface any failure to the CLI
         print(f"ERROR: {exc}", file=sys.stderr)

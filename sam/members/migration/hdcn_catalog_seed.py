@@ -88,6 +88,9 @@ HDCN_MEMBERSHIP_TYPES: tuple[MembershipTypeEntry, ...] = (
     _hdcn_entry("donateur", "Donateur", "Donor", 30),
     _hdcn_entry("gezins_donateur", "Gezinsdonateur", "Family donor", 35),
     _hdcn_entry("sponsor", "Sponsor", "Sponsor", 40),
+    # A.4: "Overig" (Other) — the catch-all membership type. Admin-gated at the option level
+    # (ONBOARDING §4 bucket 3); seeded here so a backfilled member mapped to `overig` resolves.
+    _hdcn_entry("overig", "Overig", "Other", 50),
 )
 
 

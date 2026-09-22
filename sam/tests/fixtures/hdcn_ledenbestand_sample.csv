@@ -1,5 +1,5 @@
-member_id,lidnummer,voornaam,naam,email,adres,geboortedatum,status,lidmaatschapstype,ingangsdatum,einddatum,regio,motortype,kenteken
-M-1001,1001,Alex,de Vries,alex@example.com,Dorpsstraat 1,1980-05-12,actief,Erelid,2010-01-01,,Noord,Honda CB500,AB-12-CD
-M-1002,1002,Bram,Jansen,bram@example.com,Kerkweg 22,1975-11-03,actief,Donateur,2012-06-15,,zuid,Yamaha MT-07,EF-34-GH
-M-1003,1003,Cara,Smit,cara@example.com,,1990-02-28,geschorst,Sponsor,2018-09-01,,Oost,,
-M-1004,1004,Dirk,Bakker,dirk@example.com,Molenlaan 8,1968-07-19,vertrokken,Gewoon lid,2005-03-10,2022-12-31,West,BMW R1250,IJ-56-KL
+Lidnummer,Voornaam,Achternaam,E-mailadres,Straat en huisnummer,Soort lidmaatschap,Datum ondertekening,Regio,motor,Kenteken
+1001,Alex,de Vries,alex@example.com,Dorpsstraat 1,Erelid,2010-01-01T00:00:00.000Z,North,Honda CB500,AB-12-CD
+1002,Bram,Jansen,bram@example.com,Kerkweg 22,Donateur,2012-06-15T00:00:00.000Z,south,Yamaha MT-07,EF-34-GH
+1003,Cara,Smit,cara@example.com,Kade 3,Sponsor,2018-09-01T00:00:00.000Z,East,Kawasaki Z650,MN-78-OP
+1004,Dirk,Bakker,dirk@example.com,Molenlaan 8,Gewoon lid,2005-03-10T00:00:00.000Z,West,BMW R1250,IJ-56-KL

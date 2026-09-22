@@ -35,10 +35,12 @@ The catalog itself is seeded by task 4.2; this backfill only *maps to* a ``type_
 from __future__ import annotations
 
 import csv
+import datetime as _dt
 import io
 import json
 import os
 import re
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Iterator, Mapping, Optional, Protocol, Sequence
 
@@ -47,13 +49,14 @@ from sam.members.domain.fixed_fields import (
     validate_fixed_fields,
 )
 from sam.members.domain.scope_canon import scope_canon
-from sam.members.domain.scope_dimensions import HDCN_SCOPE_CONFIG
 
 __all__ = [
     "HDCN_TENANT_ID",
     "FIXED_SOURCE_COLUMNS",
     "MembershipTypeMapper",
+    "RegionCanonicalizer",
     "RowTransformError",
+    "RowSkipped",
     "map_hdcn_row",
     "HdcnSourceAdapter",
     "FileSourceAdapter",
@@ -69,26 +72,51 @@ __all__ = [
 #: migrated records. It must NOT become an ``if tenant == "h-dcn"`` branch in the generic core.
 HDCN_TENANT_ID = "h-dcn"
 
-#: The h-dcn ``region`` dimension's canonical value set (Noord/Zuid/Oost/West), sourced from
-#: ``scope_dimensions.HDCN_SCOPE_CONFIG`` so the importer and enforcement share ONE vocabulary
-#: (no drift). This is the closed set of canonical values the member's ``region`` field may
-#: hold after normalization.
-_HDCN_REGION_VALUES: tuple[str, ...] = next(
-    (tuple(d.values) for d in HDCN_SCOPE_CONFIG if d.key == "region"),
-    (),
-)
+class RegionCanonicalizer:
+    """Normalizes a raw export region onto a tenant's CANONICAL value set (A.10 / D17).
 
-#: Region normalization via the SHARED ``scope_canon`` (S5d R9.2, D5): a raw export value is
-#: matched against the dimension's canonical value set by canonical equality (``scope_canon``
-#: applied identically to both sides — case / diacritic / separator fold), so lowercase /
-#: accented / spacing variants land on the dimension's canonical spelling (e.g. ``"noord"`` →
-#: ``"Noord"``). This is the SAME canonicalizer enforcement uses, so a stored member value and
-#: a granted value share one vocabulary (Property 4). An unknown region (no canonical match) is
-#: preserved verbatim and surfaced in the report — the transform never silently drops data
-#: (R9.3), and the R9.5 verification (task 2.4) flags any such un-normalizable value.
-_REGION_CANONICAL_BY_CANON: Mapping[str, str] = {
-    scope_canon(v): v for v in _HDCN_REGION_VALUES
-}
+    The canonical vocabulary is **TENANT DATA**, injected — it is NOT sourced from any core
+    constant (the generic core ships no tenant's regions). Onboarding passes the same value
+    set it authors into ``members.scope_dimensions`` (from ``scripts/aws/h-dcn/members_config.json``)
+    so the importer and enforcement share ONE vocabulary (Property 4, no drift).
+
+    Two-step match (S5d R9.2/D5):
+    1. an optional spelling ALIAS keyed by ``scope_canon`` of the raw value (for a genuine
+       letter difference ``scope_canon`` cannot fold — e.g. h-dcn's ``Drente`` → ``Drenthe``),
+       then
+    2. canonical-equality against the value set (``scope_canon`` on both sides — case /
+       diacritic / separator fold).
+
+    An unknown region (no alias, no canonical match) is preserved VERBATIM (trimmed) and thus
+    surfaced by the R9.5 verification (R9.3) — never silently dropped. An EMPTY canonicalizer
+    (no values) leaves every value verbatim; callers that need canonicalization MUST supply the
+    tenant's values (there is no hidden default vocabulary).
+    """
+
+    def __init__(
+        self,
+        values: Iterable[str] = (),
+        *,
+        aliases: Optional[Mapping[str, str]] = None,
+    ):
+        self._canonical_by_canon: dict[str, str] = {scope_canon(v): v for v in values}
+        # aliases: raw spelling -> canonical value; matched on the raw's scope_canon.
+        self._alias_by_canon: dict[str, str] = {
+            scope_canon(raw): canonical for raw, canonical in (aliases or {}).items()
+        }
+
+    def canonical(self, value: str) -> str:
+        canon = scope_canon(value)
+        if not canon:
+            return value.strip()
+        if canon in self._alias_by_canon:
+            return self._alias_by_canon[canon]
+        return self._canonical_by_canon.get(canon, value.strip())
+
+
+#: A neutral EMPTY canonicalizer — the safe default when a caller supplies no tenant vocabulary
+#: (every region kept verbatim). Real onboarding/tests pass a populated RegionCanonicalizer.
+_NULL_REGION_CANONICALIZER = RegionCanonicalizer()
 
 
 # ── Source-column contract (the h-dcn Ledenbestand shape the transform reads) ─────────
@@ -97,15 +125,17 @@ _REGION_CANONICAL_BY_CANON: Mapping[str, str] = {
 #: (Google Sheet) columns → member-record fixed fields. Any column NOT named here (and not the
 #: region/type columns below) is treated as a club/Motor detail and folded into ``overlay``.
 FIXED_SOURCE_COLUMNS: Mapping[str, str] = {
-    # source column      -> dotted member-record fixed key (s5c canonical EN keys)
-    "member_id": "member_id",
-    # `naam` is h-dcn's single display-name column; the s5c base splits name into
-    # first_name/last_name/name_infix/initials. Splitting a free-form `naam` reliably is
-    # h-dcn's concern (its export can carry the parts), so for the reused backfill we map the
-    # single `naam` column onto the required `personal.last_name` (so a name-only export still
-    # produces a valid fixed record); an export that already carries `voornaam`/`achternaam`
-    # etc. maps them directly via the entries below. (Judgment aligned to the classification
-    # table; noted in the task report.)
+    # source column (LOWER-CASED; the transform matches on `col.strip().lower()`)
+    #                      -> dotted member-record fixed key (s5c canonical EN keys)
+    #
+    # NOTE (A.2, verified against the real Ledenbestand.json export 2026-09-22): the export
+    # has NO `member_id` column — the internal `member_id` is MINTED as a uuid4 by the
+    # transform (stable/opaque, decoupled from the human number). The human number is
+    # `Lidnummer` -> `membership.member_number` (shaped to `M00001` at map time). Column
+    # headers are capitalized / multi-word in the source; keys here are the lower-cased form.
+    #
+    # `naam` is a single display-name fallback (older exports); the current export carries the
+    # split parts (`Voornaam`/`Achternaam`/...), which map directly below.
     "naam": "personal.last_name",
     "voornaam": "personal.first_name",
     "achternaam": "personal.last_name",
@@ -113,24 +143,41 @@ FIXED_SOURCE_COLUMNS: Mapping[str, str] = {
     "initialen": "personal.initials",
     "geslacht": "personal.gender",
     "telefoon": "personal.phone",
+    "telefoonnummer": "personal.phone",  # real export header
     "email": "personal.email",
-    # `adres` is h-dcn's single address column; the s5c base splits address into
-    # street/postal_code/city/country (all stored under `personal`). Map the single `adres`
-    # column onto `personal.street` (the primary address line); split columns map directly.
+    "e-mailadres": "personal.email",  # real export header
+    # `adres` is a single address-line fallback; `straat` / `straat en huisnummer` are the
+    # real headers. The s5c base splits address into street/postal_code/city/country (stored
+    # under `personal`); map the primary line onto `personal.street`.
     "adres": "personal.street",
     "straat": "personal.street",
+    "straat en huisnummer": "personal.street",  # real export header
     "postcode": "personal.postal_code",
     "woonplaats": "personal.city",
     "land": "personal.country",
-    "geboortedatum": "personal.birth_date",
+    # NOTE: `birth_date` is NOT imported as a fixed field. h-dcn treats it as a CALCULATED
+    # field (day+month only — "geboorte datum zonder jaar", a privacy choice), so `Geboorte
+    # datum` / `Geboortedag` / `Geboortemaand` / `Geboortejaar` are NOT mapped here; they fold
+    # into overlay (available if a later calculated field wants them). `personal.birth_date`
+    # stays unset (it is optional in the fixed registry).
     "lidnummer": "membership.member_number",
-    "status": "membership.status",
     "lidmaatschapstype": "membership.membership_type",
-    "ingangsdatum": "membership.joined_date",
-    # NOTE: `einddatum` (the h-dcn "left" date) has no Fixed row in the s5c classification
-    # table (the `left` STATUS is kept via MembershipStatus; there is no `left` *field*), so it
-    # is an unmapped column and folds into `overlay` per the Phase 6 import rule.
+    "soort lidmaatschap": "membership.membership_type",  # real export header
+    # NOTE: `membership.status` and `membership.joined_date` are NOT simple column maps — they
+    # are DERIVED after the column loop (see below):
+    #   * status: the export has NO status column → default to "active" (all Ledenbestand rows
+    #     are current members; a later refactor may derive left/lapsed from Afmelding/Beeindiging).
+    #   * joined_date: date-part of `Datum ondertekening`, falling back to `<Aanmeldingsjaar>-01-01`.
+    # NOTE: `einddatum`/`Afmelding`/`Beeindiging` (the h-dcn "left" dates) have no Fixed row in
+    # the s5c classification table, so they fold into `overlay`. `Aanmeldingsjaar` is a
+    # CALCULATED field (used here only as a joined_date fallback input, never stored as fixed).
 }
+
+#: Source columns for the DERIVED membership fields (status default + joined_date). Kept as
+#: named constants so the derivation and the "unmapped column" fold agree on the exact headers.
+_SIGNED_DATE_COLUMN = "datum ondertekening"      # ISO datetime → joined_date (date part)
+_JOIN_YEAR_COLUMN = "aanmeldingsjaar"            # 4-digit year → joined_date fallback (<year>-01-01)
+_DEFAULT_MEMBERSHIP_STATUS = "active"            # no status column in the export (A.2 decision)
 
 #: The source column carrying the h-dcn region (normalized onto the ``overlay.region`` field).
 _REGION_SOURCE_COLUMN = "regio"
@@ -176,6 +223,25 @@ class RowTransformError(Exception):
         super().__init__(f"row {member_ref!r} could not be mapped: {detail}")
 
 
+class RowSkipped(Exception):
+    """Raised when a source row is intentionally NOT a member and is skipped (not an error).
+
+    A member record's identity is its ``member_number``; a row with NONE (an empty export
+    scaffold row, or a clubblad/magazine distribution entry for an organisation — a dealer,
+    sister club, or sponsor with no ``Lidnummer``) is not a member. These belong in a future
+    CONTACT table, not ``sam-members``. The runner counts them as SKIPPED — reported for
+    transparency, but never blocking ``--apply`` the way a real mapping error does.
+
+    Carries ``reason`` (why it was skipped) and ``label`` (a best-effort human identifier —
+    e.g. the organisation name — for the report).
+    """
+
+    def __init__(self, reason: str, *, label: str = "<empty>"):
+        self.reason = reason
+        self.label = label
+        super().__init__(f"row {label!r} skipped: {reason}")
+
+
 # ── membership_type → catalog code mapping (C8; decoupled from the 4.2 seed) ──────────
 
 
@@ -212,6 +278,18 @@ class MembershipTypeMapper:
         "gezins donateur": "gezins_donateur",
         "gezinsdonateur": "gezins_donateur",
         "family donor": "gezins_donateur",
+        # A.4: `overig` ("Other") — an admin-gated catalog type (ONBOARDING §4 bucket 3).
+        "overig": "overig",
+        "other": "overig",
+        # Real Ledenbestand spelling variants (census 2026-09-22) folded onto the 6+1 codes:
+        "ere lid": "erelid",                              # "Ere lid" (spaced) → erelid
+        "gezins donateur zonder motor": "gezins_donateur",  # "...zonder motor" is not a type axis
+        "donateur zonder motor": "donateur",
+        # A.4 decision (ONBOARDING §6.1): "Clubblad" on a NUMBERED member → `overig`.
+        # Clubblad is a magazine subscription, not a real membership type; a member who
+        # carries it is imported as type "Other". (Clubblad ORGANISATION rows have no member
+        # number and are skipped entirely — they never reach the type mapper.)
+        "clubblad": "overig",
     }
 
     def __init__(
@@ -266,20 +344,73 @@ def _clean(value: Any) -> Optional[str]:
     return value  # non-string (already-typed) values pass through
 
 
-def _canonical_region(value: str) -> str:
-    """Normalize a raw region to the dimension's canonical value via the shared ``scope_canon``.
+#: Member-number format (A.2 / ONBOARDING §3): the human member number is a Fixed **string**,
+#: prefix ``M`` + a zero-padded 5-digit sequence (``M00001``) so it sorts lexicographically
+#: (``M00001`` < ``M00002`` < … < ``M00010``) — a bare integer would sort ``1, 10, 2``. The
+#: tenant format pattern authored in ``members.field_overlay`` is ``^M\d{5}$``; the backfill
+#: shapes the source ``Lidnummer`` to match it here.
+_MEMBER_NUMBER_PREFIX = "M"
+_MEMBER_NUMBER_WIDTH = 5
+_DIGITS_RE = re.compile(r"\d+")
 
-    S5d R9.2/D5: the raw export value is matched against the dimension's canonical value set by
-    canonical equality (``scope_canon`` applied to both sides), so case / diacritic / separator
-    variants (``"noord"``, ``"NOORD"``, ``"Noord "``) all land on the canonical spelling
-    (``"Noord"``). This is the SAME canonicalizer enforcement uses, so a stored member value and
-    a granted value share one vocabulary (Property 4). An un-normalizable value (no canonical
-    match) is preserved verbatim rather than silently dropped (R9.3 — surfaced by the runner and
-    the R9.5 verification, task 2.4)."""
-    canon = scope_canon(value)
-    if not canon:
-        return value.strip()
-    return _REGION_CANONICAL_BY_CANON.get(canon, value.strip())
+
+_ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
+_YEAR_RE = re.compile(r"^\s*(\d{4})\s*$")
+
+
+def _skip_label(personal: Mapping[str, Any], overlay: Mapping[str, Any]) -> str:
+    """A best-effort human identifier for a SKIPPED row (for the report).
+
+    Prefers the name parts already mapped (last/first), else any overlay ``naam``-like value,
+    else ``<empty>``. Purely cosmetic — used only in the skipped-rows report.
+    """
+    last = str(personal.get("last_name", "")).strip()
+    first = str(personal.get("first_name", "")).strip()
+    name = " ".join(p for p in (first, last) if p)
+    return name or "<empty>"
+
+
+def _iso_date_part(raw: Any) -> Optional[str]:
+    """Extract the ``YYYY-MM-DD`` date part from a source date/datetime string, or None.
+
+    The h-dcn export carries dates as ISO datetimes (e.g. ``2023-04-12T22:00:00.000Z``); the
+    fixed registry wants a bare ISO calendar date. Takes the leading ``YYYY-MM-DD`` when present.
+    """
+    if raw is None:
+        return None
+    m = _ISO_DATE_PREFIX_RE.match(str(raw).strip())
+    return m.group(1) if m else None
+
+
+def _year_to_iso(raw: Any) -> Optional[str]:
+    """Map a bare year (e.g. ``"2023"``) to ``<year>-01-01``, or None if not a 4-digit year."""
+    if raw is None:
+        return None
+    m = _YEAR_RE.match(str(raw))
+    return f"{m.group(1)}-01-01" if m else None
+
+
+def _shape_member_number(raw: Any) -> Optional[str]:
+    """Shape a raw source member number to the ``M00001`` form, or return None if unusable.
+
+    Accepts an int, or a string that either already matches ``^M\\d{5}$`` (passed through) or
+    contains a run of digits (extracted + zero-padded to width, prefixed with ``M``). A value
+    with no digits yields ``None`` (the caller then records a missing-number reason).
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    # Already in the canonical shape (any digit count) → normalize the zero-padding to width.
+    if s[:1].upper() == _MEMBER_NUMBER_PREFIX and s[1:].isdigit():
+        digits = s[1:]
+    else:
+        m = _DIGITS_RE.search(s)
+        if not m:
+            return None
+        digits = m.group(0)
+    return f"{_MEMBER_NUMBER_PREFIX}{int(digits):0{_MEMBER_NUMBER_WIDTH}d}"
 
 
 def map_hdcn_row(
@@ -287,6 +418,7 @@ def map_hdcn_row(
     *,
     type_mapper: Optional[MembershipTypeMapper] = None,
     tenant_id: str = HDCN_TENANT_ID,
+    region_canonicalizer: Optional["RegionCanonicalizer"] = None,
 ) -> dict[str, Any]:
     """Map ONE raw h-dcn member row to a member record for the new model (pure, no I/O).
 
@@ -302,8 +434,10 @@ def map_hdcn_row(
 
     Steps:
     - **Fixed base split** — columns named in :data:`FIXED_SOURCE_COLUMNS` land under
-      ``personal`` / ``membership`` (+ the top-level ``member_id``); ``status`` is mapped
-      from h-dcn's Dutch vocabulary to the closed platform enum.
+      ``personal`` / ``membership``; ``status`` is mapped from h-dcn's Dutch vocabulary to the
+      closed platform enum; the source ``Lidnummer`` is shaped to the ``M00001``
+      ``member_number`` string. The top-level ``member_id`` is MINTED as a uuid4 (the export
+      has no member_id column; A.2/ONBOARDING §2).
     - **membership_type → catalog code** — the raw type value is mapped to a ``type_code``
       via ``type_mapper`` (C8; the catalog seed is task 4.2, kept decoupled).
     - **overlay.region (the scope field)** — the ``regio`` column is normalized to the
@@ -324,8 +458,9 @@ def map_hdcn_row(
     personal: dict[str, Any] = {}
     membership: dict[str, Any] = {}
     overlay: dict[str, Any] = {}
-    member_id: Optional[str] = None
     region_raw: Optional[str] = None
+    signed_date_raw: Any = None   # `Datum ondertekening` → joined_date (primary)
+    join_year_raw: Any = None     # `Aanmeldingsjaar` → joined_date fallback (calculated field)
     reasons: dict[str, str] = {}
 
     for column, value in raw_row.items():
@@ -337,6 +472,15 @@ def map_hdcn_row(
             region_raw = cleaned if isinstance(cleaned, str) else None
             continue
 
+        if col_lower == _SIGNED_DATE_COLUMN:
+            signed_date_raw = cleaned
+            continue
+        if col_lower == _JOIN_YEAR_COLUMN:
+            # Aanmeldingsjaar is a CALCULATED field — captured ONLY as a joined_date fallback
+            # input; NOT stored as a fixed/overlay field.
+            join_year_raw = cleaned
+            continue
+
         dotted = FIXED_SOURCE_COLUMNS.get(col_lower)
         if dotted is None:
             # Unknown column → a club/Motor variable overlay field (kept verbatim).
@@ -344,16 +488,15 @@ def map_hdcn_row(
                 overlay[col] = cleaned
             continue
 
-        if dotted == "member_id":
-            member_id = cleaned if isinstance(cleaned, str) else (str(cleaned) if cleaned is not None else None)
-            continue
-
         group, key = dotted.split(".", 1)
         target = personal if group == "personal" else membership
 
-        if key == "status" and isinstance(cleaned, str):
-            mapped = _STATUS_MAP.get(cleaned.strip().lower())
-            target[key] = mapped if mapped is not None else cleaned
+        if key == "member_number":
+            # A.2: shape the source `Lidnummer` to the sortable `M00001` string. A source
+            # value with no digits is unusable → recorded as a missing-number reason below.
+            shaped = _shape_member_number(cleaned)
+            if shaped is not None:
+                target[key] = shaped
         elif key == "membership_type":
             if cleaned is None:
                 reasons["membership.membership_type"] = "is required"
@@ -363,19 +506,50 @@ def map_hdcn_row(
                 except ValueError as exc:
                     reasons["membership.membership_type"] = str(exc)
         elif cleaned is not None:
-            target[key] = cleaned
+            # Fixed personal/membership fields reaching this branch are STRING-typed (dates
+            # are handled elsewhere). The JSON export carries some as numbers (e.g. Postcode /
+            # Telefoonnummer as ints), so coerce to a trimmed string to satisfy the string
+            # validator — no data loss, just a type fix (A.2).
+            target[key] = str(cleaned).strip() if not isinstance(cleaned, str) else cleaned
 
-    member_ref = member_id or membership.get("member_number") or "<unknown>"
+    # SKIP non-members: a row with no usable member number (Lidnummer) is NOT a member — an
+    # empty export scaffold row, or a clubblad/magazine distribution entry for an organisation
+    # (dealer / sister club / sponsor). These belong in a future CONTACT table, not
+    # `sam-members`. Skipping is intentional and NON-blocking (RowSkipped, not an error), so
+    # `--apply` is not choked by them. (A.2 decision: leave non-members out.)
+    if not membership.get("member_number"):
+        label = _skip_label(personal, overlay)
+        raise RowSkipped("no member number (Lidnummer) — not a member", label=label)
 
-    if not member_id:
-        reasons["member_id"] = "source row has no member_id / lidnummer to key on"
+    # A.2 DERIVED membership fields (no direct source column):
+    #  * status — the export has no status column → default to "active" (A.2 decision; all
+    #    Ledenbestand rows are current members). A later refactor may derive left/lapsed.
+    membership.setdefault("status", _DEFAULT_MEMBERSHIP_STATUS)
+    #  * joined_date — date-part of `Datum ondertekening`; if absent, `<Aanmeldingsjaar>-01-01`;
+    #    if STILL absent (a numbered member with no signing date and no join year), default to
+    #    today (sysdate) so a real member is never dropped for a missing join date (A.2 decision).
+    #    Aanmeldingsjaar is a calculated field, used here only as a fallback INPUT.
+    joined = (
+        _iso_date_part(signed_date_raw)
+        or _year_to_iso(join_year_raw)
+        or _dt.date.today().isoformat()
+    )
+    membership["joined_date"] = joined
+
+    # A.2: mint a STABLE internal id (uuid4) — the export carries no member_id, and the
+    # internal id is intentionally decoupled from the human `member_number` (which may be
+    # reformatted/renumbered without re-keying the record subtree). ONBOARDING §2.
+    member_id = str(uuid.uuid4())
+
+    member_ref = membership.get("member_number") or "<unknown>"
 
     # S5d D1/R3.4: the region is a PLAIN member field, not a `scope_values` bucket. h-dcn's
     # `region` is a tenant-added field → its storage bucket is `overlay`. Store the CANONICAL
     # value (normalized via the shared `scope_canon`, R9.2) as a SCALAR (single-valued per
     # scope field, R3.2). An absent region omits the field entirely (no empty placeholder).
     if region_raw:
-        overlay[_REGION_FIELD_KEY] = _canonical_region(region_raw)
+        canon = region_canonicalizer or _NULL_REGION_CANONICALIZER
+        overlay[_REGION_FIELD_KEY] = canon.canonical(region_raw)
 
     record: dict[str, Any] = {
         "tenant_id": tenant_id,
@@ -548,6 +722,9 @@ class BackfillPlan:
     transformed: list[TransformedRow] = field(default_factory=list)
     #: (member_ref, {dotted_key: reason}) for rows that failed to map — surfaced, never dropped.
     errors: list[tuple[str, Mapping[str, str]]] = field(default_factory=list)
+    #: (label, reason) for rows intentionally SKIPPED as non-members (no member number — an
+    #: empty scaffold row or a clubblad/organisation entry). Reported, NON-blocking for --apply.
+    skipped: list[tuple[str, str]] = field(default_factory=list)
     #: member numbers appearing on more than one row in this batch (would-be uniqueness conflicts).
     duplicate_member_numbers: dict[str, list[str]] = field(default_factory=dict)
     #: rows whose region did not resolve to a scope value (reported, not fatal).
@@ -560,6 +737,10 @@ class BackfillPlan:
     @property
     def error_count(self) -> int:
         return len(self.errors)
+
+    @property
+    def skipped_count(self) -> int:
+        return len(self.skipped)
 
     def field_mapping_summary(self) -> dict[str, int]:
         """Count, across successful rows, how many carry each fixed dotted field + overlay keys.
@@ -586,6 +767,7 @@ def build_backfill_plan(
     *,
     type_mapper: Optional[MembershipTypeMapper] = None,
     tenant_id: str = HDCN_TENANT_ID,
+    region_canonicalizer: Optional["RegionCanonicalizer"] = None,
 ) -> BackfillPlan:
     """Read the source (read-only) + transform every row into a :class:`BackfillPlan`.
 
@@ -596,37 +778,64 @@ def build_backfill_plan(
     (Property 6) so ``--apply`` can be trusted to report rather than overwrite.
     """
     plan = BackfillPlan(tenant_id=tenant_id, source_description=adapter.describe())
-    seen_numbers: dict[str, list[str]] = {}
+
+    # PASS 1: transform every row into a candidate; collect member-numbers so duplicates can
+    # be identified across the WHOLE batch (not just "already seen so far"). Skips/errors are
+    # recorded here; the region-missing tally is deferred to pass 2 (only kept rows count).
+    candidates: list[TransformedRow] = []
+    number_owners: dict[str, list[str]] = {}
 
     for raw in adapter.rows():
         plan.source_row_count += 1
         try:
-            record = map_hdcn_row(raw, type_mapper=type_mapper, tenant_id=tenant_id)
+            record = map_hdcn_row(
+                raw,
+                type_mapper=type_mapper,
+                tenant_id=tenant_id,
+                region_canonicalizer=region_canonicalizer,
+            )
+        except RowSkipped as exc:
+            plan.skipped.append((exc.label, exc.reason))
+            continue
         except RowTransformError as exc:
             plan.errors.append((exc.member_ref, exc.reasons))
             continue
 
-        member_id = record["member_id"]
         number = record["membership"]["member_number"]
-        type_code = record["membership"]["membership_type"]
-        # S5d D1: region is a plain scalar field on `overlay.region` now (no `scope_values`).
         region_value = record.get("overlay", {}).get(_REGION_FIELD_KEY)
-        region = (region_value,) if region_value else ()
-
-        plan.transformed.append(
+        candidates.append(
             TransformedRow(
-                member_id=member_id,
+                member_id=record["member_id"],
                 member_number=number,
-                member_type_code=type_code,
-                region=region,
+                member_type_code=record["membership"]["membership_type"],
+                region=(region_value,) if region_value else (),
                 record=record,
             )
         )
-        if not region:
-            plan.rows_missing_region.append(member_id)
-        seen_numbers.setdefault(number, []).append(member_id)
+        number_owners.setdefault(number, []).append(record["member_id"])
 
     plan.duplicate_member_numbers = {
-        number: ids for number, ids in seen_numbers.items() if len(ids) > 1
+        number: ids for number, ids in number_owners.items() if len(ids) > 1
     }
+
+    # PASS 2: LEAVE DUPLICATES OUT (user decision, ONBOARDING §6.1). A member number reused in
+    # the source is a data conflict (a recycled Lidnummer for a different person, or a true
+    # duplicate entry). Rather than an arbitrary "first-wins", SKIP **every** occurrence of a
+    # duplicated number — reported, non-blocking — so the data owner resolves the conflict in
+    # the source (assign new numbers / merge / drop) and re-runs. Only uniquely-numbered rows
+    # are written.
+    for cand in candidates:
+        if cand.member_number in plan.duplicate_member_numbers:
+            plan.skipped.append(
+                (
+                    cand.member_number,
+                    "duplicate member number in the batch — ALL occurrences left out; "
+                    "resolve the source conflict then re-run",
+                )
+            )
+            continue
+        plan.transformed.append(cand)
+        if not cand.region:
+            plan.rows_missing_region.append(cand.member_id)
+
     return plan

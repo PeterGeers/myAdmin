@@ -1064,6 +1064,48 @@ class MembershipService:
                 )
 
     @staticmethod
+    def _reject_invalid_overlay_enum_values(
+        config: ResolvedFieldConfig,
+        record: Member,
+        errors: Dict[str, str],
+        *,
+        previous: Optional[Member] = None,
+    ) -> None:
+        """Reject an OVERLAY enum value that is not one of the field's ``choices`` (A.5).
+
+        Overlay dropdowns (e.g. h-dcn ``motor_brand``) are tenant config: an enum overlay field
+        declares a closed ``choices`` list, and the domain — never the frontend — is the
+        authority for it (R2.3, same convenience/authority split as everything else). The fixed
+        registry validates only fixed enums; this closes the gap for tenant overlay enums.
+
+        **Partial-update-friendly (the "enforce for new, tolerate legacy" contract).** When
+        ``previous`` is given (an UPDATE), a field is only checked if the write actually CHANGES
+        its value — so an untouched legacy value that predates the closed list (or a value set
+        before an option was removed) does NOT block an unrelated edit (e.g. an address change).
+        On a CREATE (``previous is None``) every present overlay-enum value is checked. This
+        mirrors the ``membership_type`` "only-when-changed" rule (C8) so the two behave alike.
+
+        Only VARIABLE-origin (overlay) enum fields with a non-empty ``choices`` are considered;
+        an absent/blank value is left to the required-ness rule. An unknown value records a
+        "must be one of: …" error merged into ``errors`` (surfaced as a 422 by the caller).
+        """
+        for field in config.fields:
+            if field.origin is not FieldOrigin.VARIABLE:
+                continue
+            if field.type is not FieldType.ENUM or not field.choices:
+                continue
+            value = MembershipService._record_value(record, field)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                continue
+            if previous is not None:
+                # UPDATE: only enforce when the value actually changed (tolerate legacy).
+                if MembershipService._record_value(previous, field) == value:
+                    continue
+            if value not in field.choices:
+                allowed = ", ".join(field.choices)
+                errors[field.dotted_key()] = f"must be one of: {allowed}"
+
+    @staticmethod
     def _validate_member_number(
         config: ResolvedFieldConfig,
         record: Member,
@@ -1240,6 +1282,14 @@ class MembershipService:
         # convenience only — never trusted). A missing/unknown/retired reference → 422. This
         # CLOSES the loop 5.2 opened (it carried the value but deferred the catalog check).
         self._validate_membership_type_reference(tenant_id, record)
+        # A.5: authoritatively enforce OVERLAY enum dropdowns against their `choices` on create
+        # (every present value is checked — there is no prior state to tolerate).
+        overlay_enum_errors: Dict[str, str] = {}
+        self._reject_invalid_overlay_enum_values(
+            self._field_resolver.resolve(tenant_id), record, overlay_enum_errors
+        )
+        if overlay_enum_errors:
+            raise MemberValidationError(overlay_enum_errors)
         self._authorize_write(
             tenant_id,
             record,
@@ -1311,6 +1361,19 @@ class MembershipService:
         # SAME code is a no-op and is not re-validated).
         if self._membership_type_of(merged) != self._membership_type_of(existing):
             self._validate_membership_type_reference(tenant_id, merged)
+        # A.5: enforce OVERLAY enum dropdowns against their `choices`, but ONLY for a field the
+        # patch actually CHANGES (partial-update-friendly) — an untouched legacy value (e.g. a
+        # pre-existing off-list `motor_brand`) does NOT block an unrelated edit like an address
+        # change. Mirrors the membership_type "only-when-changed" rule above.
+        overlay_enum_errors: Dict[str, str] = {}
+        self._reject_invalid_overlay_enum_values(
+            self._field_resolver.resolve(tenant_id),
+            merged,
+            overlay_enum_errors,
+            previous=existing,
+        )
+        if overlay_enum_errors:
+            raise MemberValidationError(overlay_enum_errors)
         return self._repo.save_member(tenant_id, merged)
 
     def delete_member(

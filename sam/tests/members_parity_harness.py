@@ -69,11 +69,15 @@ from sam.members.domain.lifecycle_config import (
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.field_resolver import StaticOverlayProvider
 from sam.members.domain.scope_dimensions import (
-    HDCN_SCOPE_CONFIG,
+    SAMPLE_SCOPE_CONFIG,
     StaticScopeConfigProvider,
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
-from sam.members.migration.hdcn_backfill import MembershipTypeMapper, map_hdcn_row
+from sam.members.migration.hdcn_backfill import (
+    MembershipTypeMapper,
+    RegionCanonicalizer,
+    map_hdcn_row,
+)
 from sam.members.migration.hdcn_catalog_seed import HDCN_MEMBERSHIP_TYPES
 from sam.members.repository.members_repository import DynamoDbMembersRepository
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
@@ -88,8 +92,14 @@ from sam.tests.test_members_repository import FakeDynamoTable
 #: first (and only, for the pilot) tenant the wired config/hooks/catalog know about.
 PILOT_TENANT = "h-dcn"
 
-#: A representative pilot region (one of h-dcn's declared region scope values).
-PILOT_REGION = "Noord"
+#: Representative regions for the walkthrough — taken from the SYNTHETIC SAMPLE_SCOPE_CONFIG
+#: (North/South/…), NOT a real tenant vocabulary (D17). Derived so they always match the
+#: injected scope config.
+_SAMPLE_REGION_VALUES = tuple(
+    v for d in SAMPLE_SCOPE_CONFIG if d.key == "region" for v in d.values
+)
+PILOT_REGION = _SAMPLE_REGION_VALUES[0]        # "North"
+_SECOND_REGION = _SAMPLE_REGION_VALUES[1]      # "South"
 
 
 # ── The parity-report data structures (the harness emits + asserts on these) ──────────
@@ -272,7 +282,7 @@ _EMAIL_NOORD = "regio-noord@h-dcn.test"    # scoped to Noord
 #: the real projection reader would surface), keyed by (tenant_id, email).
 _HARNESS_GRANTS = {
     (PILOT_TENANT, _EMAIL_ALL): {"region": ["*"]},
-    (PILOT_TENANT, _EMAIL_NOORD): {"region": ["Noord"]},
+    (PILOT_TENANT, _EMAIL_NOORD): {"region": [PILOT_REGION]},
     # A caller with no region grant is deliberately ABSENT → deny-by-default (Property 4).
 }
 
@@ -353,7 +363,7 @@ class MembersParityHarness:
 
         app._get_membership_service = lambda: self.service  # type: ignore[assignment]
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
-            {self.tenant_id: HDCN_SCOPE_CONFIG}
+            {self.tenant_id: SAMPLE_SCOPE_CONFIG}
         )
         app._OVERLAY_PROVIDER_OVERRIDE = StaticOverlayProvider({})
         app._SCOPE_GRANTS_READER_OVERRIDE = FakeScopeGrantsReader(_HARNESS_GRANTS)
@@ -488,9 +498,9 @@ class MembersParityHarness:
 
         # Seed one member per region as admin, then check scope narrowing on reads.
         self.call("POST", "/members", body=self.valid_member_body(
-            "AUTHZ-N", region="Noord", member_number="A-1001"))
+            "AUTHZ-N", region=PILOT_REGION, member_number="A-1001"))
         self.call("POST", "/members", body=self.valid_member_body(
-            "AUTHZ-Z", region="Zuid", member_number="A-1002"))
+            "AUTHZ-Z", region=_SECOND_REGION, member_number="A-1002"))
 
         # Admin / Regio_All → tenant-wide (sees both regions).
         resp = self.call("GET", "/members", groups=("Regio_All",))
@@ -592,49 +602,58 @@ class MembersParityHarness:
             f"GET /membership-types (all) codes include retired: {'temp_retired' in all_codes}",
         )
 
-        # A backfilled member (4.1 transform on a fixture row) round-trips create → read.
+        # A backfilled member (4.1 transform on a REAL-shaped export row) round-trips create →
+        # read. Uses the real Ledenbestand column headers; the transform MINTS a uuid4
+        # member_id, shapes Lidnummer → M#####, defaults status→active, derives joined_date,
+        # and canonicalizes region via an INJECTED RegionCanonicalizer built from the synthetic
+        # sample vocabulary (D17 — tenant data injected, never a core constant).
+        region_lower = PILOT_REGION.lower()  # e.g. "north" — a case variant to canonicalize
         raw_row = {
-            "member_id": "BACKFILL-1",
-            "voornaam": "Bram",       # → personal.first_name (a required fixed field)
-            "naam": "Backfilled Bram",  # single-name column → personal.last_name (required)
-            "email": "bram@example.com",
-            "lidnummer": "L-9001",
-            "status": "actief",
-            "lidmaatschapstype": "Erelid",
-            "ingangsdatum": "2024-01-01",  # → membership.joined_date (a required fixed field)
-            "regio": "noord",
-            "motor": "BMW R80",  # a club/Motor detail → variable overlay
+            "Lidnummer": "9001",
+            "Voornaam": "Bram",
+            "Achternaam": "Backfilled",
+            "E-mailadres": "bram@example.com",
+            "Soort lidmaatschap": "Erelid",
+            "Datum ondertekening": "2024-01-01T00:00:00.000Z",
+            "Regio": region_lower,
+            "motor": "BMW R80",  # → overlay.motor (the h-dcn active-member hook requires it)
         }
-        record = map_hdcn_row(raw_row, type_mapper=MembershipTypeMapper(), tenant_id=self.tenant_id)
-        # S5d D1/R9.2: the transform normalizes the region onto the plain `overlay.region`
-        # scope field (a scalar) via the shared `scope_canon` — no `scope_values` bucket.
-        region_seeded = record.get("overlay", {}).get("region") == "Noord"
-        # The transform maps 'actief'→'active'; create it (needs a motor for the active hook —
-        # the fixture carries one in overlay).
+        canon = RegionCanonicalizer(_SAMPLE_REGION_VALUES)
+        record = map_hdcn_row(
+            raw_row,
+            type_mapper=MembershipTypeMapper(),
+            tenant_id=self.tenant_id,
+            region_canonicalizer=canon,
+        )
+        minted_id = record["member_id"]
+        # S5d D1/R9.2: region normalized onto the plain `overlay.region` scalar via the injected
+        # canonicalizer (case-variant "north" → canonical "North").
+        region_seeded = record.get("overlay", {}).get("region") == PILOT_REGION
         create = self.call("POST", "/members", body=record)
-        read = self.call("GET", "/members/BACKFILL-1", groups=("Regio_Noord",))
+        read = self.call("GET", f"/members/{minted_id}", groups=("Regio_All",))
         read_data = self.data(read) if read["statusCode"] == 200 else {}
+        stored_number = read_data.get("membership", {}).get("member_number")
         round_tripped = (
             create["statusCode"] == 200
             and read["statusCode"] == 200
-            and read_data.get("membership", {}).get("member_number") == "L-9001"
+            and stored_number == "M09001"  # Lidnummer 9001 → M{n:05d}
             and read_data.get("membership", {}).get("membership_type") == "erelid"
         )
         report.record(
             d, "backfilled member (4.1 transform) round-trips create→read", "create_member",
             Outcome.PASS if round_tripped else Outcome.FAIL,
             f"map_hdcn_row→POST /members→GET: create={create['statusCode']} "
-            f"read={read['statusCode']} number={read_data.get('membership', {}).get('member_number')}",
+            f"read={read['statusCode']} number={stored_number}",
         )
 
         # The scope field (region) is present + canonicalized on the stored record — a PLAIN
         # `overlay.region` field now (S5d D1), not a `scope_values` bucket.
         report.record(
             d, "overlay.region scope field present + canonicalized", "create_member",
-            Outcome.PASS if region_seeded and read_data.get("overlay", {}).get("region") == "Noord"
+            Outcome.PASS if region_seeded and read_data.get("overlay", {}).get("region") == PILOT_REGION
             else Outcome.FAIL,
             f"stored overlay.region={read_data.get('overlay', {}).get('region')!r} "
-            f"(transform canonicalized 'noord'→'Noord': {region_seeded})",
+            f"(transform canonicalized {region_lower!r}→{PILOT_REGION!r}: {region_seeded})",
         )
 
     # ── Dimension 3: api contract (route-by-route parity checklist) ─────────────────────

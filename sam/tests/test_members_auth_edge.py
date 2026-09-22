@@ -329,13 +329,13 @@ def test_scope_from_projected_all_access_grant_is_wildcard(monkeypatch):
 
 def test_scope_from_projected_subgroup_grant_is_the_subset(monkeypatch):
     # R2.5: a subgroup-limited projected grant (region ["Noord"]) → exactly that subset.
-    _install_grants(monkeypatch, {("h-dcn", "bob@h-dcn.test"): {"region": ["Noord"]}})
+    _install_grants(monkeypatch, {("h-dcn", "bob@h-dcn.test"): {"region": ["North"]}})
     captured = _capture_ctx(monkeypatch)
     claims = _entitled_claims(capabilities=("members:read",))
     claims["email"] = "bob@h-dcn.test"
     resp = app.handler(_authorizer_event("GET", "/members", claims=claims))
     assert resp["statusCode"] == 501
-    assert captured["ctx"].allowed_scopes == {"region": ["Noord"]}
+    assert captured["ctx"].allowed_scopes == {"region": ["North"]}
 
 
 def test_scope_deny_by_default_when_no_projected_grant(monkeypatch):
@@ -353,13 +353,13 @@ def test_scope_deny_by_default_when_no_projected_grant(monkeypatch):
 def test_scope_ignores_token_groups_uses_projection(monkeypatch):
     # C5: a caller whose TOKEN groups say Regio_All but whose PROJECTED grant is only Noord
     # resolves to ["Noord"] — the projection is authoritative, the token groups are not.
-    _install_grants(monkeypatch, {("h-dcn", "dave@h-dcn.test"): {"region": ["Noord"]}})
+    _install_grants(monkeypatch, {("h-dcn", "dave@h-dcn.test"): {"region": ["North"]}})
     captured = _capture_ctx(monkeypatch)
     claims = _entitled_claims(capabilities=("members:read",), groups=("Regio_All",))
     claims["email"] = "dave@h-dcn.test"
     resp = app.handler(_authorizer_event("GET", "/members", claims=claims))
     assert resp["statusCode"] == 501
-    assert captured["ctx"].allowed_scopes == {"region": ["Noord"]}
+    assert captured["ctx"].allowed_scopes == {"region": ["North"]}
 
 
 # ── CORS on error envelopes ────────────────────────────────────────────────────────────

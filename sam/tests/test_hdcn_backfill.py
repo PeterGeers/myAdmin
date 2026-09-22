@@ -43,6 +43,8 @@ from sam.members.migration.hdcn_backfill import (
     IterableSourceAdapter,
     LegacyDynamoSourceAdapter,
     MembershipTypeMapper,
+    RegionCanonicalizer,
+    RowSkipped,
     RowTransformError,
     build_backfill_plan,
     map_hdcn_row,
@@ -63,25 +65,39 @@ from test_members_repository import FakeDynamoTable  # noqa: E402
 FIXTURE = os.path.join(_REPO_ROOT, "sam", "tests", "fixtures", "hdcn_ledenbestand_sample.csv")
 
 
+#: A synthetic region canonicalizer for the transform tests (D17 — tenant vocabulary is
+#: INJECTED, never a core constant). Uses abstract North/South/East/West + a Drente→Drenthe
+#: style alias so the alias path is exercised without any real tenant data.
+_TEST_REGION_CANON = RegionCanonicalizer(
+    ("North", "South", "East", "West"), aliases={"Noorden": "North"}
+)
+
+
 def _raw(**overrides):
-    """A well-formed raw h-dcn source row (Dutch Ledenbestand columns), with overrides."""
+    """A well-formed raw h-dcn source row (REAL Ledenbestand column headers), with overrides.
+
+    Reflects the actual export (A.2): capitalized/multi-word headers, NO member_id column
+    (the transform mints a uuid4), Lidnummer is the human number, no status column (defaults
+    to active), Datum ondertekening → joined_date. Region defaults to a synthetic sample value.
+    """
     row = {
-        "member_id": "M-1",
-        "lidnummer": "1001",
-        "voornaam": "Alex",
-        "naam": "de Vries",
-        "email": "alex@example.com",
-        "adres": "Dorpsstraat 1",
-        "geboortedatum": "1980-05-12",
-        "status": "actief",
-        "lidmaatschapstype": "Erelid",
-        "ingangsdatum": "2010-01-01",
-        "einddatum": "",
-        "regio": "Noord",
-        "motortype": "Honda CB500",
+        "Lidnummer": "1001",
+        "Voornaam": "Alex",
+        "Achternaam": "de Vries",
+        "E-mailadres": "alex@example.com",
+        "Straat en huisnummer": "Dorpsstraat 1",
+        "Soort lidmaatschap": "Erelid",
+        "Datum ondertekening": "2010-01-01T00:00:00.000Z",
+        "Regio": "North",
+        "Type motor": "Honda CB500",
     }
     row.update(overrides)
     return row
+
+
+def _map(**overrides):
+    """map_hdcn_row over ``_raw(**overrides)`` with the synthetic region canonicalizer."""
+    return map_hdcn_row(_raw(**overrides), region_canonicalizer=_TEST_REGION_CANON)
 
 
 # ---------------------------------------------------------------------------
@@ -91,104 +107,104 @@ def _raw(**overrides):
 
 class TestMapHdcnRow:
     def test_stamps_the_pilot_tenant_id(self):
-        rec = map_hdcn_row(_raw())
+        rec = _map()
         assert rec["tenant_id"] == HDCN_TENANT_ID == "h-dcn"
 
     def test_splits_fixed_base_personal_and_membership(self):
-        rec = map_hdcn_row(_raw())
-        # s5c canonical EN keys: the single `naam` column maps to the required `last_name`;
-        # `adres` → `street` (primary address line); `email`/`geboortedatum` map directly.
+        rec = _map()
+        # Real headers → s5c canonical EN keys. birth_date is NOT imported (calculated field,
+        # A.2). member_id is a MINTED uuid4 (no source column). member_number is Lidnummer
+        # shaped to M#####. joined_date derived from the Datum ondertekening date-part.
         assert rec["personal"] == {
             "first_name": "Alex",
             "last_name": "de Vries",
             "email": "alex@example.com",
             "street": "Dorpsstraat 1",
-            "birth_date": "1980-05-12",
         }
-        assert rec["membership"]["member_number"] == "1001"
+        assert rec["membership"]["member_number"] == "M01001"
         assert rec["membership"]["joined_date"] == "2010-01-01"
-        assert rec["member_id"] == "M-1"
+        assert rec["membership"]["status"] == "active"  # no status column → default active
+        # member_id is a minted uuid4 (36 chars, 4 dashes), NOT the source Lidnummer.
+        assert isinstance(rec["member_id"], str) and rec["member_id"].count("-") == 4
+        assert rec["member_id"] != "1001"
 
-    def test_maps_dutch_status_to_the_closed_enum(self):
-        assert map_hdcn_row(_raw(status="actief"))["membership"]["status"] == "active"
-        assert map_hdcn_row(_raw(status="geschorst"))["membership"]["status"] == "suspended"
-        # already-canonical value passes through
-        assert map_hdcn_row(_raw(status="active"))["membership"]["status"] == "active"
+    def test_status_defaults_to_active(self):
+        # The export has NO status column → default to "active" (A.2 decision).
+        assert _map()["membership"]["status"] == "active"
 
     def test_stores_region_on_the_overlay_field_as_a_scalar(self):
         # S5d D1/R3.4: scope is a PLAIN member field — the region lands on `overlay.region`
         # as a SCALAR (single-valued per scope field, R3.2), NOT a `scope_values` bucket/list.
-        rec = map_hdcn_row(_raw(regio="Noord"))
-        assert rec["overlay"]["region"] == "Noord"
+        rec = _map(Regio="North")
+        assert rec["overlay"]["region"] == "North"
         assert "scope_values" not in rec
 
-    def test_canonicalizes_region_casing_via_scope_canon(self):
-        # R9.2: normalization uses the shared `scope_canon` to match variant spellings against
-        # the dimension's canonical value set, landing on the canonical spelling ("Zuid").
-        rec = map_hdcn_row(_raw(regio="zuid"))
-        assert rec["overlay"]["region"] == "Zuid"
+    def test_canonicalizes_region_casing_via_injected_canonicalizer(self):
+        # A.10/R9.2: the INJECTED canonicalizer folds variant spellings onto the canonical set.
+        assert _map(Regio="south")["overlay"]["region"] == "South"
 
-    def test_canonicalizes_region_separator_and_diacritic_variants(self):
-        # `scope_canon` folds case / spacing so a scruffy export value still lands canonical.
-        assert map_hdcn_row(_raw(regio="  OOST "))["overlay"]["region"] == "Oost"
-        assert map_hdcn_row(_raw(regio="wEsT"))["overlay"]["region"] == "West"
+    def test_canonicalizes_region_separator_and_case_variants(self):
+        assert _map(Regio="  EAST ")["overlay"]["region"] == "East"
+        assert _map(Regio="wEsT")["overlay"]["region"] == "West"
+
+    def test_region_alias_is_applied_before_canonical_match(self):
+        # A.3: an alias (raw spelling scope_canon cannot fold) maps onto the canonical value.
+        assert _map(Regio="Noorden")["overlay"]["region"] == "North"
 
     def test_unknown_region_is_preserved_not_dropped(self):
         # R9.3: an un-normalizable value is kept verbatim (surfaced by the R9.5 check), never
         # silently dropped nor forced to a wrong canonical value.
-        rec = map_hdcn_row(_raw(regio="Centraal"))
+        rec = _map(Regio="Centraal")
         assert rec["overlay"]["region"] == "Centraal"
 
     def test_missing_region_omits_the_field(self):
         # An absent region omits the field entirely (no empty placeholder / no `scope_values`).
-        rec = map_hdcn_row(_raw(regio=""))
+        rec = _map(Regio="")
         assert "region" not in rec["overlay"]
         assert "scope_values" not in rec
 
     def test_no_scope_values_bucket_is_written(self):
         # Clean break (D1): the member record has ZERO scope awareness — no `scope_values`.
-        rec = map_hdcn_row(_raw())
-        assert "scope_values" not in rec
+        assert "scope_values" not in _map()
 
     def test_club_columns_fold_into_overlay(self):
-        rec = map_hdcn_row(_raw(motortype="Honda CB500", kenteken="AB-12-CD"))
-        assert rec["overlay"]["motortype"] == "Honda CB500"
-        assert rec["overlay"]["kenteken"] == "AB-12-CD"
-        # overlay must not contain fixed fields
-        assert "naam" not in rec["overlay"] and "lidnummer" not in rec["overlay"]
+        rec = _map(**{"Type motor": "Honda CB500", "Kenteken": "AB-12-CD"})
+        assert rec["overlay"]["Type motor"] == "Honda CB500"
+        assert rec["overlay"]["Kenteken"] == "AB-12-CD"
+        # overlay must not contain fixed source columns
+        assert "Achternaam" not in rec["overlay"] and "Lidnummer" not in rec["overlay"]
 
     def test_membership_type_is_mapped_to_a_catalog_code(self):
-        assert map_hdcn_row(_raw(lidmaatschapstype="Erelid"))["membership"]["membership_type"] == "erelid"
-        assert map_hdcn_row(_raw(lidmaatschapstype="Donateur"))["membership"]["membership_type"] == "donateur"
-        assert map_hdcn_row(_raw(lidmaatschapstype="Gewoon lid"))["membership"]["membership_type"] == "gewoon_lid"
+        assert _map(**{"Soort lidmaatschap": "Erelid"})["membership"]["membership_type"] == "erelid"
+        assert _map(**{"Soort lidmaatschap": "Donateur"})["membership"]["membership_type"] == "donateur"
+        assert _map(**{"Soort lidmaatschap": "Gewoon lid"})["membership"]["membership_type"] == "gewoon_lid"
 
     def test_bad_row_fails_loudly_missing_required_field(self):
-        # No name → validate_fixed_fields fails → RowTransformError.
+        # No last name → validate_fixed_fields fails → RowTransformError.
         with pytest.raises(RowTransformError) as exc:
-            map_hdcn_row(_raw(naam=""))
+            _map(Achternaam="")
         assert "personal.last_name" in exc.value.reasons
 
-    def test_bad_row_fails_loudly_invalid_date(self):
-        with pytest.raises(RowTransformError) as exc:
-            map_hdcn_row(_raw(ingangsdatum="not-a-date"))
-        assert "membership.joined_date" in exc.value.reasons
-
-    def test_missing_member_id_is_reported(self):
-        with pytest.raises(RowTransformError) as exc:
-            map_hdcn_row(_raw(member_id=""))
-        assert "member_id" in exc.value.reasons
+    def test_row_with_no_member_number_is_skipped(self):
+        # A row with no Lidnummer is NOT a member (non-member / empty) → RowSkipped, not error.
+        with pytest.raises(RowSkipped):
+            _map(Lidnummer="")
 
     def test_type_mapper_validates_against_known_codes(self):
         mapper = MembershipTypeMapper(known_codes=["erelid", "donateur"])
         # 'sponsor' is not in the known set → the row fails to map (loud mismatch).
         with pytest.raises(RowTransformError) as exc:
-            map_hdcn_row(_raw(lidmaatschapstype="Sponsor"), type_mapper=mapper)
+            map_hdcn_row(
+                _raw(**{"Soort lidmaatschap": "Sponsor"}),
+                type_mapper=mapper,
+                region_canonicalizer=_TEST_REGION_CANON,
+            )
         assert "membership.membership_type" in exc.value.reasons
 
     def test_transform_does_not_mutate_the_source_row(self):
         row = _raw()
         snapshot = dict(row)
-        map_hdcn_row(row)
+        map_hdcn_row(row, region_canonicalizer=_TEST_REGION_CANON)
         assert row == snapshot  # pure — no mutation of the input (non-destructive)
 
 
@@ -202,15 +218,15 @@ class TestSourceAdapters:
         adapter = FileSourceAdapter(FIXTURE)
         rows = list(adapter.rows())
         assert len(rows) == 4
-        assert rows[0]["lidnummer"] == "1001"
-        assert rows[0]["voornaam"] == "Alex"
-        assert rows[0]["naam"] == "de Vries"
+        assert rows[0]["Lidnummer"] == "1001"
+        assert rows[0]["Voornaam"] == "Alex"
+        assert rows[0]["Achternaam"] == "de Vries"
 
     def test_file_adapter_reads_json(self, tmp_path):
         path = tmp_path / "export.json"
-        path.write_text(json.dumps([_raw(), _raw(member_id="M-2", lidnummer="1002")]), encoding="utf-8")
+        path.write_text(json.dumps([_raw(), _raw(Lidnummer="1002")]), encoding="utf-8")
         rows = list(FileSourceAdapter(str(path)).rows())
-        assert [r["lidnummer"] for r in rows] == ["1001", "1002"]
+        assert [r["Lidnummer"] for r in rows] == ["1001", "1002"]
 
     def test_file_adapter_reads_json_rows_envelope(self, tmp_path):
         path = tmp_path / "export.json"
@@ -220,7 +236,7 @@ class TestSourceAdapters:
     def test_file_adapter_does_not_write_the_source(self, tmp_path):
         # Reading must not change the file on disk (non-destructive, R5.2).
         path = tmp_path / "export.csv"
-        original = "lidnummer,naam,email,status,lidmaatschapstype,ingangsdatum,regio\n1001,Alex,a@x.com,actief,Erelid,2010-01-01,Noord\n"
+        original = "Lidnummer,Achternaam,E-mailadres,Soort lidmaatschap,Datum ondertekening,Regio\n1001,Alex,a@x.com,Erelid,2010-01-01,North\n"
         path.write_text(original, encoding="utf-8")
         list(FileSourceAdapter(str(path)).rows())
         assert path.read_text(encoding="utf-8") == original
@@ -229,8 +245,8 @@ class TestSourceAdapters:
         rows = [_raw()]
         adapter = IterableSourceAdapter(rows)
         out = list(adapter.rows())
-        out[0]["naam"] = "changed"
-        assert rows[0]["naam"] == "de Vries"  # source untouched
+        out[0]["Achternaam"] = "changed"
+        assert rows[0]["Achternaam"] == "de Vries"  # source untouched
 
     def test_legacy_dynamo_adapter_is_a_readonly_stub(self):
         adapter = LegacyDynamoSourceAdapter("LegacyMembers", region="eu-west-1")
@@ -246,8 +262,8 @@ class TestSourceAdapters:
 
 class TestBackfillPlan:
     def test_plan_transforms_all_good_rows(self):
-        adapter = IterableSourceAdapter([_raw(), _raw(member_id="M-2", lidnummer="1002")])
-        plan = build_backfill_plan(adapter)
+        adapter = IterableSourceAdapter([_raw(), _raw(Lidnummer="1002")])
+        plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         assert plan.source_row_count == 2
         assert plan.ok_count == 2
         assert plan.error_count == 0
@@ -255,33 +271,49 @@ class TestBackfillPlan:
 
     def test_plan_collects_errors_without_aborting(self):
         adapter = IterableSourceAdapter(
-            [_raw(), _raw(member_id="M-2", lidnummer="1002", naam="")]  # 2nd is bad
+            [_raw(), _raw(Lidnummer="1002", Achternaam="")]  # 2nd is bad (no last name)
         )
-        plan = build_backfill_plan(adapter)
+        plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         assert plan.ok_count == 1
         assert plan.error_count == 1
 
-    def test_plan_flags_duplicate_member_numbers_in_batch(self):
-        adapter = IterableSourceAdapter(
-            [_raw(member_id="M-1", lidnummer="1001"), _raw(member_id="M-2", lidnummer="1001")]
-        )
-        plan = build_backfill_plan(adapter)
-        assert "1001" in plan.duplicate_member_numbers
-        assert sorted(plan.duplicate_member_numbers["1001"]) == ["M-1", "M-2"]
+    def test_plan_flags_and_skips_duplicate_member_numbers_in_batch(self):
+        # A.15: duplicate Lidnummer → ALL occurrences left out (skipped, not written).
+        adapter = IterableSourceAdapter([_raw(Lidnummer="1001"), _raw(Lidnummer="1001")])
+        plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
+        # Shaped number "M01001" is the duplicate key; BOTH minted uuids are recorded.
+        assert "M01001" in plan.duplicate_member_numbers
+        assert len(plan.duplicate_member_numbers["M01001"]) == 2
+        # Both rows are skipped (left out), none transformed.
+        assert plan.ok_count == 0
+        assert plan.skipped_count == 2
 
     def test_plan_records_rows_missing_region(self):
-        adapter = IterableSourceAdapter([_raw(regio="")])
-        plan = build_backfill_plan(adapter)
-        assert plan.rows_missing_region == ["M-1"]
+        # A row with no region omits overlay.region → recorded in rows_missing_region (by the
+        # MINTED member_id, a uuid4).
+        adapter = IterableSourceAdapter([_raw(Regio="")])
+        plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
+        assert len(plan.rows_missing_region) == 1
+        assert plan.rows_missing_region[0] == plan.transformed[0].member_id
+
+    def test_non_member_row_without_number_is_skipped(self):
+        # A row with no Lidnummer is a non-member → skipped (reported), NOT an error.
+        adapter = IterableSourceAdapter([_raw(), _raw(Lidnummer="")])
+        plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
+        assert plan.ok_count == 1
+        assert plan.error_count == 0
+        assert plan.skipped_count == 1
 
     def test_field_mapping_summary_counts_populated_fields(self):
-        adapter = IterableSourceAdapter([_raw(), _raw(member_id="M-2", lidnummer="1002")])
-        summary = build_backfill_plan(adapter).field_mapping_summary()
+        adapter = IterableSourceAdapter([_raw(), _raw(Lidnummer="1002")])
+        summary = build_backfill_plan(
+            adapter, region_canonicalizer=_TEST_REGION_CANON
+        ).field_mapping_summary()
         assert summary["membership.member_number"] == 2
         assert summary["personal.last_name"] == 2
         # S5d D1: the scope field is a plain `overlay.region` field now (no `scope_values`).
         assert summary["overlay.region"] == 2
-        assert summary["overlay.motortype"] == 2
+        assert summary["overlay.Type motor"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -351,42 +383,40 @@ class TestRunnerApply:
         rc = runner.backfill(FIXTURE, region="eu-west-1", apply=True, repo=fake_repo)
         assert rc == 0
         listed = fake_repo.list_members("h-dcn")
-        assert sorted(m["member_id"] for m in listed) == ["M-1001", "M-1002", "M-1003", "M-1004"]
+        # member_id is a MINTED uuid4 now — identify members by their shaped member_number.
+        numbers = sorted(m["membership"]["member_number"] for m in listed)
+        assert numbers == ["M01001", "M01002", "M01003", "M01004"]
         # tenant stamped + scope field + overlay landed via the transform (S5d D1: the scope
         # value lands on the plain `overlay.region` field, a scalar — no `scope_values` bucket).
-        m1 = fake_repo.get_member("h-dcn", "M-1001")
+        m1 = next(m for m in listed if m["membership"]["member_number"] == "M01001")
         assert m1["tenant_id"] == "h-dcn"
-        assert m1["overlay"]["region"] == "Noord"
+        # No --members-config here → region kept verbatim (the fixture already uses "North").
+        assert m1["overlay"]["region"] == "North"
         assert "scope_values" not in m1
-        assert m1["overlay"]["motortype"] == "Honda CB500"
+        assert m1["overlay"]["motor"] == "Honda CB500"
         assert m1["membership"]["membership_type"] == "erelid"
 
-    def test_apply_reports_conflict_not_overwrite(self, members_env, fake_repo, capsys, tmp_path):
-        # Two rows share member number 1001 but are different members → 2nd is a real conflict.
+    def test_apply_leaves_duplicate_numbers_out(self, members_env, fake_repo, capsys, tmp_path):
+        # A.15: two rows share Lidnummer 1001 (different people) → ALL occurrences skipped,
+        # NOTHING written (the data owner must resolve the source conflict, then re-run).
         export = tmp_path / "dupes.json"
         export.write_text(
             json.dumps(
                 [
-                    _raw(member_id="M-1", lidnummer="1001", naam="Alex"),
-                    _raw(member_id="M-2", lidnummer="1001", naam="Bram"),
+                    _raw(Lidnummer="1001", Achternaam="Alex"),
+                    _raw(Lidnummer="1001", Achternaam="Bram"),
                 ]
             ),
             encoding="utf-8",
         )
         rc = runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo)
-        # exit 3 = applied but with a reconcilable conflict.
-        assert rc == 3
-        out = capsys.readouterr().out
-        assert "conflicts : 1" in out
-        assert "CONFLICT" in out
-        # The FIRST writer stands; the conflicting one did NOT overwrite it.
-        assert fake_repo.get_member("h-dcn", "M-1")["personal"]["last_name"] == "Alex"
-        assert fake_repo.get_member("h-dcn", "M-2") is None
+        assert rc == 0  # clean apply — the dups are skipped, not an error
+        assert fake_repo.list_members("h-dcn") == []  # neither written
 
     def test_apply_refuses_a_batch_with_mapping_errors(self, members_env, fake_repo, capsys, tmp_path):
         export = tmp_path / "bad.json"
         export.write_text(
-            json.dumps([_raw(), _raw(member_id="M-2", lidnummer="1002", naam="")]),
+            json.dumps([_raw(), _raw(Lidnummer="1002", Achternaam="", Voornaam="")]),
             encoding="utf-8",
         )
         rc = runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo)
@@ -394,13 +424,13 @@ class TestRunnerApply:
         # Nothing written because the batch had an unmappable row.
         assert fake_repo.list_members("h-dcn") == []
 
-    def test_apply_is_idempotent_on_resave(self, members_env, fake_repo, tmp_path):
+    def test_apply_writes_one_member_per_row(self, members_env, fake_repo, tmp_path):
         export = tmp_path / "one.json"
-        export.write_text(json.dumps([_raw(member_id="M-1", lidnummer="1001")]), encoding="utf-8")
+        export.write_text(json.dumps([_raw(Lidnummer="1001")]), encoding="utf-8")
         assert runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo) == 0
-        # Re-apply the SAME member — repository idempotent re-save, no conflict.
-        assert runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo) == 0
-        assert len(fake_repo.list_members("h-dcn")) == 1
+        listed = fake_repo.list_members("h-dcn")
+        assert len(listed) == 1
+        assert listed[0]["membership"]["member_number"] == "M01001"
 
 
 # ---------------------------------------------------------------------------
@@ -429,34 +459,34 @@ class TestRunnerCliTenant:
     def test_apply_stamps_the_supplied_tenant_not_a_default(self, members_env, fake_repo, tmp_path):
         # A non-pilot tenant proves the stamp comes from --tenant, never a hardcoded literal.
         export = tmp_path / "one.json"
-        export.write_text(json.dumps([_raw(member_id="M-1", lidnummer="9001")]), encoding="utf-8")
+        export.write_text(json.dumps([_raw(Lidnummer="9001")]), encoding="utf-8")
         rc = runner.backfill(str(export), region="eu-west-1", apply=True, tenant_id="other-org", repo=fake_repo)
         assert rc == 0
         # The record landed in the "other-org" partition, stamped with that tenant.
         assert fake_repo.list_members("h-dcn") == []
-        m = fake_repo.get_member("other-org", "M-1")
-        assert m is not None and m["tenant_id"] == "other-org"
+        other = fake_repo.list_members("other-org")
+        assert len(other) == 1
+        assert other[0]["tenant_id"] == "other-org"
+        assert other[0]["membership"]["member_number"] == "M09001"
 
     def test_dry_run_lists_unmapped_extra_columns(self, members_env, capsys):
-        # The fixture carries motortype/kenteken/einddatum — none are fixed/region columns, so
+        # The fixture carries "Type motor"/"Kenteken" — neither is a fixed/region column, so
         # they are tolerated (folded into overlay) and LISTED in the report (task 6.2 OUT-scope).
         runner.main(["--source", FIXTURE, "--tenant", "h-dcn"])
         out = capsys.readouterr().out
         assert "unmapped / extra source columns" in out
-        assert "motortype" in out
-        assert "kenteken" in out
-        assert "einddatum" in out
+        assert "Kenteken" in out
         # A recognized fixed column must NOT be listed as unmapped.
         section = out.split("unmapped / extra source columns")[1].split("=" * 68)[0]
-        assert "lidnummer" not in section
+        assert "Lidnummer" not in section
 
     def test_empty_named_column_is_tolerated_and_listed_as_dropped(self, members_env, capsys, tmp_path):
         # A trailing empty-named column (a common Google-Sheet export artifact) is dropped, not
         # a crash, and is surfaced in the report.
         export = tmp_path / "with_empty_col.csv"
         export.write_text(
-            "lidnummer,naam,email,status,lidmaatschapstype,ingangsdatum,regio,\n"
-            "1001,Alex,a@x.com,actief,Erelid,2010-01-01,Noord,junk\n",
+            "Lidnummer,Achternaam,E-mailadres,Soort lidmaatschap,Datum ondertekening,Regio,\n"
+            "1001,Alex,a@x.com,Erelid,2010-01-01,North,junk\n",
             encoding="utf-8",
         )
         rc = runner.main(["--source", str(export), "--tenant", "h-dcn"])

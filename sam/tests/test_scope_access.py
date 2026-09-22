@@ -31,14 +31,20 @@ from sam.members.domain.scope_access import (
     resolve_scope_access_for_config,
 )
 from sam.members.domain.scope_dimensions import (
-    HDCN_SCOPE_CONFIG,
+    SAMPLE_SCOPE_CONFIG,
     WILDCARD,
     ScopeConfig,
     ScopeDimension,
 )
 
 TENANT = "h-dcn"
-REGION = HDCN_SCOPE_CONFIG[0]
+REGION = SAMPLE_SCOPE_CONFIG[0]
+
+# Sample values DERIVED from the live region config (not hardcoded), so these tests stay
+# valid as the h-dcn vocabulary evolves. _V1/_V2 are two distinct declared values in
+# declared order; _V1_FIRST/_V2_SECOND preserve that order for union assertions.
+_R_VALUES = list(REGION.values)
+_V1, _V2 = _R_VALUES[0], _R_VALUES[1]
 
 
 # ── admin role → ["*"], access_type "admin" ──────────────────────────────────────────
@@ -66,16 +72,16 @@ def test_dimension_declared_admin_role_is_honoured():
 
 
 def test_single_scoped_grant_grants_its_value():
-    access = resolve_scope_access(TENANT, REGION, ["Noord"])
+    access = resolve_scope_access(TENANT, REGION, [_V1])
     assert access.full_access is False
-    assert access.allowed_scopes == ["Noord"]
+    assert access.allowed_scopes == [_V1]
     assert access.access_type == "scoped"
 
 
 def test_multiple_scoped_grants_union_in_declared_order():
-    access = resolve_scope_access(TENANT, REGION, ["West", "Noord"])
-    # Union preserves the dimension's declared value order (Noord before West).
-    assert access.allowed_scopes == ["Noord", "West"]
+    # Grant the two values out of declared order; the result preserves declared order (_V1, _V2).
+    access = resolve_scope_access(TENANT, REGION, [_V2, _V1])
+    assert access.allowed_scopes == [_V1, _V2]
     assert access.access_type == "scoped"
 
 
@@ -144,9 +150,9 @@ def test_none_dimension_is_tenant_wide():
 
 
 def test_for_config_resolves_the_named_dimension():
-    cfg = ScopeConfig(tenant_id=TENANT, dimensions=HDCN_SCOPE_CONFIG)
-    access = resolve_scope_access_for_config(cfg, "region", ["Zuid"])
-    assert access.allowed_scopes == ["Zuid"]
+    cfg = ScopeConfig(tenant_id=TENANT, dimensions=SAMPLE_SCOPE_CONFIG)
+    access = resolve_scope_access_for_config(cfg, "region", [_V2])
+    assert access.allowed_scopes == [_V2]
     assert access.access_type == "scoped"
 
 
@@ -158,8 +164,8 @@ def test_for_config_tenant_wide_config_is_wildcard():
 
 
 def test_for_config_absent_dimension_key_is_tenant_wide():
-    cfg = ScopeConfig(tenant_id=TENANT, dimensions=HDCN_SCOPE_CONFIG)
-    access = resolve_scope_access_for_config(cfg, "season", ["Noord"])
+    cfg = ScopeConfig(tenant_id=TENANT, dimensions=SAMPLE_SCOPE_CONFIG)
+    access = resolve_scope_access_for_config(cfg, "season", [_V1])
     # The requested dimension does not exist → nothing to scope by → tenant-wide.
     assert access.allowed_scopes == [WILDCARD]
     assert access.access_type == "all"
@@ -167,7 +173,7 @@ def test_for_config_absent_dimension_key_is_tenant_wide():
 
 # ── Property-based tests ──────────────────────────────────────────────────────────────
 
-_VALUES = ("Noord", "Zuid", "Oost", "West")
+_VALUES = tuple(REGION.values)  # the live h-dcn region vocabulary (derived, not hardcoded)
 
 
 @given(st.lists(st.sampled_from(_VALUES), min_size=1, max_size=4, unique=True))

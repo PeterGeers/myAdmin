@@ -89,8 +89,8 @@ def _member(member_id, *, region=None, sub=None, contact=None):
 @pytest.fixture()
 def repo():
     r = FakeMembersRepository()
-    r.add_member("h-dcn", _member("M-1", region="Noord", sub="sub-noord"))
-    r.add_member("h-dcn", _member("M-2", region="Zuid", sub="sub-zuid"))
+    r.add_member("h-dcn", _member("M-1", region="North", sub="sub-noord"))
+    r.add_member("h-dcn", _member("M-2", region="South", sub="sub-zuid"))
     r.add_membership("h-dcn", "M-1", {"membership_id": "MS-1", "status": "active"})
     r.add_payment("h-dcn", "M-1", {"payment_id": "P-1", "amount": 42})
     return r
@@ -111,8 +111,8 @@ _EMAIL_NOGRANT = "nogrant@h-dcn.test"  # holds Members_CRUD but NO region grant 
 
 _HDCN_GRANTS = {
     ("h-dcn", _EMAIL_ALL): {"region": ["*"]},
-    ("h-dcn", _EMAIL_NOORD): {"region": ["Noord"]},
-    ("h-dcn", _EMAIL_ZUID): {"region": ["Zuid"]},
+    ("h-dcn", _EMAIL_NOORD): {"region": ["North"]},
+    ("h-dcn", _EMAIL_ZUID): {"region": ["South"]},
     # _EMAIL_NOGRANT deliberately absent → deny-by-default (R2.6).
 }
 

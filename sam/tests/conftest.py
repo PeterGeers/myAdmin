@@ -46,13 +46,13 @@ def _members_config_providers():
     from sam.members.handler import app as members_app
     from sam.members.domain.field_resolver import StaticOverlayProvider
     from sam.members.domain.scope_dimensions import (
-        HDCN_SCOPE_CONFIG,
+        SAMPLE_SCOPE_CONFIG,
         StaticScopeConfigProvider,
     )
     from sam.members.domain.view_contexts import StaticViewContextsProvider
 
     members_app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
-        {"h-dcn": HDCN_SCOPE_CONFIG}
+        {"h-dcn": SAMPLE_SCOPE_CONFIG}
     )
     members_app._OVERLAY_PROVIDER_OVERRIDE = StaticOverlayProvider({})
     # S5c task 3.2: the view-contexts seam. Default the edge to an EMPTY static provider so an
