@@ -14,12 +14,13 @@ that dimension resolves to an empty ``allowed_scopes`` (``access_type = "none"``
 while an all-access grant (``*``) resolves to ``["*"]`` and a subgroup grant resolves to
 exactly its granted subset."
 
-The S5b deny-by-default AUTHORITY-preserving seam (design C5) is
-``sam.members.handler.app._scope_access_from_grant(tenant_id, dimension, granted_values)``: it
-maps a caller's PROJECTED grant values for one dimension onto a ``ScopeAccess`` by synthesizing
-the minimal role set and delegating the classification to the domain
-``resolve_scope_access`` (task 3.1), keeping the domain as the deny-by-default authority. This
-suite proves Property 4 UNIVERSALLY over that seam:
+The deny-by-default seam (design C5) is
+``sam.members.handler.app._scope_access_from_grant(tenant_id, dimension, granted_values)``. s5d
+clean break (R2.2/R8.1, Property 5): scope is an INDEPENDENT axis sourced from
+``user_tenant_scope`` → the projected ``scopegrant#`` row, NOT a decoded role name. The seam
+maps the caller's PROJECTED grant VALUES for one dimension DIRECTLY onto a ``ScopeAccess`` —
+no ``Regio_*`` role synthesis, no ``all_wildcard`` role, no round-trip through a role decoder.
+This suite proves Property 4 UNIVERSALLY over that direct mapping:
 
 Three properties, each ≥100 generated iterations (``@settings(max_examples=100)``):
 
@@ -28,8 +29,8 @@ Three properties, each ≥100 generated iterations (``@settings(max_examples=100
   ``access_type == "all"``, ``full_access is True``.
 - ``test_property_subgroup_grant_resolves_to_exact_subset`` (R2.5): for ANY valid enabled
   dimension and ANY non-empty subset of its declared values, a projected grant of that subset
-  ALWAYS resolves to EXACTLY that subset (in the dimension's declared order — the domain's
-  ``_granted_values`` normalization), ``access_type == "scoped"``, never ``["*"]``.
+  ALWAYS resolves to EXACTLY that subset (in the dimension's declared order), ``access_type ==
+  "scoped"``, never ``["*"]``.
 - ``test_property_absent_grant_on_required_dimension_denies`` (R2.6, the critical one): for
   ANY valid enabled dimension with a non-empty ``required_for``, an ABSENT projected grant
   (``None``) ALWAYS resolves to ``allowed_scopes == []``, ``access_type == "none"`` (deny).
@@ -64,7 +65,7 @@ if _BACKEND_SRC not in sys.path:
 
 from services import projection_schema as schema
 
-# The S5b deny-by-default authority-preserving seam (design C5) — module-level in app.py.
+# The deny-by-default seam (design C5) — module-level in app.py.
 from sam.members.handler.app import _scope_access_from_grant
 from sam.members.domain.scope_dimensions import WILDCARD, ScopeDimension
 from sam.members.repository.projection_config_reader import MembersProjectionReader
@@ -109,7 +110,7 @@ _TOKEN = st.text(
 
 
 @st.composite
-def _valid_dimension(draw, *, require_all_wildcard=False):
+def _valid_dimension(draw):
     """A VALID, enabled :class:`ScopeDimension` with a non-empty ``required_for``.
 
     Enforces the invariants ``ScopeDimension`` / ``ScopeConfig`` validation requires so the
@@ -117,30 +118,20 @@ def _valid_dimension(draw, *, require_all_wildcard=False):
 
     - non-blank ``key``;
     - ≥1 unique non-blank ``values`` (an enabled dimension must declare at least one value);
-    - an ``all_wildcard`` role that is NEVER one of the values (it is a role name);
     - a non-empty ``required_for`` (so the deny is a genuine ``required_for`` deny — R2.6).
 
-    ``require_all_wildcard`` forces a declared ``all_wildcard`` role. This models the input
-    space where a projected all-access grant (``["*"]``) is actually authored: per design C4,
-    the projection sync only emits ``["*"]`` for a user holding the dimension's all-access
-    ROLE, which exists only when the dimension declares an ``all_wildcard`` (h-dcn's
-    ``Regio_All``). The deny (4c) and subset (4b) properties do NOT need it and stay universal
-    over ALL valid dimensions (with or without an ``all_wildcard``).
+    s5d clean break (R2.2/R8.1): there is no ``all_wildcard`` role — scope is sourced from the
+    projected ``scopegrant#`` VALUES, and the all-access grant is the ``["*"]`` sentinel on the
+    GRANT side (independent of any role). All three properties stay universal over ALL valid
+    dimensions.
     """
     key = draw(_TOKEN)
     values = draw(st.lists(_TOKEN, min_size=1, max_size=5, unique=True))
-    # all_wildcard is a role name; must not collide with a scope value.
-    wildcard_strategy = _TOKEN.filter(lambda w: w not in set(values))
-    if not require_all_wildcard:
-        wildcard_strategy = st.one_of(st.none(), wildcard_strategy)
-    all_wildcard = draw(wildcard_strategy)
     required_for = draw(st.lists(_TOKEN, min_size=1, max_size=3, unique=True))
     return ScopeDimension(
         key=key,
         enabled=True,
-        multi_valued=draw(st.booleans()),
         values=tuple(values),
-        all_wildcard=all_wildcard,
         required_for=tuple(required_for),
     )
 
@@ -154,16 +145,16 @@ _TENANT = "deny-props-tenant"
 
 
 @settings(max_examples=100)
-@given(dim=_valid_dimension(require_all_wildcard=True))
+@given(dim=_valid_dimension())
 def test_property_all_access_grant_resolves_to_wildcard(dim):
     """Feature: s5b-members-runnable-in-spa, Property 4: Scope grant deny-by-default.
 
     Validates: Requirements 2.4, 2.5, 2.6, 10.6
 
-    For ANY valid enabled dimension that declares an ``all_wildcard`` role (the input space in
-    which a projected all-access grant is authored — see the generator note), a projected
-    all-access grant (``["*"]``) ALWAYS resolves to tenant-wide ``["*"]`` (``access_type="all"``,
-    ``full_access``).
+    For ANY valid enabled dimension, a projected all-access grant (``["*"]``) ALWAYS resolves
+    to tenant-wide ``["*"]`` (``access_type="all"``, ``full_access``). s5d: the all-access grant
+    is the projected ``["*"]`` sentinel, so this holds for every dimension (no ``all_wildcard``
+    role required).
     """
     access = _scope_access_from_grant(_TENANT, dim, [WILDCARD])
     assert access.allowed_scopes == [WILDCARD]
@@ -186,8 +177,8 @@ def test_property_subgroup_grant_resolves_to_exact_subset(data, dim):
 
     For ANY valid enabled dimension and ANY non-empty subset of its declared values, a
     projected subgroup grant of that subset ALWAYS resolves to EXACTLY that subset — in the
-    dimension's declared order (the domain's ``_granted_values`` de-dup/order normalization) —
-    with ``access_type="scoped"`` and never a wildcard.
+    dimension's declared order (the seam's de-dup/declared-order normalization) — with
+    ``access_type="scoped"`` and never a wildcard.
     """
     declared = list(dim.values)
     # A non-empty subset of the declared values (the projected scopegrant# values).
@@ -239,11 +230,11 @@ def test_property_absent_grant_on_required_dimension_denies(dim):
 # ---------------------------------------------------------------------------
 
 # A concrete required_for dimension for the end-to-end examples (mirrors h-dcn's region).
+# s5d clean break: no all_wildcard role — the all-access grant is the projected ["*"].
 _E2E_DIMENSION = ScopeDimension(
     key="region",
     enabled=True,
     values=("Noord", "Zuid", "Oost", "West"),
-    all_wildcard="Regio_All",
     required_for=("Members_CRUD",),
 )
 _E2E_EMAIL = "user@example.com"
@@ -256,10 +247,9 @@ def _config_scope_item(tenant_id, dim):
         "dimensions": [
             {
                 "key": dim.key,
+                "field": dim.field,
                 "enabled": dim.enabled,
-                "multi_valued": dim.multi_valued,
                 "values": list(dim.values),
-                "all_wildcard": dim.all_wildcard,
                 "required_for": list(dim.required_for),
             }
         ],

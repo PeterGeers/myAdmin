@@ -120,7 +120,8 @@ def test_data_dimension_covers_config_dropdown_and_backfill(report):
     assert any("field config" in b for b in behaviours)
     assert any("only ACTIVE" in b for b in behaviours)
     assert any("backfilled member" in b for b in behaviours)
-    assert any("scope_values.region" in b for b in behaviours)
+    # S5d D1: scope is a plain `overlay.region` field now (no `scope_values` bucket).
+    assert any("overlay.region" in b for b in behaviours)
     assert all(c.outcome is Outcome.PASS for c in data_checks)
 
 

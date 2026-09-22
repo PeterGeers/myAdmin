@@ -1,0 +1,314 @@
+[
+  {
+    "key": "field_overlay",
+    "type": "map<field_def>",
+    "label_en": "Field Overlay",
+    "label_nl": "Veldoverlay",
+    "description_en": "Tenant field-config object: the functional-group (display) catalog, the added parameter fields (a keyed map of field definitions), and presentation overrides of the fixed/calculated fields.",
+    "description_nl": "Tenant veldconfiguratie: de catalogus met functionele (weergave)groepen, de toegevoegde parametervelden (een kaart met velddefinities) en presentatie-overrides van de vaste/berekende velden.",
+    "module": "MEMBERS",
+    "object_fields": [
+      {
+        "key": "functional_groups",
+        "type": "list<object>",
+        "label_en": "Functional Groups",
+        "label_nl": "Functionele groepen",
+        "description_en": "The tenant's display-group catalog. Every field's functional_group must reference one of these keys.",
+        "description_nl": "De weergavegroepen-catalogus van de tenant. De functional_group van elk veld moet naar een van deze sleutels verwijzen.",
+        "object_fields": [
+          {
+            "key": "key",
+            "type": "string",
+            "label_en": "Group Key",
+            "label_nl": "Groepssleutel",
+            "description_en": "Stable snake_case identifier of the functional group (never user-facing).",
+            "description_nl": "Stabiele snake_case-identificatie van de functionele groep (nooit zichtbaar voor gebruikers)."
+          },
+          {
+            "key": "label_en",
+            "type": "string",
+            "label_en": "Label (English)",
+            "label_nl": "Label (Engels)"
+          },
+          {
+            "key": "label_nl",
+            "type": "string",
+            "label_en": "Label (Dutch)",
+            "label_nl": "Label (Nederlands)"
+          },
+          {
+            "key": "order",
+            "type": "number",
+            "label_en": "Order",
+            "label_nl": "Volgorde"
+          }
+        ]
+      },
+      {
+        "key": "fields",
+        "type": "map<field_def>",
+        "label_en": "Parameter Fields",
+        "label_nl": "Parametervelden",
+        "description_en": "Added variable fields, keyed by their canonical snake_case key. Each field lands under the record's overlay storage bucket and carries a functional_group referencing the catalog.",
+        "description_nl": "Toegevoegde variabele velden, gesleuteld op hun canonieke snake_case-sleutel. Elk veld valt onder de overlay-opslaggroep van het record en draagt een functional_group die naar de catalogus verwijst.",
+        "field_def": [
+          {
+            "key": "type",
+            "type": "string",
+            "label_en": "Type",
+            "label_nl": "Type",
+            "options": [
+              "string",
+              "date",
+              "enum",
+              "reference"
+            ]
+          },
+          {
+            "key": "label_en",
+            "type": "string",
+            "label_en": "Label (English)",
+            "label_nl": "Label (Engels)"
+          },
+          {
+            "key": "label_nl",
+            "type": "string",
+            "label_en": "Label (Dutch)",
+            "label_nl": "Label (Nederlands)"
+          },
+          {
+            "key": "required",
+            "type": "boolean",
+            "label_en": "Required",
+            "label_nl": "Verplicht"
+          },
+          {
+            "key": "visible",
+            "type": "boolean",
+            "label_en": "Visible",
+            "label_nl": "Zichtbaar"
+          },
+          {
+            "key": "functional_group",
+            "type": "string",
+            "label_en": "Functional Group",
+            "label_nl": "Functionele groep",
+            "description_en": "The field's display group; must reference a key in the functional_groups catalog.",
+            "description_nl": "De weergavegroep van het veld; moet verwijzen naar een sleutel in de functional_groups-catalogus."
+          },
+          {
+            "key": "choices",
+            "type": "string[]",
+            "label_en": "Choices",
+            "label_nl": "Keuzes",
+            "depends_on": "type",
+            "description_en": "The bare value list for an enum field (rich options {value,label,roles} may be authored via the editor).",
+            "description_nl": "De kale waardelijst voor een enum-veld (uitgebreide opties {value,label,roles} kunnen via de editor worden ingevoerd)."
+          },
+          {
+            "key": "order",
+            "type": "number",
+            "label_en": "Order",
+            "label_nl": "Volgorde"
+          }
+        ]
+      },
+      {
+        "key": "fixed_overrides",
+        "type": "map<field_def>",
+        "label_en": "Fixed Field Overrides",
+        "label_nl": "Overrides van vaste velden",
+        "description_en": "Presentation-only overrides of fixed/calculated fields, keyed by canonical dotted key (e.g. personal.street). May relabel, reorder, hide, tighten required, or reassign functional_group — never weaken a platform invariant.",
+        "description_nl": "Uitsluitend presentatie-overrides van vaste/berekende velden, gesleuteld op canonieke dotted key (bijv. personal.street). Mag herlabelen, herordenen, verbergen, verplicht aanscherpen of functional_group opnieuw toewijzen — nooit een platform-invariant verzwakken.",
+        "field_def": [
+          {
+            "key": "label_en",
+            "type": "string",
+            "label_en": "Label (English)",
+            "label_nl": "Label (Engels)"
+          },
+          {
+            "key": "label_nl",
+            "type": "string",
+            "label_en": "Label (Dutch)",
+            "label_nl": "Label (Nederlands)"
+          },
+          {
+            "key": "visible",
+            "type": "boolean",
+            "label_en": "Visible",
+            "label_nl": "Zichtbaar"
+          },
+          {
+            "key": "required",
+            "type": "boolean",
+            "label_en": "Required",
+            "label_nl": "Verplicht",
+            "description_en": "May only tighten (optional -> required), never loosen a platform-required field.",
+            "description_nl": "Mag alleen aanscherpen (optioneel -> verplicht), nooit een platform-verplicht veld versoepelen."
+          },
+          {
+            "key": "functional_group",
+            "type": "string",
+            "label_en": "Functional Group",
+            "label_nl": "Functionele groep",
+            "description_en": "Reassign the field's display group; storage bucket unchanged. Must reference a key in the functional_groups catalog.",
+            "description_nl": "Wijs de weergavegroep van het veld opnieuw toe; opslaggroep blijft ongewijzigd. Moet verwijzen naar een sleutel in de functional_groups-catalogus."
+          },
+          {
+            "key": "order",
+            "type": "number",
+            "label_en": "Order",
+            "label_nl": "Volgorde"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "scope_dimensions",
+    "type": "list<object>",
+    "label_en": "Scope Dimensions",
+    "label_nl": "Scope-dimensies",
+    "description_en": "Ordered list of scope-dimension definitions that determine how member rows are scoped (e.g. region). An empty list collapses to tenant-wide.",
+    "description_nl": "Geordende lijst van scope-dimensiedefinities die bepalen hoe ledenrijen worden gescoped (bijv. regio). Een lege lijst valt terug op tenant-breed.",
+    "module": "MEMBERS",
+    "object_fields": [
+      {
+        "key": "key",
+        "type": "string",
+        "label_en": "Dimension Key",
+        "label_nl": "Dimensiesleutel",
+        "description_en": "Stable snake_case identifier of the dimension (also the scopegrant projection key and config#scope dimension key).",
+        "description_nl": "Stabiele snake_case-identificatie van de dimensie (tevens de scopegrant-projectiesleutel en config#scope-dimensiesleutel)."
+      },
+      {
+        "key": "field",
+        "type": "string",
+        "label_en": "Member Field",
+        "label_nl": "Ledenveld",
+        "description_en": "The member field key this dimension binds to (the normal field whose scalar value a record is scoped by). Optional; defaults to the dimension key.",
+        "description_nl": "De sleutel van het ledenveld waaraan deze dimensie is gekoppeld (het normale veld waarvan de scalaire waarde een record scoped). Optioneel; valt standaard terug op de dimensiesleutel."
+      },
+      {
+        "key": "label_en",
+        "type": "string",
+        "label_en": "Label (English)",
+        "label_nl": "Label (Engels)"
+      },
+      {
+        "key": "label_nl",
+        "type": "string",
+        "label_en": "Label (Dutch)",
+        "label_nl": "Label (Nederlands)"
+      },
+      {
+        "key": "enabled",
+        "type": "boolean",
+        "label_en": "Enabled",
+        "label_nl": "Ingeschakeld",
+        "description_en": "False collapses this dimension to tenant-wide (a no-op).",
+        "description_nl": "False laat deze dimensie terugvallen op tenant-breed (geen effect)."
+      },
+      {
+        "key": "values",
+        "type": "string[]",
+        "label_en": "Values",
+        "label_nl": "Waarden",
+        "description_en": "The closed set of scope values for this dimension.",
+        "description_nl": "De gesloten verzameling scope-waarden voor deze dimensie."
+      },
+      {
+        "key": "required_for",
+        "type": "string[]",
+        "label_en": "Required For",
+        "label_nl": "Vereist voor",
+        "description_en": "Roles/capabilities that require a scope grant in this dimension (deny-by-default without one).",
+        "description_nl": "Rollen/rechten die een scope-toekenning in deze dimensie vereisen (standaard weigeren zonder)."
+      }
+    ]
+  },
+  {
+    "key": "view_contexts",
+    "type": "list<object>",
+    "label_en": "View Contexts",
+    "label_nl": "Weergavecontexten",
+    "description_en": "Ordered list of named column-sets (ui.tables-shaped) selecting which fields show together. Each columns/filterable_columns entry is a field_key validated against the resolved field set. An empty list yields one default context.",
+    "description_nl": "Geordende lijst van benoemde kolomsets (ui.tables-vorm) die bepalen welke velden samen worden getoond. Elke columns/filterable_columns-invoer is een field_key die tegen de opgeloste veldset wordt gevalideerd. Een lege lijst levert een standaardcontext op.",
+    "module": "MEMBERS",
+    "object_fields": [
+      {
+        "key": "key",
+        "type": "string",
+        "label_en": "Context Key",
+        "label_nl": "Contextsleutel"
+      },
+      {
+        "key": "label_en",
+        "type": "string",
+        "label_en": "Label (English)",
+        "label_nl": "Label (Engels)"
+      },
+      {
+        "key": "label_nl",
+        "type": "string",
+        "label_en": "Label (Dutch)",
+        "label_nl": "Label (Nederlands)"
+      },
+      {
+        "key": "permission_roles",
+        "type": "string[]",
+        "label_en": "Permission Roles",
+        "label_nl": "Toegestane rollen",
+        "description_en": "Roles allowed to select this context in the dropdown (view convenience only; row scope is always enforced server-side).",
+        "description_nl": "Rollen die deze context in de keuzelijst mogen selecteren (alleen weergavegemak; rij-scope wordt altijd server-side afgedwongen)."
+      },
+      {
+        "key": "columns",
+        "type": "string[]",
+        "label_en": "Columns",
+        "label_nl": "Kolommen",
+        "description_en": "Ordered field_key references shown as columns. Each is validated against the resolved field set (Fixed / Parameter / Calculated / scope dimension).",
+        "description_nl": "Geordende field_key-verwijzingen die als kolommen worden getoond. Elk wordt gevalideerd tegen de opgeloste veldset (Vast / Parameter / Berekend / scope-dimensie)."
+      },
+      {
+        "key": "filterable_columns",
+        "type": "string[]",
+        "label_en": "Filterable Columns",
+        "label_nl": "Filterbare kolommen",
+        "description_en": "Subset of columns that are filterable; each a validated field_key.",
+        "description_nl": "Subset van kolommen die filterbaar zijn; elk een gevalideerde field_key."
+      },
+      {
+        "key": "default_sort",
+        "type": "object",
+        "label_en": "Default Sort",
+        "label_nl": "Standaard sortering",
+        "object_fields": [
+          {
+            "key": "field",
+            "type": "string",
+            "label_en": "Sort Field",
+            "label_nl": "Sorteerveld"
+          },
+          {
+            "key": "direction",
+            "type": "string",
+            "label_en": "Direction",
+            "label_nl": "Richting",
+            "options": [
+              "asc",
+              "desc"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "page_size",
+        "type": "number",
+        "label_en": "Page Size",
+        "label_nl": "Paginagrootte"
+      }
+    ]
+  }
+]

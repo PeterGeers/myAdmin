@@ -168,15 +168,17 @@ def _data(resp):
 
 
 def _valid_member_body(*, region="Noord", member_number=None, status=None, membership_type="erelid"):
-    membership = {"membership_type": membership_type, "joined": "2024-01-01"}
+    membership = {"membership_type": membership_type, "joined_date": "2024-01-01"}
     if member_number is not None:
         membership["member_number"] = member_number
     if status is not None:
         membership["status"] = status
+    # S5d D1/R3.4: scope is a PLAIN member field — h-dcn's `region` dimension binds to the
+    # tenant-added `overlay.region` field, a scalar (no retired `scope_values` bucket).
     return {
-        "personal": {"name": "Alex", "contact": "alex@example.com"},
+        "personal": {"first_name": "Alex", "last_name": "de Vries", "email": "alex@example.com"},
         "membership": membership,
-        "scope_values": {"region": [region]},
+        "overlay": {"region": region},
     }
 
 
@@ -231,11 +233,11 @@ def test_create_member_duplicate_number_returns_409(repo):
 
 
 def test_create_member_missing_required_fields_returns_422():
-    # No personal.name / contact → fixed-field validation fails → 422 with per-field errors.
+    # No personal.first_name / email → fixed-field validation fails → 422 with per-field errors.
     resp = app.handler(_event("POST", "/members", body={"member_id": "M-x", "membership": {"member_number": "9"}}))
     assert resp["statusCode"] == 422
     errors = json.loads(resp["body"])["errors"]
-    assert "personal.name" in errors
+    assert "personal.first_name" in errors
 
 
 def test_create_active_member_without_motor_fails_hdcn_hook_422():
@@ -263,15 +265,15 @@ def test_update_member_partial_updates_only_supplied_fields(repo):
     body = _valid_member_body(member_number="4001")
     body["member_id"] = "M-7"
     app.handler(_event("POST", "/members", body=body))
-    # Partial update of just the name.
+    # Partial update of just the first name.
     resp = app.handler(
-        _event("PUT", "/members/M-7", groups=("Regio_All",), body={"personal": {"name": "Alexandra"}})
+        _event("PUT", "/members/M-7", groups=("Regio_All",), body={"personal": {"first_name": "Alexandra"}})
     )
     assert resp["statusCode"] == 200
     stored = repo.get_member("h-dcn", "M-7")
-    assert stored["personal"]["name"] == "Alexandra"
+    assert stored["personal"]["first_name"] == "Alexandra"
     # Untouched fields survive the merge.
-    assert stored["personal"]["contact"] == "alex@example.com"
+    assert stored["personal"]["email"] == "alex@example.com"
     assert stored["membership"]["member_number"] == "4001"
 
 
@@ -281,13 +283,13 @@ def test_update_member_out_of_scope_returns_403(repo):
     body["member_id"] = "M-8"
     app.handler(_event("POST", "/members", body=body))  # admin creates
     resp = app.handler(
-        _event("PUT", "/members/M-8", email=_EMAIL_NOORD, body={"personal": {"name": "Nope"}})
+        _event("PUT", "/members/M-8", email=_EMAIL_NOORD, body={"personal": {"first_name": "Nope"}})
     )
     assert resp["statusCode"] == 403
 
 
 def test_update_missing_member_returns_404():
-    resp = app.handler(_event("PUT", "/members/ghost", body={"personal": {"name": "x"}}))
+    resp = app.handler(_event("PUT", "/members/ghost", body={"personal": {"first_name": "x"}}))
     assert resp["statusCode"] == 404
 
 
@@ -528,15 +530,140 @@ def test_member_number_uniqueness_under_concurrent_writers(table):
 
     b1 = _valid_member_body(member_number="12345")
     b1["member_id"] = "M-A"
-    svc_a.create_member("h-dcn", b1, ["*"])
+    svc_a.create_member("h-dcn", b1, {"region": ["*"]})
 
     b2 = _valid_member_body(member_number="12345")
     b2["member_id"] = "M-B"
     from sam.members.repository.members_repository import MemberNumberConflictError
 
     with pytest.raises(MemberNumberConflictError):
-        svc_b.create_member("h-dcn", b2, ["*"])
+        svc_b.create_member("h-dcn", b2, {"region": ["*"]})
 
     # Winner stands; loser wrote nothing.
     assert repo_a.get_member("h-dcn", "M-A") is not None
     assert repo_a.get_member("h-dcn", "M-B") is None
+
+# ── Task 4.8 (6b + 7b): authoritative WRITE gates surfaced through the EDGE ────────────
+#
+# The service-level gates for value-level role-restricted enums (R4.12) and show_when
+# "hidden-not-required" (R4.12) are pinned directly in
+# ``test_members_resolved_field_surface.py``. THESE tests close the matrix by proving the
+# SAME two gates surface with the correct HTTP status through the FULL handler dispatch
+# (design C1 write → C2/C5): a disallowed role-restricted enum value → **422** (the domain
+# rejects it; the edge maps MemberValidationError → 422), and a field hidden by an unmet
+# ``show_when`` is NOT demanded → **200** (the server never 422s for the missing hidden
+# field). The frontend legs (options filtered by role; hidden field not rendered/required)
+# live in ``frontend/src/components/members/fieldForm.test.ts``.
+
+from sam.members.domain.field_resolver import StaticOverlayProvider  # noqa: E402
+from sam.tests.test_members_resolved_field_surface import (  # noqa: E402
+    _overlay_with_groups_and_options,
+)
+
+
+def _overlay_service_over(table) -> MembershipService:
+    """A MembershipService wired exactly like production (real repo over the fake table +
+    h-dcn lifecycle/hooks) BUT with the task-4.4 overlay that carries a role-gated ``tier``
+    enum and a ``show_when``-gated ``motor_brand`` field. The catalog is seeded with the
+    ``gewoon`` (hides motor_brand) + ``motor`` (shows motor_brand) types the overlay's
+    show_when keys off.
+    """
+    repo = DynamoDbMembersRepository(table=table, client=table.meta.client)
+    for code in ("gewoon", "motor"):
+        repo.save_membership_type(
+            "h-dcn",
+            MembershipTypeEntry(
+                tenant_id="h-dcn", type_code=code, label={"nl": code, "en": code}, active=True
+            ),
+        )
+    return MembershipService(
+        repo,
+        overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
+        lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        tenant_hooks=register_hdcn_hooks(TenantHookRegistry()),
+    )
+
+
+@pytest.fixture()
+def overlay_service(monkeypatch, table):
+    """Swap the autouse ``inject_service`` wiring for the overlay-carrying service (edge tests)."""
+    service = _overlay_service_over(table)
+    monkeypatch.setattr(app, "_get_membership_service", lambda: service)
+    from sam.tests.conftest import FakeScopeGrantsReader
+
+    monkeypatch.setattr(
+        app, "_SCOPE_GRANTS_READER_OVERRIDE", FakeScopeGrantsReader(_HDCN_GRANTS)
+    )
+    return service
+
+
+def _overlay_member_body(*, membership_type="gewoon", tier=None, motor_brand=None, member_id="MO-1"):
+    body = {
+        "member_id": member_id,
+        "personal": {"first_name": "Sam", "last_name": "Jansen", "email": "sam@example.com"},
+        "membership": {
+            # The overlay's fixed_override sets a tenant member-number format (Nr-0001).
+            "member_number": "Nr-0001",
+            "membership_type": membership_type,
+            "joined_date": "2024-01-01",
+        },
+    }
+    # S5d D1/R3.4: the scope field (region) is a PLAIN `overlay.region` field now (a scalar) —
+    # no retired `scope_values` bucket. It rides in the same `overlay` bucket as club details.
+    overlay = {"region": "Noord"}
+    if tier is not None:
+        overlay["tier"] = tier
+    if motor_brand is not None:
+        overlay["motor_brand"] = motor_brand
+    body["overlay"] = overlay
+    return body
+
+
+def test_create_role_restricted_enum_value_denied_role_returns_422(overlay_service):
+    # (6b) A caller WITHOUT Members_CRUD sets the role-restricted "premium" tier → the DOMAIN
+    # rejects it and the edge surfaces 422 with the per-field error (never a silent accept).
+    body = _overlay_member_body(tier="premium", member_id="MO-1")
+    resp = app.handler(
+        _event("POST", "/members", groups=("Members_Read",), body=body)
+    )
+    assert resp["statusCode"] == 422
+    assert "overlay.tier" in json.loads(resp["body"])["errors"]
+
+
+def test_create_role_restricted_enum_value_allowed_role_returns_200(overlay_service):
+    # A caller holding Members_CRUD MAY set "premium" → 200.
+    body = _overlay_member_body(tier="premium", member_id="MO-2")
+    resp = app.handler(
+        _event("POST", "/members", groups=("Members_CRUD", "Regio_All"), body=body)
+    )
+    assert resp["statusCode"] == 200
+
+
+def test_create_open_enum_value_allowed_for_any_role_returns_200(overlay_service):
+    # The unrestricted "standard" option is allowed for any caller → 200.
+    body = _overlay_member_body(tier="standard", member_id="MO-3")
+    resp = app.handler(
+        _event("POST", "/members", groups=("Members_Read", "Regio_All"), body=body)
+    )
+    assert resp["statusCode"] == 200
+
+
+def test_create_omitting_hidden_show_when_field_succeeds_200(overlay_service):
+    # (7b) motor_brand is REQUIRED but only shown for a "motor" membership. A "gewoon" member
+    # hides it → omitting motor_brand must SUCCEED (200); the server must NOT 422 for the
+    # missing hidden field (the mirror of the frontend not rendering/requiring it).
+    body = _overlay_member_body(membership_type="gewoon", member_id="MO-4")
+    resp = app.handler(
+        _event("POST", "/members", groups=("Members_CRUD", "Regio_All"), body=body)
+    )
+    assert resp["statusCode"] == 200
+
+
+def test_create_omitting_visible_show_when_field_returns_422(overlay_service):
+    # The mirror: a "motor" member SHOWS motor_brand → it is required; omitting it → 422.
+    body = _overlay_member_body(membership_type="motor", member_id="MO-5")
+    resp = app.handler(
+        _event("POST", "/members", groups=("Members_CRUD", "Regio_All"), body=body)
+    )
+    assert resp["statusCode"] == 422
+    assert "overlay.motor_brand" in json.loads(resp["body"])["errors"]

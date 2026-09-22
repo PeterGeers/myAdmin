@@ -59,6 +59,7 @@ PUBLIC_ENDPOINTS = {
     "signup.verify_signup": "verify signup code (pre-account)",
     # Static predefined config definitions from a bundled JSON file (no tenant data).
     "config.get_ledger_parameters": "static ledger parameter definitions (bundled JSON)",
+    "config.get_members_parameters": "static members parameter definitions (bundled JSON)",
     # Public landing-page CMS endpoints (anonymous visitors).
     "landing_page.submit_contact": "public landing contact form",
     "landing_page.resolve_slug": "public landing slug resolution",

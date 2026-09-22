@@ -41,6 +41,12 @@ import type { Member, FieldConfig } from '../types/members';
 
 vi.mock('../services/membersApiService');
 
+// MembersPage reads `useAuth().hasAnyRole` for the view-context dropdown (task
+// 3.3). A permissive stub keeps the default context available (dropdown hidden).
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ hasAnyRole: () => true }),
+}));
+
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);

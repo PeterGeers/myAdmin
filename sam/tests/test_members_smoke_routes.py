@@ -129,7 +129,9 @@ def _member(member_id, *, region):
         "member_id": member_id,
         "personal": {"name": member_id, "contact": f"{member_id}@h-dcn.test"},
         "membership": {"member_number": member_id, "status": "active"},
-        "scope_values": {"region": [region]},
+        # S5d D1: scope is a plain member field now — h-dcn's `region` dimension binds to the
+        # tenant-added `overlay.region` field (NOT the retired `scope_values` bucket).
+        "overlay": {"region": region},
     }
 
 

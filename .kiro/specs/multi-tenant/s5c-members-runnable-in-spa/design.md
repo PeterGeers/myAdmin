@@ -71,7 +71,7 @@ module only READS the result via the one-directional projection.** Nothing about
 | `handler/app.py` verified-auth edge (core) | KEEP | wire off `custom:entitlements` only |
 | `_local_dev_group_grants_capability` + `MEMBERS_LOCAL_AUTH_FALLBACK` | REMOVE | delete (R6.1) |
 | `MEMBERS_LOCAL_TENANT_ID` fallback | REMOVE | delete (R6.2) |
-| prod Pool A `Members_CRUD` group | REMOVED (2026-09-19) | do not re-add (R6.4) |
+| `Members_*` names (`Members_CRUD`/`Members_Read`/`Members_Export`) | ROLES, not a capability group | keep as roles; no Members capability derived from `cognito:groups` (R6.4) |
 | `projection_schema.py` / `projection_sync*.py` / reader | KEEP | add `view_contexts` to `config#fields`-family |
 | `sam/pretokengen/*` (Lambda + reader) | KEEP + WIRE | attach trigger test-pool-first then prod (R1) |
 | `parameter_schema.py` — `members` namespace | ADD | declare `members.*` (R3) |
@@ -354,7 +354,16 @@ grant, dispatches to the domain → repository (`sam-members`). Local topology p
 - Delete `_local_dev_group_grants_capability` + `MEMBERS_LOCAL_AUTH_FALLBACK` (capability now real).
 - Delete the `MEMBERS_LOCAL_TENANT_ID` tenant fallback (tenant from verified entitlement).
 - Remove prod-Pool-A coupling from `env-vars.local.json` (C-POOL).
-- Do not re-introduce any per-tenant `Members_*` Cognito group (already removed 2026-09-19).
+- The `Members_*` names (`Members_CRUD`/`Members_Read`/`Members_Export`) are ROLES, not a
+  capability-granting group: they are assigned via MySQL `user_tenant_roles`, projected as
+  `role#<email>#<role>`, consumed by `required_for` scope gating (`scope_dimensions.py` →
+  `resolve_scope_access`), and carried in `RequestContext.groups`. They remain present on prod
+  Pool A and are DISTINCT from capabilities (`members:read/write/export/admin`). R6.4's actual
+  requirement is a code contract — NO Members *capability* is derived from `cognito:groups`;
+  capability comes solely from the verified `custom:entitlements` claim. Enforced by the removals
+  in tasks 0.1/0.2 and pinned by the standalone guard test
+  (`sam/tests/test_members_capability_no_groups_guard.py`, Property 5). Deleting those role groups
+  would break scope gating and MUST NOT be done.
 - Demote `onboard-hdcn-local.py` to a data-track fixture (never the governance path).
 
 ### C-DEPLOY — Gated PROD cutover + rollback (NEW ops; R7/R8)
@@ -505,12 +514,12 @@ fixed by origin): Fixed fields store under `personal`/`membership`, all Paramete
 | `guardian_name` | personal | **Parameter** | `minderjarigNaam` | conditional (minors) — tenant overlay + `showWhen` |
 | `street`, `postal_code`, `city`, `country` | address | **Fixed** | `straat`, `postcode`, `woonplaats`, `land` | universal address |
 | `status` | membership | **Fixed** (Parameter enum values) | `status` | lifecycle states are tenant config |
-| `membership_type` | membership | **Fixed ref + Parameter catalog** | `lidmaatschap` | references the Lidmaatschap Beheer catalog (tenant data) |
-| `region` | membership | **Parameter** (scope dimension) | `regio` | authored via `members.scope_dimensions` |
-| `member_number` | membership | **Fixed `string`; Parameter format; manual entry** (derivation = tenant hook, OUT) | `lidnummer` | fixed-type **string** (stable/sortable/leading-zero-safe), repository-enforced unique (conditional write → 409). **Format pattern is tenant Parameter** (e.g. `Nr-0001` / `Nr-00001` / regex), domain-validated. **Generation is a tenant policy, OUT** — s5c: manual entry (`Members_CRUD` types a value matching the pattern); h-dcn's auto-counter stays in its `derive_member_number` hook (not promoted). Generic numbering *function* is future (R4.8). |
+| `membership_type` | membership | **Fixed ref + Parameter catalog** | `lidmaatschap` | references the Lidmaatschap Beheer catalog (tenant data). **Value-level role gating (R4.12):** options `Erelid`, `Overig` restricted to `Members_CRUD`/`System_User_Management` (h-dcn `enumPermissions`). h-dcn base options: `Gewoon lid`, `Gezins lid`, `Donateur`, `Gezins donateur`, `Erelid`, `Overig`. |
+| `region` | membership | **Parameter** (scope dimension) | `regio` | authored via `members.scope_dimensions`. **Value-level role gating (R4.12):** option `Overig` restricted to `Members_CRUD`/`System_User_Management` (h-dcn `enumPermissions`). |
+| `member_number` | membership | **Fixed `string`; Parameter format; manual entry** (derivation = tenant hook, OUT) | `lidnummer` | fixed-type **string** (stable/sortable/leading-zero-safe), repository-enforced unique (conditional write → 409). **Format pattern is tenant Parameter** (e.g. `Nr-0001` / `Nr-00001` / regex), domain-validated. **Generation is a tenant policy, OUT** — s5c: manual entry (`Members_CRUD` types a value matching the pattern); h-dcn's auto-counter stays in its `derive_member_number` hook (not promoted). Generic numbering *function* is future (R4.8). **h-dcn source shape:** `lidnummer` is `dataType: number`, `computed: true`, `membershipTypeRestricted: [Gewoon lid, Gezins lid, Erelid]`, `showWhen` those membership types — the platform re-classifies it to a Fixed **string** with manual entry (the numeric/computed/show conditions are h-dcn policy, not platform). |
 | `joined_date` | membership | **Fixed** | `ingangsdatum` | |
 | `years_member` | membership | **Calculated** | `jaren_lid` | from `joined_date` |
-| `magazine_pref`, `newsletter_pref`, `privacy_consent`, `referral_source` | membership | **Parameter** | `clubblad`, `nieuwsbrief`, `privacy`, `wiewatwaar` | communication prefs — tenant overlay (enum values tenant config) |
+| `magazine_pref`, `newsletter_pref`, `privacy_consent`, `referral_source` | membership | **Parameter** | `clubblad`, `nieuwsbrief`, `privacy`, `wiewatwaar` | communication prefs — tenant overlay (enum values tenant config). `referral_source` (`wiewatwaar`) is **conditionally required for new applications** in the h-dcn source (`member_id` not_exists) — modeled via `show_when`/validation on the overlay field. |
 | (tenant-authored, e.g. `motor_brand`, `motor_type`, `build_year`, `license_plate`) | motor | **Parameter** | `motormerk`, `motortype`, `bouwjaar`, `kenteken` | club-specific overlay (h-dcn "Motor"); keys are h-dcn's choice; `showWhen` by membership type |
 | `iban`, `payment_method` | financial | **Parameter** | `bankrekeningnummer`, `betaalwijze` | financial overlay (enum values tenant config) |
 | `notes`, `signature_date` | administrative | **Parameter** | `notities`, `datum_ondertekening` | admin overlay |
@@ -665,8 +674,17 @@ Per steering 33/34 and the PBT exclusions in `35-sam-module-architecture-sam.md`
 
 ## Open Design Items (decide during design/tasks — do not block)
 
-1. **`view_contexts` projection shape:** fold into `config#fields` vs a sibling `config#views` row.
-   Leaning `config#views` for clean separation of concern (fields vs views) and independent versioning.
+1. **`view_contexts` projection shape — SETTLED (task 3.1): sibling `config#views` row.** Decided
+   for a **sibling `config#views` row** (not folded into `config#fields`): clean separation of
+   concern (`config#fields` maps 1:1 to the `TenantOverlay` the `FieldResolver` consumes, whereas
+   view contexts are a distinct "which fields show together" concern with a different consumer,
+   authoring parameter, and validation) and independent versioning (a views-only edit advances only
+   the `config#views` row's version, so a re-sync does not churn the fields row — R5.6). No concrete
+   reason to fold was found in the existing projection code. Built: `build_config_views_row` in
+   `projection_sync.py` (Flask builder, wired into the per-tenant sync), `get_view_contexts` on the
+   `MembersProjectionReader` (SAM reader), and the storage-agnostic `sam/members/domain/view_contexts.py`
+   model; empty/absent `config#views` → exactly one default context over all visible fields
+   (empty-is-valid). Row token lives in `services.projection_schema` (`CONFIG_ID_VIEWS`).
 2. **`MEMBERS_MODULE_API_BASE` under prod:** confirm whether needed under the direct-to-module-API
    path (analysis D1 option a).
 3. **Reporting reachability (R10.1):** how member DynamoDB data reaches myAdmin's reporting toolkit —

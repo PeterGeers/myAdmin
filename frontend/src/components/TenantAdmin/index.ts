@@ -8,3 +8,4 @@ export { TenantAdminDashboard, default as TenantAdmin } from './TenantAdminDashb
 export { default as ChartOfAccounts } from './ChartOfAccounts';
 export { default as AccountModal } from './AccountModal';
 export * from './TemplateManagement';
+export { MembersConfigEditor } from './MembersConfig';

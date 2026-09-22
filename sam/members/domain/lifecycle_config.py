@@ -101,7 +101,7 @@ class GuardRule:
     A guard is evaluated against ``(member, context)``; ALL guards on a transition must hold
     for the transition to be allowed (logical AND — express alternatives as separate
     transitions if needed). ``field`` is a dotted path into the member record (e.g.
-    ``membership.member_number``, ``personal.contact``) or, when prefixed ``context.``, into
+    ``membership.member_number``, ``personal.email``) or, when prefixed ``context.``, into
     the transition context supplied at call time (e.g. ``context.approved``). ``reason`` is
     the human-readable denial message surfaced when the guard fails.
     """
@@ -559,7 +559,7 @@ HDCN_LIFECYCLE_CONFIG: LifecycleConfig = LifecycleConfig(
                     reason="a member number is required to activate a membership",
                 ),
                 GuardRule(
-                    field="personal.contact",
+                    field="personal.email",
                     op=RuleOperator.PRESENT,
                     reason="a contact is required to activate a membership",
                 ),
@@ -581,6 +581,6 @@ HDCN_LIFECYCLE_CONFIG: LifecycleConfig = LifecycleConfig(
         # required-ness expressed as data — the same invariant the pending→active guard checks,
         # asserted for the resting state too).
         RequiredFieldRule(field="membership.member_number", when_status=_S.ACTIVE),
-        RequiredFieldRule(field="personal.contact", when_status=_S.ACTIVE),
+        RequiredFieldRule(field="personal.email", when_status=_S.ACTIVE),
     ),
 )

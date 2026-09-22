@@ -1,0 +1,10 @@
+{
+  "default_tenant": "h-dcn-test",
+  "users": [
+    { "email": "member-scoped-601@example.com", "role": "Members_Read", "scope": ["Noord"] },
+    { "email": "member-scoped-602@example.com", "role": "Members_CRUD", "scope": ["Zuid", "Oost"] },
+    { "email": "member-general-701@example.com", "role": "Members_CRUD", "scope": "all" },
+    { "email": "member-general-702@example.com", "role": "Members_Read", "scope": "all" },
+    { "email": "member-extra-801@example.com", "role": "Members_CRUD", "scope": "all", "tenants": ["h-dcn-test", "other-club"] }
+  ]
+}

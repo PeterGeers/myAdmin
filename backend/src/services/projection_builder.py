@@ -55,7 +55,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from services import projection_schema as schema
-from services.module_registry import module_backing
+from services.module_registry import module_backing_or_none
 
 # Candidate source-row fields that carry a monotonic version, in priority order.
 # The sync/source may label the revision differently across the three source
@@ -179,16 +179,31 @@ def _has_sam_backed_module_enabled(tenant_modules: Sequence[Mapping[str, Any]]) 
     """True iff at least one enabled module in the list is SAM-backed.
 
     "Enabled" means the row's ``is_active`` is truthy. Backing is resolved via
-    :func:`services.module_registry.module_backing`; an unknown module name
-    raises there — the builder does not swallow it, since an unrecognised module
-    in the source is a real misconfiguration the sync should surface (R5.5 spirit).
+    :func:`services.module_registry.module_backing_or_none`, the **non-raising**
+    accessor: an **unregistered / legacy** module name resolves to ``None`` and is
+    treated as NON-SAM-backed (skipped), NOT raised (R8.6).
+
+    Why tolerate an unknown name here (R8.6): the periodic reconciliation backstop
+    (:meth:`services.projection_sync.ProjectionSync.sync_all`) sweeps *every*
+    tenant's ``tenant_modules`` rows, and the source legitimately contains other
+    tenants' unregistered/legacy module names (e.g. an ``ADMIN`` row, or lowercase
+    ``members``/``events``). If one such row RAISED, it would abort the entire
+    sweep — one tenant's stale data would stop reconciliation for all tenants.
+    Treating an unknown module as "not one of our backings" means the tenant is
+    evaluated on its KNOWN modules only: a Members-enabled tenant still projects; a
+    tenant whose ONLY modules are unknown projects nothing — exactly like a
+    Flask-only tenant. Validation for KNOWN modules is unchanged (a registered
+    module still resolves to its real backing).
+
     A ``flask``-backed-only tenant is intentionally excluded: the projection
     exists solely for the SAM/Lambda module plane (design.md D3).
     """
     for module_row in tenant_modules:
         if not module_row.get("is_active"):
             continue
-        if module_backing(module_row["module_name"]) == "sam":
+        # None => unregistered/legacy module: skip it (do NOT raise) so a stale
+        # cross-tenant row cannot abort the reconciliation sweep (R8.6).
+        if module_backing_or_none(module_row.get("module_name")) == "sam":
             return True
     return False
 
@@ -256,7 +271,9 @@ def build_projection_items(
 
     Raises:
         ValueError: The tenant is missing its key, or a module row is missing
-            ``module_name`` / references an unknown module.
+            ``module_name``. An **unregistered/legacy** module name does NOT raise
+            — it is skipped (R8.6), so the reconciliation sweep tolerates stale
+            cross-tenant module rows.
     """
     modules = list(tenant_modules or ())
     roles = list(user_tenant_roles or ())
@@ -278,9 +295,18 @@ def build_projection_items(
         )
     )
 
-    # 2) One item per module the tenant has (SAM or flask — the module list is
-    #    tenant-level reference data; the *gate* above is what scopes projection
+    # 2) One item per KNOWN module the tenant has (SAM or flask — the module list
+    #    is tenant-level reference data; the *gate* above is what scopes projection
     #    to SAM-enabled tenants, not per-module filtering).
+    #
+    #    Unregistered/legacy module names are SKIPPED here for consistency with the
+    #    gate (R8.6): the gate resolves backings non-raisingly and ignores unknown
+    #    modules, so emitting a ``module#<unknown>`` reference row for a tenant that
+    #    projects for OTHER (known) reasons would put a module the plane cannot
+    #    interpret into the projection. Skipping keeps the projected module plane to
+    #    the registry's known modules and keeps the reconciliation sweep from
+    #    tripping on a stale cross-tenant row. A row missing ``module_name`` entirely
+    #    is still a malformed row and raises.
     for module_row in modules:
         module_name = module_row.get("module_name")
         if not module_name:
@@ -288,6 +314,10 @@ def build_projection_items(
                 f"tenant_modules row for tenant {tenant_id!r} is missing "
                 f"'module_name': {dict(module_row)!r}"
             )
+        if module_backing_or_none(module_name) is None:
+            # Unregistered/legacy module (e.g. a stale 'ADMIN' or lowercase
+            # 'members' row): not part of the module plane — skip it (R8.6).
+            continue
         items.append(
             ProjectionItem(
                 tenant_id=tenant_id,

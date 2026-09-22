@@ -28,7 +28,8 @@ check:
 1. **authz** (incl. scope) — 401 unauthenticated, 403 unentitled, region-scoped callers
    see/act only within their region (Property 4), admin/``Regio_All`` tenant-wide, and
    verify-before-trust (no header/body tenant trust).
-2. **data** — the fixed base ⊕ h-dcn overlay resolves, ``scope_values.region`` is present,
+2. **data** — the fixed base ⊕ h-dcn overlay resolves, the plain ``overlay.region`` scope
+   field is present (S5d D1 — no ``scope_values`` bucket),
    the Lidmaatschap Beheer dropdown lists only ACTIVE types, and a backfilled member (via
    the 4.1 transform on a fixture row) round-trips through create → read.
 3. **api_contract** — every one of h-dcn's ~18 handler behaviours has a corresponding route
@@ -66,6 +67,11 @@ from sam.members.domain.lifecycle_config import (
     StaticLifecycleConfigProvider,
 )
 from sam.members.domain.membership_service import MembershipService
+from sam.members.domain.field_resolver import StaticOverlayProvider
+from sam.members.domain.scope_dimensions import (
+    HDCN_SCOPE_CONFIG,
+    StaticScopeConfigProvider,
+)
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.migration.hdcn_backfill import MembershipTypeMapper, map_hdcn_row
 from sam.members.migration.hdcn_catalog_seed import HDCN_MEMBERSHIP_TYPES
@@ -253,6 +259,32 @@ def _entitlement(tenant: str, capabilities: Sequence[str]) -> str:
 #: The admin capability set a Regio_All caller carries for the walkthrough.
 _ADMIN_CAPS = ("members:read", "members:write", "members:admin", "members:export")
 
+# ── Scope now travels the PROJECTED-grant seam (design C5, s5c Phase 0 removed the
+#    group-derived scope path). The walkthrough maps its scope INTENT — expressed at each
+#    call site as ``groups=("Regio_All",)`` / ``("Regio_Noord",)`` — onto the caller's
+#    verified EMAIL, which keys the projected grants the edge reads (via a FakeScopeGrants
+#    reader installed for the walkthrough). A caller with no mappable scope group falls back
+#    to the all-access email (the walkthrough's default admin caller). ──────────────────
+_EMAIL_ALL = "regio-all@h-dcn.test"        # all-access → region ["*"]
+_EMAIL_NOORD = "regio-noord@h-dcn.test"    # scoped to Noord
+
+#: Projected scope grants for the walkthrough (mirrors the ``scopegrant#<email>#region`` rows
+#: the real projection reader would surface), keyed by (tenant_id, email).
+_HARNESS_GRANTS = {
+    (PILOT_TENANT, _EMAIL_ALL): {"region": ["*"]},
+    (PILOT_TENANT, _EMAIL_NOORD): {"region": ["Noord"]},
+    # A caller with no region grant is deliberately ABSENT → deny-by-default (Property 4).
+}
+
+
+def _email_for_scope_groups(groups: Sequence[str]) -> str:
+    """Map a walkthrough scope INTENT (its ``groups``) onto the verified email that keys the
+    matching projected grant. ``Regio_Noord`` → the Noord-scoped email; everything else
+    (``Regio_All`` / admin default) → the all-access email."""
+    if "Regio_Noord" in groups:
+        return _EMAIL_NOORD
+    return _EMAIL_ALL
+
 
 class MembersParityHarness:
     """Wires the migrated Members module exactly as production does and walks it end-to-end.
@@ -286,6 +318,9 @@ class MembersParityHarness:
         )
         self._seed_catalog()
         self._original_service_getter: Optional[Callable[[], MembershipService]] = None
+        self._original_scope_config: Any = None
+        self._original_overlay: Any = None
+        self._original_grants: Any = None
 
     # -- lifecycle --------------------------------------------------------------------
     def _seed_catalog(self) -> None:
@@ -296,19 +331,42 @@ class MembersParityHarness:
     def install(self) -> "MembersParityHarness":
         """Point the module edge at this harness's wired service (like the dispatch tests).
 
-        Access is gated the normal SaaS way — capability (token) + scope grant (projection);
-        there is no pilot-routing gate to install. The service getter is restored in
-        :meth:`uninstall` so the harness leaves no global state behind.
+        Access is gated the normal SaaS way — capability (token) + scope grant (projection).
+        Scope now travels the PROJECTED-grant seam (design C5; s5c Phase 0 removed the
+        group-derived scope path), so besides the service getter the harness also installs
+        the edge's config/overlay/grant provider overrides (as the dispatch tests do) rather
+        than resolving a real projection reader (which would need a live DynamoDB table):
+
+        - ``_SCOPE_CONFIG_PROVIDER_OVERRIDE`` → h-dcn's static ``region`` scope config;
+        - ``_OVERLAY_PROVIDER_OVERRIDE`` → an empty overlay (fixed base only);
+        - ``_SCOPE_GRANTS_READER_OVERRIDE`` → the walkthrough's in-memory projected grants.
+
+        All overrides are restored in :meth:`uninstall` so the harness leaves no global
+        state behind.
         """
+        from sam.tests.conftest import FakeScopeGrantsReader
+
         self._original_service_getter = app._get_membership_service
+        self._original_scope_config = app._SCOPE_CONFIG_PROVIDER_OVERRIDE
+        self._original_overlay = app._OVERLAY_PROVIDER_OVERRIDE
+        self._original_grants = app._SCOPE_GRANTS_READER_OVERRIDE
+
         app._get_membership_service = lambda: self.service  # type: ignore[assignment]
+        app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
+            {self.tenant_id: HDCN_SCOPE_CONFIG}
+        )
+        app._OVERLAY_PROVIDER_OVERRIDE = StaticOverlayProvider({})
+        app._SCOPE_GRANTS_READER_OVERRIDE = FakeScopeGrantsReader(_HARNESS_GRANTS)
         return self
 
     def uninstall(self) -> None:
-        """Restore the module's original service getter."""
+        """Restore the module's original service getter + scope provider overrides."""
         if self._original_service_getter is not None:
             app._get_membership_service = self._original_service_getter  # type: ignore[assignment]
             self._original_service_getter = None
+            app._SCOPE_CONFIG_PROVIDER_OVERRIDE = self._original_scope_config
+            app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
+            app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
 
     def __enter__(self) -> "MembersParityHarness":
         return self.install()
@@ -341,6 +399,11 @@ class MembersParityHarness:
                 "authorizer": {
                     "claims": {
                         "sub": sub,
+                        # Scope travels the PROJECTED-grant seam keyed by the verified email
+                        # (design C5); the walkthrough's ``groups`` intent is mapped onto the
+                        # email that holds the matching grant (Regio_Noord → Noord-scoped,
+                        # else all-access). cognito:groups is still carried as ROLES.
+                        "email": _email_for_scope_groups(groups),
                         "cognito:groups": list(groups),
                         "custom:entitlements": _entitlement(
                             tenant or self.tenant_id, list(capabilities)
@@ -379,17 +442,20 @@ class MembersParityHarness:
         """A well-formed create body for the pilot tenant (mirrors the dispatch-test shape)."""
         membership: Dict[str, Any] = {
             "membership_type": membership_type,
-            "joined": "2024-01-01",
+            "joined_date": "2024-01-01",
         }
         if member_number is not None:
             membership["member_number"] = member_number
         if status is not None:
             membership["status"] = status
+        # S5d D1/R3.4: scope is a PLAIN member field now — the retired `scope_values` bucket is
+        # gone. h-dcn's `region` dimension binds to the tenant-added `overlay.region` field, a
+        # SCALAR (single-valued per scope field, R3.2).
         return {
             "member_id": member_id,
-            "personal": {"name": "Alex", "contact": "alex@example.com"},
+            "personal": {"first_name": "Alex", "last_name": "de Vries", "email": "alex@example.com"},
             "membership": membership,
-            "scope_values": {"region": [region or self.region]},
+            "overlay": {"region": region or self.region},
         }
 
     # ── Dimension 1: authz (incl. scope) ──────────────────────────────────────────────
@@ -480,8 +546,9 @@ class MembersParityHarness:
 
     # ── Dimension 2: data ──────────────────────────────────────────────────────────────
     def walk_data(self, report: ParityReport) -> None:
-        """Walk the data contract: resolved field config, scope_values, active-only dropdown,
-        and a backfilled member (4.1 transform) round-trip through create → read.
+        """Walk the data contract: resolved field config, the plain `overlay.region` scope
+        field (S5d D1), active-only dropdown, and a backfilled member (4.1 transform) round-trip
+        through create → read.
         """
         d = Dimension.DATA
 
@@ -528,17 +595,20 @@ class MembersParityHarness:
         # A backfilled member (4.1 transform on a fixture row) round-trips create → read.
         raw_row = {
             "member_id": "BACKFILL-1",
-            "naam": "Backfilled Bram",
+            "voornaam": "Bram",       # → personal.first_name (a required fixed field)
+            "naam": "Backfilled Bram",  # single-name column → personal.last_name (required)
             "email": "bram@example.com",
             "lidnummer": "L-9001",
             "status": "actief",
             "lidmaatschapstype": "Erelid",
-            "ingangsdatum": "2024-01-01",  # → membership.joined (a required fixed field)
+            "ingangsdatum": "2024-01-01",  # → membership.joined_date (a required fixed field)
             "regio": "noord",
             "motor": "BMW R80",  # a club/Motor detail → variable overlay
         }
         record = map_hdcn_row(raw_row, type_mapper=MembershipTypeMapper(), tenant_id=self.tenant_id)
-        region_seeded = record.get("scope_values", {}).get("region") == ["Noord"]
+        # S5d D1/R9.2: the transform normalizes the region onto the plain `overlay.region`
+        # scope field (a scalar) via the shared `scope_canon` — no `scope_values` bucket.
+        region_seeded = record.get("overlay", {}).get("region") == "Noord"
         # The transform maps 'actief'→'active'; create it (needs a motor for the active hook —
         # the fixture carries one in overlay).
         create = self.call("POST", "/members", body=record)
@@ -557,12 +627,13 @@ class MembersParityHarness:
             f"read={read['statusCode']} number={read_data.get('membership', {}).get('member_number')}",
         )
 
-        # scope_values.region is present + canonicalized on the stored record.
+        # The scope field (region) is present + canonicalized on the stored record — a PLAIN
+        # `overlay.region` field now (S5d D1), not a `scope_values` bucket.
         report.record(
-            d, "scope_values.region present + canonicalized", "create_member",
-            Outcome.PASS if region_seeded and read_data.get("scope_values", {}).get("region") == ["Noord"]
+            d, "overlay.region scope field present + canonicalized", "create_member",
+            Outcome.PASS if region_seeded and read_data.get("overlay", {}).get("region") == "Noord"
             else Outcome.FAIL,
-            f"stored scope_values.region={read_data.get('scope_values', {}).get('region')} "
+            f"stored overlay.region={read_data.get('overlay', {}).get('region')!r} "
             f"(transform canonicalized 'noord'→'Noord': {region_seeded})",
         )
 

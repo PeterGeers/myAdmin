@@ -58,6 +58,8 @@ must agree:
 
 from __future__ import annotations
 
+import json
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
@@ -69,6 +71,9 @@ from services.projection_builder import (
     build_projection_items,
 )
 from services.projection_validator import validate_items
+from services.scope_canon import scope_canon
+
+logger = logging.getLogger(__name__)
 
 # --- C2 config#scope builder (S5b design.md C2, R1.1/R1.2) -----------------
 
@@ -101,17 +106,26 @@ _SCOPE_DIMENSIONS_PARAM_KEY = "scope_dimensions"
 #: this builder only READS whatever value exists (Property 1, one-directional).
 _FIELD_OVERLAY_PARAM_KEY = "field_overlay"
 
+#: The single tenant-scope parameter key that holds the Members view-context
+#: definitions as a JSON list, one entry per context. Authored by Tenant Admin
+#: (``members.view_contexts``, S5c Phase 2); read here and shaped into the
+#: sibling ``config#views`` row's ``contexts`` list — the shape the SAM-plane
+#: view-contexts reader (``projection_config_reader.get_view_contexts``) consumes
+#: (``key`` / ``label`` / ``permission_roles`` / ``columns`` /
+#: ``filterable_columns`` / ``default_sort`` / ``page_size``). This builder only
+#: READS whatever value exists (Property 1, one-directional).
+_VIEW_CONTEXTS_PARAM_KEY = "view_contexts"
+
 #: The fields a single projected dimension entry carries — the exact shape
 #: ``ScopeDimension`` consumes (design.md "New governance projection rows",
 #: ``config#scope``). Each is mapped from the authored parameter dict with a
 #: safe default so a partial authoring never yields a malformed dimension.
 _DIMENSION_DEFAULTS: dict[str, Any] = {
     "key": None,
+    "field": None,
     "label": dict,
     "enabled": True,
-    "multi_valued": False,
     "values": list,
-    "all_wildcard": None,
     "required_for": list,
 }
 
@@ -120,11 +134,15 @@ def _map_scope_dimension(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Map one authored dimension dict to the ``config#scope`` dimension shape.
 
     Pure mapping of a single tenant-authored dimension parameter entry into the
-    exact field set ``ScopeDimension`` consumes (``key``, ``label``, ``enabled``,
-    ``multi_valued``, ``values``, ``all_wildcard``, ``required_for``). Unknown
-    extra keys in the authored dict are dropped (the row carries only the shape
-    the domain reads); absent fields fall back to a safe default so a partially
-    authored dimension still yields a well-formed entry rather than raising.
+    exact field set ``ScopeDimension`` consumes (``key``, ``field``, ``label``,
+    ``enabled``, ``values``, ``required_for``). The s5d clean break (R2.2/R8.1)
+    dropped the ``Regio_*`` role encoding: the ``all_wildcard`` role-name and the
+    ``multi_valued`` flag are GONE — scope is sourced from ``user_tenant_scope``,
+    not decoded from a role name, and the all-access sentinel lives on the GRANT
+    side as ``["*"]`` (see :data:`WILDCARD_VALUE`). Unknown extra keys in the
+    authored dict are dropped (the row carries only the shape the domain reads);
+    absent fields fall back to a safe default so a partially authored dimension
+    still yields a well-formed entry rather than raising.
     """
     dimension: dict[str, Any] = {}
     for field_name, default in _DIMENSION_DEFAULTS.items():
@@ -145,8 +163,9 @@ def build_config_scope_row(
     parameter system (``ParameterService.get_param`` on the ``members`` namespace,
     key ``scope_dimensions``) and shapes them into the ``config#scope`` row's
     ``dimensions`` list — the shape ``sam/members/domain/scope_dimensions.py``
-    ``ScopeDimension`` consumes (``key``, ``label``, ``enabled``, ``multi_valued``,
-    ``values``, ``all_wildcard``, ``required_for``).
+    ``ScopeDimension`` consumes (``key``, ``field``, ``label``, ``enabled``,
+    ``values``, ``required_for``). The ``Regio_*`` role encoding is removed (s5d
+    clean break, R2.2/R8.1) — no ``all_wildcard``/``multi_valued``.
 
     One-directional discipline (Property 1): this builder issues **zero** MySQL
     writes and does **not** write the projection itself — it only READS via
@@ -195,7 +214,7 @@ def build_config_scope_row(
 
     return ProjectionItem(
         tenant_id=tenant_id,
-        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope"),
+        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE),
         version=_scope_config_version(tenant),
         attributes={"dimensions": dimensions},
     )
@@ -238,14 +257,32 @@ _OVERLAY_FIELD_DEFAULTS: dict[str, Any] = {
     "choices": None,
     "visible": True,
     "order": 0,
+    # R4.9: an added field carries its own display group (references the functional_groups
+    # catalog). Without this the field falls back to the storage bucket (overlay) and can
+    # never be sectioned by function. `options` (rich enum {value,label,roles}) and
+    # `show_when` (conditional visibility) are likewise carried when authored.
+    "functional_group": None,
+    "options": None,
+    "show_when": None,
 }
 
 #: The fields a single projected fixed-field override entry carries — the exact
 #: set ``FixedFieldOverride`` consumes (``label``, ``visible``, ``required``,
-#: ``order``). A ``None`` value means "leave the fixed base as-is", so the
-#: defaults here are ``None`` (the override is presentation-only and additive);
-#: only the keys the tenant actually authored are carried onto the row.
-_FIXED_OVERRIDE_FIELDS = ("label", "visible", "required", "order")
+#: ``order``, ``functional_group``). A ``None``/absent value means "leave the
+#: fixed base as-is", so only the keys the tenant actually authored are carried
+#: onto the row (the override is presentation-only and additive). ``functional_group``
+#: is the R4.9 display-group reassignment (``config#fields.overrides[dotted].functional_group``
+#: → ``FixedFieldOverride.functional_group`` → resolved onto the field).
+_FIXED_OVERRIDE_FIELDS = ("label", "visible", "required", "order", "functional_group")
+
+#: The fields a single projected functional-group catalog entry carries — the exact
+#: set ``FunctionalGroup`` consumes (``key``, ``label`` i18n ``{nl,en}``, ``order``).
+#: This is the tenant's DISPLAY-group catalog (R4.9), orthogonal to the storage bucket:
+#: every field's ``functional_group`` must reference one of these ``key``s. The catalog
+#: MUST be projected onto ``config#fields`` so the reader
+#: (``MembersProjectionReader.get_overlay`` → ``TenantOverlay.functional_groups``) and the
+#: resolver can section fields by function rather than by storage bucket.
+_FUNCTIONAL_GROUP_FIELDS = ("key", "label", "order")
 
 
 def _map_overlay_field(name: str, raw: Mapping[str, Any]) -> dict[str, Any]:
@@ -274,15 +311,38 @@ def _map_fixed_override(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Map one authored fixed-field override dict to the ``config#fields`` shape.
 
     Presentation-only + additive: only the aspects the tenant actually authored
-    (``label``/``visible``/``required``/``order``) are carried onto the row; an
-    unauthored aspect is simply absent (``FixedFieldOverride`` reads a missing
-    attribute as "leave the fixed base as-is"). Unknown extra keys are dropped.
+    (``label``/``visible``/``required``/``order``/``functional_group``) are carried
+    onto the row; an unauthored aspect is simply absent (``FixedFieldOverride`` reads
+    a missing attribute as "leave the fixed base as-is"). ``functional_group`` (R4.9)
+    reassigns the field's display group — it MUST be carried through so an authored
+    fixed/calculated-field group reassignment reaches the resolved field. Unknown
+    extra keys are dropped.
     """
     override: dict[str, Any] = {}
     for field_name in _FIXED_OVERRIDE_FIELDS:
         if field_name in raw and raw[field_name] is not None:
             override[field_name] = raw[field_name]
     return override
+
+
+def _map_functional_group(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Map one authored functional-group catalog entry to the ``config#fields`` shape.
+
+    Pure mapping of a single tenant-authored functional group into the exact field set
+    ``FunctionalGroup`` consumes (``key``, ``label`` ``{nl,en}``, ``order``) — the R4.9
+    DISPLAY-group catalog, orthogonal to the storage bucket. Only ``key``/``label``/``order``
+    are carried (unknown extra keys dropped); an absent ``label`` falls back to ``{}`` and an
+    absent/non-int ``order`` to ``0`` so a partially authored entry still yields a well-formed
+    row rather than raising. The reader's ``_build_functional_group`` consumes exactly this.
+    """
+    group: dict[str, Any] = {}
+    key = raw.get("key")
+    group["key"] = str(key) if key else ""
+    label = raw.get("label")
+    group["label"] = dict(label) if isinstance(label, Mapping) else {}
+    order = raw.get("order")
+    group["order"] = order if isinstance(order, int) and not isinstance(order, bool) else 0
+    return group
 
 
 def build_config_fields_row(
@@ -342,6 +402,7 @@ def build_config_fields_row(
 
     fields: dict[str, dict[str, Any]] = {}
     overrides: dict[str, dict[str, Any]] = {}
+    functional_groups: list[dict[str, Any]] = []
     if isinstance(raw_overlay, Mapping):
         raw_fields = raw_overlay.get("fields")
         if isinstance(raw_fields, Mapping):
@@ -349,18 +410,154 @@ def build_config_fields_row(
                 if isinstance(entry, Mapping):
                     fields[name] = _map_overlay_field(name, entry)
 
-        raw_overrides = raw_overlay.get("overrides")
+        # The AUTHORED/validated key is ``fixed_overrides`` (design Data Models,
+        # ``members_parameters.json``, ``members_config_validation.validate_field_overlay``).
+        # Honor it as canonical; fall back to a legacy ``overrides`` key only if an
+        # older overlay still carries one. The PROJECTED attribute stays ``overrides``
+        # (the ``config#fields`` row shape + ``TenantOverlay.overrides`` consumer are
+        # unchanged) — only the SOURCE key read from the authored overlay changes.
+        raw_overrides = raw_overlay.get("fixed_overrides")
+        if not isinstance(raw_overrides, Mapping):
+            raw_overrides = raw_overlay.get("overrides")
         if isinstance(raw_overrides, Mapping):
             for dotted_key, entry in raw_overrides.items():
                 if isinstance(entry, Mapping):
                     overrides[dotted_key] = _map_fixed_override(entry)
 
+        # R4.9: carry the tenant's functional-group (display) catalog onto the row so the
+        # reader (``TenantOverlay.functional_groups``) + resolver can section fields by
+        # FUNCTION, not by storage bucket. Malformed entries (non-mapping / no ``key``) are
+        # skipped (empty-is-valid); an unauthored catalog yields an empty list (base defaults).
+        raw_groups = raw_overlay.get("functional_groups")
+        if isinstance(raw_groups, (list, tuple)):
+            for entry in raw_groups:
+                if isinstance(entry, Mapping) and entry.get("key"):
+                    functional_groups.append(_map_functional_group(entry))
+
     return ProjectionItem(
         tenant_id=tenant_id,
-        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS),
         version=_scope_config_version(tenant),
-        attributes={"fields": fields, "overrides": overrides},
+        attributes={
+            "fields": fields,
+            "overrides": overrides,
+            "functional_groups": functional_groups,
+        },
     )
+
+
+# --- C-VIEW config#views builder (S5c design.md C-VIEW, R5.1) ---------------
+
+#: The fields a single projected view-context entry carries — the exact shape the
+#: SAM-plane view-contexts reader consumes and the Phase-2 authoring UI writes
+#: (``members.view_contexts``): ``key`` / ``label`` (i18n ``{nl,en}``) /
+#: ``permission_roles`` / ``columns`` / ``filterable_columns`` / ``default_sort``
+#: (``{field, direction}``) / ``page_size``. Each is mapped from the authored
+#: parameter dict with a safe default so a partially authored context still yields
+#: a well-formed entry rather than raising (empty-is-valid — the reader collapses a
+#: missing/empty list to one default context, so the projection never forces a
+#: context the tenant did not author).
+_VIEW_CONTEXT_DEFAULTS: dict[str, Any] = {
+    "key": None,
+    "label": dict,
+    "permission_roles": list,
+    "columns": list,
+    "filterable_columns": list,
+    "default_sort": None,
+    "page_size": None,
+}
+
+
+def _map_view_context(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Map one authored view-context dict to the ``config#views`` context shape.
+
+    Pure mapping of a single tenant-authored view context into the exact field set
+    the view-contexts reader consumes (``key``, ``label``, ``permission_roles``,
+    ``columns``, ``filterable_columns``, ``default_sort``, ``page_size``). Unknown
+    extra keys in the authored dict are dropped (the row carries only the shape the
+    module reads); absent fields fall back to a safe default so a partially authored
+    context still yields a well-formed entry rather than raising.
+    """
+    context: dict[str, Any] = {}
+    for field_name, default in _VIEW_CONTEXT_DEFAULTS.items():
+        if field_name in raw and raw[field_name] is not None:
+            context[field_name] = raw[field_name]
+        else:
+            context[field_name] = default() if callable(default) else default
+    return context
+
+
+def build_config_views_row(
+    tenant: Mapping[str, Any],
+    parameter_service: Any,
+) -> ProjectionItem | None:
+    """Build the tenant-level ``config#views`` projection item (S5c C-VIEW, R5.1).
+
+    Reads the tenant's Members view-context definitions from the tenant-scope
+    parameter system (``ParameterService.get_param`` on the ``members`` namespace,
+    key ``view_contexts``) and shapes them into the **sibling ``config#views``**
+    row's ``contexts`` list — the shape the SAM-plane view-contexts reader
+    (``sam/members/repository/projection_config_reader.get_view_contexts``)
+    consumes (each context = ``key`` / ``label`` / ``permission_roles`` /
+    ``columns`` / ``filterable_columns`` / ``default_sort`` / ``page_size``).
+
+    Projection-shape decision (S5c task 3.1, Open Design Item 1 — settled): view
+    contexts project as a **sibling ``config#views`` row**, not folded into
+    ``config#fields`` — see :data:`services.projection_schema.RECORD_TYPE_CONFIG`
+    for the rationale (separation of concern + independent versioning).
+
+    One-directional discipline (Property 1): this builder issues **zero** MySQL
+    writes and does **not** write the projection itself — it only READS via
+    ``ParameterService`` (which resolves the tenant-scope rows read-only) and
+    RETURNS the item for :class:`ProjectionSync` (the sole writer), mirroring the
+    sibling ``config#scope`` / ``config#fields`` builders.
+
+    Empty-is-valid (R5.1): a tenant that has authored no ``members.view_contexts``
+    parameter — or a malformed one — yields a row with an empty ``contexts`` list.
+    The reader then resolves that to **exactly one default context** over all
+    visible fields, never an error. Returning the row (rather than ``None``) keeps
+    the projection self-describing; the empty list is the default-context collapse.
+
+    Args:
+        tenant: The tenant row. Must carry ``administration`` (or ``tenant_id``)
+            — the partition key / tenancy boundary (R5.4).
+        parameter_service: A ``ParameterService`` (or anything exposing
+            ``get_param(namespace, key, tenant=...)``). Read-only.
+
+    Returns:
+        The ``config#views`` :class:`ProjectionItem` for this tenant. ``None`` is
+        never returned for a present tenant — an un-configured tenant still gets a
+        well-formed empty-``contexts`` row.
+
+    Raises:
+        ValueError: The tenant is missing its ``administration``/``tenant_id`` key.
+    """
+    tenant_id = tenant.get("administration") or tenant.get(schema.PARTITION_KEY_ATTR)
+    if not tenant_id:
+        raise ValueError(
+            "tenant is missing its 'administration'/'tenant_id' key — a blank "
+            "partition key is a cross-tenant hazard (R5.4)"
+        )
+
+    raw_contexts = parameter_service.get_param(
+        _MEMBERS_PARAM_NAMESPACE,
+        _VIEW_CONTEXTS_PARAM_KEY,
+        tenant=tenant_id,
+    )
+
+    contexts: list[dict[str, Any]] = []
+    if isinstance(raw_contexts, Sequence) and not isinstance(raw_contexts, str):
+        for entry in raw_contexts:
+            if isinstance(entry, Mapping):
+                contexts.append(_map_view_context(entry))
+
+    return ProjectionItem(
+        tenant_id=tenant_id,
+        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS),
+        version=_scope_config_version(tenant),
+        attributes={"contexts": contexts},
+    )
+
 
 # --- Source-side seam (read-only MySQL) ------------------------------------
 
@@ -377,11 +574,21 @@ class TenantSource:
         tenant: The ``tenants`` row (carries ``administration``/tenant fields).
         tenant_modules: The tenant's ``tenant_modules`` rows.
         user_tenant_roles: The tenant's ``user_tenant_roles`` rows.
+        user_tenant_scope: The tenant's ``user_tenant_scope`` rows — each shaped
+            ``{email, module, scopes, updated_at}`` (``scopes`` a JSON column carried
+            as-is; it may arrive as a JSON string or already-parsed depending on the
+            driver — the ``build_scopegrant_rows`` builder parses it). This is the
+            NEW s5d source of the ``scopegrant#…`` grant, replacing the ``Regio_*``
+            role decode (R2.1; design → Projection Components items 1–2).
+            ``updated_at`` (the table's ``ON UPDATE CURRENT_TIMESTAMP`` column) is the
+            per-row freshness signal ODx4a uses so an UPDATED grant supersedes the
+            stored projection row (design → freshness FRESHNESS HAZARD; R2.4).
     """
 
     tenant: Mapping[str, Any]
     tenant_modules: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
     user_tenant_roles: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
+    user_tenant_scope: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
 
 
 @runtime_checkable
@@ -447,10 +654,20 @@ class DatabaseSourceProvider:
             (administration,),
             fetch=True,
         )
+        scope_rows = self._db.execute_query(
+            # ``updated_at`` (``ON UPDATE CURRENT_TIMESTAMP`` on the table) is the
+            # per-row freshness signal ODx4a uses so a grant CHANGE supersedes the
+            # stored scopegrant row (see ``build_scopegrant_rows`` / ``_scopegrant_version``).
+            "SELECT email, module, scopes, updated_at FROM user_tenant_scope "
+            "WHERE administration = %s",
+            (administration,),
+            fetch=True,
+        )
         return TenantSource(
             tenant=tenant_rows[0],
             tenant_modules=list(module_rows or ()),
             user_tenant_roles=list(role_rows or ()),
+            user_tenant_scope=list(scope_rows or ()),
         )
 
 
@@ -465,17 +682,21 @@ class SyncResult:
         written: Count of items actually written (put) this run.
         skipped: Count of items skipped because the stored version was already
             >= the incoming version (the idempotent/no-op path, R5.6).
+        deleted: Count of obsolete ``scopegrant#…`` rows deleted by the ODx4b
+            diff-and-delete reconcile (task 3.5) — cleared/downgraded grants whose
+            row is no longer in the desired set. Zero on an unchanged re-sync.
         administrations: The ``administration`` values processed.
     """
 
     written: int = 0
     skipped: int = 0
+    deleted: int = 0
     administrations: tuple[str, ...] = ()
 
     @property
     def is_noop(self) -> bool:
-        """True iff nothing was written (a fully idempotent re-run)."""
-        return self.written == 0
+        """True iff nothing was written or deleted (a fully idempotent re-run)."""
+        return self.written == 0 and self.deleted == 0
 
 
 def _supersedes(incoming_version: Any, stored_version: Any) -> bool:
@@ -508,9 +729,12 @@ class ProjectionSync:
     Args:
         source: The read-only :class:`SourceProvider`. Required — inject a
             :class:`DatabaseSourceProvider` in production or a fake in tests.
-        table: A DynamoDB table writer (boto3 ``Table`` or a fake exposing
-            ``get_item`` / ``put_item``). Optional — resolved lazily from the
-            fail-fast schema helper when a write is first needed (R4.1).
+        table: A DynamoDB table handle (boto3 ``Table`` or a fake exposing
+            ``get_item`` / ``put_item`` / ``query`` / ``delete_item``). Optional —
+            resolved lazily from the fail-fast schema helper when a write is first
+            needed (R4.1). ``query`` + ``delete_item`` back the ODx4b
+            diff-and-delete reconcile of obsolete ``scopegrant#…`` rows (task 3.5);
+            a real boto3 ``Table`` exposes both.
         parameter_service: A read-only ``ParameterService`` (or anything exposing
             ``get_param(namespace, key, tenant=...)``) supplying the tenant-scope
             ``members.*`` config the C2 rows (``config#scope`` / ``config#fields``
@@ -572,13 +796,16 @@ class ProjectionSync:
         administrations = self._source.list_administrations()
         total_written = 0
         total_skipped = 0
+        total_deleted = 0
         for administration in administrations:
             result = self.sync_administration(administration)
             total_written += result.written
             total_skipped += result.skipped
+            total_deleted += result.deleted
         return SyncResult(
             written=total_written,
             skipped=total_skipped,
+            deleted=total_deleted,
             administrations=tuple(administrations),
         )
 
@@ -592,8 +819,9 @@ class ProjectionSync:
            has no SAM-backed module enabled -> nothing to project).
         3. **Only when the tenant has something to project** (base items
            non-empty, i.e. the SAM/MEMBERS module is enabled) also build the S5b
-           C2 Members rows — ``config#scope``, ``config#fields`` and the per-user
-           ``scopegrant#…`` grants — by READING the tenant-scope ``members.*``
+           C2 Members rows — ``config#scope``, ``config#fields``, ``config#views``
+           (S5c) and the per-user ``scopegrant#…`` grants — by READING the
+           tenant-scope ``members.*``
            config through the read-only :attr:`parameter_service`. A non-SAM
            tenant (empty base items) emits **no** C2 rows either, matching the
            existing early-return (nothing to project). One-directional: the C2
@@ -639,9 +867,17 @@ class ProjectionSync:
         config_fields = build_config_fields_row(source.tenant, param_svc)
         if config_fields is not None:
             items.append(config_fields)
-        items.extend(
-            build_scopegrant_rows(source.tenant, source.user_tenant_roles, param_svc)
+        config_views = build_config_views_row(source.tenant, param_svc)
+        if config_views is not None:
+            items.append(config_views)
+        # The scopegrant rows are the DESIRED per-user grant set for this tenant.
+        # Kept in a named list (not just extended into ``items``) so the ODx4b
+        # diff-and-delete reconcile below can compute which STORED ``scopegrant#…``
+        # rows are no longer desired and delete them.
+        scopegrant_items = build_scopegrant_rows(
+            source.tenant, source.user_tenant_scope, param_svc
         )
+        items.extend(scopegrant_items)
 
         # Validate the ENTIRE combined batch (base + C2) before writing anything —
         # atomic per tenant, no partial write on a malformed item (R5.5).
@@ -654,9 +890,116 @@ class ProjectionSync:
                 written += 1
             else:
                 skipped += 1
+
+        # FRESHNESS FIX (ODx4b, task 3.5). The version-guarded conditional put
+        # above makes ADDS and UPDATES propagate, but it can never DELETE a row.
+        # A user whose grant was CLEARED (their scope row is gone) or DOWNGRADED
+        # (a dimension dropped) leaves the old ``scopegrant#<email>#<dimension>``
+        # row PRESENT in the projection; deny-by-default enforcement then keeps
+        # honouring the stale grant — the user keeps seeing members they were
+        # unscoped from (SECURITY-relevant staleness). So after writing the
+        # DESIRED scopegrant rows, reconcile the tenant's stored ``scopegrant#…``
+        # rows to that desired set, deleting the obsolete ones. Confined to the
+        # ``scopegrant#…`` SK space this feature owns — no other record type is
+        # touched. Delete happens AFTER the puts so a still-desired row is written
+        # first and never transiently absent.
+        deleted = self._reconcile_scopegrants(administration, scopegrant_items)
+
         return SyncResult(
-            written=written, skipped=skipped, administrations=(administration,)
+            written=written,
+            skipped=skipped,
+            deleted=deleted,
+            administrations=(administration,),
         )
+
+    def _reconcile_scopegrants(
+        self, administration: str, desired_items: Sequence[ProjectionItem]
+    ) -> int:
+        """Delete obsolete ``scopegrant#…`` rows for one tenant (ODx4b, task 3.5).
+
+        Computes the DESIRED set of ``scopegrant#<email>#<dimension>`` sort keys
+        (from :func:`build_scopegrant_rows` over the tenant's ``user_tenant_scope``)
+        and deletes every STORED ``scopegrant#…`` row whose sort key is NOT in that
+        set. This is what makes REMOVALS and DOWNGRADES propagate — a version bump
+        alone can only supersede a present row, never delete an orphaned one.
+
+        Tenant-scoped (Property 1/2): the stored rows are read with a ``query`` on
+        this tenant's partition (``tenant_id = administration``) filtered to
+        ``begins_with(sk, 'scopegrant#')``, so the reconcile never addresses — let
+        alone deletes — another tenant's partition. Confined to the ``scopegrant#…``
+        SK space: non-scopegrant rows (``tenant``/``module#*``/``role#*``/
+        ``config#*``) are never listed and never deleted (they have their own
+        lifecycle, out of s5d's scope).
+
+        Idempotent: on an unchanged re-sync the stored set equals the desired set,
+        so nothing is deleted; deleting an already-absent row would be a harmless
+        no-op regardless.
+
+        Args:
+            administration: The tenant scope (partition key) to reconcile.
+            desired_items: The DESIRED scopegrant items just built for this tenant.
+
+        Returns:
+            The count of obsolete ``scopegrant#…`` rows deleted.
+        """
+        desired_sks = {item.sort_key for item in desired_items}
+        deleted = 0
+        for stored_sk in self._list_scopegrant_sort_keys(administration):
+            if stored_sk in desired_sks:
+                continue
+            self.table.delete_item(Key=schema.build_key(administration, stored_sk))
+            deleted += 1
+        return deleted
+
+    def _list_scopegrant_sort_keys(self, administration: str) -> list[str]:
+        """Return the stored ``scopegrant#…`` sort keys for one tenant.
+
+        Queries only THIS tenant's partition (``tenant_id = administration``) with
+        a ``begins_with(sk, 'scopegrant#')`` key condition, so the read is
+        tenant-scoped (Property 1/2) and confined to the ``scopegrant#…`` SK space
+        (no other record type is listed). Paginates via ``LastEvaluatedKey`` so a
+        tenant with many grants is fully reconciled.
+
+        Args:
+            administration: The tenant scope (partition key) to list.
+
+        Returns:
+            The stored ``scopegrant#…`` sort-key values (possibly empty).
+        """
+        scopegrant_prefix = (
+            schema.RECORD_TYPE_SCOPEGRANT + schema.SORT_KEY_SEPARATOR
+        )
+        query_kwargs: dict[str, Any] = {
+            "KeyConditionExpression": (
+                "#pk = :pk AND begins_with(#sk, :sk_prefix)"
+            ),
+            "ExpressionAttributeNames": {
+                "#pk": schema.PARTITION_KEY_ATTR,
+                "#sk": schema.SORT_KEY_ATTR,
+            },
+            "ExpressionAttributeValues": {
+                ":pk": administration,
+                ":sk_prefix": scopegrant_prefix,
+            },
+        }
+        sort_keys: list[str] = []
+        while True:
+            response = self.table.query(**query_kwargs)
+            if not isinstance(response, Mapping):
+                break
+            for row in response.get("Items", ()) or ():
+                if not isinstance(row, Mapping):
+                    continue
+                sort_key = row.get(schema.SORT_KEY_ATTR)
+                if isinstance(sort_key, str) and sort_key.startswith(
+                    scopegrant_prefix
+                ):
+                    sort_keys.append(sort_key)
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            query_kwargs["ExclusiveStartKey"] = last_key
+        return sort_keys
 
     def _stored_version(self, item: ProjectionItem) -> Any:
         """Return the currently-stored version for ``item``'s key, or ``None``.
@@ -721,140 +1064,162 @@ def _is_conditional_check_failure(exc: BaseException) -> bool:
 
 # --- C2 scopegrant#<email>#<dimension> builder (S5b design.md C2, R2.1/R2.2) ---
 
-#: The resolved "all values" sentinel a projected all-access grant carries — the
-#: same token ``sam/members/domain/scope_dimensions.WILDCARD`` uses so the module's
-#: ``resolve_scope_access`` reads the projected ``["*"]`` grant as tenant-wide.
+#: The all-access sentinel a projected grant carries on the GRANT side — the value
+#: that appears in the ``scopes`` JSON (``{ "<dimension>": ["*"] }``) and is projected
+#: verbatim into the ``scopegrant#…`` row so the module reads it as tenant-wide. This is
+#: a GRANT-side value, NOT role machinery: s5d sources grants from ``user_tenant_scope``
+#: (R2.2, clean break — the ``Regio_*`` role-name decode and its ``all_wildcard`` encoding
+#: are removed). It is independent of any role name.
 WILDCARD_VALUE = "*"
 
-#: Separators an ``all_wildcard`` role name may use between its scoped-role prefix
-#: and the value token — mirrors ``sam/members/domain/scope_access.py``
-#: ``_scoped_role_prefix`` so the decode here agrees exactly with what
-#: ``resolve_scope_access`` expects (e.g. ``"Regio_All"`` → prefix ``"Regio_"`` →
-#: ``"Regio_Noord"`` decodes to ``"Noord"``). Kept as a module constant so the
-#: builder and the domain resolver cannot drift on the prefix convention.
-_SCOPED_ROLE_SEPARATORS = ("_", "-", ":", "/")
+
+#: The MODULE token s5d projects: the builder filters ``user_tenant_scope`` rows
+#: to this module (the s5d slice). Scope dimensions are a MODULE-owned concept
+#: (design → Data Models), so a future module (Events/Webshop) runs the SAME loop
+#: with its own token + its own ``<module>.scope_dimensions`` — no re-migration.
+_SCOPEGRANT_MODULE = "MEMBERS"
 
 
-def _scoped_role_prefix(all_wildcard: Any) -> str | None:
-    """Infer the scoped-role prefix from a dimension's ``all_wildcard`` role name.
+#: Row fields a ``user_tenant_scope`` row may carry a per-row freshness signal in,
+#: in priority order. ``updated_at`` is the table's ``ON UPDATE CURRENT_TIMESTAMP``
+#: column (see the migration): it advances on a genuine grant CHANGE and is stable
+#: when the row is untouched — exactly the monotonic-yet-idempotent property ODx4a
+#: needs. ``version``/``revision`` backstop it if a future source labels freshness
+#: differently. A row with none falls back to the tenant config version (see
+#: :func:`_scopegrant_version`).
+_SCOPEGRANT_VERSION_FIELDS = ("updated_at", "version", "revision", "modified_at")
 
-    Mirrors ``sam/members/domain/scope_access._scoped_role_prefix`` exactly so a
-    role name decodes to the same value the module's ``resolve_scope_access`` would
-    derive: the prefix is everything up to and including the last separator in the
-    wildcard role name (``"Regio_All"`` → ``"Regio_"``). Returns ``None`` when no
-    prefix can be inferred (no ``all_wildcard``, or it carries no separator), in
-    which case only a bare ``<value>`` role is honoured as a scoped grant.
+
+def _scopegrant_version(scope_row: Mapping[str, Any], tenant_version: Any) -> Any:
+    """Return the per-row version for one ``user_tenant_scope`` grant (ODx4a).
+
+    FRESHNESS FIX (design → "Projection invocation + freshness" FRESHNESS HAZARD,
+    ODx4a). The ``scopegrant#…`` rows are written under the sync's VERSION-GUARDED
+    conditional put (:func:`_supersedes` / the ``#v < :incoming`` condition), which
+    writes only when the incoming ``version`` STRICTLY supersedes the stored one.
+    Deriving that version from the TENANT row (``_scope_config_version``) — as the
+    sibling ``config#*`` rows do — is wrong for a per-user grant: editing a user's
+    scope (e.g. Oost → Oost+Friesland) does NOT bump the tenant version, so the
+    conditional put would SKIP the changed row and the projection would stay STALE
+    (a security-relevant staleness — the user keeps seeing members they were
+    unscoped from).
+
+    APPROACH — per-row ``updated_at`` (chosen over a content-hash/etag). The
+    ``user_tenant_scope`` row carries ``updated_at`` (``ON UPDATE CURRENT_TIMESTAMP``
+    on the table), which:
+
+    - (a) **advances on a changed grant** — an edited row's ``updated_at`` moves
+      forward, so the new version STRICTLY supersedes the stored one and the put
+      writes (UPDATE propagates — the bug is fixed);
+    - (b) **is stable on an unchanged re-sync** — an untouched row reproduces the
+      SAME ``updated_at`` → the same normalized version → the conditional put is a
+      no-op (idempotence preserved, no version churn);
+    - (c) **fits the existing mechanics** — ``_normalize_version`` renders a
+      ``datetime`` to an ISO-8601 string that sorts lexicographically in
+      chronological order, so it is a valid MONOTONIC version for BOTH the write
+      conditional put (:func:`_supersedes`) AND the read-side staleness detection
+      (``projection_reader._version_supersedes``). Those two consumers require a
+      strictly-ORDERED version, which a content hash could NOT provide (an edited
+      grant's hash may sort LOWER than the stored one → would not supersede, and
+      would corrupt read-side staleness ordering). ``updated_at`` is therefore the
+      correct fit; a content hash would only satisfy "differs", not "supersedes".
+
+    Fallback: a row without any :data:`_SCOPEGRANT_VERSION_FIELDS` (e.g. a test/
+    fixture row, or a driver that omitted the column) falls back to the tenant
+    config version, preserving the previous behaviour and keeping the item
+    well-formed and re-sync idempotent.
+
+    NOTE (seam for task 3.5 / ODx4b): this version bump makes ADDS and UPDATES
+    propagate. A REMOVED/downgraded grant (the SK disappears from the desired set)
+    still needs the diff-and-delete-obsolete step (ODx4b, task 3.5) — a conditional
+    put alone can never delete an orphaned row.
     """
-    if not all_wildcard or not isinstance(all_wildcard, str):
-        return None
-    for sep in _SCOPED_ROLE_SEPARATORS:
-        idx = all_wildcard.rfind(sep)
-        if idx != -1:
-            return all_wildcard[: idx + 1]
+    for name in _SCOPEGRANT_VERSION_FIELDS:
+        value = scope_row.get(name)
+        if value is not None:
+            return _normalize_version(value)
+    return tenant_version
+
+
+def _parse_scopes(raw: Any) -> Mapping[str, Any] | None:
+    """Return the parsed ``scopes`` mapping for a ``user_tenant_scope`` row, or ``None``.
+
+    The ``scopes`` JSON column is carried as-is by the source provider and may arrive
+    as a JSON **string** (most MySQL drivers) OR an already-parsed **dict** (some
+    drivers deserialize JSON columns). Handle both: a ``str`` is ``json.loads``-ed; a
+    ``Mapping`` is used directly. Anything else — an unparseable string, a non-dict
+    JSON value (list/number), a ``None`` — yields ``None``, signalling the caller to
+    skip that user row (defensive, design → Error Handling: a malformed row logs and
+    is skipped, never raises).
+    """
+    if isinstance(raw, Mapping):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+        return parsed if isinstance(parsed, Mapping) else None
     return None
-
-
-def _decode_grant_for_dimension(
-    dimension: Mapping[str, Any],
-    user_roles: set[str],
-) -> list[str] | None:
-    """Decode one user's roles into the granted values for one dimension, or ``None``.
-
-    The pure role→value decode, matching ``sam/members/domain/scope_access.py``
-    resolution order so the projected grant is exactly what the module's
-    ``resolve_scope_access`` would resolve (design C5 "the design projects values
-    for ``scopegrant#`` … keeps ``resolve_scope_access`` as the deny-by-default
-    authority"):
-
-    - **all-access** — the user holds the dimension's ``all_wildcard`` role
-      → ``["*"]`` (the wildcard sentinel).
-    - **scoped** — the user holds roles decoding to declared ``values`` (bare
-      ``<value>`` or prefixed ``<prefix><value>``, prefix inferred from
-      ``all_wildcard``) → that subset, in the dimension's declared value order,
-      de-duplicated (a multi-valued user's grants form the union).
-    - **no grant** — neither → ``None`` (the caller emits **no row** for this
-      (user, dimension); the module then applies deny-by-default via
-      ``required_for``, R2.6). Deny is the *absence* of a row, never an empty one.
-
-    A disabled dimension, or one without a usable ``key``, yields ``None`` — a
-    disabled dimension is a tenant-wide no-op with nothing per-user to grant.
-    """
-    if not dimension.get("enabled", True):
-        return None
-
-    all_wildcard = dimension.get("all_wildcard")
-    if all_wildcard and isinstance(all_wildcard, str) and all_wildcard in user_roles:
-        return [WILDCARD_VALUE]
-
-    raw_values = dimension.get("values") or ()
-    if isinstance(raw_values, str) or not isinstance(raw_values, Sequence):
-        raw_values = ()
-
-    prefix = _scoped_role_prefix(all_wildcard)
-    granted: list[str] = []
-    seen: set[str] = set()
-    for value in raw_values:
-        if not isinstance(value, str) or value in seen:
-            continue
-        candidates = {value}
-        if prefix is not None:
-            candidates.add(f"{prefix}{value}")
-        if candidates & user_roles:
-            granted.append(value)
-            seen.add(value)
-
-    return granted or None
 
 
 def build_scopegrant_rows(
     tenant: Mapping[str, Any],
-    user_tenant_roles: Sequence[Mapping[str, Any]] | None,
+    user_tenant_scope: Sequence[Mapping[str, Any]] | None,
     parameter_service: Any,
 ) -> list[ProjectionItem]:
-    """Build the per-user ``scopegrant#<email>#<dimension>`` items (S5b C2, R2.1/R2.2).
+    """Build the per-user ``scopegrant#<email>#<dimension>`` items (R2.1/R2.3/R2.5).
 
-    Decodes each user's per-tenant Members role assignments (MySQL
-    ``user_tenant_roles`` rows — the ``email``/``role`` shape ``projection_builder``
-    already mirrors as ``role#<email>#<role>``) into granted dimension values, using
-    the dimension definitions the Tenant Admin authored
-    (``members.scope_dimensions``, task 5.1's source). For each (user, dimension)
-    with a grant it emits one ``scopegrant#<email>#<dimension>`` item:
+    Sources each user's scope from the MySQL ``user_tenant_scope`` table (rows
+    ``{email, module, scopes}``), NOT from role names — the ``Regio_*`` role encoding
+    is removed (R2.2). For the s5d MEMBERS slice, rows are filtered to
+    ``module = 'MEMBERS'``; each user row's ``scopes`` JSON
+    (``{ "<dimension>": ["<value>", ...] | ["*"] }``) is decoded into one
+    ``scopegrant#<email>#<dimension>`` item per dimension with a **non-empty** grant:
 
-    - ``values=["*"]`` when the user holds the dimension's all-access
-      (``all_wildcard``) role, or
-    - ``values=[<subset>]`` when the user holds subgroup-scoped role(s) decoding to
-      declared dimension values (the union subset, in declared order).
+    - ``values=["*"]`` when the grant is the all-access sentinel ``["*"]``, or
+    - ``values=[<subset>]`` — the granted plain values, validated against the
+      dimension's declared ``values`` (canonicalized-equality via ``scope_canon``;
+      belt-and-suspenders — primary validation is at authoring, R4.2), emitted in the
+      dimension's declared value order.
 
-    R2.2 — the grant is **derived here** from ``user_tenant_roles`` + the dimension
-    values; it is NOT carried on the token nor invented in the module. The role→value
-    decode mirrors ``sam/members/domain/scope_access.py`` (prefix inferred from
-    ``all_wildcard``; ``all_wildcard`` role → ``["*"]``; ``<prefix><value>``/bare
-    ``<value>`` → that value) so the projected grant is exactly what the module's
-    ``resolve_scope_access`` would resolve (design C5).
+    Deny-by-default (R2.3): an absent dimension, an empty grant list, or a grant whose
+    values all fail validation produces **no** row for that (user, dimension) — the
+    module's deny-by-default handles the absence. The projected row SHAPE is UNCHANGED
+    (R2.5): ``{dimension, values}`` attributes + a ``version``.
 
-    One-directional discipline (Property 1): this builder issues **zero** MySQL
-    writes and does **not** write the projection itself — it only READS the roles it
-    is handed and the dimension params via ``ParameterService`` (read-only), and
-    RETURNS the items for :class:`ProjectionSync` (the sole writer), mirroring the
-    sibling ``config#scope``/``config#fields`` builders.
+    FRESHNESS (ODx4a, R2.4). Each row's ``version`` is derived PER USER from the
+    ``user_tenant_scope`` row's ``updated_at`` (see :func:`_scopegrant_version`),
+    NOT from the tenant row. A grant-only change (e.g. Oost → Oost+Friesland) does
+    not bump the tenant version, so sourcing the version from the tenant row would
+    let the version-guarded conditional put SKIP the changed row (stale, security-
+    relevant). ``updated_at`` advances on a changed grant (the new version
+    supersedes → the update is written) and is stable on an unchanged re-sync (same
+    version → no-op → idempotence preserved). Removals/downgrades (the SK vanishes
+    from the desired set) are handled by the diff-and-delete step (ODx4b, task 3.5).
 
-    Deny-by-default alignment (R2.6): a user with **no** scope-granting role in a
-    dimension produces **no** row for that dimension — the module's deny-by-default
-    (via ``required_for``) handles the absence. Only actual grants are emitted; a
-    malformed role row (missing ``email``, non-mapping) is skipped, never raised.
+    One-directional discipline (Property 1): this builder issues **zero** MySQL writes
+    and does **not** write the projection itself — it only READS the scope rows it is
+    handed and the dimension params via ``ParameterService`` (read-only), and RETURNS
+    the items for :class:`ProjectionSync` (the sole writer).
 
-    Empty-is-valid: a tenant that has authored no ``members.scope_dimensions`` — or
-    has no role assignments — yields an empty list (no grants to project), never an
-    error.
+    Empty-is-valid: a tenant that has authored no ``members.scope_dimensions`` — or has
+    no scope rows — yields an empty list (no grants to project), never an error. A
+    malformed ``scopes`` JSON on a user row (not a dict, unparseable) is logged and the
+    row is skipped, never raised (design → Error Handling; mirrors the existing
+    builders' empty-is-valid tolerance).
 
     Args:
         tenant: The tenant row. Must carry ``administration`` (or ``tenant_id``)
             — the partition key / tenancy boundary (R5.4).
-        user_tenant_roles: The tenant's ``user_tenant_roles`` rows (``email``,
-            ``role``). ``None``/empty → no grants.
+        user_tenant_scope: The tenant's ``user_tenant_scope`` rows (``email``,
+            ``module``, ``scopes``, ``updated_at``). ``None``/empty → no grants.
+            ``scopes`` may be a JSON string or an already-parsed dict. ``updated_at``
+            (the per-row freshness signal) drives the emitted row's ``version``
+            (ODx4a); absent → the tenant config version fallback.
         parameter_service: A ``ParameterService`` (or anything exposing
             ``get_param(namespace, key, tenant=...)``). Read-only — supplies the
-            ``members.scope_dimensions`` dimension definitions used to decode roles.
+            ``members.scope_dimensions`` dimension definitions used to validate values.
 
     Returns:
         The ``scopegrant#<email>#<dimension>`` :class:`ProjectionItem`s — one per
@@ -884,28 +1249,108 @@ def build_scopegrant_rows(
     if not dimensions:
         return []
 
-    # Group each user's assigned role names (skip malformed rows — never raise).
-    roles_by_email: dict[str, set[str]] = {}
-    for role_row in user_tenant_roles or ():
-        if not isinstance(role_row, Mapping):
+    # Index dimensions by key, precomputing each dimension's canonical value map
+    # (canonical form -> declared value) so a granted value is validated by
+    # canonicalized-equality (belt-and-suspenders, R9.6) and emitted as the declared
+    # value in declared order.
+    dimension_by_key: dict[str, dict[str, Any]] = {}
+    for dimension in dimensions:
+        if not dimension.get("enabled", True):
+            # A disabled dimension is a tenant-wide no-op — no per-user grant row.
             continue
-        email = role_row.get("email")
-        role = role_row.get("role")
-        if not email or not role or not isinstance(role, str):
-            continue
-        roles_by_email.setdefault(email, set()).add(role)
+        key = dimension["key"]
+        raw_values = dimension.get("values") or ()
+        if isinstance(raw_values, str) or not isinstance(raw_values, Sequence):
+            raw_values = ()
+        canon_to_value: dict[str, str] = {}
+        declared_order: list[str] = []
+        for value in raw_values:
+            if not isinstance(value, str):
+                continue
+            declared_order.append(value)
+            canon_to_value.setdefault(scope_canon(value), value)
+        dimension_by_key[key] = {
+            "canon_to_value": canon_to_value,
+            "declared_order": declared_order,
+        }
 
-    version = _scope_config_version(tenant)
+    # Collect each user's parsed scopes for the s5d MEMBERS slice (skip non-MEMBERS
+    # rows and malformed rows — never raise). A later duplicate row for the same
+    # email is merged shallowly (last-writer-wins per dimension); the table's unique
+    # key (email, administration, module) makes this a defensive no-op in practice.
+    #
+    # Also capture each row's per-user FRESHNESS version (ODx4a): the row's
+    # ``updated_at`` (or tenant fallback) so an UPDATED grant supersedes the stored
+    # scopegrant row. Keyed by email so every dimension row for a user carries the
+    # SAME per-user version; on a defensive duplicate the last row's version wins
+    # (aligned with the last-writer-wins scope merge).
+    tenant_version = _scope_config_version(tenant)
+    scopes_by_email: dict[str, dict[str, Any]] = {}
+    version_by_email: dict[str, Any] = {}
+    for scope_row in user_tenant_scope or ():
+        if not isinstance(scope_row, Mapping):
+            logger.warning(
+                "skipping malformed user_tenant_scope row (not a mapping) for "
+                "tenant %s",
+                tenant_id,
+            )
+            continue
+        if scope_row.get("module") != _SCOPEGRANT_MODULE:
+            continue
+        email = scope_row.get("email")
+        if not email or not isinstance(email, str):
+            continue
+        parsed = _parse_scopes(scope_row.get("scopes"))
+        if parsed is None:
+            logger.warning(
+                "skipping user_tenant_scope row with malformed 'scopes' JSON for "
+                "email %s in tenant %s",
+                email,
+                tenant_id,
+            )
+            continue
+        scopes_by_email.setdefault(email, {}).update(parsed)
+        version_by_email[email] = _scopegrant_version(scope_row, tenant_version)
+
     items: list[ProjectionItem] = []
     # Deterministic order: by email, then by dimension declaration order, so a
     # re-sync on unchanged input reproduces the same items (idempotence, R5.6).
-    for email in sorted(roles_by_email):
-        user_roles = roles_by_email[email]
+    for email in sorted(scopes_by_email):
+        scopes = scopes_by_email[email]
+        version = version_by_email.get(email, tenant_version)
         for dimension in dimensions:
-            granted = _decode_grant_for_dimension(dimension, user_roles)
-            if granted is None:
-                continue
             dimension_key = dimension["key"]
+            meta = dimension_by_key.get(dimension_key)
+            if meta is None:
+                # Disabled / unusable dimension — no per-user grant row.
+                continue
+            grant = scopes.get(dimension_key)
+            if not isinstance(grant, Sequence) or isinstance(grant, str):
+                # Absent dimension / non-list grant -> no row (deny-by-default, R2.3).
+                continue
+            # All-access sentinel: any ["*"] entry grants the whole dimension.
+            if any(isinstance(g, str) and g == WILDCARD_VALUE for g in grant):
+                granted = [WILDCARD_VALUE]
+            else:
+                canon_to_value = meta.get("canon_to_value", {})
+                # Validate each granted value against the dimension's declared values
+                # by canonicalized-equality (belt-and-suspenders, R9.6); unknown
+                # values are dropped. Emit in declared order, de-duplicated.
+                granted_declared: set[str] = set()
+                for g in grant:
+                    if not isinstance(g, str):
+                        continue
+                    declared = canon_to_value.get(scope_canon(g))
+                    if declared is not None:
+                        granted_declared.add(declared)
+                granted = [
+                    value
+                    for value in meta.get("declared_order", [])
+                    if value in granted_declared
+                ]
+            if not granted:
+                # Empty grant / all values dropped -> no row (deny-by-default, R2.3).
+                continue
             items.append(
                 ProjectionItem(
                     tenant_id=tenant_id,

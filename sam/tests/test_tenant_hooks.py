@@ -237,7 +237,7 @@ def test_membership_service_dispatches_on_transition_through_the_unified_registr
     member = {
         "member_id": "m-1",
         "membership": {"status": MS.PENDING.value, "member_number": "L-000001"},
-        "personal": {"contact": "rider@h-dcn.nl"},
+        "personal": {"email": "rider@h-dcn.nl"},
     }
     result = svc.transition_membership("h-dcn", member, MS.ACTIVE)
     assert result.to_state is MS.ACTIVE

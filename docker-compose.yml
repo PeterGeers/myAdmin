@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:9.4
+    image: mysql:9.7.2
     env_file:
       - ./backend/.env
     environment:
@@ -57,6 +57,14 @@ services:
       - DB_HOST=mysql
       - FLASK_DEBUG=true
       - DOCKER_ENV=true
+      # Local dev/test registers ONLY the standing test pool (key "TEST", reusing
+      # the TEST_COGNITO_* vars in backend/.env) — never production Pool A. This
+      # override is the documented dev/test design (see backend/.env pool-keys
+      # comment): backend/.env keeps COGNITO_POOL_KEYS=PROD_A as the prod-oriented
+      # reference, and this environment: entry (which takes precedence over
+      # env_file) swaps the LOCAL container to the test pool so SPA logins against
+      # myAdmin-test (eu-west-1_xyrlzfqbl) verify and resolve roles.
+      - COGNITO_POOL_KEYS=TEST
       # Point the S3 projection's DynamoDB client at the local container. This
       # var is the SOLE switch for local DynamoDB (S3 R4.1) — when it is unset,
       # boto3 resolves real AWS. In-network hostname, not localhost.
@@ -72,7 +80,7 @@ services:
     cpus: 1.5
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:5000/api/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

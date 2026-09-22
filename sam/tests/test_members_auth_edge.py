@@ -261,16 +261,20 @@ def test_scope_seam_denies_by_default_until_task_3_1(monkeypatch):
     )
     resp = app.handler(event)
     assert resp["statusCode"] == 501
-    # The scope seam produced no scope grant (deny-by-default); task 3.1 fills the resolver.
-    assert captured["ctx"].allowed_scopes == []
+    # s5d task 4.1: allowed_scopes is a PER-DIMENSION map. h-dcn wires a single ``region``
+    # dimension, so a no-grant caller resolves to {"region": []} — deny for that dimension
+    # (Property 4), not a bare empty list.
+    assert captured["ctx"].allowed_scopes == {"region": []}
 
 
 def test_scope_seam_is_a_wired_integration_point(monkeypatch):
     # The edge consults the scope seam for a capability route. Simulate a resolved scope by
     # patching the seam to return a subset and assert it flows onto the context. (The seam's
     # signature is (spec, tenant, claims, *, config_provider=..., grants_reader=...) — task 8.3.)
+    # s5d task 4.1: the seam now returns a PER-DIMENSION map {dimension: [values]}; the stub
+    # returns one and asserts it flows onto the context verbatim.
     monkeypatch.setattr(
-        app, "_resolve_scope_access", lambda spec, tenant, claims, **kw: ["region-a"]
+        app, "_resolve_scope_access", lambda spec, tenant, claims, **kw: {"region": ["region-a"]}
     )
     captured = {}
 
@@ -285,7 +289,7 @@ def test_scope_seam_is_a_wired_integration_point(monkeypatch):
     )
     resp = app.handler(event)
     assert resp["statusCode"] == 501
-    assert captured["ctx"].allowed_scopes == ["region-a"]
+    assert captured["ctx"].allowed_scopes == {"region": ["region-a"]}
 
 
 # ── Scope from PROJECTED grants (S5b task 8.3, design C5) ──────────────────────────────
@@ -320,7 +324,7 @@ def test_scope_from_projected_all_access_grant_is_wildcard(monkeypatch):
     claims["email"] = "alice@h-dcn.test"
     resp = app.handler(_authorizer_event("GET", "/members", claims=claims))
     assert resp["statusCode"] == 501
-    assert captured["ctx"].allowed_scopes == ["*"]
+    assert captured["ctx"].allowed_scopes == {"region": ["*"]}
 
 
 def test_scope_from_projected_subgroup_grant_is_the_subset(monkeypatch):
@@ -331,7 +335,7 @@ def test_scope_from_projected_subgroup_grant_is_the_subset(monkeypatch):
     claims["email"] = "bob@h-dcn.test"
     resp = app.handler(_authorizer_event("GET", "/members", claims=claims))
     assert resp["statusCode"] == 501
-    assert captured["ctx"].allowed_scopes == ["Noord"]
+    assert captured["ctx"].allowed_scopes == {"region": ["Noord"]}
 
 
 def test_scope_deny_by_default_when_no_projected_grant(monkeypatch):
@@ -343,7 +347,7 @@ def test_scope_deny_by_default_when_no_projected_grant(monkeypatch):
     claims["email"] = "carol@h-dcn.test"
     resp = app.handler(_authorizer_event("GET", "/members", claims=claims))
     assert resp["statusCode"] == 501
-    assert captured["ctx"].allowed_scopes == []
+    assert captured["ctx"].allowed_scopes == {"region": []}
 
 
 def test_scope_ignores_token_groups_uses_projection(monkeypatch):
@@ -355,7 +359,7 @@ def test_scope_ignores_token_groups_uses_projection(monkeypatch):
     claims["email"] = "dave@h-dcn.test"
     resp = app.handler(_authorizer_event("GET", "/members", claims=claims))
     assert resp["statusCode"] == 501
-    assert captured["ctx"].allowed_scopes == ["Noord"]
+    assert captured["ctx"].allowed_scopes == {"region": ["Noord"]}
 
 
 # ── CORS on error envelopes ────────────────────────────────────────────────────────────

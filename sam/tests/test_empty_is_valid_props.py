@@ -69,6 +69,7 @@ from sam.members.domain.field_resolver import (
     FieldResolver,
     TenantOverlay,
 )
+from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.fixed_fields import FIXED_FIELDS
 from sam.members.domain.scope_access import resolve_scope_access
 from sam.members.domain.scope_dimensions import WILDCARD, ScopeConfig
@@ -344,15 +345,25 @@ def test_property_no_config_fields_yields_fixed_base(data, tenant_id):
     # The collapse end-to-end: empty overlay → EXACTLY the fixed base (reader is the provider).
     resolved = FieldResolver(reader).resolve(tenant_id)
 
-    # No VARIABLE fields at all — the base is purely fixed.
+    # No VARIABLE fields at all — with no overlay the config is the fixed base plus the
+    # platform CALCULATED (derived, read-only, never-stored) fields (task 1.3), nothing tenant-authored.
     assert resolved.variable_fields() == ()
-    # One resolved field per FIXED_FIELDS, all FIXED, same set of dotted keys.
-    assert all(f.origin is FieldOrigin.FIXED for f in resolved.fields)
-    assert {f.dotted_key() for f in resolved.fields} == set(_EXPECTED_FIXED)
-    assert len(resolved.fields) == len(FIXED_FIELDS)
+    # Every resolved field is either FIXED or CALCULATED — no VARIABLE (overlay) fields.
+    assert all(
+        f.origin in (FieldOrigin.FIXED, FieldOrigin.CALCULATED) for f in resolved.fields
+    )
+    # The fixed base is reproduced exactly (one FIXED resolved field per FIXED_FIELDS)...
+    fixed_resolved = [f for f in resolved.fields if f.origin is FieldOrigin.FIXED]
+    assert {f.dotted_key() for f in fixed_resolved} == set(_EXPECTED_FIXED)
+    assert len(fixed_resolved) == len(FIXED_FIELDS)
+    # ...and the calculated fields are all present as read-only CALCULATED fields.
+    calc_resolved = [f for f in resolved.fields if f.origin is FieldOrigin.CALCULATED]
+    assert {f.dotted_key() for f in calc_resolved} == {c.dotted_key() for c in CALCULATED_FIELDS}
+    assert all(f.read_only for f in calc_resolved)
+    assert len(resolved.fields) == len(FIXED_FIELDS) + len(CALCULATED_FIELDS)
 
     # Each fixed field's base attributes are preserved one-to-one.
-    for rf in resolved.fields:
+    for rf in fixed_resolved:
         expected = _EXPECTED_FIXED[rf.dotted_key()]
         actual = {
             "key": rf.key,

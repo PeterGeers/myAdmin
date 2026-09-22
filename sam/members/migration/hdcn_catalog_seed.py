@@ -37,7 +37,7 @@ deactivates or deletes; a re-seed is an idempotent upsert.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Mapping, Optional, Sequence
 
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
@@ -83,8 +83,10 @@ def _hdcn_entry(type_code: str, nl: str, en: str, order: int) -> MembershipTypeE
 #: — retiring a type later is a soft-delete (``active=False``), not part of this seed.
 HDCN_MEMBERSHIP_TYPES: tuple[MembershipTypeEntry, ...] = (
     _hdcn_entry("gewoon_lid", "Gewoon lid", "Regular member", 10),
+    _hdcn_entry("gezins_lid", "Gezinslid", "Family member", 15),
     _hdcn_entry("erelid", "Erelid", "Honorary member", 20),
     _hdcn_entry("donateur", "Donateur", "Donor", 30),
+    _hdcn_entry("gezins_donateur", "Gezinsdonateur", "Family donor", 35),
     _hdcn_entry("sponsor", "Sponsor", "Sponsor", 40),
 )
 
@@ -196,6 +198,10 @@ def build_seed_plan(
     by_code: Mapping[str, MembershipTypeEntry] = {e.type_code: e for e in existing}
     plan = CatalogSeedPlan(tenant_id=tenant_id)
     for entry in seed:
+        # Stamp every seed entry with the PLAN's tenant so the seed set can be applied to any
+        # administration (no hardcoded tenant on the runner) and the repository's no-cross-
+        # tenant-write guard (Property 1) is satisfied — the entry and the caller agree.
+        entry = replace(entry, tenant_id=tenant_id)
         current = by_code.get(entry.type_code)
         if current is None:
             action = "create"

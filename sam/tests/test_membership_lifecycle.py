@@ -253,7 +253,7 @@ def test_engine_runs_hdcn_pending_to_active_with_required_fields():
     complete = _member(
         MS.PENDING,
         membership={"member_number": "M-1"},
-        personal={"contact": "rider@h-dcn.nl"},
+        personal={"email": "rider@h-dcn.nl"},
     )
     result = svc.transition_membership("h-dcn", complete, MS.ACTIVE)
     assert result.to_state is MS.ACTIVE

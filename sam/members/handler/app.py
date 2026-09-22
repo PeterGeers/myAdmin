@@ -30,9 +30,10 @@ edge (R1.1) so every route parses → authenticates (verified) → establishes t
   :func:`sam.shared.auth_utils.has_capability`, which is **three-state**: ``True`` grant,
   ``False`` authoritative token-backed denial, ``None`` = the token does not answer →
   deny per module policy (never a silent allow). The **scope** decision runs behind a
-  clean seam (:func:`_resolve_scope_access`) that delegates to the domain
-  ``resolve_scope_access`` (task 3.1): admin/all → ``["*"]``, a scoped role → its subset,
-  and a scope-requiring capability held without a grant → deny (Property 4).
+  clean seam (:func:`_resolve_scope_access`) sourced from the caller's PROJECTED
+  ``scopegrant#`` values (s5d, R2.2 — scope is an independent axis from
+  ``user_tenant_scope``, not a decoded role name): ``["*"]`` → all, a subset → that subset,
+  and a scope-requiring capability held without a projected grant → deny (Property 4).
 - **Domain dispatch** — the generic membership engine (C2) is built in Steps 3/5. Until a
   route is implemented, dispatch raises :class:`RouteNotImplemented`, which the edge maps
   to ``501 Not Implemented`` — an honest "route exists, behaviour pending" answer.
@@ -47,7 +48,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, List, Mapping, Optional, Protocol
+from typing import Any, Dict, List, Mapping, Optional, Protocol
 
 from sam.members.handler.router import (
     MethodNotAllowed,
@@ -75,13 +76,14 @@ from sam.members.domain.membership_service import (
     TransitionDenied,
 )
 from sam.members.domain.membership_type_catalog import MembershipTypeValidationError
-from sam.members.domain.scope_access import resolve_scope_access
+from sam.members.domain.scope_access import ScopeAccess, resolve_scope_access
 from sam.members.domain.scope_dimensions import (
     WILDCARD,
     ScopeConfigProvider,
     ScopeDimension,
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
+from sam.members.domain.view_contexts import ViewContext, ViewContextsProvider
 from sam.members.repository.members_repository import (
     DynamoDbMembersRepository,
     MemberNumberConflictError,
@@ -132,6 +134,13 @@ _SCOPE_CONFIG_PROVIDER_OVERRIDE: Optional[ScopeConfigProvider] = None
 
 #: Test-only override for the overlay provider (``None`` in production → fresh reader).
 _OVERLAY_PROVIDER_OVERRIDE: Optional[TenantOverlayProvider] = None
+
+#: Test-only override for the view-contexts provider (``None`` in production → fresh reader).
+#: Mirrors :data:`_OVERLAY_PROVIDER_OVERRIDE` — a test injects a ``StaticViewContextsProvider``
+#: (or a ``MembersProjectionReader`` over a fake table) so the field-config endpoint's
+#: ``view_contexts`` can be driven without an AWS round-trip. When unset (production), each read
+#: builds a fresh projection reader (see :class:`_ProjectionViewContextsProvider`).
+_VIEW_CONTEXTS_PROVIDER_OVERRIDE: Optional[ViewContextsProvider] = None
 
 
 def _new_projection_reader() -> MembersProjectionReader:
@@ -211,6 +220,30 @@ class _ProjectionOverlayProvider:
 #: The overlay provider handed to the domain service — a stable indirection that reads a
 #: fresh projection each call (see :class:`_ProjectionOverlayProvider`).
 _OVERLAY_PROVIDER: TenantOverlayProvider = _ProjectionOverlayProvider()
+
+
+class _ProjectionViewContextsProvider:
+    """A thin :class:`ViewContextsProvider` indirection over a per-call fresh reader (C-VIEW).
+
+    S5c task 3.2 — the view-contexts seam wired at the module edge, EXACTLY mirroring
+    :class:`_ProjectionOverlayProvider`. The :class:`MembershipService` is a lazy module-level
+    singleton that captures its providers once; to reflect a re-projected ``config#views`` edit
+    without rebuilding the service per request, its view-contexts provider is this stable
+    indirection: every ``get_view_contexts`` call delegates to a FRESH
+    :class:`MembersProjectionReader` (or the test override), so the field-config endpoint's
+    ``view_contexts`` always reflects the current projection while the domain and the service
+    singleton stay UNCHANGED. Empty-is-valid is owned by the reader (≥1 default context, R5.1).
+    """
+
+    def get_view_contexts(self, tenant_id: str) -> tuple[ViewContext, ...]:
+        if _VIEW_CONTEXTS_PROVIDER_OVERRIDE is not None:
+            return _VIEW_CONTEXTS_PROVIDER_OVERRIDE.get_view_contexts(tenant_id)
+        return _new_projection_reader().get_view_contexts(tenant_id)
+
+
+#: The view-contexts provider handed to the domain service — a stable indirection that reads a
+#: fresh projection each call (see :class:`_ProjectionViewContextsProvider`).
+_VIEW_CONTEXTS_PROVIDER: ViewContextsProvider = _ProjectionViewContextsProvider()
 
 #: The tenants' membership-lifecycle configuration, carried as **data** (design C2, never an
 #: ``if tenant == ...``): h-dcn is simply the first ``tenant_id`` the provider knows about
@@ -389,27 +422,34 @@ class RequestContext:
         groups: The caller's roles from the verified ``cognito:groups`` claim.
         capability: The capability the route required and the caller was granted (``None``
             for a pure self-service route).
-        allowed_scopes: The scope values the caller may act within for this tenant, as
-            resolved by the scope seam (task 3.1 fills the real resolver). ``["*"]`` means
-            tenant-wide; a subset means scoped; an empty list means no scope grant (the
-            domain layer treats that as "see nothing" for a scope-requiring capability).
+        allowed_scopes: The scope the caller may act within for this tenant, as a
+            **per-dimension map** ``{dimension_key: [values]}`` (s5d task 4.1, ODx2 Option
+            A). The edge resolves EVERY enabled dimension independently: each dimension maps
+            to ``["*"]`` (tenant-wide for that dimension), a subset (scoped for that
+            dimension), or ``[]`` (no grant → deny for that dimension). A tenant-wide
+            (un-partitioned) tenant resolves to a single ``{DEFAULT: ["*"]}`` entry. The
+            domain layer enforces per-dimension: today the single-dimension case is
+            preserved; task 4.2 formalizes AND-across-dimensions in ``_in_scope``.
         claims: The full verified claims dict (for layers that need more).
         path_params: The path parameters the router extracted from the matched route
             (e.g. ``{"member_id": "M-1"}`` for ``/members/{member_id}``). Threaded from the
             router's :class:`~sam.members.handler.router.RouteMatch` so the domain dispatch
             can reach ``{member_id}`` / ``{membership_id}`` — the edge stays thin and only
             carries them through.
-        scope_dimension_key: The tenant's gating scope-dimension key for this request
-            (h-dcn: ``"region"``), derived **generically** from the tenant's scope config —
-            never hardcoded — so the domain scope filter narrows on the right dimension. May
-            be ``None`` for a tenant-wide (un-partitioned) tenant.
+        scope_dimension_key: The tenant's first-enabled scope-dimension key (h-dcn:
+            ``"region"``), derived **generically** from the tenant's scope config, or ``None``
+            for a tenant-wide (un-partitioned) tenant. **Vestigial since s5d task 4.2**: the
+            domain scope check now iterates the full per-dimension ``allowed_scopes`` map
+            (AND-across-dimensions, Property 6) instead of narrowing on a single gating
+            dimension, so the read/write dispatch no longer threads this into the service. It
+            is retained on the context for diagnostics and any future single-dimension caller.
     """
 
     tenant_id: Optional[str] = None
     sub: Optional[str] = None
     groups: List[str] = field(default_factory=list)
     capability: Optional[str] = None
-    allowed_scopes: List[str] = field(default_factory=list)
+    allowed_scopes: Dict[str, List[str]] = field(default_factory=dict)
     claims: Mapping[str, Any] = field(default_factory=dict)
     path_params: Mapping[str, str] = field(default_factory=dict)
     scope_dimension_key: Optional[str] = None
@@ -478,34 +518,40 @@ def _scope_access_from_grant(
 ):
     """Map a caller's PROJECTED grant values for one dimension to a :class:`ScopeAccess` (C5).
 
-    Design C5 "role→value seam": the projection carries resolved grant **values** for
-    ``scopegrant#`` (``["*"]`` for all-access, the subset for scoped, or the dimension is
-    ABSENT for none) — NOT role names to re-decode. So the caller's scope comes from those
-    projected values, never from the token ``groups``. To keep
-    :func:`~sam.members.domain.scope_access.resolve_scope_access` as the deny-by-default
-    AUTHORITY (C5) while sourcing values from the projection, we synthesize the minimal role
-    set the domain needs and let it classify:
+    s5d clean break (R2.2/R8.1, design → Projection Components item 4, Property 5): scope is
+    an independent axis sourced from ``user_tenant_scope`` → the projected ``scopegrant#`` row,
+    NOT decoded from a role name. The projection carries the RESOLVED grant **values** for the
+    dimension (``["*"]`` for all-access, a subset for scoped, or the dimension is ABSENT for
+    none). This seam maps those values DIRECTLY onto a :class:`ScopeAccess` — no ``Regio_*``
+    role synthesis, no ``all_wildcard`` role name, no round-trip through the role decoder:
 
-    - ``["*"]`` (all-access, R2.4) → the dimension's ``all_wildcard`` role (so the domain
-      resolves ``["*"]`` / ``access_type="all"``). If the dimension declares no
-      ``all_wildcard``, we map directly to :data:`WILDCARD` (still the domain's ``["*"]``).
-    - a subset (scoped, R2.5) → the bare value names (``"Noord"``), which the domain honours
-      as scoped grants → the subset / ``access_type="scoped"``.
-    - ABSENT (``None``) → NO synthesized role, so the domain hits its deny-by-default branch
+    - ``["*"]`` (all-access, R2.4) → ``allowed_scopes=["*"]``, ``access_type="all"``,
+      ``full_access=True``.
+    - a non-empty subset (scoped, R2.5) → exactly that subset, normalized to the dimension's
+      declared value order (unknown values dropped), ``access_type="scoped"``.
+    - ABSENT (``None``) or an empty/all-unknown grant → the deny-by-default branch
       (``[]`` / ``access_type="none"``) — a ``required_for`` capability held without a
       projected grant is denied (R2.6, Property 4).
     """
+    # All-access sentinel: the projected ["*"] grant is tenant-wide (R2.4).
     if granted_values is not None and list(granted_values) == [WILDCARD]:
-        # All-access: prefer the dimension's declared all-wildcard role so the domain owns
-        # the decision; fall back to the wildcard token when the dimension declares none.
-        synthesized = [dimension.all_wildcard] if dimension.all_wildcard else [WILDCARD]
-    elif granted_values:
-        # Scoped: the domain's _granted_values honours a bare value name (e.g. "Noord").
-        synthesized = list(granted_values)
-    else:
-        # Absent / empty grant → no role → deny-by-default in the domain (R2.6).
-        synthesized = []
-    return resolve_scope_access(tenant_id, dimension, synthesized)
+        return ScopeAccess(
+            full_access=True, allowed_scopes=[WILDCARD], access_type="all"
+        )
+
+    # Scoped: keep only the dimension's declared values, in declared order, de-duplicated
+    # (R2.5). The projected grant is authoritative; an unknown value (belt-and-suspenders)
+    # is simply dropped rather than trusted.
+    if granted_values:
+        granted = set(granted_values)
+        subset = [v for v in dimension.normalized_values() if v in granted]
+        if subset:
+            return ScopeAccess(
+                full_access=False, allowed_scopes=subset, access_type="scoped"
+            )
+
+    # Absent / empty / all-unknown grant → deny-by-default (R2.6, Property 4).
+    return ScopeAccess(full_access=False, allowed_scopes=[], access_type="none")
 
 
 def _resolve_scope_access(
@@ -515,25 +561,32 @@ def _resolve_scope_access(
     *,
     config_provider: Optional[ScopeConfigProvider] = None,
     grants_reader: Optional["_ScopeGrantsReader"] = None,
-) -> List[str]:
-    """Resolve the caller's allowed scope values for this route — the scope seam (C5, task 8.3).
+) -> Dict[str, List[str]]:
+    """Resolve the caller's allowed scope as a PER-DIMENSION map — the scope seam (C5).
 
-    S5b task 8.3 changes the SOURCE of the caller's scope: it now comes from the caller's
-    PROJECTED ``scopegrant#`` rows (design C5 "role→value seam"), NOT from the token
-    ``cognito:groups``. The edge stays **thin** — it holds no scope logic:
+    s5d task 4.1 (R3.3/R6.2, ODx2 Option A, design → enforcement item 3, Property 6):
+    the edge no longer collapses scope onto a single gating dimension. It resolves EVERY
+    enabled dimension **independently** and returns ``{dimension_key: [values]}`` — so a
+    multi-dimension tenant (e.g. ``region`` AND ``age_group``) carries a grant per axis and
+    the domain (task 4.2) can enforce AND-across-dimensions. Single-dimension tenants
+    (h-dcn's ``region`` today) are the N=1 case — a one-entry map — behaviour unchanged.
+
+    The edge stays **thin** — it holds no scope logic:
 
     1. Resolve the tenant's :class:`ScopeConfig` (data, via the per-request projection
-       reader). A tenant with no enabled dimension → tenant-wide (``["*"]``, the R3.2
-       collapse) — unchanged.
-    2. Read the caller's projected grants for the gating dimension via
-       ``get_scope_grants(tenant_id, email)`` (task 8.1), keyed by the caller's VERIFIED
-       ``email`` claim (verify-before-trust — scope is never read from a header/body or a
-       token scope claim; there is none). A dimension ABSENT from the map is the deny signal.
-    3. Delegate to :func:`_scope_access_from_grant`, which routes the projected VALUES through
-       the domain :func:`~sam.members.domain.scope_access.resolve_scope_access` so the domain
-       stays the deny-by-default AUTHORITY (C5): ``["*"]`` → ``["*"]`` (all-access, R2.4); a
-       subset → that subset (scoped, R2.5); ABSENT → ``[]`` (deny-by-default for a
-       ``required_for`` capability, R2.6, Property 4).
+       reader). A tenant with no enabled dimension → tenant-wide: a single
+       ``{DEFAULT_SCOPE_DIMENSION_KEY: ["*"]}`` entry (the R3.2 collapse, expressed as a
+       one-entry map so the domain sees a uniform shape).
+    2. Read the caller's PROJECTED grants ONCE via ``get_scope_grants(tenant_id, email)``
+       (task 8.1), keyed by the caller's VERIFIED ``email`` claim (verify-before-trust —
+       scope is never read from a header/body or a token scope claim; there is none). The
+       returned map carries ``{dimension: values}`` for every dimension the caller holds a
+       grant in; a dimension ABSENT from it is the deny signal for that dimension.
+    3. LOOP over ALL enabled dimensions (no ``enabled[0]`` shortcut). For each, delegate to
+       :func:`_scope_access_from_grant`, which maps the projected VALUES DIRECTLY onto a
+       :class:`ScopeAccess` (s5d clean break — no role decode): ``["*"]`` → ``["*"]``
+       (all-access, R2.4); a subset → that subset (scoped, R2.5); ABSENT/empty → ``[]``
+       (deny-by-default, R2.6, Property 4). A dimension with no grant maps to ``[]``.
 
     ``config_provider`` / ``grants_reader`` let the caller pass a SINGLE per-request reader for
     both the config and grant reads so the tenant partition is Queried at most once per
@@ -546,23 +599,27 @@ def _resolve_scope_access(
 
     config = config_provider.get_scope_config(tenant_id)
 
-    # A tenant with no enabled dimension → tenant-wide (the R3.2 collapse). Nothing to scope.
+    # A tenant with no enabled dimension → tenant-wide (the R3.2 collapse), expressed as a
+    # single-entry map keyed on the default dimension so the domain sees a uniform shape.
     enabled = config.enabled()
     if not enabled:
-        return list(resolve_scope_access(tenant_id, None, []).allowed_scopes)
+        wildcard = list(resolve_scope_access(tenant_id, None, []).allowed_scopes)
+        return {DEFAULT_SCOPE_DIMENSION_KEY: wildcard}
 
-    # The dimension that gates this route. h-dcn wires exactly one (``region``); take the
-    # first enabled dimension as the gating dimension for the pilot.
-    dimension = enabled[0]
-
-    # The caller's scope comes from the PROJECTED grants (C5), keyed by the verified email.
+    # The caller's scope comes from the PROJECTED grants (C5), keyed by the verified email —
+    # read ONCE, then consumed per dimension below (one Query per partition, Property 5).
     email = claims.get("email")
     grants = grants_reader.get_scope_grants(tenant_id, str(email) if email else "")
-    granted_values = grants.get(dimension.key)
-    granted_list = list(granted_values) if granted_values is not None else None
 
-    access = _scope_access_from_grant(tenant_id, dimension, granted_list)
-    return list(access.allowed_scopes)
+    # LOOP over ALL enabled dimensions (drop the enabled[0] shortcut). Each dimension is
+    # resolved independently; a dimension with no grant maps to [] (deny for that dimension).
+    allowed: Dict[str, List[str]] = {}
+    for dimension in enabled:
+        granted_values = grants.get(dimension.key)
+        granted_list = list(granted_values) if granted_values is not None else None
+        access = _scope_access_from_grant(tenant_id, dimension, granted_list)
+        allowed[dimension.key] = list(access.allowed_scopes)
+    return allowed
 
 
 # ── Fallbacks removed — capability AND tenant come from the verified entitlement only ─
@@ -653,7 +710,10 @@ def _authenticate_and_authorize(
         grants_reader = _scope_grants_reader()
 
     # (3) Authorize — capability (three-state) + scope seam.
-    allowed_scopes: List[str] = []
+    #     s5d task 4.1: allowed_scopes is now a per-dimension map {dimension: [values]}.
+    #     A self-service route (no capability) carries an empty map — the domain enforces
+    #     ownership on `sub`, not scope.
+    allowed_scopes: Dict[str, List[str]] = {}
     if spec.capability is not None:
         granted = has_capability(claims, tenant_id, spec.capability)
         if granted is not True:
@@ -721,6 +781,7 @@ def _get_membership_service() -> MembershipService:
             overlay_provider=_OVERLAY_PROVIDER,
             lifecycle_provider=_LIFECYCLE_PROVIDER,
             tenant_hooks=_TENANT_HOOKS,
+            view_contexts_provider=_VIEW_CONTEXTS_PROVIDER,
         )
     return _SERVICE
 
@@ -804,8 +865,9 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
     """Delegate a resolved route to the generic membership engine (design C2).
 
     Task 3.2 wires the **READ** routes end-to-end: the edge hands the domain service the
-    verified ``tenant_id`` (isolation, Property 1), the resolved ``allowed_scopes`` +
-    gating ``scope_dimension_key`` (domain-layer scope filtering, design C4 / Property 4),
+    verified ``tenant_id`` (isolation, Property 1), the resolved per-dimension
+    ``allowed_scopes`` map (domain-layer scope filtering, design C4 / Property 4/6; s5d task
+    4.2 iterates it AND-across-dimensions, so no gating dimension is threaded),
     the requester ``sub`` and the route's ``self_service`` flag (so a member can read their
     OWN record), and the router's path params (``{member_id}`` / ``{membership_id}``). The
     handler stays thin — no scope math, no field resolution, no DynamoDB here.
@@ -815,24 +877,23 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
     service = _get_membership_service()
     tenant_id = ctx.tenant_id
     scopes = ctx.allowed_scopes
-    dim = ctx.scope_dimension_key or DEFAULT_SCOPE_DIMENSION_KEY
 
     name = spec.name
 
     # ── Group MEMBER (reads) ──────────────────────────────────────────────────────────
     if name == "list_members":
-        return service.list_members(tenant_id, scopes, dimension_key=dim)
+        return service.list_members(tenant_id, scopes)
 
     if name == "list_members_filtered":
         filters = request.body if isinstance(request.body, Mapping) else None
-        return service.list_members(tenant_id, scopes, filters=filters, dimension_key=dim)
+        return service.list_members(tenant_id, scopes, filters=filters)
 
     if name == "export_members":
-        return service.export_members(tenant_id, scopes, dimension_key=dim)
+        return service.export_members(tenant_id, scopes)
 
     if name == "get_self":
         # Pure self-service (capability None): only ever the caller's own record.
-        return service.get_self(tenant_id, ctx.sub, dimension_key=dim)
+        return service.get_self(tenant_id, ctx.sub)
 
     if name == "get_field_config":
         # The resolved field config (fixed ⊕ overlay) + the tenant's ACTIVE membership-type
@@ -849,7 +910,6 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
             scopes,
             requester_sub=ctx.sub,
             self_service=spec.self_service,
-            dimension_key=dim,
         )
 
     # ── Group MEMBERSHIP (reads) ────────────────────────────────────────────────────
@@ -861,7 +921,6 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
             scopes,
             requester_sub=ctx.sub,
             self_service=spec.self_service,
-            dimension_key=dim,
         )
 
     if name == "get_membership":
@@ -874,7 +933,6 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
             scopes,
             requester_sub=ctx.sub,
             self_service=spec.self_service,
-            dimension_key=dim,
         )
 
     # ── Group PAYMENT (read) ──────────────────────────────────────────────────────────
@@ -886,7 +944,6 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
             scopes,
             requester_sub=ctx.sub,
             self_service=spec.self_service,
-            dimension_key=dim,
         )
 
     # ── Group CATALOG (Lidmaatschap Beheer reads, design C8 — task 3.4) ─────────────
@@ -905,20 +962,21 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
     if name == "create_member":
         return service.create_member(
             tenant_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, dimension_key=dim,
+            requester_sub=ctx.sub, caller_roles=ctx.groups,
         )
 
     if name == "update_member":
         member_id = _require_path_param(ctx, "member_id")
         return service.update_member(
             tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service, dimension_key=dim,
+            requester_sub=ctx.sub, self_service=spec.self_service,
+            caller_roles=ctx.groups,
         )
 
     if name == "delete_member":
         member_id = _require_path_param(ctx, "member_id")
         return service.delete_member(
-            tenant_id, member_id, scopes, requester_sub=ctx.sub, dimension_key=dim,
+            tenant_id, member_id, scopes, requester_sub=ctx.sub,
         )
 
     # ── Group MEMBERSHIP (writes — task 5.2) ──────────────────────────────────────────
@@ -926,7 +984,7 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
         member_id = _require_path_param(ctx, "member_id")
         return service.create_membership(
             tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, dimension_key=dim,
+            requester_sub=ctx.sub,
         )
 
     if name == "update_membership":
@@ -934,7 +992,7 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
         membership_id = _require_path_param(ctx, "membership_id")
         return service.update_membership(
             tenant_id, member_id, membership_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, dimension_key=dim,
+            requester_sub=ctx.sub,
         )
 
     if name == "delete_membership":
@@ -942,7 +1000,7 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
         membership_id = _require_path_param(ctx, "membership_id")
         return service.delete_membership(
             tenant_id, member_id, membership_id, scopes,
-            requester_sub=ctx.sub, dimension_key=dim,
+            requester_sub=ctx.sub,
         )
 
     if name == "transition_membership":
@@ -952,7 +1010,7 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
         result = service.transition_member(
             tenant_id, member_id, to_state, scopes,
             context=_transition_context(body),
-            requester_sub=ctx.sub, dimension_key=dim,
+            requester_sub=ctx.sub,
         )
         return {
             "member": result.member,
@@ -971,7 +1029,7 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
         return service.bulk_transition_members(
             tenant_id, [str(m) for m in member_ids], to_state, scopes,
             context=_transition_context(body),
-            requester_sub=ctx.sub, dimension_key=dim,
+            requester_sub=ctx.sub,
         )
 
     # ── Group DELEGATE (writes — task 5.2; self-service) ──────────────────────────────
@@ -979,14 +1037,14 @@ def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> A
         member_id = _require_path_param(ctx, "member_id")
         return service.manage_delegates(
             tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service, dimension_key=dim,
+            requester_sub=ctx.sub, self_service=spec.self_service,
         )
 
     if name == "send_delegate_invitation":
         member_id = _require_path_param(ctx, "member_id")
         return service.send_delegate_invitation(
             tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service, dimension_key=dim,
+            requester_sub=ctx.sub, self_service=spec.self_service,
         )
 
     # ── Group CATALOG (Lidmaatschap Beheer writes, design C8 — task 5.3) ─────────────

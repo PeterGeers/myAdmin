@@ -74,15 +74,42 @@ RECORD_TYPE_MODULE = "module"
 RECORD_TYPE_ROLE = "role"
 
 #: Tenant-level config rows (S5b design.md C1 "New projected record types").
-#: Two id parts are used, both tenant-level (no email/per-user segment):
+#: All are tenant-level (no email/per-user segment); the id segment names the
+#: sub-config:
 #:
 #:   * ``config#scope``  — the tenant's ``ScopeDimension`` shape.
 #:   * ``config#fields`` — the tenant's ``TenantOverlay`` (variable fields +
 #:     fixed-field overrides).
+#:   * ``config#views``  — the tenant's ``members.view_contexts`` (S5c task 3.1).
+#:
+#: **S5c task 3.1 — ``view_contexts`` projection shape DECISION (settled).**
+#: The design left open (Open Design Item 1) whether the tenant's view contexts
+#: should be *folded into* the ``config#fields`` row or projected as a **sibling
+#: ``config#views`` row**. We adopt the **sibling ``config#views`` row**:
+#:
+#:   * *Separation of concern* — ``config#fields`` maps 1:1 to the ``TenantOverlay``
+#:     the ``FieldResolver`` consumes (field existence/overrides). View contexts are
+#:     a distinct concern ("which fields show together") with a different consumer
+#:     (the view-contexts reader / SPA renderer), a different authoring parameter
+#:     (``members.view_contexts`` vs ``members.field_overlay``), and different
+#:     validation. Folding would overload one row with two unrelated payloads.
+#:   * *Independent versioning* — a views-only edit advances only the ``config#views``
+#:     row's version, so a re-sync does not churn the fields row (and vice-versa),
+#:     preserving the sync's per-row idempotent/versioned write (R5.6).
+#:   * No concrete reason to fold was found in the existing projection code: the
+#:     fields builder/reader are already dedicated to the overlay shape.
 #:
 #: Assembled/parsed only via :func:`build_sort_key` / :func:`split_sort_key`,
-#: e.g. ``build_sort_key(RECORD_TYPE_CONFIG, "scope") -> "config#scope"``.
+#: e.g. ``build_sort_key(RECORD_TYPE_CONFIG, "scope") -> "config#scope"``,
+#: ``build_sort_key(RECORD_TYPE_CONFIG, "views") -> "config#views"``.
 RECORD_TYPE_CONFIG = "config"
+
+#: The ``config#<id>`` sub-config id segments the projection carries. Kept here as
+#: the single source so the builder (Flask plane) and the reader (SAM plane) agree
+#: on the exact tokens (``build_sort_key(RECORD_TYPE_CONFIG, CONFIG_ID_VIEWS)``).
+CONFIG_ID_SCOPE = "scope"
+CONFIG_ID_FIELDS = "fields"
+CONFIG_ID_VIEWS = "views"
 
 #: Per-user scope-grant rows (S5b design.md C1 "New projected record types").
 #: Two id parts, ``<email>`` then ``<dimension>`` (per-user, so an email segment

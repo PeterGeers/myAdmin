@@ -1,0 +1,207 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+# =============================================================================
+# PreTokenGen SAM app — one Lambda, one layer (S5c task 5.2, R1.2/R1.5, C-PTG)
+# =============================================================================
+# The S4 Pool-A Pre-Token-Generation Lambda (`sam/pretokengen/handler.py`) as a
+# SAM app that BUILDS (`sam build`) and deploys to the DATA account
+# (nonprofit-deploy / 506221081911, eu-west-1 — see 23-aws-accounts.md). At
+# Cognito token issuance the Lambda reads the user's tenants from the verified
+# `custom:tenants` claim, reads their per-tenant roles + active modules from the
+# S3 DynamoDB governance projection (READ-ONLY, SAME account), resolves the
+# entitlement via the shared T1 resolver + T4 codec, and stamps
+# `custom:entitlements` additively onto both token generations.
+#
+# It mirrors the Members SAM-plane layer pattern (`sam/members/template.yaml`,
+# steering 35-sam-module-architecture-sam.md) but with exactly ONE Lambda and NO
+# API Gateway: a Pre-Token-Generation Lambda is invoked by COGNITO, never over
+# HTTP, so there is no Api resource and no function `Events`.
+#
+# Discipline (23-aws-accounts.md + the handler's fail-fast contract):
+#   * Fail-fast config, no dangerous defaults. `GovernanceProjectionTableName`
+#     and `Region` are parameters WITHOUT defaults — a missing value must break
+#     the deploy loudly, never silently point at the wrong table / production.
+#   * The `governance_projection` DynamoDB table is NOT a resource in this
+#     template — it is managed-outside-CFN / retained (23-aws-accounts.md). The
+#     template only REFERENCES its name (env var) and scopes IAM to its ARN.
+#   * `AWS_REGION` is NOT declared here — it is a Lambda-RESERVED env var the
+#     runtime auto-populates from the deploy region (eu-west-1), which satisfies
+#     the fail-fast `require_env("AWS_REGION")` in services/dynamodb_client.py.
+#   * `AWS_ENDPOINT_URL_DYNAMODB` is LOCAL-ONLY and is deliberately NOT set here
+#     (no dangerous prod default) — boto3 only overrides its endpoint when that
+#     var is non-empty, so unset => real same-account AWS DynamoDB.
+#
+# -----------------------------------------------------------------------------
+# TIMEOUT — ~5s Cognito budget (NOT 30s)
+# -----------------------------------------------------------------------------
+# A Pre-Token-Generation trigger runs inside Cognito's token-issuance path under
+# a ~5s budget (see the reader docstring in projection_governance_reader.py). The
+# function Timeout is set to 5s (not the members app's 30s HTTP default) so a
+# stuck read fails the issuance path fast rather than hanging the login; the
+# handler's fail-safe still omits the claim on a runtime error so login is not
+# broken (R1.4 — proven in task 5.6).
+#
+# -----------------------------------------------------------------------------
+# BUILD (local verification for task 5.2 — author + `sam build`, no deploy)
+# -----------------------------------------------------------------------------
+# Build both resources (PreTokenGenLayer + PreTokenGenFunction) from THIS dir:
+#
+#     cd sam/pretokengen && sam build
+#
+# `sam build` stages the layer under
+# `sam/pretokengen/.aws-sam/build/PreTokenGenLayer/` (a DESCENDANT of
+# `sam/pretokengen`), so the layer Makefile vendors `sam/pretokengen` with
+# `rsync -a --exclude '.aws-sam' --exclude '__pycache__'` (NOT `cp -r`) to skip
+# the build tree and avoid `cp: cannot copy a directory into itself`. The source
+# tree is only read, never mutated. Requires `sam`, `rsync`, and `python` (with
+# pip) on PATH; the layer build pip-installs the shared auth deps (PyJWT /
+# cryptography / requests) from `sam/shared/requirements.txt` as manylinux2014 /
+# cp311 wheels. On success `sam build` prints `Build Succeeded` and both
+# `PreTokenGenLayer/` and `PreTokenGenFunction/` appear under `.aws-sam/build/`.
+#
+# -----------------------------------------------------------------------------
+# DEPLOY + TRIGGER ATTACH are OUT OF SCOPE for this template step
+# -----------------------------------------------------------------------------
+# `[H]` `sam deploy` to the data account + confirming the same-account read of
+# `governance_projection` is the human-run step of task 5.2. Attaching this
+# Lambda as the `myAdmin-test` (then Pool A) Pre-Token-Generation trigger + the
+# cross-account `aws_lambda_permission` is a SEPARATE step (task 5.3, C-PTG):
+# invoke crosses accounts (identity 344561557829 -> data 506221081911); the data
+# read does not. This template deploys the function + grants its same-account
+# projection read only; it does NOT wire the Cognito trigger. The
+# `PreTokenGenFunctionArn` output is what task 5.3 consumes to attach the trigger
+# and grant cross-account invoke.
+# =============================================================================
+
+Description: >-
+  S4 Pool-A Pre-Token-Generation Lambda (S5c task 5.2): one Lambda + one layer
+  vendoring sam/pretokengen + the shared auth (backend/src/auth) + the shared
+  services (dynamodb_client / projection_schema / module_registry) + the shared
+  auth runtime deps. Reads the governance projection read-only (same account) and
+  stamps custom:entitlements. No API Gateway (Cognito-invoked). The governance
+  projection table is managed outside this template (retain).
+
+Parameters:
+  GovernanceProjectionTableName:
+    Type: String
+    Description: >-
+      Name of the S3 governance projection DynamoDB table the Lambda READS
+      (per-tenant roles + active modules), same account. Carries its own env
+      prefix (e.g. `governance_projection` in prod, `test_governance_projection`
+      in test/dev). Surfaced as the fail-fast `GOVERNANCE_PROJECTION_TABLE` env
+      var the projection reader requires. Managed outside this template
+      (retain). No default — fail-fast (23-aws-accounts.md).
+
+  Region:
+    Type: String
+    Description: >-
+      AWS region for the Lambda (eu-west-1, data account). No default —
+      fail-fast. (`AWS_REGION` itself is Lambda-reserved and auto-populated from
+      the deploy region; this parameter scopes the IAM resource ARN.)
+    AllowedValues:
+      - eu-west-1
+
+  Stage:
+    Type: String
+    Description: >-
+      Deployment stage — names the function (`pretokengen-<stage>`) and layer.
+      The meaningful stages for this Lambda are the data-account deploys: `test`
+      (attached to `myAdmin-test`, task 5.3) then `prod` (Pool A, task 7.5).
+      `local` is retained for parity/dry-runs.
+    Default: local
+    AllowedValues:
+      - local
+      - test
+      - prod
+
+Globals:
+  Function:
+    Runtime: python3.11
+    MemorySize: 256
+    # ~5s Cognito Pre-Token-Generation budget (see the header note) — NOT the
+    # members app's 30s HTTP default.
+    Timeout: 5
+    Architectures:
+      - x86_64
+
+Resources:
+  # --- The vendored layer: sam/pretokengen + auth + services + shared deps -----
+  PreTokenGenLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      LayerName: !Sub "pretokengen-layer-${Stage}"
+      # NOTE: a CloudFormation LayerVersion Description has a 256-char limit
+      # (lint rule E3033); keep this short — the full vendored-closure detail
+      # lives in the layer Makefile header.
+      Description: >-
+        PreTokenGen runtime layer: sam/pretokengen + shared auth/services +
+        PyJWT/cryptography/requests (boto3 is runtime-provided).
+      ContentUri: layer/
+      CompatibleRuntimes:
+        - python3.11
+      RetentionPolicy: Retain
+
+  # --- The one PreTokenGen Lambda --------------------------------------------
+  PreTokenGenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "pretokengen-${Stage}"
+      # The whole closure ships in the layer; the function package itself is
+      # empty (CodeUri points at an empty dir) so the handler resolves from the
+      # layer's `python/sam/pretokengen/handler.py`.
+      CodeUri: function/
+      Handler: sam.pretokengen.handler.handler
+      Layers:
+        - !Ref PreTokenGenLayer
+      Environment:
+        Variables:
+          # Fail-fast projection table (no dangerous default) — resolved from the
+          # stack parameter, which itself has no default. The reader resolves the
+          # table fail-fast on first use (DynamoDBConfigError if missing/blank).
+          GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
+          # NOTE: AWS_REGION is NOT set here — it is Lambda-RESERVED and the
+          #       runtime auto-populates it from the deploy region (eu-west-1),
+          #       satisfying `require_env("AWS_REGION")` in
+          #       services/dynamodb_client.py without (and unable to be) an
+          #       explicit declaration.
+          # NOTE: AWS_ENDPOINT_URL_DYNAMODB is LOCAL-ONLY and is deliberately NOT
+          #       declared — boto3 only overrides its endpoint when it is set, so
+          #       unset => real same-account AWS DynamoDB (no dangerous default).
+      # --- IAM: same-account, table-scoped READ on the projection -------------
+      # The reader issues DynamoDB `Query` on the projection partition
+      # (projection_governance_reader.py `_query_partition`). Grant ONLY Query,
+      # scoped to the projection table ARN in this (same) account + region.
+      # Same-account read (the invoke is what crosses accounts — task 5.3), so
+      # the resource is `!Ref AWS::AccountId`, not a wildcard account.
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: PreTokenGenReadGovernanceProjection
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
+      # NO Events — a Pre-Token-Generation Lambda is invoked by Cognito, not over
+      # HTTP. The Cognito trigger + cross-account invoke permission is task 5.3.
+
+  # NOTE: the `governance_projection` table is intentionally NOT a resource here.
+  # It is managed outside CloudFormation / retained (23-aws-accounts.md) — this
+  # template only references its name (env var + IAM ARN scope), never creates,
+  # alters, or deletes it.
+
+Outputs:
+  PreTokenGenFunctionArn:
+    Description: >-
+      ARN of the PreTokenGen Lambda. Task 5.3 consumes this to attach the Cognito
+      Pre-Token-Generation trigger (identity account) + grant the cross-account
+      `aws_lambda_permission` (Cognito invoke: identity 344561557829 -> data
+      506221081911).
+    Value: !GetAtt PreTokenGenFunction.Arn
+
+  PreTokenGenLayerArn:
+    Description: ARN of the PreTokenGen runtime layer.
+    Value: !Ref PreTokenGenLayer

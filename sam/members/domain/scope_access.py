@@ -22,27 +22,26 @@ The rules (each maps 1:1 to the h-dcn behaviour it generalizes):
 - **Admin role** — a role in the dimension's ``admin_roles`` (or the tenant-agnostic
   ``ADMIN_ROLE_DEFAULTS``) → ``full_access=True``, ``allowed_scopes=["*"]``,
   ``access_type="admin"``. (h-dcn: a system/national admin sees every region.)
-- **"all"-wildcard role** — the role named by the dimension's ``all_wildcard`` (h-dcn
-  ``"Regio_All"``) → ``full_access=True``, ``allowed_scopes=["*"]``, ``access_type="all"``.
-- **Scoped role(s)** — roles that decode to one of the dimension's declared ``values``
-  (h-dcn ``Regio_Noord`` → ``"Noord"``) → ``allowed_scopes`` = the union of the granted
-  values, ``access_type="scoped"``. Multi-valued dimensions naturally union several grants.
+- **Scoped grant(s)** — bare declared-value names the caller carries (``"Noord"``) →
+  ``allowed_scopes`` = the union of the granted values, ``access_type="scoped"``. A grant of
+  several values naturally unions.
 - **Deny (the critical safety default, Property 4)** — the user holds a capability the
   dimension lists in ``required_for`` but has **no** scope grant in this dimension →
   ``full_access=False``, ``allowed_scopes=[]``, ``access_type="none"``. This is h-dcn's
-  "permission requires region assignment": a bare ``Members_CRUD`` with no ``Regio_*`` is a
-  deny, never a tenant-wide allow. **Scope-deny is the default**, not an exceptional branch.
+  "permission requires region assignment": ``Members_CRUD`` with no scope grant is a deny,
+  never a tenant-wide allow. **Scope-deny is the default**, not an exceptional branch.
 - **Disabled / no dimension** — a disabled dimension is a no-op: everyone resolves to
   ``full_access=True``, ``allowed_scopes=["*"]``, ``access_type="all"`` (the tenant-wide
   collapse, R3.2). :func:`resolve_scope_access_for_config` applies this for a whole config.
 
-The role→value mapping is derived **generically** from the dimension, not hardcoded to
-h-dcn's ``Regio_`` prefix: the scoped-role prefix is inferred from ``all_wildcard`` (e.g.
-``"Regio_All"`` → prefix ``"Regio_"``), and a role matches a value if it is exactly
-``<prefix><value>`` for one of the dimension's declared ``values``. A bare role that equals
-a declared value (``"Noord"``) is also honoured, so a tenant that names its roles after the
-values directly still works. The prefix nuance is thus expressed declaratively off the
-config; nothing tenant-specific leaks into this module.
+s5d clean break (R2.2/R8.1, design → Projection Components item 4, Property 5): the ``Regio_*``
+scope-in-role-name encoding is REMOVED. Scope is an INDEPENDENT axis sourced from
+``user_tenant_scope`` → the projected ``scopegrant#`` row, not decoded from a role name — so
+there is no ``all_wildcard`` role, no ``Regio_`` prefix, and no scoped-role decoder. A scoped
+grant here is a BARE declared-value name; the all-access sentinel travels the GRANT side as the
+projected ``["*"]`` and is mapped at the edge (``_scope_access_from_grant``). Capability roles
+(``user_tenant_roles``) never grant scope — removing scope from a role never removes a
+capability role.
 
 Layering (per ``sam-module-architecture.md``): SAM-plane **domain** code — storage-agnostic,
 tenant-agnostic, no boto3/DynamoDB, no HTTP. The handler edge (``handler/app.py``) calls
@@ -116,44 +115,18 @@ def _admin_roles_for(dimension: ScopeDimension) -> frozenset[str]:
     return ADMIN_ROLE_DEFAULTS | frozenset(str(r) for r in extra)
 
 
-def _scoped_role_prefix(dimension: ScopeDimension) -> Optional[str]:
-    """Infer the scoped-role prefix generically from the dimension's ``all_wildcard``.
-
-    h-dcn's ``all_wildcard="Regio_All"`` implies scoped roles named ``Regio_<Value>`` — the
-    prefix is everything up to and including the last separator (``"Regio_"``). Derived from
-    config, never hardcoded, so any tenant whose all-wildcard follows the same
-    ``<prefix><token>`` shape gets its scoped roles decoded the same way. Returns ``None``
-    when no prefix can be inferred (no ``all_wildcard``, or it carries no separator), in
-    which case only bare ``<value>`` roles are honoured.
-    """
-    wildcard = dimension.all_wildcard
-    if not wildcard:
-        return None
-    for sep in ("_", "-", ":", "/"):
-        idx = wildcard.rfind(sep)
-        if idx != -1:
-            return wildcard[: idx + 1]
-    return None
-
-
 def _granted_values(dimension: ScopeDimension, user_roles: Sequence[str]) -> List[str]:
     """The subset of the dimension's declared values the user's roles grant (scoped).
 
-    A role grants a value when it is either the bare value (``"Noord"``) or the
-    prefixed scoped role (``"Regio_Noord"`` for prefix ``"Regio_"``). The result preserves
-    the dimension's declared value order and is de-duplicated, so multiple grants for the
-    same value collapse and a multi-valued user's grants form the union.
+    s5d clean break (R2.2/R8.1, Property 5): the ``Regio_*`` scope-in-role-name encoding is
+    removed. Scope is now an INDEPENDENT axis sourced from ``user_tenant_scope`` → the
+    projected ``scopegrant#`` row, so this decoder no longer infers a role prefix. A grant is
+    only ever a BARE value name (``"Noord"``) — the projected value carried verbatim — matched
+    against the dimension's declared values (order preserved, de-duplicated). Capability roles
+    (``user_tenant_roles``) never grant scope here.
     """
     roles = set(user_roles)
-    prefix = _scoped_role_prefix(dimension)
-    granted: List[str] = []
-    for value in dimension.normalized_values():
-        candidates = {value}
-        if prefix is not None:
-            candidates.add(f"{prefix}{value}")
-        if candidates & roles:
-            granted.append(value)
-    return granted
+    return [value for value in dimension.normalized_values() if value in roles]
 
 
 def resolve_scope_access(
@@ -174,10 +147,9 @@ def resolve_scope_access(
     1. **No / disabled dimension** → tenant-wide (``["*"]``, ``"all"``). The collapse (R3.2).
     2. **Admin role** (``ADMIN_ROLE_DEFAULTS`` or the dimension's ``admin_roles``) →
        ``["*"]``, ``"admin"``.
-    3. **All-wildcard role** (the dimension's ``all_wildcard``) → ``["*"]``, ``"all"``.
-    4. **Scoped grant(s)** (roles decoding to declared values) → the union subset,
+    3. **Scoped grant(s)** (bare declared-value names the caller carries) → the union subset,
        ``"scoped"``.
-    5. **Otherwise deny** — the user holds a ``required_for`` capability without a scope
+    4. **Otherwise deny** — the user holds a ``required_for`` capability without a scope
        grant → ``[]``, ``"none"`` (Property 4). If the dimension has an **empty**
        ``required_for`` (scope is optional here), a user with no grant is *not* denied; they
        simply resolve to an empty scope set with ``access_type="none"`` (see below) — the
@@ -206,11 +178,9 @@ def resolve_scope_access(
             full_access=True, allowed_scopes=[WILDCARD], access_type="admin"
         )
 
-    # (3) The dimension's all-wildcard role (h-dcn: Regio_All) → tenant-wide.
-    if dimension.all_wildcard is not None and dimension.all_wildcard in roles:
-        return ScopeAccess(full_access=True, allowed_scopes=[WILDCARD], access_type="all")
-
-    # (4) Scoped grants → the union of the values the user's roles decode to.
+    # (3) Scoped grants → the union of the bare declared-value names the caller carries.
+    #     (s5d clean break: the ``Regio_All`` all-wildcard role name is gone; the all-access
+    #     sentinel travels the GRANT side as the projected ``["*"]``, handled at the edge.)
     granted = _granted_values(dimension, user_roles)
     if granted:
         return ScopeAccess(

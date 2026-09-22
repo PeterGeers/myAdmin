@@ -55,7 +55,16 @@ import functools
 import logging
 import os
 
-from flask import jsonify
+# NOTE: `flask` is imported LAZILY inside the two functions that use it
+# (`module_required` / `activate_module` -> both use `jsonify` only on the Flask
+# request path). Keeping it off the module top level lets non-Flask carriers
+# import `MODULE_REGISTRY` (the pure in-code descriptor dict) WITHOUT pulling the
+# whole Flask/Werkzeug/Jinja2 tree onto their runtime. In particular the S4
+# Pre-Token-Generation Lambda (`sam/pretokengen/handler.py`) does
+# `from services.module_registry import MODULE_REGISTRY`; vendoring Flask into
+# that latency-sensitive (~5s Cognito budget) layer purely for an unused
+# `jsonify` would be dead weight. The Flask plane is unaffected — the import just
+# moves into the function bodies that actually call `jsonify`.
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +263,32 @@ def module_backing(module_name: str) -> str:
     return module_def.get("backing", {}).get("kind", "flask")
 
 
+def module_backing_or_none(module_name: str) -> str | None:
+    """Return a module's backing kind ("flask"/"sam"), or ``None`` if unregistered.
+
+    Non-raising sibling of :func:`module_backing`. Where a call site is walking a
+    set of module names it did not curate — e.g. the reconciliation backstop
+    sweeping *every* tenant's ``tenant_modules`` rows, which may include legacy /
+    unregistered names from other tenants — a single unknown name must not abort
+    the whole pass. Such callers use this accessor and treat ``None`` (unknown) as
+    "not one of our backings" rather than an error.
+
+    Known modules resolve exactly as :func:`module_backing` does (no validation is
+    weakened for a registered module); only an *unregistered* name degrades to
+    ``None`` instead of raising ``ValueError``.
+
+    Args:
+        module_name: Any module name (registered or not).
+
+    Returns:
+        "flask" or "sam" for a registered module; ``None`` if the name is not in
+        MODULE_REGISTRY.
+    """
+    if module_name not in MODULE_REGISTRY:
+        return None
+    return module_backing(module_name)
+
+
 def resolve_module_api_base(module_name: str) -> str | None:
     """
     Resolve a SAM-backed module's API base URL from the environment.
@@ -358,6 +393,11 @@ def module_required(module_name: str):
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
+            # Lazy Flask import: only the Flask request path needs `jsonify`, so
+            # importing here (not at module top level) keeps `MODULE_REGISTRY`
+            # importable by non-Flask carriers (e.g. the PreTokenGen Lambda).
+            from flask import jsonify
+
             tenant = kwargs.get("tenant")
             if not tenant:
                 return jsonify({"error": "Tenant context required"}), 403

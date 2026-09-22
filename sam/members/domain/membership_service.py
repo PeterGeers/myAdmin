@@ -22,18 +22,23 @@ Read behaviour (design C2 read surface / migration-plan Step 3):
 - :meth:`MembershipService.get_member_payments` — a member's payments, scope-checked via the
   parent member.
 
-**Scope filtering (design C4, Property 4).** The rule is uniform across every read:
+**Scope filtering (design C4, Property 4/6).** ``allowed_scopes`` is a PER-DIMENSION map
+``{dimension_key: [values]}`` (s5d ODx2 Option A) the handler edge resolves over EVERY
+enabled dimension. A member is visible only if it passes EVERY dimension (AND) — for each
+``(dimension_key, values)`` entry, evaluated against the member's OWN field for that
+dimension:
 
-- ``allowed_scopes == ["*"]`` (:data:`~sam.members.domain.scope_dimensions.WILDCARD`) →
-  tenant-wide, every record of the tenant is visible.
-- a non-empty **subset** → only records whose ``scope_values[<dimension_key>]`` intersects
-  the subset are visible (a scoped user stays inside their tenant, narrowed to their values).
-- ``allowed_scopes == []`` → **deny** (see nothing) — the scope-deny default (Property 4); a
-  list returns empty, a single fetch is a scope miss (the edge maps that to a 404-style
-  "no such member for you", never a cross-scope leak).
+- ``values == ["*"]`` (:data:`~sam.members.domain.scope_dimensions.WILDCARD`) → passes that
+  dimension (tenant-wide for that axis).
+- a non-empty **subset** → passes that dimension only when the member's canonical value for
+  the dimension's field intersects the subset (a scoped user stays inside their tenant,
+  narrowed to their values).
+- ``values == []`` → **fails** that dimension (the scope-deny default, Property 4).
 
-The gating **dimension key** (h-dcn: ``"region"``) is threaded in, derived generically from
-the tenant's scope config by the caller (the handler edge), never hardcoded here.
+An EMPTY map ``{}`` is deny (see nothing). Single-dimension tenants (h-dcn ``region``) are
+the N=1 case — one map entry — so behaviour is unchanged; there is no special-casing of one
+vs many dimensions. A denied read is a scope miss: a list returns empty, a single fetch the
+edge maps to a 404-style "no such member for you", never a cross-scope leak.
 
 **Self-service (design C1 / routes ``self_service``).** ``get_member``/membership/payment
 reads accept a ``requester_sub`` + ``self_service`` flag: a member may read their OWN record
@@ -52,16 +57,30 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from sam.members.domain.field_resolver import (
+    OVERLAY_GROUP,
+    FieldConfig as ResolvedFieldConfig,
+    FieldOrigin,
     FieldResolver,
+    FunctionalGroup,
     ResolvedField,
     StaticOverlayProvider,
     TenantOverlayProvider,
+    _member_value,
+    evaluate_show_when,
 )
+from sam.members.domain.scope_canon import scope_canon
+from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.fixed_fields import (
+    EnumOption,
     FieldGroup,
+    FieldType,
     FieldValidationError,
+    MemberNumberFormat,
+    MEMBER_NUMBER_FIELD_KEY,
     MembershipStatus,
+    roles_for_option,
     validate_fixed_fields,
+    validate_member_number_format,
 )
 from sam.members.domain.lifecycle_config import (
     GuardEvaluation,
@@ -76,6 +95,11 @@ from sam.members.domain.membership_type_catalog import (
     MembershipTypeValidationError,
 )
 from sam.members.domain.scope_dimensions import WILDCARD
+from sam.members.domain.view_contexts import (
+    StaticViewContextsProvider,
+    ViewContext,
+    ViewContextsProvider,
+)
 from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
 from sam.members.domain.transition_hooks import TransitionHookRegistry
 from sam.members.repository.members_repository import (
@@ -116,10 +140,13 @@ MEMBERSHIP_STATUS_FIELD_KEY = f"{FieldGroup.MEMBERSHIP.value}.status"
 #: that tenant's active types (no free text, no hardcoded vocabulary — R2.4).
 MEMBERSHIP_TYPE_FIELD_KEY = f"{FieldGroup.MEMBERSHIP.value}.membership_type"
 
-#: The scope dimension key a read narrows on when the caller does not thread one in. h-dcn's
-#: gating dimension is ``region``; this is only the *fallback* — the handler edge derives the
-#: real key generically from the tenant's scope config and passes it in, so nothing is
-#: hardcoded on the request path (the constant merely keeps a lone service call sensible).
+#: The fallback scope-dimension key the handler edge uses to KEY the tenant-wide-collapse map
+#: for an un-partitioned tenant (a tenant with no enabled dimension → ``{DEFAULT_SCOPE_
+#: DIMENSION_KEY: ["*"]}`` — R3.2). h-dcn's gating dimension happens to be ``region``. Since
+#: s5d task 4.2 the service no longer takes a gating ``dimension_key`` on the read/write path
+#: — ``_in_scope`` iterates the per-dimension ``allowed_scopes`` map directly — so this
+#: constant is only consumed at the edge to name the single collapse entry, never hardcoded
+#: into the domain scope check.
 DEFAULT_SCOPE_DIMENSION_KEY = "region"
 
 
@@ -307,10 +334,21 @@ class MembershipService:
         lifecycle_provider: Optional[LifecycleConfigProvider] = None,
         transition_hooks: Optional[TransitionHookRegistry] = None,
         tenant_hooks: Optional[TenantHookRegistry] = None,
+        view_contexts_provider: Optional[ViewContextsProvider] = None,
     ):
         self._repo = repository
         self._field_resolver = FieldResolver(
             overlay_provider if overlay_provider is not None else StaticOverlayProvider()
+        )
+        # The view-context seam (S5c task 3.2, design C-VIEW). Mirrors the overlay/scope
+        # provider injection: the service depends only on the ViewContextsProvider Protocol,
+        # never on where the contexts live. Defaults to the empty StaticViewContextsProvider,
+        # which yields exactly one default context per tenant (empty-is-valid, R5.1) — so a
+        # service built without a provider still surfaces a valid context on get_field_config.
+        self._view_contexts_provider: ViewContextsProvider = (
+            view_contexts_provider
+            if view_contexts_provider is not None
+            else StaticViewContextsProvider()
         )
         self._lifecycle_provider: LifecycleConfigProvider = (
             lifecycle_provider
@@ -333,60 +371,116 @@ class MembershipService:
         else:
             self._transition_hooks = TransitionHookRegistry()
 
-    # ── Scope helpers (domain-layer scope filtering — design C4, Property 4) ──────────
+    # ── Scope helpers (domain-layer scope filtering — design C4, Property 4/6) ────────
+    #
+    # s5d task 4.1/4.2 (R3.3/R6.2, ODx2 Option A): ``allowed_scopes`` is a PER-DIMENSION
+    # map ``{dimension_key: [values]}`` resolved at the edge — one entry per enabled
+    # dimension (``["*"]`` = all for that dimension, a subset = scoped, ``[]`` = deny). Task
+    # 4.2 formalizes multi-dimension enforcement: :meth:`_in_scope` ITERATES the whole map
+    # and a member is visible only if it passes EVERY dimension (AND — Property 6). Each
+    # dimension is evaluated against the member's own field (``_record_scope_values(member,
+    # dimension_key)`` reads that dimension's field), so a two-dimension tenant reads two
+    # different fields. Single-dimension tenants (h-dcn ``region``) are the N=1 case — one
+    # map entry — so behaviour is unchanged; there is NO special-casing of one vs many.
+    # The gating-``dimension_key`` param is gone from ``_in_scope`` and the public read/write
+    # methods: the map itself carries every dimension the check needs.
 
     @staticmethod
-    def _is_wildcard(allowed_scopes: Sequence[str]) -> bool:
-        """True when the caller may see every record of the tenant (``["*"]``)."""
-        return list(allowed_scopes) == [WILDCARD]
+    def _is_wildcard(values: Sequence[str]) -> bool:
+        """True when the caller may see every record for a dimension (``["*"]``)."""
+        return list(values) == [WILDCARD]
 
     @staticmethod
-    def _is_deny(allowed_scopes: Sequence[str]) -> bool:
-        """True when the caller has no scope grant (empty) → see nothing (Property 4)."""
-        return len(list(allowed_scopes)) == 0
+    def _is_deny(values: Sequence[str]) -> bool:
+        """True when the caller has no grant for a dimension (empty) → see nothing (Property 4)."""
+        return len(list(values)) == 0
 
     @staticmethod
     def _record_scope_values(
         member: Member, dimension_key: str
     ) -> List[str]:
-        """The member's values for the gating dimension, normalised to a list of strings.
+        """The member's canonical value for the gating dimension, as a 0-or-1-element list.
 
-        Reads ``member["scope_values"][dimension_key]`` (the design data model), tolerating
-        a scalar or a list and a record that carries no scope values at all (→ empty list,
-        which a scoped caller never intersects → not visible; a wildcard caller sees it
-        anyway because wildcard short-circuits before this is consulted).
+        Scope is a **plain member field** now — the ``scope_values`` bucket is retired (S5d
+        D1, R3.4). A dimension binds to a normal member field (``members.scope_dimensions[
+        dim].field``, defaulting to the dimension ``key`` — h-dcn's ``region`` dimension binds
+        to the tenant-added ``region`` overlay field). We read the member's SCALAR value for
+        that field via the shared field→bucket accessor (:func:`~sam.members.domain.
+        field_resolver._member_value`): a dotted field key resolves to its explicit bucket,
+        while a bare key resolves nested-bucket-first (``personal`` / ``membership`` /
+        ``overlay``) with a flat top-level fallback — the bucket is NEVER hardcoded.
+
+        The read value is passed through the shared :func:`~sam.members.domain.scope_canon.
+        scope_canon` so a member's stored value and a granted value share one canonical
+        vocabulary (Property 4). A member is single-valued per scope field (R3.2), so this
+        returns ``[scope_canon(value)]`` for a present value, or ``[]`` when the field is
+        absent / blank (which a scoped caller never intersects → not visible; a wildcard
+        caller sees the record anyway because wildcard short-circuits before this is
+        consulted).
         """
-        scope_values = member.get("scope_values") or {}
-        if not isinstance(scope_values, Mapping):
+        if not isinstance(member, Mapping):
             return []
-        raw = scope_values.get(dimension_key)
+        # The field the dimension binds to defaults to the dimension key (h-dcn: "region").
+        raw = _member_value(member, dimension_key)
         if raw is None:
             return []
-        if isinstance(raw, str):
-            return [raw]
-        if isinstance(raw, (list, tuple, set)):
-            return [str(v) for v in raw]
-        return [str(raw)]
+        canonical = scope_canon(raw if isinstance(raw, str) else str(raw))
+        if not canonical:
+            return []
+        return [canonical]
+
+    def _passes_dimension(
+        self, member: Member, dimension_key: str, values: Sequence[str]
+    ) -> bool:
+        """Whether ``member`` passes ONE scope dimension's grant (design C4, Property 4).
+
+        The per-dimension rule, evaluated against the member's OWN field for that dimension:
+
+        - ``["*"]`` → passes (tenant-wide for that dimension);
+        - ``[]`` → fails (no grant for that dimension → deny — Property 4);
+        - a subset → passes only when the member's canonical value for that dimension's field
+          intersects the granted subset.
+
+        Enforcement is exact-equality on the CANONICAL form: both the member's stored value
+        (already canonicalised by :meth:`_record_scope_values`, which reads that dimension's
+        field via ``members.scope_dimensions[dim].field``, default = the dimension key) and
+        each granted value are reduced by :func:`scope_canon`, so case / diacritic / separator
+        variants match while partials never do. The wildcard sentinel is preserved verbatim.
+        """
+        if self._is_wildcard(values):
+            return True
+        if self._is_deny(values):
+            return False
+        granted = {scope_canon(s) if s != WILDCARD else s for s in values}
+        record_values = set(self._record_scope_values(member, dimension_key))
+        return bool(granted & record_values)
 
     def _in_scope(
         self,
         member: Member,
-        allowed_scopes: Sequence[str],
-        dimension_key: str,
+        allowed_scopes: Mapping[str, Sequence[str]],
     ) -> bool:
-        """Whether ``member`` is visible to a caller holding ``allowed_scopes``.
+        """Whether ``member`` is visible to a caller holding ``allowed_scopes`` (Property 6).
 
-        The single scope rule every read shares: wildcard sees all; a deny (empty) sees
-        none; a subset sees a record only when the record's values for the gating dimension
-        intersect the granted subset (design C4, Property 4).
+        s5d task 4.2 (R3.3, ODx2 Option A): ``allowed_scopes`` is the PER-DIMENSION map
+        ``{dimension_key: [values]}`` the edge resolves over EVERY enabled dimension. This
+        ITERATES the map and applies the per-dimension rule (:meth:`_passes_dimension`) to
+        each entry, reading each dimension's own field. A member is visible ONLY IF it passes
+        EVERY dimension (AND-across-dimensions): pass one dimension but fail another → NOT
+        visible; ``["*"]`` passes a dimension, ``[]`` fails it.
+
+        An EMPTY map (``{}``) — no dimension grant at all — is deny-by-default: ``all(...)``
+        over no entries would be vacuously true, so we treat the empty map as "see nothing".
+        A tenant-wide caller is ``{"<dim>": ["*"]}`` (the edge's collapse), never ``{}``.
+        Single-dimension tenants (h-dcn ``region``) are the N=1 case — one entry — so this
+        reduces to the original single-dimension behaviour with no special-casing.
         """
-        if self._is_wildcard(allowed_scopes):
-            return True
-        if self._is_deny(allowed_scopes):
+        if not allowed_scopes:
             return False
-        granted = set(allowed_scopes)
-        record_values = set(self._record_scope_values(member, dimension_key))
-        return bool(granted & record_values)
+        return all(
+            self._passes_dimension(member, dimension_key, values)
+            for dimension_key, values in allowed_scopes.items()
+        )
 
     # ── Self-service ownership (design C1 self_service routes) ────────────────────────
 
@@ -401,7 +495,7 @@ class MembershipService:
 
         1. a cognito subject stored on the record (``sub`` / ``cognito_sub``);
         2. the ``member_id`` (a token whose subject *is* the member id);
-        3. the personal contact/email (``personal.contact``).
+        3. the personal email (``personal.email``).
 
         A missing ``requester_sub`` never matches (no ambient ownership). This never widens
         access to *other* members — it is a per-record identity check.
@@ -418,17 +512,16 @@ class MembershipService:
             candidates.add(str(member_id))
         personal = member.get("personal") or {}
         if isinstance(personal, Mapping):
-            contact = personal.get("contact")
-            if contact:
-                candidates.add(str(contact))
+            email = personal.get("email")
+            if email:
+                candidates.add(str(email))
         return str(requester_sub) in candidates
 
     def _visible_member_or_raise(
         self,
         tenant_id: str,
         member_id: str,
-        allowed_scopes: Sequence[str],
-        dimension_key: str,
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str],
         self_service: bool,
@@ -445,47 +538,79 @@ class MembershipService:
         if member is None:
             raise MemberNotFound(tenant_id, member_id)
 
-        if self._in_scope(member, allowed_scopes, dimension_key):
-            return member
+        if self._in_scope(member, allowed_scopes):
+            return self._enrich_calculated(member)
         if self_service and self._owns_record(member, requester_sub):
-            return member
+            return self._enrich_calculated(member)
         raise MemberNotFound(tenant_id, member_id)
+
+    # ── Calculated-field enrichment (R4.4) ─────────────────────────────────────────────
+    @staticmethod
+    def _enrich_calculated(record: Member) -> Member:
+        """Return a copy of ``record`` with calculated (derived) fields merged in (R4.4).
+
+        Calculated fields are NEVER stored; they are computed on read from the record's fixed
+        fields (``compute_calculated_fields``) and merged into the record under their STORAGE
+        bucket (``personal`` / ``membership``) beside the fixed fields, so the presentation
+        accessor (``valueFor(record, group, key)``) resolves them exactly like a stored field.
+        A derivation whose inputs are absent yields ``None`` and is simply omitted (never a
+        raise). Non-mapping records pass through untouched (defensive).
+        """
+        if not isinstance(record, Mapping):
+            return record
+        enriched: Dict[str, Any] = {k: v for k, v in record.items()}
+        for calc in CALCULATED_FIELDS:
+            value = calc.evaluate(enriched)
+            if value is None:
+                continue
+            bucket_key = calc.group.value  # storage bucket: "personal" / "membership"
+            bucket = enriched.get(bucket_key)
+            bucket = dict(bucket) if isinstance(bucket, Mapping) else {}
+            bucket[calc.key] = value
+            enriched[bucket_key] = bucket
+        return enriched
 
     # ── Member reads ──────────────────────────────────────────────────────────────────
 
     def list_members(
         self,
         tenant_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         filters: Optional[Mapping[str, Any]] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> List[Member]:
-        """List the tenant's members, narrowed to the caller's scope (design C4, Property 4).
+        """List the tenant's members, narrowed to the caller's scope (design C4, Property 4/6).
 
         Asks the repository for the tenant's members (keyed by ``tenant_id`` — Property 1),
-        optionally passing ``filters`` through, then narrows by ``allowed_scopes``: wildcard
-        returns all, a subset returns only members whose gating-dimension values intersect
-        the subset, and an empty scope returns ``[]`` (deny-by-default). Ordering is the
-        repository's.
+        optionally passing ``filters`` through, then narrows by ``allowed_scopes`` (the s5d
+        per-dimension map ``{dimension_key: [values]}``): a member is returned only when it
+        passes EVERY dimension (:meth:`_in_scope` — AND-across-dimensions, Property 6). An
+        empty map, or a dimension whose grant is ``[]``, yields nothing (deny-by-default); a
+        dimension whose grant is ``["*"]`` passes that axis. Ordering is the repository's.
+
+        A guaranteed-deny map short-circuits before scanning: an EMPTY map, or ANY dimension
+        whose grant is ``[]`` (which no member can pass on that axis), means the AND can never
+        hold — so we return ``[]`` without asking the repository at all (deny-by-default).
         """
-        if self._is_deny(allowed_scopes):
-            # Deny-by-default: no scope grant → see nothing, without even scanning results.
+        if not allowed_scopes or any(
+            self._is_deny(values) for values in allowed_scopes.values()
+        ):
+            # Deny-by-default: no scope grant (empty map or a denied dimension) → see nothing,
+            # without even scanning results.
             return []
         members = self._repo.list_members(tenant_id, filters=filters)
-        if self._is_wildcard(allowed_scopes):
-            return list(members)
         return [
-            m for m in members if self._in_scope(m, allowed_scopes, dimension_key)
+            self._enrich_calculated(m)
+            for m in members
+            if self._in_scope(m, allowed_scopes)
         ]
 
     def export_members(
         self,
         tenant_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         filters: Optional[Mapping[str, Any]] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> List[Member]:
         """Export the tenant's members (scope-narrowed) — the export projection.
 
@@ -494,19 +619,16 @@ class MembershipService:
         projection can diverge from the list projection later without touching the scope
         rule; today it returns the same scope-filtered records.
         """
-        return self.list_members(
-            tenant_id, allowed_scopes, filters=filters, dimension_key=dimension_key
-        )
+        return self.list_members(tenant_id, allowed_scopes, filters=filters)
 
     def get_member(
         self,
         tenant_id: str,
         member_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = False,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Member:
         """Fetch one member by id, enforcing scope + self-service (design C1/C4).
 
@@ -519,7 +641,6 @@ class MembershipService:
             tenant_id,
             member_id,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -528,8 +649,6 @@ class MembershipService:
         self,
         tenant_id: str,
         requester_sub: Optional[str],
-        *,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Member:
         """Return the calling member's OWN record (the ``GET /members/me`` self-service read).
 
@@ -544,7 +663,7 @@ class MembershipService:
             raise MemberNotFound(tenant_id, "<self>")
         for member in self._repo.list_members(tenant_id):
             if self._owns_record(member, requester_sub):
-                return member
+                return self._enrich_calculated(member)
         raise MemberNotFound(tenant_id, "<self>")
 
     # ── Membership reads (scope-checked via the parent member) ────────────────────────
@@ -553,11 +672,10 @@ class MembershipService:
         self,
         tenant_id: str,
         member_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = False,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> List[Membership]:
         """List a member's memberships, gated by the parent member's visibility.
 
@@ -570,7 +688,6 @@ class MembershipService:
             tenant_id,
             member_id,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -581,11 +698,10 @@ class MembershipService:
         tenant_id: str,
         member_id: str,
         membership_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = False,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Membership:
         """Fetch one membership of a member, gated by the parent member's visibility.
 
@@ -597,7 +713,6 @@ class MembershipService:
             tenant_id,
             member_id,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -612,11 +727,10 @@ class MembershipService:
         self,
         tenant_id: str,
         member_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = False,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> List[Payment]:
         """List a member's payments, gated by the parent member's visibility.
 
@@ -628,7 +742,6 @@ class MembershipService:
             tenant_id,
             member_id,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -790,20 +903,59 @@ class MembershipService:
     # DynamoDB touch-point + owner of uniqueness/atomicity). No ``if tenant``, no boto3, no
     # HTTP here (Property 5). Scope + verify-before-trust are enforced BEFORE any persist.
 
-    def _validate_member_record(self, tenant_id: str, record: Member, *, partial: bool) -> None:
+    def _validate_member_record(
+        self,
+        tenant_id: str,
+        record: Member,
+        *,
+        partial: bool,
+        caller_roles: Sequence[str] = (),
+    ) -> None:
         """Validate a member record authoritatively (design C2/C5, R2.3, Property 2).
 
-        Two passes, both server-side (the frontend enforces nothing): the platform-fixed
-        field registry (:func:`validate_fixed_fields`, ``partial`` for updates), then the
-        tenant's Rung-3 ``validate_member`` hook (h-dcn's motor-club rule, task 5.1 — the
-        safe no-error default for an unregistered tenant). Both error maps are merged and
-        raised as one :class:`MemberValidationError` so the caller sees every problem at once.
+        Server-side passes, in order (the frontend enforces nothing — R2.3):
+
+        1. the platform-fixed field registry (:func:`validate_fixed_fields`, ``partial`` for
+           updates) — required-ness / type / closed-status enum;
+        2. the resolved-field gates (task 4.4, over the tenant's :class:`FieldConfig`):
+           - **``show_when`` hidden-not-required** (R4.12): a field whose ``show_when`` condition
+             does NOT hold for this record is NOT required — its "is required" error is dropped,
+             so the server never demands a value for a field the frontend correctly hid;
+           - **value-level enum role gating** (R4.12): a create/edit that sets a role-restricted
+             option value the caller's role may not choose is rejected (403-worthy 422 error) —
+             the authoritative gate behind the frontend's convenience option filtering;
+           - **``member_number`` format** (R4.8): a present ``member_number`` must satisfy the
+             tenant format pattern (the manual-entry string field);
+        3. the tenant's Rung-3 ``validate_member`` hook (h-dcn's motor-club rule — the safe
+           no-error default for an unregistered tenant).
+
+        All error maps are merged and raised as one :class:`MemberValidationError` so the caller
+        sees every problem at once. ``caller_roles`` are the verified roles of the writer (from
+        the edge context) — empty for a caller with no roles (only unrestricted options allowed).
         """
+        config = self._field_resolver.resolve(tenant_id)
+
         errors: Dict[str, str] = {}
         try:
             validate_fixed_fields(record, partial=partial)
         except FieldValidationError as exc:
             errors.update(exc.errors)
+
+        # (2a) show_when hidden-not-required: drop a "required" error for a fixed field whose
+        # conditional-visibility condition is not satisfied by the record (R4.12). A hidden
+        # field must not be demanded server-side any more than the frontend renders it.
+        self._drop_hidden_required_errors(config, record, errors)
+
+        # (2b) required VISIBLE overlay fields (R4.9/R4.12): the fixed-field registry only
+        # validates the fixed base, so a required tenant OVERLAY field is enforced here —
+        # authoritatively — but ONLY when it is shown (its `show_when` holds). A hidden overlay
+        # field is never required (the mirror of the frontend not rendering it), and a partial
+        # update leaves an untouched overlay field alone.
+        self._validate_required_overlay_fields(config, record, partial, errors)
+
+        # (2c) value-level enum role gating (R4.12) + (2d) member_number format (R4.8).
+        self._reject_disallowed_enum_values(config, record, caller_roles, errors)
+        self._validate_member_number(config, record, errors)
 
         hook_errors = self._tenant_hooks.dispatch(
             HookName.VALIDATE_MEMBER, tenant_id, record
@@ -813,6 +965,127 @@ class MembershipService:
 
         if errors:
             raise MemberValidationError(errors)
+
+    @staticmethod
+    def _record_value(record: Mapping[str, Any], field: ResolvedField) -> Any:
+        """The record's value for a resolved field, honoring its STORAGE group / overlay bucket.
+
+        A fixed/calculated field stores under its ``group`` bucket (``personal`` / ``membership``);
+        a variable (overlay) field stores under the ``overlay`` bucket. Tolerant of a flattened
+        top-level value too (the shape a client may send). Returns ``None`` when absent.
+        """
+        bucket = record.get(field.group)
+        if isinstance(bucket, Mapping) and field.key in bucket:
+            return bucket.get(field.key)
+        return record.get(field.key)
+
+    @staticmethod
+    def _drop_hidden_required_errors(
+        config: ResolvedFieldConfig,
+        record: Member,
+        errors: Dict[str, str],
+    ) -> None:
+        """Remove "is required" errors for fields hidden by an unmet ``show_when`` (R4.12).
+
+        A field whose ``show_when`` condition does not hold for this record is not shown to the
+        caller, so the server must not require it either (hidden-not-required). We only DROP a
+        required error — we never invent one — so this can only relax, never tighten.
+        """
+        for field in config.fields:
+            if field.show_when is None:
+                continue
+            if evaluate_show_when(field.show_when, record):
+                continue
+            dotted = field.dotted_key()
+            if errors.get(dotted) == "is required":
+                del errors[dotted]
+
+    @staticmethod
+    def _validate_required_overlay_fields(
+        config: ResolvedFieldConfig,
+        record: Member,
+        partial: bool,
+        errors: Dict[str, str],
+    ) -> None:
+        """Require a VISIBLE, SHOWN overlay field that is marked required (R4.9/R4.12).
+
+        The fixed-field registry (:func:`validate_fixed_fields`) validates only the fixed base,
+        so a tenant OVERLAY field's ``required`` is enforced here — authoritatively (R2.3), never
+        the frontend. It applies the same ``show_when`` hidden-not-required rule as the fixed
+        fields: a required overlay field is demanded only when it is shown (its condition holds)
+        AND visible. On a partial update an ABSENT overlay bucket / key means "leave unchanged",
+        so a required overlay field is only enforced when the record touches its bucket (create,
+        or an update that sends the ``overlay`` block).
+        """
+        overlay_bucket = record.get(OVERLAY_GROUP)
+        has_overlay_bucket = isinstance(overlay_bucket, Mapping)
+        for field in config.fields:
+            if field.origin is not FieldOrigin.VARIABLE or not field.required or not field.visible:
+                continue
+            if not evaluate_show_when(field.show_when, record):
+                continue  # hidden → not required
+            if partial and not has_overlay_bucket:
+                continue  # update that does not touch the overlay leaves it unchanged
+            value = overlay_bucket.get(field.key) if has_overlay_bucket else None
+            if value is None or (isinstance(value, str) and not value.strip()):
+                errors[field.dotted_key()] = "is required"
+
+    @staticmethod
+    def _reject_disallowed_enum_values(
+        config: ResolvedFieldConfig,
+        record: Member,
+        caller_roles: Sequence[str],
+        errors: Dict[str, str],
+    ) -> None:
+        """Reject a write that sets a role-restricted enum value the caller may not choose (R4.12).
+
+        For every resolved field carrying rich :class:`EnumOption`s, if the record sets a value
+        whose option is role-gated and the caller holds none of the option's roles, record an
+        authoritative error. This is the authority behind the frontend's convenience option
+        filtering: the client hides options the caller may not pick, but the domain — never the
+        client — is the gate (a hand-crafted request that sets a disallowed value is rejected).
+        An unknown value is left to the type/reference checks; only KNOWN gated options are
+        checked here.
+        """
+        allowed = tuple(caller_roles or ())
+        for field in config.fields:
+            if not field.options:
+                continue
+            value = MembershipService._record_value(record, field)
+            if value is None:
+                continue
+            gate = roles_for_option(field.options, value)
+            if gate is None:
+                continue  # unknown value or an open (unrestricted) option — not our concern
+            if not any(r in gate for r in allowed):
+                errors[field.dotted_key()] = (
+                    f"value {value!r} is restricted to role(s) "
+                    f"{', '.join(sorted(gate))} — the caller is not permitted to set it"
+                )
+
+    @staticmethod
+    def _validate_member_number(
+        config: ResolvedFieldConfig,
+        record: Member,
+        errors: Dict[str, str],
+    ) -> None:
+        """Authoritatively validate a present ``member_number`` against the tenant format (R4.8).
+
+        ``member_number`` is a manual-entry Fixed **string** (never numeric); its tenant format
+        pattern lives on the resolved field (``member_number_format``). When the record sets a
+        member number it must satisfy that pattern (the repository still enforces uniqueness — a
+        distinct 409 concern). An absent value is left to the fixed-field "required" rule; only a
+        PRESENT value is format-checked here.
+        """
+        field = config.field(MEMBER_NUMBER_FIELD_KEY)
+        if field is None or field.member_number_format is None:
+            return
+        value = MembershipService._record_value(record, field)
+        if value is None:
+            return
+        reason = validate_member_number_format(value, field.member_number_format)
+        if reason is not None:
+            errors[MEMBER_NUMBER_FIELD_KEY] = reason
 
     @staticmethod
     def _membership_type_of(record: Mapping[str, Any]) -> Optional[str]:
@@ -884,8 +1157,9 @@ class MembershipService:
         Verify-before-trust (Property 2): the ``tenant_id`` / partition key is authoritative
         from the verified context and is stamped by the service, never accepted from the body.
         We drop any client-supplied ``tenant_id`` / DynamoDB partition-key attribute so a
-        caller cannot steer a write into another tenant's partition. ``scope_values`` are kept
-        as data but a scoped caller's scope is authorized separately (:meth:`_authorize_write`).
+        caller cannot steer a write into another tenant's partition. The scope field is a
+        PLAIN member field (S5d D1 — no ``scope_values`` bucket); it is kept as ordinary data
+        and a scoped caller's scope is authorized separately (:meth:`_authorize_write`).
         """
         payload = {k: v for k, v in dict(body).items() if k not in ("tenant_id", "PK", "pk")}
         return payload
@@ -894,22 +1168,22 @@ class MembershipService:
         self,
         tenant_id: str,
         member: Member,
-        allowed_scopes: Sequence[str],
-        dimension_key: str,
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str],
         self_service: bool,
     ) -> None:
         """Authorize a WRITE against the caller's scope, or raise :class:`ScopeDenied` (403).
 
-        Deny-by-default (Property 4): a wildcard caller may write any record of the tenant; a
-        scoped (non-wildcard) caller may only write a record whose gating-dimension values
-        intersect their grant; an empty scope denies unless self-service applies. Self-service
-        lets a member write their OWN record (matched on ``requester_sub``) even without a
-        broad scope — used by the delegate routes so a member can manage their own delegates.
-        Reuses the same ``_in_scope`` rule the reads share, so read/write scope stays uniform.
+        Deny-by-default (Property 4/6): a caller may write a record only when it passes EVERY
+        scope dimension in ``allowed_scopes`` (:meth:`_in_scope`) — a wildcard on a dimension
+        passes that axis, an empty grant on a dimension denies it, and an empty map denies.
+        Self-service lets a member write their OWN record (matched on ``requester_sub``) even
+        without a broad scope — used by the delegate routes so a member can manage their own
+        delegates. Reuses the same ``_in_scope`` rule the reads share, so read/write scope
+        stays uniform.
         """
-        if self._in_scope(member, allowed_scopes, dimension_key):
+        if self._in_scope(member, allowed_scopes):
             return
         if self_service and self._owns_record(member, requester_sub):
             return
@@ -919,10 +1193,10 @@ class MembershipService:
         self,
         tenant_id: str,
         body: Mapping[str, Any],
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
+        caller_roles: Sequence[str] = (),
     ) -> Member:
         """Create a member for the tenant (design C1 write / C2 / C5 / C6, R1.4/R3.3).
 
@@ -958,7 +1232,9 @@ class MembershipService:
                 membership["member_number"] = str(derived)
         record["membership"] = membership
 
-        self._validate_member_record(tenant_id, record, partial=False)
+        self._validate_member_record(
+            tenant_id, record, partial=False, caller_roles=caller_roles
+        )
         # Authoritative referential-integrity check (design C8, task 5.3): the member's
         # membership_type must reference a LIVE catalog entry for the tenant (the dropdown is
         # convenience only — never trusted). A missing/unknown/retired reference → 422. This
@@ -968,7 +1244,6 @@ class MembershipService:
             tenant_id,
             record,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=False,
         )
@@ -979,11 +1254,11 @@ class MembershipService:
         tenant_id: str,
         member_id: str,
         body: Mapping[str, Any],
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = False,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
+        caller_roles: Sequence[str] = (),
     ) -> Member:
         """Partial-update a member (design C1 write / C2, R1.4/R3.3).
 
@@ -1004,7 +1279,6 @@ class MembershipService:
             tenant_id,
             existing,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -1019,12 +1293,13 @@ class MembershipService:
             tenant_id,
             merged,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
 
-        self._validate_member_record(tenant_id, merged, partial=True)
+        self._validate_member_record(
+            tenant_id, merged, partial=True, caller_roles=caller_roles
+        )
         # Referential integrity on update (design C8, task 5.3), applied ONLY when the patch
         # CHANGES the membership_type reference. This is the partial-update-friendly rule the
         # spec asks for: a patch that MOVES the reference to a new value must point at a LIVE
@@ -1042,10 +1317,9 @@ class MembershipService:
         self,
         tenant_id: str,
         member_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Dict[str, Any]:
         """Delete a member (admin-gated at the edge; scope-checked here — design C6).
 
@@ -1061,7 +1335,6 @@ class MembershipService:
             tenant_id,
             existing,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=False,
         )
@@ -1075,10 +1348,9 @@ class MembershipService:
         tenant_id: str,
         member_id: str,
         body: Mapping[str, Any],
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Membership:
         """Create a membership for a member, gated by the parent member's write scope.
 
@@ -1088,7 +1360,7 @@ class MembershipService:
         validation error the repository surfaces.
         """
         self._writable_member_or_raise(
-            tenant_id, member_id, allowed_scopes, dimension_key, requester_sub=requester_sub
+            tenant_id, member_id, allowed_scopes, requester_sub=requester_sub
         )
         membership = self._sanitize_write_payload(body)
         return self._repo.save_membership(tenant_id, member_id, membership)
@@ -1099,10 +1371,9 @@ class MembershipService:
         member_id: str,
         membership_id: str,
         body: Mapping[str, Any],
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Membership:
         """Update a membership, gated by the parent member's write scope.
 
@@ -1111,7 +1382,7 @@ class MembershipService:
         (the ``membership_id`` stays the path's), and re-saves.
         """
         self._writable_member_or_raise(
-            tenant_id, member_id, allowed_scopes, dimension_key, requester_sub=requester_sub
+            tenant_id, member_id, allowed_scopes, requester_sub=requester_sub
         )
         existing = self._repo.get_membership(tenant_id, member_id, membership_id)
         if existing is None:
@@ -1125,14 +1396,13 @@ class MembershipService:
         tenant_id: str,
         member_id: str,
         membership_id: str,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Dict[str, Any]:
         """Delete a membership (admin-gated at the edge; parent member's write scope here)."""
         self._writable_member_or_raise(
-            tenant_id, member_id, allowed_scopes, dimension_key, requester_sub=requester_sub
+            tenant_id, member_id, allowed_scopes, requester_sub=requester_sub
         )
         self._repo.delete_membership(tenant_id, member_id, membership_id)
         return {"deleted": True, "member_id": member_id, "membership_id": membership_id}
@@ -1142,11 +1412,10 @@ class MembershipService:
         tenant_id: str,
         member_id: str,
         to_state: MembershipStatus,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         context: Optional[Mapping[str, Any]] = None,
         requester_sub: Optional[str] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> TransitionResult:
         """Apply + PERSIST a lifecycle transition to a member (design C2 / C5, R1.4).
 
@@ -1165,7 +1434,6 @@ class MembershipService:
             tenant_id,
             member,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=False,
         )
@@ -1180,11 +1448,10 @@ class MembershipService:
         tenant_id: str,
         member_ids: Sequence[str],
         to_state: MembershipStatus,
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         context: Optional[Mapping[str, Any]] = None,
         requester_sub: Optional[str] = None,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Dict[str, Any]:
         """Apply one transition to many members, reporting a per-item outcome (admin capability).
 
@@ -1203,7 +1470,6 @@ class MembershipService:
                     allowed_scopes,
                     context=context,
                     requester_sub=requester_sub,
-                    dimension_key=dimension_key,
                 )
                 results.append(
                     {
@@ -1231,11 +1497,10 @@ class MembershipService:
         tenant_id: str,
         member_id: str,
         body: Mapping[str, Any],
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = True,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Dict[str, Any]:
         """Replace a member's delegate set (design C1 write; self-service allowed).
 
@@ -1249,7 +1514,6 @@ class MembershipService:
             tenant_id,
             member_id,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -1266,11 +1530,10 @@ class MembershipService:
         tenant_id: str,
         member_id: str,
         body: Mapping[str, Any],
-        allowed_scopes: Sequence[str],
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = True,
-        dimension_key: str = DEFAULT_SCOPE_DIMENSION_KEY,
     ) -> Dict[str, Any]:
         """Record a delegate INVITATION intent for a prospective delegate (design C1 write).
 
@@ -1290,7 +1553,6 @@ class MembershipService:
             tenant_id,
             member_id,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -1317,8 +1579,7 @@ class MembershipService:
         self,
         tenant_id: str,
         member_id: str,
-        allowed_scopes: Sequence[str],
-        dimension_key: str,
+        allowed_scopes: Mapping[str, Sequence[str]],
         *,
         requester_sub: Optional[str] = None,
         self_service: bool = False,
@@ -1327,7 +1588,7 @@ class MembershipService:
 
         A missing member is :class:`MemberNotFound` (→ 404); an out-of-scope write is
         :class:`ScopeDenied` (→ 403). Shared by every child-write (membership/delegate)
-        so the parent member's write authorization is enforced uniformly (Property 1/4).
+        so the parent member's write authorization is enforced uniformly (Property 1/4/6).
         """
         member = self._repo.get_member(tenant_id, member_id)
         if member is None:
@@ -1336,7 +1597,6 @@ class MembershipService:
             tenant_id,
             member,
             allowed_scopes,
-            dimension_key,
             requester_sub=requester_sub,
             self_service=self_service,
         )
@@ -1401,7 +1661,117 @@ class MembershipService:
             "tenant_id": config.tenant_id,
             "fields": fields,
             "by_group": by_group,
+            # The tenant's functional (display) group catalog (R4.9). The modals + view contexts
+            # SECTION the resolved field set by these (design C-SURFACE): each section is a
+            # `functional_groups` entry, ordered by `order`. A field whose `functional_group` is
+            # not in this catalog falls back to a default section at render (Property 7). Empty
+            # when the tenant authored no catalog — the modals then group by the base defaults.
+            "functional_groups": [
+                self._serialize_functional_group(g) for g in config.functional_groups
+            ],
             "membership_type_options": options,
+            # The tenant's selectable view contexts (S5c task 3.2, design C-VIEW). Sourced from
+            # the injected ViewContextsProvider (the projection reader's config#views row in
+            # production, a StaticViewContextsProvider in tests), keyed by the verified
+            # tenant_id. Empty-is-valid (R5.1): a tenant that authored none surfaces exactly one
+            # default context over all visible fields — the provider guarantees ≥1, so this list
+            # is never empty and never crashes on an unconfigured tenant. Presentation-only: the
+            # frontend renders these; the module enforces nothing off them (row scope stays
+            # server-side, orthogonal).
+            "view_contexts": [
+                self._serialize_view_context(vc)
+                for vc in self._view_contexts_provider.get_view_contexts(tenant_id)
+            ],
+            # The tenant's membership lifecycle, as DECLARED BY THE MODULE (design C2, R5.7).
+            # The single + bulk transition modals read their candidate target states from this
+            # block ONLY — never a hardcoded status list. A tenant with no configured lifecycle
+            # yields `None` here, so the SPA offers NO transition targets (deny-by-default at
+            # the UI); the module stays authoritative regardless (it re-validates every
+            # transition and answers 409 with reasons on a denial). Presentation-only: the SPA
+            # renders the candidate list off this; enforcement stays here.
+            "lifecycle": self._serialize_lifecycle(tenant_id),
+        }
+
+    def _serialize_lifecycle(self, tenant_id: str) -> Optional[Dict[str, Any]]:
+        """Project the tenant's :class:`LifecycleConfig` into the SPA's `lifecycle` shape (C2).
+
+        Sourced from the injected :class:`LifecycleConfigProvider` (the module's declarative
+        state machine), keyed by the verified ``tenant_id``. Returns ``None`` when the tenant
+        has no configured lifecycle — the SPA then offers no transition targets (deny-by-default
+        at the UI, R5.7). Deliberately limited: this exposes only the declarative transition
+        graph the module already models — no editor, no extra states, no workflow features.
+
+        The shape mirrors the frontend `LifecycleConfigShape`:
+          - ``allowed_states``: the tenant's state vocabulary (order kept);
+          - ``initial_state``: the state a new member starts in;
+          - ``allowed_transitions``: ``{ fromState: [toState, ...] }`` (the preferred edge map
+            the modals read for a member's current state / the bulk union);
+          - ``requires_approval``: the ``fromState->toState`` edges whose declarative guards
+            read ``context.approved`` (so the SPA renders the approval checkbox). Derived from
+            the guard data — never a hardcoded edge list.
+
+        Presentation-only: the module re-validates every transition server-side (409 with
+        reasons on a denial), so this candidate description is a convenience, never the
+        authority.
+        """
+        config = self._lifecycle_provider.get_lifecycle_config(tenant_id)
+        if config is None:
+            return None
+
+        allowed_transitions: Dict[str, List[str]] = {}
+        requires_approval: List[str] = []
+        for rule in config.transitions:
+            frm = rule.from_state.value
+            to = rule.to_state.value
+            allowed_transitions.setdefault(frm, []).append(to)
+            # An edge whose declarative guards read the `context.approved` fact needs the
+            # approval checkbox in the modal — derived from the guard data, not hardcoded.
+            if any(
+                guard.field == "context.approved" for guard in rule.guards
+            ):
+                requires_approval.append(f"{frm}->{to}")
+
+        return {
+            "allowed_states": [s.value for s in config.allowed_states],
+            "initial_state": config.initial_state.value,
+            "allowed_transitions": allowed_transitions,
+            "requires_approval": requires_approval,
+        }
+
+    @staticmethod
+    def _serialize_functional_group(group: FunctionalGroup) -> Dict[str, Any]:
+        """Project a :class:`FunctionalGroup` (display-section) catalog entry to pure JSON (R4.9).
+
+        Carries the section ``key``, its bilingual ``{nl,en}`` ``label`` (the section heading the
+        modals render), and its ``order`` (the section sort). Presentation-only — the frontend
+        sections by it; the module enforces nothing off it.
+        """
+        return {
+            "key": group.key,
+            "label": dict(group.label),
+            "order": int(group.order),
+        }
+
+    @staticmethod
+    def _serialize_view_context(vc: ViewContext) -> Dict[str, Any]:
+        """Project a :class:`ViewContext` into the JSON-friendly shape the frontend renders.
+
+        Carries the context's key / bilingual ``{nl,en}`` label / ``permission_roles`` (the
+        view-convenience dropdown gate) plus the ``ui.tables``-shaped presentation primitives
+        (``columns`` / ``filterable_columns`` / ``default_sort`` / ``page_size``). Sequences are
+        flattened to plain lists and the label to a plain dict so the payload is pure JSON (the
+        edge ``json.dumps`` it). ``is_default`` rides along so the SPA can tell the synthesized
+        empty-is-valid default context apart from an authored one.
+        """
+        return {
+            "key": vc.key,
+            "label": dict(vc.label),
+            "permission_roles": list(vc.permission_roles),
+            "columns": list(vc.columns),
+            "filterable_columns": list(vc.filterable_columns),
+            "default_sort": dict(vc.default_sort) if vc.default_sort is not None else None,
+            "page_size": vc.page_size,
+            "is_default": vc.is_default,
         }
 
     def _active_membership_type_options(self, tenant_id: str) -> List[Dict[str, Any]]:
@@ -1595,6 +1965,36 @@ class MembershipService:
         }
 
     @staticmethod
+    def _serialize_enum_option(opt: EnumOption) -> Dict[str, Any]:
+        """Project a rich :class:`EnumOption` (``{value, label{nl,en}, roles?}``) to pure JSON.
+
+        Surfaces the value-level ``roles`` gate (R4.12) so the frontend can filter a dropdown to
+        the caller's permitted options as a CONVENIENCE — the domain remains the authoritative
+        gate (:meth:`_reject_disallowed_enum_values`). ``roles`` is omitted when the option is
+        open (no restriction) so the payload stays minimal.
+        """
+        payload: Dict[str, Any] = {"value": opt.value, "label": dict(opt.label)}
+        if opt.roles:
+            payload["roles"] = list(opt.roles)
+        return payload
+
+    @staticmethod
+    def _serialize_member_number_format(fmt: MemberNumberFormat) -> Dict[str, Any]:
+        """Project a :class:`MemberNumberFormat` to pure JSON for the frontend's format feedback.
+
+        Carries the tenant's ``member_number`` format so the Add/Edit modal can give IMMEDIATE
+        format feedback (R4.8): the effective ``regex`` (the compiled prefix+width or the raw
+        regex), the ``prefix`` / ``width`` primitives, and a human-readable ``example``. The
+        server stays authoritative — this is convenience feedback, not the enforced rule.
+        """
+        return {
+            "prefix": fmt.prefix,
+            "width": int(fmt.width),
+            "regex": fmt.as_regex(),
+            "example": fmt.example(),
+        }
+
+    @staticmethod
     def _serialize_field(
         field: ResolvedField,
         *,
@@ -1602,12 +2002,22 @@ class MembershipService:
     ) -> Dict[str, Any]:
         """Project a :class:`ResolvedField` into the JSON-friendly shape the frontend renders.
 
-        Carries only what the frontend needs to render (key/group/type/required/label/
-        visible/order/origin) and nothing it needs to enforce (authority stays server-side).
-        The ``type`` / ``origin`` enums are flattened to their string values so the payload is
-        pure JSON. For the ``membership_type`` reference field the active catalog entries are
-        injected as ``options``; other fields carry their static ``choices`` (e.g. the closed
-        ``status`` enum) as ``options`` when present, else ``None``.
+        Carries what the frontend needs to render the resolved field set in the sectioned
+        view/edit/add/delete modals (task 4.4, design C-SURFACE) and nothing it needs to
+        *enforce* (authority stays server-side, R2.3):
+
+        - ``key`` / ``group`` (storage bucket) / ``type`` / ``required`` / ``label`` /
+          ``visible`` / ``order`` / ``origin`` (as before);
+        - ``functional_group`` (R4.9) — the PARAMETER-DRIVEN display group the modals SECTION by;
+        - ``read_only`` — ``True`` for calculated (derived) fields, which are never editable (R4.4);
+        - ``show_when`` (R4.12) — the per-field conditional-visibility condition (a hidden field
+          is not required, mirrored authoritatively server-side);
+        - ``member_number_format`` (R4.8) — the tenant format pattern for the ``member_number``
+          manual-entry string field (immediate frontend feedback; server authoritative);
+        - ``options`` — the dropdown source per R4.11: for ``membership_type`` the ACTIVE catalog
+          entries; for any other field with rich :class:`EnumOption`s (e.g. ``status``, an overlay
+          enum) the ``{value, label, roles?}`` options carrying the value-level role gate (R4.12);
+          else the bare ``choices`` list; else ``None``.
         """
         payload: Dict[str, Any] = {
             "key": field.key,
@@ -1616,11 +2026,25 @@ class MembershipService:
             "required": bool(field.required),
             "label": dict(field.label),
             "visible": bool(field.visible),
+            "read_only": bool(field.read_only),
             "order": int(field.order),
             "origin": field.origin.value,
+            "functional_group": field.functional_group or field.group,
         }
+        if field.show_when is not None:
+            payload["show_when"] = dict(field.show_when)
+        if field.member_number_format is not None and not field.member_number_format.is_empty():
+            payload["member_number_format"] = (
+                MembershipService._serialize_member_number_format(field.member_number_format)
+            )
         if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
             payload["options"] = [dict(o) for o in options]
+        elif field.options is not None:
+            # Rich enum options ({value,label,roles?}) — carry the value-level role gate (R4.12)
+            # so the frontend can filter the dropdown to the caller's permitted values.
+            payload["options"] = [
+                MembershipService._serialize_enum_option(o) for o in field.options
+            ]
         elif field.choices is not None:
             payload["options"] = list(field.choices)
         else:

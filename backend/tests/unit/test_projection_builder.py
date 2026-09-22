@@ -78,6 +78,61 @@ def test_build_tenant_with_active_sam_module_is_projected(sam_module):
     assert items, "an active SAM-backed module must open the projection gate"
 
 
+# --- R8.6: reconciliation tolerates unknown/legacy module rows -------------
+#
+# The periodic backstop (sync_all) sweeps EVERY tenant's tenant_modules rows,
+# and dev MySQL legitimately carries other tenants' unregistered/legacy names
+# (e.g. 'ADMIN', lowercase 'members'/'events'/'webshop'). One such row must NOT
+# raise and abort the sweep; it is treated as NON-SAM-backed (skipped).
+
+
+def test_build_tenant_with_only_unknown_module_returns_no_items_no_raise():
+    # A tenant whose ONLY active module is unregistered/legacy projects nothing —
+    # exactly like a flask-only tenant — and does NOT raise (R8.6).
+    modules = [{"module_name": "ADMIN", "is_active": True}]
+    assert build_projection_items({"administration": "myAdmin"}, modules) == []
+
+
+def test_build_tenant_with_lowercase_unknown_module_returns_no_items():
+    # s3test_hdcn's lowercase 'members' is NOT the registered 'MEMBERS' — unknown.
+    modules = [
+        {"module_name": "members", "is_active": True},
+        {"module_name": "events", "is_active": True},
+        {"module_name": "webshop", "is_active": True},
+    ]
+    assert build_projection_items({"administration": "s3test_hdcn"}, modules) == []
+
+
+def test_build_known_sam_plus_unknown_module_projects_known_without_raise(sam_module):
+    # A Members-enabled tenant that ALSO carries an unknown/legacy module row
+    # still projects its known rows; the unknown row is skipped, not raised.
+    tenant = {"administration": "TenantA"}
+    modules = [
+        {"module_name": sam_module, "is_active": True},
+        {"module_name": "ADMIN", "is_active": True},  # unknown/legacy — skipped
+    ]
+
+    items = build_projection_items(tenant, modules)
+
+    module_sks = {i.sort_key for i in items if i.sort_key.startswith("module#")}
+    # The known SAM module IS emitted; the unknown 'ADMIN' module is NOT.
+    assert schema.build_sort_key(schema.RECORD_TYPE_MODULE, sam_module) in module_sks
+    assert schema.build_sort_key(schema.RECORD_TYPE_MODULE, "ADMIN") not in module_sks
+    # The tenant record is still projected (tenant is eligible via the SAM module).
+    assert any(i.sort_key == "tenant" for i in items)
+
+
+def test_build_known_flask_plus_unknown_module_still_not_projected():
+    # An unknown module does not grant projection: a tenant with only a flask
+    # module + an unknown one still projects nothing (unknown is skipped, the
+    # flask module does not open the gate).
+    modules = [
+        {"module_name": "FIN", "is_active": True},
+        {"module_name": "ADMIN", "is_active": True},
+    ]
+    assert build_projection_items({"administration": "TenantA"}, modules) == []
+
+
 # --- tenant item ------------------------------------------------------------
 
 

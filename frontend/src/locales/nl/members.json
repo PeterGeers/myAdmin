@@ -30,6 +30,12 @@
     "loading": "Leden laden...",
     "empty": "Geen leden gevonden"
   },
+  "stats": {
+    "total": "Totaal leden",
+    "filtered": "Gefilterd",
+    "active": "Actief",
+    "regions": "Regio's"
+  },
   "export": {
     "empty": "Geen leden om te exporteren",
     "error": "Exporteren mislukt"
@@ -57,14 +63,18 @@
       "membershipType": "Lidmaatschapstype",
       "membershipTypePlaceholder": "Kies een lidmaatschapstype",
       "region": "Regio",
-      "regionPlaceholder": "Kies een regio"
+      "regionPlaceholder": "Kies een regio",
+      "selectPlaceholder": "Kies…",
+      "memberNumberHint": "Formaat bijv."
     },
     "validation": {
       "nameRequired": "Naam is verplicht",
       "emailRequired": "E-mail is verplicht",
       "emailInvalid": "Ongeldig e-mailadres",
       "membershipTypeRequired": "Lidmaatschapstype is verplicht",
-      "regionRequired": "Regio is verplicht"
+      "regionRequired": "Regio is verplicht",
+      "required": "Dit veld is verplicht",
+      "memberNumberFormat": "Komt niet overeen met het vereiste lidnummerformaat"
     },
     "toast": {
       "success": "Lid aangemaakt",

@@ -74,11 +74,13 @@ class FakeMembersRepository:
 def _member(member_id, *, region=None, sub=None, contact=None):
     rec = {
         "member_id": member_id,
-        "personal": {"name": member_id, "contact": contact or f"{member_id}@x.com"},
+        "personal": {"first_name": member_id, "last_name": member_id, "email": contact or f"{member_id}@x.com"},
         "membership": {"member_number": member_id, "status": "active"},
     }
     if region is not None:
-        rec["scope_values"] = {"region": [region]}
+        # S5d D1: scope is a plain member field now — h-dcn's `region` dimension binds to the
+        # tenant-added `overlay.region` field (NOT the retired `scope_values` bucket).
+        rec["overlay"] = {"region": region}
     if sub is not None:
         rec["sub"] = sub
     return rec
@@ -335,7 +337,7 @@ def test_write_route_now_dispatches_to_the_domain(monkeypatch):
 
     class _Spy:
         def create_member(self, tenant_id, body, allowed_scopes, **kw):
-            captured.update(tenant_id=tenant_id, body=dict(body), scopes=list(allowed_scopes))
+            captured.update(tenant_id=tenant_id, body=dict(body), scopes=dict(allowed_scopes))
             return {"member_id": "M-new", **dict(body)}
 
     monkeypatch.setattr(app, "_get_membership_service", lambda: _Spy())
@@ -345,9 +347,11 @@ def test_write_route_now_dispatches_to_the_domain(monkeypatch):
             "/members",
             capabilities=("members:write",),
             email=_EMAIL_ALL,
-            body={"personal": {"name": "x"}},
+            body={"personal": {"first_name": "x"}},
         )
     )
     assert resp["statusCode"] == 200
     assert captured["tenant_id"] == "h-dcn"
-    assert captured["scopes"] == ["*"]
+    # s5d task 4.1: allowed_scopes is now a per-dimension map. h-dcn wires a single
+    # ``region`` dimension, and _EMAIL_ALL is projected all-access → {"region": ["*"]}.
+    assert captured["scopes"] == {"region": ["*"]}

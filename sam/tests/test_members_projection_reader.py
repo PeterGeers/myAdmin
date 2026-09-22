@@ -41,6 +41,7 @@ from services import projection_schema as schema
 from sam.members.domain.field_resolver import TenantOverlay
 from sam.members.domain.fixed_fields import FieldType
 from sam.members.domain.scope_dimensions import ScopeConfig
+from sam.members.domain.view_contexts import DEFAULT_CONTEXT_KEY, ViewContext
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
 
@@ -118,11 +119,10 @@ def _scopegrant_item(tenant_id, email, dimension, values, version=1):
 def _region_dimension_dict(**overrides):
     base = {
         "key": "region",
+        "field": "region",
         "label": {"nl": "Regio", "en": "Region"},
         "enabled": True,
-        "multi_valued": False,
         "values": ["Noord", "Zuid", "Oost", "West"],
-        "all_wildcard": "Regio_All",
         "required_for": ["Members_CRUD"],
     }
     base.update(overrides)
@@ -149,20 +149,18 @@ class TestGetScopeConfig:
         assert dim.key == "region"
         assert dim.label == {"nl": "Regio", "en": "Region"}
         assert dim.enabled is True
-        assert dim.multi_valued is False
+        assert dim.field == "region"
         assert tuple(dim.values) == ("Noord", "Zuid", "Oost", "West")
-        assert dim.all_wildcard == "Regio_All"
         assert tuple(dim.required_for) == ("Members_CRUD",)
 
     def test_get_scope_config_multiple_dimensions_round_trips_all(self):
         table = FakeTable()
         season = {
             "key": "season",
+            "field": "season",
             "label": {"en": "Season"},
             "enabled": True,
-            "multi_valued": True,
             "values": ["2023", "2024"],
-            "all_wildcard": None,
             "required_for": [],
         }
         table.put(_config_scope_item("multi", [_region_dimension_dict(), season]))
@@ -173,9 +171,8 @@ class TestGetScopeConfig:
         assert [d.key for d in config.dimensions] == ["region", "season"]
         season_dim = config.dimension("season")
         assert season_dim is not None
-        assert season_dim.multi_valued is True
+        assert season_dim.field == "season"
         assert tuple(season_dim.values) == ("2023", "2024")
-        assert season_dim.all_wildcard is None
 
     def test_get_scope_config_missing_row_collapses_to_tenant_wide_empty(self):
         table = FakeTable()  # nothing seeded for this tenant
@@ -263,26 +260,46 @@ class TestGetOverlay:
         table = FakeTable()
         overrides = {
             # Only 'label' + 'order' present — 'visible'/'required' must stay None.
-            "personal.name": {"label": {"nl": "Volledige naam"}, "order": 1},
+            "personal.first_name": {"label": {"nl": "Volledige naam"}, "order": 1},
             # Only 'visible' present.
-            "personal.address": {"visible": False},
+            "personal.street": {"visible": False},
         }
         table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
 
         reader = MembersProjectionReader(table=table)
         overlay = reader.get_overlay("h-dcn")
 
-        name_ov = overlay.overrides["personal.name"]
+        name_ov = overlay.overrides["personal.first_name"]
         assert name_ov.label == {"nl": "Volledige naam"}
         assert name_ov.order == 1
         assert name_ov.visible is None  # absent -> leave base as-is
         assert name_ov.required is None
 
-        addr_ov = overlay.overrides["personal.address"]
+        addr_ov = overlay.overrides["personal.street"]
         assert addr_ov.visible is False
         assert addr_ov.label is None
         assert addr_ov.required is None
         assert addr_ov.order is None
+        assert addr_ov.functional_group is None  # absent -> leave base as-is
+
+    def test_get_overlay_override_carries_functional_group(self):
+        """A projected fixed-field override's functional_group reaches the overlay (R4.9).
+
+        The authored ``members.field_overlay.fixed_overrides[dotted].functional_group`` is
+        projected onto ``config#fields.overrides[dotted].functional_group`` and must be
+        reconstructed onto ``FixedFieldOverride.functional_group`` so ``FieldResolver`` can
+        reassign the field's display group.
+        """
+        table = FakeTable()
+        overrides = {
+            "personal.street": {"functional_group": "address"},
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        overlay = reader.get_overlay("h-dcn")
+
+        assert overlay.overrides["personal.street"].functional_group == "address"
 
     def test_get_overlay_missing_row_returns_empty_overlay(self):
         table = FakeTable()  # nothing seeded
@@ -409,3 +426,148 @@ def test_scope_and_grants_are_partition_scoped_across_tenants():
     assert b_grants == {"region": ["Zuid"]}
     # Exactly one Query per tenant partition.
     assert table.query_counts == {"tenant-a": 1, "tenant-b": 1}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# S5c Task 3.1 — get_view_contexts (the sibling config#views row).
+#
+# Feature: s5c-members-runnable-in-spa, C-VIEW.
+# Validates: Requirements 5.1
+#
+# The reader consumes the SETTLED projection shape (Open Design Item 1): a sibling config#views
+# row carrying a `contexts` list. Empty/absent → EXACTLY ONE default context (empty-is-valid),
+# over all visible fields (empty columns = the "all visible fields" sentinel).
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def _config_views_item(tenant_id, contexts, version=1):
+    return {
+        schema.PARTITION_KEY_ATTR: tenant_id,
+        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views"),
+        "contexts": contexts,
+        schema.VERSION_ATTR: version,
+    }
+
+
+def _overview_context_dict():
+    return {
+        "key": "overview",
+        "label": {"nl": "Overzicht", "en": "Overview"},
+        "permission_roles": ["Members_Read", "Members_CRUD"],
+        "columns": ["member_number", "email", "status"],
+        "filterable_columns": ["status"],
+        "default_sort": {"field": "member_number", "direction": "asc"},
+        "page_size": 50,
+    }
+
+
+class TestGetViewContexts:
+    def test_get_view_contexts_round_trips_authored_contexts(self):
+        table = FakeTable()
+        financial = {
+            "key": "financial",
+            "label": {"en": "Financial"},
+            "permission_roles": ["Members_CRUD"],
+            "columns": ["member_number", "iban"],
+            "filterable_columns": [],
+            "default_sort": None,
+            "page_size": 25,
+        }
+        table.put(_config_views_item("h-dcn", [_overview_context_dict(), financial]))
+
+        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
+
+        assert all(isinstance(c, ViewContext) for c in contexts)
+        assert [c.key for c in contexts] == ["overview", "financial"]
+        overview = contexts[0]
+        assert overview.label == {"nl": "Overzicht", "en": "Overview"}
+        assert tuple(overview.permission_roles) == ("Members_Read", "Members_CRUD")
+        assert tuple(overview.columns) == ("member_number", "email", "status")
+        assert tuple(overview.filterable_columns) == ("status",)
+        assert overview.default_sort == {"field": "member_number", "direction": "asc"}
+        assert overview.page_size == 50
+        assert contexts[1].page_size == 25
+        assert contexts[1].default_sort is None
+
+    def test_get_view_contexts_missing_row_collapses_to_one_default_context(self):
+        # No config#views row at all → exactly one default context (empty-is-valid, R5.1).
+        table = FakeTable()
+        table.put(_config_scope_item("h-dcn", []))  # some other row present, but no views row
+
+        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
+
+        assert len(contexts) == 1
+        ctx = contexts[0]
+        assert ctx.key == DEFAULT_CONTEXT_KEY
+        assert ctx.is_default is True
+        # Over all visible fields: empty columns = the "all visible fields" sentinel.
+        assert tuple(ctx.columns) == ()
+        assert tuple(ctx.filterable_columns) == ()
+
+    def test_get_view_contexts_empty_contexts_list_collapses_to_one_default(self):
+        # A present config#views row with an EMPTY contexts list → one default context.
+        table = FakeTable()
+        table.put(_config_views_item("h-dcn", []))
+
+        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
+
+        assert len(contexts) == 1
+        assert contexts[0].key == DEFAULT_CONTEXT_KEY
+
+    def test_get_view_contexts_all_malformed_contexts_collapse_to_one_default(self):
+        # Every entry malformed (non-dict / no key) → skipped → one default context.
+        table = FakeTable()
+        table.put(_config_views_item("h-dcn", ["nope", {"no_key": 1}, 42]))
+
+        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
+
+        assert len(contexts) == 1
+        assert contexts[0].key == DEFAULT_CONTEXT_KEY
+
+    def test_get_view_contexts_skips_malformed_but_keeps_well_formed(self):
+        table = FakeTable()
+        table.put(
+            _config_views_item("h-dcn", [{"no_key": 1}, _overview_context_dict()])
+        )
+
+        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
+
+        assert [c.key for c in contexts] == ["overview"]
+
+    def test_get_view_contexts_degrades_malformed_subvalues(self):
+        # Non-list columns / non-mapping default_sort / non-int page_size degrade gracefully.
+        table = FakeTable()
+        table.put(
+            _config_views_item(
+                "h-dcn",
+                [
+                    {
+                        "key": "overview",
+                        "columns": "not-a-list",
+                        "filterable_columns": None,
+                        "default_sort": "not-a-map",
+                        "page_size": "50",
+                    }
+                ],
+            )
+        )
+
+        ctx = MembersProjectionReader(table=table).get_view_contexts("h-dcn")[0]
+
+        assert ctx.key == "overview"
+        assert tuple(ctx.columns) == ()
+        assert tuple(ctx.filterable_columns) == ()
+        assert ctx.default_sort is None
+        assert ctx.page_size is None
+
+    def test_get_view_contexts_tenant_isolation(self):
+        table = FakeTable()
+        table.put(_config_views_item("tenant-a", [_overview_context_dict()]))
+        # tenant-b has no views row.
+
+        reader = MembersProjectionReader(table=table)
+        a = reader.get_view_contexts("tenant-a")
+        b = reader.get_view_contexts("tenant-b")
+
+        assert [c.key for c in a] == ["overview"]
+        assert [c.key for c in b] == [DEFAULT_CONTEXT_KEY]

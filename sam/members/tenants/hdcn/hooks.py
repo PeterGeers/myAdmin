@@ -30,8 +30,10 @@ Rung discipline (R1.3) — where each h-dcn difference actually landed:
   need — the ladder working as intended (a difference that stayed below Rung 3).
 - ``resolve_visible_regions`` — **LEFT ON THE SAFE DEFAULT (identity).** Regional visibility
   is **fully declarative** via :func:`sam.members.domain.scope_access.resolve_scope_access`
-  (task 3.1, Rung 1-2: admin/all → ``["*"]``, ``Regio_*`` → subset, ``required_for`` without a
-  grant → deny). h-dcn's ``determine_regional_access`` generalized cleanly, so NO Rung-3 hook
+  (task 3.1, Rung 1-2: admin/all → ``["*"]``, a scoped grant → its declared-value subset,
+  ``required_for`` without a grant → deny). s5d clean break (R2.2/R8.1): the scope subset comes
+  from the projected ``scopegrant#`` grant sourced from ``user_tenant_scope`` — NOT a ``Regio_*``
+  role-name decode. h-dcn's ``determine_regional_access`` generalized cleanly, so NO Rung-3 hook
   is needed — a POSITIVE rung-distribution finding for the Go/No-Go.
 - ``calculate_fee`` — **NOT REGISTERED.** h-dcn has no per-record fee computation; the named
   point exists for future clubs only.

@@ -31,8 +31,8 @@ points inward, exactly like ``FieldConfigMixin`` → ``parameter_service`` in th
 
 Projected row shapes consumed (built by tasks 5.1/5.2/5.3)
 ----------------------------------------------------------
-- ``config#scope``: ``dimensions`` = list of dicts (``key``/``label``/``enabled``/
-  ``multi_valued``/``values``/``all_wildcard``/``required_for``) → mapped 1:1 onto
+- ``config#scope``: ``dimensions`` = list of dicts (``key``/``field``/``label``/``enabled``/
+  ``values``/``required_for``) → mapped 1:1 onto
   :class:`ScopeDimension`; the whole row → :class:`ScopeConfig`. A **missing row** →
   ``ScopeConfig(tenant_id, dimensions=())`` (tenant-wide), never an error (R1.6).
 - ``config#fields``: ``fields`` = ``{name: {key,type,required,label,choices,visible,order}}``
@@ -66,17 +66,21 @@ from services import projection_schema as schema
 
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
+    FunctionalGroup,
     OverlayField,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldType
+from sam.members.domain.fixed_fields import EnumOption, FieldType, MemberNumberFormat
 from sam.members.domain.scope_dimensions import ScopeConfig, ScopeDimension
+from sam.members.domain.view_contexts import ViewContext, default_view_context
 
 __all__ = ["MembersProjectionReader"]
 
-#: The two ``config#<id>`` rows the reader consumes (design C4 / task 4.1 tokens).
-_CONFIG_ID_SCOPE = "scope"
-_CONFIG_ID_FIELDS = "fields"
+#: The ``config#<id>`` rows the reader consumes. The tokens are the single source in the
+#: shared projection schema so the Flask-plane builder and this reader cannot drift.
+_CONFIG_ID_SCOPE = schema.CONFIG_ID_SCOPE
+_CONFIG_ID_FIELDS = schema.CONFIG_ID_FIELDS
+_CONFIG_ID_VIEWS = schema.CONFIG_ID_VIEWS
 
 
 class MembersProjectionReader:
@@ -88,6 +92,8 @@ class MembersProjectionReader:
       (``sam.members.domain.scope_dimensions``);
     - :meth:`get_overlay` → :class:`TenantOverlayProvider`
       (``sam.members.domain.field_resolver``);
+    - :meth:`get_view_contexts` → :class:`ViewContextsProvider`
+      (``sam.members.domain.view_contexts``, S5c task 3.1 — the ``config#views`` sibling row);
     - :meth:`get_scope_grants` → the caller's projected scope grants (consumed by the edge's
       ``resolve_scope_access`` wiring, task 8.3).
 
@@ -178,11 +184,14 @@ class MembersProjectionReader:
         """Map a projected dimension dict onto a :class:`ScopeDimension` (1:1)."""
         return ScopeDimension(
             key=raw.get("key", ""),
+            # `field` binds the dimension to a member field; defaults to the dimension `key`
+            # (matching the domain model's back-compat default) when unprojected.
+            field=raw.get("field") or raw.get("key"),
             label=dict(raw.get("label") or {}),
             enabled=bool(raw.get("enabled", True)),
-            multi_valued=bool(raw.get("multi_valued", False)),
             values=tuple(raw.get("values") or ()),
-            all_wildcard=raw.get("all_wildcard"),
+            # s5d clean break (R2.2/R8.1): no `all_wildcard` role-name — a stray projected key
+            # is simply ignored; the all-access sentinel lives on the GRANT side as `["*"]`.
             required_for=tuple(raw.get("required_for") or ()),
         )
 
@@ -207,7 +216,10 @@ class MembersProjectionReader:
             return TenantOverlay()
 
         raw_fields = row.get("fields") or {}
-        raw_overrides = row.get("overrides") or {}
+        # The authoring UI writes `fixed_overrides`; older projections used `overrides`. Accept
+        # either key so the reader is compatible with both shapes (empty-is-valid).
+        raw_overrides = row.get("fixed_overrides") or row.get("overrides") or {}
+        raw_groups = row.get("functional_groups") or []
         fields = {
             name: self._build_overlay_field(name, spec)
             for name, spec in raw_fields.items()
@@ -218,7 +230,58 @@ class MembersProjectionReader:
             for dotted, spec in raw_overrides.items()
             if isinstance(spec, dict)
         }
-        return TenantOverlay(fields=fields, overrides=overrides)
+        functional_groups = {
+            g["key"]: self._build_functional_group(g)
+            for g in raw_groups
+            if isinstance(g, dict) and g.get("key")
+        }
+        return TenantOverlay(
+            fields=fields, overrides=overrides, functional_groups=functional_groups
+        )
+
+    @staticmethod
+    def _build_functional_group(spec: dict) -> FunctionalGroup:
+        """Map a projected functional-group catalog entry onto a :class:`FunctionalGroup` (R4.9)."""
+        return FunctionalGroup(
+            key=str(spec.get("key", "")),
+            label=dict(spec.get("label") or {}),
+            order=int(spec.get("order", 0) or 0),
+        )
+
+    @staticmethod
+    def _build_options(specs) -> tuple[EnumOption, ...] | None:
+        """Map projected enum-option specs (``{value,label,roles?}``) onto :class:`EnumOption`s.
+
+        A missing/empty list → ``None`` (no rich options); malformed entries are skipped
+        (empty-is-valid — projected config data degrades gracefully rather than raising).
+        """
+        if not specs or not isinstance(specs, (list, tuple)):
+            return None
+        options = []
+        for o in specs:
+            if not isinstance(o, dict) or "value" not in o:
+                continue
+            roles = o.get("roles")
+            options.append(
+                EnumOption(
+                    value=str(o["value"]),
+                    label=dict(o.get("label") or {}),
+                    roles=tuple(roles) if roles else None,
+                )
+            )
+        return tuple(options) if options else None
+
+    @staticmethod
+    def _build_member_number_format(spec) -> MemberNumberFormat | None:
+        """Map a projected member-number format spec onto a :class:`MemberNumberFormat` (task 1.4b)."""
+        if not isinstance(spec, dict):
+            return None
+        fmt = MemberNumberFormat(
+            prefix=str(spec.get("prefix", "") or ""),
+            width=int(spec.get("width", 0) or 0),
+            regex=spec.get("regex") or None,
+        )
+        return None if fmt.is_empty() else fmt
 
     @staticmethod
     def _to_field_type(value) -> FieldType:
@@ -236,14 +299,24 @@ class MembersProjectionReader:
 
     @classmethod
     def _build_overlay_field(cls, name: str, spec: dict) -> OverlayField:
-        """Map a projected variable-field spec onto an :class:`OverlayField`."""
+        """Map a projected variable-field spec onto an :class:`OverlayField`.
+
+        ``functional_group`` (R4.9) is the field's display group referencing the tenant's
+        ``functional_groups`` catalog; it MUST be carried so an added field is sectioned by
+        FUNCTION, not by its storage bucket. ``options`` (rich enum {value,label,roles}) and
+        ``show_when`` (conditional visibility) are reconstructed when the projection carries them.
+        """
         choices = spec.get("choices")
+        options = cls._build_options(spec.get("options"))
         return OverlayField(
             key=spec.get("key") or name,
             type=cls._to_field_type(spec.get("type")),
             required=bool(spec.get("required", False)),
             label=dict(spec.get("label") or {}),
             choices=tuple(choices) if choices is not None else None,
+            options=options,
+            functional_group=spec.get("functional_group") or None,
+            show_when=spec.get("show_when") or None,
             visible=bool(spec.get("visible", True)),
             order=int(spec.get("order", 0) or 0),
         )
@@ -254,16 +327,88 @@ class MembersProjectionReader:
 
         Only the aspects actually present are passed through; a missing aspect stays ``None``
         so the resolver leaves the base value as-is (design C4 override semantics).
+        ``functional_group`` (R4.9) reassigns the field's display group — it is carried
+        through so an authored fixed/calculated-field group reassignment reaches the resolved
+        field (``FieldResolver._apply_override`` / ``_as_calculated_field`` already read it).
         """
         label = spec.get("label")
         visible = spec.get("visible")
         required = spec.get("required")
         order = spec.get("order")
+        functional_group = spec.get("functional_group")
         return FixedFieldOverride(
             label=dict(label) if isinstance(label, dict) else None,
             visible=bool(visible) if visible is not None else None,
             required=bool(required) if required is not None else None,
             order=int(order) if order is not None else None,
+            functional_group=str(functional_group) if functional_group else None,
+        )
+
+    # ── ViewContextsProvider (S5c task 3.1) ────────────────────────────────────────────
+
+    def get_view_contexts(self, tenant_id: str) -> tuple[ViewContext, ...]:
+        """Return the tenant's view contexts from the ``config#views`` row (S5c C-VIEW, R5.1).
+
+        Reads the tenant partition, finds the sibling ``config#views`` row (the settled
+        projection shape — Open Design Item 1), and rebuilds its ``contexts`` list into
+        :class:`ViewContext` objects. **Empty-is-valid (R5.1):** a **missing** ``config#views``
+        row, an **empty** ``contexts`` list, or a row with no well-formed context all collapse
+        to **exactly one** :func:`~sam.members.domain.view_contexts.default_view_context` —
+        over all visible fields — never an error and never an empty tuple.
+
+        Storage-agnostic per the module pattern: this reader reconstructs the plain
+        :class:`ViewContext` shape; it does NOT resolve column ``field_key``s against the field
+        config (that skip-on-unresolvable is the SPA's at render, and the fail-fast rejection is
+        the Flask-plane validator's at Save — R5.1a).
+
+        Args:
+            tenant_id: The tenant (partition key) whose view contexts to resolve.
+
+        Returns:
+            The tenant's view contexts — always ≥1 (a single default when unconfigured).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_VIEWS)
+        if row is None:
+            return (default_view_context(),)
+
+        raw_contexts = row.get("contexts") or []
+        contexts = tuple(
+            self._build_view_context(raw)
+            for raw in raw_contexts
+            if isinstance(raw, dict) and raw.get("key")
+        )
+        # Empty-is-valid: an absent/empty/all-malformed contexts list → one default context.
+        return contexts if contexts else (default_view_context(),)
+
+    @staticmethod
+    def _build_view_context(raw: dict) -> ViewContext:
+        """Map a projected view-context dict onto a :class:`ViewContext` (1:1, R5.1).
+
+        Malformed sub-values degrade gracefully (projected config data, not user input):
+        non-list ``columns``/``filterable_columns``/``permission_roles`` fall back to empty,
+        a non-mapping ``default_sort`` to ``None``, a non-int ``page_size`` to ``None``.
+        """
+        def _str_list(value) -> tuple[str, ...]:
+            if not isinstance(value, (list, tuple)):
+                return ()
+            return tuple(str(v) for v in value if isinstance(v, str))
+
+        default_sort = raw.get("default_sort")
+        if not isinstance(default_sort, dict):
+            default_sort = None
+
+        page_size = raw.get("page_size")
+        if not isinstance(page_size, int) or isinstance(page_size, bool):
+            page_size = None
+
+        return ViewContext(
+            key=str(raw.get("key", "")),
+            label=dict(raw.get("label") or {}),
+            permission_roles=_str_list(raw.get("permission_roles")),
+            columns=_str_list(raw.get("columns")),
+            filterable_columns=_str_list(raw.get("filterable_columns")),
+            default_sort=dict(default_sort) if default_sort is not None else None,
+            page_size=page_size,
         )
 
     # ── Scope grants (consumed by the edge, task 8.3) ──────────────────────────────────

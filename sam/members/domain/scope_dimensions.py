@@ -16,9 +16,10 @@ Design constraints honoured here (per the design of record):
 - **``scope_dimensions`` is a LIST** — the model is multi-dimension capable from day one
   (soccer/hockey: team + season) even though h-dcn wires a single dimension. Nothing in the
   shape assumes exactly one dimension.
-- **Each dimension carries ``multi_valued``** — can ONE record belong to several values? —
-  so a multi-valued tenant (a member in two teams) fits without a redesign. h-dcn's region
-  is single-valued; the shape does not assume that either.
+- **Each dimension binds to a member ``field``** — the normal member field key whose value a
+  record is scoped by (``field`` defaults to the dimension ``key`` for back-compat: h-dcn's
+  ``region`` dimension binds to the ``region`` field). A member is single-valued per scope
+  field (R3.2) — the record holds a scalar on that field; only the USER GRANT is multi-value.
 - **``enabled:false`` (or no dimension) collapses to tenant-wide** — a disabled dimension
   is a no-op: everyone is effectively ``["*"]``, no code path differs, clubs without
   sub-scoping pay nothing. :func:`enabled_dimensions` filters those out.
@@ -41,7 +42,8 @@ What this module is NOT:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Mapping, Optional, Protocol, Sequence, runtime_checkable
 
 __all__ = [
@@ -55,10 +57,11 @@ __all__ = [
     "HDCN_SCOPE_CONFIG",
 ]
 
-#: The "all values" sentinel a fully-scoped (admin/national) user resolves to. A dimension
-#: that is disabled resolves to this too. Kept here so the model, the resolver (task 3.1),
-#: and the repository filter all agree on one token. Distinct from a dimension's
-#: ``all_wildcard`` — that is the *role name* granting "all"; this is the *resolved scope*.
+#: The "all values" sentinel a fully-scoped (admin/national) user resolves to, and the
+#: all-access GRANT value carried in a projected ``scopegrant#`` row. A disabled dimension
+#: resolves to this too. Kept here so the model, the resolver, the edge, and the repository
+#: filter all agree on one token. s5d clean break (R2.2): the ``Regio_*`` ``all_wildcard``
+#: role-name encoding is removed — the all-access sentinel is this GRANT value, not a role.
 WILDCARD = "*"
 
 
@@ -73,30 +76,36 @@ class ScopeDimension:
     The fields map 1:1 to the design's scope-dimension config (design "Scope dimension
     config"):
 
-    - ``key`` — the dimension's identifier, also the key under the member record's
-      ``scope_values`` map (``scope_values[key] = [value, ...]``). h-dcn: ``"region"``.
+    - ``key`` — the dimension's identifier (also the ``scopegrant#…#<key>`` projection key and
+      the ``config#scope`` dimension key). h-dcn: ``"region"``.
+    - ``field`` — the member FIELD key this dimension binds to: the normal member field whose
+      (scalar) value a record is scoped by. Defaults to ``key`` for back-compat (h-dcn's
+      ``region`` dimension binds to the ``region`` field). ``members.scope_dimensions`` (the
+      MySQL param) is the source of truth for which field each dimension binds to. A member is
+      single-valued per scope field (R3.2); only the user GRANT is multi-value.
     - ``label`` — i18n display label (``{"nl": ..., "en": ...}``); presentation only.
     - ``enabled`` — ``False`` collapses this dimension to tenant-wide (a no-op; see
       :func:`enabled_dimensions`). A tenant with *no sub-scoping* sets ``enabled=False``.
-    - ``multi_valued`` — may ONE record belong to several values of this dimension? h-dcn
-      region is single-valued (``False``); a member-in-two-teams tenant sets ``True``.
     - ``values`` — the closed set of scope values (h-dcn: Noord/Zuid/Oost/West). May be
       empty for a dynamically-sourced dimension, but an *enabled* dimension must declare at
       least one value (a scope with no values is a misconfiguration).
-    - ``all_wildcard`` — the *role name* that grants "all values" (h-dcn: ``"Regio_All"``);
-      a user holding it resolves to :data:`WILDCARD`. Distinct from the resolved-scope token.
     - ``required_for`` — capabilities that REQUIRE a scope grant: holding one of these
       *without* any grant in this dimension is a deny (h-dcn's "permission requires region
       assignment"). Consumed by ``resolve_scope_access`` (task 3.1).
     """
 
     key: str
-    label: Mapping[str, str] = field(default_factory=dict)
+    field: Optional[str] = None
+    label: Mapping[str, str] = dataclass_field(default_factory=dict)
     enabled: bool = True
-    multi_valued: bool = False
     values: Sequence[str] = ()
-    all_wildcard: Optional[str] = None
     required_for: Sequence[str] = ()
+
+    def __post_init__(self) -> None:
+        # ``field`` defaults to the dimension ``key`` (back-compat: h-dcn's ``region``
+        # dimension binds to the ``region`` field). Frozen dataclass → set via object.
+        if self.field is None:
+            object.__setattr__(self, "field", self.key)
 
     def allows_value(self, value: str) -> bool:
         """Whether ``value`` is a declared value of this dimension (case-sensitive)."""
@@ -190,9 +199,10 @@ def _reject_invalid_config(
     - dimension ``key`` is a non-empty string and unique within the tenant;
     - an **enabled** dimension declares at least one value (a scope with no values can never
       grant anything — a misconfiguration);
-    - an enabled dimension's declared ``values`` are non-blank and contain no duplicates;
-    - the ``all_wildcard`` role name, if given, is not itself one of the scope ``values``
-      (it is a role, not a value) and does not collide across the wildcard/value space.
+    - an enabled dimension's declared ``values`` are non-blank and contain no duplicates.
+
+    (s5d clean break, R2.2/R8.1: the ``Regio_*`` ``all_wildcard`` role-name encoding is
+    removed, so there is no longer an all-wildcard-vs-value collision check.)
     """
     if not isinstance(tenant_id, str) or not tenant_id.strip():
         raise ScopeConfigError({"<tenant_id>": "must be a non-empty string"})
@@ -226,11 +236,6 @@ def _reject_invalid_config(
         if len(set(values)) != len(values):
             reasons[key] = "scope values must be unique"
             continue
-
-        if dim.all_wildcard is not None and dim.all_wildcard in values:
-            reasons[key] = (
-                "all_wildcard is a role name and must not be one of the scope values"
-            )
 
     if reasons:
         raise ScopeConfigError(reasons)
@@ -282,21 +287,24 @@ class StaticScopeConfigProvider:
 
 # ── h-dcn wiring (the first tenant — DATA, not code; Rung 1) ──────────────────────────
 
-#: h-dcn as the first instance: a **single, single-valued** ``region`` dimension (design C4,
-#: R3.4). This is tenant *data* — the generic core has no ``if tenant == "h-dcn"``; h-dcn is
+#: h-dcn as the first instance: a **single** ``region`` dimension binding to the ``region``
+#: field (design C4, R3.4). This is tenant *data* — the generic core has no ``if tenant == "h-dcn"``; h-dcn is
 #: simply the first ``tenant_id`` whose scope config the provider carries. Setting the
 #: dimension's ``enabled=False`` (or handing an empty list) collapses h-dcn to tenant-wide
-#: with no code path change (R3.2). Values/wildcard/required_for mirror the live h-dcn rules:
-#: Regio_Noord/Zuid/Oost/West scoped roles, ``Regio_All`` national wildcard, and the
-#: "permission requires region assignment" deny expressed via ``required_for``.
+#: with no code path change (R3.2). Values/required_for mirror the live h-dcn rules:
+#: Noord/Zuid/Oost/West scope values and the "permission requires region assignment" deny
+#: expressed via ``required_for``. s5d clean break (R2.2/R8.1): the ``Regio_*`` role encoding
+#: (``Regio_All`` national wildcard, ``Regio_<Value>`` scoped roles) is REMOVED — a member
+#: user's scope is authored in ``user_tenant_scope`` and the all-access sentinel is the
+#: projected ``["*"]`` grant, not a role name.
 HDCN_SCOPE_CONFIG: tuple[ScopeDimension, ...] = (
     ScopeDimension(
         key="region",
+        # field defaults to key ("region") — h-dcn's region dimension binds to the
+        # member's `region` field (a tenant-added overlay field).
         label={"nl": "Regio", "en": "Region"},
         enabled=True,
-        multi_valued=False,  # h-dcn: a member belongs to exactly one region
         values=("Noord", "Zuid", "Oost", "West"),
-        all_wildcard="Regio_All",
         required_for=("Members_CRUD",),
     ),
 )
