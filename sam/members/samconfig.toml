@@ -41,6 +41,8 @@ parameter_overrides = [
   "MyAdminCognitoJwksUri=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_Hdp40eWmu/.well-known/jwks.json",
   "MyAdminCognitoClientId=66tp0087h9tfbstggonnu5aghp",
   "MyAdminCognitoPoolLabel=myAdmin",
-  # Local-only params stay EMPTY in prod (fail-fast → real AWS DynamoDB, no endpoint override).
-  "DynamoDbEndpointUrl=",
+  # NOTE: DynamoDbEndpointUrl is LOCAL-ONLY and defaults to "" in template.yaml, so it is
+  # intentionally OMITTED here — passing `DynamoDbEndpointUrl=` (empty) is rejected by the
+  # SAM CLI parameter_overrides parser. Omitting it => the template's empty default => the
+  # DynamoDB client talks to real AWS (no endpoint override). Do NOT re-add an empty entry.
 ]
