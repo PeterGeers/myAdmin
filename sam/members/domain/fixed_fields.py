@@ -342,12 +342,17 @@ PERSONAL_FIELDS: tuple[FixedField, ...] = (
         label={"nl": "Geslacht", "en": "Gender"},
         order=60,
     ),
-    # Contact — classification: `email` (Fixed, account identity, required), `phone` (Fixed).
+    # Contact — classification: `email` (Fixed), `phone` (Fixed). NOTE: `email` is NOT
+    # required. It is account identity WHEN a member is also a login user, but most members
+    # are records-only (e.g. ~66% of the h-dcn Ledenbestand have no email). Requiring it would
+    # make the majority of a real membership un-importable, so the platform keeps it optional;
+    # a tenant that runs member logins enforces email presence at the account-creation edge,
+    # not on the member record.
     FixedField(
         key="email",
         group=FieldGroup.PERSONAL,
         type=FieldType.STRING,
-        required=True,
+        required=False,
         label={"nl": "E-mail", "en": "Email"},
         order=70,
     ),

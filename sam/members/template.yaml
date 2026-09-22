@@ -108,27 +108,30 @@ Parameters:
 
   CognitoPoolKeys:
     Type: String
-    Description: Comma-separated Cognito pool keys for the verified-auth edge (e.g. "HDCN").
+    Description: Comma-separated Cognito pool keys for the verified-auth edge (e.g. "MYADMIN").
     Default: ""
 
-  HdcnCognitoIssuer:
+  # NOTE (A.6): these carry the **myAdmin** pool's config (pool `eu-west-1_Hdp40eWmu`, PERSONAL
+  # account) — NOT the h-dcn pool. The pool-registry KEY is `MYADMIN` (see COGNITO_POOL_KEYS);
+  # the toolkit (`sam/shared/auth_utils.py`) is generic and reads `<KEY>_COGNITO_*`.
+  MyAdminCognitoIssuer:
     Type: String
-    Description: Issuer (iss) for the HDCN pool (https://cognito-idp.<region>.amazonaws.com/<poolId>).
+    Description: Issuer (iss) for the myAdmin pool (https://cognito-idp.<region>.amazonaws.com/<poolId>).
     Default: ""
 
-  HdcnCognitoJwksUri:
+  MyAdminCognitoJwksUri:
     Type: String
-    Description: JWKS URI for the HDCN pool.
+    Description: JWKS URI for the myAdmin pool.
     Default: ""
 
-  HdcnCognitoClientId:
+  MyAdminCognitoClientId:
     Type: String
-    Description: App-client id (audience) for the HDCN pool.
+    Description: App-client id (audience) for the myAdmin pool.
     Default: ""
 
-  HdcnCognitoPoolLabel:
+  MyAdminCognitoPoolLabel:
     Type: String
-    Description: Human-readable label for the HDCN pool (diagnostics).
+    Description: Human-readable label for the myAdmin pool (diagnostics).
     Default: ""
 
 Globals:
@@ -183,10 +186,10 @@ Resources:
           #   anything). Local values live in sam/members/env-vars.local.json.
           AWS_ENDPOINT_URL_DYNAMODB: !Ref DynamoDbEndpointUrl
           COGNITO_POOL_KEYS: !Ref CognitoPoolKeys
-          HDCN_COGNITO_ISSUER: !Ref HdcnCognitoIssuer
-          HDCN_COGNITO_JWKS_URI: !Ref HdcnCognitoJwksUri
-          HDCN_COGNITO_CLIENT_ID: !Ref HdcnCognitoClientId
-          HDCN_COGNITO_POOL_LABEL: !Ref HdcnCognitoPoolLabel
+          MYADMIN_COGNITO_ISSUER: !Ref MyAdminCognitoIssuer
+          MYADMIN_COGNITO_JWKS_URI: !Ref MyAdminCognitoJwksUri
+          MYADMIN_COGNITO_CLIENT_ID: !Ref MyAdminCognitoClientId
+          MYADMIN_COGNITO_POOL_LABEL: !Ref MyAdminCognitoPoolLabel
           # NOTE: NO MEMBERS_LOCAL_TENANT_ID — the local-dev tenant fallback was removed in
           #       s5c (R6.2, C-UNWIND). Tenant context resolves SOLELY from the verified
           #       entitlement (custom:entitlements); a token with no usable tenant denies

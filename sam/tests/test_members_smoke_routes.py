@@ -152,7 +152,7 @@ _EMAIL_NOGRANT = "nogrant@h-dcn.test"  # holds the capability but NO region gran
 
 _HDCN_GRANTS = {
     ("h-dcn", _EMAIL_ALL): {"region": ["*"]},
-    ("h-dcn", _EMAIL_NOORD): {"region": ["Noord"]},
+    ("h-dcn", _EMAIL_NOORD): {"region": ["North"]},
     # _EMAIL_NOGRANT deliberately absent → deny-by-default (R2.6).
 }
 
@@ -161,9 +161,9 @@ _HDCN_GRANTS = {
 def repo():
     r = FakeMembersAndCatalogRepository()
     # Members across two regions so scope filtering is observable.
-    r.add_member("h-dcn", _member("M-1", region="Noord"))
-    r.add_member("h-dcn", _member("M-2", region="Zuid"))
-    r.add_member("h-dcn", _member("M-3", region="Noord"))
+    r.add_member("h-dcn", _member("M-1", region="North"))
+    r.add_member("h-dcn", _member("M-2", region="South"))
+    r.add_member("h-dcn", _member("M-3", region="North"))
     # Membership-type catalog (a couple of active types + one retired).
     r.add_type("h-dcn", _type("regulier", label={"nl": "Regulier", "en": "Regular"}, order=10))
     r.add_type("h-dcn", _type("erelid", label={"nl": "Erelid", "en": "Honorary"}, order=20))

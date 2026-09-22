@@ -1,0 +1,72 @@
+name: Deploy SAM Members
+# Deploys the Members module (stack `sam-members`) to the nonprofit/data account
+# (506221081911, eu-west-1) via GitHub OIDC — see the s5d production rollout plan
+# (A.13 / B.1). Stack name is deliberately NOT `h-dcn`: the Members module is its own
+# CloudFormation stack, independent of the existing h-dcn app in the same account.
+#
+# The prod stack name, region, capabilities, and parameter_overrides live in
+# `sam/members/samconfig.toml` [prod] (A.7); this workflow just runs
+# `sam deploy --config-env prod`, so CI and a manual `sam deploy --config-env prod`
+# produce the SAME stack. NO stored secrets: auth is short-lived STS via
+# NonprofitDeployRole's OIDC trust. The Cognito identifiers in samconfig are PUBLIC.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sam/members/**"
+      - "sam/shared/**"
+      - ".github/workflows/deploy-sam-members.yml"
+  workflow_dispatch:
+    # Allow manual trigger (e.g. first deploy, or a re-deploy without a code change).
+
+permissions:
+  id-token: write
+  contents: read
+
+# Never run two Members deploys against the same stack at once.
+concurrency:
+  group: sam-members-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Members (SAM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # One-time prerequisite: NonprofitDeployRole's OIDC trust must allow
+          # repo:PeterGeers/myAdmin:ref:refs/heads/main (see rollout plan A.13).
+          role-to-assume: arn:aws:iam::506221081911:role/NonprofitDeployRole
+          aws-region: eu-west-1
+
+      # `sam build` builds the MembersLayer via its Makefile (vendors sam/shared +
+      # sam/members, pip-installs the shared auth deps). rsync is preinstalled on
+      # ubuntu-latest; sam + python are set up above.
+      - name: SAM Build
+        working-directory: sam/members
+        run: sam build
+
+      # All deploy parameters come from samconfig.toml [prod] (A.7): stack_name
+      # sam-members, region eu-west-1, capabilities, and the parameter_overrides
+      # (Stage=prod, MembersTableName=sam-members, GovernanceProjectionTableName=
+      # governance_projection, the myAdmin Cognito pool ARN/registry, etc.).
+      - name: SAM Deploy
+        working-directory: sam/members
+        run: sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset

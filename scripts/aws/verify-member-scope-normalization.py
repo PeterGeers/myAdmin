@@ -38,8 +38,10 @@ Usage (from repo root, WSL)
       backend/.venv/bin/python scripts/aws/verify-member-scope-normalization.py \
       --tenant h-dcn --dimension region
 
-Exit code: 0 = clean (every distinct value is canonical), 1 = an internal error, 2 = a
-scope dimension could not be resolved, 3 = un-normalized member value(s) found (R9.3).
+Exit code: 0 = clean (every distinct value is canonical), 1 = an internal error, 2 = the
+tenant has no scope config yet (not onboarded — seed `members.scope_dimensions`), 3 =
+un-normalized member value(s) found (R9.3), 4 = SYSTEM ERROR: the governance projection
+could not be read (there is NO fallback to a hardcoded config — fix the projection first).
 """
 
 from __future__ import annotations
@@ -57,7 +59,7 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.scope_dimensions import HDCN_SCOPE_CONFIG, ScopeDimension
+from sam.members.domain.scope_dimensions import ScopeDimension
 from sam.members.migration.scope_normalization_verify import (
     ScopeNormalizationReport,
     verify_scope_normalization,
@@ -65,6 +67,23 @@ from sam.members.migration.scope_normalization_verify import (
 from sam.members.repository.members_repository import DynamoDbMembersRepository
 
 DEFAULT_REGION = "eu-west-1"
+
+
+class ProjectionUnavailableError(RuntimeError):
+    """The governance projection (config#scope source) could not be read — a SYSTEM error.
+
+    Raised instead of falling back to any hardcoded/reference scope config: the projection is
+    the SOLE source of a tenant's scope vocabulary (authored in MySQL `members.scope_dimensions`
+    during onboarding, then projected). A stale/placeholder fallback could pass a check the real
+    config would fail, so a read failure must SURFACE, not be silently masked.
+    """
+
+    def __init__(self, tenant_id: str, reason: str):
+        self.tenant_id = tenant_id
+        self.reason = reason
+        super().__init__(
+            f"governance projection unavailable for tenant {tenant_id!r}: {reason}"
+        )
 
 
 def _resolve_dimension(
@@ -75,16 +94,18 @@ def _resolve_dimension(
 ) -> ScopeDimension | None:
     """Resolve the scope dimension (+ its canonical values) for ``tenant_id`` (read-only).
 
-    Prefers the governance projection's ``config#scope`` row (D4/R5.1 — the SAM-plane read of
-    the MySQL source of truth). Falls back to the in-repo ``HDCN_SCOPE_CONFIG`` reference when
-    the projection carries no (matching) dimension, so the check still runs against a local
-    table seeded before the projection is populated. Returns ``None`` when no dimension can be
-    resolved (the caller exits with a clear message).
+    The scope config is read SOLELY from the governance projection's ``config#scope`` row
+    (D4/R5.1 — the SAM-plane read of the MySQL source of truth authored during onboarding).
+    There is **NO fallback to a hardcoded tenant model**: if the projection cannot be read,
+    that is a SYSTEM ERROR (:class:`ProjectionUnavailableError`) — the caller reports it and
+    exits, rather than silently substituting a stale/placeholder vocabulary that could pass a
+    check the real config would fail. If the projection is reachable but carries no (matching)
+    scope dimension for the tenant, this returns ``None`` (the tenant is simply not configured
+    yet → run onboarding; a distinct, non-system exit).
 
     When ``dimension_key`` is given, that specific dimension is selected; otherwise the FIRST
-    ENABLED dimension is used (h-dcn has exactly one — ``region``).
+    ENABLED dimension is used.
     """
-    dimensions: tuple[ScopeDimension, ...] = ()
     if reader is None:
         try:
             from sam.members.repository.projection_config_reader import (
@@ -92,17 +113,13 @@ def _resolve_dimension(
             )
 
             reader = MembersProjectionReader()
-        except Exception:  # noqa: BLE001 — projection unavailable → fall back below
-            reader = None
-    if reader is not None:
-        try:
-            dimensions = tuple(reader.get_scope_config(tenant_id).enabled())
-        except Exception:  # noqa: BLE001 — read failure → fall back to the reference config
-            dimensions = ()
+        except Exception as exc:  # noqa: BLE001 — cannot even construct the reader
+            raise ProjectionUnavailableError(tenant_id, str(exc)) from exc
 
-    if not dimensions:
-        # Fallback: the in-repo reference config (h-dcn's region dimension as DATA).
-        dimensions = tuple(d for d in HDCN_SCOPE_CONFIG if d.enabled)
+    try:
+        dimensions = tuple(reader.get_scope_config(tenant_id).enabled())
+    except Exception as exc:  # noqa: BLE001 — a read failure is a SYSTEM error, never a fallback
+        raise ProjectionUnavailableError(tenant_id, str(exc)) from exc
 
     if dimension_key:
         for dim in dimensions:
@@ -146,13 +163,24 @@ def verify(
     reader=None,
 ) -> int:
     """Read the tenant's members READ-ONLY, run the R9.5 check, print + return an exit code."""
-    dimension = _resolve_dimension(tenant_id, dimension_key=dimension_key, reader=reader)
+    try:
+        dimension = _resolve_dimension(tenant_id, dimension_key=dimension_key, reader=reader)
+    except ProjectionUnavailableError as exc:
+        # SYSTEM ERROR — the projection could not be read. NO fallback to a hardcoded config.
+        print(
+            f"SYSTEM ERROR: {exc}. The scope config is read ONLY from the governance "
+            f"projection (config#scope), authored via `members.scope_dimensions` during "
+            f"onboarding — there is no fallback. Fix/populate the projection "
+            f"(GOVERNANCE_PROJECTION_TABLE), then re-run.",
+            file=sys.stderr,
+        )
+        return 4
     if dimension is None:
         which = f" {dimension_key!r}" if dimension_key else ""
         print(
-            f"ERROR: could not resolve scope dimension{which} for tenant {tenant_id!r} "
-            "(no config#scope row and no reference config match). Pass --dimension or seed "
-            "the tenant's scope config.",
+            f"ERROR: tenant {tenant_id!r} has no scope dimension{which} in its config#scope "
+            "projection — it is not onboarded yet. Seed `members.scope_dimensions` (onboarding) "
+            "so the projection carries the tenant's regions, then re-run.",
             file=sys.stderr,
         )
         return 2

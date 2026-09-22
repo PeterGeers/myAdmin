@@ -140,7 +140,8 @@ def test_optional_fields_may_be_absent_or_null():
     [
         ("personal", "first_name"),
         ("personal", "last_name"),
-        ("personal", "email"),
+        # NOTE: email is NOT required (A.2b) — 66% of real members have none; see the
+        # dedicated test_email_is_optional below.
         ("membership", "member_number"),
         ("membership", "status"),
         ("membership", "membership_type"),
@@ -153,6 +154,14 @@ def test_missing_required_field_fails(group, key):
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
     assert f"{group}.{key}" in exc.value.errors
+
+
+def test_email_is_optional():
+    # A.2b: email is NOT a required fixed field — a member record with no email is valid
+    # (records-only members without a login account; the majority of a real membership).
+    m = _valid_member()
+    del m["personal"]["email"]
+    validate_fixed_fields(m)  # must not raise
 
 
 def test_null_required_field_fails():

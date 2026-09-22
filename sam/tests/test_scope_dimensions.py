@@ -20,7 +20,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from sam.members.domain.scope_dimensions import (
-    HDCN_SCOPE_CONFIG,
+    SAMPLE_SCOPE_CONFIG,
     WILDCARD,
     ScopeConfig,
     ScopeConfigError,
@@ -199,14 +199,14 @@ def test_all_config_errors_collected_at_once():
 
 
 def test_static_provider_returns_configured_tenant():
-    provider = StaticScopeConfigProvider({"h-dcn": HDCN_SCOPE_CONFIG})
+    provider = StaticScopeConfigProvider({"h-dcn": SAMPLE_SCOPE_CONFIG})
     cfg = provider.get_scope_config("h-dcn")
     assert cfg.tenant_id == "h-dcn"
     assert cfg.dimension("region") is not None
 
 
 def test_static_provider_unknown_tenant_is_empty_tenant_wide():
-    provider = StaticScopeConfigProvider({"h-dcn": HDCN_SCOPE_CONFIG})
+    provider = StaticScopeConfigProvider({"h-dcn": SAMPLE_SCOPE_CONFIG})
     cfg = provider.get_scope_config("someone-else")
     assert cfg.dimensions == ()
     assert cfg.is_tenant_wide() is True
@@ -230,21 +230,23 @@ def test_static_provider_satisfies_protocol():
 # ── h-dcn wiring (single region dimension binding to the region field — R3.4) ────────
 
 
-def test_hdcn_is_a_single_single_valued_region_dimension():
-    cfg = ScopeConfig(tenant_id="h-dcn", dimensions=HDCN_SCOPE_CONFIG)
+def test_sample_config_is_a_single_single_valued_region_dimension():
+    cfg = ScopeConfig(tenant_id="sample", dimensions=SAMPLE_SCOPE_CONFIG)
     enabled = cfg.enabled()
     assert len(enabled) == 1
     region = enabled[0]
     assert region.key == "region"
     assert region.field == "region"  # defaults to key — binds to the region field
     assert region.enabled is True
-    assert set(region.values) == {"Noord", "Zuid", "Oost", "West"}
+    # SAMPLE_SCOPE_CONFIG is a SYNTHETIC test fixture (D17) — abstract North/South/East/West,
+    # NOT any tenant's real regions (those live in the tenant `members.scope_dimensions` param).
+    assert set(region.values) == {"North", "South", "East", "West"}
     assert "Members_CRUD" in region.required_for
 
 
-def test_hdcn_disabled_collapses_to_tenant_wide():
-    # Flipping h-dcn's dimension off must be a pure no-op (R3.2) — no code path differs.
-    region = HDCN_SCOPE_CONFIG[0]
+def test_sample_disabled_collapses_to_tenant_wide():
+    # Flipping the dimension off must be a pure no-op (R3.2) — no code path differs.
+    region = SAMPLE_SCOPE_CONFIG[0]
     disabled = ScopeDimension(
         key=region.key,
         field=region.field,
