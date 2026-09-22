@@ -58,6 +58,34 @@ describe('UserManagement Component', () => {
     },
   ];
 
+  // A Members-capability user, used only by the scope-button tests. Kept out of
+  // the shared `mockUsers` so the status-badge/status-filter tests still see
+  // exactly one CONFIRMED user.
+  const mockMemberUser = {
+    username: 'member1',
+    email: 'member1@example.com',
+    name: 'Member One',
+    status: 'CONFIRMED',
+    enabled: true,
+    groups: ['Members_CRUD'],
+    tenants: ['TestTenant'],
+    created: '2026-01-03T00:00:00Z',
+  };
+
+  /** Point the users endpoint at a specific user list for one test. */
+  const mockUsersEndpoint = (list: unknown[]) => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : String(input);
+      if (url.includes('/api/tenant-admin/users')) {
+        return createMockResponse({ body: { users: list } });
+      }
+      if (url.includes('/api/tenant-admin/roles')) {
+        return createMockResponse({ body: { roles: mockRoles } });
+      }
+      return createMockResponse({ body: {} });
+    });
+  };
+
   const mockRoles = [
     { name: 'Tenant_Admin', description: 'Tenant Administrator', precedence: 1 },
     { name: 'Finance_CRUD', description: 'Finance Full Access', precedence: 2 },
@@ -320,7 +348,7 @@ describe('UserManagement Component', () => {
       });
     });
 
-    test('shows edit button in user details modal', async () => {
+    test('shows "Edit roles" button in user details modal', async () => {
       render(<UserManagement tenant={mockTenant} />);
 
       await waitFor(() => {
@@ -331,8 +359,67 @@ describe('UserManagement Component', () => {
       fireEvent.click(screen.getByText('user1@example.com'));
 
       await waitFor(() => {
-        // Edit button text is a translation key
-        expect(screen.getByRole('button', { name: /userManagement\.editUser/i })).toBeInTheDocument();
+        // "Rollen bewerken" button always shows in details view
+        expect(screen.getByRole('button', { name: /userManagement\.modal\.editRoles/i })).toBeInTheDocument();
+      });
+    });
+
+    test('hides "Edit scope" for a non-Members user', async () => {
+      render(<UserManagement tenant={mockTenant} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('user1@example.com')).toBeInTheDocument();
+      });
+
+      // user1 holds Tenant_Admin (not a Members_* capability role).
+      fireEvent.click(screen.getByText('user1@example.com'));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /userManagement\.modal\.editRoles/i })).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: /userManagement\.modal\.editScope/i })).not.toBeInTheDocument();
+    });
+
+    test('shows "Edit scope" only for a Members-role user and opens the scope modal', async () => {
+      mockUsersEndpoint([mockMemberUser]);
+      render(<UserManagement tenant={mockTenant} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('member1@example.com')).toBeInTheDocument();
+      });
+
+      // member1 holds Members_CRUD → scope button present.
+      fireEvent.click(screen.getByText('member1@example.com'));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /userManagement\.modal\.editScope/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /userManagement\.modal\.editScope/i }));
+
+      await waitFor(() => {
+        // Scope modal title renders once the dedicated scope modal is open.
+        expect(screen.getByText('userManagement.modal.editScopeTitle')).toBeInTheDocument();
+      });
+    });
+
+    test('opens the roles modal from the details view', async () => {
+      render(<UserManagement tenant={mockTenant} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('user1@example.com')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('user1@example.com'));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /userManagement\.modal\.editRoles/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /userManagement\.modal\.editRoles/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('userManagement.modal.editRolesTitle')).toBeInTheDocument();
       });
     });
   });

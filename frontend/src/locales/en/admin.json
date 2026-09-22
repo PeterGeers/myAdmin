@@ -276,7 +276,11 @@
       "cancel": "Cancel",
       "create": "Create User",
       "update": "Update User",
-      "close": "Close"
+      "close": "Close",
+      "editRoles": "Edit Roles",
+      "editRolesTitle": "Edit Roles",
+      "editScope": "Edit Scope",
+      "editScopeTitle": "Edit Scope"
     },
     "emailTemplates": {
       "userInvitation": "User Invitation",
