@@ -1,22 +1,28 @@
 /**
  * UserInviteModal Component
  *
- * Combined create/edit/details modal for user management.
- * Handles user creation, role + scope editing, details view with email actions.
+ * Focused, single-purpose modals for user management, all reached from the
+ * user-details view:
+ *   - `create`      → new-user form (email + name + roles)
+ *   - `details`     → read-only summary + action row
+ *   - `edit-roles`  → "Rollen bewerken": role checkboxes (+ display name)
+ *   - `edit-scope`  → "Scope bewerken": the per-user MEMBER scope editor
  *
- * Conforms to the app modal standard (steering 32 "Modal Layout"):
+ * Every modal conforms to the app modal standard (steering 32 "Modal Layout"):
  *   - scrollBehavior="inside" + closeOnOverlayClick={false} so nothing ever
  *     falls off-screen; body scrolls, header/footer stay pinned.
  *   - responsive size + capped ModalContent height (maxH="85vh").
- *   - ModalFooter always visible: Cancel (ghost, left) + primary Save (orange).
+ *   - ModalFooter with EXACTLY ONE primary Save: Cancel (ghost, left) + Save
+ *     (orange, right, isLoading).
+ *   - dark theme (bg="gray.800" color="white"), orange headers, white close.
  *
- * The EDIT view manages ROLES and SCOPE together: role checkboxes plus — for a
- * user holding a Members capability role — the self-contained UserScopeEditor
- * (which keeps its own Save). The footer Save commits the role/name diff via
- * onUpdateUser. Disable/Enable + Delete remain reachable from the details view.
+ * The old merged "Edit user" (roles + scope in one form) is gone: roles and
+ * scope now each live in their own single-purpose modal. The Scope modal drives
+ * the UserScopeEditor's save through an imperative handle so the footer owns the
+ * single Save (no competing in-editor Save button).
  */
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   VStack, HStack, Button, Badge, Text, Box, Divider,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
@@ -24,7 +30,9 @@ import {
 } from '@chakra-ui/react';
 import { EditIcon } from '@chakra-ui/icons';
 import { UserRoleEditor, Role } from './UserRoleEditor';
-import { UserScopeEditor, holdsMembersCapabilityRole } from './UserScopeEditor';
+import {
+  UserScopeEditor, UserScopeEditorHandle, holdsMembersCapabilityRole,
+} from './UserScopeEditor';
 import type { User } from './UserTable';
 
 // ---------------------------------------------------------------------------
@@ -36,7 +44,7 @@ interface EmailTemplate {
   display_name: string;
 }
 
-export type ModalMode = 'create' | 'edit' | 'details';
+export type ModalMode = 'create' | 'details' | 'edit-roles' | 'edit-scope';
 
 interface UserInviteModalProps {
   isOpen: boolean;
@@ -68,7 +76,8 @@ interface UserInviteModalProps {
   onResendInvitation: () => void;
   onToggleStatus: (user: User, enable: boolean) => void;
   onDelete: (user: User) => void;
-  onOpenEdit: (user: User) => void;
+  onOpenRoles: (user: User) => void;
+  onOpenScope: (user: User) => void;
   t: (key: string, params?: Record<string, unknown>) => string;
   /** Current UI language, for localized scope-dimension labels. */
   lang: string;
@@ -103,15 +112,29 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
   onResendInvitation,
   onToggleStatus,
   onDelete,
-  onOpenEdit,
+  onOpenRoles,
+  onOpenScope,
   t,
   lang,
 }) => {
+  const scopeRef = useRef<UserScopeEditorHandle>(null);
+  const [scopeSaving, setScopeSaving] = useState(false);
+
+  const handleScopeSave = async () => {
+    const ok = await scopeRef.current?.save();
+    if (ok) onClose();
+  };
+
+  // The Scope modal is a touch wider to fit the value pickers comfortably.
+  const size = modalMode === 'edit-roles'
+    ? { base: 'sm' as const, md: 'lg' as const }
+    : { base: 'sm' as const, md: 'xl' as const };
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      size={{ base: 'sm', md: 'xl' }}
+      size={size}
       scrollBehavior="inside"
       closeOnOverlayClick={false}
     >
@@ -119,12 +142,13 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
       <ModalContent bg="gray.800" color="white" maxH="85vh">
         <ModalHeader color="orange.400">
           {modalMode === 'create' && t('userManagement.modal.createTitle')}
-          {modalMode === 'edit' && t('userManagement.modal.editTitle')}
           {modalMode === 'details' && t('userManagement.modal.detailsTitle')}
+          {modalMode === 'edit-roles' && t('userManagement.modal.editRolesTitle')}
+          {modalMode === 'edit-scope' && t('userManagement.modal.editScopeTitle')}
         </ModalHeader>
         <ModalCloseButton color="white" />
         <ModalBody>
-          {modalMode === 'details' && selectedUser ? (
+          {modalMode === 'details' && selectedUser && (
             <DetailsView
               user={selectedUser}
               emailTemplates={emailTemplates}
@@ -135,48 +159,86 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
               onResendInvitation={onResendInvitation}
               onToggleStatus={onToggleStatus}
               onDelete={onDelete}
-              onOpenEdit={onOpenEdit}
+              onOpenRoles={onOpenRoles}
+              onOpenScope={onOpenScope}
               onClose={onClose}
               t={t}
-              lang={lang}
             />
-          ) : (
-            <CreateEditForm
-              modalMode={modalMode}
-              selectedUser={selectedUser}
+          )}
+
+          {modalMode === 'create' && (
+            <CreateForm
               newUserEmail={newUserEmail}
               setNewUserEmail={setNewUserEmail}
               newUserName={newUserName}
               setNewUserName={setNewUserName}
+              roles={roles}
+              selectedRoles={selectedRoles}
+              setSelectedRoles={setSelectedRoles}
+              t={t}
+            />
+          )}
+
+          {modalMode === 'edit-roles' && (
+            <RolesForm
               editUserName={editUserName}
               setEditUserName={setEditUserName}
               roles={roles}
               selectedRoles={selectedRoles}
               setSelectedRoles={setSelectedRoles}
               t={t}
+            />
+          )}
+
+          {modalMode === 'edit-scope' && selectedUser && (
+            <UserScopeEditor
+              ref={scopeRef}
+              username={selectedUser.username}
+              t={t}
               lang={lang}
+              hideInternalSave
+              onSavingChange={setScopeSaving}
             />
           )}
         </ModalBody>
 
-        {modalMode !== 'details' && (
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose} color="white">
-              {t('userManagement.modal.cancel')}
-            </Button>
-            <Button
-              colorScheme="orange"
-              onClick={modalMode === 'create' ? onCreateUser : onUpdateUser}
-              isLoading={actionLoading}
-            >
-              {modalMode === 'create' ? t('userManagement.modal.create') : t('userManagement.modal.update')}
-            </Button>
-          </ModalFooter>
-        )}
         {modalMode === 'details' && (
           <ModalFooter>
             <Button variant="ghost" onClick={onClose} color="white">
               {t('userManagement.modal.close')}
+            </Button>
+          </ModalFooter>
+        )}
+
+        {modalMode === 'create' && (
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose} color="white">
+              {t('userManagement.modal.cancel')}
+            </Button>
+            <Button colorScheme="orange" onClick={onCreateUser} isLoading={actionLoading}>
+              {t('userManagement.modal.create')}
+            </Button>
+          </ModalFooter>
+        )}
+
+        {modalMode === 'edit-roles' && (
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose} color="white">
+              {t('userManagement.modal.cancel')}
+            </Button>
+            <Button colorScheme="orange" onClick={onUpdateUser} isLoading={actionLoading}>
+              {t('userManagement.modal.update')}
+            </Button>
+          </ModalFooter>
+        )}
+
+        {modalMode === 'edit-scope' && (
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose} color="white">
+              {t('userManagement.modal.cancel')}
+            </Button>
+            <Button colorScheme="orange" onClick={handleScopeSave} isLoading={scopeSaving}>
+              {t('userManagement.scope.save')}
             </Button>
           </ModalFooter>
         )}
@@ -199,10 +261,10 @@ interface DetailsViewProps {
   onResendInvitation: () => void;
   onToggleStatus: (user: User, enable: boolean) => void;
   onDelete: (user: User) => void;
-  onOpenEdit: (user: User) => void;
+  onOpenRoles: (user: User) => void;
+  onOpenScope: (user: User) => void;
   onClose: () => void;
   t: (key: string, params?: Record<string, unknown>) => string;
-  lang: string;
 }
 
 const DetailsView: React.FC<DetailsViewProps> = ({
@@ -215,7 +277,8 @@ const DetailsView: React.FC<DetailsViewProps> = ({
   onResendInvitation,
   onToggleStatus,
   onDelete,
-  onOpenEdit,
+  onOpenRoles,
+  onOpenScope,
   onClose,
   t,
 }) => (
@@ -312,20 +375,31 @@ const DetailsView: React.FC<DetailsViewProps> = ({
       </VStack>
     </Box>
 
-    {/* Action Buttons — roles + scope are edited via "Edit user" (opens the
-        merged edit view directly). Disable/Enable + Delete stay reachable here,
-        clearly separated from the primary Edit action. */}
+    {/* Action Buttons — roles and scope are edited via dedicated single-purpose
+        modals. "Scope bewerken" only shows for a user holding a Members
+        capability role (R4.6). Disable/Enable + Delete stay reachable here. */}
     <Divider borderColor="gray.700" />
     <HStack spacing={2} justify="flex-start" wrap="wrap">
       <Button
         colorScheme="blue"
         variant="ghost"
         leftIcon={<EditIcon />}
-        onClick={() => onOpenEdit(user)}
+        onClick={() => onOpenRoles(user)}
         color="blue.400"
       >
-        {t('userManagement.editUser')}
+        {t('userManagement.modal.editRoles')}
       </Button>
+      {holdsMembersCapabilityRole(user.groups) && (
+        <Button
+          colorScheme="teal"
+          variant="ghost"
+          leftIcon={<EditIcon />}
+          onClick={() => onOpenScope(user)}
+          color="teal.300"
+        >
+          {t('userManagement.modal.editScope')}
+        </Button>
+      )}
       <Button
         colorScheme={user.enabled ? 'yellow' : 'green'}
         variant="ghost"
@@ -352,92 +426,65 @@ const DetailsView: React.FC<DetailsViewProps> = ({
   </VStack>
 );
 
-interface CreateEditFormProps {
-  modalMode: ModalMode;
-  selectedUser: User | null;
+interface CreateFormProps {
   newUserEmail: string;
   setNewUserEmail: (v: string) => void;
   newUserName: string;
   setNewUserName: (v: string) => void;
-  editUserName: string;
-  setEditUserName: (v: string) => void;
   roles: Role[];
   selectedRoles: string[];
   setSelectedRoles: (roles: string[]) => void;
   t: (key: string, params?: Record<string, unknown>) => string;
-  lang: string;
 }
 
-const CreateEditForm: React.FC<CreateEditFormProps> = ({
-  modalMode,
-  selectedUser,
+const CreateForm: React.FC<CreateFormProps> = ({
   newUserEmail,
   setNewUserEmail,
   newUserName,
   setNewUserName,
-  editUserName,
-  setEditUserName,
   roles,
   selectedRoles,
   setSelectedRoles,
   t,
-  lang,
 }) => (
   <VStack spacing={4} align="stretch">
-    {modalMode === 'create' && (
-      <>
-        <FormControl isRequired>
-          <FormLabel color="gray.300">{t('userManagement.modal.email')}</FormLabel>
-          <Input
-            type="email"
-            value={newUserEmail}
-            onChange={(e) => setNewUserEmail(e.target.value)}
-            bg="gray.700"
-            color="white"
-            borderColor="gray.600"
-            placeholder={t('userManagement.modal.emailPlaceholder')}
-          />
-        </FormControl>
+    <FormControl isRequired>
+      <FormLabel color="gray.300">{t('userManagement.modal.email')}</FormLabel>
+      <Input
+        type="email"
+        value={newUserEmail}
+        onChange={(e) => setNewUserEmail(e.target.value)}
+        bg="gray.700"
+        color="white"
+        borderColor="gray.600"
+        placeholder={t('userManagement.modal.emailPlaceholder')}
+      />
+    </FormControl>
 
-        <FormControl>
-          <FormLabel color="gray.300">{t('userManagement.modal.displayName')}</FormLabel>
-          <Input
-            value={newUserName}
-            onChange={(e) => setNewUserName(e.target.value)}
-            bg="gray.700"
-            color="white"
-            borderColor="gray.600"
-            placeholder={t('userManagement.modal.displayNamePlaceholder')}
-          />
-        </FormControl>
+    <FormControl>
+      <FormLabel color="gray.300">{t('userManagement.modal.displayName')}</FormLabel>
+      <Input
+        value={newUserName}
+        onChange={(e) => setNewUserName(e.target.value)}
+        bg="gray.700"
+        color="white"
+        borderColor="gray.600"
+        placeholder={t('userManagement.modal.displayNamePlaceholder')}
+      />
+    </FormControl>
 
-        <FormControl>
-          <FormLabel color="gray.300">{t('userManagement.modal.temporaryPassword')}</FormLabel>
-          <Input
-            type="text"
-            value={t('userManagement.modal.temporaryPasswordAutoGenerated')}
-            isReadOnly
-            bg="gray.800"
-            color="gray.400"
-            borderColor="gray.700"
-            cursor="not-allowed"
-          />
-        </FormControl>
-      </>
-    )}
-
-    {modalMode === 'edit' && (
-      <FormControl>
-        <FormLabel color="gray.300">{t('userManagement.modal.displayName')}</FormLabel>
-        <Input
-          value={editUserName}
-          onChange={(e) => setEditUserName(e.target.value)}
-          bg="gray.700"
-          color="white"
-          borderColor="gray.600"
-        />
-      </FormControl>
-    )}
+    <FormControl>
+      <FormLabel color="gray.300">{t('userManagement.modal.temporaryPassword')}</FormLabel>
+      <Input
+        type="text"
+        value={t('userManagement.modal.temporaryPasswordAutoGenerated')}
+        isReadOnly
+        bg="gray.800"
+        color="gray.400"
+        borderColor="gray.700"
+        cursor="not-allowed"
+      />
+    </FormControl>
 
     <UserRoleEditor
       roles={roles}
@@ -445,16 +492,43 @@ const CreateEditForm: React.FC<CreateEditFormProps> = ({
       onRolesChange={setSelectedRoles}
       label={t('userManagement.modal.roles')}
     />
+  </VStack>
+);
 
-    {/* Scope editor — managed ALONGSIDE roles in the same edit view, for an
-        existing user who holds a Members capability role (R4.6). The editor is
-        self-contained and keeps its OWN Save; the footer Save commits the
-        role/name diff. */}
-    {modalMode === 'edit' && selectedUser && holdsMembersCapabilityRole(selectedUser.groups) && (
-      <>
-        <Divider borderColor="gray.700" />
-        <UserScopeEditor username={selectedUser.username} t={t} lang={lang} />
-      </>
-    )}
+interface RolesFormProps {
+  editUserName: string;
+  setEditUserName: (v: string) => void;
+  roles: Role[];
+  selectedRoles: string[];
+  setSelectedRoles: (roles: string[]) => void;
+  t: (key: string, params?: Record<string, unknown>) => string;
+}
+
+const RolesForm: React.FC<RolesFormProps> = ({
+  editUserName,
+  setEditUserName,
+  roles,
+  selectedRoles,
+  setSelectedRoles,
+  t,
+}) => (
+  <VStack spacing={4} align="stretch">
+    <FormControl>
+      <FormLabel color="gray.300">{t('userManagement.modal.displayName')}</FormLabel>
+      <Input
+        value={editUserName}
+        onChange={(e) => setEditUserName(e.target.value)}
+        bg="gray.700"
+        color="white"
+        borderColor="gray.600"
+      />
+    </FormControl>
+
+    <UserRoleEditor
+      roles={roles}
+      selectedRoles={selectedRoles}
+      onRolesChange={setSelectedRoles}
+      label={t('userManagement.modal.roles')}
+    />
   </VStack>
 );

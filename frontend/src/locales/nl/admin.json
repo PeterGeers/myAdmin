@@ -276,7 +276,11 @@
       "cancel": "Annuleren",
       "create": "Gebruiker aanmaken",
       "update": "Gebruiker bijwerken",
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "editRoles": "Rollen bewerken",
+      "editRolesTitle": "Rollen bewerken",
+      "editScope": "Scope bewerken",
+      "editScopeTitle": "Scope bewerken"
     },
     "emailTemplates": {
       "userInvitation": "Gebruikersuitnodiging",

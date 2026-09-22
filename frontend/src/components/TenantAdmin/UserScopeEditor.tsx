@@ -26,7 +26,9 @@
  * _Requirements: R4.1, R4.3, R4.4, R4.6, R5.3, R5.4, D2_
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  forwardRef, useEffect, useImperativeHandle, useMemo, useState,
+} from 'react';
 import {
   Box, VStack, HStack, Text, Button, Checkbox, Switch, FormControl,
   FormLabel, Input, Spinner, Alert, AlertIcon, Wrap, WrapItem, useToast,
@@ -85,6 +87,23 @@ interface UserScopeEditorProps {
    * fuzzy typeahead (`fuzzyFilterValues`); injectable so tests can override it.
    */
   filterValues?: (values: string[], query: string) => string[];
+  /**
+   * When true, the editor renders WITHOUT its own Save button. A parent (the
+   * Scope modal) then drives the save through the imperative `save()` handle,
+   * so the modal footer owns the single standard Save. Defaults to false, which
+   * keeps the self-contained inline Save for standalone use.
+   */
+  hideInternalSave?: boolean;
+  /** Called after a successful save (used by the modal to close + reload). */
+  onSaved?: () => void;
+  /** Notifies the parent whether a save is in flight (drives footer isLoading). */
+  onSavingChange?: (saving: boolean) => void;
+}
+
+/** Imperative handle the Scope modal uses to trigger a save from its footer. */
+export interface UserScopeEditorHandle {
+  /** Persist the current selection; resolves true on success, false on error. */
+  save: () => Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,12 +204,15 @@ const DimensionSelector: React.FC<DimensionSelectorProps> = ({
 // Component
 // ---------------------------------------------------------------------------
 
-export const UserScopeEditor: React.FC<UserScopeEditorProps> = ({
+export const UserScopeEditor = forwardRef<UserScopeEditorHandle, UserScopeEditorProps>(({
   username,
   t,
   lang,
   filterValues = fuzzyFilterValues,
-}) => {
+  hideInternalSave = false,
+  onSaved,
+  onSavingChange,
+}, ref) => {
   const toast = useToast();
   const [dimensions, setDimensions] = useState<ScopeDimensionOption[]>([]);
   const [grant, setGrant] = useState<ScopeGrant>({});
@@ -236,8 +258,9 @@ export const UserScopeEditor: React.FC<UserScopeEditorProps> = ({
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     setSaving(true);
+    onSavingChange?.(true);
     setSaveError(null);
     try {
       // Atomic overwrite: send exactly the current selection. Dropping empty
@@ -254,12 +277,20 @@ export const UserScopeEditor: React.FC<UserScopeEditorProps> = ({
         status: 'success',
         duration: 3000,
       });
+      onSaved?.();
+      return true;
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : t('userManagement.messages.unknownError'));
+      return false;
     } finally {
       setSaving(false);
+      onSavingChange?.(false);
     }
   };
+
+  // Expose an imperative save so the Scope modal footer can own the single
+  // standard Save button (steering 32) while this editor keeps the selection.
+  useImperativeHandle(ref, () => ({ save: handleSave }));
 
   if (loading) {
     return (
@@ -309,17 +340,21 @@ export const UserScopeEditor: React.FC<UserScopeEditorProps> = ({
             </Alert>
           )}
 
-          <HStack justify="flex-end">
-            <Button
-              colorScheme="orange"
-              onClick={handleSave}
-              isLoading={saving}
-            >
-              {t('userManagement.scope.save')}
-            </Button>
-          </HStack>
+          {!hideInternalSave && (
+            <HStack justify="flex-end">
+              <Button
+                colorScheme="orange"
+                onClick={handleSave}
+                isLoading={saving}
+              >
+                {t('userManagement.scope.save')}
+              </Button>
+            </HStack>
+          )}
         </VStack>
       )}
     </Box>
   );
-};
+});
+
+UserScopeEditor.displayName = 'UserScopeEditor';
