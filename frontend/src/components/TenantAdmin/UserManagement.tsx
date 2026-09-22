@@ -34,13 +34,14 @@ interface UserManagementProps {
 // ---------------------------------------------------------------------------
 
 export default function UserManagement({ tenant }: UserManagementProps) {
-  const { t } = useTypedTranslation('admin');
+  const { t, i18n } = useTypedTranslation('admin');
+  const lang = i18n.language;
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [modalMode, setModalMode] = useState<ModalMode>('edit');
+  const [modalMode, setModalMode] = useState<ModalMode>('details');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [editUserName, setEditUserName] = useState('');
@@ -133,11 +134,17 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     onOpen();
   };
 
-  const openEditModal = (user: User) => {
-    setModalMode('edit');
+  const openRolesModal = (user: User) => {
+    setModalMode('edit-roles');
     setSelectedUser(user);
     setEditUserName(user.name || '');
     setSelectedRoles(user.groups);
+    onOpen();
+  };
+
+  const openScopeModal = (user: User) => {
+    setModalMode('edit-scope');
+    setSelectedUser(user);
     onOpen();
   };
 
@@ -425,8 +432,10 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         onResendInvitation={handleResendInvitation}
         onToggleStatus={handleToggleUserStatus}
         onDelete={handleDeleteUser}
-        onOpenEdit={openEditModal}
+        onOpenRoles={openRolesModal}
+        onOpenScope={openScopeModal}
         t={t}
+        lang={lang}
       />
     </VStack>
   );

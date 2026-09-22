@@ -284,6 +284,44 @@ PARAMETER_SCHEMA = {
             },
         },
     },
+    "members": {
+        "label": "Members Configuration",
+        "label_nl": "Ledenconfiguratie",
+        "module": "MEMBERS",
+        "params": {
+            "field_overlay": {
+                "label": "Field Overlay",
+                "label_nl": "Veldoverlay",
+                "type": "json",
+                "default": {},
+                "description": (
+                    "Tenant field-config object: functional-group catalog, added "
+                    "parameter fields, and presentation overrides of fixed fields "
+                    "(single object)"
+                ),
+            },
+            "scope_dimensions": {
+                "label": "Scope Dimensions",
+                "label_nl": "Scope-dimensies",
+                "type": "json",
+                "default": [],
+                "description": (
+                    "Ordered list of scope-dimension definitions that determine how "
+                    "member rows are scoped (single list value)"
+                ),
+            },
+            "view_contexts": {
+                "label": "View Contexts",
+                "label_nl": "Weergavecontexten",
+                "type": "json",
+                "default": [],
+                "description": (
+                    "Ordered list of named column-sets (ui.tables-shaped) selecting "
+                    "which fields show together (single list value)"
+                ),
+            },
+        },
+    },
 }
 
 

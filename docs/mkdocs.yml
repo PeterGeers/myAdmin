@@ -3,129 +3,135 @@ site_description: Gebruikersdocumentatie voor myAdmin financieel beheer
 site_url: "https://petergeers.github.io/myAdmin/docs/"
 
 theme:
-  name: material
-  language: nl
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - search.suggest
-    - search.highlight
-    - content.tabs.link
-    - toc.integrate
-  palette:
-    - scheme: default
-      primary: red
-      accent: red
+    name: material
+    language: nl
+    features:
+        - navigation.tabs
+        - navigation.sections
+        - navigation.expand
+        - navigation.top
+        - search.suggest
+        - search.highlight
+        - content.tabs.link
+        - toc.integrate
+    palette:
+        - scheme: default
+          primary: red
+          accent: red
 
 plugins:
-  - search:
-      lang:
-        - nl
-        - en
-  - i18n:
-      languages:
-        - locale: nl
-          name: Nederlands
-          default: true
-          build: true
-        - locale: en
-          name: English
-          build: true
-  - print-site:
-      enabled: false
+    - search:
+          lang:
+              - nl
+              - en
+    - i18n:
+          languages:
+              - locale: nl
+                name: Nederlands
+                default: true
+                build: true
+              - locale: en
+                name: English
+                build: true
+    - print-site:
+          enabled: false
 
 markdown_extensions:
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - attr_list
-  - md_in_html
-  - toc:
-      permalink: true
+    - admonition
+    - pymdownx.details
+    - pymdownx.superfences
+    - pymdownx.tabbed:
+          alternate_style: true
+    - pymdownx.emoji:
+          emoji_index: !!python/name:material.extensions.emoji.twemoji
+          emoji_generator: !!python/name:material.extensions.emoji.to_svg
+    - attr_list
+    - md_in_html
+    - toc:
+          permalink: true
 
 nav:
-  - Home: index.md
-  - Aan de slag:
-      - Overzicht: getting-started/overview.md
-      - Eerste login: getting-started/first-login.md
-      - Veelgebruikte workflows: getting-started/common-workflows.md
-      - Modules instellen: getting-started/onboarding.md
-  - Bankzaken:
-      - Overzicht: banking/index.md
-      - Afschriften importeren: banking/importing-statements.md
-      - Transacties controleren: banking/reviewing-transactions.md
-      - Patronen herkenning: banking/pattern-matching.md
-      - Duplicaten afhandelen: banking/handling-duplicates.md
-  - Facturen:
-      - Overzicht: invoices/index.md
-      - Facturen uploaden: invoices/uploading-invoices.md
-      - AI extractie: invoices/ai-extraction.md
-      - Bewerken & goedkeuren: invoices/editing-approving.md
-      - Google Drive: invoices/google-drive.md
-  - ZZP Facturatie:
-      - Overzicht: zzp/index.md
-      - Contacten: zzp/contacts.md
-      - Producten & diensten: zzp/products.md
-      - Facturen aanmaken: zzp/creating-invoices.md
-      - Facturen versturen: zzp/sending-invoices.md
-      - Creditnota's: zzp/credit-notes.md
-      - Urenregistratie: zzp/time-tracking.md
-      - Debiteuren & crediteuren: zzp/debtors.md
-      - Rittenregistratie: zzp/rittenregistratie.md
-      - Voertuigen: zzp/voertuigen.md
-      - Importeren & exporteren (ritten): zzp/importeren-exporteren.md
-      - Snelle invoer (mobiel): zzp/snelle-invoer.md
-  - STR:
-      - Overzicht: str/index.md
-      - Boekingen importeren: str/importing-bookings.md
-      - Gerealiseerd vs gepland: str/realized-vs-planned.md
-      - Omzet overzichten: str/revenue-summaries.md
-  - STR Prijzen:
-      - Overzicht: str-pricing/index.md
-      - Aanbevelingen: str-pricing/viewing-recommendations.md
-      - Evenement prijzen: str-pricing/event-pricing.md
-      - Suggesties toepassen: str-pricing/applying-suggestions.md
-  - Rapportages:
-      - Overzicht: reports/index.md
-      - Dashboards: reports/dashboards.md
-      - Draaitabellen: reports/pivot-views.md
-      - W&V & Balans: reports/pnl-balance-sheets.md
-      - Excel export: reports/exporting-excel.md
-  - Belastingen:
-      - Overzicht: tax/index.md
-      - BTW aangifte: tax/btw.md
-      - Inkomstenbelasting (IB): tax/income-tax-ib.md
-      - Toeristenbelasting: tax/toeristenbelasting.md
-  - PDF Validatie:
-      - Overzicht: pdf-validation/index.md
-      - Links controleren: pdf-validation/checking-fixing-links.md
-  - Beheer:
-      - Overzicht: admin/index.md
-      - Tenants: admin/tenant-management.md
-      - Docker: admin/docker-deployment.md
-      - Database: admin/database-admin.md
-      - Problemen oplossen: admin/troubleshooting.md
-  - Tenant Beheer:
-      - Overzicht: tenant-admin/index.md
-      - Instellingen: tenant-admin/tenant-settings.md
-      - Draaitabelmodellen: tenant-admin/pivot-views.md
-      - Sjabloonbeheer: tenant-admin/template-management.md
-      - Gebruikers: tenant-admin/user-management.md
-      - Audit logging: tenant-admin/audit-logging.md
-      - Media Assets: tenant-admin/media-assets.md
-      - Landing Page:
-          - Overzicht: landing-page/index.md
-          - Thema presets: landing-page/theme-presets.md
-          - Verlopen achtergronden: landing-page/gradients.md
-          - Typografie: landing-page/typography.md
-          - Blokinstellingen: landing-page/block-settings.md
-  - Changelog: changelog.md
-  - FAQ: faq.md
-  - Woordenlijst: glossary.md
+    - Home: index.md
+    - Aan de slag:
+          - Overzicht: getting-started/overview.md
+          - Eerste login: getting-started/first-login.md
+          - Veelgebruikte workflows: getting-started/common-workflows.md
+          - Modules instellen: getting-started/onboarding.md
+    - Bankzaken:
+          - Overzicht: banking/index.md
+          - Afschriften importeren: banking/importing-statements.md
+          - Transacties controleren: banking/reviewing-transactions.md
+          - Patronen herkenning: banking/pattern-matching.md
+          - Duplicaten afhandelen: banking/handling-duplicates.md
+    - Facturen:
+          - Overzicht: invoices/index.md
+          - Facturen uploaden: invoices/uploading-invoices.md
+          - AI extractie: invoices/ai-extraction.md
+          - Bewerken & goedkeuren: invoices/editing-approving.md
+          - Google Drive: invoices/google-drive.md
+    - ZZP Facturatie:
+          - Overzicht: zzp/index.md
+          - Contacten: zzp/contacts.md
+          - Producten & diensten: zzp/products.md
+          - Facturen aanmaken: zzp/creating-invoices.md
+          - Facturen versturen: zzp/sending-invoices.md
+          - Creditnota's: zzp/credit-notes.md
+          - Urenregistratie: zzp/time-tracking.md
+          - Debiteuren & crediteuren: zzp/debtors.md
+          - Rittenregistratie: zzp/rittenregistratie.md
+          - Voertuigen: zzp/voertuigen.md
+          - Importeren & exporteren (ritten): zzp/importeren-exporteren.md
+          - Snelle invoer (mobiel): zzp/snelle-invoer.md
+    - STR:
+          - Overzicht: str/index.md
+          - Boekingen importeren: str/importing-bookings.md
+          - Gerealiseerd vs gepland: str/realized-vs-planned.md
+          - Omzet overzichten: str/revenue-summaries.md
+    - STR Prijzen:
+          - Overzicht: str-pricing/index.md
+          - Aanbevelingen: str-pricing/viewing-recommendations.md
+          - Evenement prijzen: str-pricing/event-pricing.md
+          - Suggesties toepassen: str-pricing/applying-suggestions.md
+    - Ledenadministratie:
+          - Overzicht: members/index.md
+          - Filteren & weergave: members/filters-and-views.md
+          - Leden beheren: members/managing-members.md
+          - Status & overgangen: members/transitions.md
+          - Exporteren: members/export.md
+    - Rapportages:
+          - Overzicht: reports/index.md
+          - Dashboards: reports/dashboards.md
+          - Draaitabellen: reports/pivot-views.md
+          - W&V & Balans: reports/pnl-balance-sheets.md
+          - Excel export: reports/exporting-excel.md
+    - Belastingen:
+          - Overzicht: tax/index.md
+          - BTW aangifte: tax/btw.md
+          - Inkomstenbelasting (IB): tax/income-tax-ib.md
+          - Toeristenbelasting: tax/toeristenbelasting.md
+    - PDF Validatie:
+          - Overzicht: pdf-validation/index.md
+          - Links controleren: pdf-validation/checking-fixing-links.md
+    - Beheer:
+          - Overzicht: admin/index.md
+          - Tenants: admin/tenant-management.md
+          - Docker: admin/docker-deployment.md
+          - Database: admin/database-admin.md
+          - Problemen oplossen: admin/troubleshooting.md
+    - Tenant Beheer:
+          - Overzicht: tenant-admin/index.md
+          - Instellingen: tenant-admin/tenant-settings.md
+          - Draaitabelmodellen: tenant-admin/pivot-views.md
+          - Sjabloonbeheer: tenant-admin/template-management.md
+          - Gebruikers: tenant-admin/user-management.md
+          - Audit logging: tenant-admin/audit-logging.md
+          - Media Assets: tenant-admin/media-assets.md
+          - Landing Page:
+                - Overzicht: landing-page/index.md
+                - Thema presets: landing-page/theme-presets.md
+                - Verlopen achtergronden: landing-page/gradients.md
+                - Typografie: landing-page/typography.md
+                - Blokinstellingen: landing-page/block-settings.md
+    - Changelog: changelog.md
+    - FAQ: faq.md
+    - Woordenlijst: glossary.md

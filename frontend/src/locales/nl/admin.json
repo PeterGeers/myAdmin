@@ -276,12 +276,27 @@
       "cancel": "Annuleren",
       "create": "Gebruiker aanmaken",
       "update": "Gebruiker bijwerken",
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "editRoles": "Rollen bewerken",
+      "editRolesTitle": "Rollen bewerken",
+      "editScope": "Scope bewerken",
+      "editScopeTitle": "Scope bewerken"
     },
     "emailTemplates": {
       "userInvitation": "Gebruikersuitnodiging",
       "passwordReset": "Wachtwoord resetten",
       "accountUpdate": "Accountupdate notificatie"
+    },
+    "scope": {
+      "title": "Ledenbereik",
+      "all": "Alle",
+      "allSelected": "Alle waarden (onbeperkte toegang)",
+      "filterPlaceholder": "Waarden filteren...",
+      "filterValues": "Filter waarden voor {{dimension}}",
+      "noValues": "Geen overeenkomende waarden",
+      "noDimensions": "Deze tenant heeft geen bereikdimensies geconfigureerd.",
+      "save": "Bereik opslaan",
+      "saved": "Bereik opgeslagen"
     },
     "messages": {
       "errorLoading": "Fout bij laden van gegevens",
@@ -984,7 +999,6 @@
       "description": "Stel in hoe bezoekers je landingspagina bereiken.",
       "slugLabel": "URL-slug",
       "retry": "Opnieuw proberen",
-
       "jabakiTitle": "Jabaki Subdomein",
       "jabakiDescription": "Gratis subdomein op jabaki.nl — geen DNS-configuratie nodig.",
       "jabakiEnabled": "Jabaki subdomein ingeschakeld",
@@ -994,7 +1008,6 @@
       "jabakiDisabledLabel": "Subdomein inschakelen",
       "noSlugWarning": "Stel eerst een slug in voordat je het Jabaki subdomein inschakelt.",
       "statusActive": "Actief",
-
       "customTitle": "Eigen Domein",
       "customDescription": "Koppel je eigen domein voor een volledig eigen uitstraling.",
       "register": "Registreren",
@@ -1018,12 +1031,10 @@
       "domainNeedsDot": "Moet een TLD bevatten (bijv. .nl, .com)",
       "domainNoJabaki": "Kan geen jabaki.nl subdomeinen gebruiken",
       "domainInvalid": "Ongeldig domeinformaat",
-
       "statusPending": "DNS in afwachting",
       "statusValidating": "Wordt geverifieerd",
       "statusFailed": "Mislukt",
       "statusRevoked": "Ingetrokken",
-
       "dnsTitle": "DNS-configuratie",
       "dnsExplanation": "Voeg de volgende DNS-records toe bij je domeinregistrar. Verificatie duurt doorgaans 5–30 minuten nadat de records zijn toegevoegd.",
       "dnsType": "Type",

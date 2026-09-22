@@ -21,14 +21,14 @@ class TestGetSchemaForTenantAllModules:
 
     def test_all_modules_returns_full_schema(self):
         """When all modules are active, all sections are returned."""
-        all_modules = ['STR', 'ZZP', 'FIN']
+        all_modules = ['STR', 'ZZP', 'FIN', 'MEMBERS']
         result = get_schema_for_tenant(all_modules)
 
         assert set(result.keys()) == set(PARAMETER_SCHEMA.keys())
 
     def test_all_modules_preserves_section_content(self):
         """Returned sections are the same objects as in PARAMETER_SCHEMA."""
-        all_modules = ['STR', 'ZZP', 'FIN']
+        all_modules = ['STR', 'ZZP', 'FIN', 'MEMBERS']
         result = get_schema_for_tenant(all_modules)
 
         for ns, section in result.items():
@@ -186,3 +186,42 @@ class TestDifferentModuleCombinations:
         result2 = get_schema_for_tenant(modules)
 
         assert result1.keys() == result2.keys()
+
+
+@pytest.mark.unit
+class TestMembersNamespaceGating:
+    """Test the MEMBERS-gated `members` namespace (s5c task 2.1, R3.1, C-SCHEMA)."""
+
+    def test_members_active_includes_namespace(self):
+        """MEMBERS in active modules -> `members` namespace is present."""
+        result = get_schema_for_tenant(['MEMBERS'])
+
+        assert 'members' in result
+        assert result['members'] is PARAMETER_SCHEMA['members']
+
+    def test_members_inactive_excludes_namespace(self):
+        """MEMBERS not active -> `members` namespace is absent (module gating)."""
+        assert 'members' not in get_schema_for_tenant([])
+        assert 'members' not in get_schema_for_tenant(['STR', 'ZZP', 'FIN'])
+
+    def test_members_namespace_declares_three_json_params(self):
+        """`members` declares field_overlay, scope_dimensions, view_contexts as json."""
+        result = get_schema_for_tenant(['MEMBERS'])
+        params = result['members']['params']
+
+        assert set(params.keys()) == {
+            'field_overlay', 'scope_dimensions', 'view_contexts'
+        }
+        for key, param_def in params.items():
+            assert param_def['type'] == 'json', f"{key} must be a json param"
+
+    def test_members_namespace_gated_by_members_module(self):
+        """The namespace's module gate is exactly 'MEMBERS'."""
+        assert PARAMETER_SCHEMA['members'].get('module') == 'MEMBERS'
+
+    def test_members_params_have_bilingual_labels(self):
+        """Each members param carries both label and label_nl."""
+        params = PARAMETER_SCHEMA['members']['params']
+        for key, param_def in params.items():
+            assert 'label' in param_def, f"{key} missing label"
+            assert 'label_nl' in param_def, f"{key} missing label_nl"

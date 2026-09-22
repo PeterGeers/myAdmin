@@ -60,6 +60,14 @@ The platform (myAdmin, evolved in place) spans two AWS accounts plus Railway.
   move. Keep distinct data buckets separate; never cross them.
 - Critical env vars must fail fast (throw on missing) — no dangerous fallbacks.
 - DynamoDB tables use PAY_PER_REQUEST (on-demand) billing.
+- **SAM-module-plane DynamoDB table naming:** module-plane tables use a `sam-` name
+  prefix (e.g. `sam-members`) with the environment as a **suffix** (`sam-members-test`).
+  The `sam-` prefix stays at the *front* so module-plane IAM can scope to
+  `arn:aws:dynamodb:*:*:table/sam-*` (defense in depth over the `tenant_id` LeadingKeys) —
+  never put an env token in front of `sam-` (it would break the `sam-*` match). Names are
+  resolved from a per-module env var (fail-fast), never hardcoded. Legacy per-app tables
+  (`Members`, `Events`, `Carts`, `Counters`, `Payments`, `Memberships`, `Orders`,
+  `Producten`, `StockMovements`, …) keep their existing names untouched.
 - Pool deletion is high-risk and irreversible — run manually, never from automation,
   and only after confirming no dependency.
 

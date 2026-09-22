@@ -1,0 +1,6 @@
+# Intentionally (near-)empty function package for the PreTokenGen Lambda.
+#
+# The entire module ships in PreTokenGenLayer (sam/pretokengen/layer), so the
+# function's own code bundle carries no application code — the handler
+# `sam.pretokengen.handler.handler` resolves from the layer's `python/` path.
+# SAM still needs a non-empty CodeUri directory to package, which this provides.

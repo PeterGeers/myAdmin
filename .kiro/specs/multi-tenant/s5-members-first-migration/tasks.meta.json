@@ -1,0 +1,636 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Define the fixed base field registry (personal + membership)": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655723976
+      },
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655739308
+      },
+      {
+        "executionId": "4bacf913-d21c-45b7-ad11-83cb4bf6b0fc",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655978168
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656228661
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656769271
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656854780
+      }
+    ],
+    "1.2 Wire the per-tenant variable field overlay": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724067
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656228728
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656859757
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789657305583
+      }
+    ],
+    "1.3 Define the scope-dimension model (multi-valued-capable; h-dcn = single \"region\")": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724143
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656228796
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789657310699
+      },
+      {
+        "executionId": "99c3477c-3fe8-4d12-8fa5-f471ad1af4f1",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789659571830
+      }
+    ],
+    "1.4 Define the tenant-scoped table design + repository interface": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724214
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656228881
+      },
+      {
+        "executionId": "99c3477c-3fe8-4d12-8fa5-f471ad1af4f1",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789659576720
+      }
+    ],
+    "1.5 Define the Lidmaatschap Beheer (membership-type) catalog entity": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724300
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656228971
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795052
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661804953
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789663348131
+      }
+    ],
+    "2.1 Entitle the pilot tenant and confirm the projection answers": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724369
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229117
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795219
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789663752954
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789664616096
+      }
+    ],
+    "3.1 Implement `resolve_scope_access` in the domain layer": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724440
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229297
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795358
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789665038160
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789665411252
+      }
+    ],
+    "3.2 Implement the READ routes on tenant-scoped reads": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724505
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229366
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795427
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789665418506
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789666058103
+      }
+    ],
+    "3.3 Expose the resolved field config endpoint (incl. membership-type options)": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724578
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229437
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795529
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789666064544
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789666485463
+      }
+    ],
+    "3.4 Add the Lidmaatschap Beheer catalog READ routes": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724654
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229508
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795613
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789666490924
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789666874721
+      }
+    ],
+    "4.1 Implement the h-dcn backfill (dry-run first)": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724727
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229653
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795763
+      },
+      {
+        "executionId": "0d91958a-143f-4c88-bab3-327dc6ca2a22",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789668525680
+      },
+      {
+        "executionId": "0d91958a-143f-4c88-bab3-327dc6ca2a22",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789669178988
+      }
+    ],
+    "4.2 Seed the h-dcn Lidmaatschap Beheer catalog": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724793
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229759
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795839
+      },
+      {
+        "executionId": "0d91958a-143f-4c88-bab3-327dc6ca2a22",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789669187196
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789669788966
+      }
+    ],
+    "5.1 Implement the tenant hook registry (Rung 3)": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724886
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229910
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795983
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789670370082
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789670995282
+      }
+    ],
+    "5.2 Implement the WRITE routes (create/update/transition/delegates/memberships)": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655724954
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229988
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796061
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789671003916
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789671709715
+      }
+    ],
+    "5.3 Add the Lidmaatschap Beheer catalog WRITE routes + reference validation": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655725026
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656230054
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796129
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789671716311
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789672342304
+      },
+      {
+        "executionId": "a7656422-56ee-47f4-b100-bf901b00c5bf",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789673120096
+      }
+    ],
+    "6.1 Wire the reversible pilot route (single tenant/region)": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655725104
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656230188
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796301
+      },
+      {
+        "executionId": "a7656422-56ee-47f4-b100-bf901b00c5bf",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789673131917
+      },
+      {
+        "executionId": "a7656422-56ee-47f4-b100-bf901b00c5bf",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789673652516
+      }
+    ],
+    "6.2 Record the Go/No-Go + lessons learned": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655725175
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656230284
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796375
+      },
+      {
+        "executionId": "a7656422-56ee-47f4-b100-bf901b00c5bf",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789674012718
+      }
+    ],
+    "7.1 Wire the cross-account Pool A PreTokenGen trigger (gated, reversible)": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655725241
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656230434
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796546
+      }
+    ],
+    "8. Record the migration pattern in steering + an ADR": [
+      {
+        "executionId": "18c5b05b-b2a4-4f93-9a7e-84fd4c9f9ac3",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655725310
+      }
+    ],
+    "1. Scaffold the single Members module (one SAM Lambda, internal routing)": [
+      {
+        "executionId": "4bacf913-d21c-45b7-ad11-83cb4bf6b0fc",
+        "chatSessionId": "sess_7597e8e9-02b6-4a40-aced-af1478975dc2",
+        "timestamp": 1789655993846
+      }
+    ],
+    "1.0 Scaffold the single Members module (one SAM Lambda, internal routing)": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656228553
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656242929
+      },
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656753641
+      }
+    ],
+    "2.0 Add the `members` entry to `MODULE_REGISTRY` (backing: sam)": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229044
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795151
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789663492601
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789663656301
+      }
+    ],
+    "3.0 Adopt the verified-auth + entitlement toolkit once at the handler edge": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229201
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795285
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789664621621
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789665032064
+      }
+    ],
+    "4.0 Provision the new tenant-scoped DynamoDB tables": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229578
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795689
+      },
+      {
+        "executionId": "339cdc12-f7be-443f-8d92-1d38e2751ec9",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789666881939
+      },
+      {
+        "executionId": "0d91958a-143f-4c88-bab3-327dc6ca2a22",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789668477205
+      },
+      {
+        "executionId": "0d91958a-143f-4c88-bab3-327dc6ca2a22",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789668483167
+      }
+    ],
+    "5.0 Implement the lifecycle state machine + declarative rules (domain)": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656229835
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661795910
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789669795890
+      },
+      {
+        "executionId": "ac6986c7-56d1-4a43-95f4-427444cdc483",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789670362551
+      }
+    ],
+    "6.0 Build the parity/walkthrough harness (migrated vs. existing h-dcn behaviour)": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656230121
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796201
+      },
+      {
+        "executionId": "a7656422-56ee-47f4-b100-bf901b00c5bf",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789673105327
+      }
+    ],
+    "7.0 Widen the S3 projection to carry h-dcn governance (prerequisite)": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656230360
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796455
+      }
+    ],
+    "8.0 Record the migration pattern in steering + an ADR": [
+      {
+        "executionId": "97db81d1-b669-4ab0-9813-666c3233ee6e",
+        "chatSessionId": "sess_652562ed-5dad-4407-b0cf-a899ac571a12",
+        "timestamp": 1789656230506
+      },
+      {
+        "executionId": "7eb4beed-8e7e-49ca-9625-689a5d994583",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789661796621
+      },
+      {
+        "executionId": "a7656422-56ee-47f4-b100-bf901b00c5bf",
+        "chatSessionId": "sess_b38401c5-bd2e-4ee8-ae9a-c4aed0b26d94",
+        "timestamp": 1789674064977
+      }
+    ]
+  }
+}

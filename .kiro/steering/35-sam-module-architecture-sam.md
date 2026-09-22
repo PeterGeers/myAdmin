@@ -81,6 +81,12 @@ def handler(event, context=None):
 5. **The repository is the only DynamoDB touch-point**, and it is where **tenant scoping is
    enforced** (`tenant_id` partition key + IAM `dynamodb:LeadingKeys`) — so the layers
    above cannot cross tenants even by mistake.
+6. **SAM-plane tables are named `sam-<module>`** (e.g. `sam-members`), with the environment
+   as a suffix (`sam-members-test`), resolved from a per-module env var (fail-fast, e.g.
+   `MEMBERS_TABLE`) — **never hardcoded/synthesized**. Each module owns its own table(s)
+   under this prefix, so module-plane IAM scopes to `sam-*` (defense in depth over the
+   `tenant_id` LeadingKeys). The env token is a suffix, never a prefix, so the `sam-*` match
+   holds. See `23-aws-accounts.md`.
 
 ## How this composes with the rest of the platform
 

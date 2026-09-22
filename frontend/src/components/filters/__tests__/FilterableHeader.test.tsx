@@ -173,6 +173,118 @@ describe('FilterableHeader', () => {
   });
 
   // -----------------------------------------------------------------------
+  // Enum-select filter (filterOptions) — scope/region pre-filter (task 4.2)
+  // -----------------------------------------------------------------------
+
+  it('renders a <select> enum filter (not a textbox) when filterOptions is provided', () => {
+    render(
+      <table>
+        <thead>
+          <tr>
+            <FilterableHeader
+              label="Region"
+              filterValue=""
+              onFilterChange={vi.fn()}
+              filterOptions={['Noord', 'Zuid', 'West']}
+            />
+          </tr>
+        </thead>
+      </table>,
+    );
+
+    // Enum mode → a combobox, no free-text box.
+    const select = screen.getByRole('combobox');
+    expect(select).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('lists an empty option plus one option per string in filterOptions', () => {
+    render(
+      <table>
+        <thead>
+          <tr>
+            <FilterableHeader
+              label="Region"
+              filterValue=""
+              onFilterChange={vi.fn()}
+              placeholder="All regions"
+              filterOptions={['Noord', 'Zuid', 'West']}
+            />
+          </tr>
+        </thead>
+      </table>,
+    );
+
+    // 3 values + the empty ("clear") option carrying the placeholder.
+    const options = screen.getAllByRole('option') as HTMLOptionElement[];
+    expect(options).toHaveLength(4);
+    expect(options[0].value).toBe('');
+    expect(options[0].textContent).toBe('All regions');
+    expect(options.map((o) => o.value)).toEqual(['', 'Noord', 'Zuid', 'West']);
+  });
+
+  it('accepts {value,label} option objects and renders their labels', () => {
+    render(
+      <table>
+        <thead>
+          <tr>
+            <FilterableHeader
+              label="Region"
+              filterValue=""
+              onFilterChange={vi.fn()}
+              filterOptions={[{ value: 'r-a', label: 'Region A' }]}
+            />
+          </tr>
+        </thead>
+      </table>,
+    );
+
+    const opt = screen.getByRole('option', { name: 'Region A' }) as HTMLOptionElement;
+    expect(opt.value).toBe('r-a');
+  });
+
+  it('calls onFilterChange with the selected enum value', () => {
+    const onFilterChange = vi.fn();
+    render(
+      <table>
+        <thead>
+          <tr>
+            <FilterableHeader
+              label="Region"
+              filterValue=""
+              onFilterChange={onFilterChange}
+              filterOptions={['Noord', 'Zuid']}
+            />
+          </tr>
+        </thead>
+      </table>,
+    );
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Zuid' } });
+    expect(onFilterChange).toHaveBeenCalledWith('Zuid');
+  });
+
+  it('falls back to the free-text input when filterOptions is empty', () => {
+    render(
+      <table>
+        <thead>
+          <tr>
+            <FilterableHeader
+              label="Region"
+              filterValue=""
+              onFilterChange={vi.fn()}
+              filterOptions={[]}
+            />
+          </tr>
+        </thead>
+      </table>,
+    );
+
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  // -----------------------------------------------------------------------
   // Sort indicator rendering
   // -----------------------------------------------------------------------
 

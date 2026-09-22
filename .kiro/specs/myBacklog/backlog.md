@@ -43,3 +43,7 @@ Created before first trip	✓ (plan ahead)	✗ (needs trips first)
 So the practical value of manual presets: you can add a route you will drive (new client, new office) before you've actually driven it. Auto-learned ones only appear after you've used the route.
 
 In the management UI, you could show a small badge ("Handmatig" / "Geleerd") to distinguish them visually, but it's purely informationa
+
+# s3 object management module and SAM
+How can we manage s3 management attributes similar as in Flask
+

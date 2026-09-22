@@ -504,3 +504,76 @@ class TestDefaultValueResolutionCompleteness:
                 assert data['has_default'] is False
                 assert 'value' not in data
                 assert 'source' not in data
+
+
+# ---------------------------------------------------------------------------
+# Unit Tests: GET /api/tenant-admin/parameters/schema — members namespace gating
+# Feature: s5c-members-runnable-in-spa, Task 2.1 (R3.1, C-SCHEMA)
+#
+# The schema endpoint derives permitted namespaces from get_schema_for_tenant
+# (module gating). These tests confirm the MEMBERS-gated `members` namespace is
+# permitted for a Members-enabled tenant and excluded otherwise.
+# ---------------------------------------------------------------------------
+
+class TestParameterSchemaEndpointMembersGating:
+    """The schema endpoint permits the `members` namespace only for MEMBERS tenants."""
+
+    def _make_client(self):
+        import flask
+        app = flask.Flask(__name__)
+        app.register_blueprint(parameter_admin_bp)
+        app.config['TESTING'] = True
+        return app.test_client()
+
+    def _module_rows(self, module_names):
+        return [{'module_name': m} for m in module_names]
+
+    def _call_schema(self, active_modules):
+        """Call the schema endpoint with the given tenant active modules."""
+        client = self._make_client()
+
+        mock_db_instance = MagicMock()
+        mock_db_instance.execute_query.return_value = self._module_rows(active_modules)
+
+        mock_service = MagicMock()
+        mock_service.get_param.return_value = None
+
+        mocks = _admin_auth_mocks() + [
+            patch('routes.parameter_admin_routes.DatabaseManager',
+                  return_value=mock_db_instance),
+            patch('routes.parameter_admin_routes._get_service',
+                  return_value=mock_service),
+        ]
+        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
+            resp = client.get(
+                '/api/tenant-admin/parameters/schema',
+                headers={'Authorization': 'Bearer fake-jwt',
+                         'X-Tenant': 'TestTenant'},
+            )
+        return resp
+
+    def test_schema_members_tenant_permits_members_namespace(self):
+        """MEMBERS-enabled tenant -> schema includes members with three json params."""
+        resp = self._call_schema(['MEMBERS'])
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data['success'] is True
+        assert 'MEMBERS' in data['active_modules']
+        assert 'members' in data['schema']
+
+        params = data['schema']['members']['params']
+        assert set(params.keys()) == {
+            'field_overlay', 'scope_dimensions', 'view_contexts'
+        }
+        for param_def in params.values():
+            assert param_def['type'] == 'json'
+
+    def test_schema_non_members_tenant_excludes_members_namespace(self):
+        """Tenant without MEMBERS -> schema omits the members namespace."""
+        resp = self._call_schema(['STR', 'FIN'])
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data['success'] is True
+        assert 'members' not in data['schema']

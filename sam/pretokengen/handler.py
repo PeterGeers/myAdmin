@@ -186,13 +186,33 @@ def _stamp_claim_v2(event: dict, claim_name: str, claim_value: str) -> dict:
     only if absent, and only the single ``claim_name`` key is written — existing
     claims (``cognito:groups`` / ``custom:tenants`` and anything else) are left
     untouched (R2.4, additive-only). Returns the mutated event.
+
+    Cognito delivers the V2 event with these containers **present but ``null``**
+    (``response``, ``claimsAndScopeOverrideDetails``, and each generation block are
+    seeded as JSON ``null`` → Python ``None``), so a plain ``setdefault`` would
+    return that existing ``None`` and the next ``.setdefault`` would raise
+    ``'NoneType' object has no attribute 'setdefault'``. ``_child_dict`` therefore
+    treats present-but-``None`` (or any non-mapping) exactly like absent — it
+    installs a fresh dict — so stamping is robust to both the test shape (empty
+    dicts) and the real Cognito shape (nulls).
     """
-    response = event.setdefault("response", {})
-    details = response.setdefault("claimsAndScopeOverrideDetails", {})
+
+    def _child_dict(container: dict, key: str) -> dict:
+        """Return ``container[key]`` as a dict, creating/replacing it if the key is
+        absent or its value is ``None``/non-mapping. Additive: existing dict
+        contents are preserved."""
+        existing = container.get(key)
+        if not isinstance(existing, dict):
+            existing = {}
+            container[key] = existing
+        return existing
+
+    response = _child_dict(event, "response")
+    details = _child_dict(response, "claimsAndScopeOverrideDetails")
 
     for generation_key in ("idTokenGeneration", "accessTokenGeneration"):
-        generation = details.setdefault(generation_key, {})
-        add_or_override = generation.setdefault("claimsToAddOrOverride", {})
+        generation = _child_dict(details, generation_key)
+        add_or_override = _child_dict(generation, "claimsToAddOrOverride")
         # Additive: only our claim key is set; nothing else is read or removed.
         add_or_override[claim_name] = claim_value
 

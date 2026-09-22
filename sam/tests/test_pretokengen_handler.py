@@ -266,6 +266,57 @@ class TestHandlerHappyPath:
         assert decoded.tenants["TenantA"], "active FIN grants caps"
         assert decoded.tenants["TenantB"] == [], "inactive STR grants nothing"
 
+    def test_stamps_when_response_containers_arrive_as_null(self, patch_reader):
+        """Regression (S5c task 5.5): the REAL Cognito V2 event delivers the
+        ``response`` containers **present but null** — ``claimsAndScopeOverrideDetails``
+        and each generation block are JSON ``null`` (Python ``None``), NOT empty
+        dicts. A plain ``setdefault`` returned that existing ``None`` and the next
+        ``.setdefault`` raised ``'NoneType' object has no attribute 'setdefault'``,
+        which blocked login on ``myAdmin-test``. The handler must coerce
+        present-but-null containers to dicts and still stamp the claim on BOTH
+        generations."""
+        email = "admin@example.com"
+        table = FakeTable()
+        table.put(_role_item("ExampleTenant", email, "Finance_CRUD"))
+        table.put(_module_item("ExampleTenant", "FIN", is_active=True))
+        patch_reader(table)
+
+        # The real Cognito shape: response present, but the details/generation
+        # blocks are null rather than pre-seeded empty dicts.
+        event = make_v2_event(email, tenants="ExampleTenant")
+        event["response"] = {"claimsAndScopeOverrideDetails": None}
+
+        result = handler_mod.handler(event, context=None)
+
+        details = result["response"]["claimsAndScopeOverrideDetails"]
+        for gen in ("idTokenGeneration", "accessTokenGeneration"):
+            claims = details[gen]["claimsToAddOrOverride"]
+            assert CLAIM_NAME in claims, f"claim must be stamped on {gen}"
+
+    def test_stamps_when_generation_blocks_arrive_as_null(self, patch_reader):
+        """Same regression at the next level: ``claimsAndScopeOverrideDetails`` is a
+        dict but each generation block is ``None`` — still must be coerced + stamped."""
+        email = "admin@example.com"
+        table = FakeTable()
+        table.put(_role_item("ExampleTenant", email, "Finance_CRUD"))
+        table.put(_module_item("ExampleTenant", "FIN", is_active=True))
+        patch_reader(table)
+
+        event = make_v2_event(email, tenants="ExampleTenant")
+        event["response"] = {
+            "claimsAndScopeOverrideDetails": {
+                "idTokenGeneration": None,
+                "accessTokenGeneration": None,
+            }
+        }
+
+        result = handler_mod.handler(event, context=None)
+
+        details = result["response"]["claimsAndScopeOverrideDetails"]
+        for gen in ("idTokenGeneration", "accessTokenGeneration"):
+            claims = details[gen]["claimsToAddOrOverride"]
+            assert CLAIM_NAME in claims, f"claim must be stamped on {gen}"
+
 
 class TestUserIdentification:
     def test_missing_identity_raises(self, patch_reader):

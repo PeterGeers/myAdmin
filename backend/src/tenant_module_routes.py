@@ -62,6 +62,8 @@ def get_user_module_roles(user_roles):
             modules.add("STR")
         elif role.startswith("ZZP_"):
             modules.add("ZZP")
+        elif role.startswith("Members_"):
+            modules.add("MEMBERS")
 
     return list(modules)
 

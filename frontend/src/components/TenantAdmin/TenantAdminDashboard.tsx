@@ -18,6 +18,7 @@ import FunctionsTab from './FunctionsTab';
 import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
 import { LandingPageEditor } from './LandingPage';
 import MediaAssetAdminPage from '../../pages/MediaAssetAdminPage';
+import { MembersConfigEditor } from './MembersConfig';
 
 interface TenantInfo {
   name: string;
@@ -69,14 +70,27 @@ export function TenantAdminDashboard() {
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
-      
+
       if (!token) {
         throw new Error('No authentication token available');
       }
 
       // Decode JWT to get user's tenants
       const payload = JSON.parse(atob(token.split('.')[1]));
-      const tenants = payload['custom:tenants'] ? JSON.parse(payload['custom:tenants']) : [];
+      // Tolerant parse of custom:tenants. It may be a JSON array string
+      // (e.g. '["h-dcn","x"]') OR a bare scalar string (e.g. "h-dcn").
+      // Matches authService.getCurrentUserTenants semantics: a non-JSON
+      // scalar is treated as a SINGLE tenant (no comma-splitting).
+      const rawTenants = payload['custom:tenants'];
+      let tenants: string[] = [];
+      if (rawTenants) {
+        try {
+          const parsed = JSON.parse(rawTenants);
+          tenants = Array.isArray(parsed) ? parsed : [String(parsed)];
+        } catch {
+          tenants = [rawTenants];
+        }
+      }
 
       // Get merged roles (global + per-tenant) from API
       let roles: string[] = [];
@@ -107,15 +121,15 @@ export function TenantAdminDashboard() {
       }
 
       setUserRoles(roles);
-      
+
       // Convert tenant names to TenantInfo objects
       const tenantInfos: TenantInfo[] = tenants.map((t: string) => ({
         name: t,
         displayName: t
       }));
-      
+
       setUserTenants(tenantInfos);
-      
+
     } catch (error) {
       toast({
         title: 'Error loading user information',
@@ -173,6 +187,7 @@ export function TenantAdminDashboard() {
   }
 
   const hasFIN = tenantModules.includes('FIN');
+  const hasMembers = tenantModules.includes('MEMBERS');
   const isSysAdmin = userRoles.includes('SysAdmin');
 
   return (
@@ -190,6 +205,11 @@ export function TenantAdminDashboard() {
             {hasFIN && (
               <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
                 💰 {t('tenantAdmin.tabs.financial')}
+              </Tab>
+            )}
+            {hasMembers && (
+              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+                👥 {t('tenantAdmin.tabs.membersConfig', 'Members')}
               </Tab>
             )}
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
@@ -230,6 +250,11 @@ export function TenantAdminDashboard() {
             {hasFIN && (
               <TabPanel>
                 <FinancialTab tenant={currentTenant} />
+              </TabPanel>
+            )}
+            {hasMembers && (
+              <TabPanel>
+                <MembersConfigEditor tenant={currentTenant} />
               </TabPanel>
             )}
             <TabPanel>

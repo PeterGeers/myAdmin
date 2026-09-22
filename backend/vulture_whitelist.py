@@ -85,6 +85,7 @@ update_account  # noqa
 # routes/config_routes.py
 # =============================================================================
 get_ledger_parameters  # noqa
+get_members_parameters  # noqa
 
 # =============================================================================
 # routes/contact_routes.py

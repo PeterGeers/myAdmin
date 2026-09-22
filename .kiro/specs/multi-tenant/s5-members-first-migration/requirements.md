@@ -22,8 +22,9 @@ S5 migrates the **Members** app (the first h-dcn app) onto the myAdmin platform 
 the **pilot** that proves the platform tooling (verified auth + entitlement, module
 entitlement, tenant-scoped DynamoDB, fixed/variable fields, layered architecture) and ends
 at an explicit **Go/No-Go** gate for further migrations. It is executed in
-**independently-deployable steps**; the **live h-dcn app keeps running** on **new
-tenant-scoped tables** until a gated pilot cutover.
+**independently-deployable steps**; the **existing h-dcn app keeps running in parallel** on
+**new tenant-scoped tables** until a gated, hands-on pilot validation (h-dcn is demo-only —
+real data in a Google Sheet — so there is no production cutover/soak).
 
 ## Glossary
 
@@ -38,7 +39,8 @@ tenant-scoped tables** until a gated pilot cutover.
 - **Generic/tenant-specific ladder** — differences expressed as, in order:
   1) config/data → 2) declarative rules → 3) registered hooks → 4) separate service.
 - **Tenant `h-dcn`** — the first tenant/config+data instance of the generic module.
-- **Go/No-Go** — the decision gate + lessons-learned after the pilot soak (`go-no-go.md`).
+- **Go/No-Go** — the decision gate + lessons-learned after the Step 6 hands-on validation
+  (`go-no-go.md`).
 
 ## Guiding principles (settled; requirements below enforce them)
 
@@ -81,6 +83,18 @@ tenant-scoped tables** until a gated pilot cutover.
 - **R2.3** The module SHALL expose a **resolved field config** (fixed ⊕ overlay) to a
   presentation-only frontend; the frontend SHALL hold no business rules or data-shape
   authority.
+- **R2.4** The module SHALL provide **Lidmaatschap Beheer** — a tenant-scoped, managed
+  **catalog of membership types** (entries carry `code`, `label` (i18n nl/en), `active`,
+  ordering), as a fixed-domain entity keyed by `tenant_id`. A new coupling **not present in
+  h-dcn today** (h-dcn's type vocabulary is hardcoded). The member record's
+  `membership_type` field SHALL **reference** a catalog entry, and the member-type input
+  SHALL be a **dropdown listing only the active catalog entries for the current tenant** —
+  no free text, no hardcoded vocabulary. The **domain layer** SHALL authoritatively
+  validate that `membership_type` references a live catalog entry (the frontend dropdown is
+  convenience only). Retiring a type SHALL be a **soft-delete** (`active=false`) that keeps
+  existing members valid but removes it from the dropdown for new/edited members. h-dcn's
+  types SHALL be seeded as tenant **data** (Rung 1), the catalog empty-by-default and
+  tenant-owned (no `if tenant == "h-dcn"`). See `generic-membership-design.md`.
 
 ### R3 — Tenant isolation + scope dimension (generalized "region")
 - **R3.1** Every member record SHALL be keyed by `tenant_id`; tenant **isolation** SHALL be
@@ -130,17 +144,20 @@ tenant-scoped tables** until a gated pilot cutover.
   S3/S5 coordination item; until then the module falls back to its authoritative source and
   the pilot may run auth against the test pool.
 
-### R7 — Test-first, gated pilot cutover
+### R7 — Test-first, gated hands-on validation
+> h-dcn Members is **demo-only** (real data lives in a Google Sheet), so validation is a
+> **hands-on walkthrough** of the migrated module, **not** a production soak against live
+> traffic. There is no live app to fall back to and no traffic to parity-compare.
 - **R7.1** The module + data model SHALL be validated **first** against the test pool +
   local/`test_` DynamoDB (parity with h-dcn behaviour: authz incl. scope, data, API
-  contract, workflow) before any pilot cutover.
-- **R7.2** Pilot cutover SHALL be limited to a **single pilot tenant/region**, soaked, and
-  **reversible** (route back to live h-dcn).
+  contract, workflow) before the hands-on review.
+- **R7.2** The hands-on validation SHALL exercise the module for a **single pilot
+  tenant/region** (how it works + look & feel), and SHALL be **reversible**.
 
 ### R8 — Go/No-Go + lessons learned (definition of done for the pilot)
-- **R8.1** After the soak, an explicit **Go/No-Go** decision for further app migrations
-  SHALL be recorded in `go-no-go.md`, against: parity, did-the-toolkit-hold, operational
-  (deploy/rollback, latency, fail-safe), and effort/ROI.
+- **R8.1** After the hands-on validation, an explicit **Go/No-Go** decision for further app
+  migrations SHALL be recorded in `go-no-go.md`, against: parity, did-the-toolkit-hold,
+  look & feel/UX, operational (deploy/rollback, fail-safe), and effort/ROI.
 - **R8.2** The decision SHALL record the **rung distribution** (how much of h-dcn landed on
   config vs. rules vs. hooks vs. escape hatch) and a **design-review verdict** on whether a
   hypothetical second club (teams+season+family+per-type fees) fits the generic model.
@@ -149,38 +166,46 @@ tenant-scoped tables** until a gated pilot cutover.
 
 ### R9 — Governance updated on completion
 - **R9.1** On completion, steering + an ADR SHALL record the generic membership model, the
-  scope-dimension generalization, the fixed/variable field model, and the migration pattern
-  (feeds the next-app template). Authored as tasks in `tasks.md`.
+  scope-dimension generalization, the fixed/variable field model, the **Lidmaatschap Beheer
+  membership-type catalog coupling**, and the migration pattern (feeds the next-app
+  template). Authored as tasks in `tasks.md`.
 
 ## Deployable steps (each independently shippable + reversible)
 
 > These implement `migration-plan.md`. Each step maps to requirements and becomes tasks in
 > `tasks.md`. Nothing is cut over until the Step 6 gate.
 
-- **Step 1 — Design + skeleton of the generic Members module** (R1, R2.1, R3.2, R3.3):
+- **Step 1 — Design + skeleton of the generic Members module** (R1, R2.1, R2.4, R3.2, R3.3):
   define internal routes (union of the 18 handlers), the layered skeleton, the fixed base
-  registry (personal + membership) + per-tenant overlay wiring, the scope-dimension model
+  registry (personal + membership) + per-tenant overlay wiring, the **Lidmaatschap Beheer
+  membership-type catalog** entity + `membership_type` reference, the scope-dimension model
   (list, multi-valued-capable; h-dcn = single "region"), and the tenant-scoped table
   design. Deployable as the module skeleton; reversible (remove it).
 - **Step 2 — Register Members as a myAdmin module** (R4.2, R6.1): `MODULE_REGISTRY` entry
   (backing sam) + entitle the pilot tenant via `tenant_modules`; confirm projection +
   `has_capability` answer for `members`. Deployable/reversible (config).
-- **Step 3 — Module read path on myAdmin tooling** (R1.2, R2.3, R3.1, R3.3, R6.1): the
-  single module's READ routes (`get_member*`, lists, export) — verified auth + entitlement
-  once, reused regional business logic, tenant-scoped reads (`tenant_id` + `LeadingKeys`),
-  resolved field config to the frontend. Pilot/shadow route. Reversible (route only).
+- **Step 3 — Module read path on myAdmin tooling** (R1.2, R2.3, R2.4, R3.1, R3.3, R6.1): the
+  single module's READ routes (`get_member*`, lists, export) + the **Lidmaatschap Beheer
+  catalog read routes** — verified auth + entitlement once, reused regional business logic,
+  tenant-scoped reads (`tenant_id` + `LeadingKeys`), resolved field config (incl. the
+  membership-type dropdown options) to the frontend. Pilot/shadow route. Reversible.
 - **Step 4 — New tenant-scoped tables + backfill** (R5.1, R5.2): create the new tables;
   dry-run then backfill h-dcn members stamped `tenant_id = h-dcn`; live tables untouched.
   Reversible (new tables are a copy).
-- **Step 5 — Module write path + workflow** (R1.4, R3.3, R4.3): create/update/transition/
-  delegates/memberships on the tenant-scoped tables + verified auth, reusing h-dcn workflow
-  rules via config/rules/hooks. Per-route deployable; h-dcn is the fallback.
-- **Step 6 — Pilot cutover for one tenant/region + soak, then Go/No-Go** (R7.2, R8): route
-  one pilot tenant/region to the migrated module; soak + parity-compare vs. live h-dcn;
-  record the Go/No-Go + lessons. Reversible (route back).
-- **Step 7 (conditional, R6.2) — Wire the live Pool A PreTokenGen trigger** if the pilot
-  needs live token entitlement: cross-account, test-pool-validated, detach-to-rollback,
-  after widening the S3 projection (R6.3).
+- **Step 5 — Module write path + workflow** (R1.4, R2.4, R3.3, R4.3): create/update/
+  transition/delegates/memberships + the **Lidmaatschap Beheer catalog write routes** and
+  authoritative `membership_type` reference validation, on the tenant-scoped tables +
+  verified auth, reusing h-dcn workflow rules via config/rules/hooks. Per-route deployable;
+  h-dcn is the fallback.
+- **Step 6 — Exercise the migrated module (workflow + look & feel), then Go/No-Go** (R7.2,
+  R8): use the module end-to-end for one pilot tenant/region (how it works + look & feel);
+  record the Go/No-Go + lessons. **Not** a production soak (h-dcn is demo-only). Reversible.
+- **Step 7 (conditional, R6.2, R6.3) — Wire the live Pool A PreTokenGen trigger** if the
+  pilot needs live token entitlement: cross-account, test-pool-validated,
+  detach-to-rollback, after widening the S3 projection (R6.3).
+- **Step 8 — Governance update on completion** (R9.1): record the generic membership model,
+  scope-dimension generalization, fixed/variable field model, and the **Lidmaatschap Beheer
+  catalog coupling** in steering + an ADR (the next-app migration template).
 
 ## Acceptance criteria
 
@@ -188,14 +213,18 @@ tenant-scoped tables** until a gated pilot cutover.
   conditionals in core; h-dcn business logic reused, structure + auth replaced.
 - **Data model:** fixed base registry + per-tenant variable overlay; adding a tenant needs
   no schema change; frontend renders the resolved config only.
+- **Lidmaatschap Beheer:** a tenant-scoped membership-type catalog; `membership_type` is a
+  dropdown of active catalog entries only, validated authoritatively in the domain layer;
+  h-dcn types seeded as data; retirement is soft-delete.
 - **Isolation + scope:** `tenant_id` + `LeadingKeys` isolation in the repository; a
   tenant-configurable, multi-valued-capable scope dimension; h-dcn "region" expressed as
   config (+ a hook only if a nuance is not declarative); disabling the dimension is a no-op.
 - **h-dcn as tenant:** runs as config + overlay + backfill (+ hooks), generic core untouched.
 - **Parallel-run:** new tables; live h-dcn never broken; every step reversible.
 - **Verified auth:** module authorizes from the verified token/entitlement; no header trust.
-- **Gated pilot:** validated on test pool + `test_`/local DynamoDB first; pilot cutover
-  limited + reversible.
+- **Gated pilot:** validated on test pool + `test_`/local DynamoDB first; hands-on
+  validation limited to one pilot tenant/region + reversible (not a production soak —
+  h-dcn is demo-only).
 - **Go/No-Go:** recorded with rung distribution + second-club design verdict; further
   migrations gated on a Go; governance updated.
 

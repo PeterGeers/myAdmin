@@ -49,43 +49,43 @@ export type FilterType = 'single' | 'multi' | 'range' | 'search';
 export interface FilterConfig<T> {
   /** Filter interaction type */
   type: FilterType;
-  
+
   /** Display label for the filter */
   label: string;
-  
+
   /** Available options to select from */
   options: T[];
-  
+
   /** Current selected value(s) - single value or array depending on type */
   value: T | T[];
-  
+
   /** Callback when selection changes */
   onChange: (value: T | T[]) => void;
-  
+
   /** Optional custom renderer for options */
   renderOption?: (option: T) => React.ReactNode;
-  
+
   /** Optional function to extract display label from option */
   getOptionLabel?: (option: T) => string;
-  
+
   /** Optional function to extract unique value from option */
   getOptionValue?: (option: T) => string;
-  
+
   /** Optional placeholder text */
   placeholder?: string;
-  
+
   /** Optional size variant */
   size?: 'sm' | 'md' | 'lg';
-  
+
   /** Optional disabled state */
   disabled?: boolean;
-  
+
   /** Optional loading state */
   isLoading?: boolean;
-  
+
   /** Optional error message */
   error?: string | null;
-  
+
   /** Treat empty selection as a valid choice (show orange background) */
   treatEmptyAsSelected?: boolean;
 }
@@ -128,10 +128,10 @@ export interface FilterConfig<T> {
 export interface SingleSelectFilterConfig<T> extends Omit<FilterConfig<T>, 'type' | 'value' | 'onChange'> {
   /** Filter type - always 'single' */
   type: 'single';
-  
+
   /** Single selected value */
   value: T;
-  
+
   /** Callback when selection changes - receives single value */
   onChange: (value: T) => void;
 }
@@ -180,10 +180,10 @@ export interface SingleSelectFilterConfig<T> extends Omit<FilterConfig<T>, 'type
 export interface MultiSelectFilterConfig<T> extends Omit<FilterConfig<T>, 'type' | 'value' | 'onChange'> {
   /** Filter type - always 'multi' */
   type: 'multi';
-  
+
   /** Array of selected values */
   value: T[];
-  
+
   /** Callback when selection changes - receives array of values */
   onChange: (values: T[]) => void;
 }
@@ -220,16 +220,16 @@ export interface MultiSelectFilterConfig<T> extends Omit<FilterConfig<T>, 'type'
 export interface RangeFilterConfig<T> extends Omit<FilterConfig<T>, 'type' | 'value' | 'onChange' | 'options'> {
   /** Filter type - always 'range' */
   type: 'range';
-  
+
   /** Range value with min and max */
   value: { min: T; max: T };
-  
+
   /** Callback when range changes */
   onChange: (value: { min: T; max: T }) => void;
-  
+
   /** Optional minimum allowed value */
   minValue?: T;
-  
+
   /** Optional maximum allowed value */
   maxValue?: T;
 }
@@ -264,16 +264,16 @@ export interface RangeFilterConfig<T> extends Omit<FilterConfig<T>, 'type' | 'va
 export interface SearchFilterConfig extends Omit<FilterConfig<string>, 'type' | 'value' | 'onChange' | 'options'> {
   /** Filter type - always 'search' */
   type: 'search';
-  
+
   /** Current search term */
   value: string;
-  
+
   /** Callback when search term changes */
   onChange: (value: string) => void;
-  
+
   /** Optional debounce delay in milliseconds */
   debounceMs?: number;
-  
+
   /** Optional minimum character count before triggering search */
   minChars?: number;
 }
@@ -315,16 +315,16 @@ export type FilterPanelLayout = 'horizontal' | 'vertical' | 'grid';
 export interface FilterPanelConfig {
   /** Array of filter configurations */
   filters: FilterConfig<any>[];
-  
+
   /** Layout mode for the filter panel */
   layout?: FilterPanelLayout;
-  
+
   /** Size variant for all filters */
   size?: 'sm' | 'md' | 'lg';
-  
+
   /** Optional spacing between filters */
   spacing?: number;
-  
+
   /** Optional disabled state for all filters */
   disabled?: boolean;
 }
@@ -371,13 +371,13 @@ export type YearGenerationMode = 'historical' | 'future' | 'combined' | 'rolling
 export interface YearGenerationConfig {
   /** Year generation mode */
   mode: YearGenerationMode;
-  
+
   /** Historical years from database (for 'historical' and 'combined' modes) */
   historicalYears?: string[];
-  
+
   /** Number of future years to generate (for 'future', 'combined', and 'rolling' modes) */
   futureCount?: number;
-  
+
   /** Number of past years to include (for 'rolling' mode) */
   pastCount?: number;
 }
@@ -401,13 +401,13 @@ export interface YearGenerationConfig {
 export interface FilterOption<T> {
   /** Unique value for the option */
   value: T;
-  
+
   /** Display label for the option */
   label: string;
-  
+
   /** Optional disabled state */
   disabled?: boolean;
-  
+
   /** Optional description or help text */
   description?: string;
 }
@@ -478,6 +478,15 @@ export interface FilterableHeaderProps {
   filterValue?: string;
   /** Callback when filter value changes */
   onFilterChange?: (value: string) => void;
+  /**
+   * Optional enum options. When provided (and `filterValue`/`onFilterChange`
+   * are set), the header renders a `<Select>` enum picker instead of the
+   * free-text `<Input>` — the selected value is passed to `onFilterChange`
+   * verbatim so the same `useColumnFilters` substring match applies (an exact
+   * enum value matches itself). Each option is either a bare string or a
+   * `{ value, label }` pair. An empty selection (`''`) clears the filter.
+   */
+  filterOptions?: string[] | { value: string; label: string }[];
   /** Enable sort indicator (default: false) */
   sortable?: boolean;
   /** Current sort direction for this column (null = not active) */
