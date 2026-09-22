@@ -2,12 +2,23 @@
  * UserInviteModal Component
  *
  * Combined create/edit/details modal for user management.
- * Handles user creation, role editing, details view with email actions.
+ * Handles user creation, role + scope editing, details view with email actions.
+ *
+ * Conforms to the app modal standard (steering 32 "Modal Layout"):
+ *   - scrollBehavior="inside" + closeOnOverlayClick={false} so nothing ever
+ *     falls off-screen; body scrolls, header/footer stay pinned.
+ *   - responsive size + capped ModalContent height (maxH="85vh").
+ *   - ModalFooter always visible: Cancel (ghost, left) + primary Save (orange).
+ *
+ * The EDIT view manages ROLES and SCOPE together: role checkboxes plus — for a
+ * user holding a Members capability role — the self-contained UserScopeEditor
+ * (which keeps its own Save). The footer Save commits the role/name diff via
+ * onUpdateUser. Disable/Enable + Delete remain reachable from the details view.
  */
 
 import React from 'react';
 import {
-  VStack, HStack, Button, Badge, Text, Box,
+  VStack, HStack, Button, Badge, Text, Box, Divider,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, FormControl, FormLabel, Input, Select,
 } from '@chakra-ui/react';
@@ -97,9 +108,15 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
   lang,
 }) => {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size={{ base: 'sm', md: 'xl' }}
+      scrollBehavior="inside"
+      closeOnOverlayClick={false}
+    >
       <ModalOverlay />
-      <ModalContent bg="gray.800">
+      <ModalContent bg="gray.800" color="white" maxH="85vh">
         <ModalHeader color="orange.400">
           {modalMode === 'create' && t('userManagement.modal.createTitle')}
           {modalMode === 'edit' && t('userManagement.modal.editTitle')}
@@ -126,6 +143,7 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
           ) : (
             <CreateEditForm
               modalMode={modalMode}
+              selectedUser={selectedUser}
               newUserEmail={newUserEmail}
               setNewUserEmail={setNewUserEmail}
               newUserName={newUserName}
@@ -136,6 +154,7 @@ export const UserInviteModal: React.FC<UserInviteModalProps> = ({
               selectedRoles={selectedRoles}
               setSelectedRoles={setSelectedRoles}
               t={t}
+              lang={lang}
             />
           )}
         </ModalBody>
@@ -199,7 +218,6 @@ const DetailsView: React.FC<DetailsViewProps> = ({
   onOpenEdit,
   onClose,
   t,
-  lang,
 }) => (
   <VStack spacing={4} align="stretch">
     {/* User Information */}
@@ -252,11 +270,6 @@ const DetailsView: React.FC<DetailsViewProps> = ({
       </HStack>
     </Box>
 
-    {/* Scope Editor (R4.6) — only for users holding a Members capability role */}
-    {holdsMembersCapabilityRole(user.groups) && (
-      <UserScopeEditor username={user.username} t={t} lang={lang} />
-    )}
-
     {/* Send Email Section */}
     <Box bg="gray.700" p={4} borderRadius="md" borderWidth="1px" borderColor="orange.500">
       <Text color="orange.400" fontWeight="bold" mb={3}>{t('userManagement.modal.sendEmail')}</Text>
@@ -299,50 +312,49 @@ const DetailsView: React.FC<DetailsViewProps> = ({
       </VStack>
     </Box>
 
-    {/* Action Buttons */}
-    <Box borderTop="1px" borderColor="gray.700" pt={4} mt={4}>
-      <HStack spacing={2} justify="flex-start">
-        <Button
-          colorScheme="blue"
-          variant="ghost"
-          leftIcon={<EditIcon />}
-          onClick={() => {
-            onClose();
-            setTimeout(() => onOpenEdit(user), 100);
-          }}
-          color="blue.400"
-        >
-          {t('userManagement.editUser')}
-        </Button>
-        <Button
-          colorScheme={user.enabled ? 'yellow' : 'green'}
-          variant="ghost"
-          onClick={() => {
-            onToggleStatus(user, !user.enabled);
-            onClose();
-          }}
-          color={user.enabled ? 'yellow.400' : 'green.400'}
-        >
-          {user.enabled ? t('userManagement.modal.disable') : t('userManagement.modal.enable')}
-        </Button>
-        <Button
-          colorScheme="red"
-          variant="ghost"
-          onClick={() => {
-            onClose();
-            setTimeout(() => onDelete(user), 100);
-          }}
-          color="red.400"
-        >
-          {t('userManagement.modal.delete')}
-        </Button>
-      </HStack>
-    </Box>
+    {/* Action Buttons — roles + scope are edited via "Edit user" (opens the
+        merged edit view directly). Disable/Enable + Delete stay reachable here,
+        clearly separated from the primary Edit action. */}
+    <Divider borderColor="gray.700" />
+    <HStack spacing={2} justify="flex-start" wrap="wrap">
+      <Button
+        colorScheme="blue"
+        variant="ghost"
+        leftIcon={<EditIcon />}
+        onClick={() => onOpenEdit(user)}
+        color="blue.400"
+      >
+        {t('userManagement.editUser')}
+      </Button>
+      <Button
+        colorScheme={user.enabled ? 'yellow' : 'green'}
+        variant="ghost"
+        onClick={() => {
+          onToggleStatus(user, !user.enabled);
+          onClose();
+        }}
+        color={user.enabled ? 'yellow.400' : 'green.400'}
+      >
+        {user.enabled ? t('userManagement.modal.disable') : t('userManagement.modal.enable')}
+      </Button>
+      <Button
+        colorScheme="red"
+        variant="ghost"
+        onClick={() => {
+          onClose();
+          setTimeout(() => onDelete(user), 100);
+        }}
+        color="red.400"
+      >
+        {t('userManagement.modal.delete')}
+      </Button>
+    </HStack>
   </VStack>
 );
 
 interface CreateEditFormProps {
   modalMode: ModalMode;
+  selectedUser: User | null;
   newUserEmail: string;
   setNewUserEmail: (v: string) => void;
   newUserName: string;
@@ -353,10 +365,12 @@ interface CreateEditFormProps {
   selectedRoles: string[];
   setSelectedRoles: (roles: string[]) => void;
   t: (key: string, params?: Record<string, unknown>) => string;
+  lang: string;
 }
 
 const CreateEditForm: React.FC<CreateEditFormProps> = ({
   modalMode,
+  selectedUser,
   newUserEmail,
   setNewUserEmail,
   newUserName,
@@ -367,8 +381,9 @@ const CreateEditForm: React.FC<CreateEditFormProps> = ({
   selectedRoles,
   setSelectedRoles,
   t,
+  lang,
 }) => (
-  <VStack spacing={4}>
+  <VStack spacing={4} align="stretch">
     {modalMode === 'create' && (
       <>
         <FormControl isRequired>
@@ -430,5 +445,16 @@ const CreateEditForm: React.FC<CreateEditFormProps> = ({
       onRolesChange={setSelectedRoles}
       label={t('userManagement.modal.roles')}
     />
+
+    {/* Scope editor — managed ALONGSIDE roles in the same edit view, for an
+        existing user who holds a Members capability role (R4.6). The editor is
+        self-contained and keeps its OWN Save; the footer Save commits the
+        role/name diff. */}
+    {modalMode === 'edit' && selectedUser && holdsMembersCapabilityRole(selectedUser.groups) && (
+      <>
+        <Divider borderColor="gray.700" />
+        <UserScopeEditor username={selectedUser.username} t={t} lang={lang} />
+      </>
+    )}
   </VStack>
 );
