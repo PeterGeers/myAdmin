@@ -105,20 +105,27 @@ multi-tenant contract, record the contract as ADR 0007, and ship through the s5e
 
 ## Phase 4 — Ship (codified pipeline) + verify s5d Phase D
 
-- [ ] **4.1 Commit to a branch + PR to `main`** (R8.2): stage the specific files
-  (`sam/members/handler/app.py`, `sam/tests/test_members_auth_edge.py`, the ADR, steering
-  pointer, this spec). PR triggers CodeQL; on merge, `deploy-sam-members.yml` deploys
-  `sam-members` via OIDC (the s5e-codified pipeline) — NO hand-typed deploy. _(R8.2)_
-- [ ] **4.2 [H] Merge → confirm the deploy** (R8.2): the `Deploy SAM Members` workflow runs
-  green on the merge; `sam-members` stack `UPDATE_COMPLETE`. (This is a real Lambda code
-  change — unlike s5e — so expect a genuine function/layer update, not a no-op.)
-- [ ] **4.3 [H] Re-test s5d PHASE D end-to-end** (R8.3): with a multi-tenant user
-  (`peter@pgeers.nl`) and `X-Tenant: h-dcn`, the SPA Members page SHALL now show h-dcn members
-  (the originally-blocked outcome). A present-but-not-entitled `X-Tenant` → 403. A
-  single-tenant user (or absent header + one tenant) → unaffected. Capture evidence. _(R8.3;
-  P3/P7)_
-- [ ] **4.4 Unblock + record** s5d PHASE D in the s5d rollout plan (CE.7 / the D.* tasks): note
-  s5f shipped and Phase D can proceed; link this spec + ADR 0007. _(bookkeeping)_
+- [x] **4.1 Commit to a branch + PR to `main`** DONE 2026-09-23 — branch
+  `s5f-sam-edge-active-tenant` off `origin/main`, commit `b719e6c` (9 files: app.py + 2 test
+  files + ADR 0007 + steering 35 + spec + backlog), pushed (secret scan clean), **PR #18**
+  opened → main. On merge, `deploy-sam-members.yml` deploys `sam-members` via OIDC (the
+  s5e-codified pipeline) — no hand-typed deploy. _(R8.2)_
+- [x] **4.2 [H] Merge → confirm the deploy** DONE 2026-09-23 — PR #18 merged (merge commit
+  `75126c1`) → `Deploy SAM Members` run 35931888652 **success** (OIDC, s5e pipeline). Stack
+  `sam-members` `UPDATE_COMPLETE` @ 23:07 (a real function/layer update, as expected). Live
+  API smoke: `GET /prod/members` with no token → **401 Unauthorized** (authorizer intact,
+  edge healthy post-deploy). _(R8.2)_
+- [~] **4.3 [H] Re-test s5d PHASE D end-to-end** (R8.3): PARTIALLY verified from here + one
+  manual step left for the user. VERIFIED: full SAM suite green (the multi-tenant 200/403
+  matrix + "selection flows into context" ctx.tenant_id==selection); deploy green; live API
+  401 on unauth (healthy). REMAINING (needs a browser SPA login to mint a signed Cognito
+  token — cannot be done from the shell): confirm `peter@pgeers.nl` + `X-Tenant: h-dcn` shows
+  h-dcn members in the SPA (the originally-blocked outcome), a not-entitled `X-Tenant` → 403,
+  and single-tenant flows unaffected. _(R8.3; P3/P7)_
+- [x] **4.4 Unblock + record** DONE 2026-09-23 — s5d rollout plan updated: CE.7 marked
+  "EDGE FIX SHIPPED (s5f)" with the resolution note (PR #18 / run 35931888652 / UPDATE_COMPLETE);
+  the PHASE D banner flipped from "[BLOCKED until PHASE CE done]" to "[UNBLOCKED 2026-09-23 — s5f
+  shipped]", linking this spec + ADR 0007. _(bookkeeping)_
 
 ## Done criteria
 

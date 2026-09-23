@@ -522,7 +522,8 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   reopening the app URL opens a normal successful session. So the trigger did NOT break any
   login (additive claim + Flask ignores it, as designed). No rollback needed. (Follow-up, minor:
   the SPA phrases a per-page authz miss as "login refused" — confusing UX; backlog-worthy.)
-- [~] **CE.7 [H] Verify members capability end-to-end** — BLOCKED on a ROOT-CAUSED edge bug
+- [~] **CE.7 [H] Verify members capability end-to-end** — ✅ **EDGE FIX SHIPPED 2026-09-23
+  (s5f)** — was BLOCKED on a ROOT-CAUSED edge bug
   (2026-09-23). Token side ✅: post-attach tokens carry h-dcn `members:*` (decoded from both
   `peter@pgeers.nl` and `webmaster@h-dcn.nl`). BUT `GET /prod/members` still returns **403**.
   ROOT CAUSE (found, not guessed): the SAM edge `_establish_tenant_context`
@@ -542,6 +543,13 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   Verify-before-trust preserved. Own scoped task/PR + `sam/tests` — logged in backlog. The PTG
   trigger stays attached (harmless; existing logins fine per CE.6) until the edge fix ships.
   Members list stays empty until then.
+  → **RESOLVED by spec `s5f-sam-edge-active-tenant` + ADR 0007 (PR #18 merged `75126c1`,
+  Deploy SAM Members run 35931888652 success, `sam-members` UPDATE_COMPLETE 2026-09-23).** The
+  edge now resolves the active tenant from `X-Tenant` validated ∈ verified `tenant_keys` (header
+  selects, never grants; single-tenant back-compat; all denies 403; no fallback). Full
+  `sam/tests` suite green incl. the multi-tenant 200/403 matrix; live API 401 on unauth
+  (healthy). REMAINING (manual, needs a browser SPA login): confirm `peter@pgeers.nl` +
+  `X-Tenant: h-dcn` shows h-dcn members — PHASE D can now proceed.
 - [ ] **CE.8 Confirm the reconciliation backstop** is scheduled/runnable in prod (s5c 7.7).
 - [ ] **CE.9 (recommended before/with CE.5) Fix the `role#`/`module#` projection reconcile gap**
   so stale governance rows can't inflate a resolved entitlement once the trigger is live — see
@@ -549,11 +557,13 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   C.12 cleaned the current stale rows manually; this closes the recurring hole.
 
 ===================================================================
-## PHASE D — Verify end-to-end in prod (h-dcn)  [BLOCKED until PHASE CE done]
+## PHASE D — Verify end-to-end in prod (h-dcn)  [UNBLOCKED 2026-09-23 — s5f shipped]
 ===================================================================
-> **BLOCKED:** D.1/D.3 (users see members) CANNOT pass until PHASE CE lands the SPA API-URL
-> fix (CE.2) AND attaches the Pool A PTG trigger (CE.5), verified by CE.7. D.2/D.4 are already
-> confirmable at the data layer (scopegrant rows present; roles/scope are separate tables).
+> **UNBLOCKED 2026-09-23:** all PHASE CE prerequisites are now met — SPA API-URL fix (CE.2 ✅),
+> Pool A PTG trigger attached (CE.5 ✅), and the multi-tenant edge bug that failed CE.7 is FIXED
+> and deployed (**s5f** / ADR 0007 / PR #18, `sam-members` UPDATE_COMPLETE). D.1/D.3 (users see
+> members) can now be exercised via the SPA. D.2/D.4 are already confirmable at the data layer
+> (scopegrant rows present; roles/scope are separate tables).
 - [ ] **D.1** As a Tenant-Admin: set a test member-user to `region:["Oost"]` → the
   member list shows only Oost members; `["*"]` shows all; clearing shows none.
 - [ ] **D.2** Confirm the projected `scopegrant#…#region` row matches the grant.
