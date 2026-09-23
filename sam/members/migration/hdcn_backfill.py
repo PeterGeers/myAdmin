@@ -484,7 +484,11 @@ def map_hdcn_row(
         dotted = FIXED_SOURCE_COLUMNS.get(col_lower)
         if dotted is None:
             # Unknown column → a club/Motor variable overlay field (kept verbatim).
-            if cleaned is not None:
+            # Skip an EMPTY-named column: `col` is "" for the source's blank-header column,
+            # and DynamoDB rejects an empty attribute name ("Empty attribute name" on write).
+            # The fidelity report already lists it as "(empty-named column — dropped)", so
+            # dropping it here makes that true (it must never reach the overlay item).
+            if cleaned is not None and col != "":
                 overlay[col] = cleaned
             continue
 

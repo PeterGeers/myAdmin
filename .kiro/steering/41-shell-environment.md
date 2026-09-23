@@ -53,6 +53,25 @@ cd backend && source .venv/bin/activate && pytest tests/unit/test_something.py -
 cd backend && source .venv/bin/activate && python src/some_script.py
 ```
 
+## Database connections (local Docker vs Railway) — see `#database` skill
+
+Connection details are NOT in this file — the single source is the **`#database`
+skill** (`.kiro/skills/database.md`: hosts, ports, the `finance`/`testfinance`
+schemas, the migration runner). Load it whenever a task touches a DB connection,
+migration, or a query against real data. Just enough to know when to reach for it:
+
+- **Local dev** targets Docker MySQL via the `DB_*` vars in `.env` — never edit
+  those to point elsewhere.
+- **Railway (production/ops)** connection facts live in `.env` under `RAILWAY_DB_*`
+  (gitignored; Railway can rotate the proxy host/port). Real credentials never go
+  in steering or skills — placeholders only.
+- **To run anything against Railway from WSL**, use the wrapper — it maps
+  `RAILWAY_DB_*` onto `DB_*` for one command so local dev config is untouched:
+  ```bash
+  PYTHONPATH=backend/src backend/scripts/railway-db.sh python <script.py>
+  ```
+  Defaults to production `finance`; pass `TEST_MODE=true` for `testfinance`.
+
 ## AWS CLI & exit codes on this WSL setup (important)
 
 The terminal integration in this environment **always reports `Exit Code: -1`**, even
@@ -97,6 +116,36 @@ Passing `--no-cli-pager` / piping to `| cat` remains a harmless belt-and-suspend
 ### AWS accounts (see 23-aws-accounts.md)
 - Cognito/identity: profile `personal`, account `344561557829`, region `eu-west-1`.
 - Infra/data (DynamoDB/API GW/Lambda): profile `nonprofit-deploy`, account `506221081911`.
+
+### ⚠️ `.env` credentials override `AWS_PROFILE` — strip them for `nonprofit-deploy`
+
+The repo-root `.env` (auto-loaded by many scripts, and often `source`d into the shell)
+exports **static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for the `personal`
+account** plus `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000`. boto3's credential
+chain ranks **static env keys ABOVE `AWS_PROFILE`**, so a plain
+`AWS_PROFILE=nonprofit-deploy python …` **silently runs against the WRONG account
+(`personal` 344561557829)** — surfacing as `ResourceNotFoundException` on tables that
+only exist in `nonprofit-deploy` (e.g. `sam-members`, `governance_projection`). The
+endpoint var likewise silently redirects DynamoDB to the local emulator.
+
+So for ANY script/CLI that must hit the `nonprofit-deploy` account, **strip both** and
+let the profile resolve:
+
+```bash
+env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+  AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy <command>
+```
+
+**Always sanity-check identity first** — with the strip, this MUST print
+`506221081911` (NonprofitDeployRole), not `344561557829`:
+
+```bash
+env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+  aws sts get-caller-identity --profile nonprofit-deploy --region eu-west-1 --output json
+```
+
+(The `personal` account is the DEFAULT the raw `.env` keys give you, so `personal`-account
+work needs no strip — but never assume; check the identity when it matters.)
 
 ## Task output & log files — reduce read-approval friction
 

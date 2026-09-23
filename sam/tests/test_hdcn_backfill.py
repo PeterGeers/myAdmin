@@ -174,6 +174,15 @@ class TestMapHdcnRow:
         # overlay must not contain fixed source columns
         assert "Achternaam" not in rec["overlay"] and "Lidnummer" not in rec["overlay"]
 
+    def test_empty_named_column_is_dropped_not_folded_into_overlay(self):
+        # The real export has a blank-header column. It must NOT land as overlay[""] — DynamoDB
+        # rejects an empty attribute name ("Empty attribute name" on write). It is dropped.
+        rec = _map(**{"": "junk value in a nameless column"})
+        assert "" not in rec["overlay"]
+        # No empty key anywhere in the record's dict groups (defensive).
+        for group in ("personal", "membership", "overlay"):
+            assert "" not in rec[group]
+
     def test_membership_type_is_mapped_to_a_catalog_code(self):
         assert _map(**{"Soort lidmaatschap": "Erelid"})["membership"]["membership_type"] == "erelid"
         assert _map(**{"Soort lidmaatschap": "Donateur"})["membership"]["membership_type"] == "donateur"

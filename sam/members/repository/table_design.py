@@ -63,6 +63,7 @@ table (PAY_PER_REQUEST, retain, managed outside CloudFormation) is Step 4 (task 
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, Mapping
 
 from services.dynamodb_client import get_dynamodb_resource, require_env
@@ -90,6 +91,7 @@ __all__ = [
     "membership_type_sk",
     "member_sk_prefix",
     "build_key",
+    "floats_to_decimal",
     "build_member_item",
     "build_membership_type_item",
     "resolve_members_table_name",
@@ -270,6 +272,45 @@ def build_key(tenant_id: str, sort_key_value: str) -> dict[str, str]:
     return {PARTITION_KEY_ATTR: tenant_id, SORT_KEY_ATTR: sort_key_value}
 
 
+def floats_to_decimal(value: Any) -> Any:
+    """Recursively convert every ``float`` in ``value`` to :class:`~decimal.Decimal`.
+
+    DynamoDB (boto3) refuses Python ``float`` — it stores numbers as ``Decimal`` and raises
+    ``"Float types are not supported. Use Decimal types instead."`` on a ``put_item`` /
+    ``transact_write_items`` that carries one. Source data (e.g. the h-dcn backfill's
+    ``overlay.Bedrag`` fee, a JSON float) can therefore reach a write untouched. This helper is
+    applied by every item builder below so no write path can hand boto3 a raw float, no matter
+    how deeply nested inside ``personal`` / ``membership`` / ``overlay`` / lists it sits.
+
+    ``Decimal(str(f))`` (not ``Decimal(f)``) is used deliberately: converting via the float's
+    ``repr`` avoids dragging in binary-float artefacts (e.g. ``Decimal(22.6)`` →
+    ``22.6000000000000014...``), so ``22.6`` round-trips as ``Decimal('22.6')``. This mirrors
+    the read-side convention (numbers deserialize as ``Decimal`` and ``from_item`` coerces back
+    — see ``test_membership_type_catalog.test_from_item_coerces_numeric_order``).
+
+    ``bool`` is intentionally left alone (it is a DynamoDB BOOL, and ``bool`` is a subclass of
+    ``int`` so it must not be caught by any numeric branch). ``int`` is already valid and is
+    passed through unchanged.
+
+    Args:
+        value: Any JSON-ish value — scalar, ``Mapping``, or sequence.
+
+    Returns:
+        A new value of the same shape with every ``float`` replaced by an equivalent
+        ``Decimal``. Non-float values are returned as-is (dicts/lists are rebuilt).
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, Mapping):
+        return {k: floats_to_decimal(v) for k, v in value.items()}
+    # Recurse into lists/tuples/sets of values, but never strings/bytes (they are scalars).
+    if isinstance(value, (list, tuple)):
+        return [floats_to_decimal(v) for v in value]
+    return value
+
+
 def build_member_item(tenant_id: str, member_id: str, member: Mapping[str, Any]) -> dict:
     """Compose the stored DynamoDB item for a member record.
 
@@ -293,7 +334,9 @@ def build_member_item(tenant_id: str, member_id: str, member: Mapping[str, Any])
     """
     if not member_id:
         raise ValueError("member_id must be non-empty")
-    item = dict(member)
+    # Deep-copy with float→Decimal coercion so nested payload numbers (e.g. overlay.Bedrag)
+    # are DynamoDB-safe before any write path serializes this item.
+    item = floats_to_decimal(dict(member))
     item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
     item[SORT_KEY_ATTR] = member_sk(member_id)
     # Keep the bare id addressable without re-parsing the sort key.
@@ -327,7 +370,7 @@ def build_membership_type_item(
     """
     if not type_code:
         raise ValueError("type_code must be non-empty")
-    item = dict(entry)
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
     item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
     item[SORT_KEY_ATTR] = membership_type_sk(type_code)
     # Keep the reference code addressable without re-parsing the sort key. (tenant_id is

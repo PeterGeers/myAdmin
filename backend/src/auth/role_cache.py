@@ -39,7 +39,18 @@ def get_tenant_roles(email: str, tenant: str, db) -> list[str]:
         fetch=True,
     )
     roles = [r["role"] for r in (rows or [])]
-    _role_cache[key] = (roles, now)
+
+    # Do NOT cache a negative (empty) result. A user whose roles were assigned
+    # out-of-band (direct SQL, seed/provisioning scripts) — i.e. NOT through the
+    # tenant-admin role routes that call invalidate_cache — would otherwise be
+    # pinned to a stale "no roles" answer for the full TTL, surfacing as spurious
+    # "role not assigned" errors that even a fresh login can't clear (this cache
+    # is process-global and not tied to the session). Skipping the empty cache
+    # write means such a grant is picked up on the very next request. Users with
+    # genuinely no roles re-query each request, but those requests are rejected
+    # fast and are rare. Populated results are still cached for the full TTL.
+    if roles:
+        _role_cache[key] = (roles, now)
     return roles
 
 
