@@ -34,7 +34,7 @@ sys.path.insert(0, str(backend_dir / 'src'))
 from database import DatabaseManager
 from db_exceptions import DatabaseError
 
-# Default Railway production connection (overridden by env vars when using railway-run.ps1)
+# Default Railway production connection (overridden by env vars when using backend/scripts/railway-db.sh)
 DEFAULT_HOST = 'shinkansen.proxy.rlwy.net'
 DEFAULT_PORT = 42375
 DEFAULT_USER = 'root'
@@ -209,14 +209,14 @@ def run_migration(apply: bool = False, csv_only: bool = False):
     # Step 2: Connect to database and check/apply updates
     print(f"\n--- Step 2: {'Applying' if apply else 'Checking'} database updates ---\n")
 
-    # Get connection details from env vars (set by railway-run.ps1) or use defaults
+    # Get connection details from env vars (set by backend/scripts/railway-db.sh) or use defaults
     db_host = os.environ.get('DB_HOST', DEFAULT_HOST)
     db_port = int(os.environ.get('DB_PORT', DEFAULT_PORT))
     db_user = os.environ.get('DB_USER', DEFAULT_USER)
     db_password = os.environ.get('DB_PASSWORD') or os.environ.get('RAILWAY_DB_PASSWORD')
 
     # Railway MySQL authenticates against 'railway' database, but data is in 'finance'
-    # When railway-run.ps1 sets DB_NAME=finance, we still connect to 'railway' first
+    # When railway-db.sh sets DB_NAME=finance, we still connect to 'railway' first
     db_name = DEFAULT_DB  # Always connect to 'railway' for auth
     target_db = 'finance'  # The actual database with mutaties table
 
@@ -311,7 +311,7 @@ def main():
 
     args = parser.parse_args()
 
-    # Also support MIGRATE_MODE env var for use with railway-run.ps1
+    # Also support MIGRATE_MODE env var for use with railway-db.sh
     # (which doesn't pass script arguments)
     env_mode = os.environ.get('MIGRATE_MODE', '').lower()
     if env_mode == 'apply':

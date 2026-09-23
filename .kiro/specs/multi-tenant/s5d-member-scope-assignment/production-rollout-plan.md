@@ -175,58 +175,98 @@ Added during implementation (tenant-data-out-of-core refactor; D16–D18):
 Stands up the platform for ALL tenants. Order: backend contracts first, UI last.
 - [x] **B.0 [BACKUP] Back up prod MySQL** (Railway) — `parameters`, `user_tenant_roles`,
   `tenants`, `tenant_modules` (a full dump is better). Lets us roll back config/schema.
-- [ ] **B.1 Merge/PR `feature/sam-members` → `main`.** After PHASE A is reviewed
-  (INCLUDING A.13 — the SAM workflow must be in the PR). On merge, THREE deploys fire
-  automatically: FRONTEND (GitHub Pages, `.github/workflows/deploy-frontend.yml`), FLASK
-  (Railway GitHub integration builds + deploys on push to `main`), and SAM
-  (`.github/workflows/deploy-sam-members.yml`, added in A.13). See CONFIRMED INPUTS
-  (deploy branch `main`). NOTE: the SAM deploy needs the A.13 OIDC-trust prerequisite in
-  place, else its job fails at assume-role (frontend + Flask still deploy).
-- [ ] **B.2 [H] Apply the `user_tenant_scope` migration to prod MySQL** (the ONE new
-  table; migrations are NOT auto-applied — steering 31):
-  `cd backend && PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration(test_mode=False).run_all_migrations()"`
-  KNOWN HAZARD (dev): the batch runner ABORTS on a pre-existing failed migration.
-  Check prod's `database_migrations` for `status='failed'` rows FIRST. If the batch
-  won't reach the `user_tenant_scope` migration, apply that ONE migration's `up` DDL
-  directly and record a `success` tracking row — do NOT edit unrelated failed
-  migrations. Verify the table (keyed `(email, administration, module)`, FK to
+- [x] **B.1 Merge/PR `feature/sam-members` → `main`.** DONE — PR #15 merged (merge commit
+  `a1f14c0`, 2026-09-22). On merge, THREE deploys fire automatically: FRONTEND (GitHub
+  Pages, `.github/workflows/deploy-frontend.yml`), FLASK (Railway GitHub integration on
+  push to `main`), and SAM (`.github/workflows/deploy-sam-members.yml`, added in A.13).
+  The A.13 OIDC-trust prerequisite was completed first (NonprofitDeployRole trust widened
+  to `repo:PeterGeers/myAdmin:*`, stack `h-dcn-iam-roles` UPDATE_COMPLETE + committed to
+  h-dcn IaC `37fc5d3`), so the SAM CI deploy ran green (run 35782647793, conclusion
+  success). PRE-MERGE VALIDATION (Path A): the `sam-members` stack was first deployed
+  manually via `sam deploy --config-env prod --profile nonprofit-deploy` →
+  CREATE_COMPLETE; smoke `GET /prod/members` → 401 (authorizer live). That manual deploy
+  caught + fixed an empty-`DynamoDbEndpointUrl` override bug in `samconfig.toml` (commit
+  `b4caad6`) that would otherwise have failed the CI deploy identically.
+  NOTE: `MembersApiBaseUrl` is NOT stored here — re-fetch from the stack output:
+  `aws cloudformation describe-stacks --stack-name sam-members --query "Stacks[0].Outputs[?OutputKey=='MembersApiBaseUrl'].OutputValue" --output text --profile nonprofit-deploy --region eu-west-1`.
+- [x] **B.2 [H] Apply the `user_tenant_scope` migration to prod MySQL** — DONE (verified
+  on Railway/prod MySQL, which is physically separate from the local dev DB). Prod's
+  `database_migrations` shows `create_user_tenant_scope_table` = `status='success'` and
+  the `user_tenant_scope` table exists (keyed `(email, administration, module)`, FK to
+  `tenants(administration)`, `idx_administration` + `idx_admin_module`). No failed
+  migrations blocked the batch. Applied out of band from this WSL shell because the
+  Railway CLI (Windows npm shim) doesn't run reliably under WSL — the SQL was run
+  directly on prod. COSMETIC follow-up (optional, non-blocking): the tracker has a
+  DUPLICATE `create_user_tenant_scope_table` `success` row; harmless (the runner only
+  checks name presence) — can be de-duped keeping the earliest `id` if desired.
+  (Original runner command, for reference:
+  `cd backend && PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration(test_mode=False).run_all_migrations()"`.)
+  Verified the table (keyed `(email, administration, module)`, FK to
   `tenants`, `idx_administration`).
-- [ ] **B.3 [H] Create the prod `sam-members` table** (does NOT exist yet; the SAM
-  template does NOT create it — managed-outside-CFN / Retain). Key shape `tenant_id`
-  (S, HASH) + `sk` (S, RANGE), PAY_PER_REQUEST, no GSIs (from
-  `sam/members/repository/table_design.py`):
-  `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
-  `  backend/.venv/bin/python scripts/aws/provision-members-tables.py --apply`
-  (dry-run is the default — run WITHOUT `--apply` first). Idempotent; refuses `--reset`
-  against real AWS. `governance_projection` already exists — do NOT recreate it. NOTE:
-  the SAM deploy (B.1, via the A.13 workflow) can happen before or after this, but the
-  Lambda cannot serve requests until the table exists.
-- [ ] **B.4 Confirm the SAM deploy** — the stack is up, `sam-members` +
-  `governance_projection` are the managed-outside-CFN prod tables (a deploy never
-  recreates/replaces them), and NOTE the `MembersApi` base URL output (the SPA needs it).
-- [ ] **B.5 Smoke-check the platform (no tenant data yet):** Flask health 200 + new
-  scope routes respond (401 unauthenticated is correct); the SAM `MembersApi` responds
-  (401 without a token); SPA loads with the correct API bases. A member list is
-  expected EMPTY at this point — no tenant is onboarded yet.
+- [x] **B.3 [H] Create the prod `sam-members` table** — DONE. Ran
+  `provision-members-tables.py` (dry-run first, then `--apply`) with
+  `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy`. Verified
+  live: table `sam-members` is **ACTIVE**, key shape `tenant_id` (S, HASH) + `sk` (S,
+  RANGE), PAY_PER_REQUEST, 0 items, no GSIs (from `sam/members/repository/table_design.py`).
+  Additive/idempotent; `governance_projection` and the legacy tables were left untouched.
+  IAM reminder: bind the principal to `sam-*` / the tenant partition separately
+  (`table_design.LEADING_KEYS_IAM_POLICY_PLAN`) — the Lambda's own role from the SAM
+  stack already covers its access.
+- [x] **B.4 Confirm the SAM deploy** — DONE. Stack `sam-members` is up (B.1); `sam-members`
+  (just created) + `governance_projection` (pre-existing) are the managed-outside-CFN prod
+  tables. `MembersApiBaseUrl` is re-fetchable from the stack output (not stored here — see
+  the B.1 note for the command).
+- [x] **B.5 Smoke-check the platform (no tenant data yet):** SAM `MembersApi` returns 401
+  without a token (authorizer live, no regression to 5xx after the table create) — correct.
+  Frontend (GitHub Pages) + Flask (Railway) deploys reported successful. A member list is
+  expected EMPTY at this point — no tenant is onboarded yet (PHASE C).
 
 ===================================================================
 ## PHASE C — Onboard tenant h-dcn (config → data → scope)
 ===================================================================
 Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row, no
 `members.*` params, no members, no grants yet.
-- [ ] **C.1 [H] Enable the MEMBERS module for h-dcn** (`tenant_modules`) — PREREQUISITE
+- [x] **C.1 [H] Enable the MEMBERS module for h-dcn** (`tenant_modules`) — DONE (verified
+  2026-09-22 on prod Railway MySQL: tenant `h-dcn` created, row `h-dcn/MEMBERS/is_active=1`).
+  UI renders the Members section after a refresh (5-min role/module cache TTL — a refresh
+  or re-login surfaces it; not a bug). PREREQUISITE
   for everything below: the `members.*` parameter namespace is GATED to an active
   MEMBERS module (`parameter_schema.py`: `members` → `module: MEMBERS`). Until h-dcn has
   the active MEMBERS module row, `ParameterService.set_param("tenant","h-dcn","members",…)`
   (C.3/C.4) is rejected. Add the `tenant_modules` row for `administration='h-dcn'`,
   module `MEMBERS`, active.
-- [ ] **C.2 [H] Seed the Lidmaatschap Beheer membership-type catalog** (BEFORE the
-  backfill so `membership_type` refs resolve). Dry-run-first, idempotent upsert:
-  `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
-  `  backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn`
-  (then re-run with `--apply`). Seeds gewoon_lid / gezins_lid / erelid / donateur /
-  gezins_donateur / sponsor (+ `overig` once A.4 lands), all `active=True`.
-- [ ] **C.3+C.4 [H] Author the member CONFIG (`field_overlay` + `scope_dimensions`)** —
+- [x] **C.2 [H] Seed the Lidmaatschap Beheer membership-type catalog** — DONE + VERIFIED
+  2026-09-22 (prod `sam-members`, tenant `h-dcn`, `--apply`: created 7 / updated 0). Read-back
+  query confirms 7 items `membershiptype#{gewoon_lid,gezins_lid,erelid,donateur,gezins_donateur,
+  sponsor,overig}` in the `h-dcn` partition. Dry-run-first, idempotent upsert:
+  `scripts/aws/seed-hdcn-catalog.py --tenant h-dcn` (then `--apply`). All `active=True`.
+  ⚠️ **CREDENTIALS GOTCHA (applies to ALL AWS-side C-steps below).** The repo-root `.env`
+  exports static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` for the **personal** account
+  (344561557829) AND `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000`. boto3 ranks static
+  env keys ABOVE `AWS_PROFILE`, so a plain `AWS_PROFILE=nonprofit-deploy` invocation silently
+  hits the WRONG account (personal) → `ResourceNotFoundException` on `sam-members` (which only
+  exists in nonprofit 506221081911). The endpoint var also silently redirects to the local
+  emulator. STRIP BOTH. Verified-safe invocation for every AWS Phase-C script:
+  ```bash
+  env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+    MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
+    backend/.venv/bin/python scripts/aws/<script>.py ...
+  ```
+  Sanity-check identity first: with the strip, `sts get-caller-identity` must show account
+  `506221081911` (NonprofitDeployRole), NOT `344561557829`.
+- [x] **C.3+C.4 [H] Author the member CONFIG (`field_overlay` + `scope_dimensions`)** —
+  DONE + VERIFIED 2026-09-23 (`--apply`). Both params upserted to prod Railway MySQL
+  `parameters` (scope `tenant`/`h-dcn`, namespace `members`): `scope_dimensions` (json) +
+  `field_overlay` (json, ~4.7KB). Read-back confirms the 10 regions exactly:
+  `["Brabant/Zeeland","Duitsland","Friesland","Geen","Groningen/Drenthe","Limburg",
+  "Noord Holland","Oost","Utrecht","Zuid Holland"]` (correct spelling, no `Overig`).
+  ⚠️ **This is a MySQL/Railway step — NOT AWS.** The script builds
+  `DatabaseManager(test_mode=False)` reading `DB_*`, which defaults to LOCAL Docker — so it
+  MUST run through the Railway wrapper or it authors config into the wrong DB. Verified
+  invocation used: `PYTHONPATH=backend/src backend/scripts/railway-db.sh
+  backend/.venv/bin/python scripts/aws/seed-hdcn-members-config.py --tenant h-dcn --apply`.
+  No AWS credential strip needed here (that's only for the DynamoDB steps).
+  ---
   now a SINGLE scripted, single-sourced step (config is AUTHORED, not backfilled — D18).
   Run `scripts/aws/seed-hdcn-members-config.py`, which upserts BOTH `members.*` params
   via `ParameterService.set_param(...)` from the one authoritative source
@@ -242,10 +282,20 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   Author BEFORE the backfill (R9) so overlay/dropdown values resolve and `region`
   canonicalizes to the right vocabulary. Alternatively author via the Tenant-Admin
   members-config UI (audited), but the script keeps it reproducible + single-sourced.
-- [ ] **C.5 [BACKUP] Back up the DynamoDB projection + members** before the data write:
-  `governance_projection` (has data) and `sam-members` (empty until now) — on-demand
-  PITR or S3 export.
-- [ ] **C.6 [H] DRY-RUN the member backfill (writes nothing):**
+- [x] **C.5 [BACKUP] Back up the DynamoDB projection + members** — DONE 2026-09-23 via
+  on-demand DynamoDB backups (both `AVAILABLE`, verified):
+  - `governance_projection-preC7-20260923-081530` (1817 B) — baseline 16 items
+  - `sam-members-preC7-20260923-081530` (731 B) — baseline 7 items (catalog only, pre-members)
+  Restore path if C.7 goes wrong: `aws dynamodb restore-table-from-backup` (with the
+  credential strip). Baseline captured before ANY member write.
+- [x] **C.6 [H] DRY-RUN the member backfill (writes nothing)** — DONE 2026-09-23. Result
+  matched the target EXACTLY: **1152 ok, 90 skipped (1242 source), 0 errors, 0 missing
+  region.** Verified in samples: `member_id`=UUID, `member_number`=`M#####`, `region` on
+  `overlay.region` as canonical (Utrecht/Oost/Zuid Holland), `status=active`, `tenant_id=h-dcn`.
+  All `membership_type` values validated against the 7 seeded catalog codes (ran with
+  `--known-code` ×7 → 0 errors). 3 within-batch duplicate member numbers flagged
+  (`M06247`, `M06560`, `M06564`) — on apply the repo writes the 1st, rejects the 2nd (D15).
+  Invocation used the AWS credential strip (see C.2 warning) + `--members-config`.
   `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
   `  backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py --source .agent-output/Ledenbestand.json --tenant h-dcn \`
   `    --members-config scripts/aws/h-dcn/members_config.json`
@@ -256,31 +306,200 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   (reported, NOT errors): empty export rows, non-members with no `Lidnummer` (D14 —
   future contact table), and ALL occurrences of duplicate member numbers (D15). Expected
   on the current export: **1152 ok, 90 skipped, 0 errors.**
-- [ ] **C.7 [!][H] APPLY the backfill** (`--apply` + the same `--members-config`) only
-  after a clean dry-run AND C.5. Per-tenant member-number uniqueness enforced (conflicts
-  reported, never overwritten). Writes to `sam-members` (prod) only.
-- [ ] **C.8 Run the R9.5 normalization verification (read-only):**
-  `MEMBERS_TABLE=sam-members GOVERNANCE_PROJECTION_TABLE=governance_projection AWS_REGION=eu-west-1 \`
-  `  AWS_PROFILE=nonprofit-deploy backend/.venv/bin/python \`
-  `  scripts/aws/verify-member-scope-normalization.py --tenant h-dcn --dimension region`
-  Expect PASS (every distinct member region ∈ the 10). Any offender = fix before granting scope.
+- [x] **C.7 [!][H] APPLY the backfill** — DONE + VERIFIED 2026-09-23. `--apply` summary:
+  **written 1152, conflicts 0, errors 0**; independent DynamoDB count of `member#` items in
+  the `h-dcn` partition = **1152** (matches). Writes to `sam-members` (prod) only.
+  ⚠️ **Two write-only bugs were found on the FIRST apply attempt and fixed before this clean
+  run** (dry-run never caught them — it doesn't serialize to DynamoDB):
+  1. **float→Decimal** — `overlay.Bedrag` (a JSON float, the fee) hit boto3
+     "Float types are not supported." FIX: recursive `floats_to_decimal()` in
+     `sam/members/repository/table_design.py`, applied in the item builders (+ inline
+     `save_membership`/`save_delegates`). Failed on record 1 → no partial write.
+  2. **empty attribute name** — the source's blank-header column folded into `overlay[""]`,
+     which DynamoDB rejects ("Empty attribute name"). FIX: skip empty-named overlay keys in
+     `sam/members/migration/hdcn_backfill.py` `map_hdcn_row`. This one had partially written
+     ~176 members → RECOVERED via `.agent-output/cleanup_partial_members.py` (deleted 352
+     member#/membernum# items back to the 7-catalog baseline) before the clean re-run.
+  Both fixes covered by new tests (`sam/tests/test_members_repository.py`,
+  `test_hdcn_backfill.py`); full `sam/tests` green. NOTE: each backfill run mints fresh
+  `member_id` UUIDs, so it is NOT idempotent across runs — a clean baseline before `--apply`
+  is mandatory (verified at 7 before this run). C.5 backup was the safety net (unused —
+  cleanup was surgical).
+- [x] **C.8 Run the R9.5 normalization verification (read-only)** — PASS 2026-09-23 (exit 0).
+  Every distinct member region ∈ the 10 canonical values. NOTE: **C.11 (resync) had to run
+  FIRST** — see below. The check reads the canonical set SOLELY from the projection
+  `config#scope` (D16: no fallback), so a stale projection makes it read the wrong set.
+  - FIRST attempt FAILED (exit 3): the projection `config#scope` still held a STALE
+    Sept-18 row with the synthetic pilot values `[Noord,Zuid,Oost,West]` (+ retired
+    `all_wildcard: Regio_All`, `multi_valued`) — leftover dev/local data (`onboard-hdcn-local.py`
+    warning in SEQUENCING NOTES). C.3/C.4 authored the REAL 10 regions in MySQL but the
+    projection was never re-synced, so the check compared members against the wrong vocab.
+    This was NOT an illegitimate fallback — the reader faithfully returned a real (stale) row.
+  - FIX = run C.11 resync (below) → re-run C.8 → PASS.
   Exit codes (A.11 / D16 — NO fallback to a hardcoded tenant model): `0` PASS, `2` tenant
-  not onboarded (no scope config), `4` SYSTEM ERROR (`ProjectionUnavailableError` — the
-  projection read failed; investigate, do NOT proceed).
-- [ ] **C.9 [H] Seed / confirm user ROLES** in `user_tenant_roles` (a Tenant_Admin to
-  author scope; member-users with `Members_CRUD` — the `required_for` gate). Roles are
-  INDEPENDENT of scope; a grant without the capability is inert.
-- [ ] **C.10 [H] Author per-user scope grants** (`user_tenant_scope`, or the SPA "Scope
-  bewerken" modal / `PUT /api/tenant-admin/users/<user>/scope/members`). `["*"]` =
-  all-access. Fires `enqueue_sync` → `scopegrant#<email>#region`.
-- [ ] **C.11 If projection looks stale, "Re-sync now"** (`POST /api/tenant-admin/projection/resync`
-  or `ProjectionSync.sync_administration("h-dcn")`).
-- [ ] **C.12 Remove legacy `Regio_*` role rows (optional cleanup)** — cosmetic; s5d no
-  longer decodes them. Separate reviewed data cleanup, not required for function.
+  not onboarded (no scope config), `3` un-normalized member value(s), `4` SYSTEM ERROR
+  (`ProjectionUnavailableError` — projection read failed; investigate, do NOT proceed).
+  ⚠️ **Cross-plane AWS credential gotcha (worse than the C.2 one).** The projection sync +
+  this verify read MySQL (Railway) AND write/read DynamoDB (nonprofit-deploy) in ONE process.
+  `env -u ... AWS_PROFILE=nonprofit-deploy` was NOT enough — botocore still logged "Found
+  credentials in environment variables" and hit the WRONG account (`ResourceNotFoundException`
+  on `governance_projection`), because the `.env`/session leaked personal-account keys into
+  the boto3 default session at import. RELIABLE FIX: export the ROLE's real temp creds into
+  the env (overwrites any leak), no `AWS_PROFILE`:
+  ```bash
+  unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_ENDPOINT_URL_DYNAMODB
+  eval "$(aws configure export-credentials --profile nonprofit-deploy --format env)"; unset AWS_PROFILE
+  ```
+- [x] **C.9 [H] Seed / confirm user ROLES** in `user_tenant_roles` — DONE EARLY (verified
+  2026-09-22 prod): `webmaster@h-dcn.nl` on `h-dcn` has `Tenant_Admin` (id 95),
+  `Members_CRUD` (id 96, the `required_for` gate), `Finance_CRUD` (id 97). Roles are
+  INDEPENDENT of scope; a grant without the capability is inert. (Roles can be done any
+  time before C.10; sequenced early here without issue.)
+  NOTE: a role assigned OUT-OF-BAND (direct SQL, not via the tenant-admin route that calls
+  `role_cache.invalidate_cache`) could read as "not assigned" for up to the 5-min TTL —
+  fixed durably by not caching empty role lookups (`backend/src/auth/role_cache.py`,
+  next Flask deploy). A refresh/re-login clears it meanwhile.
+- [x] **C.10 [H] Author per-user scope grants** — DONE 2026-09-23 (authored via SPA), +
+  projected. Two `user_tenant_scope` rows (MySQL, verified): `webmaster@h-dcn.nl` →
+  `{"region":["*"]}` (all-access), `peter@pgeers.nl` → `{"region":["Utrecht"]}`.
+  ⚠️ **Same projection-lag gotcha as C.11:** authoring in the SPA wrote MySQL + fired
+  `enqueue_sync`, but the `scopegrant#` projection rows did NOT appear (queue not processed
+  outside a running app that drains it). SYMPTOM: both users saw ZERO members — including the
+  `["*"]` user, which ruled out scope-filtering and pointed at the missing projection (NOT a
+  cache: the SAM edge builds a FRESH projection reader per request — `handler/app.py`
+  `_new_projection_reader`, R5 — so there is no stale backend cache). FIX: re-ran the
+  projection sync (export-role-creds technique) → written 3 → both
+  `scopegrant#{webmaster@h-dcn.nl,peter@pgeers.nl}#region` rows now present + verified
+  (`["*"]` / `["Utrecht"]`). Members visible on next fresh request. `["*"]` = all-access.
+- [x] **C.11 Re-sync the projection** — DONE 2026-09-23, run BEFORE C.8 (the projection was
+  stale — see C.8). Ran the production path `get_default_trigger()._resolve_sync().
+  sync_administration("h-dcn")` (same as `POST /api/tenant-admin/projection/resync`). Result:
+  **written 9, deleted 1** — the diff-and-replace overwrote the stale Sept-18 `config#scope`
+  (Noord/Zuid/Oost/West) with the real 10 regions from MySQL `members.scope_dimensions`, and
+  removed the 1 obsolete row. Read MySQL (Railway) + wrote DynamoDB (nonprofit-deploy) in one
+  process — needed the export-role-creds technique (see C.8 gotcha). Re-run C.8 → PASS.
+  NOTE: this ordering (C.11 before C.8) will recur for any tenant onboarded via the offline
+  `seed-hdcn-members-config.py` script rather than the live app — the script authors MySQL +
+  fires `enqueue_sync`, but nothing processes that queue outside the running Flask app, so a
+  manual resync is REQUIRED before the projection reflects the config.
+- [x] **C.12 Remove legacy `Regio_*` role rows (cleanup)** — DONE 2026-09-23. Scope turned
+  out BROADER than just `Regio_*`: found 3 STALE `role#` rows in the prod projection with NO
+  MySQL `user_tenant_roles` source — `webmaster@h-dcn.nl#Regio_All` (the named legacy row),
+  `webmaster@h-scn.nl#Tenant_Admin` (typo `h-scn`), and `member-test@example.com#Members_CRUD`.
+  Deleted via a diff-computed cleanup (projection `role#` rows MINUS the MySQL source set),
+  so the 4 legit rows were untouched — incl. `peter@pgeers.nl#Members_CRUD` (id 98). Verified:
+  projection now has exactly 4 `role#` rows, all MySQL-backed.
+  ROOT CAUSE of the staleness (→ backlog): `ProjectionSync` only reconciles/deletes obsolete
+  `scopegrant#` rows, NEVER `role#`/`module#`/`config#` — so role removals in MySQL never
+  propagate as projection deletions and orphaned `role#` rows accumulate. Logged in
+  `.kiro/specs/myBacklog/backlog.md`. ⚠️ Relevant to PHASE CE: a stale `role#` could inflate
+  the resolved entitlement once the PreTokenGen trigger is live — worth fixing before/with CE.2.
 
 ===================================================================
-## PHASE D — Verify end-to-end in prod (h-dcn)
+## PHASE CE — CAPABILITY CHANNEL (blocks PHASE D) — the s5c Phase 7 tasks never run
 ===================================================================
+> **WHY THIS EXISTS (RCA 2026-09-23).** After C.1–C.11 the member DATA + SCOPE are correct
+> in prod, but BOTH users (`webmaster@h-dcn.nl` `["*"]`, `peter@pgeers.nl` `["Utrecht"]`)
+> get **403 / "Geen leden gevonden"**. Direct `GET /prod/members` with a real Pool A token
+> returns `{"error":"Forbidden"}`. ROOT CAUSE: the SAM edge authorizes in two independent
+> steps — (1) CAPABILITY via `has_capability()` reading the token's `custom:entitlements`
+> claim, then (2) SCOPE via the projected `scopegrant#`. Capability runs FIRST and FAILS:
+> the Pool A token carries NO members entitlement, because the **Pre-Token-Generation (PTG)
+> trigger is NOT attached to prod Pool A** (`eu-west-1_Hdp40eWmu`). The entitlement machinery
+> (resolver/codec/Lambda/readers) is BUILT + tested (S4), and the trigger is LIVE on the
+> **test** pool (`eu-west-1_xyrlzfqbl`, s5c Phase 5 done) — but the prod attach was deferred:
+> S4 **T18** → S5 **Step 7** → **s5c task 7.5**, and s5c **Phase 7 was never executed**.
+> The old fake path (`Members_CRUD` Cognito group + local-dev fallback) was deliberately
+> REMOVED (s5c R6.4, 2026-09-19), so the honest result today is a 403. These are the s5c
+> Phase-7 must-do tasks, re-homed here because s5d's rollout depends on them.
+> Guardrails (steering 23): identity-account = `personal` 344561557829 (Pool A lives here);
+> data-account = `nonprofit-deploy` 506221081911 (PTG Lambda + projection live here); the
+> invoke crosses accounts, the data read does not. Test-pool-first, gated, detach-to-rollback.
+
+- [x] **CE.1 [PREREQ] Verify the projection lets PTG resolve a NON-EMPTY entitlement** —
+  DONE + VERIFIED 2026-09-23: **NO-OP, projection already sufficient (no widening needed).**
+  Ran the EXACT PTG chain (`sam/pretokengen/handler.py`) against real prod data for
+  `webmaster@h-dcn.nl` with `custom:tenants=["mytest3","h-dcn"]`:
+  `ProjectionGovernanceReader.get_user_roles_by_tenant` → h-dcn `[Finance_CRUD, Members_CRUD,
+  Tenant_Admin]`; `get_active_modules_by_tenant` → h-dcn `[FIN, MEMBERS, TENADMIN]`;
+  `resolve_entitlement(...)` → h-dcn entitlement INCLUDES `members:admin/export/read/write`;
+  `encode_entitlements(...)` → a valid `custom:entitlements` claim carrying them. So the
+  roadmap's "widen the projection for ordinary Pool A tenants" caveat is ALREADY satisfied for
+  h-dcn — the `module#MEMBERS` + `role#…#Members_CRUD` rows resolve a full members entitlement.
+  ⇒ The ONLY things between now and members-visible are CE.2 (attach trigger) + CE.3 (SPA URL).
+  Read-only; no prod change.
+> **BLAST-RADIUS ASSESSMENT (RCA 2026-09-23, corroborated by code + tests).** Attaching the
+> PTG trigger to Pool A is SAFE-BY-DESIGN for existing **FIN/ZZP/STR** (Flask-plane) users,
+> with ONE genuine risk to gate on. Evidence:
+> - **Additive** — `_stamp_claim_v2` writes ONLY `custom:entitlements`, never touches
+>   `cognito:groups`/`custom:tenants` (test `test_existing_claims_are_untouched`).
+> - **Flask ignores the claim** — `cognito_utils` authorizes from `cognito:groups` + MySQL
+>   `role_cache`; nothing on the FIN/ZZP/STR path reads `custom:entitlements` (the optional
+>   `entitlement_reader` is adopted by NO route and is itself fail-safe). So the new claim is
+>   invisible/harmless to them.
+> - **Size-bounded** — codec caps at 3 KiB, emits an overflow SIGNAL (never truncates); a
+>   FIN/ZZP/STR token is a few hundred bytes → no oversized-token login break.
+> - **Runtime fail-safe** — a projection/resolver/codec failure at issuance OMITS the claim
+>   and returns a valid event → login still succeeds (fail-safe tests).
+> - **Detach-reversible** — removing the trigger restores the exact prior token shape (s5c 5.6).
+> - **THE ONE RISK:** the fail-FAST path — if the Lambda is MISCONFIGURED (missing/blank
+>   `GOVERNANCE_PROJECTION_TABLE`/`AWS_REGION`, or wrong cross-account wiring so the projection
+>   table can't resolve), it raises `DynamoDBConfigError`, which PROPAGATES → Cognito fails
+>   token issuance for **EVERY Pool A login (FIN/ZZP/STR included)**. This is a deploy-time
+>   misconfig, fully preventable by the CE.3 pre-attach smoke test below.
+
+- [ ] **CE.2 Deploy the frontend Members-API-URL fix (independent, do EARLY, low risk).** The
+  GitHub Pages build had NO `VITE_MEMBERS_API_BASE_URL`, so the deployed SPA fell back to the
+  committed dev default `http://127.0.0.1:3000` (confirmed baked into
+  `frontend/build/assets/MembersPage-*.js`) → member requests hit localhost → "Geen leden
+  gevonden" regardless of auth. FIX (in working tree): added
+  `VITE_MEMBERS_API_BASE_URL=https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod`
+  (the `sam-members` stack `MembersApiBaseUrl` output) to `.github/workflows/deploy-frontend.yml`.
+  DO: commit + merge to `main` → Pages redeploys → confirm the new bundle contains the
+  execute-api URL (not 127.0.0.1). Independent of the trigger work; safe to land first. (After
+  this, the SPA will still show 0 members until CE.4 — capability — but for the RIGHT reason.)
+- [ ] **CE.3 [PRE-ATTACH SMOKE — de-risks CE.5, no Pool A change] Invoke the DEPLOYED prod PTG
+  Lambda once and confirm it returns a VALID event WITHOUT raising.** This is the single check
+  that neutralizes the one genuine risk (the fail-fast config path): if the Lambda's projection
+  env (`GOVERNANCE_PROJECTION_TABLE`/`AWS_REGION`) + cross-account/data-account resolution are
+  correct, this invocation stamps the claim (or fail-safe-omits it) and does NOT raise
+  `DynamoDBConfigError`. Use a representative Cognito V2 event for `webmaster@h-dcn.nl`
+  (`custom:tenants=["mytest3","h-dcn"]`) via `aws lambda invoke` against the data-account Lambda
+  (`nonprofit-deploy`, export-role-creds env). PASS = valid event returned, `custom:entitlements`
+  present with `members:*` (matches CE.1's resolver probe). If it RAISES → FIX the Lambda config
+  BEFORE any attach; do NOT proceed to CE.5. Read-only wrt Pool A.
+- [ ] **CE.4 [H] Confirm the detach/rollback procedure is ready (rehearse the mechanics).** Have
+  the exact `aws cognito-idp update-user-pool --user-pool-id eu-west-1_Hdp40eWmu
+  --lambda-config {}` (or equivalent detach) command staged + the current `LambdaConfig`
+  captured, so rollback is one command. s5c 5.6 already proved detach restores prior behaviour on
+  the test pool. This is the instant rollback for CE.5. (Rehearse in a safe window.)
+- [ ] **CE.5 [H][!] Attach the PTG trigger to PROD Pool A** (`eu-west-1_Hdp40eWmu`) +
+  cross-account `aws_lambda_permission` (identity acct `personal` 344561557829 → data-acct
+  `nonprofit-deploy` 506221081911 Lambda) (s5c task 7.5 / R1.4). **HIGHEST BLAST RADIUS: changes
+  token issuance for EVERY Pool A user.** PRECONDITIONS (all must hold): CE.3 smoke PASSED,
+  CE.4 detach staged, done in a safe/low-traffic window. Human-gated — DO NOT attach without
+  explicit sign-off. After attach a NEW login is required for the claim to appear.
+- [ ] **CE.6 [H] IMMEDIATELY post-attach: confirm existing users are NOT frustrated.** A
+  FIN/ZZP/STR user (and any non-Members Pool A user) can still LOG IN and use their app exactly
+  as before (the claim is additive + Flask ignores it). If ANY login breaks → DETACH via CE.4
+  at once (that is the fail-fast-config symptom; CE.3 should have caught it). This is the
+  regression gate for the existing product.
+- [ ] **CE.7 [H] Verify the members capability end-to-end in prod** (s5c 7.6): a FRESH login as
+  `webmaster@h-dcn.nl` yields a token whose `custom:entitlements` carries `members:*` for h-dcn
+  (decode it), and `GET /prod/members` returns members with ZERO `cognito:groups` reliance.
+  THEN Phase D can run.
+- [ ] **CE.8 Confirm the reconciliation backstop** is scheduled/runnable in prod (s5c 7.7).
+- [ ] **CE.9 (recommended before/with CE.5) Fix the `role#`/`module#` projection reconcile gap**
+  so stale governance rows can't inflate a resolved entitlement once the trigger is live — see
+  `.kiro/specs/myBacklog/backlog.md` ("Projection sync does not reconcile obsolete role#…").
+  C.12 cleaned the current stale rows manually; this closes the recurring hole.
+
+===================================================================
+## PHASE D — Verify end-to-end in prod (h-dcn)  [BLOCKED until PHASE CE done]
+===================================================================
+> **BLOCKED:** D.1/D.3 (users see members) CANNOT pass until PHASE CE lands the SPA API-URL
+> fix (CE.2) AND attaches the Pool A PTG trigger (CE.5), verified by CE.7. D.2/D.4 are already
+> confirmable at the data layer (scopegrant rows present; roles/scope are separate tables).
 - [ ] **D.1** As a Tenant-Admin: set a test member-user to `region:["Oost"]` → the
   member list shows only Oost members; `["*"]` shows all; clearing shows none.
 - [ ] **D.2** Confirm the projected `scopegrant#…#region` row matches the grant.
@@ -312,9 +531,26 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   both are the hard-to-reverse steps.
 - **UI base URLs:** the SPA must point at the deployed Members API (B.4) and Flask API;
   a wrong/empty base is exactly what makes the member list look empty regardless of scope.
-- **The "webmaster sees no members" dev symptom is a frontend/edge wiring issue, not
-  data or scope** — verified: the backend returns members for a `["*"]` grant. Chase it
-  in the deployed SPA→API path if it recurs, not in the scope logic.
+  See PHASE CE.3 — the deployed SPA was baked with the localhost fallback.
+- **"Members sees no members" has THREE independent causes — check all three (RCA
+  2026-09-23):** (1) CAPABILITY — the Pool A token carries no `custom:entitlements` because
+  the PTG trigger isn't attached to prod Pool A (PHASE CE.1/CE.2); this 403s at the SAM edge
+  BEFORE scope is evaluated. (2) SPA API URL — deployed SPA baked with `127.0.0.1:3000`
+  (PHASE CE.3). (3) SCOPE projection — `scopegrant#` rows missing until a resync (fixed in
+  C.10/C.11). A `["*"]` user seeing nothing rules OUT scope-filtering and points at (1) or
+  (2). The earlier "just a frontend issue" note was INCOMPLETE — capability (1) is the
+  primary blocker. NOTE: the SAM edge does NOT cache (fresh projection reader per request,
+  `handler/app.py` R5) — so it is never a backend cache; suspect token/SPA-URL/projection.
+- **Projection lag after offline authoring:** any MySQL governance/scope/config write made
+  by an OFFLINE script (or SPA action whose `enqueue_sync` queue isn't drained by a running
+  app) needs a MANUAL projection resync before the projection reflects it (the C.11
+  technique: `get_default_trigger()._resolve_sync().sync_administration("h-dcn")` with the
+  export-role-creds env). Bit us on C.8 (config) AND C.10 (scope grants).
+- **AWS credential resolution for cross-plane scripts:** `.env` static keys beat
+  `AWS_PROFILE` in boto3, so `AWS_PROFILE=nonprofit-deploy` alone silently hits the WRONG
+  account. Use `eval "$(aws configure export-credentials --profile nonprofit-deploy --format
+  env)"` + `unset AWS_PROFILE` (+ strip `AWS_ENDPOINT_URL_DYNAMODB`). See steering
+  `41-shell-environment.md`.
 
 ## CONFIRMED INPUTS (resolved 2026-09-22)
 

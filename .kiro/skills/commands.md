@@ -83,14 +83,24 @@ Railway backend: `https://<RAILWAY_APP>.up.railway.app`
 
 > For Railway MySQL connection details, use `#database` skill.
 
-### PowerShell scripts (Windows terminal only)
+### Railway operations (bash / WSL)
 
-The `backend/powershell/` directory contains convenience scripts for Railway operations.
-These must be run from a Windows PowerShell terminal, not from WSL:
+Use `backend/scripts/railway-db.sh` — it maps the `RAILWAY_DB_*` keys from `.env`
+onto `DB_*` for one command, so local Docker config is untouched. See the
+`#database` skill for full details.
 
-- `railway-sql.ps1` — Run SQL queries against Railway MySQL
-- `railway-run.ps1` — Run Python scripts against Railway MySQL
-- `connect-railway-backend.ps1` — Local frontend pointing at Railway backend
+```bash
+# Run a Python script/command against Railway:
+PYTHONPATH=backend/src backend/scripts/railway-db.sh python backend/scripts/verify_schema.py
+
+# Run raw SQL (query or .sql file):
+backend/scripts/railway-db.sh -q "SELECT COUNT(*) FROM mutaties"
+backend/scripts/railway-db.sh -f backend/sql/migration.sql
+```
+
+> Replaced the retired `railway-sql.ps1` / `railway-run.ps1` (project migrated
+> off Windows PowerShell to Linux/WSL). `connect-railway-backend.ps1` (local
+> frontend → Railway backend API) is the last remaining PowerShell helper.
 
 ## Environment Configuration
 

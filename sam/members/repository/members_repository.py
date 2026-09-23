@@ -523,7 +523,7 @@ class DynamoDbMembersRepository:
         membership_id = membership.get("membership_id")
         if not membership_id:
             raise ValueError("membership must carry a non-empty 'membership_id'")
-        item = dict(membership)
+        item = td.floats_to_decimal(dict(membership))  # DynamoDB-safe numbers
         item[td.PARTITION_KEY_ATTR] = tenant_id
         item[td.SORT_KEY_ATTR] = td.membership_sk(member_id, membership_id)
         item.setdefault("member_id", member_id)
@@ -546,11 +546,11 @@ class DynamoDbMembersRepository:
         """Replace the member's delegate set (stored as a single item under the member)."""
         self._require_tenant(tenant_id)
         stored = list(delegates)
-        item = {
+        item = td.floats_to_decimal({
             **td.build_key(tenant_id, td.delegates_sk(member_id)),
             "member_id": member_id,
             "delegates": stored,
-        }
+        })
         self.table.put_item(Item=item)
         return stored
 
