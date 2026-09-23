@@ -396,10 +396,13 @@ class AuthorizationError(Exception):
 class TenantResolutionError(AuthorizationError):
     """Raised when tenant context cannot be established from the verified token (→ 403).
 
-    The tenant is derived from the verified entitlement's ``tenant_keys`` (verify-before-
-    trust) — never a client header/body. If the token does not answer (absent / unknown /
-    malformed / overflow claim, or it lists no single usable tenant), there is no tenant to
-    operate under, so the module denies by default (Property 3 fail-safe).
+    The active tenant is the ``X-Tenant`` selection VALIDATED against the verified
+    entitlement's ``tenant_keys`` (s5f) — the header selects among verified tenants, it never
+    grants one. Raised when no valid active tenant can be established: the token does not
+    answer (absent / unknown / malformed / overflow claim, or empty entitlement), OR the
+    selected tenant is not in ``tenant_keys``, OR no tenant was selected and the caller has
+    more than one (ambiguous). The module denies by default (Property 3 fail-safe); it never
+    guesses a tenant and never trusts an unverified one.
     """
 
     def __init__(self, message: str = "No tenant context"):
@@ -455,37 +458,94 @@ class RequestContext:
     scope_dimension_key: Optional[str] = None
 
 
-def _establish_tenant_context(entitlement: DecodedEntitlements) -> str:
-    """Derive the request's ``tenant_id`` from the **verified** entitlement (R6.1).
+def _requested_tenant_from_request(request: ParsedRequest) -> Optional[str]:
+    """The client's SELECTED active tenant from the ``X-Tenant`` header, or ``None`` (s5f).
 
-    Verify-before-trust: the tenant comes from the verified token's entitlement claim
-    (``tenant_keys``), NEVER from a client-supplied header or body. For the pilot the
-    entitlement answers for a single tenant, so exactly one usable ``tenant_key`` resolves
-    the context.
+    A per-request SELECTOR, never an authorization: the returned value is validated against
+    the verified entitlement's ``tenant_keys`` by :func:`_establish_tenant_context` before it
+    is trusted (it can only ever *pick among* tenants the verified token already carries,
+    never introduce a new one — Property 2).
 
-    Fail-safe (Property 3): if the token does not answer — the claim requires fallback, is
-    an overflow signal, or lists no tenant (an empty projection → empty entitlement is a
-    valid *handled* outcome, not a crash) — there is no tenant to operate under and the
-    edge denies by default via :class:`TenantResolutionError`. It never guesses a tenant
-    and never falls back to a hardcoded one (no ``h-dcn`` default).
+    Case-insensitive on the header NAME (API Gateway REST v1 preserves the client casing
+    ``X-Tenant``; HTTP API v2 lowercases to ``x-tenant``), mirroring
+    :func:`sam.shared.auth_utils._bearer_token_from_event`. The header VALUE is returned
+    verbatim (tenant ids are case-sensitive); an empty/whitespace value reads as ``None``
+    ("no selection") so a blank header cannot masquerade as a choice.
+    """
+    headers = request.headers or {}
+    for name, value in headers.items():
+        if isinstance(name, str) and name.lower() == "x-tenant":
+            if isinstance(value, list):
+                value = value[0] if value else None
+            if isinstance(value, str):
+                v = value.strip()
+                return v or None
+    return None
+
+
+def _establish_tenant_context(
+    entitlement: DecodedEntitlements, requested_tenant: Optional[str]
+) -> str:
+    """Resolve the request's ACTIVE ``tenant_id`` (s5f — verify-before-trust + selection).
+
+    The active tenant is a PER-REQUEST selection: the client sends the chosen tenant via the
+    ``X-Tenant`` header (already extracted into ``requested_tenant`` by
+    :func:`_requested_tenant_from_request`), and the edge VALIDATES that selection against the
+    verified entitlement's ``tenant_keys``. The header SELECTS among the caller's verified
+    tenants; it NEVER grants one — a selected tenant absent from ``tenant_keys`` is denied, so
+    no unverified tenant is ever operated under (Property 2). A single-tenant user is the
+    degenerate case: one entitled tenant, no ambiguity.
+
+    ``tenant_keys`` is the tenants the user has MEMBER-module capabilities for (from
+    ``custom:entitlements``) — a capability-scoped set, NOT the broad ``custom:tenants``. So a
+    tenant the user can log into but which grants no members capability (e.g. no MEMBERS
+    module) is simply not in ``tenant_keys`` and is correctly denied here: the active tenant
+    bounds capability.
+
+    Resolution order:
+    1. Non-answering token (``fallback_required`` / ``is_overflow``) → deny (fail-safe,
+       Property 3) — the header cannot rescue a token that carries no usable entitlement.
+    2. Empty ``tenant_keys`` (a valid, handled empty entitlement) → deny (no verified tenant
+       to select from).
+    3. ``requested_tenant`` present → return it IFF it is in ``tenant_keys``, else deny
+       (the selector must name a verified tenant).
+    4. No selector + exactly one entitled tenant → that tenant (single-tenant back-compat).
+    5. No selector + multiple entitled tenants → deny (ambiguous; picking one could expose
+       the wrong tenant's members). NEVER default-to-first.
+
+    NO hardcoded/default tenant, NO env fallback (no ``h-dcn`` default, no
+    ``MEMBERS_LOCAL_TENANT_ID``): the active tenant derives ONLY from the validated selector
+    or the single-tenant degenerate case.
 
     Raises:
-        TenantResolutionError: The verified token carries no single usable tenant.
+        TenantResolutionError: No valid active tenant could be established (all deny paths
+            → 403 in :func:`handler`).
     """
+    # (1) The token does not carry a usable per-user answer → deny by default (Property 3).
     if entitlement.fallback_required or entitlement.is_overflow:
-        # The token does not carry a usable per-user answer; consult-fallback/deny is the
-        # policy. This module denies by default (Property 3) rather than guess a tenant.
         raise TenantResolutionError("Token does not carry a usable tenant entitlement")
 
     tenant_keys = entitlement.tenant_keys
+    # (2) Empty entitlement (valid, handled) → no verified tenant to select from.
+    if not tenant_keys:
+        raise TenantResolutionError("Verified entitlement lists no tenant")
+
+    # (3) A selection MUST be a verified tenant — the header selects, never grants. This is
+    #     also the "active tenant grants no members capability" deny (the selected tenant is
+    #     not in the capability-scoped tenant_keys).
+    if requested_tenant:
+        if requested_tenant in tenant_keys:
+            return requested_tenant
+        raise TenantResolutionError(
+            "Selected tenant is not in the verified entitlement"
+        )
+
+    # (4) No selector, single entitled tenant → that tenant (back-compat, no ambiguity).
     if len(tenant_keys) == 1:
         return tenant_keys[0]
 
-    # Zero tenants (empty entitlement — valid, handled) or, for the pilot, an ambiguous
-    # multi-tenant token with no selector: deny by default rather than pick one.
-    raise TenantResolutionError(
-        "Verified entitlement does not resolve a single tenant context"
-    )
+    # (5) No selector, multiple entitled tenants → ambiguous; deny rather than guess (OD1).
+    raise TenantResolutionError("No tenant selected; specify X-Tenant")
 
 
 def _gating_dimension_key(
@@ -658,8 +718,11 @@ def _authenticate_and_authorize(
        :class:`InvalidTokenError` (401); a JWKS outage raises
        :class:`ServiceUnavailableError` (503). No unverified header is ever read (Property
        2).
-    2. **Tenant context (verify-before-trust):** derive ``tenant_id`` from the verified
-       entitlement's ``tenant_keys`` (:func:`_establish_tenant_context`). No tenant → 403.
+    2. **Active tenant (verify-before-trust + selection, s5f):** the ``X-Tenant`` header
+       SELECTS among the caller's verified tenants and is validated against the entitlement's
+       ``tenant_keys`` (:func:`_establish_tenant_context`) — the header never GRANTS a tenant.
+       A selected tenant not in ``tenant_keys`` → 403; a single-tenant user with no header →
+       their one tenant; multiple with no header → 403 (no guess). No tenant → 403.
     3. **Authorize (``has_capability`` + scope):** if the route declares a ``capability``,
        ``has_capability`` must return ``True`` (a token-backed grant). ``False`` (token-
        backed denial) and ``None`` (token does not answer → module policy = deny) both
@@ -682,13 +745,15 @@ def _authenticate_and_authorize(
     groups = get_groups(claims)
     sub = claims.get("sub")
 
-    # (2) Tenant context — SOLELY from the verified entitlement (verify-before-trust). 403 if
-    #     the token carries no single usable tenant (fail-safe, Property 3). There is NO
-    #     tenant fallback: no MEMBERS_LOCAL_TENANT_ID substitution, no hardcoded/default tenant
-    #     (R6.2, C-UNWIND). A no-entitlement token denies honestly here — the correct
-    #     pre-wiring state until the PreTokenGen channel is switched on (Phase 5).
+    # (2) Active tenant — per-request SELECTION validated against the verified entitlement
+    #     (s5f). The X-Tenant header SELECTS among the caller's verified tenants; it never
+    #     GRANTS one (a selected tenant not in tenant_keys → 403). A single-tenant user with
+    #     no header resolves to their one tenant (back-compat); multiple with no header → 403.
+    #     Still NO tenant fallback: no MEMBERS_LOCAL_TENANT_ID, no hardcoded/default tenant
+    #     (R6.2, C-UNWIND). A no-entitlement token denies honestly regardless of the header.
     entitlement = get_entitlements_from_claims(claims)
-    tenant_id = _establish_tenant_context(entitlement)
+    requested_tenant = _requested_tenant_from_request(request)
+    tenant_id = _establish_tenant_context(entitlement, requested_tenant)
 
     # One per-request projection reader shared by the scope-config and scope-grant reads and
     # the gating-dimension lookup, so the tenant partition is Queried at most once per
