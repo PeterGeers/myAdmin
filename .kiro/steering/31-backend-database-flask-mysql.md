@@ -48,6 +48,12 @@ Catch `DatabaseError` (base), `IntegrityError`, `ConnectionError`, `OperationalE
 
 Full spec: #[[file:.kiro/specs/database-abstraction-layer/design.md]]
 
+**Connecting to a DB** (local Docker vs Railway, credentials, the
+`backend/scripts/railway-db.sh` wrapper) is operational, not a coding rule — it
+lives in the **`#database` skill** (`.kiro/skills/database.md`), pointed to from
+`41-shell-environment.md`. Load that skill before running migrations or querying
+real data.
+
 ## Migrations
 
 - Migration JSON files live in `backend/src/migrations/` and are applied by `DatabaseMigration.run_all_migrations()`

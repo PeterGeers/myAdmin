@@ -60,6 +60,11 @@ jobs:
           VITE_DOCS_URL: ${{ secrets.VITE_DOCS_URL }}
           VITE_CLOUDFRONT_DOMAIN: d3afn46os9e9nc.cloudfront.net
           VITE_CLOUDFRONT_PUBLIC_PAGES_URL: https://d3afn46os9e9nc.cloudfront.net
+          # Members module SAM API (sam-members stack output MembersApiBaseUrl).
+          # Non-secret, stable stack URL (like the CloudFront URLs above). Without
+          # this the build falls back to the committed dev default 127.0.0.1:3000,
+          # so the deployed SPA silently hits localhost → "Geen leden gevonden".
+          VITE_MEMBERS_API_BASE_URL: https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod
 
       - name: Build documentation (MkDocs)
         working-directory: docs

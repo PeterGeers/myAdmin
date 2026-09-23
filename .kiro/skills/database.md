@@ -6,17 +6,41 @@ inclusion: auto
 
 On-demand context for Railway DB connections, migrations, and common database tasks.
 
+> **DynamoDB (SAM plane) note:** this skill covers the Flask/MySQL (Railway) plane. For
+> the module plane's DynamoDB tables (`sam-members`, `governance_projection` in the
+> `nonprofit-deploy` account), beware: the repo-root `.env` static AWS keys override
+> `AWS_PROFILE` and point you at the WRONG account (a silent `ResourceNotFoundException`).
+> The strip-and-verify invocation is documented in `41-shell-environment.md`
+> (§"`.env` credentials override `AWS_PROFILE`").
+
 ## Railway MySQL Connection
 
 ```
-Host:     <RAILWAY_DB_HOST>
+Host:     <RAILWAY_DB_HOST>   (public TCP proxy, e.g. *.proxy.rlwy.net)
 Port:     <RAILWAY_DB_PORT>
 User:     <RAILWAY_DB_USER>
-Password: <from `railway variables` → DB_PASSWORD on backend service>
-Database: railway (then `USE finance` — data lives in the `finance` schema)
+Password: <RAILWAY_DB_PASSWORD>
+Database: finance  (data lives in the `finance` schema; Railway's default
+                    `railway` DB is empty)
 ```
 
-> Real values are stored in `.env` (gitignored) or Railway service variables — never commit them here.
+> Real values live in the repo-root `.env` (gitignored) under `RAILWAY_DB_*`
+> keys, or in Railway service variables — never commit them here.
+
+### Wrapper: run a command against Railway (recommended)
+
+`backend/scripts/railway-db.sh` reads the `RAILWAY_DB_*` keys from `.env` and
+maps them onto `DB_*` for a **single** command, so your local Docker `DB_*`
+config is never disturbed:
+
+```bash
+# from repo root, venv active
+PYTHONPATH=backend/src backend/scripts/railway-db.sh python backend/scripts/verify_schema.py
+PYTHONPATH=backend/src backend/scripts/railway-db.sh python -c "from database import DatabaseManager; print(DatabaseManager().execute_query('SELECT COUNT(*) c FROM mutaties', None, fetch=True))"
+```
+
+Targets production `finance` by default. For test data pass `TEST_MODE=true`
+(uses `testfinance`) or `RAILWAY_DB_NAME=testfinance`.
 
 ### Connect via bash (WSL)
 
@@ -33,13 +57,12 @@ mysql -h <RAILWAY_DB_HOST> -P <RAILWAY_DB_PORT> -u <RAILWAY_DB_USER> -p railway 
 
 ### Python script against Railway
 
+Prefer the wrapper (above) — it pulls the `RAILWAY_DB_*` values from `.env` and
+isolates them to one command:
+
 ```bash
-export DB_HOST='<RAILWAY_DB_HOST>'
-export DB_PORT='<RAILWAY_DB_PORT>'
-export DB_USER='<RAILWAY_DB_USER>'
-export DB_PASSWORD='<password>'
-export DB_NAME='railway'
-cd backend && source .venv/bin/activate && python your_script.py
+cd /home/peter/projects/myAdmin && source backend/.venv/bin/activate
+PYTHONPATH=backend/src backend/scripts/railway-db.sh python your_script.py
 ```
 
 ## Migration System
@@ -102,7 +125,9 @@ docker-compose exec mysql mysql -u <LOCAL_DB_USER> -p
 | DB_HOST | 127.0.0.1 | <RAILWAY_DB_HOST> |
 | DB_PORT | 3306 | <RAILWAY_DB_PORT> |
 | DB_USER | <LOCAL_DB_USER> | <RAILWAY_DB_USER> |
-| DB_NAME | finance | railway |
+| DB_NAME | finance | finance |
 | TEST_MODE | true/false | true/false |
 
-`TEST_MODE=true` uses `testfinance` database, `false` uses `finance`.
+`TEST_MODE=true` uses `testfinance` database, `false` uses `finance`. (Railway
+provisions a default empty `railway` database — the app's data lives in
+`finance`, so `DB_NAME=finance` in both environments.)

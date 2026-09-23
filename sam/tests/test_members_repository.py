@@ -620,3 +620,64 @@ class TestMembershipTypeCatalog:
         repo.save_member("h-dcn", _member("M-1", "1001"))
         repo.save_membership_type("h-dcn", _mtype("erelid"))
         assert [m["member_id"] for m in repo.list_members("h-dcn")] == ["M-1"]
+
+
+# ---------------------------------------------------------------------------
+# float → Decimal coercion on write (DynamoDB rejects Python float)
+# ---------------------------------------------------------------------------
+
+
+class TestFloatToDecimalCoercion:
+    """DynamoDB refuses Python ``float`` — writes must carry ``Decimal``.
+
+    Regression cover for the h-dcn backfill: source rows carry a JSON float fee
+    (``overlay.Bedrag = 22.6``) that reached ``transact_write_items`` untouched and raised
+    "Float types are not supported. Use Decimal types instead." The item builders now coerce
+    every nested float to ``Decimal`` (via ``td.floats_to_decimal``) so no write path can hand
+    boto3 a float.
+    """
+
+    def test_floats_to_decimal_coerces_nested_floats(self):
+        from decimal import Decimal
+
+        out = td.floats_to_decimal(
+            {
+                "membership": {"member_number": "M00001"},
+                "overlay": {"Bedrag": 22.6, "list": [1.5, {"deep": 3.25}]},
+                "count": 7,          # int stays int
+                "flag": True,        # bool stays bool (never numeric-coerced)
+                "name": "Alex",      # str untouched
+            }
+        )
+        assert out["overlay"]["Bedrag"] == Decimal("22.6")
+        assert isinstance(out["overlay"]["Bedrag"], Decimal)
+        # 22.6 must round-trip cleanly (Decimal(str(f)), not Decimal(f)).
+        assert str(out["overlay"]["Bedrag"]) == "22.6"
+        assert out["overlay"]["list"][0] == Decimal("1.5")
+        assert out["overlay"]["list"][1]["deep"] == Decimal("3.25")
+        assert out["count"] == 7 and isinstance(out["count"], int)
+        assert out["flag"] is True and isinstance(out["flag"], bool)
+        assert out["name"] == "Alex"
+
+    def test_save_member_stores_overlay_float_as_decimal(self, repo):
+        from decimal import Decimal
+
+        member = _member("M-1", "1001")
+        member["overlay"] = {"Bedrag": 22.6}  # the exact backfill scenario
+        # Must not raise (previously: "Float types are not supported").
+        repo.save_member("h-dcn", member)
+
+        got = repo.get_member("h-dcn", "M-1")
+        assert got["overlay"]["Bedrag"] == Decimal("22.6")
+        assert isinstance(got["overlay"]["Bedrag"], Decimal)
+
+    def test_save_membership_type_coerces_float(self, repo):
+        from decimal import Decimal
+
+        entry = _mtype("gewoon_lid")
+        saved = repo.save_membership_type("h-dcn", entry)
+        assert saved is not None
+        # Build the item directly to assert the stored shape carries Decimal, not float.
+        item = td.build_membership_type_item("h-dcn", "gewoon_lid", {"fee": 12.5})
+        assert item["fee"] == Decimal("12.5")
+        assert isinstance(item["fee"], Decimal)
