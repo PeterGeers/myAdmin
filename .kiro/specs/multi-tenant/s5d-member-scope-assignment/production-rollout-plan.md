@@ -448,7 +448,13 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
 >   token issuance for **EVERY Pool A login (FIN/ZZP/STR included)**. This is a deploy-time
 >   misconfig, fully preventable by the CE.3 pre-attach smoke test below.
 
-- [ ] **CE.2 Deploy the frontend Members-API-URL fix (independent, do EARLY, low risk).** The
+- [x] **CE.2 Deploy the frontend Members-API-URL fix** — DONE 2026-09-23. PR #16 merged to
+  `main` (merge `6e03681`); frontend Pages + Flask/Railway + SAM deploys all SUCCEEDED.
+  VERIFIED on the live Pages bundle: `MembersPage-CcNJ61oy.js` now contains ONLY
+  `https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod` (the `127.0.0.1:3000` fallback
+  is gone). SPA now targets the real Members API. (Members still 0 until CE.5 — capability —
+  but now for the RIGHT reason: a 403 at the edge, not a localhost miss.) Original note:
+  Deploy the frontend Members-API-URL fix (independent, do EARLY, low risk). The
   GitHub Pages build had NO `VITE_MEMBERS_API_BASE_URL`, so the deployed SPA fell back to the
   committed dev default `http://127.0.0.1:3000` (confirmed baked into
   `frontend/build/assets/MembersPage-*.js`) → member requests hit localhost → "Geen leden
@@ -458,36 +464,84 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   DO: commit + merge to `main` → Pages redeploys → confirm the new bundle contains the
   execute-api URL (not 127.0.0.1). Independent of the trigger work; safe to land first. (After
   this, the SPA will still show 0 members until CE.4 — capability — but for the RIGHT reason.)
-- [ ] **CE.3 [PRE-ATTACH SMOKE — de-risks CE.5, no Pool A change] Invoke the DEPLOYED prod PTG
-  Lambda once and confirm it returns a VALID event WITHOUT raising.** This is the single check
-  that neutralizes the one genuine risk (the fail-fast config path): if the Lambda's projection
-  env (`GOVERNANCE_PROJECTION_TABLE`/`AWS_REGION`) + cross-account/data-account resolution are
-  correct, this invocation stamps the claim (or fail-safe-omits it) and does NOT raise
-  `DynamoDBConfigError`. Use a representative Cognito V2 event for `webmaster@h-dcn.nl`
-  (`custom:tenants=["mytest3","h-dcn"]`) via `aws lambda invoke` against the data-account Lambda
-  (`nonprofit-deploy`, export-role-creds env). PASS = valid event returned, `custom:entitlements`
-  present with `members:*` (matches CE.1's resolver probe). If it RAISES → FIX the Lambda config
-  BEFORE any attach; do NOT proceed to CE.5. Read-only wrt Pool A.
-- [ ] **CE.4 [H] Confirm the detach/rollback procedure is ready (rehearse the mechanics).** Have
-  the exact `aws cognito-idp update-user-pool --user-pool-id eu-west-1_Hdp40eWmu
-  --lambda-config {}` (or equivalent detach) command staged + the current `LambdaConfig`
-  captured, so rollback is one command. s5c 5.6 already proved detach restores prior behaviour on
-  the test pool. This is the instant rollback for CE.5. (Rehearse in a safe window.)
-- [ ] **CE.5 [H][!] Attach the PTG trigger to PROD Pool A** (`eu-west-1_Hdp40eWmu`) +
-  cross-account `aws_lambda_permission` (identity acct `personal` 344561557829 → data-acct
-  `nonprofit-deploy` 506221081911 Lambda) (s5c task 7.5 / R1.4). **HIGHEST BLAST RADIUS: changes
-  token issuance for EVERY Pool A user.** PRECONDITIONS (all must hold): CE.3 smoke PASSED,
-  CE.4 detach staged, done in a safe/low-traffic window. Human-gated — DO NOT attach without
-  explicit sign-off. After attach a NEW login is required for the claim to appear.
-- [ ] **CE.6 [H] IMMEDIATELY post-attach: confirm existing users are NOT frustrated.** A
-  FIN/ZZP/STR user (and any non-Members Pool A user) can still LOG IN and use their app exactly
-  as before (the claim is additive + Flask ignores it). If ANY login breaks → DETACH via CE.4
-  at once (that is the fail-fast-config symptom; CE.3 should have caught it). This is the
-  regression gate for the existing product.
-- [ ] **CE.7 [H] Verify the members capability end-to-end in prod** (s5c 7.6): a FRESH login as
-  `webmaster@h-dcn.nl` yields a token whose `custom:entitlements` carries `members:*` for h-dcn
-  (decode it), and `GET /prod/members` returns members with ZERO `cognito:groups` reliance.
-  THEN Phase D can run.
+- [x] **CE.3 [PRE-ATTACH SMOKE] Invoke the deployed PTG Lambda; confirm valid event, no raise**
+  — DONE + PASSED 2026-09-23. Invoked the deployed `pretokengen-test` Lambda (data account
+  506221081911; its `GOVERNANCE_PROJECTION_TABLE=governance_projection` = the SAME prod table,
+  identical handler code to the future prod-stage fn) with a representative Cognito V2 event for
+  `webmaster@h-dcn.nl` (`custom:tenants=["mytest3","h-dcn"]`). Result: **StatusCode 200, NO
+  FunctionError** (Lambda did NOT raise → the fail-fast config path is NOT a risk), and the
+  returned event stamps `custom:entitlements` on BOTH id+access generations with h-dcn
+  `members:admin/export/read/write` (+ FIN/TENADMIN caps), `v:1`, additive. This proves code +
+  prod projection data + account config are healthy end-to-end.
+  ⚠️ **CE.3 SURFACED A GAP → new CE.4a below.** Only `pretokengen-test` (stage `test`, from s5c
+  Phase 5) is deployed; there is **NO `pretokengen-prod`** function (stack `pretokengen-data`
+  deployed only the test stage). CE.5 has nothing to attach until a prod-stage Lambda exists.
+- [x] **CE.4a [H] Deploy the PROD-stage PreTokenGen Lambda** — DONE + VERIFIED 2026-09-23.
+  `sam build` + `sam deploy` to a NEW stack **`pretokengen-prod`** (NOT re-parameterizing
+  `pretokengen-data` — that would have replaced the test fn). Changeset reviewed BEFORE apply
+  (`--no-execute-changeset`): **3 additive resources only** (PreTokenGenFunctionRole IAM::Role,
+  PreTokenGenFunction Lambda, PreTokenGenLayer LayerVersion) — 0 Modify/Remove/Replacement,
+  `pretokengen-test` untouched. Stack `CREATE_COMPLETE`. Outputs:
+  - fn ARN `arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-prod` (← CE.5 attach target)
+  - layer `pretokengen-layer-prod:1`
+  Params: Stage=prod, Region=eu-west-1, GovernanceProjectionTableName=governance_projection.
+  SMOKE (CE.3 re-run on `pretokengen-prod`): StatusCode 200, NO FunctionError, stamps
+  `custom:entitlements` with h-dcn `members:admin/export/read/write` on both generations. Prod fn
+  healthy + ready. Deploy was MANUAL/inline (no samconfig) — see backlog "SAM deploys are ad-hoc".
+  → RESOLVED by **s5e** (`.kiro/specs/multi-tenant/s5e-codify-sam-deploys/`): `sam/pretokengen`
+  now has a committed `samconfig.toml` + OIDC CI workflow (`deploy-sam-pretokengen.yml`); the
+  invoke permission is template-owned. Codified deploy runbook: **`sam/pretokengen/DEPLOY.md`**.
+  Do NOT hand-type inline `sam deploy` params any more — use `--config-env prod`.
+- [x] **CE.4 [H] Capture Pool A baseline + stage the one-command rollback** — DONE 2026-09-23.
+  Verified identity = `personal` account 344561557829 (where Pool A `eu-west-1_Hdp40eWmu` lives;
+  use the `personal` profile, NOT nonprofit-deploy). Captured baseline:
+  **`UserPool.LambdaConfig = {}`** (Pool A has NO Lambda triggers currently — confirms the RCA;
+  nothing to preserve). So rollback is trivial and exact — restore `LambdaConfig` to `{}`.
+  STAGED ROLLBACK (one command, run under the `personal` profile — this is the CE.5 undo):
+  ```bash
+  env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+    aws cognito-idp update-user-pool --user-pool-id eu-west-1_Hdp40eWmu \
+    --lambda-config '{}' --profile personal --region eu-west-1
+  ```
+  NOTE: Cognito's `update-user-pool` REPLACES the whole `LambdaConfig`, so the ATTACH (CE.5)
+  must set the FULL desired config in one call, and the DETACH sets it back to `{}`. Baseline
+  saved; s5c 5.6 already proved detach restores prior behaviour on the test pool.
+- [x] **CE.5 [H][!] Attach the PTG trigger to PROD Pool A** — DONE + VERIFIED 2026-09-23.
+  (1) Cross-account invoke permission added on `pretokengen-prod` (`lambda add-permission`,
+  principal `cognito-idp.amazonaws.com`, source-arn Pool A `eu-west-1_Hdp40eWmu`) — mirrors the
+  test-pool statement. (2) `update-user-pool --lambda-config` set
+  `PreTokenGenerationConfig{LambdaVersion=V2_0, LambdaArn=…pretokengen-prod}` on Pool A
+  (`personal` profile). Verified via describe: `LambdaConfig` now carries the V2 config.
+  Trigger is LIVE — confirmed by a real login (see CE.6): `peter@pgeers.nl`'s fresh token
+  carries `custom:entitlements` with h-dcn `members:admin/export/read/write`.
+- [x] **CE.6 [H] Existing users NOT frustrated — PASS 2026-09-23.** `peter@pgeers.nl` (SysAdmin +
+  FIN/STR groups) logged in successfully AFTER the attach; login works, app works. A separate
+  FIN/STR-type user (`pjageers@gmail.com`) also **logs in successfully** — the "you need members
+  roles / access refused" message it briefly showed is a FRONTEND page-authorization message
+  (it landed on a Members view while `selectedTenant=h-dcn`), NOT a Cognito login failure:
+  reopening the app URL opens a normal successful session. So the trigger did NOT break any
+  login (additive claim + Flask ignores it, as designed). No rollback needed. (Follow-up, minor:
+  the SPA phrases a per-page authz miss as "login refused" — confusing UX; backlog-worthy.)
+- [~] **CE.7 [H] Verify members capability end-to-end** — BLOCKED on a ROOT-CAUSED edge bug
+  (2026-09-23). Token side ✅: post-attach tokens carry h-dcn `members:*` (decoded from both
+  `peter@pgeers.nl` and `webmaster@h-dcn.nl`). BUT `GET /prod/members` still returns **403**.
+  ROOT CAUSE (found, not guessed): the SAM edge `_establish_tenant_context`
+  (`sam/members/handler/app.py`) derives the tenant SOLELY from the entitlement's `tenant_keys`
+  and **requires exactly ONE** — `len(tenant_keys)==1` else `TenantResolutionError` (403). It
+  deliberately IGNORES `X-Tenant`. Both real Pool A users are MULTI-tenant (peter has 7:
+  GoodwinSolutions/PeterPrive/h-dcn/kimgeers/myAdmin/vandenheuvelhoveniers/…; webmaster has
+  mytest3+h-dcn) → multi-key token → denied at the tenant step (a ~3.5ms early deny, before
+  capability/scope; members-prod logs show START/END, no app error). The X-Tenant header the SPA
+  sends is not trusted, so a multi-tenant user has NO way to select h-dcn.
+  ⇒ This is a SAM-edge REGRESSION from the PROVEN Flask multi-tenant pattern (NOT an unsolved
+  design). Flask (`backend/src/auth/tenant_context.py`, in prod for FIN/ZZP/STR) already does it
+  right: `get_current_tenant` reads `X-Tenant`, then `validate_tenant_access` denies unless
+  `requested_tenant IN user_tenants` (the verified `custom:tenants`). FIX = mirror that in the
+  SAM edge: accept `X-Tenant` as a selector IFF it ∈ the verified entitlement `tenant_keys`
+  (fall back to the single-tenant case; deny if selector absent or multi-tenant w/o selector).
+  Verify-before-trust preserved. Own scoped task/PR + `sam/tests` — logged in backlog. The PTG
+  trigger stays attached (harmless; existing logins fine per CE.6) until the edge fix ships.
+  Members list stays empty until then.
 - [ ] **CE.8 Confirm the reconciliation backstop** is scheduled/runnable in prod (s5c 7.7).
 - [ ] **CE.9 (recommended before/with CE.5) Fix the `role#`/`module#` projection reconcile gap**
   so stale governance rows can't inflate a resolved entitlement once the trigger is live — see

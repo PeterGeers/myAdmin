@@ -1,0 +1,78 @@
+name: Deploy SAM PreTokenGen
+# Deploys the PreTokenGen Lambda (stack `pretokengen-prod`) to the nonprofit/data account
+# (506221081911, eu-west-1) via GitHub OIDC — mirrors deploy-sam-members.yml (s5e).
+#
+# The prod stack name, region, capabilities, and parameter_overrides live in
+# `sam/pretokengen/samconfig.toml` [prod]; this workflow just runs
+# `sam deploy --config-env prod`, so CI and a manual `sam deploy --config-env prod`
+# produce the SAME stack. NO stored secrets: auth is short-lived STS via
+# NonprofitDeployRole's OIDC trust. The Cognito identifiers in samconfig are PUBLIC.
+#
+# SCOPE — DATA ACCOUNT ONLY (s5e R2/R5): this workflow deploys the Lambda + layer + the
+# same-account IAM AND (re)asserts the cross-account invoke PERMISSION (the template's
+# `PreTokenGenCognitoInvokePermission`), all in the nonprofit-deploy data account
+# (506221081911). It does NOT — and with these credentials cannot — act in the personal/
+# identity account (344561557829). Attaching the Pre-Token-Generation TRIGGER on the Cognito
+# pool itself (Pool A / myAdmin-test) lives in that identity account and is a SEPARATE manual
+# step (see sam/pretokengen/DEPLOY.md + spec s5e R5). A merge here never (re)wires the pool.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sam/pretokengen/**"
+      - "sam/shared/**"
+      - ".github/workflows/deploy-sam-pretokengen.yml"
+  workflow_dispatch:
+    # Allow manual trigger (e.g. first deploy, or a re-deploy without a code change).
+
+permissions:
+  id-token: write
+  contents: read
+
+# Never run two PreTokenGen deploys against the same stack at once.
+concurrency:
+  group: sam-pretokengen-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy PreTokenGen (SAM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # One-time prerequisite: NonprofitDeployRole's OIDC trust must allow
+          # repo:PeterGeers/myAdmin:ref:refs/heads/main (shared with deploy-sam-members.yml).
+          role-to-assume: arn:aws:iam::506221081911:role/NonprofitDeployRole
+          aws-region: eu-west-1
+
+      # `sam build` builds the PreTokenGenLayer via its Makefile (vendors sam/pretokengen +
+      # sam/shared closure, pip-installs the shared auth deps). rsync is preinstalled on
+      # ubuntu-latest; sam + python are set up above.
+      - name: SAM Build
+        working-directory: sam/pretokengen
+        run: sam build
+
+      # All deploy parameters come from samconfig.toml [prod]: stack_name pretokengen-prod,
+      # region eu-west-1, capabilities, and the parameter_overrides (Stage=prod,
+      # GovernanceProjectionTableName=governance_projection, and the PUBLIC Cognito
+      # CognitoAccountId/CognitoUserPoolId that scope the invoke permission — all public).
+      - name: SAM Deploy
+        working-directory: sam/pretokengen
+        run: sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset

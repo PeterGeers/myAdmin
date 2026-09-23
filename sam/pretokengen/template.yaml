@@ -61,17 +61,20 @@ Transform: AWS::Serverless-2016-10-31
 # `PreTokenGenLayer/` and `PreTokenGenFunction/` appear under `.aws-sam/build/`.
 #
 # -----------------------------------------------------------------------------
-# DEPLOY + TRIGGER ATTACH are OUT OF SCOPE for this template step
+# TRIGGER ATTACH is OUT OF SCOPE; the invoke PERMISSION is now IN this template
 # -----------------------------------------------------------------------------
-# `[H]` `sam deploy` to the data account + confirming the same-account read of
-# `governance_projection` is the human-run step of task 5.2. Attaching this
-# Lambda as the `myAdmin-test` (then Pool A) Pre-Token-Generation trigger + the
-# cross-account `aws_lambda_permission` is a SEPARATE step (task 5.3, C-PTG):
-# invoke crosses accounts (identity 344561557829 -> data 506221081911); the data
-# read does not. This template deploys the function + grants its same-account
-# projection read only; it does NOT wire the Cognito trigger. The
-# `PreTokenGenFunctionArn` output is what task 5.3 consumes to attach the trigger
-# and grant cross-account invoke.
+# UPDATED (s5e / D5a): this template now OWNS the cross-account invoke PERMISSION
+# (the `PreTokenGenCognitoInvokePermission` resource below) — Cognito's "accept
+# calls from that pool" half — parameterized per env via CognitoAccountId /
+# CognitoUserPoolId. It is re-asserted on every `sam deploy`, replacing the
+# hand-run `lambda add-permission` from s5c/s5d CE.5.
+#
+# STILL out of scope: attaching the Pre-Token-Generation TRIGGER on the POOL
+# itself (`myAdmin-test`, then Pool A) — that lives in the IDENTITY/personal
+# account (344561557829), which the data-account deploy role cannot reach, so it
+# stays a separate manual step. Invoke crosses accounts (identity 344561557829 ->
+# data 506221081911); the projection read does not. The `PreTokenGenFunctionArn`
+# output is what the trigger-attach step consumes.
 # =============================================================================
 
 Description: >-
@@ -105,7 +108,13 @@ Parameters:
   Stage:
     Type: String
     Description: >-
-      Deployment stage — names the function (`pretokengen-<stage>`) and layer.
+      Deployment stage — names the function (`pretokengen-<stage>`) and layer
+      (`pretokengen-<stage>` / `pretokengen-layer-<stage>`). NOTE (s5e / footgun):
+      `Stage` names the RESOURCES only, NOT the CloudFormation STACK. The stack is
+      pinned per environment in `samconfig.toml` (`[test]` -> stack `pretokengen-data`,
+      `[prod]` -> stack `pretokengen-prod`). Because those are DISTINCT stacks, a
+      `--config-env prod` deploy can never rename/replace the test function/layer.
+      Never deploy two stages into one stack.
       The meaningful stages for this Lambda are the data-account deploys: `test`
       (attached to `myAdmin-test`, task 5.3) then `prod` (Pool A, task 7.5).
       `local` is retained for parity/dry-runs.
@@ -114,6 +123,30 @@ Parameters:
       - local
       - test
       - prod
+
+  # --- Cognito invoke permission inputs (s5e / D5a) --------------------------
+  # PUBLIC identifiers (NOT secrets): the account + pool id whose Cognito
+  # Pre-Token-Generation trigger is allowed to invoke this Lambda. They scope the
+  # AWS::Lambda::Permission below. Both pools live in the IDENTITY/personal account
+  # (344561557829); the Lambda lives in the data account — so the invoke crosses
+  # accounts (ADR 0006). Supplied per env by samconfig: prod -> Pool A
+  # (eu-west-1_Hdp40eWmu); test -> myAdmin-test (eu-west-1_xyrlzfqbl).
+  CognitoAccountId:
+    Type: String
+    Description: >-
+      AWS account id of the Cognito pool that invokes this Lambda (the personal/
+      identity account, 344561557829). PUBLIC. No default — fail-fast.
+    AllowedPattern: "^[0-9]{12}$"
+    ConstraintDescription: Must be a 12-digit AWS account id.
+
+  CognitoUserPoolId:
+    Type: String
+    Description: >-
+      Cognito user pool id whose Pre-Token-Generation trigger invokes this Lambda
+      (prod: Pool A eu-west-1_Hdp40eWmu; test: myAdmin-test eu-west-1_xyrlzfqbl).
+      PUBLIC. No default — fail-fast.
+    AllowedPattern: "^eu-west-1_[A-Za-z0-9]+$"
+    ConstraintDescription: Must be a eu-west-1 Cognito user pool id.
 
 Globals:
   Function:
@@ -186,7 +219,25 @@ Resources:
               Resource:
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
       # NO Events — a Pre-Token-Generation Lambda is invoked by Cognito, not over
-      # HTTP. The Cognito trigger + cross-account invoke permission is task 5.3.
+      # HTTP. The Cognito TRIGGER ATTACH (on the pool, identity account) is still a
+      # separate out-of-band step; the cross-account invoke PERMISSION is the
+      # resource below (s5e / D5a).
+
+  # --- Cross-account Cognito invoke permission (s5e / D5a) --------------------
+  # Allows the Cognito pool (in the IDENTITY/personal account CognitoAccountId) to
+  # invoke this Lambda (in the data account). This is the "accept calls from that
+  # pool" half of the wiring; the pool-side TRIGGER ATTACH is a separate manual
+  # step in the identity account (the data-account deploy role cannot reach it).
+  # This replaces the hand-run `lambda add-permission` from s5c/s5d CE.5 — the
+  # template now owns and re-asserts it on every deploy. Grants the SAME access as
+  # that hand command (no new access).
+  PreTokenGenCognitoInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PreTokenGenFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !Sub "arn:aws:cognito-idp:${Region}:${CognitoAccountId}:userpool/${CognitoUserPoolId}"
 
   # NOTE: the `governance_projection` table is intentionally NOT a resource here.
   # It is managed outside CloudFormation / retained (23-aws-accounts.md) — this
