@@ -114,3 +114,8 @@ Go/No-Go pilot (`.kiro/specs/multi-tenant/s5-members-first-migration/`) is meant
 - `.kiro/specs/multi-tenant/s1-prepare-platform/module-contract.md` (the four seams).
 - `.kiro/specs/multi-tenant/s5-members-first-migration/members-wireframe.md` +
   `migration-plan.md` (the first app this governs).
+- **Deploying a SAM app (codified, not hand-typed):** each app has a committed
+  `samconfig.toml` + an OIDC CI workflow; deploy via `sam deploy --config-env <env>` (never
+  inline `--parameter-overrides` / `--stack-name`). See `sam/members/samconfig.toml` +
+  `.github/workflows/deploy-sam-members.yml`, and `sam/pretokengen/DEPLOY.md` +
+  `deploy-sam-pretokengen.yml` (spec `s5e-codify-sam-deploys`).
