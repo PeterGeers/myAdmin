@@ -7,10 +7,14 @@ context → authorize (has_capability + scope) → route → respond:
 
 - **Authenticate (verified, Property 2):** no token → 401; a JWKS outage on the fallback
   path → 503; API-GW-authorizer verified claims are accepted without re-verification. A
-  client header (``X-Enhanced-Groups`` / ``X-Tenant``) never grants anything.
-- **Tenant context (verify-before-trust):** ``tenant_id`` comes from the verified
-  entitlement's ``tenant_keys`` — never a client-supplied header/body. No usable tenant
-  (fallback / overflow / empty entitlement) → 403 (fail-safe, Property 3), never a guess.
+  client header (``X-Enhanced-Groups``) never grants anything.
+- **Tenant context (verify-before-trust + active-tenant selection, s5f):** the ACTIVE
+  ``tenant_id`` is the per-request ``X-Tenant`` header VALIDATED against the verified
+  entitlement's ``tenant_keys`` — the header SELECTS among verified tenants, it never
+  GRANTS one. A selected tenant not in ``tenant_keys`` → 403. Absent header with exactly
+  one entitled tenant → that tenant (single-tenant back-compat); absent header with
+  multiple → 403 (no guess). No usable tenant (fallback / overflow / empty entitlement) →
+  403 regardless of the header (fail-safe, Property 3). No hardcoded/default tenant.
 - **Authorize (has_capability three-state):** a token-backed grant → allowed (the READ
   route runs — task 3.2 — resolving to a scope-narrowed result);
   a token-backed denial (``False``) → 403; a "token does not answer" (``None`` — absent /
@@ -43,6 +47,15 @@ from sam.shared.auth_utils import (
 def _entitlement(tenant: str, capabilities: list[str]) -> str:
     """A normal (fits-budget) ``custom:entitlements`` claim value for one tenant."""
     return json.dumps({"v": 1, "t": {tenant: capabilities}})
+
+
+def _multi_entitlement(tenants_caps: dict[str, list[str]]) -> str:
+    """A normal ``custom:entitlements`` claim value for MULTIPLE tenants (s5f).
+
+    e.g. ``_multi_entitlement({"h-dcn": ["members:read"], "mytest3": ["members:read"]})``
+    → ``tenant_keys == ["h-dcn", "mytest3"]`` (sorted) after decode.
+    """
+    return json.dumps({"v": 1, "t": dict(tenants_caps)})
 
 
 def _authorizer_event(
@@ -187,9 +200,10 @@ def test_tenant_listed_but_capability_absent_is_never_a_silent_allow():
 # ── Tenant context: verify-before-trust ────────────────────────────────────────────────
 
 
-def test_tenant_comes_from_verified_entitlement_not_header():
-    # An X-Tenant header claiming another tenant must be ignored; the verified entitlement
-    # (h-dcn) is the only source of tenant context.
+def test_xtenant_header_selecting_unentitled_tenant_is_denied():
+    # s5f: X-Tenant SELECTS among verified tenants; it never GRANTS one. A header naming a
+    # tenant NOT in the verified entitlement (tenant_keys == ["h-dcn"]) → 403. The header
+    # cannot introduce an unverified tenant (Property 2 preserved).
     event = _authorizer_event(
         "GET",
         "/members",
@@ -197,21 +211,120 @@ def test_tenant_comes_from_verified_entitlement_not_header():
         extra_headers={"X-Tenant": "other-tenant", "X-Enhanced-Groups": "Members_CRUD"},
     )
     resp = app.handler(event)
-    # The header is ignored; the verified h-dcn grant authorizes the read → the READ route
-    # runs (task 3.2). No region grant → deny-by-default scope → empty list, 200.
+    assert resp["statusCode"] == 403
+
+
+def test_single_tenant_absent_header_resolves_the_only_tenant():
+    # s5f R2.1 (back-compat): one entitled tenant + no X-Tenant → that tenant is the active
+    # context (unchanged pilot behaviour). No region grant → deny-by-default scope → 200 + [].
+    event = _authorizer_event(
+        "GET", "/members", claims=_entitled_claims(tenant="h-dcn", capabilities=("members:read",))
+    )
+    resp = app.handler(event)
     assert resp["statusCode"] == 200
     assert json.loads(resp["body"])["data"] == []
 
 
-def test_ambiguous_multi_tenant_token_denied_by_default():
-    # Two tenants in the entitlement with no selector → the pilot edge denies rather than
-    # guess which tenant to operate under.
-    claim = json.dumps({"v": 1, "t": {"h-dcn": ["members:read"], "other": ["members:read"]}})
+def test_ambiguous_multi_tenant_no_header_denied_by_default():
+    # s5f R3.1: two entitled tenants with NO X-Tenant selector → 403 (no guess — picking one
+    # could expose the wrong tenant's members).
     event = _authorizer_event(
-        "GET", "/members", claims={"sub": "u", "custom:entitlements": claim}
+        "GET",
+        "/members",
+        claims={
+            "sub": "u",
+            "custom:entitlements": _multi_entitlement(
+                {"h-dcn": ["members:read"], "other": ["members:read"]}
+            ),
+        },
     )
     resp = app.handler(event)
     assert resp["statusCode"] == 403
+
+
+def test_multi_tenant_xtenant_selects_allowed_tenant_reaches_route():
+    # s5f R1.1: multi-tenant user selects an ALLOWED tenant via X-Tenant → the active tenant
+    # is that selection and the read route runs (200). This is the case the old len==1 gate
+    # wrongly 403'd — the core bug fix.
+    event = _authorizer_event(
+        "GET",
+        "/members",
+        claims={
+            "sub": "u",
+            "cognito:groups": ["Members_Read"],
+            "custom:entitlements": _multi_entitlement(
+                {"h-dcn": ["members:read"], "mytest3": ["members:read"]}
+            ),
+        },
+        extra_headers={"X-Tenant": "h-dcn"},
+    )
+    resp = app.handler(event)
+    assert resp["statusCode"] == 200
+    assert json.loads(resp["body"])["data"] == []
+
+
+def test_multi_tenant_xtenant_selects_unentitled_tenant_denied():
+    # s5f R1.2: multi-tenant user selects a tenant NOT in their entitlement → 403 (the active
+    # tenant bounds capability; a no-members tenant is not selectable).
+    event = _authorizer_event(
+        "GET",
+        "/members",
+        claims={
+            "sub": "u",
+            "custom:entitlements": _multi_entitlement(
+                {"h-dcn": ["members:read"], "mytest3": ["members:read"]}
+            ),
+        },
+        extra_headers={"X-Tenant": "not-mine"},
+    )
+    resp = app.handler(event)
+    assert resp["statusCode"] == 403
+
+
+def test_xtenant_header_name_is_case_insensitive():
+    # s5f R1.3: HTTP API v2 lowercases header names to `x-tenant`; the edge must still find it.
+    event = _authorizer_event(
+        "GET",
+        "/members",
+        claims={
+            "sub": "u",
+            "cognito:groups": ["Members_Read"],
+            "custom:entitlements": _multi_entitlement(
+                {"h-dcn": ["members:read"], "mytest3": ["members:read"]}
+            ),
+        },
+        extra_headers={"x-tenant": "h-dcn"},
+    )
+    resp = app.handler(event)
+    assert resp["statusCode"] == 200
+
+
+def test_multi_tenant_selection_flows_the_selected_tenant_into_context(monkeypatch):
+    # s5f R6.2: assert the request actually operates under the SELECTED tenant (not merely
+    # 200). Capture the RequestContext handed to dispatch and check tenant_id == selection.
+    captured = {}
+
+    def _capture_dispatch(spec, request, ctx):
+        captured["ctx"] = ctx
+        raise app.RouteNotImplemented(spec.name)
+
+    monkeypatch.setattr(app, "_dispatch", _capture_dispatch)
+
+    event = _authorizer_event(
+        "GET",
+        "/members",
+        claims={
+            "sub": "abc",
+            "cognito:groups": ["Members_Read"],
+            "custom:entitlements": _multi_entitlement(
+                {"h-dcn": ["members:read"], "mytest3": ["members:read"]}
+            ),
+        },
+        extra_headers={"X-Tenant": "mytest3"},
+    )
+    resp = app.handler(event)
+    assert resp["statusCode"] == 501
+    assert captured["ctx"].tenant_id == "mytest3"  # the SELECTED tenant, not h-dcn
 
 
 def test_context_carries_verified_tenant_sub_and_groups(monkeypatch):

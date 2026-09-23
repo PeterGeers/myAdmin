@@ -150,3 +150,33 @@ The modal is one long list of fields with functional seperator. It would be nice
 
 # Code qaulity and Full test suite
 Do they need updates to supprt sam platform
+
+# Tenant switch doesn't refresh the module menu without a page reload
+Observed 2026-09-23. When a multi-tenant user switches tenant via the `TenantSelector`
+dropdown, the main menu's module gating (FIN/STR/ZZP/MEMBERS sections) does NOT update
+immediately — a full page refresh is needed before the menu reflects the new tenant's
+modules. Relevant to the "active tenant bounds capability" principle (s5f): a stale menu
+could briefly offer the Members app for a tenant that has no MEMBERS module until refresh.
+(The SAM edge denies regardless — s5f — so this is a UI-freshness bug, not a security hole.)
+
+Investigation so far (wiring looks structurally correct — root cause is runtime/timing, NOT
+the obvious "bypasses React state" bug):
+- `TenantSelector.tsx` `onChange` calls `setCurrentTenant(e.target.value)` (React state via
+  context) — NOT a direct localStorage write. Good.
+- `TenantContext.tsx` `setCurrentTenant` → `setCurrentTenantState(tenant)` +
+  `localStorage.setItem('selectedTenant', tenant)`. Updates state, should re-render consumers.
+- `useTenantModules.ts` has `useEffect(fetchModules, [currentTenant])` → should refetch
+  `/api/tenant/modules` and update `hasFIN/hasSTR/hasZZP/hasMEMBERS` on switch.
+- `App.tsx` reads those flags from `useTenantModules()` and passes them to `MainMenu`.
+So the chain SHOULD refresh reactively with no reload. It doesn't — so the break is elsewhere.
+- SUSPECTS (need reproduction + trace, not yet confirmed): (a) `apiService.authenticatedGet`
+  builds the `X-Tenant` header / caches in a way that races or ignores the state update;
+  (b) a stale closure / memoization; (c) `/api/tenant/modules` response cached;
+  (d) `MainMenu` not re-rendering on the flag change. `TenantContext` init effect is keyed on
+  `[user]` only (intentional), so it's not re-initialising the tenant — not the cause.
+- FIX APPROACH: reproduce, trace where the refetch either doesn't fire or resolves against the
+  old tenant; ensure the module fetch is keyed to the CURRENT tenant value at request time
+  (not a stale localStorage read), and that `MainMenu` re-renders on the flag change.
+- Scope: FRONTEND only (separate from s5f, which is the SAM API edge). Small, own task.
+- Files: `frontend/src/components/TenantSelector.tsx`, `context/TenantContext.tsx`,
+  `hooks/useTenantModules.ts`, `services/apiService.ts`, `App.tsx`, `components/MainMenu.tsx`.

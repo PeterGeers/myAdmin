@@ -338,11 +338,21 @@ def test_cors_headers_present_on_unauthenticated_error():
 # ── 6. Tenant isolation smoke — Property 5 ─────────────────────────────────────────────
 
 
-def test_only_the_verified_tenant_partition_is_queried(repo):
-    # An X-Tenant header claiming a different tenant must be ignored: the verified entitlement
-    # (h-dcn) is the ONLY source of tenant context, so the repo is queried for h-dcn alone.
+def test_xtenant_selecting_an_unentitled_tenant_denies_and_never_queries_it(repo):
+    # s5f: X-Tenant SELECTS among verified tenants, it never GRANTS one. The user's verified
+    # entitlement lists only h-dcn (tenant_keys == ["h-dcn"]); a header naming a different
+    # tenant is NOT a silent-ignore — it is a 403, and the repo is NEVER queried for the
+    # header-injected tenant (Property 5 preserved: no unverified tenant partition is read).
     event = _event("GET", "/members", email=_EMAIL_ALL)
     event["headers"] = {"X-Tenant": "other-tenant"}
     resp = app.handler(event)
+    assert resp["statusCode"] == 403
+    assert repo.queried_tenants == []  # denied at the edge; other-tenant never read
+
+
+def test_verified_single_tenant_partition_is_the_only_one_queried(repo):
+    # The matching case: no header (or a header naming the one verified tenant) → the repo is
+    # queried for the verified tenant ALONE (Property 5). Covers the back-compat path (R2.1).
+    resp = app.handler(_event("GET", "/members", email=_EMAIL_ALL))
     assert resp["statusCode"] == 200
     assert repo.queried_tenants == ["h-dcn"]

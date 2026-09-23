@@ -119,3 +119,12 @@ Go/No-Go pilot (`.kiro/specs/multi-tenant/s5-members-first-migration/`) is meant
   inline `--parameter-overrides` / `--stack-name`). See `sam/members/samconfig.toml` +
   `.github/workflows/deploy-sam-members.yml`, and `sam/pretokengen/DEPLOY.md` +
   `deploy-sam-pretokengen.yml` (spec `s5e-codify-sam-deploys`).
+- **Active-tenant resolution at the edge (the module contract):** the ACTIVE tenant is a
+  PER-REQUEST selection — the client sends `X-Tenant`, the edge validates it is in the
+  verified entitlement's `tenant_keys` (the header SELECTS among verified tenants, never
+  GRANTS one), and scopes the request to that one tenant. Single entitled tenant + no header
+  → that tenant; a selected tenant not in `tenant_keys`, or no header with multiple tenants →
+  403 (no default-to-first, no fallback). The active tenant BOUNDS capability. Mirrors the
+  Flask `auth/tenant_context.py` pattern. See **ADR 0007**
+  (`docs/decisions/0007-active-tenant-resolution-sam-edge.md`) + spec
+  `s5f-sam-edge-active-tenant`. Future modules (Events/Webshop) resolve tenant identically.
