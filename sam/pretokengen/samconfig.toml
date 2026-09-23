@@ -1,0 +1,61 @@
+# samconfig.toml — pinned SAM deploy config for the PreTokenGen Lambda (s5e).
+#
+# Makes `sam deploy` reproducible: the stack name, region, capabilities, and the
+# fail-fast parameter_overrides live here instead of inline flags, so the CI workflow
+# (deploy-sam-pretokengen.yml) and a manual `sam deploy --config-env <env>` produce the
+# SAME stack. The Lambda + layer deploy to the DATA account (nonprofit-deploy /
+# 506221081911, eu-west-1) via GitHub OIDC (NonprofitDeployRole). NO secrets here; the
+# Cognito identifiers below are PUBLIC (account id / pool id).
+#
+# STACK NAMES (s5e footgun guard + ODx1): `test` and `prod` pin DISTINCT stack names, so a
+# deploy of one can never rename/replace the other's function/layer. Note the template's
+# `Stage` param names the RESOURCES (`pretokengen-${Stage}`), NOT the stack — the stack is
+# pinned here. The test stack is historically named `pretokengen-data` (it predates the
+# `-test`/`-prod` convention; ODx1 keeps it to match the LIVE stack with zero churn).
+#
+# PROJECTION TABLE (ODx1 / CE.3): BOTH envs read `governance_projection` (the prod table).
+# The `test` deploy is "test" because it is triggered by the `myAdmin-test` POOL, not
+# because it reads a separate table — the live `pretokengen-data` stack was deliberately
+# deployed against `governance_projection`. `test_governance_projection` is the LOCAL/Docker
+# (`Stage=local`) table only, and `local` is NOT a deployed env here.
+#
+# COGNITO (s5e / D5a): CognitoAccountId is the personal/identity account (344561557829) —
+# SAME for both envs, because both the `myAdmin-test` and Pool A pools live there. Only the
+# CognitoUserPoolId differs. These scope the AWS::Lambda::Permission that lets the pool's
+# Pre-Token-Generation trigger invoke this Lambda cross-account.
+
+version = 0.1
+
+# --- TEST (data account 506221081911, eu-west-1; triggered from personal-acct myAdmin-test) ---
+[test.deploy.parameters]
+stack_name = "pretokengen-data"      # LIVE test stack (ODx1); DISTINCT from prod (footgun guard)
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3 = true
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = [
+  "Stage=test",
+  "Region=eu-west-1",
+  # BOTH envs read the prod projection table on purpose (ODx1 / CE.3) — the test POOL, not a
+  # separate table, is what makes this "test". Matches the live pretokengen-data stack.
+  "GovernanceProjectionTableName=governance_projection",
+  "CognitoAccountId=344561557829",              # personal/identity account (D5a)
+  "CognitoUserPoolId=eu-west-1_xyrlzfqbl",       # myAdmin-test pool
+]
+
+# --- PROD (data account 506221081911, eu-west-1; triggered from personal-acct Pool A) ---
+[prod.deploy.parameters]
+stack_name = "pretokengen-prod"      # DISTINCT from test
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3 = true
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = [
+  "Stage=prod",
+  "Region=eu-west-1",
+  "GovernanceProjectionTableName=governance_projection",
+  "CognitoAccountId=344561557829",              # personal/identity account (D5a)
+  "CognitoUserPoolId=eu-west-1_Hdp40eWmu",       # Pool A (myAdmin)
+]
