@@ -34,6 +34,16 @@ Rationale for the non-obvious modes:
 - `42-local-dynamodb-testing.md` is **manual** — only relevant while actually running
   local DynamoDB; keeping it out of every context avoids noise.
 
+## Skills vs steering (`.kiro/skills/`)
+
+Steering carries **rules** (always/fileMatch/manual). Skills carry **operational
+how-to** loaded on demand by name: `commands.md`, `database.md`, `pr-checklist.md`,
+`specs-reference.md`. Rule of thumb — a *convention you must follow* is steering; a
+*procedure you look up when doing a task* is a skill. To keep facts single-source,
+steering **points to** the relevant skill rather than copying it (e.g. `41` and `31`
+both point to `#database` for DB connection/wrapper how-to). If you need connection
+details, migrations, or CLI recipes, load the matching skill.
+
 ## Reading order for a new contributor
 
 1. `10-product.md` — what the platform is and why.

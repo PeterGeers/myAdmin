@@ -47,3 +47,26 @@ In the management UI, you could show a small badge ("Handmatig" / "Geleerd") to 
 # s3 object management module and SAM
 How can we manage s3 management attributes similar as in Flask
 
+# PITR / Backup in dynamodb
+Check the current settings and what is needed
+
+# Fall back mechanosm outside tenant scope 
+- Should be impossible
+- Pre-check on parameters/config availability after new deployment??
+
+
+# Projection sync does not reconcile obsolete role# / module# / config# rows (only scopegrant#)
+Found during s5d C.12 (2026-09-23). `ProjectionSync.sync_administration` (backend/src/services/projection_sync.py)
+only diff-deletes obsolete `scopegrant#` rows (`_reconcile_scopegrants`). Its own docstring notes
+`tenant`/`module#*`/`role#*`/`config#*` are "never listed and never deleted (out of s5d's scope)".
+Consequence: a role REMOVED from MySQL `user_tenant_roles` leaves a STALE `role#<email>#<role>` row in
+`governance_projection` indefinitely — the projection keeps advertising a role the source no longer grants
+(SECURITY-relevant staleness, same class as the scopegrant staleness that reconcile was built to fix).
+Real example: prod `h-dcn` had 3 orphaned role# rows with no MySQL source (`Regio_All`, a `h-scn` typo'd
+Tenant_Admin, and a `member-test@example.com` row) — cleaned up manually in C.12.
+- Options: extend the reconcile to `role#` (and consider `module#`) with the same diff-and-delete pattern,
+  scoped per tenant; OR a periodic reconciliation sweep.
+- Note the capability path today is token/entitlement-based (has_capability off `custom:entitlements`), and
+  the resolver reads the projection — so a stale `role#` row could inflate a resolved entitlement once the
+  PreTokenGen trigger is live (s5d PHASE CE). Worth fixing before/with CE.2.
+- Related: "Fall back mechanism outside tenant scope" above (projection integrity / post-deploy pre-checks).
