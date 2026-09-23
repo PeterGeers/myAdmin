@@ -73,6 +73,16 @@ Tenant_Admin, and a `member-test@example.com` row) — cleaned up manually in C.
 
 
 # SAM deploys are ad-hoc (no committed samconfig / CI) — codify test+prod
+**[ADDRESSED 2026-09-23 by spec `s5e-codify-sam-deploys`]** — `sam/pretokengen` now has a
+committed `samconfig.toml` (distinct `[test]`/`[prod]` stacks) + an OIDC CI workflow
+(`deploy-sam-pretokengen.yml`), matching the codified `sam/members`. The cross-account
+Cognito invoke permission is now template-owned (`sam deploy` re-asserts it). Deployed to
+prod via PR #17 (merge `ef7a677`, workflow run 35921358965 success); orphaned CE.5 hand
+permission removed so the template is sole owner. Deploy runbook: `sam/pretokengen/DEPLOY.md`.
+Remaining follow-ups (both OUT of s5e scope, see spec ODx2/ODx3): (ODx2) optionally add a CI
+job that auto-deploys `--config-env test` on dispatch; (ODx3) fold the ONE remaining manual
+step — the Pool A Pre-Token-Generation TRIGGER attach (identity account) — into Terraform.
+---
 Surfaced during s5d PHASE CE (2026-09-23). The SAM Lambdas are deployed by hand-typed
 `sam deploy` commands with INLINE `--parameter-overrides`, not from committed config or CI.
 Consequences seen:

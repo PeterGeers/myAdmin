@@ -149,11 +149,13 @@ only the piece the flow cannot reach (the Pool A trigger) plus the survives-rede
   {LambdaVersion=V2_0, LambdaArn=...pretokengen-prod}` (trigger live from CE.5); invoke
   permission present (Phase 1: Sid `cognito-poolA-pretokengen`). Baseline established; the
   commands work. _(R5.3; D5, P6)_
-- [ ] **3.2b [H] Post-deploy wiring check — POST-DEPLOY ONLY (R5.3 / P6).** GATED: run AFTER
-  the first real deploy + task 5.2. Re-run the two `DEPLOY.md` checks and confirm (i) the
-  Pool A trigger is UNCHANGED (`PreTokenGenerationConfig` still points at `pretokengen-prod`
-  — the deploy must not have disturbed the external trigger), and (ii) the invoke statement
-  is now the CFN-managed one (orphan `cognito-poolA-pretokengen` removed). _(R5.3; D5, P6)_
+- [x] **3.2b [H] Post-deploy wiring check (R5.3 / P6).** DONE + PASS 2026-09-23, after the
+  executed deploy + 5.2. (i) Pool A trigger UNCHANGED: `describe-user-pool eu-west-1_Hdp40eWmu`
+  → `LambdaConfig.PreTokenGenerationConfig{V2_0, ...pretokengen-prod}` (+ legacy
+  `PreTokenGeneration`) — the deploy did NOT disturb the external trigger. (ii) Invoke
+  statement is now the SINGLE CFN-managed one
+  (`pretokengen-prod-PreTokenGenCognitoInvokePermission-gNkHkfvnpRip`); the orphan
+  `cognito-poolA-pretokengen` is removed. Both halves intact. _(R5.3; D5, P6)_
 
 ## Phase 4 — Manual fallback + docs (R6)
 
@@ -172,30 +174,30 @@ only the piece the flow cannot reach (the Pool A trigger) plus the survives-rede
 
 ## Phase 5 — Verification (evidence-based, IaC-only)
 
-- [ ] **5.1 (dt) Confirm change-set scope (R7.1).** The diff for s5e contains ONLY:
-  `sam/pretokengen/samconfig.toml`, `.github/workflows/deploy-sam-pretokengen.yml`,
-  `sam/pretokengen/DEPLOY.md`, doc pointers, and template edits limited to (a) the footgun
-  comment and (b) the single `PreTokenGenCognitoInvokePermission` resource + its two PUBLIC
-  params (tasks 1.2/1.3). No `.py`, no table, no pool config, no other resource. _(R7.1)_
-- [ ] **5.2 [H] Remove the orphaned CE.5 statement (was 1.5b; R7.3 / D5 / P6).** GATED: run
-  ONLY AFTER the first real (executed) deploy has published the CFN-managed permission —
-  removing it earlier would leave Pool A logins with NO invoke permission (breaks token
-  enrichment). Prereq investigation done in **1.5a** (orphan Sid = `cognito-poolA-pretokengen`).
-  So the template is sole owner:
-  `... aws lambda remove-permission --function-name pretokengen-prod --statement-id
-  cognito-poolA-pretokengen --region eu-west-1` (account strip). Verify with `get-policy`:
-  only the CFN-managed statement remains. _(R7.3; D5, P6)_
-- [ ] **5.3 [H] Final changeset proof (P2/R7.3).** After the deploy + the 5.2 removal, re-run
-  `sam deploy --config-env prod --no-execute-changeset` (or read the merged workflow's next
-  run) and confirm the changeset is **behavior-preserving** against `pretokengen-prod`: the
-  invoke permission is CFN-owned (no duplicate hand statement), and the only remaining
-  entries are the intrinsic layer re-hash (add new / remove old LayerVersion + in-place
-  function modify — NOT a pure-empty changeset; see P2). No new/replaced/destroyed
-  functional resource. _(R7.2, R7.3; P2)_
-- [ ] **5.4 Update `myBacklog/backlog.md`.** Mark the "SAM deploys are ad-hoc" backlog item
-  as addressed by this spec (link `s5e-codify-sam-deploys`); note ODx2 (auto test-deploy
-  job) and ODx3 (fold the remaining Pool A trigger attach into Terraform) as any remaining
-  follow-ups. _(spec bookkeeping)_
+- [x] **5.1 (dt) Confirm change-set scope (R7.1).** DONE 2026-09-23 — PR #17 diff = the s5e
+  file set only: `sam/pretokengen/samconfig.toml`, `deploy-sam-pretokengen.yml`, `DEPLOY.md`,
+  the spec, doc pointers (rollout plan + steering 35 + backlog), and `template.yaml` edits
+  limited to the footgun comment + the single `PreTokenGenCognitoInvokePermission` resource +
+  its two PUBLIC params. No `.py`, no table, no pool config, no other resource. _(R7.1)_
+- [x] **5.2 [H] Remove the orphaned CE.5 statement (R7.3 / D5 / P6).** DONE 2026-09-23, AFTER
+  the executed deploy (workflow run 35921358965, success). Pre-removal `get-policy` showed BOTH
+  the CFN-managed statement (`pretokengen-prod-PreTokenGenCognitoInvokePermission-gNkHkfvnpRip`)
+  and the orphan (`cognito-poolA-pretokengen`) — no gap in coverage. Ran
+  `aws lambda remove-permission --function-name pretokengen-prod --statement-id
+  cognito-poolA-pretokengen` (account strip). Post `get-policy`: ONLY the CFN-managed statement
+  remains — template is sole owner. _(R7.3; D5, P6)_
+- [x] **5.3 [H] Final changeset proof (P2/R7.3).** DONE 2026-09-23. After the deploy + 5.2
+  removal, re-ran `sam build` + `sam deploy --config-env prod --no-execute-changeset`: the
+  build produced IDENTICAL artifacts (all S3 uploads "File with same data already exists,
+  skipping upload") → **empty changeset** (no lingering change-sets on the stack; SAM "no
+  changes to deploy"). This is the PURE no-op steady state — even cleaner than P2's predicted
+  layer re-hash, because a same-build redeploy re-hashes nothing. Config now exactly matches
+  the running resources; the invoke permission is CFN-owned (single statement, per 5.2). No
+  new/replaced/destroyed resource. _(R7.2, R7.3; P2)_
+- [x] **5.4 Update `myBacklog/backlog.md`.** DONE 2026-09-23 — marked the "SAM deploys are
+  ad-hoc" item **[ADDRESSED by s5e]** with the deploy evidence (PR #17 / run 35921358965),
+  and noted the two remaining follow-ups: ODx2 (optional auto test-deploy CI job) and ODx3
+  (fold the remaining Pool A trigger attach into Terraform). _(spec bookkeeping)_
 
 ## Done criteria
 
