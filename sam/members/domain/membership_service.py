@@ -1106,9 +1106,31 @@ class MembershipService:
                 # UPDATE: only enforce when the value actually changed (tolerate legacy).
                 if MembershipService._record_value(previous, field) == value:
                     continue
-            if value not in field.choices:
-                allowed = ", ".join(field.choices)
+            # The resolver's contract is that `choices` is a bare value list, but a tenant's raw
+            # overlay JSON can carry rich option objects ({"value","label"}) under `choices`
+            # (instead of `options`); those flow through un-normalized. Coerce every choice to its
+            # string value so the membership check + error join are robust to either shape and can
+            # never raise (a malformed shape must surface as a 422, never a 502).
+            allowed_values = [MembershipService._choice_value(c) for c in field.choices]
+            if value not in allowed_values:
+                allowed = ", ".join(allowed_values)
                 errors[field.dotted_key()] = f"must be one of: {allowed}"
+
+    @staticmethod
+    def _choice_value(choice: Any) -> str:
+        """Coerce a single enum choice to its string *value*, tolerant of shape.
+
+        The resolver normalizes `choices` to a bare value list, but a tenant's raw overlay JSON
+        can carry rich option objects (``{"value": ..., "label": ...}``) or an ``EnumOption``
+        under `choices`. Return the ``value`` for those, else the plain string — so a membership
+        check / error message never chokes on a dict (which caused a 502, not a 422).
+        """
+        if isinstance(choice, Mapping):
+            return str(choice.get("value", ""))
+        value_attr = getattr(choice, "value", None)
+        if value_attr is not None:
+            return str(value_attr)
+        return str(choice)
 
     @staticmethod
     def _validate_member_number(

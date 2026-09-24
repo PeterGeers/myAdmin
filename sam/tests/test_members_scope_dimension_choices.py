@@ -302,3 +302,56 @@ class TestAppWiresScopeConfigProviderIntoService:
 
         region = next(f for f in config["fields"] if f["key"] == "region")
         assert region["options"] == list(REGION_VALUES)
+
+
+# ── Regression: dict-shaped overlay-enum `choices` must not 502 (prod incident) ─────────
+# The prod Members Lambda returned 502 on create/update because a tenant's overlay enum carried
+# rich option OBJECTS ({"value","label"}) under `choices` (not `options`); those flow through the
+# resolver un-normalized, and `_reject_invalid_overlay_enum_values` did `", ".join(field.choices)`
+# / `value not in field.choices` assuming bare strings -> `TypeError: expected str, dict found`,
+# surfaced as a 502. The fix coerces each choice to its string value; a bad value must be a clean
+# 422-style error, never a raise.
+
+
+class TestOverlayEnumChoicesToleratesDictShape:
+    def _config_with_dict_choices(self):
+        from sam.members.domain.field_resolver import (
+            FieldConfig,
+            FieldOrigin,
+            ResolvedField,
+        )
+
+        # Overlay enum whose `choices` are option OBJECTS, not bare strings (the prod data shape).
+        field = ResolvedField(
+            key="motor_type",
+            group="overlay",
+            type=FieldType.ENUM,
+            required=False,
+            origin=FieldOrigin.VARIABLE,
+            choices=(
+                {"value": "BMW", "label": {"nl": "BMW"}},
+                {"value": "Honda", "label": {"nl": "Honda"}},
+            ),
+        )
+        return FieldConfig(tenant_id=TENANT, fields=(field,)), field
+
+    def test_valid_value_against_dict_choices_no_error_no_raise(self):
+        config, _ = self._config_with_dict_choices()
+        errors: dict = {}
+        # Must NOT raise (the 502 case) and must accept a value present in the dict choices.
+        MembershipService._reject_invalid_overlay_enum_values(  # noqa: SLF001
+            config, {"overlay": {"motor_type": "BMW"}}, errors
+        )
+        assert errors == {}
+
+    def test_invalid_value_against_dict_choices_is_a_clean_error(self):
+        config, _ = self._config_with_dict_choices()
+        errors: dict = {}
+        MembershipService._reject_invalid_overlay_enum_values(  # noqa: SLF001
+            config, {"overlay": {"motor_type": "Ducati"}}, errors
+        )
+        # A bad value is a 422-style field error whose message lists the string values (no dicts).
+        assert "overlay.motor_type" in errors
+        assert "BMW" in errors["overlay.motor_type"]
+        assert "Honda" in errors["overlay.motor_type"]
+        assert "{" not in errors["overlay.motor_type"]  # never a stringified dict
