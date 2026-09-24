@@ -14,6 +14,7 @@
     "full": "Volledig"
   },
   "columns": {
+    "memberNumber": "Lidnummer",
     "name": "Naam",
     "email": "E-mail",
     "status": "Status",
