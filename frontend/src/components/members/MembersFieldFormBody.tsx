@@ -165,7 +165,9 @@ const FieldRow: React.FC<FieldRowProps> = ({
 
         // ── Scope dimension (region) or a reference/rich-enum → a Select ──────────────
         if (isScope || field.type === 'reference' || rich) {
-          const optionEls = renderOptions(field, rich, callerRoles, lang, isScope, regionValues);
+          const optionEls = renderOptions(
+            field, rich, callerRoles, lang, isScope, regionValues, formikField.value,
+          );
           return (
             <FormControl
               isRequired={!!field.required}
@@ -222,7 +224,24 @@ function inputType(field: FieldConfigField): string {
   return 'text';
 }
 
-/** Build the <option> elements for a select field (scope, reference catalog, or rich enum). */
+/** Build the <option> elements for a select field (scope, reference catalog, or rich enum).
+ *
+ * ALWAYS keeps the member's CURRENT value selectable. A `<select bound to formikField>` only
+ * shows a preselected option when the bound value equals one of the `<option value>`s; otherwise
+ * it falls back to the placeholder and the existing value looks blank. That happens when the
+ * stored value is:
+ *   - a LEGACY scope value no longer in `scope_dimensions.values` (region, "tolerate legacy"),
+ *   - a rich-enum option the caller's role can't pick (filtered out by `optionsForCaller`), or
+ *   - simply absent from the option list.
+ * To never hide the actual value, we prepend a "current value" option when `currentValue` is
+ * non-empty and not already present among the options. (It stays editable — picking another
+ * option replaces it; a valid change is still enforced server-side / by the change-gate.)
+ *
+ * NOTE: this is a NARROW stopgap. The planned platform-wide replacement is a reusable
+ * lazy/edit-on-click dropdown (show the value, reveal options only on interaction) used by ALL
+ * myAdmin dropdowns — see myBacklog "UX: a REUSABLE lazy/edit-on-click dropdown". Remove this
+ * prepend once Members adopts that component.
+ */
 function renderOptions(
   field: FieldConfigField,
   rich: ReturnType<typeof richEnumOptions>,
@@ -230,21 +249,40 @@ function renderOptions(
   lang: string,
   isScope: boolean,
   regionValues: string[],
+  currentValue: string,
 ): React.ReactNode {
+  let optionValues: string[];
+  let els: React.ReactNode[];
+
   if (isScope) {
-    return regionValues.map((v) => <option key={v} value={v}>{v}</option>);
-  }
-  if (rich) {
+    optionValues = regionValues;
+    els = regionValues.map((v) => <option key={v} value={v}>{v}</option>);
+  } else if (rich) {
     // Value-level role filtering (R4.12): only options the caller may select.
-    return optionsForCaller(rich, callerRoles).map((o) => (
+    const opts = optionsForCaller(rich, callerRoles);
+    optionValues = opts.map((o) => o.value);
+    els = opts.map((o) => (
       <option key={o.value} value={o.value}>
         {resolveLabel(o.label, lang, o.value)}
       </option>
     ));
+  } else {
+    // A bare string[] options list (e.g. an un-labeled enum or the membership_type feed shape).
+    const bare = (field.options ?? []).filter((o): o is string => typeof o === 'string');
+    optionValues = bare;
+    els = bare.map((v) => <option key={v} value={v}>{v}</option>);
   }
-  // A bare string[] options list (e.g. an un-labeled enum or the membership_type feed shape).
-  const bare = (field.options ?? []).filter((o): o is string => typeof o === 'string');
-  return bare.map((v) => <option key={v} value={v}>{v}</option>);
+
+  // Keep the stored value visible + selected even when it's not in the current option set.
+  if (currentValue && !optionValues.includes(currentValue)) {
+    els = [
+      <option key={`__current__${currentValue}`} value={currentValue}>
+        {currentValue}
+      </option>,
+      ...els,
+    ];
+  }
+  return els;
 }
 
 export default MembersFieldFormBody;
