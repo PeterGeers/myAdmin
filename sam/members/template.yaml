@@ -171,6 +171,43 @@ Resources:
       Handler: sam.members.handler.app.handler
       Layers:
         - !Ref MembersLayer
+      # --- IAM: least-privilege DynamoDB access to the TWO tables the edge uses ---
+      # The function had NO data-access policy (only the SAM-default basic-execution
+      # role: CloudWatch Logs), so every DynamoDB call was AccessDenied -> the handler
+      # raised -> API GW returned 502. It touches exactly two same-account tables:
+      #   * governance_projection — READ-ONLY: the verified-auth edge Queries the
+      #     tenant partition for scope CONFIG (config#*) + per-user scope GRANTS
+      #     (scopegrant#*). Grant Query + GetItem only (no writes — MySQL is the
+      #     system of record; this table is a one-directional projection, ADR 0005).
+      #   * sam-members — READ/WRITE: the module's own member records + membership-type
+      #     catalog (member CRUD, lifecycle, catalog). Grant the item + query + batch
+      #     actions the repository uses.
+      # Both are scoped to the exact table ARN (+ any index ARN) in THIS account/region;
+      # no wildcard table, no cross-account. The tables are managed outside this stack
+      # (Retain) — this only grants ACCESS to them, it does not create them.
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: MembersReadGovernanceProjection
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
+            - Sid: MembersCrudMembersTable
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+                - dynamodb:BatchGetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:BatchWriteItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}"
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
       Environment:
         Variables:
           # Fail-fast table/region config (no dangerous defaults) — resolved from
