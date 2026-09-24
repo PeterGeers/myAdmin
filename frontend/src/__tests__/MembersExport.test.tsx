@@ -53,6 +53,7 @@ const downloadCsvSpy = vi
 const mockMembers: Member[] = [
   {
     member_id: 'm-1',
+    member_number: 'M01001',
     name: 'Jan',
     email: 'jan@h-dcn.example',
     status: 'active',
@@ -62,6 +63,7 @@ const mockMembers: Member[] = [
   },
   {
     member_id: 'm-2',
+    member_number: 'M01002',
     name: 'Piet',
     email: 'piet@h-dcn.example',
     status: 'active',
@@ -71,6 +73,7 @@ const mockMembers: Member[] = [
   },
   {
     member_id: 'm-3',
+    member_number: 'M01003',
     name: 'Marie',
     email: 'marie@h-dcn.example',
     status: 'active',
@@ -80,9 +83,13 @@ const mockMembers: Member[] = [
   },
 ];
 
+// The resolved field config drives the export columns EXACTLY as it drives the view modal
+// (s5k): the full visible field set, sectioned by functional_group. `member_id` is never a
+// field here (it is an internal key, omitted by `formFields`), so it is never exported.
 const mockFieldConfig: FieldConfig = {
   fields: [
-    { key: 'name', label: 'Naam', compact: true, order: 1 },
+    { key: 'member_number', label: 'Lidnummer', type: 'string', order: 1 },
+    { key: 'name', label: 'Naam', compact: true, order: 2 },
     { key: 'motor_type', label: 'Motorfiets', type: 'string', order: 10 },
   ],
   dimensions: [
@@ -129,16 +136,22 @@ describe('MembersPage export action (R5.6, R8.7)', () => {
     await waitFor(() => expect(downloadCsvSpy).toHaveBeenCalledTimes(1));
     expect(generateCsvSpy).toHaveBeenCalledTimes(1);
 
-    // The generated CSV string carries every row the action returned.
+    // The generated CSV string carries every row the action returned, with columns driven by
+    // the resolved field config (fixed base ⊕ overlay), resolved via the shared accessor.
     const csv = generateCsvSpy.mock.results[0].value as string;
     expect(csv).toContain('Jan');
-    expect(csv).toContain('jan@h-dcn.example');
-    expect(csv).toContain('m-1');
-    expect(csv).toContain('Noord');
     expect(csv).toContain('Piet');
     expect(csv).toContain('Marie');
-    // The overlay column value is included too.
+    // The human-facing Lidnummer (member_number) is exported (s5k R1) …
+    expect(csv).toContain('Lidnummer');   // the header, from the field label
+    expect(csv).toContain('M01001');
+    expect(csv).toContain('M01003');
+    // … and the overlay column value is included too.
     expect(csv).toContain('BMW');
+    // The internal member_id UUID is NEVER exported (s5k R1 — internal key only).
+    expect(csv).not.toContain('m-1');
+    expect(csv).not.toContain('m-2');
+    expect(csv).not.toContain('m-3');
 
     // The download filename is date-stamped (leden-YYYY-MM-DD.csv).
     const filename = downloadCsvSpy.mock.calls[0][1];

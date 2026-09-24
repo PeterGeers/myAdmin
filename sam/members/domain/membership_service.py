@@ -107,7 +107,6 @@ from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
 from sam.members.domain.transition_hooks import TransitionHookRegistry
 from sam.members.repository.members_repository import (
     Member,
-    MemberNumberConflictError,
     Membership,
     MembersRepository,
     Payment,
@@ -125,13 +124,7 @@ __all__ = [
     "MEMBERSHIP_STATUS_FIELD_KEY",
     "DEFAULT_SCOPE_DIMENSION_KEY",
     "MEMBERSHIP_TYPE_FIELD_KEY",
-    "MEMBER_NUMBER_COUNTER",
 ]
-
-#: The per-tenant counter name the write path draws member numbers from (design C6). The
-#: atomic ``next_counter(tenant_id, MEMBER_NUMBER_COUNTER)`` fetch is the write-path's job
-#: (task 5.1's note: keep the ``derive_member_number`` hook pure by threading the value in).
-MEMBER_NUMBER_COUNTER = "member_number"
 
 #: The canonical dotted key of the ``status`` fixed field — the attribute the lifecycle state
 #: machine reads the member's current state from and writes the new state to.
@@ -319,12 +312,12 @@ class MembershipService:
             engine dispatches through it after a transition is permitted; an unregistered
             tenant resolves to the safe no-op default. Defaults to an empty registry (task 5.1
             populates h-dcn's hook). Prefer passing ``tenant_hooks`` (the unified registry) so
-            the WRITE path (task 5.2) can also reach ``validate_member`` /
-            ``derive_member_number``; if only ``transition_hooks`` is supplied, the write-path
-            hooks fall back to their safe generic defaults.
+            the WRITE path (task 5.2) can also reach ``validate_member``; if only
+            ``transition_hooks`` is supplied, the write-path hooks fall back to their safe
+            generic defaults.
         tenant_hooks: The unified :class:`~sam.members.domain.tenant_hooks.TenantHookRegistry`
             (design C5, all named extension points). When supplied, the WRITE path resolves
-            ``validate_member`` + ``derive_member_number`` through it AND the engine dispatches
+            ``validate_member`` through it AND the engine dispatches
             ``on_transition`` through its ``transition_registry()`` view — so one registry
             wires every hook. ``transition_hooks`` (the 5.0 seam) is honoured for backwards
             compatibility when ``tenant_hooks`` is omitted.
@@ -366,8 +359,8 @@ class MembershipService:
             else StaticLifecycleConfigProvider()
         )
         # The unified Rung-3 registry (design C5). The WRITE path (task 5.2) resolves
-        # validate_member / derive_member_number through it; an unregistered tenant resolves
-        # to the safe generic default (Property 5). Defaults to an empty registry.
+        # validate_member through it; an unregistered tenant resolves to the safe generic
+        # default (Property 5). Defaults to an empty registry.
         self._tenant_hooks = (
             tenant_hooks if tenant_hooks is not None else TenantHookRegistry()
         )
@@ -1125,11 +1118,11 @@ class MembershipService:
     ) -> None:
         """Authoritatively validate a present ``member_number`` against the tenant format (R4.8).
 
-        ``member_number`` is a manual-entry Fixed **string** (never numeric); its tenant format
-        pattern lives on the resolved field (``member_number_format``). When the record sets a
-        member number it must satisfy that pattern (the repository still enforces uniqueness — a
-        distinct 409 concern). An absent value is left to the fixed-field "required" rule; only a
-        PRESENT value is format-checked here.
+        ``member_number`` is an OPTIONAL manual-entry Fixed **string** (never numeric); its
+        tenant format pattern lives on the resolved field (``member_number_format``). When the
+        record sets a member number it must satisfy that pattern. An absent value is allowed
+        (s5k — member_number is optional, no uniqueness guard); only a PRESENT value is
+        format-checked here.
         """
         field = config.field(MEMBER_NUMBER_FIELD_KEY)
         if field is None or field.member_number_format is None:
@@ -1256,13 +1249,13 @@ class MembershipService:
 
         Orchestration: sanitize the payload (never trust a body ``tenant_id`` — Property 2) →
         stamp the authoritative ``tenant_id`` → set the initial lifecycle state from the
-        tenant's :class:`LifecycleConfig` when the body carries none → derive the member number
-        via the tenant ``derive_member_number`` hook when absent, threading in an atomic
-        ``next_counter`` value (the counter fetch is the write-path's job; the hook stays pure)
-        → validate (fixed fields + tenant ``validate_member``) → authorize the write against
-        the caller's scope → persist via ``save_member`` (a conditional write; a racing/
-        duplicate member number raises :class:`MemberNumberConflictError` → the edge maps it to
-        a 409, never a silent overwrite — Property 6).
+        tenant's :class:`LifecycleConfig` when the body carries none → validate (fixed fields +
+        tenant ``validate_member``) → authorize the write against the caller's scope → persist
+        via ``save_member`` (a single ``PutItem``).
+
+        s5k: ``member_number`` is a plain OPTIONAL string supplied by the caller/import — there is
+        NO auto-generation and NO member-number uniqueness guard. A duplicate number is a
+        data-quality concern, not a write-time conflict.
         """
         record = self._sanitize_write_payload(body)
         record["tenant_id"] = tenant_id  # authoritative — verify-before-trust (Property 2)
@@ -1274,16 +1267,10 @@ class MembershipService:
         if not membership.get("status") and config is not None:
             membership["status"] = config.initial_state.value
 
-        # Derive the member number via the tenant hook when absent, threading the atomic
-        # counter value in (the fetch is the write-path's job; the hook is pure — task 5.1).
-        if not membership.get("member_number"):
-            next_number = self._repo.next_counter(tenant_id, MEMBER_NUMBER_COUNTER)
-            derived = self._tenant_hooks.dispatch(
-                HookName.DERIVE_MEMBER_NUMBER, tenant_id, {**record, "membership": membership},
-                next_number,
-            )
-            if derived:
-                membership["member_number"] = str(derived)
+        # s5k: NO member-number auto-generation. `member_number` is a plain OPTIONAL string that
+        # the caller/import supplies (numeric like `M00012`, alphanumeric like `ABCDEFG`, or
+        # empty). The former counter-fetch + `derive_member_number` hook are removed (a club admin
+        # types/imports the number; auto-numbering was rejected as too complex — see spec s5k).
         record["membership"] = membership
 
         self._validate_member_record(
@@ -1406,8 +1393,8 @@ class MembershipService:
 
         Loads the member within the tenant (Property 1), authorizes the delete against its
         scope (:class:`ScopeDenied` → 403 for a scoped caller reaching out of scope), then
-        deletes via the repository — which frees the ``membernum#`` uniqueness guard so the
-        number can be reused (Property 6). Returns a small deletion receipt.
+        deletes via the repository (a single ``DeleteItem``; s5k removed the ``membernum#``
+        guard). Returns a small deletion receipt.
         """
         existing = self._repo.get_member(tenant_id, member_id)
         if existing is None:

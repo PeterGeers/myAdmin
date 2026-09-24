@@ -87,7 +87,6 @@ from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.view_contexts import ViewContext, ViewContextsProvider
 from sam.members.repository.members_repository import (
     DynamoDbMembersRepository,
-    MemberNumberConflictError,
 )
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
@@ -1243,10 +1242,6 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         # A malformed catalog write (blank/invalid code, missing nl label, non-int order) →
         # 422 Unprocessable, carrying the per-field errors (mirrors MemberValidationError).
         return _error(422, "Validation failed", errors=exc.errors)
-    except MemberNumberConflictError:
-        # A racing/duplicate per-tenant member number lost the repository's conditional write
-        # (Property 6) → 409 Conflict; never a silent overwrite.
-        return _error(409, "Member number already in use")
     except ScopeDenied:
         # A scoped caller attempted a WRITE outside their allowed_scopes (Property 4). Unlike a
         # read (404, no existence leak), an authenticated+entitled write out of scope is an
