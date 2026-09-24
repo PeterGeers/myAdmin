@@ -14,6 +14,7 @@
     "full": "Full"
   },
   "columns": {
+    "memberNumber": "Member no.",
     "name": "Name",
     "email": "Email",
     "status": "Status",

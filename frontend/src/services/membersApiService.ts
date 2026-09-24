@@ -291,6 +291,10 @@ interface NestedMemberRecord {
     membership_type?: string;
     status?: string;
   } | null;
+  //: The tenant OVERLAY bucket — where region now lives as a plain scalar
+  //: (`overlay.region`) since s5d retired the `scope_values` bucket.
+  overlay?: Record<string, unknown> | null;
+  //: LEGACY (retired s5d) — kept only as a fallback so an old-shaped record still resolves.
   scope_values?: { region?: string[] } | null;
   [key: string]: unknown;
 }
@@ -339,10 +343,17 @@ function personalDisplayName(personal: NestedPersonal | null | undefined): strin
  */
 function flattenMember(raw: unknown): Member {
   const rec = (raw ?? {}) as NestedMemberRecord;
-  const { personal, membership, scope_values } = rec;
+  const { personal, membership, overlay, scope_values } = rec;
 
-  const regionValues = scope_values?.region;
-  const region = Array.isArray(regionValues) ? regionValues[0] : undefined;
+  // Region is a PLAIN overlay scalar since s5d (`member.overlay.region`); the old
+  // `scope_values.region` ARRAY bucket was retired. Read overlay first (the current shape),
+  // fall back to the legacy array only for an old-shaped record. This flat alias is what the
+  // table's `region_display` column + the region filter depend on (the modal reads the nested
+  // `overlay.region` directly via `valueFor`, which is why the modal was never affected).
+  const overlayRegion = overlay && typeof overlay === 'object' ? overlay.region : undefined;
+  const legacyRegion = Array.isArray(scope_values?.region) ? scope_values?.region[0] : undefined;
+  const region =
+    typeof overlayRegion === 'string' && overlayRegion ? overlayRegion : legacyRegion;
 
   return {
     // Retain the nested buckets (personal/membership/overlay/scope_values) AND
