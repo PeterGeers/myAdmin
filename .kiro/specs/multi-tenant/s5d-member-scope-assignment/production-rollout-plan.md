@@ -572,9 +572,15 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
 > → PR #20), **s5i** (`Decimal not JSON serializable` in `_response` → PR #21). Post-s5i
 > CloudWatch (verified 09:38+ UTC): ZERO Decimal/AccessDenied errors.
 >
-> **REMAINING (does NOT block the member list):** the `field-config` call still 502s on the
-> h-dcn `region` overlay declaring `enum` with no `choices` (Bug 2 — BACKLOGGED, needs a design
-> decision; separate call from the member LIST). The finer scope-behaviour checks below
+> **field-config 502 — RESOLVED 2026-09-24 (spec `s5j`).** The `field-config` call 502'd on the
+> h-dcn `region` overlay declaring `enum` with no `choices`. Fixed in s5j: the resolver now
+> sources a scope-dimension enum's dropdown `choices` from `scope_dimensions.values` at resolve
+> time (single source of truth; no data migration). Also fixed the Tenant-Admin config-editor
+> load (a frontend double-prepended-URL bug). Shipped via PR #22 (domain) + PR #23 (app wiring —
+> the first deploy still 502'd because `scope_config_provider` wasn't passed into the service).
+> VERIFIED in prod: `GET /members/field-config` = 200, zero OverlayError; the Members `region`
+> column + the member modal now render.
+> **REMAINING (does NOT block the member list):** the finer scope-behaviour checks below
 > (D.1/D.2/D.4/D.5) still want deliberate Tenant-Admin actions in the browser to tick off.
 - [ ] **D.1** As a Tenant-Admin: set a test member-user to `region:["Oost"]` → the
   member list shows only Oost members; `["*"]` shows all; clearing shows none.
