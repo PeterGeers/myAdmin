@@ -56,17 +56,19 @@ import { MembersViewBody } from '../components/members/MembersViewBody';
 import { MembersTransitionModal } from '../components/members/MembersTransitionModal';
 import { MembersBulkTransitionModal } from '../components/members/MembersBulkTransitionModal';
 import { generateCsv, downloadCsv } from '../utils/csvExport';
-import { renderFieldValue, isColumnCandidate } from '../components/members/fieldValue';
+import { renderFieldValue, isColumnCandidate, valueFor } from '../components/members/fieldValue';
 import type {
   Member, MemberRow, FieldConfig, FieldConfigField, LocalizedLabel, ViewContext, ScopeDimension,
   MembershipType,
 } from '../types/members';
 
-/** The always-visible (compact) fixed columns, in display order. */
-const COMPACT_FIELD_KEYS = ['name', 'email', 'status', 'membership_type'] as const;
+/** The always-visible (compact) fixed columns, in display order. Lidnummer (member_number)
+ *  leads — it is the member's human-facing identifier (M00000…), NOT the internal member_id UUID. */
+const COMPACT_FIELD_KEYS = ['member_number', 'name', 'email', 'status', 'membership_type'] as const;
 
 /** Column filter keys — region/status/type plus the compact fixed fields. */
 const INITIAL_FILTERS: Record<string, string> = {
+  member_number: '',
   name: '',
   email: '',
   status: '',
@@ -200,7 +202,7 @@ const MembersPage: React.FC = () => {
   // config lists, uniformly. Field-level `visible === false` removes a field
   // from the candidate set (R5.1) — a hidden field is never a column.
   const overlayFields: FieldConfigField[] = useMemo(() => {
-    const fixed = new Set<string>([...COMPACT_FIELD_KEYS, 'region', 'member_id']);
+    const fixed = new Set<string>([...COMPACT_FIELD_KEYS, 'region', 'member_id', 'member_number']);
     const fields = fieldConfig?.fields ?? [];
     return fields
       .filter(f => !fixed.has(f.key) && isColumnCandidate(f))
@@ -701,6 +703,17 @@ const MembersPage: React.FC = () => {
                 ) : (
                   <>
                     <FilterableHeader
+                      label={t('columns.memberNumber')}
+                      filterValue={isFilterable('member_number') ? filters.member_number : undefined}
+                      onFilterChange={
+                        isFilterable('member_number') ? (v) => setFilter('member_number', v) : undefined
+                      }
+                      placeholder={t('filters.placeholder')}
+                      sortable
+                      sortDirection={columnSortDirection('member_number')}
+                      onSort={() => handleSort('member_number')}
+                    />
+                    <FilterableHeader
                       label={t('columns.name')}
                       filterValue={isFilterable('name') ? filters.name : undefined}
                       onFilterChange={isFilterable('name') ? (v) => setFilter('name', v) : undefined}
@@ -794,11 +807,12 @@ const MembersPage: React.FC = () => {
                           ? (row.region_display
                             ? <Badge colorScheme="purple">{row.region_display}</Badge>
                             : <Text color="gray.500">-</Text>)
-                          : renderFieldValue(f, row[f.key], lang)}
+                          : renderFieldValue(f, valueFor(row, f.group, f.key), lang)}
                       </Td>
                     ))
                   ) : (
                     <>
+                      <Td>{(row.member_number as string) || '-'}</Td>
                       <Td>{row.name || '-'}</Td>
                       <Td>{row.email || '-'}</Td>
                       <Td>{row.status || '-'}</Td>
@@ -809,7 +823,7 @@ const MembersPage: React.FC = () => {
                           : <Text color="gray.500">-</Text>}
                       </Td>
                       {overlayColumns.map(f => (
-                        <Td key={f.key}>{renderFieldValue(f, row[f.key], lang)}</Td>
+                        <Td key={f.key}>{renderFieldValue(f, valueFor(row, f.group, f.key), lang)}</Td>
                       ))}
                     </>
                   )}
@@ -851,12 +865,10 @@ const MembersPage: React.FC = () => {
               <HStack><Spinner color="orange.300" /><Text>{t('modal.loading')}</Text></HStack>
             ) : selectedMember ? (
               // Sectioned read-only view over the RESOLVED field set (s5c task 4.4): grouped by
-              // functional_group, honoring visibility + show_when. Always show the member id row.
+              // functional_group, honoring visibility + show_when. The internal member_id (UUID)
+              // is NOT shown — the human-facing Lidnummer (member_number) already renders in the
+              // Membership/Lidmaatschap group; showing the UUID here was a mislabeled duplicate.
               <VStack spacing={4} align="stretch">
-                <Flex justify="space-between" gap={4}>
-                  <Text color="gray.400" fontSize="sm">{t('modal.fields.memberId')}</Text>
-                  <Text fontSize="sm">{selectedMember.member_id || '-'}</Text>
-                </Flex>
                 <MembersViewBody
                   fieldConfig={fieldConfig}
                   member={selectedMember}

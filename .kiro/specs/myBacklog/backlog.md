@@ -343,3 +343,48 @@ and persist. As-is, a tenant that does NOT want counter-based numbering still tr
 - SCOPE: SAM members-domain (`membership_service.create_member`, `MEMBER_NUMBER_COUNTER`,
   `tenants/hdcn/hooks.py`, `repository` counter). Own small spec. NOT part of s5j.
 - Relates to: the broader "fallback-mess / generic-vs-tenant placement" code-quality track.
+
+# Member-id UUIF
+There is confusing in the use of the member
+
+
+# UX: a REUSABLE lazy/edit-on-click dropdown for the WHOLE myAdmin platform
+Raised by user 2026-09-24 during s5j Members edit-modal review. A better design than the current
+"always-open `<select>`" for editing a field that already has a value: show the CURRENT value as
+plain text (or a closed control) and only reveal the dropdown + its options WHEN the user
+interacts with it (click/focus). The content stays as-is until the user deliberately opens it to
+change it.
+
+## Why (the problem it solves cleanly)
+An always-open `<select {...formikField}>` only displays a preselected option when the stored
+value EXACTLY matches one of the rendered `<option value>`s. When it doesn't, the control falls
+back to its placeholder and the existing value looks BLANK. This bites whenever the stored value
+is: a LEGACY value no longer in the current option set (e.g. a region spelling retired from
+`scope_dimensions.values`), a role-gated enum option the current caller can't pick (filtered out),
+or simply absent from the list. (s5j shipped a NARROW stopgap for the Members form — prepend the
+current value as a synthetic option so it stays visible/selected — see MembersFieldFormBody
+`renderOptions`. This backlog item is the GENERIC, better replacement.)
+
+## Scope — a PLATFORM-WIDE reusable control (not Members-only)
+Build ONE reusable dropdown component/helper used by EVERY dropdown across the myAdmin frontend
+(FIN/STR/ZZP/TENADMIN/Members/tenant-admin config editors, etc.), not a Members-local widget:
+- A shared component (e.g. `frontend/src/components/common/LazySelect.tsx` — final name/location
+  TBD) + optionally a small hook (`useLazyOptions`) so option lists can be resolved/loaded ON
+  OPEN (supports future async option sources too, e.g. catalog/reference fetches on demand).
+- Contract: always DISPLAY the current value (never blank it), even if the value is not in the
+  option set; reveal the options only on interaction; on pick, replace the value; a value not in
+  the list is preserved until changed (honours the "tolerate legacy, enforce on change" rule the
+  Members domain already uses).
+- Consistent with the app's Chakra UI patterns; keyboard-navigable + accessible (ARIA combobox
+  semantics, focus management) — doing this WELL is exactly why it deserves its own task rather
+  than an inline change.
+- Migrate existing dropdowns to it incrementally; once Members adopts it, REMOVE the s5j
+  prepend-current-value stopgap in `MembersFieldFormBody.renderOptions` (leave a pointer there).
+- Consider i18n of the display value/label and the "read-only until opened" affordance (a caret /
+  edit hint) so users know it's editable.
+
+## Notes / boundaries
+- Calculated/derived fields stay NON-editable (correct today) — the lazy control does not apply
+  to them (nothing to pick).
+- This is a UX/frontend code-quality track item; relates to the broader "fallback-mess /
+  generic-vs-tenant placement" track. Own spec.

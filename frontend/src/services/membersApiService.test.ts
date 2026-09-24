@@ -48,17 +48,19 @@ describe('membersApiService', () => {
 
   describe('listMembers', () => {
     it('unwraps the {data:[...]} envelope and flattens nested member records', async () => {
+      // Current member shape (s5d): region is a PLAIN scalar under the `overlay` bucket;
+      // personal carries first_name/last_name/email (not the legacy name/contact).
       const enveloped = {
         data: [
           {
             member_id: 'M-1',
-            personal: { name: 'Jan Jansen', contact: 'm-1@h-dcn.example' },
+            personal: { first_name: 'Jan', last_name: 'Jansen', email: 'm-1@h-dcn.example' },
             membership: {
               member_number: '1001',
               membership_type: 'regulier',
               status: 'active',
             },
-            scope_values: { region: ['Noord'] },
+            overlay: { region: 'Noord' },
           },
         ],
       };
@@ -68,21 +70,44 @@ describe('membersApiService', () => {
 
       const rows = await listMembers();
 
-      expect(rows).toEqual([
-        {
-          member_id: 'M-1',
-          name: 'Jan Jansen',
-          email: 'm-1@h-dcn.example',
-          status: 'active',
-          membership_type: 'regulier',
-          member_number: '1001',
-          region: 'Noord',
-        },
-      ]);
-      // Nested containers must not leak through and shadow the flat keys.
-      expect(rows[0]).not.toHaveProperty('personal');
-      expect(rows[0]).not.toHaveProperty('membership');
-      expect(rows[0]).not.toHaveProperty('scope_values');
+      // The flat convenience aliases the table's default columns read.
+      expect(rows[0]).toMatchObject({
+        member_id: 'M-1',
+        name: 'Jan Jansen',
+        email: 'm-1@h-dcn.example',
+        status: 'active',
+        membership_type: 'regulier',
+        member_number: '1001',
+        region: 'Noord',
+      });
+      // The nested buckets are RETAINED (spread `...rec`) so the nested-first `valueFor`
+      // accessor used by the table + modal can resolve overlay/fixed fields.
+      expect(rows[0]).toHaveProperty('overlay');
+      expect((rows[0] as unknown as { overlay: { region: string } }).overlay.region).toBe('Noord');
+    });
+
+    it('derives the flat region alias from overlay.region (s5d shape) — regression', async () => {
+      // Regression for the empty-Regio-column bug: flattenMember must read overlay.region
+      // (current shape), NOT the retired scope_values.region array. The table's
+      // region_display column + the region filter depend on this flat alias.
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: { data: [{ member_id: 'M-R', overlay: { region: 'Utrecht' } }] },
+        }),
+      );
+      const rows = await listMembers();
+      expect(rows[0].region).toBe('Utrecht');
+    });
+
+    it('falls back to legacy scope_values.region for an old-shaped record', async () => {
+      // Back-compat: an old record with no overlay.region still resolves via the legacy array.
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: { data: [{ member_id: 'M-L', scope_values: { region: ['Noord'] } }] },
+        }),
+      );
+      const rows = await listMembers();
+      expect(rows[0].region).toBe('Noord');
     });
 
     it('returns [] when the enveloped data is not an array', async () => {
@@ -92,10 +117,10 @@ describe('membersApiService', () => {
       await expect(listMembers()).resolves.toEqual([]);
     });
 
-    it('leaves region undefined when scope_values.region is empty', async () => {
+    it('leaves region undefined when neither overlay.region nor a legacy value is present', async () => {
       vi.mocked(global.fetch).mockResolvedValueOnce(
         createMockResponse({
-          body: { data: [{ member_id: 'M-2', scope_values: { region: [] } }] },
+          body: { data: [{ member_id: 'M-2', overlay: {}, scope_values: { region: [] } }] },
         }),
       );
       const rows = await listMembers();
@@ -110,9 +135,9 @@ describe('membersApiService', () => {
           body: {
             data: {
               member_id: 'M-9',
-              personal: { name: 'Piet', contact: 'piet@h-dcn.example' },
+              personal: { first_name: 'Piet', email: 'piet@h-dcn.example' },
               membership: { membership_type: 'student', status: 'pending' },
-              scope_values: { region: ['Zuid'] },
+              overlay: { region: 'Zuid' },
             },
           },
         }),

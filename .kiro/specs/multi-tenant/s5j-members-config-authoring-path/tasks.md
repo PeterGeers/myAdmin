@@ -81,6 +81,39 @@ no sleep; strip `.env` AWS keys for nonprofit-deploy), frontend build via `front
   backlog "field-config 502 / region overlay choices" entry marked RESOLVED with the chosen
   option (b) + PR #22/#23 + prod verification; this tasks.md reflects the RCA + lesson.
 
+## Phase 5 — Follow-up: empty Regio COLUMN in the table (post-deploy browser finding)
+
+- [x] **5.1 RCA + fix** DONE 2026-09-24 — after field-config 200, the modal showed region but the
+  TABLE (compact) Regio column was still empty. RCA (frontend-only, stale-refactor drift): s5d
+  moved region from a retired `scope_values.region` ARRAY into the `overlay.region` SCALAR. The
+  modal reads it correctly via the nested-first `valueFor()` accessor, but the table depends on a
+  flat `member.region` alias that `flattenMember()` (frontend/src/services/membersApiService.ts)
+  still derived from `scope_values.region` → always `undefined` → `region_display=''` → blank cell.
+  FIX: `flattenMember` now derives the flat `region` from `overlay.region` (legacy `scope_values`
+  kept only as a fallback); `NestedMemberRecord` gained the `overlay` bucket. HARDENING: the
+  table's overlay-column cells (`MembersPage.tsx`) now resolve via the shared nested-first
+  `valueFor(row, f.group, f.key)` instead of flat `row[f.key]`, so EVERY overlay column renders in
+  the table exactly as in the modal (not just region).
+- [x] **5.2 Tests** DONE — updated the stale `membersApiService.test.ts` cases (they asserted the
+  retired `scope_values` shape + legacy `personal.name/contact` keys) to the current
+  `overlay.region` + real personal keys; ADDED regressions: derive flat region from
+  `overlay.region`; legacy `scope_values` fallback; undefined when neither present. 28 passed.
+  (These stale tests are WHY the bug shipped — they encoded the old shape.)
+- [x] **5.3 Field-mapping fixes (user remarks, frontend-only)** DONE 2026-09-24 —
+  (1) **Lidnummer column**: the compact table showed no member number. Added `member_number`
+  as the FIRST default compact column (filterable + sortable, standard pattern) — prepended to
+  `COMPACT_FIELD_KEYS`, added `INITIAL_FILTERS.member_number`, header + cell, `columns.memberNumber`
+  i18n (nl "Lidnummer" / en "Member no."), and excluded it from the overlay-column set so it isn't
+  double-rendered. (2) **Modal duplicate/UUID**: the modal's top row was labeled "Lidnummer" (nl)
+  but rendered the internal `member_id` UUID, while the real Lidnummer already shows in the
+  Membership/Lidmaatschap group — removed that top UUID row entirely (the UUID is internal, not
+  user-facing). Tests: `membersApiService` + `membersConfigService` 34 passed; get_diagnostics
+  clean on all changed files.
+- [ ] **5.4 [H] Ship + browser re-verify** — commit + PR (frontend GitHub Pages deploy); after
+  deploy confirm: table Regio column shows the badge (webmaster=all, peter=Utrecht); table shows
+  a **Lidnummer** column (M00000…, not the UUID); the member modal shows Lidnummer only once (in
+  the Membership group), no UUID row.
+
 ## Done criteria
 - field-config returns 200 for h-dcn; `region` renders as a dropdown sourced from
   `scope_dimensions.values` (single source of truth; no stored duplication; no data migration).
