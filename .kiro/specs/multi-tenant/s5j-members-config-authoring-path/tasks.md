@@ -109,10 +109,12 @@ no sleep; strip `.env` AWS keys for nonprofit-deploy), frontend build via `front
   Membership/Lidmaatschap group — removed that top UUID row entirely (the UUID is internal, not
   user-facing). Tests: `membersApiService` + `membersConfigService` 34 passed; get_diagnostics
   clean on all changed files.
-- [ ] **5.4 [H] Ship + browser re-verify** — commit + PR (frontend GitHub Pages deploy); after
-  deploy confirm: table Regio column shows the badge (webmaster=all, peter=Utrecht); table shows
-  a **Lidnummer** column (M00000…, not the UUID); the member modal shows Lidnummer only once (in
-  the Membership group), no UUID row.
+- [x] **5.4 [H] Ship + browser re-verify** DONE 2026-09-24 — shipped via **PR #24** (merge
+  `bfb1690`: region column populates, Lidnummer column added, modal UUID row removed, edit-mode
+  dropdowns keep the current value visible/selected) and **PR #25** (merge `2f70912`: region cell
+  rendered as a plain field, not a purple Badge — user preference). Both frontend GitHub Pages
+  deploys succeeded. User-VERIFIED in the browser: the table shows the real Lidnummer (M00000…,
+  not the UUID) and the Regio value; the region no longer uses the badge styling.
 
 ## Done criteria
 - field-config returns 200 for h-dcn; `region` renders as a dropdown sourced from
@@ -120,3 +122,7 @@ no sleep; strip `.env` AWS keys for nonprofit-deploy), frontend build via `front
 - Change-gated validation (accept unchanged/legacy, enforce on change/create) proven for region.
 - The Tenant-Admin Members editor loads (URL bug fixed + regression-tested).
 - Scope/access filter unchanged. All tests green; verified in the browser.
+
+
+# Use of the member table to store Sponsolrs, clubs, etc
+The use of the member lidnummer check did block the storage for empty member.lidnummers. As member.lidnummer is justb a field managed by CRUD there should be no reason to block it regio fields should have Overig
