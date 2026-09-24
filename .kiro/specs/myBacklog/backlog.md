@@ -50,9 +50,58 @@ How can we manage s3 management attributes similar as in Flask
 # PITR / Backup in dynamodb
 Check the current settings and what is needed
 
-# Fall back mechanosm outside tenant scope 
-- Should be impossible
-- Pre-check on parameters/config availability after new deployment??
+# Fallback mechanisms create a mess — CODE-QUALITY TRACK (broader than tenant scope)
+**Raised by user 2026-09-23** during the s5d "no members shown" debug: *"many of these
+fallbacks create a mess ... the fallback mess is a separate issue broader than the token/claim
+issue. We should address it in a special path as part of the code-quality exercises."* So this
+is its OWN code-quality track item, not folded into any single feature spec.
+
+## The pattern (why it's a mess)
+Across the stack, when a value is missing/ambiguous the code silently substitutes a
+"reasonable" default instead of failing loudly. Each fallback individually looks harmless; in
+aggregate they HIDE real misconfiguration and make "why is it empty / wrong?" undiagnosable —
+the failure surfaces far from its cause, as empty lists or wrong-tenant data, never as an error.
+
+## Concrete instances seen this session (evidence, not speculation)
+- **Frontend API base URL fallback → localhost.** The deployed SPA was baked WITHOUT
+  `VITE_MEMBERS_API_BASE_URL` and silently fell back to `127.0.0.1:3000`, so prod called
+  localhost and showed no members with no error (s5d CE.3; fixed PR #16). Classic "default
+  masks missing config".
+- **Roles fallback in `getCurrentUserRoles()`** — calls `/api/auth/me` (MySQL merged roles)
+  then FALLS BACK to `cognito:groups` on failure. Two sources of truth for "what can this user
+  do"; when they disagree the UI silently trusts whichever answered, hiding the real state.
+- **Active-tenant "default to first tenant"** (the Flask-side habit) — the SAM edge s5f
+  DELIBERATELY rejected this (403 instead of default-to-first) precisely because a silent
+  default exposes WRONG-TENANT data. The mess: the same "just pick one" instinct lives in other
+  code paths and needs the same treatment (select-never-default).
+- **Stale projection rows never reconciled** (`role#`/`module#`) — the projection keeps
+  advertising a capability the source removed; a "fall back to whatever's projected" read then
+  trusts stale data. (Tracked separately under the projection-reconcile item, but it's the same
+  class: trust a stale/derived value rather than fail/resync.)
+- **`.env` static AWS keys overriding `AWS_PROFILE`** (steering 41) — an env-var "fallback"
+  credential chain that silently runs against the WRONG account (`ResourceNotFoundException`
+  instead of "you picked the wrong creds"). Environment-level, but same failure shape.
+
+## Direction (needs a design pass — do NOT blind-patch)
+- **Inventory** every fallback/default in the request/auth/config paths (frontend + Flask +
+  SAM edge). For each: is the default SAFE (a true degenerate case) or is it MASKING a missing
+  input?
+- **Fail loud on missing REQUIRED config** — a missing API base URL, a missing tenant selection
+  for a multi-tenant user, a missing entitlement should be an explicit error at startup / at the
+  edge, not a silent substitution. (s5f is the template: select-never-grant, deny-don't-default.)
+- **Single source of truth** — remove the roles double-read fallback (pick MySQL-merged as
+  authoritative; treat `cognito:groups` divergence as an error to surface, not a silent
+  fallback).
+- **Post-deploy pre-checks** (the original stub's idea): after a new deployment, verify
+  parameters/config availability (API URLs, required env vars, projection freshness) so a
+  missing input is caught at deploy time, not as an empty screen in prod.
+- **Guard rails**: extend the existing "no fallback tenant symbol in live code" grep guard
+  (s5f R4.3) into a broader lint for known fallback anti-patterns.
+- SCOPE: cross-cutting code-quality; likely its own spec. Relates to: "Projection sync
+  reconcile" item, s5f (the deny-don't-default precedent / ADR 0007), s5d CE.3 (the API-URL
+  fallback), steering 41 (the credential fallback).
+- Original stub intent preserved: fallbacks *outside tenant scope* "should be impossible";
+  add post-deployment pre-checks on parameter/config availability.
 
 
 # Projection sync does not reconcile obsolete role# / module# / config# rows (only scopegrant#)
@@ -180,3 +229,43 @@ So the chain SHOULD refresh reactively with no reload. It doesn't — so the bre
 - Scope: FRONTEND only (separate from s5f, which is the SAM API edge). Small, own task.
 - Files: `frontend/src/components/TenantSelector.tsx`, `context/TenantContext.tsx`,
   `hooks/useTenantModules.ts`, `services/apiService.ts`, `App.tsx`, `components/MainMenu.tsx`.
+
+# Members field-config 502 — a scope-dimension field declared `enum` in the overlay has no `choices`
+Discovered 2026-09-24 during s5d PHASE D (first real browser traffic to the Members API, after
+the s5f/s5g/s5h fixes unblocked auth/CORS/IAM). `GET /prod/members/field-config` returns 502.
+members-prod log:
+```
+OverlayError: invalid tenant field overlay: overlay.region: an enum variable field must
+declare choices/options
+  ... field_resolver.py resolve -> _reject_invalid_overlay -> raise OverlayError
+```
+ROOT CAUSE (data, verified in prod MySQL): h-dcn's `members.field_overlay` param
+(`parameters` where scope='tenant', scope_id='h-dcn', namespace='members', key='field_overlay')
+declares `region` as `{"type":"enum", "label":{...}, "order":10, "required":false,
+"functional_group":"membership"}` — with **NO `choices`**. Every OTHER enum overlay field
+(`motor_brand`, `magazine_pref`, `payment_method`, `newsletter_pref`) carries a `choices` array,
+so the field resolver accepts them; `region` alone is rejected → the whole field-config resolve
+raises → 502.
+
+WHY it's like this (design tension, NOT a simple typo): `region` is the h-dcn **scope
+dimension** (s5d). Its allowed VALUES live in `members.scope_dimensions` (the 10 regions), not as
+overlay `choices`. So the overlay authored `region` as a bare `enum` expecting its values to come
+from the scope-dimension config, but the field resolver requires an `enum` overlay field to carry
+its own `choices`. The two views of "what are region's allowed values" disagree.
+
+OPTIONS (needs a design decision — do NOT blind-patch):
+- (a) DATA fix: populate the `region` overlay field's `choices` from the scope_dimensions values
+  when authoring/projecting (i.e. the projection or the tenant-admin authoring UI copies the
+  scope-dimension values into the overlay field's choices). Keeps the resolver contract intact.
+- (b) CODE fix: the field resolver sources an enum field's choices from the tenant's
+  `scope_dimensions` when the field IS a scope dimension (don't require inline `choices` for a
+  scope-dimension-backed enum). Single source of truth = scope_dimensions.
+- (c) MODEL fix: a scope-dimension field is a distinct field TYPE (not a plain `enum`) so the
+  resolver knows its values come from scope config, not inline choices.
+- Recommendation lean: (b) or (c) — single source of truth for the dimension's values in
+  `scope_dimensions`, rather than duplicating them into overlay `choices` (a) which can drift.
+- SCOPE: s5d/members-domain territory (`sam/members/domain/field_resolver.py`,
+  `scope_dimensions.py`, the projection `config#fields`/`config#scope` rows, and the
+  tenant-admin overlay authoring). Own spec/task.
+- Impact: blocks the Members field-config call (the typed-field UI config); the member LIST is a
+  separate call (fixed separately: the Decimal-serialization bug). Non-security.
