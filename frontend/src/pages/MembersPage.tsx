@@ -57,6 +57,7 @@ import { MembersTransitionModal } from '../components/members/MembersTransitionM
 import { MembersBulkTransitionModal } from '../components/members/MembersBulkTransitionModal';
 import { generateCsv, downloadCsv } from '../utils/csvExport';
 import { renderFieldValue, isColumnCandidate, valueFor } from '../components/members/fieldValue';
+import { formFields, groupFieldsBySection } from '../components/members/fieldForm';
 import type {
   Member, MemberRow, FieldConfig, FieldConfigField, LocalizedLabel, ViewContext, ScopeDimension,
   MembershipType,
@@ -500,23 +501,23 @@ const MembersPage: React.FC = () => {
         return;
       }
 
-      // Fixed/meaningful columns first, then any resolved overlay columns.
-      const fixedColumns: { key: string; header: string }[] = [
-        { key: 'member_id', header: t('modal.fields.memberId') },
-        { key: 'name', header: t('columns.name') },
-        { key: 'email', header: t('columns.email') },
-        { key: 'status', header: t('filters.status') },
-        { key: 'membership_type', header: t('columns.membershipType') },
-        { key: 'region', header: t('filters.region') },
-      ];
-      const overlayColumnsDefs = overlayFields.map(f => ({
-        key: f.key,
-        header: resolveLabel(f.label, lang, f.key),
-      }));
-      const columns = [...fixedColumns, ...overlayColumnsDefs];
+      // Columns are driven by the SAME resolved field config the view modal uses (R4.9): the
+      // full visible field set (fixed base ⊕ overlay ⊕ calculated), sectioned by
+      // functional_group in the same order, flattened into a single column list. `formFields`
+      // already omits the internal `member_id` UUID + system timestamps (s5k R1 — member_id is
+      // never exported), and each cell resolves through the shared nested-shape accessor
+      // (`valueFor`) + presenter (`renderFieldValue`), so the CSV carries the REAL Lidnummer and
+      // every personal/overlay/calculated field — exactly what the modal shows. show_when is a
+      // per-member predicate; a CSV needs a uniform column set, so we include every visible field
+      // as a column and let an absent value render as the placeholder dash.
+      const fields = formFields(fieldConfig);
+      const sections = groupFieldsBySection(fields, fieldConfig?.functional_groups);
+      const orderedFields: FieldConfigField[] = sections.flatMap(s => s.fields);
 
-      const headers = columns.map(c => c.header);
-      const rows = exportRows.map(row => columns.map(c => (row as Record<string, unknown>)[c.key]));
+      const headers = orderedFields.map(f => resolveLabel(f.label, lang, f.key));
+      const rows = exportRows.map(row =>
+        orderedFields.map(f => renderFieldValue(f, valueFor(row, f.group, f.key), lang)),
+      );
       const csv = generateCsv(headers, rows);
 
       const stamp = new Date().toISOString().slice(0, 10);
@@ -524,7 +525,7 @@ const MembersPage: React.FC = () => {
     } catch {
       toast({ title: t('export.error'), status: 'error' });
     }
-  }, [overlayFields, lang, t, toast]);
+  }, [fieldConfig, lang, t, toast]);
 
   // Total column count (fixed compact + region + overlay when in full view + the
   // trailing selection column).

@@ -44,10 +44,11 @@ registry does NOT hardcode a tenant's vocabulary:
   ``members.field_overlay`` (so h-dcn's ``M/V/X/N`` is data, not a code constant). Until a tenant
   supplies choices the base leaves them open (any non-blank string).
 
-R4.8 — **``member_number`` is a Fixed ``string``** (never numeric): stable, sortable, and
-leading-zero-safe. Its tenant **format pattern** (e.g. ``Nr-0001`` / a regex) is a Parameter added
-in task 1.4b; **generation is a tenant policy, OUT of scope** — s5c is manual entry, and h-dcn's
-auto-counter stays in its ``derive_member_number`` tenant hook (not promoted to the platform).
+R4.8 — **``member_number`` is an OPTIONAL Fixed ``string``** (never numeric; s5k): stable,
+sortable, and leading-zero-safe. Its tenant **format pattern** (e.g. ``Nr-0001`` / a regex) is a
+Parameter added in task 1.4b and only validates a PRESENT value; **there is no generation and no
+uniqueness guard** — the number is supplied by manual entry / import (a duplicate is a
+data-quality concern, not a write-time conflict).
 
 What this module is NOT:
 - It does not validate the *variable overlay* (that is resolved per tenant by ``FieldResolver``).
@@ -183,9 +184,9 @@ class MemberNumberFormat:
     - a **regex** (``regex=r"..."``): the value must fully match it.
 
     When both are given the regex takes precedence. An empty format (the default) imposes no
-    constraint beyond the base "non-blank string". **Generation is OUT of scope** — s5c is
-    manual entry; this only *validates* an entered value (create/edit/import). h-dcn's
-    auto-counter stays in its ``derive_member_number`` hook, not promoted here.
+    constraint beyond the base "non-blank string". **There is no generation (s5k)** — the number
+    is supplied by manual entry / import; this only *validates* a PRESENT entered value
+    (create/edit/import), and an absent value is allowed (member_number is optional).
     """
 
     prefix: str = ""
@@ -401,13 +402,15 @@ PERSONAL_FIELDS: tuple[FixedField, ...] = (
 )
 
 MEMBERSHIP_FIELDS: tuple[FixedField, ...] = (
-    # member_number — Fixed **string** (never numeric), required, repository-enforced unique.
-    # Tenant format pattern (task 1.4b) + manual entry; generation is a tenant hook (OUT, R4.8).
+    # member_number — Fixed **string** (never numeric), OPTIONAL (s5k). Manual entry / import;
+    # NO auto-generation and NO uniqueness guard — a duplicate is a data-quality concern, not a
+    # write-time conflict. The optional tenant format pattern (task 1.4b) only validates a
+    # PRESENT value; sponsors/clubs/numberless members persist with an empty member_number.
     FixedField(
         key="member_number",
         group=FieldGroup.MEMBERSHIP,
         type=FieldType.STRING,
-        required=True,
+        required=False,
         label={"nl": "Lidnummer", "en": "Member number"},
         order=10,
     ),

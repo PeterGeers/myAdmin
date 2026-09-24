@@ -10,12 +10,10 @@ literal and h-dcn's member rules appear — the generic core
 
 Rung discipline (R1.3) — where each h-dcn difference actually landed:
 
-- ``derive_member_number`` — **REGISTERED (Rung 3).** h-dcn allocates a member number in its
-  own ``L``-prefixed, zero-padded format (e.g. ``L-000042``) from a per-tenant counter. The
-  *format* is a genuine tenant nuance that is neither config nor a declarative rule, so it is
-  a hook. It is kept **pure/deterministic**: the counter value is threaded in as
-  ``next_number`` (the storage-bound atomic ``next_counter`` fetch stays in the repository /
-  write route, task 5.2), so the hook itself does no I/O.
+- ``derive_member_number`` — **REMOVED (s5k).** Member numbering is no longer auto-generated on
+  any plane. ``member_number`` is a plain OPTIONAL string the caller/import supplies (h-dcn's real
+  numbers are ``M#####``, imported). The former ``L-``/pad-6 counter formatter was deleted; a
+  duplicate number is a data-quality concern, not a write-time conflict.
 - ``validate_member`` — **REGISTERED (Rung 3).** h-dcn is a motor club: an ACTIVE h-dcn member
   must carry a motorcycle detail in the variable overlay (``overlay.motor``/``motor_type``).
   This is a club-specific field rule over the tenant's *variable overlay*, which the generic
@@ -38,9 +36,9 @@ Rung discipline (R1.3) — where each h-dcn difference actually landed:
 - ``calculate_fee`` — **NOT REGISTERED.** h-dcn has no per-record fee computation; the named
   point exists for future clubs only.
 
-Net h-dcn Rung-3 footprint: **2 of 5** named points registered (``derive_member_number``,
-``validate_member``); the other three stayed at Rung 1-2 or are unused — direct evidence for
-the Go/No-Go rung distribution (R8.2).
+Net h-dcn Rung-3 footprint: **1 of 5** named points registered (``validate_member``); the other
+four stayed at Rung 1-2, are unused, or were removed (``derive_member_number``, s5k) — direct
+evidence for the Go/No-Go rung distribution (R8.2).
 """
 
 from __future__ import annotations
@@ -52,9 +50,6 @@ from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
 
 __all__ = [
     "HDCN_TENANT_ID",
-    "HDCN_MEMBER_NUMBER_PREFIX",
-    "HDCN_MEMBER_NUMBER_PAD",
-    "hdcn_derive_member_number",
     "hdcn_validate_member",
     "register_hdcn_hooks",
 ]
@@ -62,40 +57,9 @@ __all__ = [
 #: The tenant this package implements. Confined to this tenant-scoped package (Property 5).
 HDCN_TENANT_ID = "h-dcn"
 
-#: h-dcn member-number format: an ``L`` prefix (Lid = member) and a zero-padded sequence.
-HDCN_MEMBER_NUMBER_PREFIX = "L-"
-HDCN_MEMBER_NUMBER_PAD = 6
-
-
-def hdcn_derive_member_number(
-    tenant_id: str,
-    record: Mapping[str, Any],
-    next_number: Optional[int] = None,
-) -> Optional[str]:
-    """Derive an h-dcn member number in h-dcn's own format (Rung-3 ``derive_member_number``).
-
-    Pure + deterministic: given the counter value ``next_number`` (fetched atomically by the
-    repository / write route — task 5.2 — and threaded in, so this hook does no I/O), format
-    it as ``L-000042``. An existing number on the record is kept unchanged (idempotent
-    re-save / backfilled members that already carry their historical number are never
-    renumbered). With neither an existing number nor a counter value, returns ``None`` and
-    lets the caller decide (the hook never fabricates a number out of nothing).
-
-    Args:
-        tenant_id: The dispatch key (always ``"h-dcn"`` for this hook).
-        record: The member record being created/updated.
-        next_number: The next per-tenant counter value, or ``None`` if not being allocated.
-
-    Returns:
-        The formatted member number, the existing one, or ``None``.
-    """
-    membership = record.get("membership") if isinstance(record, Mapping) else None
-    existing = membership.get("member_number") if isinstance(membership, Mapping) else None
-    if existing:
-        return str(existing)
-    if next_number is None:
-        return None
-    return f"{HDCN_MEMBER_NUMBER_PREFIX}{int(next_number):0{HDCN_MEMBER_NUMBER_PAD}d}"
+# s5k: `hdcn_derive_member_number` (an `L-`/pad-6 counter formatter) was DELETED. Member numbering
+# is no longer auto-generated on any plane — `member_number` is a plain optional string the
+# caller/import supplies (h-dcn's real numbers are `M#####`, imported). See spec s5k.
 
 
 def _overlay(record: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -144,14 +108,11 @@ def hdcn_validate_member(
 def register_hdcn_hooks(registry: TenantHookRegistry) -> TenantHookRegistry:
     """Bind h-dcn's Rung-3 hook implementations into ``registry`` for ``tenant_id="h-dcn"``.
 
-    The single wiring point (called once at module composition). It registers ONLY the hooks
-    h-dcn genuinely needs — ``derive_member_number`` and ``validate_member`` — and
-    deliberately leaves ``on_transition`` (safe no-op), ``resolve_visible_regions`` (declarative
-    at Rung 1-2), and ``calculate_fee`` (unused) on their safe generic defaults. Returns the
-    same ``registry`` for chaining.
+    The single wiring point (called once at module composition). It registers ONLY the hook
+    h-dcn genuinely needs — ``validate_member`` — and deliberately leaves ``on_transition``
+    (safe no-op), ``resolve_visible_regions`` (declarative at Rung 1-2), and ``calculate_fee``
+    (unused) on their safe generic defaults. (s5k removed ``derive_member_number`` — member
+    numbering is no longer generated.) Returns the same ``registry`` for chaining.
     """
-    registry.register(
-        HookName.DERIVE_MEMBER_NUMBER, HDCN_TENANT_ID, hdcn_derive_member_number
-    )
     registry.register(HookName.VALIDATE_MEMBER, HDCN_TENANT_ID, hdcn_validate_member)
     return registry

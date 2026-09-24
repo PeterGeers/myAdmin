@@ -226,11 +226,11 @@ class RowTransformError(Exception):
 class RowSkipped(Exception):
     """Raised when a source row is intentionally NOT a member and is skipped (not an error).
 
-    A member record's identity is its ``member_number``; a row with NONE (an empty export
-    scaffold row, or a clubblad/magazine distribution entry for an organisation — a dealer,
-    sister club, or sponsor with no ``Lidnummer``) is not a member. These belong in a future
-    CONTACT table, not ``sam-members``. The runner counts them as SKIPPED — reported for
-    transparency, but never blocking ``--apply`` the way a real mapping error does.
+    s5k: **currently unused.** A numberless row used to be treated as a non-member and raised
+    this; under s5k ``member_number`` is optional, so a sponsor / sister club / dealer with no
+    ``Lidnummer`` is now imported as a real member (identity is the minted ``member_id`` uuid).
+    The exception + the plan's ``skipped`` list are retained as an inert, non-blocking extension
+    point for any FUTURE intentional-skip rule; nothing in the transform raises it today.
 
     Carries ``reason`` (why it was skipped) and ``label`` (a best-effort human identifier —
     e.g. the organisation name — for the report).
@@ -516,14 +516,18 @@ def map_hdcn_row(
             # validator — no data loss, just a type fix (A.2).
             target[key] = str(cleaned).strip() if not isinstance(cleaned, str) else cleaned
 
-    # SKIP non-members: a row with no usable member number (Lidnummer) is NOT a member — an
-    # empty export scaffold row, or a clubblad/magazine distribution entry for an organisation
-    # (dealer / sister club / sponsor). These belong in a future CONTACT table, not
-    # `sam-members`. Skipping is intentional and NON-blocking (RowSkipped, not an error), so
-    # `--apply` is not choked by them. (A.2 decision: leave non-members out.)
-    if not membership.get("member_number"):
-        label = _skip_label(personal, overlay)
-        raise RowSkipped("no member number (Lidnummer) — not a member", label=label)
+    # s5k: a row with NO usable member number (Lidnummer) is STILL a member. `member_number` is
+    # a plain OPTIONAL string now — a sponsor / sister club / dealer with no Lidnummer is a valid
+    # `sam-members` record (identity is the minted `member_id` uuid, not the human number). We
+    # simply LEAVE the key absent (an optional field is absent, never present-and-blank — the
+    # fixed-field validator rejects a blank string), so such rows validate and never collide on
+    # the duplicate-number key below.
+    #
+    # ⚠ Non-idempotent for numberless rows: the export carries no `member_id` column, so each run
+    # mints a fresh uuid. A numbered row can be reconciled by its human number, but a numberless
+    # row has no stable source key — re-running `--apply` would create a NEW record for the same
+    # real contact. Import numberless rows ONCE, then maintain them in-app (see backlog: h-dcn
+    # Members re-import). The fidelity report flags the numberless count so this is visible.
 
     # A.2 DERIVED membership fields (no direct source column):
     #  * status — the export has no status column → default to "active" (A.2 decision; all
@@ -726,10 +730,11 @@ class BackfillPlan:
     transformed: list[TransformedRow] = field(default_factory=list)
     #: (member_ref, {dotted_key: reason}) for rows that failed to map — surfaced, never dropped.
     errors: list[tuple[str, Mapping[str, str]]] = field(default_factory=list)
-    #: (label, reason) for rows intentionally SKIPPED as non-members (no member number — an
-    #: empty scaffold row or a clubblad/organisation entry). Reported, NON-blocking for --apply.
+    #: (label, reason) for rows intentionally SKIPPED. s5k: currently always empty — numberless
+    #: rows are now imported (valid members). Retained as an inert extension point (see RowSkipped).
     skipped: list[tuple[str, str]] = field(default_factory=list)
-    #: member numbers appearing on more than one row in this batch (would-be uniqueness conflicts).
+    #: non-empty member numbers appearing on more than one row in this batch — a DATA-QUALITY
+    #: warning only (reported; NOT skipped or blocked — the uniqueness guard was removed in s5k).
     duplicate_member_numbers: dict[str, list[str]] = field(default_factory=dict)
     #: rows whose region did not resolve to a scope value (reported, not fatal).
     rows_missing_region: list[str] = field(default_factory=list)
@@ -777,9 +782,11 @@ def build_backfill_plan(
 
     Non-destructive: it only iterates the adapter's ``rows()`` (a read) and builds an in-memory
     plan — it never writes anything. Rows that fail to map are collected into
-    :attr:`BackfillPlan.errors` (the dry-run reports them; the batch is not aborted). Member
-    numbers that repeat within the batch are recorded as would-be uniqueness conflicts
-    (Property 6) so ``--apply`` can be trusted to report rather than overwrite.
+    :attr:`BackfillPlan.errors` (the dry-run reports them; the batch is not aborted). s5k: EVERY
+    transformable row is imported — a numberless row is a valid member (empty ``member_number``)
+    and a reused number is a DATA-QUALITY warning recorded in
+    :attr:`BackfillPlan.duplicate_member_numbers` (reported, never skipped or overwritten — the
+    ``membernum#`` uniqueness guard was removed).
     """
     plan = BackfillPlan(tenant_id=tenant_id, source_description=adapter.describe())
 
@@ -805,7 +812,7 @@ def build_backfill_plan(
             plan.errors.append((exc.member_ref, exc.reasons))
             continue
 
-        number = record["membership"]["member_number"]
+        number = record["membership"].get("member_number", "")
         region_value = record.get("overlay", {}).get(_REGION_FIELD_KEY)
         candidates.append(
             TransformedRow(
@@ -816,28 +823,21 @@ def build_backfill_plan(
                 record=record,
             )
         )
-        number_owners.setdefault(number, []).append(record["member_id"])
+        # Group ONLY by a non-empty number: an empty `member_number` (numberless sponsor/club)
+        # is not a "reused number" and must never be lumped into a duplicate bucket.
+        if number:
+            number_owners.setdefault(number, []).append(record["member_id"])
 
     plan.duplicate_member_numbers = {
         number: ids for number, ids in number_owners.items() if len(ids) > 1
     }
 
-    # PASS 2: LEAVE DUPLICATES OUT (user decision, ONBOARDING §6.1). A member number reused in
-    # the source is a data conflict (a recycled Lidnummer for a different person, or a true
-    # duplicate entry). Rather than an arbitrary "first-wins", SKIP **every** occurrence of a
-    # duplicated number — reported, non-blocking — so the data owner resolves the conflict in
-    # the source (assign new numbers / merge / drop) and re-runs. Only uniquely-numbered rows
-    # are written.
+    # PASS 2: s5k — IMPORT EVERY ROW, including reused numbers. The `membernum#` uniqueness guard
+    # is gone: a member number reused in the source is a DATA-QUALITY warning, not a write-time
+    # conflict, so it no longer justifies dropping real members. `duplicate_member_numbers` is
+    # still computed and REPORTED (the fidelity report lists it) so the data owner can reconcile a
+    # recycled/duplicated Lidnummer in the source — but nothing is skipped for it.
     for cand in candidates:
-        if cand.member_number in plan.duplicate_member_numbers:
-            plan.skipped.append(
-                (
-                    cand.member_number,
-                    "duplicate member number in the batch — ALL occurrences left out; "
-                    "resolve the source conflict then re-run",
-                )
-            )
-            continue
         plan.transformed.append(cand)
         if not cand.region:
             plan.rows_missing_region.append(cand.member_id)

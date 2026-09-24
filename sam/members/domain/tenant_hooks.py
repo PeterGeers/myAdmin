@@ -23,11 +23,6 @@ The named extension points (design C5 / `generic-membership-design.md` §3 Rung 
   h-dcn does NOT register it — it stays on the safe default, which is a POSITIVE
   rung-distribution finding for the Go/No-Go (a difference that stayed *below* Rung 3). Safe
   default: **pass the already-resolved regions through unchanged** (identity).
-- ``derive_member_number(tenant_id, record, next_number) -> str``  — tenant-specific
-  member-number derivation. The counter fetch (a storage concern) is threaded in as
-  ``next_number`` so the hook itself stays pure/deterministic and storage-agnostic. Safe
-  default: **keep the record's existing number**, else stringify ``next_number`` (identity /
-  sensible default).
 - ``calculate_fee(tenant_id, record, context) -> Optional[number]``  — defined for
   completeness (design C5 mentions it for future clubs); h-dcn does not need it. Safe
   default: **None** (no computed fee).
@@ -73,9 +68,12 @@ __all__ = [
     "default_validate_member",
     "default_on_transition",
     "default_resolve_visible_regions",
-    "default_derive_member_number",
     "default_calculate_fee",
 ]
+
+# s5k: the ``derive_member_number`` extension point was RETIRED — member numbering is no longer
+# auto-generated on any plane (``member_number`` is a plain optional string the caller/import
+# supplies). The HookName value + its safe default were removed.
 
 
 class HookName(str, Enum):
@@ -89,7 +87,6 @@ class HookName(str, Enum):
     VALIDATE_MEMBER = "validate_member"
     ON_TRANSITION = "on_transition"
     RESOLVE_VISIBLE_REGIONS = "resolve_visible_regions"
-    DERIVE_MEMBER_NUMBER = "derive_member_number"
     CALCULATE_FEE = "calculate_fee"
 
 
@@ -141,27 +138,6 @@ def default_resolve_visible_regions(
     return list(default_regions)
 
 
-def default_derive_member_number(
-    tenant_id: str,
-    record: Mapping[str, Any],
-    next_number: Optional[int] = None,
-) -> Optional[str]:
-    """Safe default for ``derive_member_number``: keep the existing number, else the counter.
-
-    Identity / sensible default: if the record already carries ``membership.member_number``
-    it is kept unchanged; otherwise, when a ``next_number`` counter value is threaded in, its
-    string form is used; otherwise ``None`` (the caller decides — the default never invents a
-    tenant-specific format).
-    """
-    membership = record.get("membership") if isinstance(record, Mapping) else None
-    existing = membership.get("member_number") if isinstance(membership, Mapping) else None
-    if existing:
-        return str(existing)
-    if next_number is not None:
-        return str(next_number)
-    return None
-
-
 def default_calculate_fee(
     tenant_id: str,
     record: Mapping[str, Any],
@@ -182,7 +158,6 @@ _DEFAULTS: Mapping[HookName, Callable[..., Any]] = {
     HookName.VALIDATE_MEMBER: default_validate_member,
     HookName.ON_TRANSITION: default_on_transition,
     HookName.RESOLVE_VISIBLE_REGIONS: default_resolve_visible_regions,
-    HookName.DERIVE_MEMBER_NUMBER: default_derive_member_number,
     HookName.CALCULATE_FEE: default_calculate_fee,
 }
 

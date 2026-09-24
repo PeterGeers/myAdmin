@@ -51,190 +51,20 @@ How can we manage s3 management attributes similar as in Flask
 Check the current settings and what is needed
 
 
-# SPEC: Member identity & number policy (member_id vs Lidnummer, numbering, sponsors/clubs)
-**One spec — these three concerns are one design decision; a choice on any forces the others.**
-Motivating use case: the user wants to also store NON-person entities (sponsors, clubs) in the
-member table, which is what surfaces the identity/numbering questions.
+# SPEC CREATED → `.kiro/specs/multi-tenant/s5k-member-identity-and-number-policy/`
+**Member identity & Lidnummer cleanup** — a SMALL spec: `member_id` internal-only; `member_number`
+an OPTIONAL plain string (numeric, alphanumeric, or empty) with the optional per-tenant
+`member_number_format` validation retained; DELETE the `membernum#` uniqueness-guard mechanism
+(`save_member` → single `PutItem`; drop the 1152 guard rows). Auto member-number GENERATION was
+designed then **REJECTED (user, 2026-09-24): too complex for a simple administration** — a club
+admin types/imports the Lidnummer. If "suggest next number" is ever wanted, it is a cheap per-tenant
+UX toggle (`members.suggest_next_number` + reuse `member_number_format`), NOT a backend engine — see
+the spec's FUTURE section. Full sponsors/clubs entity modelling may be a follow-up; making the
+Lidnummer optional is the prerequisite. Requirements/design/tasks live in the spec folder.
 
-## (1) `member_id` (UUID) is internal-only — stop exposing it as administration
-There is confusion between `member_id` and the Lidnummer (`member_number`). `member_id` is a
-technical internal identifier (row key / UUID) and should NOT appear as a normal administrative
-field: not a table column, not a modal row, not something a user reads or edits. The Lidnummer
-is the human-facing number. (s5j already removed the UUID row from the Members view modal as a
-point fix; this spec sets the general rule + audits any other place the UUID leaks into the UI.)
-
-## (2) Member numbering becomes a GENERIC, opt-in-by-CONFIG platform feature (not tenant code)
-**DIRECTION (user, 2026-09-24): the numbering logic in members must become a GENERIC feature
-that any tenant can use if they want — configured, not coded per tenant.** Today it is
-mis-placed: the generation strategy is hardcoded in the generic core AND the format lives in an
-h-dcn code hook. Both move: strategy + format become a GENERIC engine driven by a tenant CONFIG
-value. `h-dcn` stops being special — it is just a tenant that opted into a particular config.
-
-### Today (the mis-placement, verified — RCA s5j review)
-`MembershipService.create_member` (~line 1280): when a new member has no `member_number` it
-calls `self._repo.next_counter(tenant_id, MEMBER_NUMBER_COUNTER)` (atomic DynamoDB `ADD` on a
-`counter#member_number` item — `repository/table_design.py`), threads the value into the
-`derive_member_number` hook, and **h-dcn's `hdcn_derive_member_number` (`tenants/hdcn/hooks.py`)**
-formats it (`L-000042` = prefix `L-` + zero-pad 6, both module constants). All live + tested —
-NOT dead code. Problem: the counter strategy is baked into the generic path, and the format is
-baked into an h-dcn-named code hook — so "numbering" carries the tenant name and needs code to
-change.
-
-### Target: config selects a registered GENERIC strategy, invoked only when required
-- **Generic engine owns the strategies** (one implementation each, in the members core, tested
-  once): `counter` (atomic sequence — the concurrency-safe mechanism stays in code), `max_plus_one`
-  (read highest + 1; needs a uniqueness guard + retry — racy otherwise), `manual` (user enters it,
-  no auto-gen), `none` (numberless). Config VALUE selects which; a tenant cannot invent arbitrary
-  logic (closed set — adding a strategy is a small code change, not a config change).
-- **Tenant CONFIG opts in** — a new param (working name `members.number_policy`) authored via the
-  Tenant-Admin → Members editor, e.g. `{ "strategy": "counter", "prefix": "L-", "pad": 6 }`. A
-  tenant that does not author one → NO numbering (no counter fetch, no auto-gen). h-dcn's L-/6/
-  counter becomes this config — pure data, and **`hdcn_derive_member_number` is DELETED** (the
-  `validate_member` motorcycle rule stays a hook — that one is genuinely bespoke).
-- **Per member TYPE opt-in** — the number is only linked to a SUBSET of membership types (real
-  members yes; sponsors/clubs/donors no). Add an `allocates_number` flag to each
-  `MembershipTypeEntry` in the tenant catalog (`sam/members/domain/membership_type_catalog.py` —
-  already tenant-config: `type_code`/`label`/`active`/`order`). On create the engine allocates
-  only when the member's type `allocates_number` AND the record has no number yet (never renumber).
-- **Empty Lidnummer is then valid by construction** — a type that does not allocate has no number;
-  the write path must NOT block it. Make `member_number` OPTIONAL: skip the `membernum#<number>`
-  uniqueness guard + auto-derivation when empty; enforce uniqueness ONLY when a value is present.
-
-So the answer to "a predefined config option that invokes a piece of code when required": YES —
-config value → look up the matching registered strategy → invoke it, gated by (type
-`allocates_number`) AND (no existing number). This is the `derive_member_number` hook registry
-made data-driven (chosen by CONFIG, not by tenant-in-code).
-
-### Reusable implementation — TWO generics, one per plane (split by responsibility)
-The two planes are separately packaged (Flask `backend/src` and SAM `sam/` cannot import each
-other), so this is NOT one helper copied twice — it is the two ENDS of one config-driven feature,
-following the platform's one-directional flow: **Flask authors + validates + projects → SAM reads
-+ executes.**
-
-**FLASK-plane generic — config authoring + validation + projection (`backend/src`).** Owns:
-1. DEFINE the strategy as a parameter (`members.number_policy`) in `parameter_schema.py` with
-   `options` enumerating the allowed strategy names (`counter`/`max_plus_one`/`manual`/`none`) —
-   EXACTLY how `storage.invoice_provider` enumerates its options today.
-2. AUTHOR it via the existing Tenant-Admin → Members typed editor + the per-type
-   `allocates_number` flag on catalog entries.
-3. VALIDATE on save (the `members_config_validation` seam) — reject an unknown strategy / bad
-   format. The param `options` are the single source of allowed values.
-4. PROJECT it: extend `ProjectionSync` (`backend/src/services/projection_sync.py`) to emit a
-   `config#number_policy` row into `governance_projection`, riding the SAME rails as
-   `config#fields` / `config#scope` / `config#views`.
-
-**SAM-plane generic — strategy registry + execution (`sam/members`).** Owns:
-1. READ the projected `config#number_policy` via the projection reader (same seam as
-   overlay/scope).
-2. A generic `StrategyRegistry` mapping strategy name → a registered GENERIC implementation, with
-   a SAFE DEFAULT + register-time validation (generalise the `TenantHookRegistry` shape from
-   `sam/members/domain/tenant_hooks.py`, keyed by a plain string instead of `(HookName,
-   tenant_id)`).
-3. RESOLVE + EXECUTE at create time: `resolve(policy.strategy)(...)`, gated by the type
-   `allocates_number` + "no existing number." The concurrency-safe mechanism behind `counter`
-   (atomic `ADD`) / `max_plus_one` (guarded read+write) stays in code here. DELETE
-   `hdcn_derive_member_number` — strategies are generic + registered on this plane now.
-
-**HOW to reuse the current Flask shared function (`storage_resolver`) — extract, don't duplicate.**
-`services/storage_resolver.py::resolve_storage_provider` is a PROVEN but ONE-OFF (C) dispatch
-(reads `storage.invoice_provider` via `ParameterService`, returns a handler, safe default). To
-reuse it we PROMOTE its shape into a small generic Flask helper (working name
-`StrategyResolver`): constructed with `(namespace, key, {option: handler}, default)`; `resolve(
-tenant)` reads the param via the existing `ParameterService` scope chain and returns the handler
-or the default. THEN refactor `resolve_storage_provider` to be its FIRST CONSUMER (an instance —
-same behavior, its existing tests keep it honest), and the numbering Flask side uses the same
-generic for declaring/validating `number_policy`. So we don't add a parallel mechanism beside
-storage — we turn storage's one-off into the library and make storage its first user.
-- NOTE the degenerate case: storage AUTHORS and EXECUTES in-process (it is a Flask module), so its
-  `StrategyResolver` returns a live handler. For NUMBERING the Flask generic stops at
-  "validate + project the chosen strategy NAME"; the SAM generic does the execution. Same pattern,
-  different execution plane.
-
-**Shared-vocabulary guard (contract with no shared code).** The Flask `options` (allowed strategy
-names a tenant may author) and the SAM registry keys MUST agree. Enforce with a test that asserts
-every Flask-authored strategy name resolves in the SAM registry (or a documented single source the
-two transcribe from) — mirroring how `members_config_validation` keeps its field-key set honest
-against the SAM `fixed_fields`.
-
-### Open sub-decisions (design pass, don't blind-change)
-- Concurrency: `counter` (no duplicates) vs `max_plus_one` (simpler, racy without a guard — a
-  motor club's low concurrency may make it acceptable). Config picks per tenant.
-- One flag (`allocates_number` = auto-generate AND require) vs two (allow manual entry but don't
-  auto-generate). Lean: one flag first; split only if a real tenant needs the middle ground.
-- Keep the `derive_member_number` hook as a rare escape hatch for a format config can't express,
-  or go config-only. Lean: config-first, keep the hook as an escape hatch.
-- Align with the platform's other tenant-specific mechanisms (SAM `TenantHookRegistry` /
-  `HookName`; the Flask "Tenant Administration Functions") — see the note below; the aim is ONE
-  pattern (config-value selects a registered generic strategy) rather than per-tenant code.
-
-## (3) Use the member table for sponsors / clubs / non-person entities (the driver)
-Storing organisations (sponsors, clubs) alongside people needs a member "kind"/type: which
-fixed fields apply, how numbering behaves (usually none/optional — see (2)), and how
-scope/overlay behave for a non-person. This is the broader design behind (1) and (2).
-
-## (4) Alignment — one pattern for tenant-configurable behavior (INVESTIGATED 2026-09-24)
-"hdcn" in `register_hdcn_hooks` = the tenant **h-dcn**. Goal: converge tenant-specific behavior
-on ONE pattern — a CONFIG value (or per-tenant data) selects a registered GENERIC
-strategy/handler, invoked when required — NOT per-tenant code branches.
-
-### What actually exists today (read-only investigation of both planes)
-Classification: (A) tenant-name branch [anti-pattern] · (B) registry keyed by tenant · (C)
-config-value selects handler · (D) parameter-driven data (no code selection).
-
-- **The anti-pattern (A) is ABSENT on the Flask plane.** No hardcoded real tenant names, no
-  `if administration == "<tenant>"` behavior branches in `backend/src/**`. (`administration ==
-  "all"` in reporting/banking is a UI "all my tenants" data filter, not a branch; `h-dcn`/`hdcn`
-  appear ONLY on the SAM plane.) So there is nothing to CLEAN UP — alignment is additive.
-- **Flask tenant-admin functions are all GENERIC services parameterized by an `administration`
-  string** (data, never a code branch), gated by three data-driven registries:
-  - `MODULE_REGISTRY` (`services/module_registry.py`) + `tenant_modules` table — module
-    entitlement (D); `has_module`/`module_required`/`activate_module`. Also does a genuine (C)
-    dispatch: `module_backing()` / `resolve_module_api_base()` pick flask-vs-sam + the API base
-    by MODULE NAME (this is how `MEMBERS` routes to the SAM plane).
-  - `FUNCTION_REGISTRY` (`services/function_registry.py`) + `tenant_functions` table +
-    `TenantFunctionService` — per-tenant optional-function TOGGLES (D; feature flags, no code
-    selected).
-  - `ParameterService` (`services/parameter_service.py`) scope chain
-    (user→role→tenant→system→CODE_DEFAULTS) + `parameter_schema.py` — the per-tenant config store
-    (D). `FieldConfigMixin` (`services/field_config_mixin.py`) is the per-tenant field overlay
-    (D) — the direct analogue of the SAM `overlay_provider`.
-- **The proven (C) TEMPLATE to copy** lives on the Flask plane already:
-  `services/storage_resolver.py::resolve_storage_provider(tenant)` reads the
-  `storage.invoice_provider` PARAMETER (options: `google_drive` / `s3_shared` / `s3_tenant`) and
-  DISPATCHES to the matching storage handler. This is EXACTLY the shape the member-numbering
-  direction (2) wants: a config value selects a registered generic strategy. Use it as the model.
-- **SAM plane** (`sam/members/domain/tenant_hooks.py`): `TenantHookRegistry` keyed by
-  `(HookName, tenant_id)` with SAFE GENERIC DEFAULTS, register-time validation; `HookName` =
-  closed set {DERIVE_MEMBER_NUMBER, VALIDATE_MEMBER, ON_TRANSITION, RESOLVE_VISIBLE_REGIONS,
-  CALCULATE_FEE}. Concrete tenant code `sam/members/tenants/hdcn/hooks.py` (only h-dcn, only 2 of
-  5 points), wired once in `handler/app.py`. Selection is TENANT-IN-CODE via a registry (B) — the
-  core never branches on tenant (Property 5).
-
-### The gap + the aligned direction
-- **Difference in SELECTION:** SAM resolves a CALLABLE by `(HookName, tenant_id)` (B); Flask
-  resolves DATA/HANDLER by a config VALUE (C/D) and has NO named-callable-registry equivalent.
-- **For member numbering specifically (2): use the (C) template, not (B).** Numbering is a
-  choice-of-strategy → a `members.number_policy` param whose value names a generic strategy,
-  dispatched by a small resolver (like `storage_resolver`). NO tenant literal, NO per-tenant
-  callable — this is STRICTLY BETTER than the SAM tenant-hook approach for this case, and it's
-  why `hdcn_derive_member_number` should be deleted rather than kept as a hook.
-- **For genuinely bespoke behavior** that can't be reduced to a strategy value (e.g. h-dcn's
-  motorcycle `validate_member` rule), the SAM `TenantHookRegistry` (B) is the right home; a
-  Flask-side equivalent could be added IF/when real bespoke Flask behavior appears (none exists
-  today, so it's not urgent — additive when needed).
-- **Convergence rule to record as steering:** new tenant-specific behavior lands as (C) a
-  config-selected generic strategy by default; only truly un-configurable logic uses (B) a
-  tenant-keyed hook registry; NEVER (A) a tenant-name branch. Data differences stay (D).
-- This cross-plane alignment write-up may live in the "fail-loud integrity / generic-vs-tenant
-  placement" spec or a small steering note — decide when scoping.
-
-- SCOPE: SAM members-domain + repository (`membership_service.create_member`, the numbering
-  strategy engine + `members.number_policy` config, the `allocates_number` catalog flag, the
-  repository counter + uniqueness guard, DELETE `hdcn_derive_member_number`), the projection of
-  the new config, the Tenant-Admin editor surface, plus the frontend audit for leaked
-  `member_id`, plus the cross-plane alignment investigation (4). Own spec.
-- Relates to: the "fail-loud integrity / generic-vs-tenant placement" spec below (the numbering
-  hardcode is an instance of generic-core-owning-a-tenant-concern).
+> The cross-plane "tenant-configurable behavior" ALIGNMENT investigation (2026-09-24) that this
+> item once carried is preserved below under the **Fail-loud integrity / generic-vs-tenant
+> placement** spec — its natural home, now that it is no longer tied to member numbering.
 
 
 # SPEC: Fail-loud integrity — kill silent fallbacks + reconcile stale projection + post-deploy pre-checks
@@ -292,8 +122,32 @@ fixing early (likely the FIRST phase of this spec given the security angle).
   empty screen in prod.
 - **Guard rails** — extend the "no fallback tenant symbol in live code" grep guard (s5f R4.3) into
   a broader lint for known fallback anti-patterns.
-- SCOPE: cross-cutting code-quality; own spec. Relates to steering 41, s5f (ADR 0007), and the
-  member-number hardcode (generic-vs-tenant placement) in the identity spec above.
+- SCOPE: cross-cutting code-quality; own spec. Relates to steering 41, s5f (ADR 0007).
+
+## Part C — generic-vs-tenant placement: converge on ONE selection pattern (investigated 2026-09-24)
+Where behavior differs per tenant, converge on ONE pattern — a CONFIG value (or per-tenant data)
+selects a registered GENERIC handler — NOT per-tenant code branches. Classification: (A) tenant-name
+branch [anti-pattern] · (B) registry keyed by tenant · (C) config-value selects handler · (D)
+parameter-driven data. Findings (read-only, both planes):
+- **(A) is ABSENT on the Flask plane** — no hardcoded real tenant names, no `if administration ==
+  "<tenant>"` in `backend/src/**` (`administration == "all"` is a UI "all my tenants" data filter,
+  not a branch; `h-dcn`/`hdcn` appear only on the SAM plane). So alignment is ADDITIVE, not cleanup.
+- **Flask tenant-admin functions are GENERIC services parameterized by `administration`** (D),
+  gated by three data-driven registries: `MODULE_REGISTRY` + `tenant_modules`
+  (`services/module_registry.py`; also a (C) dispatch — `module_backing`/`resolve_module_api_base`
+  route MEMBERS to SAM by module name); `FUNCTION_REGISTRY` + `tenant_functions` +
+  `TenantFunctionService` (D toggles); `ParameterService` + `parameter_schema.py` (D config store),
+  `FieldConfigMixin` (D field overlay — the analogue of the SAM `overlay_provider`).
+- **The proven (C) TEMPLATE** already exists: `services/storage_resolver.py::resolve_storage_provider`
+  reads the `storage.invoice_provider` param and dispatches to the storage handler. Copy this shape
+  for any future config-selected behavior.
+- **SAM plane** uses `TenantHookRegistry` keyed by `(HookName, tenant_id)` with safe defaults
+  (`sam/members/domain/tenant_hooks.py`) — selection is tenant-in-code via a registry (B); the core
+  never branches on tenant (Property 5).
+- **CONVERGENCE RULE (record as steering — cf. `36-config-and-parameters.md`):** new tenant-specific
+  behavior lands as (C) a config-selected generic handler by DEFAULT; only truly un-configurable
+  logic uses (B) a tenant-keyed hook registry; NEVER (A) a tenant-name branch; data differences stay
+  (D). (Steering 36 already states this order — Part C is the evidence + audit behind it.)
 
 
 # SPEC: Shared frontend component library — enforce reuse (filters, dropdowns, layout)
@@ -447,3 +301,24 @@ This unifies why Members-config and Advanced felt inconsistent — they are the 
   the storage resolver. Relates to: "Member identity & number policy" (StrategyResolver / config
   patterns), "Fail-loud integrity" (generic-vs-tenant placement), "Shared frontend component
   library" (the dashboard is a reuse consumer). Own spec.
+
+
+# Members re-import (h-dcn): birth dates missing + sponsors/clubs
+Data-quality finding 2026-09-24: the h-dcn member backfill loaded the membership START dates
+(`joined_date`) for all members but NONE of the real `birth_date` values — so birth-date-derived
+calculated fields (`age`, `birthday`) are empty for everyone (empty is CORRECT behaviour when the
+input is absent; the issue is the missing SOURCE data, not the calc). Fix belongs to a RE-IMPORT
+of the gsheet JSON, not to s5k:
+- Re-import must map the source birth date into `personal.birth_date` (check the gsheet column →
+  field mapping in `sam/members/migration/hdcn_backfill.py` / the import script — the birth-date
+  column was likely unmapped or mis-named).
+- WHILE re-importing, also load SPONSORS / other CLUBS (the driver behind s5k): rows land as member
+  records with an optional/empty Lidnummer + a `sponsor`/`club` `membership_type`. Depends on s5k
+  (optional Lidnummer) being shipped first.
+- Verify person-required fixed fields (e.g. `birth_date`) do NOT block a non-person row; if they
+  do, relax per type via the existing overlay required-override (NOT a new entity model — see s5k).
+- SCOPE: the import/backfill path + the gsheet source. Own task. Prerequisite: s5k.
+
+## Import members data directly from gsheet
+Read /home/peter/projects/h-dcn/.kiro/specs/Members/migrationHDCNLedenbestand
+See also the lastest version of scripts\aws\h-dcn

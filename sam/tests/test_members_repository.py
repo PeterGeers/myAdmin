@@ -7,11 +7,10 @@ DynamoDB touch-point (design C6). They exercise the invariants the repository OW
 - **Structural tenant isolation (Property 1):** every operation is keyed by ``tenant_id`` and
   a query cannot address another tenant's partition — a second tenant's identically-numbered
   member is invisible, and a blank tenant is refused.
-- **Member-number uniqueness per tenant, under concurrency (Property 6):** a conditional
-  transactional write on a ``membernum#`` guard lets the first writer win and makes a racing
-  second writer fail with :class:`MemberNumberConflictError`; the same number is free in a
-  different tenant and reusable after delete; an idempotent re-save of the same member is ok.
-- **Atomic counters (Property 6):** an atomic ``ADD`` hands out strictly increasing values.
+- **Member number is a plain OPTIONAL string (s5k):** it may be empty, may duplicate (no
+  uniqueness guard — a duplicate is a data-quality concern, not a write-time conflict), and is
+  stored verbatim (numeric or alphanumeric). ``save_member``/``delete_member`` are single-item
+  writes; there is no atomic counter and no ``membernum#`` guard.
 - The **key shape** (SK builders / split, item builders, fail-fast table-name resolution).
 
 DynamoDB is faked with an in-memory ``FakeDynamoTable`` + ``FakeDynamoClient`` (mirrors the
@@ -44,7 +43,6 @@ from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.repository import table_design as td
 from sam.members.repository.members_repository import (
     DynamoDbMembersRepository,
-    MemberNumberConflictError,
     MembersRepository,
 )
 
@@ -278,8 +276,6 @@ class TestTableDesign:
         assert td.membership_sk("M-1", "MS-9") == "member#M-1#membership#MS-9"
         assert td.delegates_sk("M-1") == "member#M-1#delegates"
         assert td.payment_sk("M-1", "P-3") == "member#M-1#payment#P-3"
-        assert td.counter_sk("member_number") == "counter#member_number"
-        assert td.member_number_sk("1001") == "membernum#1001"
 
     def test_split_sort_key_is_inverse_of_build(self):
         assert td.split_sort_key(td.membership_sk("M-1", "MS-9")) == (
@@ -373,73 +369,47 @@ class TestMemberCrudAndIsolation:
             lambda: repo.list_members(""),
             lambda: repo.save_member("", _member("M-1", "1001")),
             lambda: repo.delete_member("", "M-1"),
-            lambda: repo.next_counter("", "member_number"),
         ):
             with pytest.raises(ValueError):
                 call()
 
-    def test_delete_member_removes_record_and_frees_the_number(self, repo):
+    def test_delete_member_removes_the_record(self, repo):
         repo.save_member("h-dcn", _member("M-1", "1001"))
         repo.delete_member("h-dcn", "M-1")
         assert repo.get_member("h-dcn", "M-1") is None
-        # Number freed → a new member may reclaim it.
+
+
+# ---------------------------------------------------------------------------
+# Member number is a plain OPTIONAL string — no guard, no uniqueness (s5k)
+# ---------------------------------------------------------------------------
+
+
+class TestMemberNumberIsPlainOptionalString:
+    def test_save_with_no_member_number_is_allowed(self, repo):
+        # s5k: member_number is optional. A member with no number saves (single PutItem).
+        m = _member("M-1", "1001")
+        del m["membership"]["member_number"]
+        repo.save_member("h-dcn", m)
+        stored = repo.get_member("h-dcn", "M-1")
+        assert stored is not None
+        assert not stored["membership"].get("member_number")
+
+    def test_duplicate_number_same_tenant_is_allowed(self, repo):
+        # s5k: the uniqueness guard was removed — a duplicate number is a data-quality concern,
+        # NOT a write-time conflict. Both saves succeed (last write wins per member_id).
+        repo.save_member("h-dcn", _member("M-1", "1001"))
         repo.save_member("h-dcn", _member("M-2", "1001"))
+        assert repo.get_member("h-dcn", "M-1")["membership"]["member_number"] == "1001"
         assert repo.get_member("h-dcn", "M-2")["membership"]["member_number"] == "1001"
 
+    def test_arbitrary_string_number_is_stored_verbatim(self, repo):
+        repo.save_member("h-dcn", _member("M-1", "ABCDEFG"))
+        assert repo.get_member("h-dcn", "M-1")["membership"]["member_number"] == "ABCDEFG"
 
-# ---------------------------------------------------------------------------
-# Member-number uniqueness per tenant (Property 6) — conditional writes
-# ---------------------------------------------------------------------------
-
-
-class TestMemberNumberUniqueness:
-    def test_duplicate_number_same_tenant_is_rejected(self, repo):
-        repo.save_member("h-dcn", _member("M-1", "1001"))
-        with pytest.raises(MemberNumberConflictError):
-            repo.save_member("h-dcn", _member("M-2", "1001"))
-
-    def test_conflict_error_carries_tenant_and_number(self, repo):
-        repo.save_member("h-dcn", _member("M-1", "1001"))
-        with pytest.raises(MemberNumberConflictError) as exc:
-            repo.save_member("h-dcn", _member("M-2", "1001"))
-        assert exc.value.tenant_id == "h-dcn"
-        assert exc.value.member_number == "1001"
-
-    def test_same_number_is_free_in_a_different_tenant(self, repo):
-        repo.save_member("tenant-a", _member("M-1", "1001"))
-        # No raise: uniqueness is per-tenant (the guard lives in each tenant's partition).
-        repo.save_member("tenant-b", _member("M-1", "1001"))
-        assert repo.get_member("tenant-a", "M-1")["membership"]["member_number"] == "1001"
-        assert repo.get_member("tenant-b", "M-1")["membership"]["member_number"] == "1001"
-
-    def test_idempotent_resave_of_same_member_is_allowed(self, repo):
+    def test_idempotent_resave_of_same_member_updates_in_place(self, repo):
         repo.save_member("h-dcn", _member("M-1", "1001", name="Alex"))
-        # Re-saving the SAME member (same id + number) updates in place, no conflict.
         repo.save_member("h-dcn", _member("M-1", "1001", name="Alexandra"))
         assert repo.get_member("h-dcn", "M-1")["personal"]["first_name"] == "Alexandra"
-
-    def test_concurrent_writers_only_one_wins(self, table):
-        """Two repositories racing for the same number: first wins, second conflicts.
-
-        The transactional conditional write on the ``membernum#`` guard is the ONLY thing
-        making this safe — the domain layer never assumes it is the sole writer (Property 6).
-        """
-        repo_a = DynamoDbMembersRepository(table=table, client=table.meta.client)
-        repo_b = DynamoDbMembersRepository(table=table, client=table.meta.client)
-
-        repo_a.save_member("h-dcn", _member("M-1", "1001"))
-        with pytest.raises(MemberNumberConflictError):
-            repo_b.save_member("h-dcn", _member("M-2", "1001"))
-
-        # The winner's record stands; the loser wrote nothing (all-or-nothing).
-        assert repo_a.get_member("h-dcn", "M-1") is not None
-        assert repo_a.get_member("h-dcn", "M-2") is None
-
-    def test_save_requires_a_member_number(self, repo):
-        bad = _member("M-1", "1001")
-        del bad["membership"]["member_number"]
-        with pytest.raises(ValueError):
-            repo.save_member("h-dcn", bad)
 
 
 # ---------------------------------------------------------------------------
@@ -498,32 +468,6 @@ class TestMemberChildren:
         )
         payments = repo.list_member_payments("h-dcn", "M-1")
         assert [p["amount"] for p in payments] == [42]
-
-
-# ---------------------------------------------------------------------------
-# Atomic counters (Property 6)
-# ---------------------------------------------------------------------------
-
-
-class TestCounters:
-    def test_next_counter_starts_at_one_and_increments(self, repo):
-        assert repo.next_counter("h-dcn", "member_number") == 1
-        assert repo.next_counter("h-dcn", "member_number") == 2
-        assert repo.next_counter("h-dcn", "member_number") == 3
-
-    def test_counters_are_isolated_per_tenant(self, repo):
-        assert repo.next_counter("tenant-a", "member_number") == 1
-        assert repo.next_counter("tenant-a", "member_number") == 2
-        # A different tenant's counter starts fresh.
-        assert repo.next_counter("tenant-b", "member_number") == 1
-
-    def test_counters_are_isolated_per_name(self, repo):
-        assert repo.next_counter("h-dcn", "member_number") == 1
-        assert repo.next_counter("h-dcn", "invoice_number") == 1
-
-    def test_counter_values_are_never_handed_out_twice(self, repo):
-        seen = {repo.next_counter("h-dcn", "member_number") for _ in range(50)}
-        assert seen == set(range(1, 51))  # 1..50, strictly increasing, no repeats
 
 
 # ---------------------------------------------------------------------------

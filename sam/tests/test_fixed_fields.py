@@ -141,8 +141,8 @@ def test_optional_fields_may_be_absent_or_null():
         ("personal", "first_name"),
         ("personal", "last_name"),
         # NOTE: email is NOT required (A.2b) — 66% of real members have none; see the
-        # dedicated test_email_is_optional below.
-        ("membership", "member_number"),
+        # dedicated test_email_is_optional below. member_number is NOT required either (s5k) —
+        # see test_member_number_is_optional below.
         ("membership", "status"),
         ("membership", "membership_type"),
         ("membership", "joined_date"),
@@ -161,6 +161,15 @@ def test_email_is_optional():
     # (records-only members without a login account; the majority of a real membership).
     m = _valid_member()
     del m["personal"]["email"]
+    validate_fixed_fields(m)  # must not raise
+
+
+def test_member_number_is_optional():
+    # s5k: member_number is a plain OPTIONAL string — sponsors / clubs / numberless members
+    # are valid. No auto-generation and no uniqueness guard; an absent number is fine, and an
+    # empty string is treated as absent (only a PRESENT value is format-checked elsewhere).
+    m = _valid_member()
+    del m["membership"]["member_number"]
     validate_fixed_fields(m)  # must not raise
 
 

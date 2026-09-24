@@ -12,8 +12,8 @@ Two layers under test:
    :class:`MembershipService` consumes (so the 5.0 dispatch behaviour is identical).
 
 2. :mod:`sam.members.tenants.hdcn.hooks` — h-dcn's concrete Rung-3 implementations. Pins:
-   ``register_hdcn_hooks`` binds ONLY the hooks h-dcn needs (``derive_member_number``,
-   ``validate_member``); the other named points stay on their safe defaults; each registered
+   ``register_hdcn_hooks`` binds ONLY the hooks h-dcn needs (``validate_member``); the other
+   named points stay on their safe defaults; each registered
    hook does what h-dcn needs; and a DIFFERENT / unregistered tenant gets the safe default
    (Property 5 — no tenant literal leaks into the generic core).
 
@@ -41,7 +41,6 @@ from sam.members.domain.tenant_hooks import (
     HookName,
     TenantHookRegistry,
     default_calculate_fee,
-    default_derive_member_number,
     default_on_transition,
     default_resolve_visible_regions,
     default_validate_member,
@@ -52,7 +51,6 @@ from sam.members.domain.transition_hooks import (
 )
 from sam.members.tenants.hdcn.hooks import (
     HDCN_TENANT_ID,
-    hdcn_derive_member_number,
     hdcn_validate_member,
     register_hdcn_hooks,
 )
@@ -73,8 +71,8 @@ def test_register_and_resolve_binds_hook_by_name_and_tenant():
 def test_register_accepts_string_hook_name():
     registry = TenantHookRegistry()
     sentinel = lambda *a, **k: None
-    registry.register("derive_member_number", "club", sentinel)
-    assert registry.resolve("derive_member_number", "club") is sentinel
+    registry.register("validate_member", "club", sentinel)
+    assert registry.resolve("validate_member", "club") is sentinel
 
 
 @pytest.mark.parametrize(
@@ -83,7 +81,6 @@ def test_register_accepts_string_hook_name():
         (HookName.VALIDATE_MEMBER, default_validate_member),
         (HookName.ON_TRANSITION, default_on_transition),
         (HookName.RESOLVE_VISIBLE_REGIONS, default_resolve_visible_regions),
-        (HookName.DERIVE_MEMBER_NUMBER, default_derive_member_number),
         (HookName.CALCULATE_FEE, default_calculate_fee),
     ],
 )
@@ -102,8 +99,8 @@ def test_registering_one_hook_does_not_affect_other_named_points():
     # The other points for the SAME tenant stay on their defaults.
     assert registry.resolve(HookName.ON_TRANSITION, "club") is default_on_transition
     assert (
-        registry.resolve(HookName.DERIVE_MEMBER_NUMBER, "club")
-        is default_derive_member_number
+        registry.resolve(HookName.RESOLVE_VISIBLE_REGIONS, "club")
+        is default_resolve_visible_regions
     )
 
 
@@ -151,15 +148,6 @@ def test_default_resolve_visible_regions_is_identity_over_resolved_regions():
         "Noord",
         "Zuid",
     ]
-
-
-def test_default_derive_member_number_keeps_existing_then_falls_back_to_counter():
-    keep = default_derive_member_number("club", {"membership": {"member_number": "X-9"}}, 42)
-    assert keep == "X-9"
-    counter = default_derive_member_number("club", {"membership": {}}, 42)
-    assert counter == "42"
-    none = default_derive_member_number("club", {"membership": {}}, None)
-    assert none is None
 
 
 def test_default_calculate_fee_returns_none():
@@ -251,12 +239,8 @@ def test_register_hdcn_hooks_binds_only_the_hooks_hdcn_needs():
     registry = TenantHookRegistry()
     register_hdcn_hooks(registry)
 
-    # Registered (Rung 3): derive_member_number + validate_member.
-    assert registry.is_registered(HookName.DERIVE_MEMBER_NUMBER, HDCN_TENANT_ID)
+    # Registered (Rung 3): validate_member only. (s5k retired derive_member_number.)
     assert registry.is_registered(HookName.VALIDATE_MEMBER, HDCN_TENANT_ID)
-    assert registry.resolve(HookName.DERIVE_MEMBER_NUMBER, HDCN_TENANT_ID) is (
-        hdcn_derive_member_number
-    )
     assert registry.resolve(HookName.VALIDATE_MEMBER, HDCN_TENANT_ID) is hdcn_validate_member
 
     # Left on the safe default (Rung 1-2 / unused): on_transition, resolve_visible_regions,
@@ -265,23 +249,7 @@ def test_register_hdcn_hooks_binds_only_the_hooks_hdcn_needs():
     assert not registry.is_registered(HookName.RESOLVE_VISIBLE_REGIONS, HDCN_TENANT_ID)
     assert not registry.is_registered(HookName.CALCULATE_FEE, HDCN_TENANT_ID)
 
-    assert registry.registered_hooks(HDCN_TENANT_ID) == [
-        HookName.VALIDATE_MEMBER,
-        HookName.DERIVE_MEMBER_NUMBER,
-    ]
-
-
-def test_hdcn_derive_member_number_formats_from_counter():
-    assert hdcn_derive_member_number(HDCN_TENANT_ID, {"membership": {}}, 42) == "L-000042"
-    assert hdcn_derive_member_number(HDCN_TENANT_ID, {"membership": {}}, 1) == "L-000001"
-
-
-def test_hdcn_derive_member_number_keeps_existing_and_handles_missing_counter():
-    kept = hdcn_derive_member_number(
-        HDCN_TENANT_ID, {"membership": {"member_number": "L-000007"}}, 99
-    )
-    assert kept == "L-000007"  # idempotent — never renumbers a backfilled member
-    assert hdcn_derive_member_number(HDCN_TENANT_ID, {"membership": {}}, None) is None
+    assert registry.registered_hooks(HDCN_TENANT_ID) == [HookName.VALIDATE_MEMBER]
 
 
 def test_hdcn_validate_member_requires_motorcycle_only_when_active():
@@ -313,17 +281,7 @@ def test_hdcn_hooks_do_not_leak_to_other_tenants():
     registry = TenantHookRegistry()
     register_hdcn_hooks(registry)
 
-    assert not registry.is_registered(HookName.DERIVE_MEMBER_NUMBER, "other-club")
-    assert (
-        registry.resolve(HookName.DERIVE_MEMBER_NUMBER, "other-club")
-        is default_derive_member_number
-    )
+    # h-dcn's validate_member is registered for "h-dcn" only; another tenant gets the safe
+    # default (Property 5 — resolution is by tenant_id, no tenant literal in the core).
+    assert not registry.is_registered(HookName.VALIDATE_MEMBER, "other-club")
     assert registry.resolve(HookName.VALIDATE_MEMBER, "other-club") is default_validate_member
-    # The default derive for another tenant keeps the existing number / uses the counter,
-    # with NO h-dcn "L-" formatting.
-    assert (
-        registry.resolve(HookName.DERIVE_MEMBER_NUMBER, "other-club")(
-            "other-club", {"membership": {}}, 42
-        )
-        == "42"
-    )
