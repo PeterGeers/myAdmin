@@ -269,3 +269,66 @@ OPTIONS (needs a design decision — do NOT blind-patch):
   tenant-admin overlay authoring). Own spec/task.
 - Impact: blocks the Members field-config call (the typed-field UI config); the member LIST is a
   separate call (fixed separately: the Decimal-serialization bug). Non-security.
+
+
+# Libraries, Frameworks, Helpers
+How can we enforce reuse of code that is used on many places
+##  Table Filter Framework v2 is not a real framework / library
+Use the Table Filter Framework v2 — a hybrid approach: text search filters in column headers (`FilterableHeader`), dropdowns/multi-select above the table (`FilterPanel`).
+
+- Key hooks: `useColumnFilters`, `useTableSort`, `useFilterableTable`
+- Parameter-driven config for complex tables: `useTableConfig`
+- Components: `FilterPanel` (above table), `FilterableHeader` (in `<Th>`)
+- Clear all / reset button to return to default view
+
+When implementing or modifying tables or filters, read the full framework guide at `.kiro/specs/Common/Frameworks/table-filter-framework-v2/design.md
+
+
+# RCA: SAM member-number allocation uses a generic atomic counter — but numbering is a TENANT-specific concern
+Surfaced 2026-09-24 during s5j review. The user recalled an earlier decision to STOP using the
+counter-algorithm for member numbers ("Members-CRUD can detect the highest number by sorting on
+the field and add 1 manually"). The SAM write path does NOT reflect that — and the deeper point
+is a design-placement issue, not just dead code.
+
+## What the code does today (verified, live — NOT dead code)
+- `MembershipService.create_member` (`sam/members/domain/membership_service.py` ~line 1280):
+  when a new member has no `member_number`, it calls
+  `self._repo.next_counter(tenant_id, MEMBER_NUMBER_COUNTER)` (an atomic DynamoDB `ADD` on a
+  `counter#member_number` item — `repository/table_design.py`), threads the value into the
+  `derive_member_number` hook, and h-dcn's registered `hdcn_derive_member_number`
+  (`tenants/hdcn/hooks.py`) formats it (`L-000042`, prefix + zero-pad).
+- `MEMBER_NUMBER_COUNTER = "member_number"` is just the counter's NAME (a per-tenant named
+  sequence key), not the field. All of it is reachable and covered by tests.
+
+## The real issue (why this is RCA, not a quick delete)
+Member-number allocation is a **tenant-specific policy** (format AND generation strategy differ
+per club): h-dcn wants an `L`-prefixed zero-padded atomic sequence; another tenant may want
+plain max+1, or externally-assigned numbers, or none. Today the GENERIC write path hardcodes
+"fetch an atomic counter, then let the hook format it" — i.e. the *generation strategy* (atomic
+counter) lives in the generic core, and only the *format* is delegated to the tenant hook. That
+split is arguably wrong: BOTH the strategy and the format are tenant nuances and should sit in
+the tenant layer (`derive_member_number` hook), leaving the generic path to just call the hook
+and persist. As-is, a tenant that does NOT want counter-based numbering still triggers a
+`next_counter` fetch it doesn't use.
+
+## The concurrency tradeoff (must be decided, not assumed)
+- **Atomic counter (current):** no duplicate numbers under concurrent creates (the whole reason
+  it exists). 
+- **"Sort max + 1" (the recalled decision):** simpler, no counter item — BUT racy: two
+  concurrent creates read the same max and both write N+1 → duplicate. If chosen, it needs a
+  unique constraint + retry, or acceptance of the risk. Note this is a MOTOR club with likely
+  low create concurrency, so max+1 may be acceptable in practice — a deliberate call.
+
+## Options (decide, don't blind-change)
+- (a) Move the WHOLE allocation (strategy + format) into the tenant `derive_member_number` hook;
+  the generic path only calls the hook + persists. Per-tenant: h-dcn keeps its atomic counter;
+  a max+1 tenant does its own read-max. Cleanest re: "numbering is tenant-specific".
+- (b) Keep the generic counter but make it OPT-IN per tenant (a tenant with no counter policy
+  skips the `next_counter` fetch entirely).
+- (c) Switch h-dcn specifically to max+1 in its hook (drop the counter) — only if the user
+  confirms max+1 is the intended h-dcn behavior AND the concurrency risk is accepted.
+- Reconcile with the Flask/MySQL plane: confirm which plane the original "stop the counter"
+  decision was for; the SAM plane may simply never have applied it (stale-decision drift).
+- SCOPE: SAM members-domain (`membership_service.create_member`, `MEMBER_NUMBER_COUNTER`,
+  `tenants/hdcn/hooks.py`, `repository` counter). Own small spec. NOT part of s5j.
+- Relates to: the broader "fallback-mess / generic-vs-tenant placement" code-quality track.

@@ -325,19 +325,34 @@ class FieldResolver:
     def __init__(self, overlay_provider: TenantOverlayProvider):
         self._provider = overlay_provider
 
-    def resolve(self, tenant_id: str) -> FieldConfig:
+    def resolve(
+        self,
+        tenant_id: str,
+        scope_vocab: Optional[Mapping[str, Sequence[str]]] = None,
+    ) -> FieldConfig:
         """Return the resolved field config for ``tenant_id`` (fixed base ⊕ overlay).
 
         Steps: read the tenant's overlay from the provider → validate it against the platform
         invariants (raise :class:`OverlayError` on violation) → apply presentation overrides to
         the fixed fields → append the tenant's variable fields → sort deterministically (by
         group, then order, then key) so the resolved config is stable for the frontend.
+
+        ``scope_vocab`` (S5j / design D1a) is an optional ``{member_field_key: values}`` map
+        derived by the caller from the tenant's ENABLED scope dimensions (keyed by each
+        dimension's ``field``). An OVERLAY ``enum`` field with NO inline choices whose key is in
+        this map gets its ``choices`` sourced from that vocabulary — so a scope-dimension-backed
+        dropdown (h-dcn ``region``) needs no duplicated inline choices (``scope_dimensions`` is
+        the single source of truth). A choiceless enum that is NOT in the map is still a genuine
+        config bug and is still rejected (fail-fast preserved). ``None`` = no sourcing.
         """
         if not isinstance(tenant_id, str) or not tenant_id.strip():
             raise ValueError("tenant_id must be a non-empty string")
 
         overlay = self._provider.get_overlay(tenant_id)
-        self._reject_invalid_overlay(overlay)
+        vocab = dict(scope_vocab or {})
+        # Validation and variable-field projection both honor the scope vocabulary, so a
+        # dimension-backed choiceless enum is treated as if it declared those choices.
+        self._reject_invalid_overlay(overlay, scope_vocab=vocab)
 
         resolved: list[ResolvedField] = [
             self._apply_override(fixed, overlay) for fixed in FIXED_FIELDS
@@ -349,7 +364,8 @@ class FieldResolver:
             self._as_calculated_field(calc, overlay) for calc in CALCULATED_FIELDS
         )
         resolved.extend(
-            self._as_variable_field(name, of) for name, of in overlay.fields.items()
+            self._as_variable_field(name, of, scope_vocab=vocab)
+            for name, of in overlay.fields.items()
         )
 
         resolved.sort(key=lambda f: (f.group, f.order, f.key))
@@ -455,13 +471,31 @@ class FieldResolver:
         )
 
     @staticmethod
-    def _as_variable_field(name: str, of: OverlayField) -> ResolvedField:
-        """Project a tenant-defined variable field into a resolved field under the overlay group."""
+    def _as_variable_field(
+        name: str,
+        of: OverlayField,
+        scope_vocab: Optional[Mapping[str, Sequence[str]]] = None,
+    ) -> ResolvedField:
+        """Project a tenant-defined variable field into a resolved field under the overlay group.
+
+        S5j (design D1a): an ``enum`` field with no inline choices/options whose key is bound to
+        a scope dimension (present in ``scope_vocab``) sources its ``choices`` from that
+        dimension's values — ``scope_dimensions.values`` is the single source of truth, so the
+        overlay stores no duplicate list.
+        """
+        key = of.key or name
         choices = of.choices
         if of.options is not None:
             choices = tuple(o.value for o in of.options)
+        elif (
+            of.type is FieldType.ENUM
+            and not of.choices
+            and scope_vocab is not None
+            and key in scope_vocab
+        ):
+            choices = tuple(scope_vocab[key])
         return ResolvedField(
-            key=of.key or name,
+            key=key,
             group=OVERLAY_GROUP,
             type=of.type,
             required=of.required,
@@ -476,7 +510,10 @@ class FieldResolver:
         )
 
     @staticmethod
-    def _reject_invalid_overlay(overlay: TenantOverlay) -> None:
+    def _reject_invalid_overlay(
+        overlay: TenantOverlay,
+        scope_vocab: Optional[Mapping[str, Sequence[str]]] = None,
+    ) -> None:
         """Fail fast if the overlay tries to weaken a platform invariant (a config bug).
 
         Rejects (Property 7 fail-fast semantics): an override of an unknown field key; loosening
@@ -484,9 +521,16 @@ class FieldResolver:
         an enum field with no options/choices; and any ``functional_group`` reference (on a fixed
         override, a calculated override, or a variable field) that is not present in the tenant's
         ``functional_groups`` catalog (when a non-empty catalog is authored).
+
+        S5j (design D1a): an ``enum`` field with no inline choices is NOT a config bug when it is
+        bound to a scope dimension — i.e. its key is present in ``scope_vocab`` (the
+        ``{field: values}`` map the caller derives from the tenant's enabled scope dimensions).
+        Such a field legitimately sources its choices from ``scope_dimensions.values``. A
+        choiceless enum NOT in the map is still rejected (fail-fast preserved).
         """
         reasons: dict[str, str] = {}
         catalog = set(overlay.functional_groups.keys())
+        vocab_keys = set((scope_vocab or {}).keys())
 
         def _check_group(dotted: str, group: Optional[str]) -> None:
             # Reference-validate only when the tenant authored a catalog (empty → base defaults).
@@ -515,7 +559,13 @@ class FieldResolver:
             # A variable field may not collide with the canonical key of a fixed/calculated field.
             if key in _RESERVED_KEYS:
                 reasons[dotted] = "variable field key collides with a fixed/calculated field key"
-            elif of.type is FieldType.ENUM and not of.choices and not of.options:
+            elif (
+                of.type is FieldType.ENUM
+                and not of.choices
+                and not of.options
+                and key not in vocab_keys  # S5j: a scope-dimension-backed enum sources its
+                # choices from scope_dimensions.values — not a config bug (design D1a).
+            ):
                 reasons[dotted] = "an enum variable field must declare choices/options"
             _check_group(dotted, of.functional_group)
 

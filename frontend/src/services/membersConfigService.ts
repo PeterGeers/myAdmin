@@ -12,7 +12,7 @@
  *    request (a PUT when a tenant row exists, else a POST creating the tenant-scope row).
  *    One save → one request → one enqueue_sync → one per-tenant re-projection.
  */
-import { authenticatedGet, buildApiUrl } from './apiService';
+import { authenticatedGet } from './apiService';
 import { getParameters, createParameter, updateParameter } from './parameterService';
 import type { Parameter } from '../types/parameterTypes';
 import type { MembersParamDefinition, MembersConfigValue } from '../types/membersConfig';
@@ -28,8 +28,10 @@ export type MembersParamKey = (typeof MEMBERS_PARAM_KEYS)[number];
  * ledger-parameters fetch in AccountModal).
  */
 export async function getMembersParameterDefinitions(): Promise<MembersParamDefinition[]> {
-  const url = buildApiUrl('/api/config/members-parameters');
-  const resp = await authenticatedGet(url, { skipAuth: true });
+  // Pass the RELATIVE endpoint: authenticatedGet prepends API_BASE_URL itself. Passing a
+  // pre-built absolute URL (from buildApiUrl) would double the base
+  // ("https://host" + "https://host/api/...") and fail with "Failed to fetch".
+  const resp = await authenticatedGet('/api/config/members-parameters', { skipAuth: true });
   if (!resp.ok) {
     throw new Error(`Failed to load members parameter definitions (${resp.status})`);
   }
