@@ -1,7 +1,7 @@
 /**
  * Members Overview page (Leden Overzicht) — Chakra Table with shared filters,
  * sort, a compact/full view switch driven by the resolved field config, a
- * read-only subgroup/region Badge column, and a row-click view modal.
+ * region column, and a row-click view modal.
  *
  * COMPOSES the shared toolkit (R7.9) — it does NOT rebuild it:
  * - Dark theme + header-right orange primary actions (BankingProcessor /
@@ -37,7 +37,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Flex, Button, Text, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, HStack, ButtonGroup, Badge, Checkbox, Select, useDisclosure,
+  Table, Thead, Tbody, Tr, Th, Td, HStack, ButtonGroup, Checkbox, Select, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalCloseButton, ModalFooter, VStack,
 } from '@chakra-ui/react';
@@ -211,8 +211,7 @@ const MembersPage: React.FC = () => {
 
   // ── Scope / region pre-filter (task 4.2, design C-SCOPE; R5.3, R5.4) ──────────
   // The scope column (`region`) is surfaced two ways:
-  //   1. a read-only purple Badge in the row (the SCOPE INDICATOR — already
-  //      rendered below), and
+  //   1. a plain field value in the row (standard column layout, no badge), and
   //   2. an ENUM-select PRE-FILTER whose options are the tenant's authored
   //      `config#scope` dimension `values` (parameter data, generic placeholder
   //      names by default — R4.5), drawn from `FieldConfig.dimensions`.
@@ -312,7 +311,7 @@ const MembersPage: React.FC = () => {
     [filterableSet],
   );
 
-  // Build flat rows; promote the region display value for the badge column.
+  // Build flat rows; promote the region display value for the region column + stats.
   const memberRows: MemberRow[] = useMemo(
     () => members.map(m => ({
       ...m,
@@ -798,15 +797,12 @@ const MembersPage: React.FC = () => {
                   onClick={() => handleRowClick(row)}
                 >
                   {hasExplicitColumns ? (
-                    // Explicit-columns context: one cell per resolved column.
-                    // `region` keeps the read-only Badge treatment; everything
-                    // else renders its stringified value.
+                    // Explicit-columns context: one cell per resolved column. `region` renders
+                    // as a plain field value (same layout as every other column) — no badge.
                     contextColumns.map(f => (
                       <Td key={f.key}>
                         {f.key === 'region'
-                          ? (row.region_display
-                            ? <Badge colorScheme="purple">{row.region_display}</Badge>
-                            : <Text color="gray.500">-</Text>)
+                          ? (row.region_display || '-')
                           : renderFieldValue(f, valueFor(row, f.group, f.key), lang)}
                       </Td>
                     ))
@@ -817,11 +813,7 @@ const MembersPage: React.FC = () => {
                       <Td>{row.email || '-'}</Td>
                       <Td>{row.status || '-'}</Td>
                       <Td>{(row.membership_type as string) || '-'}</Td>
-                      <Td>
-                        {row.region_display
-                          ? <Badge colorScheme="purple">{row.region_display}</Badge>
-                          : <Text color="gray.500">-</Text>}
-                      </Td>
+                      <Td>{row.region_display || '-'}</Td>
                       {overlayColumns.map(f => (
                         <Td key={f.key}>{renderFieldValue(f, valueFor(row, f.group, f.key), lang)}</Td>
                       ))}
