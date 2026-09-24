@@ -484,6 +484,36 @@ def test_error_responses_carry_cors_headers():
     assert resp["statusCode"] == 401
     assert resp["headers"]["Access-Control-Allow-Origin"] == "*"
 
+
+# ── Response serialization: DynamoDB Decimal must not 502 the read (s5 downstream fix) ─
+
+
+def test_response_serializes_dynamodb_decimals():
+    # DynamoDB (boto3 resource client) returns numbers as decimal.Decimal, which json.dumps
+    # refuses -> a member READ carrying any number 502'd ('Decimal is not JSON serializable').
+    # _response must serialize Decimals: integral -> int (no .0), fractional -> float.
+    from decimal import Decimal
+
+    resp = app._response(
+        200,
+        {"data": {"member_number": Decimal("42"), "balance": Decimal("12.50")}},
+    )
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])  # would raise if the body were not valid JSON
+    assert body["data"]["member_number"] == 42          # integral -> int
+    assert body["data"]["balance"] == 12.5               # fractional -> float
+    # And the raw body must not contain a spurious '42.0' for the integral value.
+    assert '"member_number": 42' in resp["body"]
+
+
+def test_json_default_rejects_unknown_types():
+    # Belt-and-braces: an unexpected non-JSON type still fails loud (not silently coerced),
+    # so a real serialization gap surfaces in tests rather than shipping garbage.
+    import pytest as _pytest
+
+    with _pytest.raises(TypeError):
+        app._json_default(object())
+
 # ── Capability comes SOLELY from the verified entitlement (R6.1, C-UNWIND — s5c) ───────
 #
 # The former cognito:groups capability fallback (MEMBERS_LOCAL_AUTH_FALLBACK +
