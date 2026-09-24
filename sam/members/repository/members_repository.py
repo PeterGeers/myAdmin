@@ -36,7 +36,6 @@ from sam.members.repository import table_design as td
 
 __all__ = [
     "MembersRepository",
-    "MemberNumberConflictError",
     "DynamoDbMembersRepository",
 ]
 
@@ -139,14 +138,6 @@ class MembersRepository(Protocol):
 
     # ── Counters (member-number allocation, etc.) ──────────────────────────────────────
 
-    def next_counter(self, tenant_id: str, counter_name: str) -> int:
-        """Atomically increment and return a named per-tenant counter.
-
-        Backed by a DynamoDB atomic ``ADD`` so concurrent invocations never collide — the
-        data layer owns atomicity (Property 6). Used e.g. to derive member numbers.
-        """
-        ...
-
     # ── Lidmaatschap Beheer catalog (membership types, design C8) ──────────────────────
 
     def list_membership_types(
@@ -229,9 +220,6 @@ class _StubMembersRepository:
     def list_member_payments(self, tenant_id: str, member_id: str):
         raise NotImplementedError(self._PENDING)
 
-    def next_counter(self, tenant_id: str, counter_name: str) -> int:
-        raise NotImplementedError(self._PENDING)
-
     def list_membership_types(self, tenant_id: str, *, active_only: bool = False):
         raise NotImplementedError(self._PENDING)
 
@@ -248,36 +236,15 @@ class _StubMembersRepository:
 # ── Task 1.4 — the concrete boto3-backed, tenant-scoped implementation ───────────────────
 
 
-class MemberNumberConflictError(Exception):
-    """Raised when a ``save_member`` would violate per-tenant member-number uniqueness.
-
-    Surfaced by :class:`DynamoDbMembersRepository` when the DynamoDB conditional write on the
-    ``membernum#<member_number>`` guard fails — i.e. another member in the same tenant already
-    claims that number (Property 6). The domain layer turns this into a 409/validation error;
-    the repository never silently overwrites.
-    """
-
-    def __init__(self, tenant_id: str, member_number: str):
-        self.tenant_id = tenant_id
-        self.member_number = member_number
-        super().__init__(
-            f"member number {member_number!r} is already taken for tenant "
-            f"{tenant_id!r} (per-tenant uniqueness, Property 6)"
-        )
-
-
 class DynamoDbMembersRepository:
     """The boto3-backed Members repository — the sole DynamoDB touch-point (design C6).
 
     Structurally satisfies :class:`MembersRepository` (a ``Protocol``) so the domain layer
     depends on the shape, not this class. Every method is keyed by ``tenant_id`` and every
     operation is scoped to that tenant's partition (``tenant_id`` PK), so no layer above can
-    cross tenants even with a bug (Property 1). Data-integrity invariants live here:
-
-    - **Member-number uniqueness per tenant** via a ``TransactWriteItems`` that writes the
-      member item alongside a ``membernum#<member_number>`` guard carrying an
-      ``attribute_not_exists`` condition — a racing writer fails atomically (Property 6).
-    - **Atomic counters** via a DynamoDB atomic ``ADD`` update (Property 6).
+    cross tenants even with a bug (Property 1). Isolation is structural (``tenant_id`` PK);
+    writes are plain single-item ``PutItem``/``DeleteItem`` (s5k removed the member-number
+    uniqueness guard + atomic counter — numbering is no longer generated or guarded).
 
     The table handle is **injected** (dependency-inversion) so tests supply an in-memory fake
     / local ``dynamodb-local`` table, and production resolves the fail-fast real table lazily
@@ -286,9 +253,8 @@ class DynamoDbMembersRepository:
     Args:
         table: A boto3 DynamoDB Table (or a compatible fake). If omitted, the real table is
             resolved lazily + fail-fast on first use.
-        client: An optional boto3 DynamoDB *client* used for ``transact_write_items`` (the
-            resource-level ``Table`` has no transaction API). If omitted, it is resolved
-            lazily from the table's ``meta.client`` when a transactional write is needed.
+        client: An optional boto3 DynamoDB *client*. If omitted, it is resolved lazily from the
+            table's ``meta.client`` when needed.
     """
 
     def __init__(self, table=None, *, client=None):
@@ -351,18 +317,6 @@ class DynamoDbMembersRepository:
             kwargs["ExclusiveStartKey"] = last
         return items
 
-    @staticmethod
-    def _is_conditional_check_failed(error: Exception) -> bool:
-        """True if ``error`` is a DynamoDB conditional-check failure (transactional or not)."""
-        response = getattr(error, "response", None) or {}
-        code = response.get("Error", {}).get("Code", "")
-        if code in ("ConditionalCheckFailedException", "TransactionCanceledException"):
-            return True
-        # TransactionCanceledException surfaces per-item reasons; a ConditionalCheckFailed
-        # reason means our uniqueness guard tripped.
-        reasons = response.get("CancellationReasons") or []
-        return any(r.get("Code") == "ConditionalCheckFailed" for r in reasons)
-
     # ── Member CRUD ────────────────────────────────────────────────────────────────────
 
     def get_member(self, tenant_id: str, member_id: str) -> Optional[Member]:
@@ -403,98 +357,31 @@ class DynamoDbMembersRepository:
     def save_member(self, tenant_id: str, member: Member) -> Member:
         """Create or update a member, enforcing per-tenant member-number uniqueness.
 
-        The member number (``membership.member_number``) is guarded by a dedicated
-        ``membernum#<number>`` item written in the SAME transaction as the member item, under
-        an ``attribute_not_exists`` condition. A concurrent writer racing for the same number
-        loses the transaction and this raises :class:`MemberNumberConflictError` — uniqueness
-        holds even under concurrency (Property 6), and is never assumed by the domain layer.
-
-        For an idempotent re-save of the SAME member (same ``member_id`` + same number) the
-        guard already points at this member, so the write is allowed; a guard that points at a
-        *different* member is a real conflict.
+        s5k: ``member_number`` (Lidnummer) is an OPTIONAL plain string the caller/import supplies
+        — it may be empty. There is NO auto-generation and NO ``membernum#`` uniqueness guard:
+        this is a single ``PutItem`` (no transaction). A duplicate member number is a
+        data-quality concern, not a write-time conflict (the guard mechanism was removed — see
+        spec s5k). The member is still keyed by its ``member_id`` (the internal row key).
         """
         self._require_tenant(tenant_id)
         member_id = member.get("member_id")
         if not member_id:
             raise ValueError("member must carry a non-empty 'member_id'")
-        membership = member.get("membership") or {}
-        member_number = membership.get("member_number")
-        if not member_number:
-            raise ValueError(
-                "member.membership.member_number is required (uniqueness invariant, Property 6)"
-            )
 
         item = td.build_member_item(tenant_id, member_id, member)
-        guard_key = td.build_key(tenant_id, td.member_number_sk(member_number))
-
-        # The guard either does not exist yet, or already belongs to THIS member (idempotent
-        # re-save). Either passes; a guard owned by a different member fails the condition.
-        try:
-            self.client.transact_write_items(
-                TransactItems=[
-                    {
-                        "Put": {
-                            "TableName": self.table_name,
-                            "Item": item,
-                        }
-                    },
-                    {
-                        "Put": {
-                            "TableName": self.table_name,
-                            "Item": {
-                                **guard_key,
-                                "member_id": member_id,
-                                "member_number": member_number,
-                            },
-                            "ConditionExpression": (
-                                "attribute_not_exists(#pk) OR #owner = :member_id"
-                            ),
-                            "ExpressionAttributeNames": {
-                                "#pk": td.PARTITION_KEY_ATTR,
-                                "#owner": "member_id",
-                            },
-                            "ExpressionAttributeValues": {":member_id": member_id},
-                        }
-                    },
-                ]
-            )
-        except Exception as exc:  # boto3 ClientError (or a fake's stand-in)
-            if self._is_conditional_check_failed(exc):
-                raise MemberNumberConflictError(tenant_id, member_number) from exc
-            raise
+        self.table.put_item(Item=item)
         return item
 
     def delete_member(self, tenant_id: str, member_id: str) -> None:
-        """Delete a member record and release its member-number uniqueness guard.
+        """Delete a member record.
 
-        Reads the member to discover its member number, then deletes the member item and the
-        matching ``membernum#`` guard in one transaction so the number can be reused and no
-        orphaned guard blocks a future member. (Memberships/delegates/payments are removed by
-        the domain layer's higher-level flows / Step 5.)
+        s5k: a single ``DeleteItem`` of the member record. There is no ``membernum#`` guard to
+        release (the uniqueness-guard mechanism was removed — see spec s5k), so no transaction is
+        needed. (Memberships/delegates/payments are removed by the domain layer's higher-level
+        flows / Step 5.)
         """
         self._require_tenant(tenant_id)
-        existing = self.get_member(tenant_id, member_id)
-        transact: list[dict] = [
-            {
-                "Delete": {
-                    "TableName": self.table_name,
-                    "Key": td.build_key(tenant_id, td.member_sk(member_id)),
-                }
-            }
-        ]
-        member_number = ((existing or {}).get("membership") or {}).get("member_number")
-        if member_number:
-            transact.append(
-                {
-                    "Delete": {
-                        "TableName": self.table_name,
-                        "Key": td.build_key(
-                            tenant_id, td.member_number_sk(member_number)
-                        ),
-                    }
-                }
-            )
-        self.client.transact_write_items(TransactItems=transact)
+        self.table.delete_item(Key=td.build_key(tenant_id, td.member_sk(member_id)))
 
     # ── Membership lifecycle ───────────────────────────────────────────────────────────
 
@@ -583,26 +470,6 @@ class DynamoDbMembersRepository:
             td.RECORD_TYPE_MEMBER, member_id, td.RECORD_TYPE_PAYMENT
         )
         return self._query_prefix(tenant_id, prefix)
-
-    # ── Counters (member-number allocation, etc.) ──────────────────────────────────────
-
-    def next_counter(self, tenant_id: str, counter_name: str) -> int:
-        """Atomically increment and return a named per-tenant counter (atomic ``ADD``).
-
-        A single DynamoDB ``UpdateItem`` with ``ADD #value :one`` returning ``UPDATED_NEW``
-        never collides under concurrency — DynamoDB serializes the increments — so two
-        invocations can never be handed the same number (Property 6). A first call on a
-        missing counter starts from 1.
-        """
-        self._require_tenant(tenant_id)
-        response = self.table.update_item(
-            Key=td.build_key(tenant_id, td.counter_sk(counter_name)),
-            UpdateExpression="ADD #value :one",
-            ExpressionAttributeNames={"#value": "value"},
-            ExpressionAttributeValues={":one": 1},
-            ReturnValues="UPDATED_NEW",
-        )
-        return int(response["Attributes"]["value"])
 
     # ── Lidmaatschap Beheer catalog (membership types, design C8) ──────────────────────
 

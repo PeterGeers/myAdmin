@@ -115,9 +115,6 @@ class FakeMembersRepository:
     def list_member_delegates(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
-    def next_counter(self, *a, **k):  # pragma: no cover
-        raise NotImplementedError
-
     def list_membership_types(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 

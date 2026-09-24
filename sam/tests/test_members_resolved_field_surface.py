@@ -213,15 +213,13 @@ class TestEvaluateShowWhen:
 class _WritableCatalogRepo(FakeCatalogRepository):
     """The read-only fake catalog repo + a minimal member store so create/update can persist.
 
-    Only the surface the write gates touch is implemented: ``get_member`` / ``save_member`` /
-    ``next_counter``. Uniqueness is not modeled here (the value-level + format gates run before
-    the persist), keeping these tests focused on the task-4.4 gates rather than the repo's 409.
+    Only the surface the write gates touch is implemented: ``get_member`` / ``save_member``.
+    These tests focus on the task-4.4 gates (value-level + format) that run before the persist.
     """
 
     def __init__(self):
         super().__init__()
         self.members: dict[tuple[str, str], dict] = {}
-        self._counter = 0
 
     def get_membership_type(self, tenant_id, type_code):
         for e in self.catalog.get(tenant_id, []):
@@ -235,10 +233,6 @@ class _WritableCatalogRepo(FakeCatalogRepository):
     def save_member(self, tenant_id, record):
         self.members[(tenant_id, record.get("member_id", "M-x"))] = dict(record)
         return dict(record)
-
-    def next_counter(self, tenant_id, name):
-        self._counter += 1
-        return self._counter
 
 
 @pytest.fixture()

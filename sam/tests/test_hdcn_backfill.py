@@ -44,7 +44,6 @@ from sam.members.migration.hdcn_backfill import (
     LegacyDynamoSourceAdapter,
     MembershipTypeMapper,
     RegionCanonicalizer,
-    RowSkipped,
     RowTransformError,
     build_backfill_plan,
     map_hdcn_row,
@@ -194,10 +193,13 @@ class TestMapHdcnRow:
             _map(Achternaam="")
         assert "personal.last_name" in exc.value.reasons
 
-    def test_row_with_no_member_number_is_skipped(self):
-        # A row with no Lidnummer is NOT a member (non-member / empty) → RowSkipped, not error.
-        with pytest.raises(RowSkipped):
-            _map(Lidnummer="")
+    def test_row_with_no_member_number_is_imported_without_a_number(self):
+        # s5k: member_number is OPTIONAL — a row with no Lidnummer is a VALID member (a sponsor /
+        # sister club / dealer). The optional field is left ABSENT (never present-and-blank, which
+        # the fixed-field validator would reject), and it is NOT skipped.
+        record = _map(Lidnummer="")
+        assert "member_number" not in record["membership"]
+        assert record["member_id"]  # a stable uuid is still minted as the internal identity
 
     def test_type_mapper_validates_against_known_codes(self):
         mapper = MembershipTypeMapper(known_codes=["erelid", "donateur"])
@@ -286,16 +288,17 @@ class TestBackfillPlan:
         assert plan.ok_count == 1
         assert plan.error_count == 1
 
-    def test_plan_flags_and_skips_duplicate_member_numbers_in_batch(self):
-        # A.15: duplicate Lidnummer → ALL occurrences left out (skipped, not written).
+    def test_plan_flags_but_imports_duplicate_member_numbers_in_batch(self):
+        # s5k: a reused Lidnummer is a DATA-QUALITY warning, not a reason to drop members. The
+        # uniqueness guard is gone, so BOTH occurrences are imported AND the duplicate is reported.
         adapter = IterableSourceAdapter([_raw(Lidnummer="1001"), _raw(Lidnummer="1001")])
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
-        # Shaped number "M01001" is the duplicate key; BOTH minted uuids are recorded.
+        # Shaped number "M01001" is the duplicate key; BOTH minted uuids are recorded (reported).
         assert "M01001" in plan.duplicate_member_numbers
         assert len(plan.duplicate_member_numbers["M01001"]) == 2
-        # Both rows are skipped (left out), none transformed.
-        assert plan.ok_count == 0
-        assert plan.skipped_count == 2
+        # Both rows are imported (nothing skipped for a duplicate number).
+        assert plan.ok_count == 2
+        assert plan.skipped_count == 0
 
     def test_plan_records_rows_missing_region(self):
         # A row with no region omits overlay.region → recorded in rows_missing_region (by the
@@ -305,13 +308,17 @@ class TestBackfillPlan:
         assert len(plan.rows_missing_region) == 1
         assert plan.rows_missing_region[0] == plan.transformed[0].member_id
 
-    def test_non_member_row_without_number_is_skipped(self):
-        # A row with no Lidnummer is a non-member → skipped (reported), NOT an error.
+    def test_numberless_row_is_imported_not_skipped(self):
+        # s5k: a row with no Lidnummer is a VALID member (empty member_number), not skipped. An
+        # empty number is NOT treated as a duplicate of another empty number.
         adapter = IterableSourceAdapter([_raw(), _raw(Lidnummer="")])
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
-        assert plan.ok_count == 1
+        assert plan.ok_count == 2
         assert plan.error_count == 0
-        assert plan.skipped_count == 1
+        assert plan.skipped_count == 0
+        assert plan.duplicate_member_numbers == {}  # empty numbers never bucket as duplicates
+        numbers = sorted(t.member_number for t in plan.transformed)
+        assert numbers == ["", "M01001"]
 
     def test_field_mapping_summary_counts_populated_fields(self):
         adapter = IterableSourceAdapter([_raw(), _raw(Lidnummer="1002")])
@@ -326,7 +333,7 @@ class TestBackfillPlan:
 
 
 # ---------------------------------------------------------------------------
-# The runner script — dry-run / --apply / conflict
+# The runner script — dry-run / --apply / duplicate-number warning
 # ---------------------------------------------------------------------------
 
 
@@ -405,9 +412,10 @@ class TestRunnerApply:
         assert m1["overlay"]["motor"] == "Honda CB500"
         assert m1["membership"]["membership_type"] == "erelid"
 
-    def test_apply_leaves_duplicate_numbers_out(self, members_env, fake_repo, capsys, tmp_path):
-        # A.15: two rows share Lidnummer 1001 (different people) → ALL occurrences skipped,
-        # NOTHING written (the data owner must resolve the source conflict, then re-run).
+    def test_apply_imports_duplicate_numbers_both_written(self, members_env, fake_repo, capsys, tmp_path):
+        # s5k: two rows share Lidnummer 1001 (different people). The uniqueness guard is gone, so
+        # BOTH are written (distinct minted member_ids); the duplicate is a reported data-quality
+        # warning, not a block. The data owner reconciles the recycled number afterwards.
         export = tmp_path / "dupes.json"
         export.write_text(
             json.dumps(
@@ -419,8 +427,13 @@ class TestRunnerApply:
             encoding="utf-8",
         )
         rc = runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo)
-        assert rc == 0  # clean apply — the dups are skipped, not an error
-        assert fake_repo.list_members("h-dcn") == []  # neither written
+        assert rc == 0
+        listed = fake_repo.list_members("h-dcn")
+        assert len(listed) == 2  # both written under distinct member_ids
+        assert {m["membership"]["member_number"] for m in listed} == {"M01001"}
+        assert len({m["member_id"] for m in listed}) == 2
+        # The duplicate is surfaced in the fidelity report (a warning, not a skip).
+        assert "DUPLICATE member numbers" in capsys.readouterr().out
 
     def test_apply_refuses_a_batch_with_mapping_errors(self, members_env, fake_repo, capsys, tmp_path):
         export = tmp_path / "bad.json"

@@ -19,12 +19,13 @@ What it does
    membership-type value to a catalog ``type_code`` (C8),
    and validates the fixed fields (a bad mapping fails loudly, per-row).
 3. In **dry-run (the default)** prints a FIDELITY REPORT — counts, per-field mapping summary,
-   validation errors, sample transformed records, and would-be member-number conflicts — and
-   writes NOTHING.
+   validation errors, sample transformed records, and reused member numbers (a data-quality
+   warning) — and writes NOTHING.
 4. With ``--apply`` (and only then) persists each transformed record via the repository's
-   ``save_member`` (the sole DynamoDB touch-point). Per-tenant member-number uniqueness is the
-   repository's conditional write (Property 6): a conflict is REPORTED, never overwritten. A
-   re-apply of the same member is the repository's idempotent re-save.
+   ``save_member`` (the sole DynamoDB touch-point — a single ``PutItem``). s5k: ``member_number``
+   is a plain OPTIONAL string with NO write-time uniqueness guard, so a duplicate number is a
+   reported data-quality concern, not a write-time conflict. A re-apply of the same
+   ``member_id`` is an idempotent re-save (overwrites its own record).
 
 Safety guards (aws-accounts.md guardrails, R5.2)
 ------------------------------------------------
@@ -83,10 +84,7 @@ from sam.members.migration.hdcn_backfill import (
     build_backfill_plan,
 )
 from sam.members.repository import table_design as td
-from sam.members.repository.members_repository import (
-    DynamoDbMembersRepository,
-    MemberNumberConflictError,
-)
+from sam.members.repository.members_repository import DynamoDbMembersRepository
 
 DEFAULT_REGION = "eu-west-1"
 #: How many transformed records to show as samples in the fidelity report.
@@ -133,7 +131,7 @@ def _print_fidelity_report(
     table_name: str,
     unmapped_columns: list[str] | None = None,
 ) -> None:
-    """Render the dry-run fidelity report (counts, mapping, errors, samples, conflicts)."""
+    """Render the dry-run fidelity report (counts, mapping, errors, samples, dup-number warning)."""
     print("=" * 68)
     print("h-dcn Members backfill — fidelity report")
     print("=" * 68)
@@ -147,7 +145,7 @@ def _print_fidelity_report(
     print(f"  errors        : {plan.error_count}")
     print(f"  missing region: {len(plan.rows_missing_region)}")
     print(f"  dup numbers   : {len(plan.duplicate_member_numbers)} "
-          "(would-be uniqueness conflicts within this batch)")
+          "(member numbers reused within this batch — data-quality warning)")
 
     print("-" * 68)
     print("  per-field mapping summary (count of ok rows carrying each field):")
@@ -167,7 +165,7 @@ def _print_fidelity_report(
 
     if plan.duplicate_member_numbers:
         print("-" * 68)
-        print("  DUPLICATE member numbers in this batch (repository would reject the 2nd):")
+        print("  DUPLICATE member numbers in this batch (data-quality warning — resolve in source):")
         for number, ids in sorted(plan.duplicate_member_numbers.items()):
             print(f"    number {number!r}: members {ids}")
 
@@ -190,27 +188,18 @@ def _print_fidelity_report(
     print("=" * 68)
 
 
-def _apply_plan(plan: BackfillPlan, repo: DynamoDbMembersRepository) -> tuple[int, int, list[str]]:
-    """Persist each transformed record via ``save_member``. Returns (written, conflicts, notes).
+def _apply_plan(plan: BackfillPlan, repo: DynamoDbMembersRepository) -> int:
+    """Persist each transformed record via ``save_member``. Returns the count written.
 
-    Conflicts (per-tenant member-number uniqueness, Property 6) are REPORTED, never
-    overwritten — a conflicting record is skipped and recorded. An idempotent re-save of the
-    same member succeeds (the repository allows it).
+    s5k: ``save_member`` is a single ``PutItem`` — ``member_number`` is a plain OPTIONAL string
+    with NO write-time uniqueness guard (a duplicate is a data-quality concern, not a conflict).
+    An idempotent re-save of the same ``member_id`` overwrites its own record.
     """
     written = 0
-    conflicts = 0
-    notes: list[str] = []
     for t in plan.transformed:
-        try:
-            repo.save_member(plan.tenant_id, t.record)
-            written += 1
-        except MemberNumberConflictError as exc:
-            conflicts += 1
-            notes.append(
-                f"CONFLICT: member {t.member_id!r} number {exc.member_number!r} already "
-                f"claimed for tenant {exc.tenant_id!r} — skipped (not overwritten)"
-            )
-    return written, conflicts, notes
+        repo.save_member(plan.tenant_id, t.record)
+        written += 1
+    return written
 
 
 def backfill(
@@ -286,20 +275,15 @@ def backfill(
         return 2
 
     repository = repo or DynamoDbMembersRepository()
-    written, conflicts, notes = _apply_plan(plan, repository)
+    written = _apply_plan(plan, repository)
 
     print("\n" + "=" * 68)
     print("Backfill apply summary")
     print("=" * 68)
     print(f"  table     : {table_name}")
     print(f"  written   : {written}")
-    print(f"  conflicts : {conflicts} (reported, NOT overwritten)")
-    for note in notes:
-        print(f"    {note}")
     print("=" * 68)
-    # A conflict is a reportable outcome, not a crash — but surface it via a non-zero code so
-    # automation notices there was something to reconcile.
-    return 0 if conflicts == 0 else 3
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:

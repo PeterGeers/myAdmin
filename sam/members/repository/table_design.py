@@ -27,21 +27,15 @@ patterns that never leave the tenant partition::
         member#<member_id>#membership#<membership_id>   -- a membership of that member
         member#<member_id>#delegates                    -- the member's delegate set (single item)
         member#<member_id>#payment#<payment_id>         -- a member-scoped payment
-        counter#<counter_name>                          -- an atomic per-tenant counter
-        membernum#<member_number>                       -- uniqueness guard (see below)
+        membershiptype#<type_code>                      -- Lidmaatschap Beheer catalog entry
 
-Two data-integrity invariants DynamoDB owns (never the domain layer)
---------------------------------------------------------------------
-- **Member-number uniqueness per tenant (Property 6).** ``save_member`` writes the member
-  item *and* a dedicated ``membernum#<member_number>`` guard item in a single
-  ``TransactWriteItems``; the guard write carries a ``attribute_not_exists`` condition, so a
-  second writer racing to claim the same number fails atomically. Uniqueness is scoped to the
-  tenant because the guard lives in the tenant's own partition. The guard item is the *only*
-  reason uniqueness holds even under concurrent writers — the domain layer never assumes it
-  is the sole writer.
-- **Atomic counters (Property 6).** ``next_counter`` uses a DynamoDB atomic ``ADD`` update on
-  a ``counter#<name>`` item and returns the post-increment value, so concurrent invocations
-  never hand out the same number (used e.g. to derive member numbers via a hook).
+Member numbering (s5k)
+----------------------
+``member_number`` (Lidnummer) is a plain OPTIONAL string the caller/import supplies — it is
+NOT auto-generated and NOT guarded for uniqueness. The former ``counter#<name>`` (atomic
+counter) and ``membernum#<member_number>`` (uniqueness guard) record types were REMOVED; a
+duplicate member number is a data-quality concern, not a write-time conflict (see spec s5k).
+``save_member`` / ``delete_member`` are single-item ``PutItem`` / ``DeleteItem``.
 
 Config + fail-fast (mirrors ``services.dynamodb_client`` / ``projection_schema``)
 ---------------------------------------------------------------------------------
@@ -77,8 +71,6 @@ __all__ = [
     "RECORD_TYPE_MEMBERSHIP",
     "RECORD_TYPE_DELEGATES",
     "RECORD_TYPE_PAYMENT",
-    "RECORD_TYPE_COUNTER",
-    "RECORD_TYPE_MEMBERNUM",
     "RECORD_TYPE_MEMBERSHIP_TYPE",
     "build_sort_key",
     "split_sort_key",
@@ -86,8 +78,6 @@ __all__ = [
     "membership_sk",
     "delegates_sk",
     "payment_sk",
-    "counter_sk",
-    "member_number_sk",
     "membership_type_sk",
     "member_sk_prefix",
     "build_key",
@@ -131,11 +121,9 @@ RECORD_TYPE_MEMBER = "member"
 RECORD_TYPE_MEMBERSHIP = "membership"
 RECORD_TYPE_DELEGATES = "delegates"
 RECORD_TYPE_PAYMENT = "payment"
-RECORD_TYPE_COUNTER = "counter"
-#: Uniqueness-guard record. A ``membernum#<member_number>`` item exists iff that member
-#: number is claimed in the tenant; the conditional write on it enforces per-tenant
-#: uniqueness (Property 6).
-RECORD_TYPE_MEMBERNUM = "membernum"
+# s5k: the ``counter#`` (atomic per-tenant counter) and ``membernum#`` (member-number
+# uniqueness guard) record types were REMOVED — member numbering is no longer generated or
+# guarded (``member_number`` is a plain optional string). See spec s5k.
 #: Lidmaatschap Beheer catalog entry (design C8). A ``membershiptype#<type_code>`` item is one
 #: membership type the tenant offers; the member record's ``membership.membership_type``
 #: references its ``type_code``. Lives in the tenant partition like every other entity.
@@ -217,16 +205,6 @@ def payment_sk(member_id: str, payment_id: str) -> str:
     return build_sort_key(
         RECORD_TYPE_MEMBER, member_id, RECORD_TYPE_PAYMENT, payment_id
     )
-
-
-def counter_sk(counter_name: str) -> str:
-    """SK for a per-tenant atomic counter: ``counter#<counter_name>``."""
-    return build_sort_key(RECORD_TYPE_COUNTER, counter_name)
-
-
-def member_number_sk(member_number: str) -> str:
-    """SK for a member-number uniqueness guard: ``membernum#<member_number>``."""
-    return build_sort_key(RECORD_TYPE_MEMBERNUM, member_number)
 
 
 def membership_type_sk(type_code: str) -> str:

@@ -3,18 +3,17 @@ S5 Task 5.2 — tests for the Members handler **WRITE-route dispatch** + the dom
 
 These pin the write path end-to-end through the thin edge (design C1 write → C2/C5/C6):
 
-- **create_member** validates (fixed fields + h-dcn ``validate_member`` hook), derives the
-  member number via the h-dcn ``derive_member_number`` hook from the atomic counter when
-  absent, stamps the authoritative ``tenant_id`` (never the body — verify-before-trust,
-  Property 2), sets the initial lifecycle state from the tenant's config, and persists via
-  the repository's conditional write; a duplicate member number is a **409** (Property 6),
-  never a silent overwrite;
+- **create_member** validates (fixed fields + h-dcn ``validate_member`` hook), stamps the
+  authoritative ``tenant_id`` (never the body — verify-before-trust, Property 2), sets the
+  initial lifecycle state from the tenant's config, and persists via a single ``PutItem``;
+  ``member_number`` is a plain optional string, so a duplicate is allowed (s5k removed the
+  uniqueness guard) and an absent one simply persists empty;
 - **update_member** partial-updates a scoped member and denies an out-of-scope write with a
   **403** (Property 4);
 - **transition** applies the lifecycle engine — an allowed move is **200** (and the state is
   persisted), a denied move is **409** (guards/graph), and the ``on_transition`` hook only
   fires on success;
-- **delete_member** frees the member number so it can be reused;
+- **delete_member** removes the member record via a single ``DeleteItem``;
 - **delegates** are self-service (a member manages their OWN set) and tenant-scoped.
 
 The domain service is exercised over the SAME in-memory ``FakeDynamoTable`` +
@@ -207,29 +206,30 @@ def test_create_member_ignores_body_tenant_id(repo):
     assert repo.get_member("evil-tenant", "M-9") is None
 
 
-def test_create_member_derives_number_from_counter_when_absent(repo):
-    # No member_number in the body → the h-dcn derive_member_number hook formats the atomic
-    # counter value as L-000001 (task 5.1). Status defaults to the config's initial state.
+def test_create_member_with_no_member_number_saves_empty(repo):
+    # s5k: NO auto-generation. A body without member_number saves with an EMPTY number (a valid
+    # member — sponsors/clubs/numberless). Status still defaults to the config's initial state.
     body = _valid_member_body()
     body["member_id"] = "M-2"
     body["membership"].pop("member_number", None)
     resp = app.handler(_event("POST", "/members", groups=("Regio_All",), body=body))
     assert resp["statusCode"] == 200
     stored = repo.get_member("h-dcn", "M-2")
-    assert stored["membership"]["member_number"] == "L-000001"
+    assert not stored["membership"].get("member_number")  # empty / absent — no L-000001
     # Initial lifecycle state from HDCN_LIFECYCLE_CONFIG (application).
     assert stored["membership"]["status"] == "application"
 
 
-def test_create_member_duplicate_number_returns_409(repo):
+def test_create_member_duplicate_number_is_allowed(repo):
+    # s5k: the member-number uniqueness guard was removed — a duplicate number is a
+    # data-quality concern, NOT a write-time conflict. Both creates succeed (200).
     body1 = _valid_member_body(member_number="2001")
     body1["member_id"] = "M-3"
     assert app.handler(_event("POST", "/members", body=body1))["statusCode"] == 200
-    # A second member claiming the same number loses the conditional write → 409 (Property 6).
     body2 = _valid_member_body(member_number="2001")
     body2["member_id"] = "M-4"
     resp = app.handler(_event("POST", "/members", body=body2))
-    assert resp["statusCode"] == 409
+    assert resp["statusCode"] == 200
 
 
 def test_create_member_missing_required_fields_returns_422():
@@ -515,12 +515,12 @@ def test_send_delegate_invitation_missing_email_returns_422(repo):
     assert resp["statusCode"] == 422
 
 
-# ── uniqueness under concurrent writers (real conditional write; Property 6) ──────────
+# ── member number is a plain string: NO uniqueness guard (s5k) ────────────────────────
 
 
-def test_member_number_uniqueness_under_concurrent_writers(table):
-    # Two services over the SAME table (racing writers): the first claim wins, the second
-    # loses the conditional write and surfaces as a 409 at the edge — never a silent overwrite.
+def test_duplicate_member_number_across_members_is_allowed(table):
+    # s5k: the member-number uniqueness guard was removed. Two members with the SAME number
+    # both persist — a duplicate is a data-quality concern, not a write-time conflict.
     lifecycle = StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG})
     hooks = register_hdcn_hooks(TenantHookRegistry())
     repo_a = DynamoDbMembersRepository(table=table, client=table.meta.client)
@@ -534,14 +534,11 @@ def test_member_number_uniqueness_under_concurrent_writers(table):
 
     b2 = _valid_member_body(member_number="12345")
     b2["member_id"] = "M-B"
-    from sam.members.repository.members_repository import MemberNumberConflictError
+    svc_b.create_member("h-dcn", b2, {"region": ["*"]})  # no raise
 
-    with pytest.raises(MemberNumberConflictError):
-        svc_b.create_member("h-dcn", b2, {"region": ["*"]})
-
-    # Winner stands; loser wrote nothing.
+    # Both records stand — same number, distinct members.
     assert repo_a.get_member("h-dcn", "M-A") is not None
-    assert repo_a.get_member("h-dcn", "M-B") is None
+    assert repo_a.get_member("h-dcn", "M-B") is not None
 
 # ── Task 4.8 (6b + 7b): authoritative WRITE gates surfaced through the EDGE ────────────
 #

@@ -20,14 +20,12 @@ backfills h-dcn data.
 
 from sam.members.repository.members_repository import (
     DynamoDbMembersRepository,
-    MemberNumberConflictError,
     MembersRepository,
 )
 
 __all__ = [
     "MembersRepository",
     "DynamoDbMembersRepository",
-    "MemberNumberConflictError",
 ]
 
 # Note: the Lidmaatschap Beheer catalog *entity* (MembershipTypeEntry) lives in the domain

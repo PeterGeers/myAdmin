@@ -217,11 +217,13 @@ def test_enum_variable_field_without_choices_is_rejected():
 def test_all_overlay_violations_are_collected_at_once():
     overlay = TenantOverlay(
         fields={"grade": OverlayField(key="grade", type=FieldType.ENUM)},  # missing choices
-        overrides={"membership.member_number": FixedFieldOverride(required=False)},  # loosen
+        # loosen a still-required platform field — s5k made member_number optional, so `status`
+        # is now the example of a required base field an overlay may NOT weaken.
+        overrides={"membership.status": FixedFieldOverride(required=False)},  # loosen
     )
     with pytest.raises(OverlayError) as exc:
         _resolver({"t": overlay}).resolve("t")
-    assert "membership.member_number" in exc.value.reasons
+    assert "membership.status" in exc.value.reasons
     assert f"{OVERLAY_GROUP}.grade" in exc.value.reasons
 
 
