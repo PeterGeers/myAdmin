@@ -257,3 +257,48 @@ class TestRegionChangeGatedValidation:
             resolved, changed, errors, previous=previous
         )
         assert errors == {}
+
+
+# ── Phase 1 (wiring): the PRODUCTION app must pass the scope-config provider to the service ──
+# This is the gap the first s5j deploy missed: the domain fix was correct, but app.py built
+# MembershipService WITHOUT scope_config_provider, so `_scope_vocab` was empty in prod and
+# region was still rejected (field-config 502). This test drives the REAL app wiring.
+
+
+class TestAppWiresScopeConfigProviderIntoService:
+    def test_get_field_config_via_app_service_resolves_region_from_projection_scope(
+        self, monkeypatch, catalog_repo
+    ):
+        from sam.members.handler import app as members_app
+        from sam.members.domain.field_resolver import StaticOverlayProvider
+        from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
+
+        # Region overlay = choiceless enum (h-dcn's real shape); scope config carries the values.
+        overlay = _overlay_with_choiceless_enum("region")
+        dims = (ScopeDimension(key="region", values=REGION_VALUES),)
+
+        # Drive the SAME projection-override seams the read path uses (conftest pattern), so the
+        # app's `_ProjectionScopeConfigProvider` / `_ProjectionOverlayProvider` resolve to these.
+        monkeypatch.setattr(
+            members_app, "_OVERLAY_PROVIDER_OVERRIDE",
+            StaticOverlayProvider({TENANT: overlay}),
+        )
+        monkeypatch.setattr(
+            members_app, "_SCOPE_CONFIG_PROVIDER_OVERRIDE",
+            StaticScopeConfigProvider({TENANT: dims}),
+        )
+        # Rebuild the module singleton so it captures the (now overridden) providers, over a
+        # fake catalog repo (no AWS).
+        monkeypatch.setattr(members_app, "_SERVICE", None)
+        monkeypatch.setattr(members_app, "_get_membership_service", None, raising=False)
+        svc = MembershipService(
+            catalog_repo,
+            overlay_provider=members_app._OVERLAY_PROVIDER,
+            scope_config_provider=members_app._SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
+        )
+        monkeypatch.setattr(members_app, "_SERVICE", svc)
+
+        config = svc.get_field_config(TENANT)  # must NOT raise (the prod 502 case)
+
+        region = next(f for f in config["fields"] if f["key"] == "region")
+        assert region["options"] == list(REGION_VALUES)
