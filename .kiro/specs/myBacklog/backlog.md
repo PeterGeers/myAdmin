@@ -231,6 +231,17 @@ So the chain SHOULD refresh reactively with no reload. It doesn't — so the bre
   `hooks/useTenantModules.ts`, `services/apiService.ts`, `App.tsx`, `components/MainMenu.tsx`.
 
 # Members field-config 502 — a scope-dimension field declared `enum` in the overlay has no `choices`
+**[RESOLVED 2026-09-24 by spec `s5j-members-config-authoring-path`]** — chose option (b): the
+field resolver now SOURCES a scope-dimension-backed overlay enum's dropdown `choices` from
+`scope_dimensions.values` at resolve time (single source of truth; NO stored duplication; NO
+h-dcn data migration; region stays a plain string, dropdown is advisory, change-gated on save).
+Matched on the dimension's `field` (not `key`); supports multiple dimensions. Shipped via PR #22
+(domain) + PR #23 (the app-wiring follow-up that actually passes `scope_config_provider` into the
+service — the first deploy 502'd because that wiring was missing). VERIFIED in prod:
+`GET /prod/members/field-config` = 200, zero OverlayError in `members-prod`. The Members table
+`region` column + the member modal now render. (Frontend config-editor URL double-prepend bug
+fixed in the same spec.) — Original report below for history:
+---
 Discovered 2026-09-24 during s5d PHASE D (first real browser traffic to the Members API, after
 the s5f/s5g/s5h fixes unblocked auth/CORS/IAM). `GET /prod/members/field-config` returns 502.
 members-prod log:

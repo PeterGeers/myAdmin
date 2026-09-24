@@ -63,20 +63,23 @@ no sleep; strip `.env` AWS keys for nonprofit-deploy), frontend build via `front
   green: `Deploy SAM Members` run 35998187250 success → `sam-members` **UPDATE_COMPLETE**
   @ 12:18:43; `Deploy Frontend to GitHub Pages` run 35998187141 **success**. (CodeQL on main
   post-merge scan non-blocking.)
-- [~] **4.3 [H] Browser re-test** — FIRST DEPLOY (PR #22) STILL 502'd. RCA: the DOMAIN fix was
-  correct but the PRODUCTION WIRING was missing — `app.py` `_get_membership_service()` built
-  `MembershipService` WITHOUT `scope_config_provider`, so `_scope_vocab` was empty in prod and
-  region was still rejected (CloudWatch confirmed the OverlayError now raised at the NEW
-  `_reject_invalid_overlay(overlay, scope_vocab=vocab)` line — i.e. new code ran, empty vocab).
-  My Phase-1 tests injected a provider directly, so they never exercised the app wiring — the
-  gap slipped through. FIX (branch `s5j-wire-scope-config-provider`): added
-  `_ProjectionScopeConfigProvider` (fresh-reader indirection, mirrors `_ProjectionOverlayProvider`,
-  honours `_SCOPE_CONFIG_PROVIDER_OVERRIDE`) and passed it as `scope_config_provider=` in the
-  service construction; ADDED an app-wiring test (`TestAppWiresScopeConfigProviderIntoService`)
-  that drives the real `_SCOPE_CONFIG_PROVIDER_FOR_SERVICE` so the gap can't regress. Affected
-  suites 60 passed / 0 failed. Awaiting re-deploy + browser re-test.
-- [ ] **4.4 Record** — mark s5d PHASE D field-config item resolved; close the backlog "region
-  overlay choices" entry; note s5j in the rollout plan.
+- [x] **4.3 [H] Browser re-test** DONE 2026-09-24 — VERIFIED from prod: `GET /members/field-config`
+  = **200** (user-confirmed in the Network tab); `members-prod` CloudWatch shows **zero
+  OverlayError** since the wiring re-deploy (stack UPDATE_COMPLETE @ 12:31:32). 
+  RCA of the first-deploy miss: the s5j DOMAIN fix (PR #22) was correct but the PRODUCTION WIRING
+  was missing — `app.py` `_get_membership_service()` built `MembershipService` WITHOUT
+  `scope_config_provider`, so `_scope_vocab()` returned `{}` in prod and region was still rejected
+  (CloudWatch confirmed the OverlayError raised at the NEW `_reject_invalid_overlay(overlay,
+  scope_vocab=vocab)` line — new code ran, empty vocab). My Phase-1 tests injected a provider
+  directly, so they never exercised the app wiring — the gap slipped through. FIX (PR #23, merge
+  `27e6449`): `_ProjectionScopeConfigProvider` (fresh-reader indirection mirroring
+  `_ProjectionOverlayProvider`, honouring `_SCOPE_CONFIG_PROVIDER_OVERRIDE`) passed as
+  `scope_config_provider=`; added `TestAppWiresScopeConfigProviderIntoService` so the wiring gap
+  can't regress. LESSON: unit-testing a domain seam is not enough — test the production wiring
+  that supplies it.
+- [x] **4.4 Record** DONE — s5d rollout plan PHASE D field-config item marked RESOLVED (s5j);
+  backlog "field-config 502 / region overlay choices" entry marked RESOLVED with the chosen
+  option (b) + PR #22/#23 + prod verification; this tasks.md reflects the RCA + lesson.
 
 ## Done criteria
 - field-config returns 200 for h-dcn; `region` renders as a dropdown sourced from
