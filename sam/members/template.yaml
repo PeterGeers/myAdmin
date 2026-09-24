@@ -233,6 +233,19 @@ Resources:
       StageName: !Ref Stage
       Auth:
         DefaultAuthorizer: CognitoAuthorizer
+        # CORS preflight fix: the CORS OPTIONS method that SAM auto-generates must NOT
+        # be gated by the Cognito authorizer. Browsers send preflight OPTIONS with NO
+        # Authorization header (per the Fetch/CORS spec), so if the DefaultAuthorizer
+        # applies to it the preflight returns 401 with no CORS headers, and the browser
+        # blocks EVERY real request (surfaced as "no members shown", all Members API
+        # calls failing at preflight — verified live: OPTIONS /prod/members -> 401
+        # UnauthorizedException, no Access-Control-* headers). Setting this to false lets
+        # the preflight return the CORS headers below UNauthenticated, while every REAL
+        # method (GET/POST/PUT/PATCH/DELETE) STILL requires a valid Cognito token. This
+        # is the AWS-recommended setting for an authorized API with browser clients — it
+        # does NOT weaken auth (real calls still gated) and does NOT weaken CORS (the
+        # AllowOrigin/Methods/Headers rules below still apply).
+        AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn: !Ref CognitoUserPoolArn
