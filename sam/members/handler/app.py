@@ -223,6 +223,29 @@ class _ProjectionOverlayProvider:
 _OVERLAY_PROVIDER: TenantOverlayProvider = _ProjectionOverlayProvider()
 
 
+class _ProjectionScopeConfigProvider:
+    """A thin :class:`ScopeConfigProvider` indirection over a per-call fresh reader (S5j / C6).
+
+    EXACTLY mirrors :class:`_ProjectionOverlayProvider`. The :class:`MembershipService` captures
+    its providers once at cold start; the service's field resolver needs the tenant's scope
+    config so a scope-dimension-backed overlay ``enum`` (h-dcn ``region``) can source its
+    dropdown ``choices`` from ``scope_dimensions.values`` (design D1a). Delegating each
+    ``get_scope_config`` to a FRESH :class:`MembersProjectionReader` (or the test override)
+    keeps the choices in step with the current projection without rebuilding the service, and
+    honours the same ``_SCOPE_CONFIG_PROVIDER_OVERRIDE`` seam the read path already uses.
+    """
+
+    def get_scope_config(self, tenant_id: str):
+        return _scope_config_provider().get_scope_config(tenant_id)
+
+
+#: The scope-config provider handed to the domain service — a stable indirection that reads a
+#: fresh projection each call (see :class:`_ProjectionScopeConfigProvider`). Without this the
+#: service's `_scope_vocab` is empty and a scope-dimension enum with no inline choices (region)
+#: is rejected → field-config 502. (This was the missing wiring in the first s5j deploy.)
+_SCOPE_CONFIG_PROVIDER_FOR_SERVICE: ScopeConfigProvider = _ProjectionScopeConfigProvider()
+
+
 class _ProjectionViewContextsProvider:
     """A thin :class:`ViewContextsProvider` indirection over a per-call fresh reader (C-VIEW).
 
@@ -866,6 +889,7 @@ def _get_membership_service() -> MembershipService:
             lifecycle_provider=_LIFECYCLE_PROVIDER,
             tenant_hooks=_TENANT_HOOKS,
             view_contexts_provider=_VIEW_CONTEXTS_PROVIDER,
+            scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
         )
     return _SERVICE
 
