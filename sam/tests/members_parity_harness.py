@@ -468,6 +468,22 @@ class MembersParityHarness:
             "overlay": {"region": region or self.region},
         }
 
+    def _seed_member(self, member_id: str, **kwargs: Any) -> str:
+        """Seed a fixture member with a STABLE, addressable ``member_id`` via the repository.
+
+        s5k: the create ROUTE mints its own system uuid and strips any body ``member_id`` (the
+        Lidnummer is just a field, the id is opaque/internal). The parity harness, however, needs
+        FIXTURE members it can address by a known id (``API-1`` / ``AUTHZ-N`` / ``WF-1`` …) across
+        many route checks. So fixtures are persisted straight through ``repo.save_member`` — which
+        still honors an explicit id — rather than the create route. (The create ROUTE itself is
+        still exercised for coverage + verify-before-trust, reading back the minted id there.)
+        Returns the seeded ``member_id``.
+        """
+        record = self.valid_member_body(member_id, **kwargs)
+        record["tenant_id"] = self.tenant_id
+        self.repo.save_member(self.tenant_id, record)
+        return member_id
+
     # ── Dimension 1: authz (incl. scope) ──────────────────────────────────────────────
     def walk_authz(self, report: ParityReport) -> None:
         """Walk the authz contract: 401 / 403 / scope narrowing / verify-before-trust.
@@ -496,11 +512,9 @@ class MembersParityHarness:
             f"GET /members without members:read → {resp['statusCode']} (expected 403)",
         )
 
-        # Seed one member per region as admin, then check scope narrowing on reads.
-        self.call("POST", "/members", body=self.valid_member_body(
-            "AUTHZ-N", region=PILOT_REGION, member_number="A-1001"))
-        self.call("POST", "/members", body=self.valid_member_body(
-            "AUTHZ-Z", region=_SECOND_REGION, member_number="A-1002"))
+        # Seed one member per region (fixtures with stable ids), then check scope narrowing.
+        self._seed_member("AUTHZ-N", region=PILOT_REGION, member_number="A-1001")
+        self._seed_member("AUTHZ-Z", region=_SECOND_REGION, member_number="A-1002")
 
         # Admin / Regio_All → tenant-wide (sees both regions).
         resp = self.call("GET", "/members", groups=("Regio_All",))
@@ -544,8 +558,11 @@ class MembersParityHarness:
         body = self.valid_member_body("AUTHZ-VBT", region="Noord", member_number="A-1003")
         body["tenant_id"] = "evil-tenant"
         resp = self.call("POST", "/members", body=body)
-        redirected = self.repo.get_member("evil-tenant", "AUTHZ-VBT")
-        landed = self.repo.get_member(self.tenant_id, "AUTHZ-VBT")
+        # The create route mints its own member_id (body id ignored, s5k) — read it back to
+        # confirm WHERE the record landed. The point of the check is the TENANT, not the id.
+        minted = self.data(resp).get("member_id") if resp["statusCode"] == 200 else None
+        landed = self.repo.get_member(self.tenant_id, minted) if minted else None
+        redirected = self.repo.get_member("evil-tenant", minted) if minted else None
         report.record(
             d, "verify-before-trust: body tenant_id ignored", "create_member",
             Outcome.PASS if resp["statusCode"] == 200 and redirected is None
@@ -625,12 +642,15 @@ class MembersParityHarness:
             tenant_id=self.tenant_id,
             region_canonicalizer=canon,
         )
-        minted_id = record["member_id"]
         # S5d D1/R9.2: region normalized onto the plain `overlay.region` scalar via the injected
         # canonicalizer (case-variant "north" → canonical "North").
         region_seeded = record.get("overlay", {}).get("region") == PILOT_REGION
         create = self.call("POST", "/members", body=record)
-        read = self.call("GET", f"/members/{minted_id}", groups=("Regio_All",))
+        # s5k: the create route mints its OWN member_id (the transform's uuid is stripped) — read
+        # the created id back from the response to fetch it.
+        minted_id = self.data(create).get("member_id") if create["statusCode"] == 200 else None
+        read = self.call("GET", f"/members/{minted_id}", groups=("Regio_All",)) if minted_id \
+            else {"statusCode": 404}
         read_data = self.data(read) if read["statusCode"] == 200 else {}
         stored_number = read_data.get("membership", {}).get("member_number")
         round_tripped = (
@@ -669,11 +689,15 @@ class MembersParityHarness:
         """
         d = Dimension.API_CONTRACT
 
-        # Seed a member + membership + payment + delegate so read/lifecycle routes have data.
-        self.call("POST", "/members", body=self.valid_member_body(
-            "API-1", region=self.region, member_number="C-1001", status="pending"))
+        # Seed a member (fixture with a stable id) + membership so read/lifecycle routes have
+        # data addressable by "API-1". The member is seeded via the repository (the create ROUTE
+        # mints its own uuid — s5k); the membership is created through the route under that id.
+        self._seed_member("API-1", region=self.region, member_number="C-1001", status="pending")
         self.call("POST", "/members/API-1/memberships", body={
             "membership_id": "MS-1", "status": "pending"})
+        # The delete_member route check targets "API-NEW"; seed it as an addressable fixture so
+        # DELETE finds a real member (the create-route check below still mints its own uuid).
+        self._seed_member("API-NEW", region=self.region, member_number="C-2001")
         # Payments are a READ-only surface in the migrated module (no write route creates
         # them), so get_member_payments answers 200 with whatever the repository holds
         # (an empty list for the pilot) — the parity point is that the route ANSWERS.
@@ -785,11 +809,14 @@ class MembersParityHarness:
         d = Dimension.WORKFLOW
         mid = "WF-1"
         # Start at application (initial state) with the fields activation will require, plus
-        # a motor so the active-state validate_member hook passes.
-        body = self.valid_member_body(mid, region=self.region, member_number="W-1001",
-                                       status="application")
-        body["overlay"] = {"motor": "Honda CB500"}
-        self.call("POST", "/members", body=body)
+        # a motor so the active-state validate_member hook passes. Seeded via the repository so
+        # the id "WF-1" is stable/addressable across the transition steps (the create ROUTE mints
+        # its own uuid — s5k); the lifecycle transitions below are what this dimension exercises.
+        record = self.valid_member_body(mid, region=self.region, member_number="W-1001",
+                                        status="application")
+        record["overlay"] = {**record.get("overlay", {}), "motor": "Honda CB500"}
+        record["tenant_id"] = self.tenant_id
+        self.repo.save_member(self.tenant_id, record)
 
         def transition(to_state: str, context: Optional[Mapping[str, Any]] = None) -> int:
             payload: Dict[str, Any] = {"to_state": to_state}
@@ -829,9 +856,9 @@ class MembersParityHarness:
                 f"{label} → {code} (expected 200), state now {current_status()!r}",
             )
 
-        # An undeclared edge (application→active directly) is denied — proven on a fresh member.
-        body2 = self.valid_member_body("WF-2", member_number="W-1002", status="application")
-        self.call("POST", "/members", body=body2)
+        # An undeclared edge (application→active directly) is denied — proven on a fresh member
+        # (seeded via the repository so "WF-2" is addressable; the create route mints its own id).
+        self._seed_member("WF-2", member_number="W-1002", status="application")
         resp = self.call("POST", "/members/WF-2/memberships/MS-1/transition",
                          body={"to_state": "active"})
         report.record(

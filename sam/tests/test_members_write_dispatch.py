@@ -51,7 +51,7 @@ from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
 from sam.members.repository.members_repository import DynamoDbMembersRepository
 
-# The faithful in-memory DynamoDB fake (transactional conditional writes + atomic counter).
+# The faithful in-memory DynamoDB fake (single-item writes; s5k removed the transaction + counter).
 from sam.tests.test_members_repository import FakeDynamoTable
 
 
@@ -186,11 +186,11 @@ def _valid_member_body(*, region="Noord", member_number=None, status=None, membe
 
 def test_create_member_valid_returns_200_and_persists(repo):
     body = _valid_member_body(member_number="1001")
-    body["member_id"] = "M-1"
     resp = app.handler(_event("POST", "/members", groups=("Regio_All",), body=body))
     assert resp["statusCode"] == 200
+    mid = _data(resp)["member_id"]
     # Persisted under the authoritative tenant.
-    stored = repo.get_member("h-dcn", "M-1")
+    stored = repo.get_member("h-dcn", mid)
     assert stored is not None
     assert stored["membership"]["member_number"] == "1001"
 
@@ -198,23 +198,23 @@ def test_create_member_valid_returns_200_and_persists(repo):
 def test_create_member_ignores_body_tenant_id(repo):
     # Verify-before-trust (Property 2): a body tenant_id can NEVER redirect the write.
     body = _valid_member_body(member_number="1002")
-    body["member_id"] = "M-9"
     body["tenant_id"] = "evil-tenant"
     resp = app.handler(_event("POST", "/members", groups=("Regio_All",), body=body))
     assert resp["statusCode"] == 200
-    assert repo.get_member("h-dcn", "M-9") is not None
-    assert repo.get_member("evil-tenant", "M-9") is None
+    mid = _data(resp)["member_id"]
+    assert repo.get_member("h-dcn", mid) is not None
+    assert repo.get_member("evil-tenant", mid) is None
 
 
 def test_create_member_with_no_member_number_saves_empty(repo):
     # s5k: NO auto-generation. A body without member_number saves with an EMPTY number (a valid
     # member — sponsors/clubs/numberless). Status still defaults to the config's initial state.
     body = _valid_member_body()
-    body["member_id"] = "M-2"
     body["membership"].pop("member_number", None)
     resp = app.handler(_event("POST", "/members", groups=("Regio_All",), body=body))
     assert resp["statusCode"] == 200
-    stored = repo.get_member("h-dcn", "M-2")
+    mid = _data(resp)["member_id"]
+    stored = repo.get_member("h-dcn", mid)
     assert not stored["membership"].get("member_number")  # empty / absent — no L-000001
     # Initial lifecycle state from HDCN_LIFECYCLE_CONFIG (application).
     assert stored["membership"]["status"] == "application"
@@ -224,17 +224,15 @@ def test_create_member_duplicate_number_is_allowed(repo):
     # s5k: the member-number uniqueness guard was removed — a duplicate number is a
     # data-quality concern, NOT a write-time conflict. Both creates succeed (200).
     body1 = _valid_member_body(member_number="2001")
-    body1["member_id"] = "M-3"
     assert app.handler(_event("POST", "/members", body=body1))["statusCode"] == 200
     body2 = _valid_member_body(member_number="2001")
-    body2["member_id"] = "M-4"
     resp = app.handler(_event("POST", "/members", body=body2))
     assert resp["statusCode"] == 200
 
 
 def test_create_member_missing_required_fields_returns_422():
     # No personal.first_name / email → fixed-field validation fails → 422 with per-field errors.
-    resp = app.handler(_event("POST", "/members", body={"member_id": "M-x", "membership": {"member_number": "9"}}))
+    resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
     assert resp["statusCode"] == 422
     errors = json.loads(resp["body"])["errors"]
     assert "personal.first_name" in errors
@@ -243,7 +241,6 @@ def test_create_member_missing_required_fields_returns_422():
 def test_create_active_member_without_motor_fails_hdcn_hook_422():
     # h-dcn validate_member hook: an ACTIVE member must record a motorcycle (Rung-3, 5.1).
     body = _valid_member_body(member_number="3001", status="active")
-    body["member_id"] = "M-5"
     resp = app.handler(_event("POST", "/members", body=body))
     assert resp["statusCode"] == 422
     assert "overlay.motor" in json.loads(resp["body"])["errors"]
@@ -251,11 +248,11 @@ def test_create_active_member_without_motor_fails_hdcn_hook_422():
 
 def test_create_active_member_with_motor_passes(repo):
     body = _valid_member_body(member_number="3002", status="active")
-    body["member_id"] = "M-6"
     body["overlay"] = {"motor": "Honda CB500"}
     resp = app.handler(_event("POST", "/members", body=body))
     assert resp["statusCode"] == 200
-    assert repo.get_member("h-dcn", "M-6") is not None
+    mid = _data(resp)["member_id"]
+    assert repo.get_member("h-dcn", mid) is not None
 
 
 # ── update_member (partial + scope) ─────────────────────────────────────────────────
@@ -263,14 +260,15 @@ def test_create_active_member_with_motor_passes(repo):
 
 def test_update_member_partial_updates_only_supplied_fields(repo):
     body = _valid_member_body(member_number="4001")
-    body["member_id"] = "M-7"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     # Partial update of just the first name.
     resp = app.handler(
-        _event("PUT", "/members/M-7", groups=("Regio_All",), body={"personal": {"first_name": "Alexandra"}})
+        _event("PUT", f"/members/{mid}", groups=("Regio_All",), body={"personal": {"first_name": "Alexandra"}})
     )
     assert resp["statusCode"] == 200
-    stored = repo.get_member("h-dcn", "M-7")
+    stored = repo.get_member("h-dcn", mid)
     assert stored["personal"]["first_name"] == "Alexandra"
     # Untouched fields survive the merge.
     assert stored["personal"]["email"] == "alex@example.com"
@@ -280,10 +278,11 @@ def test_update_member_partial_updates_only_supplied_fields(repo):
 def test_update_member_out_of_scope_returns_403(repo):
     # Seed a Zuid member, then a Noord-scoped caller tries to update it → 403 (Property 4).
     body = _valid_member_body(region="Zuid", member_number="4002")
-    body["member_id"] = "M-8"
-    app.handler(_event("POST", "/members", body=body))  # admin creates
+    create = app.handler(_event("POST", "/members", body=body))  # admin creates
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("PUT", "/members/M-8", email=_EMAIL_NOORD, body={"personal": {"first_name": "Nope"}})
+        _event("PUT", f"/members/{mid}", email=_EMAIL_NOORD, body={"personal": {"first_name": "Nope"}})
     )
     assert resp["statusCode"] == 403
 
@@ -299,60 +298,65 @@ def test_update_missing_member_returns_404():
 def test_transition_allowed_returns_200_and_persists(repo):
     # Seed a pending member with the fields the pending→active guard requires, then activate.
     body = _valid_member_body(member_number="5001", status="pending")
-    body["member_id"] = "M-10"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("POST", "/members/M-10/memberships/MS-1/transition", body={"to_state": "active"})
+        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "active"})
     )
     assert resp["statusCode"] == 200
-    assert repo.get_member("h-dcn", "M-10")["membership"]["status"] == "active"
+    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "active"
 
 
 def test_transition_denied_by_guard_returns_409(repo):
     # application→pending requires context.approved == True; omit it → denied (409), and the
     # state is NOT mutated.
     body = _valid_member_body(member_number="5002", status="application")
-    body["member_id"] = "M-11"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("POST", "/members/M-11/memberships/MS-1/transition", body={"to_state": "pending"})
+        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "pending"})
     )
     assert resp["statusCode"] == 409
-    assert repo.get_member("h-dcn", "M-11")["membership"]["status"] == "application"
+    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "application"
 
 
 def test_transition_approved_application_moves_to_pending(repo):
     body = _valid_member_body(member_number="5003", status="application")
-    body["member_id"] = "M-12"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
         _event(
             "POST",
-            "/members/M-12/memberships/MS-1/transition",
+            f"/members/{mid}/memberships/MS-1/transition",
             body={"to_state": "pending", "context": {"approved": True}},
         )
     )
     assert resp["statusCode"] == 200
-    assert repo.get_member("h-dcn", "M-12")["membership"]["status"] == "pending"
+    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "pending"
 
 
 def test_transition_undeclared_edge_returns_409(repo):
     body = _valid_member_body(member_number="5004", status="application")
-    body["member_id"] = "M-13"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     # application→active is not in the graph → denied.
     resp = app.handler(
-        _event("POST", "/members/M-13/memberships/MS-1/transition", body={"to_state": "active"})
+        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "active"})
     )
     assert resp["statusCode"] == 409
 
 
 def test_transition_missing_to_state_returns_422(repo):
     body = _valid_member_body(member_number="5005", status="pending")
-    body["member_id"] = "M-14"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("POST", "/members/M-14/memberships/MS-1/transition", body={})
+        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={})
     )
     assert resp["statusCode"] == 422
 
@@ -375,12 +379,13 @@ def test_transition_fires_on_transition_hook_only_on_success(monkeypatch, repo):
     monkeypatch.setattr(app, "_get_membership_service", lambda: service)
 
     body = _valid_member_body(member_number="5006", status="application")
-    body["member_id"] = "M-15"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
 
     # Denied move: application→active is not in the graph → hook must NOT fire.
     denied = app.handler(
-        _event("POST", "/members/M-15/memberships/MS-1/transition", body={"to_state": "active"})
+        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "active"})
     )
     assert denied["statusCode"] == 409
     assert fired == []
@@ -389,7 +394,7 @@ def test_transition_fires_on_transition_hook_only_on_success(monkeypatch, repo):
     allowed = app.handler(
         _event(
             "POST",
-            "/members/M-15/memberships/MS-1/transition",
+            f"/members/{mid}/memberships/MS-1/transition",
             body={"to_state": "pending", "context": {"approved": True}},
         )
     )
@@ -401,13 +406,15 @@ def test_transition_fires_on_transition_hook_only_on_success(monkeypatch, repo):
 
 
 def test_bulk_transition_reports_per_item_outcomes(repo):
-    for i, mid in enumerate(("M-20", "M-21"), start=1):
+    mids = []
+    for i in (1, 2):
         body = _valid_member_body(member_number=f"60{i}", status="pending")
-        body["member_id"] = mid
-        app.handler(_event("POST", "/members", body=body))
+        create = app.handler(_event("POST", "/members", body=body))
+        assert create["statusCode"] == 200
+        mids.append(_data(create)["member_id"])
     resp = app.handler(
         _event("POST", "/memberships/transition",
-               body={"to_state": "active", "member_ids": ["M-20", "M-21", "ghost"]})
+               body={"to_state": "active", "member_ids": [mids[0], mids[1], "ghost"]})
     )
     assert resp["statusCode"] == 200
     data = _data(resp)
@@ -415,19 +422,19 @@ def test_bulk_transition_reports_per_item_outcomes(repo):
     assert data["failed"] == 1
 
 
-# ── delete_member (frees the number) ──────────────────────────────────────────────────
+# ── delete_member ─────────────────────────────────────────────────────────────────────
 
 
-def test_delete_member_frees_the_number(repo):
+def test_delete_member_removes_the_record(repo):
     body = _valid_member_body(member_number="7001")
-    body["member_id"] = "M-30"
-    app.handler(_event("POST", "/members", body=body))
-    resp = app.handler(_event("DELETE", "/members/M-30", groups=("Regio_All",)))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
+    resp = app.handler(_event("DELETE", f"/members/{mid}", groups=("Regio_All",)))
     assert resp["statusCode"] == 200
-    assert repo.get_member("h-dcn", "M-30") is None
+    assert repo.get_member("h-dcn", mid) is None
     # The freed number can be reclaimed by a new member (no orphaned guard).
     body2 = _valid_member_body(member_number="7001")
-    body2["member_id"] = "M-31"
     assert app.handler(_event("POST", "/members", body=body2))["statusCode"] == 200
 
 
@@ -436,30 +443,32 @@ def test_delete_member_frees_the_number(repo):
 
 def test_create_and_update_membership(repo):
     body = _valid_member_body(member_number="8001")
-    body["member_id"] = "M-40"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("POST", "/members/M-40/memberships",
+        _event("POST", f"/members/{mid}/memberships",
                body={"membership_id": "MS-1", "status": "active"})
     )
     assert resp["statusCode"] == 200
-    assert repo.get_membership("h-dcn", "M-40", "MS-1")["status"] == "active"
+    assert repo.get_membership("h-dcn", mid, "MS-1")["status"] == "active"
     # Partial update.
     resp = app.handler(
-        _event("PUT", "/members/M-40/memberships/MS-1", body={"status": "suspended"})
+        _event("PUT", f"/members/{mid}/memberships/MS-1", body={"status": "suspended"})
     )
     assert resp["statusCode"] == 200
-    assert repo.get_membership("h-dcn", "M-40", "MS-1")["status"] == "suspended"
+    assert repo.get_membership("h-dcn", mid, "MS-1")["status"] == "suspended"
 
 
 def test_delete_membership_removes_it(repo):
     body = _valid_member_body(member_number="8002")
-    body["member_id"] = "M-41"
-    app.handler(_event("POST", "/members", body=body))
-    app.handler(_event("POST", "/members/M-41/memberships", body={"membership_id": "MS-9"}))
-    resp = app.handler(_event("DELETE", "/members/M-41/memberships/MS-9", groups=("Regio_All",)))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
+    app.handler(_event("POST", f"/members/{mid}/memberships", body={"membership_id": "MS-9"}))
+    resp = app.handler(_event("DELETE", f"/members/{mid}/memberships/MS-9", groups=("Regio_All",)))
     assert resp["statusCode"] == 200
-    assert repo.get_membership("h-dcn", "M-41", "MS-9") is None
+    assert repo.get_membership("h-dcn", mid, "MS-9") is None
 
 
 # ── delegates (self-service) ────────────────────────────────────────────────────────
@@ -467,25 +476,29 @@ def test_delete_membership_removes_it(repo):
 
 def test_manage_delegates_replaces_the_set(repo):
     body = _valid_member_body(member_number="9001")
-    body["member_id"] = "M-50"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("PUT", "/members/M-50/delegates", body={"delegates": [{"email": "d@x.com"}]})
+        _event("PUT", f"/members/{mid}/delegates", body={"delegates": [{"email": "d@x.com"}]})
     )
     assert resp["statusCode"] == 200
-    assert repo.list_member_delegates("h-dcn", "M-50") == [{"email": "d@x.com"}]
+    assert repo.list_member_delegates("h-dcn", mid) == [{"email": "d@x.com"}]
 
 
 def test_manage_delegates_self_service_own_record_without_scope(repo):
     # A member with no region grant (Members_CRUD → deny scope) manages their OWN delegates.
     body = _valid_member_body(region="Zuid", member_number="9002")
-    body["member_id"] = "M-51"
+    # `sub` is persisted on the record (the sanitizer only strips tenant_id / member_id), and the
+    # self-service ownership check matches the caller's PUT `sub` against it — so it MUST stay.
     body["sub"] = "member-51-sub"
-    app.handler(_event("POST", "/members", body=body))  # admin creates
+    create = app.handler(_event("POST", "/members", body=body))  # admin creates
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
         _event(
             "PUT",
-            "/members/M-51/delegates",
+            f"/members/{mid}/delegates",
             email=_EMAIL_NOGRANT,
             groups=("Members_CRUD",),
             sub="member-51-sub",
@@ -497,21 +510,23 @@ def test_manage_delegates_self_service_own_record_without_scope(repo):
 
 def test_send_delegate_invitation_records_intent(repo):
     body = _valid_member_body(member_number="9003")
-    body["member_id"] = "M-52"
-    app.handler(_event("POST", "/members", body=body))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("POST", "/members/M-52/delegates/invitations", body={"delegate_email": "invite@x.com"})
+        _event("POST", f"/members/{mid}/delegates/invitations", body={"delegate_email": "invite@x.com"})
     )
     assert resp["statusCode"] == 200
-    stored = repo.list_member_delegates("h-dcn", "M-52")
+    stored = repo.list_member_delegates("h-dcn", mid)
     assert any(d.get("email") == "invite@x.com" and d.get("status") == "invited" for d in stored)
 
 
 def test_send_delegate_invitation_missing_email_returns_422(repo):
     body = _valid_member_body(member_number="9004")
-    body["member_id"] = "M-53"
-    app.handler(_event("POST", "/members", body=body))
-    resp = app.handler(_event("POST", "/members/M-53/delegates/invitations", body={}))
+    create = app.handler(_event("POST", "/members", body=body))
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
+    resp = app.handler(_event("POST", f"/members/{mid}/delegates/invitations", body={}))
     assert resp["statusCode"] == 422
 
 
@@ -529,16 +544,15 @@ def test_duplicate_member_number_across_members_is_allowed(table):
     svc_b = MembershipService(repo_b, lifecycle_provider=lifecycle, tenant_hooks=hooks)
 
     b1 = _valid_member_body(member_number="12345")
-    b1["member_id"] = "M-A"
-    svc_a.create_member("h-dcn", b1, {"region": ["*"]})
+    created_a = svc_a.create_member("h-dcn", b1, {"region": ["*"]})
 
     b2 = _valid_member_body(member_number="12345")
-    b2["member_id"] = "M-B"
-    svc_b.create_member("h-dcn", b2, {"region": ["*"]})  # no raise
+    created_b = svc_b.create_member("h-dcn", b2, {"region": ["*"]})  # no raise
 
     # Both records stand — same number, distinct members.
-    assert repo_a.get_member("h-dcn", "M-A") is not None
-    assert repo_a.get_member("h-dcn", "M-B") is not None
+    assert repo_a.get_member("h-dcn", created_a["member_id"]) is not None
+    assert repo_a.get_member("h-dcn", created_b["member_id"]) is not None
+    assert created_a["member_id"] != created_b["member_id"]
 
 # ── Task 4.8 (6b + 7b): authoritative WRITE gates surfaced through the EDGE ────────────
 #

@@ -231,7 +231,13 @@ class _WritableCatalogRepo(FakeCatalogRepository):
         return self.members.get((tenant_id, member_id))
 
     def save_member(self, tenant_id, record):
-        self.members[(tenant_id, record.get("member_id", "M-x"))] = dict(record)
+        # Enforce the SAME invariant the real DynamoDbMembersRepository does: a member must carry
+        # a non-empty member_id (the real repo raises ValueError otherwise). A fake that silently
+        # invented an id here is exactly what let a create-path 502 (missing member_id) reach prod.
+        member_id = record.get("member_id")
+        if not member_id:
+            raise ValueError("member must carry a non-empty 'member_id'")
+        self.members[(tenant_id, member_id)] = dict(record)
         return dict(record)
 
 
@@ -245,6 +251,9 @@ def write_service() -> MembershipService:
 
 
 def _create_body(*, member_number="Nr-0001", membership_type="gewoon", **membership_extra):
+    # A create body carries NO member_id: it is a SYSTEM-minted uuid (create strips any client
+    # value). member_number (Lidnummer) is just a field — no longer the identity (the old
+    # "member_id == Lidnummer" conflation is exactly what s5k removes).
     membership = {
         "member_number": member_number,
         "membership_type": membership_type,
@@ -253,7 +262,6 @@ def _create_body(*, member_number="Nr-0001", membership_type="gewoon", **members
         **membership_extra,
     }
     return {
-        "member_id": "M-1",
         "personal": {"first_name": "Sam", "last_name": "Jansen", "email": "sam@example.com"},
         "membership": membership,
     }
@@ -303,7 +311,8 @@ class TestShowWhenHiddenNotRequired:
         created = write_service.create_member(
             "h-dcn", _create_body(membership_type="gewoon"), {"region": ["*"]}, caller_roles=("Members_CRUD",)
         )
-        assert created["member_id"] == "M-1"
+        # member_id is a SYSTEM-minted uuid (the body id is ignored — see TestCreateMintsMemberId).
+        assert created["member_id"]
 
     def test_visible_required_field_still_demanded(self, write_service):
         # A "motor" member SHOWS motor_brand → it is required; omitting it fails (422).
@@ -318,3 +327,48 @@ class TestShowWhenHiddenNotRequired:
         body["overlay"] = {"motor_brand": "Honda"}
         created = write_service.create_member("h-dcn", body, {"region": ["*"]}, caller_roles=("Members_CRUD",))
         assert created["overlay"]["motor_brand"] == "Honda"
+
+
+class TestCreateMintsMemberId:
+    """member_id is a SYSTEM-generated uuid; the Lidnummer (member_number) is just a field.
+
+    Regression for a prod 502: ``create_member`` called ``save_member`` with NO ``member_id`` and
+    the repository (correctly) rejected it. The fix mints a uuid4 on create. These also pin the
+    s5k identity split — ``member_id`` is opaque/internal and is NEVER the human Lidnummer (the old
+    "member_id == member_number" conflation is gone).
+    """
+
+    def test_create_mints_a_uuid_member_id_when_body_has_none(self, write_service):
+        import uuid as _uuid
+
+        created = write_service.create_member(
+            "h-dcn", _create_body(member_number="Nr-0007"), {"region": ["*"]},
+            caller_roles=("Members_CRUD",),
+        )
+        mid = created["member_id"]
+        # A real uuid4 (parses), and NOT the Lidnummer.
+        assert _uuid.UUID(str(mid)).version == 4
+        assert mid != created["membership"]["member_number"]
+        assert created["membership"]["member_number"] == "Nr-0007"
+
+    def test_create_ignores_a_client_supplied_member_id(self, write_service):
+        import uuid as _uuid
+
+        body = _create_body(member_number="Nr-0008")
+        body["member_id"] = "hacker-supplied-id"  # must be stripped + replaced (verify-before-trust)
+        created = write_service.create_member(
+            "h-dcn", body, {"region": ["*"]}, caller_roles=("Members_CRUD",)
+        )
+        assert created["member_id"] != "hacker-supplied-id"
+        assert _uuid.UUID(str(created["member_id"])).version == 4
+
+    def test_two_creates_get_distinct_member_ids(self, write_service):
+        a = write_service.create_member(
+            "h-dcn", _create_body(member_number="Nr-1001"), {"region": ["*"]},
+            caller_roles=("Members_CRUD",),
+        )
+        b = write_service.create_member(
+            "h-dcn", _create_body(member_number="Nr-1002"), {"region": ["*"]},
+            caller_roles=("Members_CRUD",),
+        )
+        assert a["member_id"] != b["member_id"]

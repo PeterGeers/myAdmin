@@ -330,10 +330,10 @@ class TestMembershipTypeReferenceValidation:
     def test_create_member_with_live_type_ok(self, repo):
         _seed_types(repo, ("erelid", True))
         body = _valid_member_body(member_number="1001", membership_type="erelid")
-        body["member_id"] = "M-1"
         resp = app.handler(_event("POST", "/members", body=body))
         assert resp["statusCode"] == 200
-        assert repo.get_member("h-dcn", "M-1") is not None
+        mid = _data(resp)["member_id"]  # system-minted uuid (create ignores any body id)
+        assert repo.get_member("h-dcn", mid) is not None
 
     def test_create_member_with_unknown_type_returns_422(self, repo):
         _seed_types(repo, ("erelid", True))
@@ -361,34 +361,35 @@ class TestMembershipTypeReferenceValidation:
     def test_update_member_change_to_unknown_type_returns_422(self, repo):
         _seed_types(repo, ("erelid", True))
         body = _valid_member_body(member_number="2001", membership_type="erelid")
-        body["member_id"] = "M-10"
-        assert app.handler(_event("POST", "/members", body=body))["statusCode"] == 200
+        create = app.handler(_event("POST", "/members", body=body))
+        assert create["statusCode"] == 200
+        mid = _data(create)["member_id"]
         # Patch the type to an unknown code → 422.
         resp = app.handler(
-            _event("PUT", "/members/M-10", body={"membership": {"membership_type": "nope"}})
+            _event("PUT", f"/members/{mid}", body={"membership": {"membership_type": "nope"}})
         )
         assert resp["statusCode"] == 422
 
     def test_update_member_change_to_live_type_ok(self, repo):
         _seed_types(repo, ("erelid", True), ("donateur", True))
         body = _valid_member_body(member_number="2002", membership_type="erelid")
-        body["member_id"] = "M-11"
-        app.handler(_event("POST", "/members", body=body))
+        create = app.handler(_event("POST", "/members", body=body))
+        mid = _data(create)["member_id"]
         resp = app.handler(
-            _event("PUT", "/members/M-11", body={"membership": {"membership_type": "donateur"}})
+            _event("PUT", f"/members/{mid}", body={"membership": {"membership_type": "donateur"}})
         )
         assert resp["statusCode"] == 200
-        assert repo.get_member("h-dcn", "M-11")["membership"]["membership_type"] == "donateur"
+        assert repo.get_member("h-dcn", mid)["membership"]["membership_type"] == "donateur"
 
     def test_existing_member_with_since_retired_type_stays_readable(self, repo):
         # Create against a live type, THEN retire the type. The stored member is unchanged and
         # still readable — no retroactive invalidation (C8).
         _seed_types(repo, ("erelid", True))
         body = _valid_member_body(member_number="3001", membership_type="erelid")
-        body["member_id"] = "M-20"
-        app.handler(_event("POST", "/members", body=body))
+        create = app.handler(_event("POST", "/members", body=body))
+        mid = _data(create)["member_id"]
         app.handler(_event("DELETE", "/membership-types/erelid"))  # retire the type
-        got = app.handler(_event("GET", "/members/M-20"))
+        got = app.handler(_event("GET", f"/members/{mid}"))
         assert got["statusCode"] == 200
         assert _data(got)["membership"]["membership_type"] == "erelid"
 
@@ -397,14 +398,14 @@ class TestMembershipTypeReferenceValidation:
         # was since retired (partial-update friendliness, C8).
         _seed_types(repo, ("erelid", True))
         body = _valid_member_body(member_number="3002", membership_type="erelid")
-        body["member_id"] = "M-21"
-        app.handler(_event("POST", "/members", body=body))
+        create = app.handler(_event("POST", "/members", body=body))
+        mid = _data(create)["member_id"]
         app.handler(_event("DELETE", "/membership-types/erelid"))  # retire the type
         resp = app.handler(
-            _event("PUT", "/members/M-21", body={"personal": {"first_name": "Renamed"}})
+            _event("PUT", f"/members/{mid}", body={"personal": {"first_name": "Renamed"}})
         )
         assert resp["statusCode"] == 200
-        assert repo.get_member("h-dcn", "M-21")["personal"]["first_name"] == "Renamed"
+        assert repo.get_member("h-dcn", mid)["personal"]["first_name"] == "Renamed"
 
     def test_reference_check_is_tenant_scoped(self, repo):
         # 'erelid' is live for h-dcn only. A member create for h-dcn works; the same type is
