@@ -48,6 +48,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Protocol
 
 from sam.members.handler.router import (
@@ -355,17 +356,35 @@ _CORS_HEADERS: dict[str, str] = {
 }
 
 
+def _json_default(obj: Any) -> Any:
+    """`json.dumps` fallback for types the stdlib encoder can't handle.
+
+    DynamoDB returns every number as a :class:`decimal.Decimal` (boto3's resource client),
+    which `json.dumps` refuses to serialize (`TypeError: Object of type Decimal is not JSON
+    serializable`) — so a member READ whose items carry any numeric attribute would crash
+    the response and surface as a 502. Convert a `Decimal` to an `int` when it is integral
+    (e.g. a year, a count) else to a `float`, so the JSON body mirrors the source number
+    without a spurious ``.0``. Any other unexpected type falls through to a `TypeError`
+    (fail loud in tests rather than silently coerce).
+    """
+    if isinstance(obj, Decimal):
+        # Integral Decimals -> int (no trailing .0); fractional -> float.
+        return int(obj) if obj == obj.to_integral_value() else float(obj)
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+
 def _response(status: int, payload: Mapping[str, Any]) -> dict:
     """Build an API Gateway proxy response with a JSON body and CORS headers.
 
     Every response the edge shapes carries the same CORS headers so a browser client can
     read it (including the 401/403 error envelopes below); the body is always well-formed
-    JSON.
+    JSON. Uses :func:`_json_default` so DynamoDB ``Decimal`` numbers serialize (else a read
+    carrying any number 502s — `Decimal is not JSON serializable`).
     """
     return {
         "statusCode": status,
         "headers": {"Content-Type": "application/json", **_CORS_HEADERS},
-        "body": json.dumps(payload),
+        "body": json.dumps(payload, default=_json_default),
     }
 
 
