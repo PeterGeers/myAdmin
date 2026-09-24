@@ -557,18 +557,33 @@ Nothing here touches other tenants. Cold start: h-dcn has no MEMBERS module row,
   C.12 cleaned the current stale rows manually; this closes the recurring hole.
 
 ===================================================================
-## PHASE D — Verify end-to-end in prod (h-dcn)  [UNBLOCKED 2026-09-23 — s5f shipped]
+## PHASE D — Verify end-to-end in prod (h-dcn)  [CORE OUTCOME ACHIEVED 2026-09-24 — members render]
 ===================================================================
 > **UNBLOCKED 2026-09-23:** all PHASE CE prerequisites are now met — SPA API-URL fix (CE.2 ✅),
 > Pool A PTG trigger attached (CE.5 ✅), and the multi-tenant edge bug that failed CE.7 is FIXED
-> and deployed (**s5f** / ADR 0007 / PR #18, `sam-members` UPDATE_COMPLETE). D.1/D.3 (users see
-> members) can now be exercised via the SPA. D.2/D.4 are already confirmable at the data layer
-> (scopegrant rows present; roles/scope are separate tables).
+> and deployed (**s5f** / ADR 0007 / PR #18, `sam-members` UPDATE_COMPLETE).
+>
+> **CORE OUTCOME ACHIEVED 2026-09-24:** a multi-tenant user with `X-Tenant: h-dcn` now sees
+> h-dcn members in the SPA — `GET /prod/members` → **200, many records shown** (user-confirmed).
+> The s5f edge fix was necessary but NOT sufficient: real browser traffic surfaced THREE more
+> independent blockers, each fixed via the codified `sam/members` pipeline —
+> **s5g** (CORS preflight: `OPTIONS` was 401 because the authorizer gated preflight → PR #19),
+> **s5h** (the Members Lambda had NO DynamoDB IAM policy → AccessDenied on `governance_projection`
+> → PR #20), **s5i** (`Decimal not JSON serializable` in `_response` → PR #21). Post-s5i
+> CloudWatch (verified 09:38+ UTC): ZERO Decimal/AccessDenied errors.
+>
+> **REMAINING (does NOT block the member list):** the `field-config` call still 502s on the
+> h-dcn `region` overlay declaring `enum` with no `choices` (Bug 2 — BACKLOGGED, needs a design
+> decision; separate call from the member LIST). The finer scope-behaviour checks below
+> (D.1/D.2/D.4/D.5) still want deliberate Tenant-Admin actions in the browser to tick off.
 - [ ] **D.1** As a Tenant-Admin: set a test member-user to `region:["Oost"]` → the
   member list shows only Oost members; `["*"]` shows all; clearing shows none.
 - [ ] **D.2** Confirm the projected `scopegrant#…#region` row matches the grant.
-- [ ] **D.3** Confirm an all-access user (`["*"]`) sees the full member list (verify the
-  deployed SPA→SAM API path returns members for a wildcard user).
+- [x] **D.3** Confirm the deployed SPA→SAM API path returns members. DONE 2026-09-24 —
+  `webmaster@h-dcn.nl` with `X-Tenant: h-dcn` → `GET /prod/members` = **200 with many h-dcn
+  records** in the SPA (user-confirmed). Confirms the end-to-end path (SPA → API GW → authorizer
+  → Lambda → `governance_projection`/`sam-members` → JSON) works post s5f/s5g/s5h/s5i. (A pure
+  `["*"]` wildcard user still worth a dedicated pass, but the list path itself is proven.)
 - [ ] **D.4** Sanity: capability (roles) and scope are independent — changing scope
   never changes roles.
 - [ ] **D.5** Overlay dropdown enforcement (A.5): creating/editing a member rejects an

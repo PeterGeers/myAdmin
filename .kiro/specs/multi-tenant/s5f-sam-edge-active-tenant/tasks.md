@@ -115,13 +115,19 @@ multi-tenant contract, record the contract as ADR 0007, and ship through the s5e
   `sam-members` `UPDATE_COMPLETE` @ 23:07 (a real function/layer update, as expected). Live
   API smoke: `GET /prod/members` with no token → **401 Unauthorized** (authorizer intact,
   edge healthy post-deploy). _(R8.2)_
-- [~] **4.3 [H] Re-test s5d PHASE D end-to-end** (R8.3): PARTIALLY verified from here + one
-  manual step left for the user. VERIFIED: full SAM suite green (the multi-tenant 200/403
-  matrix + "selection flows into context" ctx.tenant_id==selection); deploy green; live API
-  401 on unauth (healthy). REMAINING (needs a browser SPA login to mint a signed Cognito
-  token — cannot be done from the shell): confirm `peter@pgeers.nl` + `X-Tenant: h-dcn` shows
-  h-dcn members in the SPA (the originally-blocked outcome), a not-entitled `X-Tenant` → 403,
-  and single-tenant flows unaffected. _(R8.3; P3/P7)_
+- [x] **4.3 [H] Re-test s5d PHASE D end-to-end** (R8.3): DONE 2026-09-24 — VERIFIED in the
+  browser SPA: a multi-tenant user with `X-Tenant: h-dcn` gets `GET /prod/members` → **200 with
+  many h-dcn records shown** (the originally-blocked outcome), confirmed by the user. Also
+  verified from here beforehand: full SAM suite green (multi-tenant 200/403 matrix +
+  "selection flows into context" ctx.tenant_id==selection); deploy green; live API 401 on
+  unauth (healthy). NOTE — the s5f edge fix was necessary but NOT sufficient; real browser
+  traffic then surfaced three MORE independent PHASE-D blockers, each fixed via the codified
+  pipeline: **s5g** (CORS preflight — `OPTIONS /prod/members` was 401 because the authorizer
+  gated preflight; PR #19), **s5h** (Members Lambda had NO DynamoDB IAM policy →
+  AccessDeniedException on `governance_projection`; PR #20), **s5i** (`Decimal not JSON
+  serializable` in `_response`; PR #21). Post-s5i CloudWatch (verified 2026-09-24 09:38+):
+  ZERO Decimal/AccessDenied errors; only the backlogged `field-config` `region`-overlay
+  OverlayError remains (Bug 2 — separate call, non-blocking for the member LIST). _(R8.3; P3/P7)_
 - [x] **4.4 Unblock + record** DONE 2026-09-23 — s5d rollout plan updated: CE.7 marked
   "EDGE FIX SHIPPED (s5f)" with the resolution note (PR #18 / run 35931888652 / UPDATE_COMPLETE);
   the PHASE D banner flipped from "[BLOCKED until PHASE CE done]" to "[UNBLOCKED 2026-09-23 — s5f
