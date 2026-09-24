@@ -4,14 +4,20 @@
  * Locks the save-once contract (Property 8): each `saveMembersParameter` call issues
  * EXACTLY ONE request — a PUT (update) when a tenant row exists, else a POST (create) —
  * never both, never per-field.
+ *
+ * S5j: also locks the definitions-fetch URL contract — the request URL must have the API
+ * base applied EXACTLY ONCE (regression guard for the "Failed to fetch" double-prepend bug
+ * where an absolute buildApiUrl() result was passed back into authenticatedGet()).
  */
 import { vi } from 'vitest';
 import {
   getMembersParameters,
   saveMembersParameter,
+  getMembersParameterDefinitions,
   MEMBERS_NAMESPACE,
 } from './membersConfigService';
 import * as parameterService from './parameterService';
+import * as apiService from './apiService';
 
 vi.mock('./parameterService', () => ({
   getParameters: vi.fn(),
@@ -52,6 +58,29 @@ describe('membersConfigService', () => {
         parameters: {},
       });
       expect(await getMembersParameters()).toEqual({});
+    });
+  });
+
+  describe('getMembersParameterDefinitions (S5j — single-based URL, no double-prepend)', () => {
+    it('calls authenticatedGet with a RELATIVE endpoint (authenticatedGet adds the base once)', async () => {
+      // The bug: buildApiUrl() produced an ABSOLUTE url which was then passed to
+      // authenticatedGet(), which prepends API_BASE_URL again → "https://hosthttps//host/...".
+      // The fix passes the relative path so the base is applied exactly once. Guard it by
+      // asserting the argument authenticatedGet receives carries NO scheme (is relative).
+      vi.mocked(apiService.authenticatedGet).mockResolvedValue({
+        ok: true,
+        json: async () => [],
+      } as unknown as Response);
+
+      await getMembersParameterDefinitions();
+
+      expect(apiService.authenticatedGet).toHaveBeenCalledTimes(1);
+      const [endpointArg, optsArg] = vi.mocked(apiService.authenticatedGet).mock.calls[0];
+      // Relative path only — no "http", no doubled host.
+      expect(endpointArg).toBe('/api/config/members-parameters');
+      expect(String(endpointArg)).not.toMatch(/https?:\/\//);
+      // Public endpoint → auth is skipped.
+      expect(optsArg).toMatchObject({ skipAuth: true });
     });
   });
 
