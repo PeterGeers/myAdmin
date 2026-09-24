@@ -94,7 +94,10 @@ from sam.members.domain.membership_type_catalog import (
     MembershipTypeEntry,
     MembershipTypeValidationError,
 )
-from sam.members.domain.scope_dimensions import WILDCARD
+from sam.members.domain.scope_dimensions import (
+    WILDCARD,
+    ScopeConfigProvider,
+)
 from sam.members.domain.view_contexts import (
     StaticViewContextsProvider,
     ViewContext,
@@ -335,11 +338,18 @@ class MembershipService:
         transition_hooks: Optional[TransitionHookRegistry] = None,
         tenant_hooks: Optional[TenantHookRegistry] = None,
         view_contexts_provider: Optional[ViewContextsProvider] = None,
+        scope_config_provider: Optional[ScopeConfigProvider] = None,
     ):
         self._repo = repository
         self._field_resolver = FieldResolver(
             overlay_provider if overlay_provider is not None else StaticOverlayProvider()
         )
+        # S5j (design D1a): the scope-config provider supplies the tenant's ScopeConfig, from
+        # which get_field_config / the write validator derive a {dimension.field: values} map so
+        # a scope-dimension-backed overlay enum (h-dcn `region`) sources its dropdown choices
+        # from `scope_dimensions.values` (single source of truth). Optional — a service built
+        # without it resolves exactly as before (no scope-sourced choices).
+        self._scope_config_provider: Optional[ScopeConfigProvider] = scope_config_provider
         # The view-context seam (S5c task 3.2, design C-VIEW). Mirrors the overlay/scope
         # provider injection: the service depends only on the ViewContextsProvider Protocol,
         # never on where the contexts live. Defaults to the empty StaticViewContextsProvider,
@@ -933,7 +943,9 @@ class MembershipService:
         sees every problem at once. ``caller_roles`` are the verified roles of the writer (from
         the edge context) — empty for a caller with no roles (only unrestricted options allowed).
         """
-        config = self._field_resolver.resolve(tenant_id)
+        config = self._field_resolver.resolve(
+            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
+        )
 
         errors: Dict[str, str] = {}
         try:
@@ -1286,7 +1298,11 @@ class MembershipService:
         # (every present value is checked — there is no prior state to tolerate).
         overlay_enum_errors: Dict[str, str] = {}
         self._reject_invalid_overlay_enum_values(
-            self._field_resolver.resolve(tenant_id), record, overlay_enum_errors
+            self._field_resolver.resolve(
+                tenant_id, scope_vocab=self._scope_vocab(tenant_id)
+            ),
+            record,
+            overlay_enum_errors,
         )
         if overlay_enum_errors:
             raise MemberValidationError(overlay_enum_errors)
@@ -1367,7 +1383,9 @@ class MembershipService:
         # change. Mirrors the membership_type "only-when-changed" rule above.
         overlay_enum_errors: Dict[str, str] = {}
         self._reject_invalid_overlay_enum_values(
-            self._field_resolver.resolve(tenant_id),
+            self._field_resolver.resolve(
+                tenant_id, scope_vocab=self._scope_vocab(tenant_id)
+            ),
             merged,
             overlay_enum_errors,
             previous=existing,
@@ -1688,6 +1706,27 @@ class MembershipService:
 
     # ── Resolved field config (design C3 + C8, R2.3/R2.4 — task 3.3) ──────────────────
 
+    def _scope_vocab(self, tenant_id: str) -> Dict[str, tuple]:
+        """The ``{member_field_key: values}`` map for this tenant's ENABLED scope dimensions.
+
+        S5j (design D1a): built from the injected scope-config provider, keyed by each enabled
+        dimension's ``field`` (the member field it binds to — which defaults to, but may differ
+        from, the dimension ``key``). Consumed by :meth:`get_field_config` (and the write
+        validator) so a scope-dimension-backed overlay ``enum`` sources its dropdown choices
+        from ``scope_dimensions.values`` — the single source of truth, no stored duplication.
+        Returns an EMPTY map when no provider is wired or the tenant has no enabled dimension
+        (→ the resolver behaves exactly as before). Multiple dimensions → multiple entries.
+        """
+        if self._scope_config_provider is None:
+            return {}
+        config = self._scope_config_provider.get_scope_config(tenant_id)
+        vocab: Dict[str, tuple] = {}
+        for dim in config.enabled():
+            field_key = dim.field or dim.key
+            if field_key:
+                vocab[field_key] = dim.normalized_values()
+        return vocab
+
     def get_field_config(self, tenant_id: str) -> Dict[str, Any]:
         """Return the tenant's resolved field config for the presentation-only frontend.
 
@@ -1710,7 +1749,9 @@ class MembershipService:
         list, the same fields bucketed ``by_group`` (``personal`` / ``membership`` / overlay),
         and the standalone ``membership_type_options`` catalog feed.
         """
-        config = self._field_resolver.resolve(tenant_id)
+        config = self._field_resolver.resolve(
+            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
+        )
         options = self._active_membership_type_options(tenant_id)
 
         fields = [
