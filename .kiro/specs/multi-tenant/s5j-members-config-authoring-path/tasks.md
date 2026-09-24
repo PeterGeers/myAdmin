@@ -55,13 +55,26 @@ no sleep; strip `.env` AWS keys for nonprofit-deploy), frontend build via `front
 
 ## Phase 4 — Ship + verify end-to-end (R5)
 
-- [ ] **4.1 Commit + PR(s)** via the codified pipelines (SAM change through
-  `deploy-sam-members.yml`; frontend through the GitHub Pages deploy). Branch off `main`.
-- [ ] **4.2 [H] Merge + deploy** — SAM members stack UPDATE_COMPLETE; frontend deployed.
-- [ ] **4.3 [H] Browser re-test** — Tenant-Admin → Members editor LOADS; Members table shows
-  the `region` column POPULATED; the member modal renders fields incl. the `region` dropdown of
-  the 10 values; editing region to a non-listed value is rejected, an unchanged legacy value
-  saves. Confirm `GET /members/field-config` = 200 (CloudWatch: no OverlayError on region).
+- [x] **4.1 Commit + PR** DONE — branch `s5j-members-config-authoring-path` off `main`, commit
+  `b6bba57` (9 files), pushed (secret scan clean). **Combined PR #22** (SAM + frontend in one
+  review): https://github.com/PeterGeers/myAdmin/pull/22 . On merge, SAM deploys via
+  `deploy-sam-members.yml`; frontend via the GitHub Pages deploy.
+- [x] **4.2 [H] Merge + deploy** DONE — PR #22 merged (merge commit `4244c0c`). BOTH pipelines
+  green: `Deploy SAM Members` run 35998187250 success → `sam-members` **UPDATE_COMPLETE**
+  @ 12:18:43; `Deploy Frontend to GitHub Pages` run 35998187141 **success**. (CodeQL on main
+  post-merge scan non-blocking.)
+- [~] **4.3 [H] Browser re-test** — FIRST DEPLOY (PR #22) STILL 502'd. RCA: the DOMAIN fix was
+  correct but the PRODUCTION WIRING was missing — `app.py` `_get_membership_service()` built
+  `MembershipService` WITHOUT `scope_config_provider`, so `_scope_vocab` was empty in prod and
+  region was still rejected (CloudWatch confirmed the OverlayError now raised at the NEW
+  `_reject_invalid_overlay(overlay, scope_vocab=vocab)` line — i.e. new code ran, empty vocab).
+  My Phase-1 tests injected a provider directly, so they never exercised the app wiring — the
+  gap slipped through. FIX (branch `s5j-wire-scope-config-provider`): added
+  `_ProjectionScopeConfigProvider` (fresh-reader indirection, mirrors `_ProjectionOverlayProvider`,
+  honours `_SCOPE_CONFIG_PROVIDER_OVERRIDE`) and passed it as `scope_config_provider=` in the
+  service construction; ADDED an app-wiring test (`TestAppWiresScopeConfigProviderIntoService`)
+  that drives the real `_SCOPE_CONFIG_PROVIDER_FOR_SERVICE` so the gap can't regress. Affected
+  suites 60 passed / 0 failed. Awaiting re-deploy + browser re-test.
 - [ ] **4.4 Record** — mark s5d PHASE D field-config item resolved; close the backlog "region
   overlay choices" entry; note s5j in the rollout plan.
 
