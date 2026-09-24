@@ -15,7 +15,7 @@ its topic and nothing else (facts live in exactly one place).
 | `0x` | **Index / meta** | `00-index.md` (this file) |
 | `1x` | **Product & structure** | `10-product.md`, `11-tech-stack.md`, `12-project-structure.md` |
 | `2x` | **Platform architecture** | `20-platform-architecture.md`, `21-identity.md`, `22-authentication.md`, `23-aws-accounts.md` |
-| `3x` | **Coding conventions** | `30-backend-api-flask-mysql.md`, `31-backend-database-flask-mysql.md`, `32-frontend-ui.md`, `33-frontend-testing.md`, `34-backend-testing.md`, `35-sam-module-architecture-sam.md` |
+| `3x` | **Coding conventions** | `30-backend-api-flask-mysql.md`, `31-backend-database-flask-mysql.md`, `32-frontend-ui.md`, `33-frontend-testing.md`, `34-backend-testing.md`, `35-sam-module-architecture-sam.md`, `36-config-and-parameters.md` |
 | `4x` | **Process & environment** | `40-spec-workflow.md`, `41-shell-environment.md`, `42-local-dynamodb-testing.md` |
 
 ## Load behavior (when each file is in context)
@@ -24,7 +24,7 @@ Kiro loads steering three ways. Each file declares its mode in front-matter.
 
 | Mode | Meaning | Files |
 | --- | --- | --- |
-| `auto` | Always in context | `00`, `10`, `11`, `12`, `20`, `21`, `22`, `23`, `35`, `40`, `41` |
+| `auto` | Always in context | `00`, `10`, `11`, `12`, `20`, `21`, `22`, `23`, `35`, `36`, `40`, `41` |
 | `fileMatch` | Loaded only when editing matching files | `30` (backend routes/services), `31` (backend `*.py`), `32` (frontend `*.ts[x]`), `33` (frontend tests), `34` (`test_*.py`) |
 | `manual` | Loaded on explicit request | `42` (local DynamoDB work) |
 
