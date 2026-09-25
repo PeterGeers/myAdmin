@@ -27,6 +27,8 @@ export interface GenericListResponse {
 
 /** Response shape for the email preview endpoint. */
 export interface EmailPreviewResponse {
+  /** API standard v1.0 machine error code (e.g. `errors.invoice.emailMissing`), when the request failed. */
+  code?: string;
   success: boolean;
   data?: {
     subject: string;

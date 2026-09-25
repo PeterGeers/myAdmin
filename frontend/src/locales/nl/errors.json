@@ -15,7 +15,9 @@
     "sessionExpired": "Uw sessie is verlopen. Log opnieuw in.",
     "noAuthToken": "Geen authenticatietoken beschikbaar.",
     "authenticationFailed": "Authenticatie mislukt. Probeer het opnieuw.",
-    "tokenRefreshFailed": "Kan authenticatietoken niet vernieuwen."
+    "tokenRefreshFailed": "Kan authenticatietoken niet vernieuwen.",
+    "methodNotAllowed": "Methode niet toegestaan voor deze bron.",
+    "notImplemented": "Deze functie is nog niet geïmplementeerd."
   },
   "tenant": {
     "noTenantSelected": "Geen tenant geselecteerd. Selecteer eerst een tenant.",
@@ -36,7 +38,29 @@
     "passwordsDoNotMatch": "Wachtwoorden komen niet overeen.",
     "invalidFileType": "Ongeldig bestandstype.",
     "fileTooLarge": "Bestand is te groot.",
-    "invalidRange": "Waarde valt buiten bereik."
+    "invalidRange": "Waarde valt buiten bereik.",
+    "failed": "Validatie mislukt. Controleer uw invoer.",
+    "mustNotBeBlank": "Dit veld mag niet leeg zijn.",
+    "mustBeAString": "Dit veld moet tekst zijn.",
+    "mustBeOneOf": "Moet een van de volgende zijn: {{allowed}}."
+  },
+  "member": {
+    "numberFormat": "Het lidnummer voldoet niet aan het vereiste formaat."
+  },
+  "enum": {
+    "roleRestricted": "Deze waarde is voorbehouden aan rol(len): {{roles}}. U bent niet gemachtigd om deze in te stellen."
+  },
+  "transition": {
+    "denied": "Deze statuswijziging is niet toegestaan."
+  },
+  "membershiptype": {
+    "conflict": "Er bestaat al een lidmaatschapstype met deze code.",
+    "tenant": "Een tenant is verplicht (tenant-isolatie).",
+    "typeCode": "De typecode is ongeldig.",
+    "label": "Een Nederlandse label is verplicht.",
+    "order": "De volgorde moet een geheel getal zijn.",
+    "unknownReference": "Onbekend lidmaatschapstype '{{type_code}}' (niet in de catalogus).",
+    "retired": "Lidmaatschapstype '{{type_code}}' is ingetrokken en kan niet worden toegewezen."
   },
   "file": {
     "uploadFailed": "Bestand uploaden mislukt.",
@@ -74,7 +98,8 @@
     "extractionFailed": "Factuur extractie mislukt.",
     "validationFailed": "Factuur validatie mislukt.",
     "generationFailed": "Factuur generatie mislukt.",
-    "notFound": "Factuur niet gevonden."
+    "notFound": "Factuur niet gevonden.",
+    "emailMissing": "Een e-mailadres is vereist om de factuur te verzenden."
   },
   "report": {
     "generationFailed": "Rapport generatie mislukt.",

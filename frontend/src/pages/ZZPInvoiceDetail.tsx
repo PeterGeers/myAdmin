@@ -261,23 +261,38 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         setEmailPreview(resp.data);
         setEmailPreviewOpen(true);
       } else {
-        const errorMsg = resp.error || t('invoices.email.sendError', 'Failed to send invoice');
-        if (errorMsg.toLowerCase().includes('email') && errorMsg.toLowerCase().includes('missing')) {
-          toast({ title: t('invoices.email.missingEmail', 'Contact has no email address'), status: 'warning' });
-        } else {
-          toast({ title: errorMsg, status: 'error' });
-        }
+        surfaceSendPreviewError(resp.code, resp.error);
       }
     } catch (err: unknown) {
-      const errorMsg = (err instanceof Error ? err.message : null) || t('invoices.email.sendError', 'Failed to send invoice');
-      if (errorMsg.toLowerCase().includes('email') && errorMsg.toLowerCase().includes('missing')) {
-        toast({ title: t('invoices.email.missingEmail', 'Contact has no email address'), status: 'warning' });
-      } else {
-        toast({ title: errorMsg, status: 'error' });
-      }
+      const errorMsg = err instanceof Error ? err.message : null;
+      surfaceSendPreviewError(undefined, errorMsg);
     } finally {
       setLoadingEmailPreview(false);
     }
+  };
+
+  /**
+   * Surface an email-preview failure using the API standard v1.0 machine `code` (localized)
+   * instead of the old error-string sniff. When the backend returns
+   * `errors.invoice.emailMissing`, show a localized warning; otherwise resolve any known code
+   * to copy, falling back to the backend English `error` and then a generic send-failure message.
+   */
+  const surfaceSendPreviewError = (code?: string, error?: string | null) => {
+    if (code === 'errors.invoice.emailMissing') {
+      toast({
+        title: t('invoices.email.missingEmail', 'Contact has no email address'),
+        status: 'warning',
+      });
+      return;
+    }
+    // A different known code → localize it (errors namespace); else the backend English string;
+    // else a generic fallback.
+    const localized = code ? (t(code.replace('.', ':')) as string) : '';
+    const title =
+      (localized && localized !== code ? localized : '') ||
+      error ||
+      t('invoices.email.sendError', 'Failed to send invoice');
+    toast({ title, status: 'error' });
   };
 
   const handleCreditNote = async () => {

@@ -58,11 +58,29 @@ GitHub Pages. Small spec — no config/projection/registry work.
   `MembersExport`, `membersApiService`, `fieldValue`, `fieldForm`. One PRE-EXISTING, unrelated
   failure in `MembersPage.viewContexts.test.tsx` (a `Noord` Badge assertion) — confirmed not
   caused by s5k (fails identically with the export change git-stashed); tracked, not a blocker.
-- [ ] **4.2 [H]** Ship: SAM via `deploy-sam-members.yml`; frontend via Pages.
+- [x] **4.2 [H]** Ship: SAM via `deploy-sam-members.yml`; frontend via Pages. Shipped via **PR #26**
+  (squash `9d309be` → SAM Members deploy ✓ + Frontend Pages deploy ✓). Follow-up **hotfix PR #27**
+  (`7079f76`) shipped a 502 fix found in prod verify — see 4.4.
 - [ ] **4.3 [H]** Prod data cleanup: delete the 1152 `membernum#` guard rows for h-dcn (idempotent,
-  tenant-scoped script). Verify none remain.
-- [ ] **4.4 [H]** Prod verify: create a member with a typed `M#####` → saves (single item, no
+  tenant-scoped script). Verify none remain. Script READY:
+  `scripts/aws/cleanup-membernum-guard-rows.py` (dry-run default, `--tenant` required, re-checks the
+  `membernum#` prefix before delete, re-queries to confirm 0 remain). NOT yet run.
+- [x] **4.4 [H]** Prod verify: create a member with a typed `M#####` → saves (single item, no
   guard); create a sponsor with no number → saves; edit a member → no guard write; CloudWatch clean.
+  - **Prod-verify surfaced a 502** on add/update: `_reject_invalid_overlay_enum_values` crashed on
+    a tenant's dict-shaped overlay-enum `choices` (`", ".join(...)` TypeError → 502). FIXED in
+    hotfix **PR #27** (`_choice_value` coercion) + regression tests; full SAM suite green; deployed.
+  - **Edit a member: VERIFIED working in prod** after the hotfix (user-confirmed).
+  - **A SECOND create 502** then surfaced: `create_member` never minted a `member_id`, so
+    `save_member` rejected the record (`ValueError` → 502) on every add. FIXED in **PR #28**
+    (`6e013b8`): `create_member` now ALWAYS mints a system uuid4 `member_id`, strips any
+    client-supplied id (verify-before-trust), and `member_number`/Lidnummer stays a plain field.
+    Root-caused the green-suite miss: create-path fake repos did not enforce the real `member_id`
+    invariant + fixtures conflated `member_id` with the Lidnummer. Hardened the fakes + fixtures +
+    added regression tests; full SAM suite green; **deployed (SAM Members deploy ✓)**.
+  - REMAINING: user to confirm add-member now succeeds in prod (typed `M#####` + a numberless
+    sponsor); CloudWatch clean. (No `membernum#` write is structurally impossible — the guard code
+    is gone.)
 - [ ] **4.5** Governance DoD: mark the backlog item done; note auto-numbering as considered &
   rejected and the "suggest next number" toggle as a possible future opt-in.
 

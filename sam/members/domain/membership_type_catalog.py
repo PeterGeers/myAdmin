@@ -35,6 +35,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any, Mapping
 
+from sam.members.domain.error_codes import (
+    FieldError,
+    MEMBERSHIP_TYPE_LABEL,
+    MEMBERSHIP_TYPE_ORDER,
+    MEMBERSHIP_TYPE_TENANT,
+    MEMBERSHIP_TYPE_TYPE_CODE,
+)
+
 __all__ = [
     "CATALOG_LOCALES",
     "MembershipTypeEntry",
@@ -61,14 +69,14 @@ SORT_KEY_SEPARATOR = "#"
 class MembershipTypeValidationError(Exception):
     """Raised when a membership-type catalog entry is malformed (a config/data bug).
 
-    Carries ``errors`` — a mapping of field name → human-readable reason — so a caller
-    surfaces every problem at once rather than one at a time (mirrors
-    ``FieldValidationError`` / ``ScopeConfigError`` in the sibling domain modules).
+    Carries ``errors`` — a mapping of field name → :class:`FieldError` (machine ``code`` +
+    English ``detail``, API standard v1.0) — so a caller surfaces every problem at once,
+    localizable via the code (mirrors ``FieldValidationError`` in the sibling domain modules).
     """
 
-    def __init__(self, errors: Mapping[str, str]):
-        self.errors = dict(errors)
-        detail = "; ".join(f"{k}: {v}" for k, v in self.errors.items())
+    def __init__(self, errors: Mapping[str, FieldError]):
+        self.errors: dict[str, FieldError] = dict(errors)
+        detail = "; ".join(f"{k}: {v.detail}" for k, v in self.errors.items())
         super().__init__(f"membership-type catalog entry is invalid: {detail}")
 
 
@@ -106,28 +114,45 @@ class MembershipTypeEntry:
         ``label`` mapping carrying at least a non-blank ``nl`` label; an integer ``order``.
         Returns None when the entry is well-formed.
         """
-        errors: dict[str, str] = {}
+        errors: dict[str, FieldError] = {}
 
         if not isinstance(self.tenant_id, str) or not self.tenant_id.strip():
-            errors["tenant_id"] = "must be a non-blank string (tenant isolation, Property 1)"
+            errors["tenant_id"] = FieldError(
+                code=MEMBERSHIP_TYPE_TENANT,
+                detail="must be a non-blank string (tenant isolation, Property 1)",
+            )
 
         if not isinstance(self.type_code, str) or not self.type_code.strip():
-            errors["type_code"] = "must be a non-blank string"
+            errors["type_code"] = FieldError(
+                code=MEMBERSHIP_TYPE_TYPE_CODE, detail="must be a non-blank string"
+            )
         elif SORT_KEY_SEPARATOR in self.type_code:
-            errors["type_code"] = (
-                f"must not contain {SORT_KEY_SEPARATOR!r} (it becomes a sort-key id segment)"
+            errors["type_code"] = FieldError(
+                code=MEMBERSHIP_TYPE_TYPE_CODE,
+                detail=(
+                    f"must not contain {SORT_KEY_SEPARATOR!r} (it becomes a sort-key id segment)"
+                ),
+                params={"separator": SORT_KEY_SEPARATOR},
             )
 
         if not isinstance(self.label, Mapping):
-            errors["label"] = "must be a mapping of locale -> label"
+            errors["label"] = FieldError(
+                code=MEMBERSHIP_TYPE_LABEL, detail="must be a mapping of locale -> label"
+            )
         else:
             nl = self.label.get(_REQUIRED_LOCALE)
             if not isinstance(nl, str) or not nl.strip():
-                errors["label"] = f"must carry a non-blank {_REQUIRED_LOCALE!r} label"
+                errors["label"] = FieldError(
+                    code=MEMBERSHIP_TYPE_LABEL,
+                    detail=f"must carry a non-blank {_REQUIRED_LOCALE!r} label",
+                    params={"locale": _REQUIRED_LOCALE},
+                )
 
         # bool is a subclass of int; accept True/False for order? No — order is a position.
         if isinstance(self.order, bool) or not isinstance(self.order, int):
-            errors["order"] = "must be an integer"
+            errors["order"] = FieldError(
+                code=MEMBERSHIP_TYPE_ORDER, detail="must be an integer"
+            )
 
         if errors:
             raise MembershipTypeValidationError(errors)
@@ -164,7 +189,9 @@ class MembershipTypeEntry:
         ``0`` when absent, matching the dataclass defaults.
         """
         if not isinstance(item, Mapping):
-            raise MembershipTypeValidationError({"item": "must be a mapping"})
+            raise MembershipTypeValidationError(
+                {"item": FieldError(code=MEMBERSHIP_TYPE_TYPE_CODE, detail="must be a mapping")}
+            )
         raw_order = item.get("order", 0)
         try:
             order = int(raw_order)
