@@ -13,7 +13,7 @@ from datetime import date, datetime
 import pandas as pd
 
 from country_detector import detect_country
-from str_airbnb_parser import calculate_airbnb_row, process_airbnb_multi
+from str_airbnb_parser import process_airbnb_multi
 from str_booking_parser import (
     calculate_booking_row,
     process_booking,
@@ -28,6 +28,42 @@ from str_utils import (
     parse_date,
     parse_multilang_date,
 )
+
+# Airbnb file detection / classification helpers
+AIRBNB_REALISED_MARKERS = ("Uitbetaald", "Verwacht op")  # both present → realised
+
+
+def _airbnb_header_columns(file_path: str) -> list[str] | None:
+    """Return stripped header column names for a CSV, or None if unreadable.
+
+    Strips the UTF-8 BOM and surrounding whitespace from each column name so
+    downstream membership checks work against clean tokens.
+    """
+    try:
+        header = pd.read_csv(file_path, nrows=0).columns.tolist()
+        return [str(c).replace("\ufeff", "").strip() for c in header]
+    except Exception:
+        return None
+
+
+def _is_airbnb_file(filename: str, columns: list[str] | None) -> bool:
+    """Classify a file as Airbnb by filename token or header content.
+
+    Req 1.2: filename contains ``airbnb`` → Airbnb (header may be unreadable).
+    Req 1.1: header has both ``Type`` and ``Bruto-inkomsten`` → Airbnb.
+    """
+    if "airbnb" in filename.lower():
+        return True
+    return bool(columns and "Type" in columns and "Bruto-inkomsten" in columns)
+
+
+def _airbnb_is_realised(columns: list[str]) -> bool:
+    """Return True when the header marks a Realised_File.
+
+    Req 1.3: header has both ``Uitbetaald`` and ``Verwacht op`` → realised.
+    Req 1.4: otherwise pending.
+    """
+    return all(m in columns for m in AIRBNB_REALISED_MARKERS)
 
 
 class STRProcessor:
@@ -86,24 +122,37 @@ class STRProcessor:
         if not folder_path:
             folder_path = self.download_folder
 
-        files = {"airbnb": [], "booking": [], "booking_payout": [], "direct": []}
+        files = {
+            "airbnb_realised": [],
+            "airbnb_pending": [],
+            "booking": [],
+            "booking_payout": [],
+            "direct": [],
+        }
 
         try:
             for file in os.listdir(folder_path):
                 file_path = os.path.join(folder_path, file)
-                if os.path.isfile(file_path):
-                    if "payout_from" in file.lower() and file.endswith(".csv"):
-                        files["booking_payout"].append(file_path)
-                    elif "reservation" in file.lower() and file.endswith(".csv"):
-                        files["airbnb"].append(file_path)
-                    elif (
-                        "check-in" in file.lower() or "booking" in file.lower()
-                    ) and file.endswith((".xls", ".xlsx")):
-                        files["booking"].append(file_path)
-                    elif "jabakirechtstreeks" in file.lower() and file.endswith(
-                        ".xlsx"
-                    ):
-                        files["direct"].append(file_path)
+                if not os.path.isfile(file_path):
+                    continue
+
+                if "payout_from" in file.lower() and file.endswith(".csv"):
+                    files["booking_payout"].append(file_path)
+                elif (
+                    "check-in" in file.lower() or "booking" in file.lower()
+                ) and file.endswith((".xls", ".xlsx")):
+                    files["booking"].append(file_path)
+                elif "jabakirechtstreeks" in file.lower() and file.endswith(".xlsx"):
+                    files["direct"].append(file_path)
+                elif file.endswith(".csv"):
+                    # Airbnb detection: header content or `airbnb` filename token.
+                    columns = _airbnb_header_columns(file_path)
+                    if _is_airbnb_file(file, columns):
+                        # Unreadable-header token-only files default to pending.
+                        if columns and _airbnb_is_realised(columns):
+                            files["airbnb_realised"].append(file_path)
+                        else:
+                            files["airbnb_pending"].append(file_path)
         except Exception as e:
             print(f"Error scanning folder: {e}")
 
@@ -151,14 +200,48 @@ class STRProcessor:
     # Airbnb delegation
 
     def _process_airbnb_multi(self, file_paths: list[str]) -> list[dict]:
-        """Process multiple Airbnb CSV files (delegated)."""
-        return process_airbnb_multi(file_paths, self.tax_rate_service, self.tenant)
+        """Process multiple Airbnb CSV files (delegated).
 
-    def _calculate_airbnb_row(self, row, df_columns, source_file: str) -> dict | None:
-        """Process a single Airbnb row (delegated)."""
-        return calculate_airbnb_row(
-            row, df_columns, source_file, self.tax_rate_service, self.tenant
-        )
+        Classifies each path as pending vs. realised by its (stripped) header, then
+        calls the parser once per bucket so status is driven by file classification
+        rather than by the check-in date: pending paths with ``status="planned"`` and
+        realised paths with ``status="realised"``. The combined list is returned so
+        ``separate_by_status`` can split on the dict ``status`` field (Req 6.1, 6.3,
+        6.5). A file whose header cannot be read defaults to pending (safer: planned
+        bookings are refreshed in ``bnbplanned``, never mixed into realised history).
+        """
+        realised_paths: list[str] = []
+        pending_paths: list[str] = []
+        for fp in file_paths:
+            columns = _airbnb_header_columns(fp)
+            if columns and _airbnb_is_realised(columns):
+                realised_paths.append(fp)
+            else:
+                pending_paths.append(fp)
+
+        bookings: list[dict] = []
+        errors: list[str] = []
+        for paths, status in (
+            (pending_paths, "planned"),
+            (realised_paths, "realised"),
+        ):
+            if not paths:
+                continue
+            try:
+                bookings.extend(
+                    process_airbnb_multi(
+                        paths, self.tax_rate_service, self.tenant, status=status
+                    )
+                )
+            except ValueError as e:
+                # Preserve the "all files failed" contract: only surface it when the
+                # whole batch produced nothing.
+                errors.append(str(e))
+
+        if not bookings and errors:
+            raise ValueError("; ".join(errors))
+
+        return bookings
 
     # Booking.com delegation
 

@@ -2,31 +2,39 @@
 Unit tests for str_airbnb_parser.py and str_booking_parser.py
 
 Tests Airbnb and Booking.com CSV parsing:
-- process_airbnb_multi() - Multi-file Airbnb import
-- calculate_airbnb_row() - Single Airbnb row calculation
-- process_booking() - Single Booking.com file
-- process_booking_multi() - Multi-file Booking.com import
-- calculate_booking_row() - Single Booking.com row calculation
+- process_airbnb_multi()      - Multi-file Airbnb import (new export format)
+- build_booking_from_group()  - Single-group booking assembly (new export format)
+- process_booking()           - Single Booking.com file
+- process_booking_multi()     - Multi-file Booking.com import
+- calculate_booking_row()     - Single Booking.com row calculation
 
-Task 54 of Phase 7: Missing Test Coverage
+The Airbnb path was rewritten for the new two-file export format
+(airbnb-export-format-update): rows arrive as Boeking/Doorloop-totaal pairs grouped
+by Bevestigingscode, amounts are summed per group, status comes from file
+classification, and the old single-row `calculate_airbnb_row` was removed.
 """
 
-import sys
 import os
-import tempfile
 import shutil
-import pytest
+import sys
+import tempfile
+from datetime import date, timedelta
+
 import pandas as pd
-from datetime import date, datetime, timedelta
-from unittest.mock import patch, MagicMock
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from str_airbnb_parser import process_airbnb_multi, calculate_airbnb_row
-from str_booking_parser import (
-    process_booking, process_booking_multi, calculate_booking_row
+from str_airbnb_parser import (
+    build_booking_from_group,
+    parse_airbnb_amount,
+    process_airbnb_multi,
 )
-
+from str_booking_parser import (
+    calculate_booking_row,
+    process_booking,
+    process_booking_multi,
+)
 
 # ── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -39,24 +47,39 @@ def temp_dir():
     shutil.rmtree(d, ignore_errors=True)
 
 
+def _airbnb_row(code, type_, gross, service, *, begin='06/15/2025', end='06/18/2025',
+                booked='05/01/2025', nights=3, guest='Jan Janssen',
+                listing='Green Studio', info=''):
+    """Build one new-format Airbnb export row (dict) for a booking pair member."""
+    return {
+        'Datum': begin,
+        'Type': type_,
+        'Bevestigingscode': code,
+        'Boekingsdatum': booked,
+        'Begindatum': begin,
+        'Einddatum': end,
+        'Nachten': nights,
+        'Gast': guest,
+        'Advertentie': listing,
+        'Informatie': info,
+        'Referentienummer': '',
+        'Valuta': 'EUR',
+        'Bedrag': gross,
+        'Servicekosten': service,
+        'Schoonmaakkosten': '0.00',
+        'Bruto-inkomsten': gross,
+        'Door Airbnb doorbelaste en afgedragen heffingen': '0.00',
+        'Inkomstenjaar': 2025,
+    }
+
+
 @pytest.fixture
 def airbnb_csv(temp_dir):
-    """Create a sample Airbnb CSV file."""
-    df = pd.DataFrame([{
-        'Begindatum': '15-06-2025',
-        'Einddatum': '18-06-2025',
-        'Naam van de gast': 'Jan Janssen',
-        'Advertentie': 'Green Studio',
-        '# nachten': 3,
-        'Inkomsten': '€ 450,00',
-        'Bevestigingscode': 'HM12345678',
-        'Status': 'Bevestigd',
-        'Contact': '+31612345678',
-        '# volwassenen': 2,
-        '# kinderen': 1,
-        "# baby's": 0,
-        'Gereserveerd': '2025-05-01',
-    }])
+    """Create a sample new-format Airbnb (pending) CSV: one Boeking/Doorloop pair."""
+    df = pd.DataFrame([
+        _airbnb_row('HM12345678', 'Boeking', 360.00, '"54,00"'),
+        _airbnb_row('HM12345678', 'Doorloop totaal', 90.00, '0.00'),
+    ])
     path = os.path.join(temp_dir, 'airbnb_test.csv')
     df.to_csv(path, index=False)
     return path
@@ -88,156 +111,121 @@ def booking_csv(temp_dir):
 # ── Airbnb Parser Tests ────────────────────────────────────────────────────
 
 
-class TestCalculateAirbnbRow:
+class TestBuildBookingFromGroup:
+    """build_booking_from_group() assembles one Booking_Dict from a row group.
 
-    def test_basic_calculation(self):
-        """calculate_airbnb_row processes a valid row."""
-        row = pd.Series({
-            'Begindatum': '15-06-2025',
-            'Einddatum': '18-06-2025',
-            'Naam van de gast': 'Test Guest',
-            'Advertentie': 'Green Studio',
-            '# nachten': 3,
-            'Inkomsten': '€ 450,00',
-            'Bevestigingscode': 'HM12345678',
-            'Status': 'Bevestigd',
-            'Contact': '+31612345678',
-            '# volwassenen': 2,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-05-01',
-        })
-        columns = row.index
+    The new export presents each booking as a Boeking + Doorloop-totaal pair sharing
+    one Bevestigingscode; gross and fee are summed across the group, dates read from
+    the first row, and status is passed in (from file classification).
+    """
 
-        result = calculate_airbnb_row(row, columns, '2025-06-28 test.csv')
+    def test_basic_group_sums_gross_and_fee(self):
+        """Gross and channel fee are the sums over the group (Req 3.1, 3.2)."""
+        group = pd.DataFrame([
+            _airbnb_row('HM12345678', 'Boeking', 360.00, '"54,00"'),
+            _airbnb_row('HM12345678', 'Doorloop totaal', 90.00, '0.00'),
+        ])
 
-        assert result is not None
+        result = build_booking_from_group(
+            'HM12345678', group, '2025-06-28 test.csv', 'realised'
+        )
+
         assert result['channel'] == 'airbnb'
         assert result['listing'] == 'Green Studio'
         assert result['nights'] == 3
-        assert result['guests'] == 2
+        assert result['guests'] == 2          # no guest-count column → default 2 (Req 7.1)
+        assert result['phone'] == ''          # no contact column (Req 7.2)
         assert result['reservationCode'] == 'HM12345678'
-        assert result['amountGross'] > 0
-        assert result['amountChannelFee'] > 0
+        assert result['amountGross'] == 450.00   # 360.00 + 90.00
+        assert result['amountChannelFee'] == 54.00  # 54,00 + 0.00
         assert result['amountVat'] > 0
         assert result['amountNett'] > 0
-        assert result['status'] == 'realised'
+        assert result['status'] == 'realised'    # passed by caller (Req 6.3)
 
-    def test_cancelled_with_zero_earnings_skipped(self):
-        """Cancelled bookings with zero earnings are skipped."""
-        row = pd.Series({
-            'Begindatum': '15-06-2025',
-            'Einddatum': '18-06-2025',
-            'Naam van de gast': 'Cancelled Guest',
-            'Advertentie': 'Red Studio',
-            '# nachten': 3,
-            'Inkomsten': '€ 0,00',
-            'Bevestigingscode': 'HM99999999',
-            'Status': 'Geannuleerd door gast',
-            'Contact': '',
-            '# volwassenen': 1,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-05-01',
-        })
-        result = calculate_airbnb_row(row, row.index, 'test.csv')
-        assert result is None
+    def test_status_is_taken_from_caller_not_dates(self):
+        """A future-dated group tagged 'planned' keeps that status (Req 6.5)."""
+        future_begin = (date.today() + timedelta(days=30)).strftime('%m/%d/%Y')
+        future_end = (date.today() + timedelta(days=33)).strftime('%m/%d/%Y')
+        group = pd.DataFrame([
+            _airbnb_row('HM11111111', 'Boeking', 300.00, '"45,00"',
+                        begin=future_begin, end=future_end),
+        ])
 
-    def test_future_booking_is_planned(self):
-        """Future check-in date sets status to 'planned'."""
-        future_date = (date.today() + timedelta(days=30)).strftime('%d-%m-%Y')
-        future_checkout = (date.today() + timedelta(days=33)).strftime('%d-%m-%Y')
-        row = pd.Series({
-            'Begindatum': future_date,
-            'Einddatum': future_checkout,
-            'Naam van de gast': 'Future Guest',
-            'Advertentie': 'Green Studio',
-            '# nachten': 3,
-            'Inkomsten': '€ 300,00',
-            'Bevestigingscode': 'HM11111111',
-            'Status': 'Bevestigd',
-            'Contact': '+49123456789',
-            '# volwassenen': 2,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-06-01',
-        })
-        result = calculate_airbnb_row(row, row.index, 'test.csv')
-        assert result is not None
+        result = build_booking_from_group(
+            'HM11111111', group, 'test.csv', 'planned'
+        )
         assert result['status'] == 'planned'
 
-    def test_european_currency_parsing(self):
-        """Parses European currency format '€ 1.841,18'."""
-        row = pd.Series({
-            'Begindatum': '01-01-2025',
-            'Einddatum': '10-01-2025',
-            'Naam van de gast': 'Big Spender',
-            'Advertentie': 'Child Friendly',
-            '# nachten': 9,
-            'Inkomsten': '€ 1.841,18',
-            'Bevestigingscode': 'HM22222222',
-            'Status': 'Bevestigd',
-            'Contact': '+31600000000',
-            '# volwassenen': 4,
-            '# kinderen': 2,
-            "# baby's": 1,
-            'Gereserveerd': '2024-12-01',
-        })
-        result = calculate_airbnb_row(row, row.index, 'test.csv')
-        assert result is not None
-        # €1841.18 + 15% channel fee = ~2117.36 gross
-        assert result['amountGross'] > 2000
+    def test_dates_parsed_mmddyyyy_and_periods_derived(self):
+        """MM/DD/YYYY dates map to checkin/checkout and derived year/q/m (Req 5)."""
+        group = pd.DataFrame([
+            _airbnb_row('HM55555555', 'Boeking', 200.00, '"30,00"',
+                        begin='09/23/2026', end='09/25/2026', booked='09/04/2026'),
+        ])
+        result = build_booking_from_group('HM55555555', group, 'test.csv', 'planned')
+        assert result['checkinDate'] == '2026-09-23'
+        assert result['checkoutDate'] == '2026-09-25'
+        assert result['reservationDate'] == '2026-09-04'
+        assert result['year'] == 2026
+        assert result['q'] == 3
+        assert result['m'] == 9
 
     def test_listing_normalization(self):
-        """Listing names are normalized to standard values."""
-        row = pd.Series({
-            'Begindatum': '01-03-2025',
-            'Einddatum': '03-03-2025',
-            'Naam van de gast': 'Test',
-            'Advertentie': 'Rode Studio met tuin',
-            '# nachten': 2,
-            'Inkomsten': '€ 200,00',
-            'Bevestigingscode': 'HM33333333',
-            'Status': 'Bevestigd',
-            'Contact': '',
-            '# volwassenen': 1,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-02-01',
-        })
-        result = calculate_airbnb_row(row, row.index, 'test.csv')
-        assert result is not None
+        """Listing names normalize to standard values (Req 8.3)."""
+        group = pd.DataFrame([
+            _airbnb_row('HM33333333', 'Boeking', 200.00, '"30,00"',
+                        listing='Rode Studio met tuin'),
+        ])
+        result = build_booking_from_group('HM33333333', group, 'test.csv', 'planned')
         assert result['listing'] == 'Red Studio'
+
+    def test_european_amount_parsing(self):
+        """Quoted European service fee like "1.841,18" parses correctly (Req 4.2)."""
+        assert parse_airbnb_amount('"1.841,18"') == 1841.18
 
 
 class TestProcessAirbnbMulti:
 
     def test_single_file_success(self, airbnb_csv):
-        """process_airbnb_multi processes a single valid file."""
-        result = process_airbnb_multi([airbnb_csv])
+        """A single new-format file yields one booking per confirmation code."""
+        result = process_airbnb_multi([airbnb_csv], status='planned')
         assert len(result) == 1
         assert result[0]['channel'] == 'airbnb'
         assert result[0]['reservationCode'] == 'HM12345678'
+        assert result[0]['status'] == 'planned'
+        assert result[0]['amountGross'] == 450.00      # 360.00 + 90.00 summed
+        assert result[0]['amountChannelFee'] == 54.00
 
-    def test_deduplication(self, temp_dir):
-        """process_airbnb_multi deduplicates by Bevestigingscode."""
-        row = {
-            'Begindatum': '15-06-2025', 'Einddatum': '18-06-2025',
-            'Naam van de gast': 'Jan', 'Advertentie': 'Green Studio',
-            '# nachten': 3, 'Inkomsten': '€ 400,00',
-            'Bevestigingscode': 'HMDUPLICATE', 'Status': 'Bevestigd',
-            'Contact': '', '# volwassenen': 1, '# kinderen': 0,
-            "# baby's": 0, 'Gereserveerd': '2025-05-01',
-        }
-        df1 = pd.DataFrame([row])
-        df2 = pd.DataFrame([row])
-        path1 = os.path.join(temp_dir, 'file1.csv')
-        path2 = os.path.join(temp_dir, 'file2.csv')
-        df1.to_csv(path1, index=False)
-        df2.to_csv(path2, index=False)
+    def test_payout_rows_excluded_from_grouping(self, temp_dir):
+        """Payout rows (blank Bevestigingscode) never produce a booking (Req 2.3)."""
+        payout = _airbnb_row('', 'Payout', '', '',
+                             info='Transfer naar Example BV')
+        df = pd.DataFrame([
+            payout,
+            _airbnb_row('HMREAL0001', 'Boeking', 360.00, '"54,00"'),
+            _airbnb_row('HMREAL0001', 'Doorloop totaal', 90.00, '0.00'),
+        ])
+        path = os.path.join(temp_dir, 'with_payout.csv')
+        df.to_csv(path, index=False)
 
-        result = process_airbnb_multi([path1, path2])
-        assert len(result) == 1  # Deduplicated
+        result = process_airbnb_multi([path], status='realised')
+        assert len(result) == 1
+        assert result[0]['reservationCode'] == 'HMREAL0001'
+
+    def test_grouping_one_dict_per_code(self, temp_dir):
+        """Multiple confirmation codes yield one dict each (Req 2.1, 2.2)."""
+        df = pd.DataFrame([
+            _airbnb_row('HMAAA', 'Boeking', 300.00, '"45,00"'),
+            _airbnb_row('HMAAA', 'Doorloop totaal', 75.00, '0.00'),
+            _airbnb_row('HMBBB', 'Boeking', 200.00, '"30,00"'),
+            _airbnb_row('HMBBB', 'Doorloop totaal', 50.00, '0.00'),
+        ])
+        path = os.path.join(temp_dir, 'two_codes.csv')
+        df.to_csv(path, index=False)
+
+        result = process_airbnb_multi([path], status='realised')
+        codes = sorted(b['reservationCode'] for b in result)
+        assert codes == ['HMAAA', 'HMBBB']
 
     def test_all_files_fail_raises(self, temp_dir):
         """process_airbnb_multi raises ValueError if all files fail."""
