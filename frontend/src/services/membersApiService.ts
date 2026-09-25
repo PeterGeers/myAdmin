@@ -41,6 +41,7 @@
  */
 
 import { getCurrentAuthTokens } from './authService';
+import { apiErrorFromResponse } from '../shared/api/ApiError';
 import type { Member } from '../types/members';
 
 // ============================================================================
@@ -188,14 +189,17 @@ export async function membersRequest(
 
 /**
  * Parse a Members API response, throwing on non-2xx.
- * Mirrors `sysadminService.ts::handleResponse`.
+ *
+ * On `!response.ok` throws a structured {@link ApiError} (API response & error standard v1.0)
+ * that preserves the whole envelope — `status`, the machine `code`, `params`, the RFC 9457
+ * per-field `errors[]` and `reasons[]` arrays — so `applyApiError` can surface localized inline
+ * field errors + a summary toast. Backward compatible: `ApiError extends Error`, so a legacy
+ * `catch (e) { toast(e.message) }` still reads the backend English `error` (or `HTTP <status>`).
+ * A non-JSON/empty error body degrades to `HTTP <status>` via `apiErrorFromResponse`.
  */
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    throw await apiErrorFromResponse(response);
   }
   return response.json() as Promise<T>;
 }

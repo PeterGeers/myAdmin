@@ -267,7 +267,9 @@ class TestCatalogWriteEdge:
     def test_create_route_malformed_returns_422(self):
         resp = app.handler(_event("POST", "/membership-types", body={"type_code": "", "label": {}}))
         assert resp["statusCode"] == 422
-        assert "type_code" in json.loads(resp["body"])["errors"]
+        # v1.0: errors is an RFC 9457 array of {field, code, detail}.
+        fields = {e["field"] for e in json.loads(resp["body"])["errors"]}
+        assert "type_code" in fields
 
     def test_update_route_returns_200(self, repo):
         _seed_types(repo, ("erelid", True))
@@ -341,7 +343,8 @@ class TestMembershipTypeReferenceValidation:
         body["member_id"] = "M-2"
         resp = app.handler(_event("POST", "/members", body=body))
         assert resp["statusCode"] == 422
-        assert "membership.membership_type" in json.loads(resp["body"])["errors"]
+        fields = {e["field"] for e in json.loads(resp["body"])["errors"]}
+        assert "membership.membership_type" in fields
 
     def test_create_member_with_retired_type_returns_422(self, repo):
         _seed_types(repo, ("erelid", True), ("retired_type", False))
@@ -349,7 +352,8 @@ class TestMembershipTypeReferenceValidation:
         body["member_id"] = "M-3"
         resp = app.handler(_event("POST", "/members", body=body))
         assert resp["statusCode"] == 422
-        assert "membership.membership_type" in json.loads(resp["body"])["errors"]
+        fields = {e["field"] for e in json.loads(resp["body"])["errors"]}
+        assert "membership.membership_type" in fields
 
     def test_create_member_unknown_type_is_not_persisted(self, repo):
         _seed_types(repo, ("erelid", True))

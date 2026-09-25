@@ -76,6 +76,7 @@ from sam.members.domain.membership_service import (
     ScopeDenied,
     TransitionDenied,
 )
+from sam.members.domain.error_codes import FieldError
 from sam.members.domain.membership_type_catalog import MembershipTypeValidationError
 from sam.members.domain.scope_access import ScopeAccess, resolve_scope_access
 from sam.members.domain.scope_dimensions import (
@@ -396,25 +397,90 @@ def _json_default(obj: Any) -> Any:
 
 
 def _response(status: int, payload: Mapping[str, Any]) -> dict:
-    """Build an API Gateway proxy response with a JSON body and CORS headers.
+    """Build an API Gateway proxy response with the platform envelope + CORS headers.
 
-    Every response the edge shapes carries the same CORS headers so a browser client can
-    read it (including the 401/403 error envelopes below); the body is always well-formed
-    JSON. Uses :func:`_json_default` so DynamoDB ``Decimal`` numbers serialize (else a read
-    carrying any number 502s — `Decimal is not JSON serializable`).
+    Platform API response & error standard v1.0 (steering `37`): every response carries a
+    ``success`` boolean DERIVED from the HTTP status range (2xx → ``true``, else ``false``) so
+    the body shape matches the Flask/ZZP plane — success ``{success:true, data}``, error
+    ``{success:false, error, code?, ...}`` — while the real HTTP status stays authoritative.
+    ``success`` is prepended so it always appears (a caller ``payload`` never needs to set it).
+
+    Every response carries the same CORS headers so a browser client can read it (including the
+    401/403 error envelopes below); the body is always well-formed JSON. Uses
+    :func:`_json_default` so DynamoDB ``Decimal`` numbers serialize (else a read carrying any
+    number 502s — `Decimal is not JSON serializable`).
     """
+    body: dict[str, Any] = {"success": 200 <= status < 300}
+    body.update(payload)
     return {
         "statusCode": status,
         "headers": {"Content-Type": "application/json", **_CORS_HEADERS},
-        "body": json.dumps(payload, default=_json_default),
+        "body": json.dumps(body, default=_json_default),
     }
 
 
-def _error(status: int, message: str, **extra: Any) -> dict:
-    """Shape a JSON error response ``{"error": message, ...}``."""
+def _error(
+    status: int,
+    message: str,
+    *,
+    code: Optional[str] = None,
+    params: Optional[Mapping[str, Any]] = None,
+    **extra: Any,
+) -> dict:
+    """Shape a JSON error envelope ``{success:false, error, code?, params?, ...}``.
+
+    ``code`` is a stable, machine-readable identifier that IS a key in the frontend's existing
+    ``errors``/``validation`` i18n namespaces (v1.0, steering `37`); the SPA maps it to localized
+    NL/EN copy, with ``message`` (English) as the dev/last-resort fallback. ``params`` carries
+    interpolation values for that copy. ``extra`` still carries the structured details the edge
+    already returns — ``errors`` (422 per-field) / ``reasons`` (409 transition denials).
+    """
     payload: dict[str, Any] = {"error": message}
+    if code is not None:
+        payload["code"] = code
+    if params:
+        payload["params"] = dict(params)
     payload.update(extra)
     return _response(status, payload)
+
+
+def _field_errors_array(errors: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Shape a domain ``{field: FieldError}`` map into the RFC 9457 ``errors`` array (v1.0).
+
+    Each entry is ``{field, code, params?, detail}`` (steering `37`). ``field`` is the dotted
+    field key; ``code`` is the machine i18n key the SPA localizes; ``detail`` is the English
+    fallback. Tolerant of a legacy bare-string value (wrapped as ``{field, detail}`` with the
+    generic ``errors.api.badRequest`` code) so a caller that has not migrated still serializes.
+    """
+    array: list[dict[str, Any]] = []
+    for field_key, value in errors.items():
+        if isinstance(value, FieldError):
+            array.append(value.as_entry(field_key=str(field_key)))
+        else:  # defensive: a not-yet-migrated string reason
+            array.append(
+                {"field": str(field_key), "code": "errors.api.badRequest", "detail": str(value)}
+            )
+    return array
+
+
+def _reasons_array(reasons: Any) -> list[dict[str, Any]]:
+    """Shape a :class:`TransitionDenied` ``reasons`` sequence into the RFC 9457 array (v1.0).
+
+    Each entry is ``{code, params?, detail}`` (no ``field`` — a transition denial is not tied to
+    one input field). Today the domain emits reasons as plain English strings (config-driven
+    guard messages), so each is wrapped under the shared ``errors.transition.denied`` code with
+    the string as ``detail``; a :class:`FieldError` reason (future) passes through via
+    ``as_entry``. Tolerant of a single string or a non-sequence.
+    """
+    if isinstance(reasons, (str, bytes)):
+        reasons = [reasons]
+    array: list[dict[str, Any]] = []
+    for reason in reasons or ():
+        if isinstance(reason, FieldError):
+            array.append(reason.as_entry())
+        else:
+            array.append({"code": "errors.transition.denied", "detail": str(reason)})
+    return array
 
 
 # ── Auth + tenant context + authorization (task 3.0 — the verified-auth edge) ─────────
@@ -1192,11 +1258,14 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
     try:
         resolution = get_router().resolve(request.method, request.path)
     except NoRouteMatch:
-        return _error(404, "Not found")
+        return _error(404, "Not found", code="errors.api.notFound")
 
     if isinstance(resolution, MethodNotAllowed):
         response = _error(
-            405, "Method not allowed", allowed=list(resolution.allowed_methods)
+            405,
+            "Method not allowed",
+            code="errors.api.methodNotAllowed",
+            allowed=list(resolution.allowed_methods),
         )
         response["headers"]["Allow"] = ", ".join(resolution.allowed_methods)
         return response
@@ -1213,52 +1282,93 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             event, request, spec, path_params=resolution.path_params
         )
     except InvalidTokenError as exc:
-        return _error(getattr(exc, "http_status", 401), "Unauthorized")
+        return _error(
+            getattr(exc, "http_status", 401), "Unauthorized", code="errors.api.unauthorized"
+        )
     except ServiceUnavailableError as exc:
-        return _error(getattr(exc, "http_status", 503), "Authentication service unavailable")
+        return _error(
+            getattr(exc, "http_status", 503),
+            "Authentication service unavailable",
+            code="errors.api.serviceUnavailable",
+        )
     except AuthorizationError:
-        return _error(403, "Forbidden")
+        return _error(403, "Forbidden", code="errors.api.forbidden")
 
     # 3) Delegate to the domain service (task 3.2 reads / Step 5 writes); shape the response.
     try:
         result = _dispatch(spec, request, ctx)
     except RouteNotImplemented:
         logger.info("Members route '%s' resolved but not implemented yet", spec.name)
-        return _error(501, "Not implemented", route=spec.name)
+        return _error(501, "Not implemented", code="errors.api.notImplemented", route=spec.name)
     except MemberNotFound:
         # Missing member within the tenant, OR out of the caller's scope on a READ —
         # deliberately indistinguishable so a scoped caller cannot probe for out-of-scope
         # records.
-        return _error(404, "Not found")
+        return _error(404, "Not found", code="errors.api.notFound")
     except MembershipTypeNotFound:
         # Absent Lidmaatschap Beheer catalog entry for the tenant (design C8) → 404,
         # consistent with the member not-found mapping above (update/delete of an absent code).
-        return _error(404, "Not found")
+        return _error(404, "Not found", code="errors.api.notFound")
     except MembershipTypeConflict:
         # Creating a catalog entry whose type_code already exists (design C8) → 409 Conflict;
         # never a silent overwrite of a live type (an intentional change uses the PUT route).
-        return _error(409, "Membership type already exists")
+        return _error(
+            409, "Membership type already exists", code="errors.membershiptype.conflict"
+        )
     except MembershipTypeValidationError as exc:
         # A malformed catalog write (blank/invalid code, missing nl label, non-int order) →
-        # 422 Unprocessable, carrying the per-field errors (mirrors MemberValidationError).
-        return _error(422, "Validation failed", errors=exc.errors)
+        # 422 Unprocessable, carrying the per-field errors as an RFC 9457 array (v1.0).
+        return _error(
+            422,
+            "Validation failed",
+            code="errors.validation.failed",
+            errors=_field_errors_array(exc.errors),
+        )
     except ScopeDenied:
         # A scoped caller attempted a WRITE outside their allowed_scopes (Property 4). Unlike a
         # read (404, no existence leak), an authenticated+entitled write out of scope is an
         # honest authorization denial.
-        return _error(403, "Forbidden")
+        return _error(403, "Forbidden", code="errors.api.forbidden")
     except TransitionDenied as exc:
         # A lifecycle transition that is not declared, or whose guards/required-fields fail
-        # (design C2) → 409 Conflict, carrying the human-readable reasons. Never a silent
-        # allow; the hook did not fire and the record was not mutated.
-        return _error(409, "Transition denied", reasons=list(exc.reasons))
+        # (design C2) → 409 Conflict, carrying the reasons as an RFC 9457 array (v1.0). Never a
+        # silent allow; the hook did not fire and the record was not mutated.
+        return _error(
+            409,
+            "Transition denied",
+            code="errors.transition.denied",
+            reasons=_reasons_array(exc.reasons),
+        )
     except MemberValidationError as exc:
         # A well-formed write that violates the fixed-field or tenant validate_member rules
-        # (design C2/C5) → 422 Unprocessable, carrying the per-field errors.
-        return _error(422, "Validation failed", errors=exc.errors)
+        # (design C2/C5) → 422 Unprocessable, carrying the per-field errors as an RFC 9457 array.
+        return _error(
+            422,
+            "Validation failed",
+            code="errors.validation.failed",
+            errors=_field_errors_array(exc.errors),
+        )
     except KeyError as exc:
         # A resolved route missing an expected path param (defensive — the router only
         # matches when the {param} segments are present).
-        return _error(400, "Bad request", missing=str(exc.args[0]) if exc.args else None)
+        return _error(
+            400,
+            "Bad request",
+            code="errors.api.badRequest",
+            missing=str(exc.args[0]) if exc.args else None,
+        )
+    except Exception:  # noqa: BLE001 — last-resort catch-all (v1.0 fail-loud, steering `37`)
+        # Any UNANTICIPATED error (a bug, a bad data shape, a dependency failure) becomes a
+        # BODIED 500 — never an empty 502 the SPA can only render as "Failed to fetch". The full
+        # traceback is logged SERVER-side (CloudWatch); the client gets only a stable code +
+        # generic message, no internals/PII. MUST stay the LAST except so it never shadows the
+        # anticipated domain mappings above.
+        request_id = getattr(context, "aws_request_id", None)
+        logger.exception(
+            "Unhandled error dispatching Members route '%s' (request_id=%s)",
+            spec.name,
+            request_id,
+        )
+        return _error(500, "Internal error", code="errors.api.serverError")
 
     return _response(200, {"data": result})

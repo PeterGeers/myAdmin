@@ -198,7 +198,10 @@ def test_blank_required_string_still_fails(blank):
     m["personal"]["first_name"] = blank
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    assert exc.value.errors["personal.first_name"] == "must not be blank"
+    # v1.0: the error is a FieldError carrying a machine code + the English detail.
+    fe = exc.value.errors["personal.first_name"]
+    assert fe.code == "errors.validation.mustNotBeBlank"
+    assert fe.detail == "must not be blank"
 
 
 def test_partial_update_skips_absent_required_fields_but_still_checks_present_ones():

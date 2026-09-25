@@ -33,6 +33,7 @@ import { Formik, Form } from 'formik';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { useAuth } from '../../context/AuthContext';
 import { updateMember } from '../../services/membersApiService';
+import { applyApiError } from '../../shared/api/applyApiError';
 import type { FieldConfig, Member, MembershipType } from '../../types/members';
 import { MembersFieldFormBody } from './MembersFieldFormBody';
 import { formFields, groupFieldsBySection, memberNumberError } from './fieldForm';
@@ -87,9 +88,26 @@ export const MembersEditModal: React.FC<MembersEditModalProps> = ({
     [fields, t],
   );
 
+  // Map a backend DOTTED field key to this form's Formik field name (bare key, or `region` for
+  // the scope dimension); undefined = not on this form → folds into the summary toast (task 4.5).
+  const formFieldNameFor = useMemo(() => {
+    const formNames = new Set(fields.map((f) => f.key));
+    return (dotted: string): string | undefined => {
+      const bare = dotted.includes('.') ? dotted.slice(dotted.indexOf('.') + 1) : dotted;
+      if (dimensionKey && bare === dimensionKey) return 'region';
+      return formNames.has(bare) ? bare : undefined;
+    };
+  }, [fields, dimensionKey]);
+
   const handleSubmit = async (
     values: Record<string, string>,
-    { setSubmitting }: { setSubmitting: (b: boolean) => void },
+    {
+      setSubmitting,
+      setFieldError,
+    }: {
+      setSubmitting: (b: boolean) => void;
+      setFieldError: (field: string, message: string) => void;
+    },
   ) => {
     if (!member) { setSubmitting(false); return; }
     // Pass the member so a CLEARED optional field (now blank, previously set) is sent as "" to
@@ -101,8 +119,9 @@ export const MembersEditModal: React.FC<MembersEditModalProps> = ({
       onSaved();
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('editModal.toast.error');
-      toast({ title: message, status: 'error' });
+      // API standard v1.0: 422 per-field errors INLINE (localized) + summary toast; unmatched /
+      // non-ApiError degrade gracefully (task 4.5).
+      applyApiError(err, { toast, t, setFieldError, fieldNameFor: formFieldNameFor });
     } finally {
       setSubmitting(false);
     }

@@ -382,8 +382,12 @@ class TestOverlayEnumChoicesToleratesDictShape:
         MembershipService._reject_invalid_overlay_enum_values(  # noqa: SLF001
             config, {"overlay": {"motor_type": "Ducati"}}, errors
         )
-        # A bad value is a 422-style field error whose message lists the string values (no dicts).
+        # A bad value is a 422-style FieldError (v1.0) whose English detail + params.allowed
+        # list the string values (never a stringified dict — the 502-regression guard).
         assert "overlay.motor_type" in errors
-        assert "BMW" in errors["overlay.motor_type"]
-        assert "Honda" in errors["overlay.motor_type"]
-        assert "{" not in errors["overlay.motor_type"]  # never a stringified dict
+        fe = errors["overlay.motor_type"]
+        assert fe.code == "errors.validation.mustBeOneOf"
+        assert "BMW" in fe.detail
+        assert "Honda" in fe.detail
+        assert "{" not in fe.detail  # never a stringified dict
+        assert fe.params is not None and fe.params["allowed"] == ["BMW", "Honda"]

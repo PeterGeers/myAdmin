@@ -69,6 +69,15 @@ from sam.members.domain.field_resolver import (
     _member_value,
     evaluate_show_when,
 )
+from sam.members.domain.error_codes import (
+    FieldError,
+    ENUM_ROLE_RESTRICTED,
+    MEMBERSHIP_TYPE_RETIRED,
+    MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
+    VALIDATION_MUST_BE_ONE_OF,
+    VALIDATION_REQUIRED,
+    VALIDATION_UNSUPPORTED_FIELD_TYPE,
+)
 from sam.members.domain.scope_canon import scope_canon
 from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.fixed_fields import (
@@ -126,6 +135,20 @@ __all__ = [
     "DEFAULT_SCOPE_DIMENSION_KEY",
     "MEMBERSHIP_TYPE_FIELD_KEY",
 ]
+
+def _as_field_error(value: Any) -> FieldError:
+    """Coerce a validation-map value to a :class:`FieldError` (API standard v1.0).
+
+    The domain validators emit :class:`FieldError` directly, but two sources feed the merged map
+    as plain strings: a tenant ``validate_member`` hook (which has no code vocabulary) and any
+    legacy caller. Wrap such a string under the generic ``validation.invalidFormat`` code, keeping
+    the original text as the human English ``detail`` so nothing is lost. An already-``FieldError``
+    value passes through unchanged.
+    """
+    if isinstance(value, FieldError):
+        return value
+    return FieldError(code=VALIDATION_UNSUPPORTED_FIELD_TYPE, detail=str(value))
+
 
 #: The canonical dotted key of the ``status`` fixed field — the attribute the lifecycle state
 #: machine reads the member's current state from and writes the new state to.
@@ -242,9 +265,11 @@ class MemberValidationError(Exception):
     ``422`` (unprocessable) — a well-formed request that violates the data rules.
     """
 
-    def __init__(self, errors: Mapping[str, str]):
-        self.errors = dict(errors)
-        detail = "; ".join(f"{k}: {v}" for k, v in self.errors.items())
+    def __init__(self, errors: Mapping[str, FieldError]):
+        self.errors: Dict[str, FieldError] = {
+            str(k): _as_field_error(v) for k, v in errors.items()
+        }
+        detail = "; ".join(f"{k}: {v.detail}" for k, v in self.errors.items())
         super().__init__(f"member validation failed: {detail}")
 
 
@@ -941,7 +966,7 @@ class MembershipService:
             tenant_id, scope_vocab=self._scope_vocab(tenant_id)
         )
 
-        errors: Dict[str, str] = {}
+        errors: Dict[str, FieldError] = {}
         try:
             validate_fixed_fields(record, partial=partial)
         except FieldValidationError as exc:
@@ -967,7 +992,11 @@ class MembershipService:
             HookName.VALIDATE_MEMBER, tenant_id, record
         )
         if isinstance(hook_errors, Mapping):
-            errors.update({str(k): str(v) for k, v in hook_errors.items()})
+            # A tenant hook returns ``{dotted_key: english_reason}`` (it has no code vocabulary).
+            # Wrap each into a FieldError under the generic ``validation.invalidFormat`` code so the
+            # merged map is uniformly typed; the tenant string is preserved as the English detail.
+            for k, v in hook_errors.items():
+                errors[str(k)] = _as_field_error(v)
 
         if errors:
             raise MemberValidationError(errors)
@@ -989,13 +1018,18 @@ class MembershipService:
     def _drop_hidden_required_errors(
         config: ResolvedFieldConfig,
         record: Member,
-        errors: Dict[str, str],
+        errors: Dict[str, FieldError],
     ) -> None:
-        """Remove "is required" errors for fields hidden by an unmet ``show_when`` (R4.12).
+        """Remove "required" errors for fields hidden by an unmet ``show_when`` (R4.12).
 
         A field whose ``show_when`` condition does not hold for this record is not shown to the
         caller, so the server must not require it either (hidden-not-required). We only DROP a
         required error — we never invent one — so this can only relax, never tighten.
+
+        v1.0 coupling: this now compares the error's machine ``code`` against
+        :data:`VALIDATION_REQUIRED` (the ``validation.required`` key) instead of the old English
+        ``== "is required"`` string, so the prune survives the field-error refactor and any future
+        wording change to the English ``detail``.
         """
         for field in config.fields:
             if field.show_when is None:
@@ -1003,7 +1037,8 @@ class MembershipService:
             if evaluate_show_when(field.show_when, record):
                 continue
             dotted = field.dotted_key()
-            if errors.get(dotted) == "is required":
+            existing = errors.get(dotted)
+            if existing is not None and existing.code == VALIDATION_REQUIRED:
                 del errors[dotted]
 
     @staticmethod
@@ -1011,7 +1046,7 @@ class MembershipService:
         config: ResolvedFieldConfig,
         record: Member,
         partial: bool,
-        errors: Dict[str, str],
+        errors: Dict[str, FieldError],
     ) -> None:
         """Require a VISIBLE, SHOWN overlay field that is marked required (R4.9/R4.12).
 
@@ -1034,14 +1069,16 @@ class MembershipService:
                 continue  # update that does not touch the overlay leaves it unchanged
             value = overlay_bucket.get(field.key) if has_overlay_bucket else None
             if value is None or (isinstance(value, str) and not value.strip()):
-                errors[field.dotted_key()] = "is required"
+                errors[field.dotted_key()] = FieldError(
+                    code=VALIDATION_REQUIRED, detail="is required"
+                )
 
     @staticmethod
     def _reject_disallowed_enum_values(
         config: ResolvedFieldConfig,
         record: Member,
         caller_roles: Sequence[str],
-        errors: Dict[str, str],
+        errors: Dict[str, FieldError],
     ) -> None:
         """Reject a write that sets a role-restricted enum value the caller may not choose (R4.12).
 
@@ -1064,16 +1101,21 @@ class MembershipService:
             if gate is None:
                 continue  # unknown value or an open (unrestricted) option — not our concern
             if not any(r in gate for r in allowed):
-                errors[field.dotted_key()] = (
-                    f"value {value!r} is restricted to role(s) "
-                    f"{', '.join(sorted(gate))} — the caller is not permitted to set it"
+                gate_roles = sorted(gate)
+                errors[field.dotted_key()] = FieldError(
+                    code=ENUM_ROLE_RESTRICTED,
+                    detail=(
+                        f"value {value!r} is restricted to role(s) "
+                        f"{', '.join(gate_roles)} — the caller is not permitted to set it"
+                    ),
+                    params={"value": value, "roles": gate_roles},
                 )
 
     @staticmethod
     def _reject_invalid_overlay_enum_values(
         config: ResolvedFieldConfig,
         record: Member,
-        errors: Dict[str, str],
+        errors: Dict[str, FieldError],
         *,
         previous: Optional[Member] = None,
     ) -> None:
@@ -1115,7 +1157,11 @@ class MembershipService:
             allowed_values = [MembershipService._choice_value(c) for c in field.choices]
             if value not in allowed_values:
                 allowed = ", ".join(allowed_values)
-                errors[field.dotted_key()] = f"must be one of: {allowed}"
+                errors[field.dotted_key()] = FieldError(
+                    code=VALIDATION_MUST_BE_ONE_OF,
+                    detail=f"must be one of: {allowed}",
+                    params={"allowed": allowed_values},
+                )
 
     @staticmethod
     def _choice_value(choice: Any) -> str:
@@ -1137,7 +1183,7 @@ class MembershipService:
     def _validate_member_number(
         config: ResolvedFieldConfig,
         record: Member,
-        errors: Dict[str, str],
+        errors: Dict[str, FieldError],
     ) -> None:
         """Authoritatively validate a present ``member_number`` against the tenant format (R4.8).
 
@@ -1205,18 +1251,26 @@ class MembershipService:
         if entry is None:
             raise MemberValidationError(
                 {
-                    MEMBERSHIP_TYPE_FIELD_KEY: (
-                        f"unknown membership type {str(type_code)!r} "
-                        "(not in the tenant's Lidmaatschap Beheer catalog)"
+                    MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
+                        code=MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
+                        detail=(
+                            f"unknown membership type {str(type_code)!r} "
+                            "(not in the tenant's Lidmaatschap Beheer catalog)"
+                        ),
+                        params={"type_code": str(type_code)},
                     )
                 }
             )
         if not entry.active:
             raise MemberValidationError(
                 {
-                    MEMBERSHIP_TYPE_FIELD_KEY: (
-                        f"membership type {str(type_code)!r} is retired (active=false) "
-                        "and cannot be assigned to a new or updated member"
+                    MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
+                        code=MEMBERSHIP_TYPE_RETIRED,
+                        detail=(
+                            f"membership type {str(type_code)!r} is retired (active=false) "
+                            "and cannot be assigned to a new or updated member"
+                        ),
+                        params={"type_code": str(type_code)},
                     )
                 }
             )

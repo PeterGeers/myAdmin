@@ -44,6 +44,20 @@ COUNTRY_LOCALE_MAP = {
 DEFAULT_LOCALE = "nl_NL"
 
 
+class InvoiceEmailMissingError(ValueError):
+    """Raised when an invoice cannot be emailed because the contact has no email address.
+
+    Subclasses :class:`ValueError` so existing ``except ValueError`` handlers keep catching it
+    (the Flask shape is unchanged — still a 400 ``{success:false, error}``), but it ALSO carries
+    a stable machine ``code`` (API response & error standard v1.0) so the route can surface
+    ``errors.invoice.emailMissing`` and the SPA can localize it — replacing the old
+    ``errorMsg.includes('email')`` string-sniff in ``ZZPInvoiceDetail.tsx``.
+    """
+
+    #: The i18n code key (frontend ``errors`` namespace) the SPA resolves to localized copy.
+    code = "errors.invoice.emailMissing"
+
+
 class InvoiceEmailService:
     """Send invoice and reminder emails with attachments.
 
@@ -99,7 +113,11 @@ class InvoiceEmailService:
 
         recipient = self.contact_service.get_invoice_email(tenant, contact_id)
         if not recipient:
-            return {"success": False, "error": "No email address found for contact"}
+            return {
+                "success": False,
+                "error": "No email address found for contact",
+                "code": InvoiceEmailMissingError.code,
+            }
 
         subject = self._build_subject(tenant, invoice)
         html_body = self._build_body(tenant, invoice, template_type="invoice")
@@ -153,7 +171,11 @@ class InvoiceEmailService:
 
         recipient = self.contact_service.get_invoice_email(tenant, contact_id)
         if not recipient:
-            return {"success": False, "error": "No email address found for contact"}
+            return {
+                "success": False,
+                "error": "No email address found for contact",
+                "code": InvoiceEmailMissingError.code,
+            }
 
         subject = f"Betalingsherinnering {invoice.get('invoice_number', '')}"
         html_body = self._build_body(tenant, invoice, template_type="reminder")
@@ -218,7 +240,7 @@ class InvoiceEmailService:
         # Resolve recipient email (invoice → primary → any)
         recipient = self.contact_service.get_invoice_email(tenant, contact_id)
         if not recipient:
-            raise ValueError("Contact email address is missing")
+            raise InvoiceEmailMissingError("Contact email address is missing")
 
         # Resolve locale from contact's country
         locale = self._resolve_locale(contact)

@@ -15,7 +15,9 @@
     "sessionExpired": "Your session has expired. Please log in again.",
     "noAuthToken": "No authentication token available.",
     "authenticationFailed": "Authentication failed. Please try again.",
-    "tokenRefreshFailed": "Failed to refresh authentication token."
+    "tokenRefreshFailed": "Failed to refresh authentication token.",
+    "methodNotAllowed": "Method not allowed for this resource.",
+    "notImplemented": "This feature is not implemented yet."
   },
   "tenant": {
     "noTenantSelected": "No tenant selected. Please select a tenant first.",
@@ -36,7 +38,29 @@
     "passwordsDoNotMatch": "Passwords do not match.",
     "invalidFileType": "Invalid file type.",
     "fileTooLarge": "File is too large.",
-    "invalidRange": "Value is out of range."
+    "invalidRange": "Value is out of range.",
+    "failed": "Validation failed. Please check your input.",
+    "mustNotBeBlank": "This field must not be blank.",
+    "mustBeAString": "This field must be text.",
+    "mustBeOneOf": "Must be one of: {{allowed}}."
+  },
+  "member": {
+    "numberFormat": "The member number does not match the required format."
+  },
+  "enum": {
+    "roleRestricted": "This value is restricted to role(s): {{roles}}. You are not permitted to set it."
+  },
+  "transition": {
+    "denied": "This status change is not allowed."
+  },
+  "membershiptype": {
+    "conflict": "A membership type with this code already exists.",
+    "tenant": "A tenant is required (tenant isolation).",
+    "typeCode": "The type code is invalid.",
+    "label": "A Dutch label is required.",
+    "order": "The order must be a whole number.",
+    "unknownReference": "Unknown membership type '{{type_code}}' (not in the catalog).",
+    "retired": "Membership type '{{type_code}}' is retired and cannot be assigned."
   },
   "file": {
     "uploadFailed": "File upload failed.",
@@ -74,7 +98,8 @@
     "extractionFailed": "Invoice extraction failed.",
     "validationFailed": "Invoice validation failed.",
     "generationFailed": "Invoice generation failed.",
-    "notFound": "Invoice not found."
+    "notFound": "Invoice not found.",
+    "emailMissing": "An email address is required to send the invoice."
   },
   "report": {
     "generationFailed": "Report generation failed.",
