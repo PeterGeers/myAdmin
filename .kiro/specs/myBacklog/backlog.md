@@ -45,7 +45,8 @@ So the practical value of manual presets: you can add a route you will drive (ne
 In the management UI, you could show a small badge ("Handmatig" / "Geleerd") to distinguish them visually, but it's purely informationa
 
 # s3 object management module and SAM
-How can we manage s3 management attributes similar as in Flask
+How can we manage s3 management attributes similar as in Flask and see  .kiro\specs\Common\image-asset-management
+How can wwe make a resusable piece of code as in .kiro\specs\Common\Frameworks and .kiro\steering\37-shared-building-blocks.md
 
 # PITR / Backup in dynamodb
 Check the current settings and what is needed
@@ -308,26 +309,3 @@ Read /home/peter/projects/h-dcn/.kiro/specs/Members/migrationHDCNLedenbestand
 See also the lastest version of scripts\aws\h-dcn
 
 
-
-
-
-# SPEC CREATED → `.kiro/specs/Common/Frameworks/api-response-standard/` (moved from `Common/error-surfacing-standard/`, Phase 5.1)
-
-**Platform API response & error standard v1.0 — for ALL UI/UX apps + backends.** Raised 2026-09-24
-during s5k prod verify: adding a member returned a bare **502 / "Failed to fetch"** (an unhandled
-`TypeError` in `_reject_invalid_overlay_enum_values` — hotfixed in s5k). The empty 502 exposed that
-error handling is inconsistent + unversioned platform-wide. Principles: Flask is the REFERENCE
-implementation (not rewritten); ONE envelope everywhere; every failure user-visible AND localized;
-fail loud; written down as v1.0 steering. The spec: (1) SAM gains a last-resort catch-all → bodied
-5xx (no more empty 502); (2) SAM adopts the Flask envelope (`success` added in `_response`/`_error`)
-so both planes emit `{success, data|error, code?, errors?[], reasons?[]}` + real status, following
-**RFC 9457 (Problem Details)** §3.1 for validation errors — `errors`/`reasons` are per-entry ARRAYS
-of `{field?, code, params?, detail}` (machine code + human detail); (3) codes + i18n IN SCOPE — the
-backend sends a stable `code` (a key in the existing `errors.*`/`validation.*` i18n namespaces), the
-SPA maps `code → localized` NL/EN copy falling back to `detail` (kills the raw-English toast + ZZP's
-`errorMsg.includes('email')` string-sniff); (4) the SPA renders 422 field errors inline + 409
-reasons via a shared `applyApiError` helper; (5) versioned **v1.0** steering doc all apps conform to.
-SAM compliance everywhere is IN scope (incl. per-field codes in Members). NOTE: Flask has NO
-per-field error contract today (flat `{error}`), so per-field codes are a NEW capability v1.0 raises
-for both planes, not "SAM catches up". Relates to the Fail-loud integrity spec + the
-Shared-frontend-component spec.

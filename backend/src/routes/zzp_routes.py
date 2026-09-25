@@ -483,16 +483,26 @@ def preview_invoice_email(
         result = svc.get_email_preview(tenant, invoice_id)
         return jsonify({"success": True, "data": result})
     except ValueError as ve:
-        error_msg = str(ve)
-        if "not found" in error_msg.lower():
-            return jsonify({"success": False, "error": error_msg}), 404
-        # API standard v1.0: a typed missing-email error carries a machine `code` the SPA
-        # localizes (`errors.invoice.emailMissing`) — no more error-string sniffing client-side.
+        # Log the real exception server-side; never reflect its text back to the
+        # client (CodeQL: information exposure through an exception). The SPA keys
+        # off the machine `code`, not the message, so we surface a typed `code`
+        # plus a static, non-sensitive message.
+        logger.warning(
+            "preview_invoice_email invalid request for %s/%s: %s",
+            tenant,
+            invoice_id,
+            ve,
+        )
+        # API standard v1.0: a typed missing-email error carries a machine `code`
+        # the SPA localizes (`errors.invoice.emailMissing`) — no error-string sniff.
         code = getattr(ve, "code", None)
-        body = {"success": False, "error": error_msg}
         if code:
-            body["code"] = code
-        return jsonify(body), 400
+            return jsonify(
+                {"success": False, "error": "Invoice cannot be emailed", "code": code}
+            ), 400
+        if "not found" in str(ve).lower():
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
+        return jsonify({"success": False, "error": "Invalid request"}), 400
     except Exception as e:
         logger.error("preview_invoice_email error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

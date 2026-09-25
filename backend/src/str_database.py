@@ -539,6 +539,205 @@ class STRDatabase(DatabaseManager):
         except DatabaseError as e:
             return {"inserted": 0, "updated": 0, "updated_codes": [], "error": str(e)}
 
+    def _upsert_airbnb_half(
+        self,
+        cursor,
+        bookings: list[dict],
+        table: str,
+        tenant: str | None,
+    ) -> tuple[int, int]:
+        """Keyed refresh of one Airbnb bucket into a single table.
+
+        SELECTs existing reservationCodes for channel 'airbnb' + administration,
+        splits incoming bookings into new vs. existing, INSERTs the new ones and
+        UPDATEs the existing ones in place. All queries are parameterized and
+        administration-scoped (the predicate is omitted when tenant is None).
+
+        Args:
+            cursor: an open cursor from the enclosing transaction
+            bookings: booking dicts destined for this table
+            table: target table name ('bnb' or 'bnbplanned')
+            tenant: tenant/administration identifier, or None to skip scoping
+
+        Returns:
+            (inserted, updated) counts for this half.
+        """
+        if not bookings:
+            return 0, 0
+
+        # Step 1: existing reservationCodes for channel 'airbnb' + administration
+        if tenant:
+            cursor.execute(
+                f"SELECT DISTINCT reservationCode FROM {table} "
+                "WHERE channel = 'airbnb' AND administration = %s "
+                "AND reservationCode IS NOT NULL",
+                (tenant,),
+            )
+        else:
+            cursor.execute(
+                f"SELECT DISTINCT reservationCode FROM {table} "
+                "WHERE channel = 'airbnb' AND reservationCode IS NOT NULL"
+            )
+
+        existing_codes = {row["reservationCode"] for row in cursor.fetchall()}
+
+        # Step 2: split into new vs. existing by reservationCode
+        new_bookings = []
+        existing_bookings = []
+        for booking in bookings:
+            code = booking.get("reservationCode", "")
+            if code in existing_codes:
+                existing_bookings.append(booking)
+            else:
+                new_bookings.append(booking)
+
+        # Step 3: INSERT new bookings
+        insert_query = f"""
+        INSERT INTO {table}
+        (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
+         amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
+         guestName, phone, reservationCode, reservationDate, status, pricePerNight,
+         daysBeforeReservation, addInfo, year, q, m, country, administration)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        for booking in new_bookings:
+            values = (
+                booking.get("sourceFile", ""),
+                booking.get("channel", ""),
+                booking.get("listing", ""),
+                booking.get("checkinDate", ""),
+                booking.get("checkoutDate", ""),
+                booking.get("nights", 0),
+                booking.get("guests", 0),
+                booking.get("amountGross", 0),
+                booking.get("amountNett", 0),
+                booking.get("amountChannelFee", 0),
+                booking.get("amountTouristTax", 0),
+                booking.get("amountVat", 0),
+                booking.get("guestName", ""),
+                booking.get("phone", ""),
+                booking.get("reservationCode", ""),
+                booking.get("reservationDate", ""),
+                booking.get("status", ""),
+                booking.get("pricePerNight", 0),
+                booking.get("daysBeforeReservation", 0),
+                booking.get("addInfo", ""),
+                booking.get("year", 0),
+                booking.get("q", 0),
+                booking.get("m", 0),
+                booking.get("country", None),
+                booking.get("administration", tenant),
+            )
+            cursor.execute(insert_query, values)
+
+        # Step 4: UPDATE existing bookings in place
+        if tenant:
+            update_query = f"""
+            UPDATE {table} SET
+                checkinDate = %s, checkoutDate = %s, listing = %s, guestName = %s,
+                nights = %s, guests = %s, amountGross = %s, amountNett = %s,
+                amountChannelFee = %s, amountVat = %s, amountTouristTax = %s,
+                status = %s, pricePerNight = %s, sourceFile = %s
+            WHERE reservationCode = %s AND channel = 'airbnb' AND administration = %s
+            """
+        else:
+            update_query = f"""
+            UPDATE {table} SET
+                checkinDate = %s, checkoutDate = %s, listing = %s, guestName = %s,
+                nights = %s, guests = %s, amountGross = %s, amountNett = %s,
+                amountChannelFee = %s, amountVat = %s, amountTouristTax = %s,
+                status = %s, pricePerNight = %s, sourceFile = %s
+            WHERE reservationCode = %s AND channel = 'airbnb'
+            """
+
+        for booking in existing_bookings:
+            values = (
+                booking.get("checkinDate", ""),
+                booking.get("checkoutDate", ""),
+                booking.get("listing", ""),
+                booking.get("guestName", ""),
+                booking.get("nights", 0),
+                booking.get("guests", 0),
+                booking.get("amountGross", 0),
+                booking.get("amountNett", 0),
+                booking.get("amountChannelFee", 0),
+                booking.get("amountVat", 0),
+                booking.get("amountTouristTax", 0),
+                booking.get("status", ""),
+                booking.get("pricePerNight", 0),
+                booking.get("sourceFile", ""),
+                booking.get("reservationCode", ""),
+            )
+            if tenant:
+                values = values + (tenant,)
+            cursor.execute(update_query, values)
+
+        return len(new_bookings), len(existing_bookings)
+
+    def upsert_airbnb_bookings(
+        self,
+        realised: list[dict],
+        planned: list[dict],
+        tenant: str | None = None,
+    ) -> dict:
+        """Keyed upsert of Airbnb bookings, mirroring upsert_direct_bookings.
+
+        Realised bookings refresh the bnb table and planned bookings refresh the
+        bnbplanned table, both keyed by reservationCode within channel 'airbnb'
+        and the given administration. A reservationCode absent for that
+        channel + administration is inserted; one that already exists is updated
+        in place, so re-importing the same export never duplicates rows.
+
+        Both halves run inside a single transaction: on any DatabaseError the
+        transaction rolls back and zero counts are returned with an 'error' key.
+
+        Args:
+            realised: booking dicts destined for the bnb table
+            planned: booking dicts destined for the bnbplanned table
+            tenant: optional tenant/administration identifier for isolation.
+                When None, the administration predicate is omitted (matching the
+                upsert_direct_bookings fallback); the route layer always supplies
+                the tenant from @tenant_required().
+
+        Returns:
+            dict with 'realised_inserted', 'realised_updated',
+            'planned_inserted', 'planned_updated'.
+            On error: those four counts as 0 plus an 'error' key.
+        """
+        if not realised and not planned:
+            return {
+                "realised_inserted": 0,
+                "realised_updated": 0,
+                "planned_inserted": 0,
+                "planned_updated": 0,
+            }
+
+        try:
+            with self.transaction() as (cursor, _conn):
+                realised_inserted, realised_updated = self._upsert_airbnb_half(
+                    cursor, realised, "bnb", tenant
+                )
+                planned_inserted, planned_updated = self._upsert_airbnb_half(
+                    cursor, planned, "bnbplanned", tenant
+                )
+
+            return {
+                "realised_inserted": realised_inserted,
+                "realised_updated": realised_updated,
+                "planned_inserted": planned_inserted,
+                "planned_updated": planned_updated,
+            }
+
+        except DatabaseError as e:
+            return {
+                "realised_inserted": 0,
+                "realised_updated": 0,
+                "planned_inserted": 0,
+                "planned_updated": 0,
+                "error": str(e),
+            }
+
     def get_unenriched_direct_codes(self, tenant: str) -> list[str]:
         """Get dfDirect reservation codes that have no phone/country data."""
         query = """

@@ -223,6 +223,55 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
                 }
             )
 
+        # Airbnb uses a keyed upsert: realised → bnb, planned → bnbplanned,
+        # keyed by reservationCode within channel 'airbnb' + administration.
+        # The review UI already split bookings into realised/planned by the
+        # status the parser stamped from each file's classification
+        # (_airbnb_is_realised), so re-importing the same export refreshes
+        # existing rows in place instead of duplicating them.
+        if platform == "airbnb":
+            upsert_result = str_db.upsert_airbnb_bookings(
+                realised=realised_bookings,
+                planned=planned_bookings,
+                tenant=tenant,
+            )
+
+            if upsert_result.get("error"):
+                return jsonify(
+                    {"success": False, "error": upsert_result["error"]}
+                ), 500
+
+            realised_inserted = upsert_result.get("realised_inserted", 0)
+            realised_updated = upsert_result.get("realised_updated", 0)
+            planned_inserted = upsert_result.get("planned_inserted", 0)
+            planned_updated = upsert_result.get("planned_updated", 0)
+
+            # Generate and save future summary for planned bookings
+            if planned_bookings:
+                str_processor = STRProcessor(test_mode=test_mode)
+                future_summary = str_processor.generate_future_summary(
+                    planned_bookings
+                )
+                str_db.insert_future_summary(future_summary)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "results": {
+                        "realised_inserted": realised_inserted,
+                        "realised_updated": realised_updated,
+                        "planned_inserted": planned_inserted,
+                        "planned_updated": planned_updated,
+                    },
+                    "message": (
+                        f"Airbnb: {realised_inserted} realised inserted, "
+                        f"{realised_updated} realised updated, "
+                        f"{planned_inserted} planned inserted, "
+                        f"{planned_updated} planned updated for {tenant}"
+                    ),
+                }
+            )
+
         # Standard flow for non-direct platforms
         str_processor = STRProcessor(test_mode=test_mode)
 

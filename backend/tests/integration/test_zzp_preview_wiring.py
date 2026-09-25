@@ -475,7 +475,9 @@ class TestNonDraftRejection:
         assert resp.status_code == 400
         data = resp.get_json()
         assert data['success'] is False
-        assert 'draft' in data['error'].lower() or 'preview' in data['error'].lower()
+        # New contract: an untyped ValueError no longer reflects its raw text
+        # (CodeQL: information exposure) — a static, non-sensitive message is returned.
+        assert data['error'] == 'Invalid request'
 
 
 # ── Test: Performance (Task 15.2) ────────────────────────────

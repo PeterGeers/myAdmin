@@ -1,11 +1,8 @@
 """
 Tests for Booking.com Payout CSV import functionality
 """
-import pytest
-import pandas as pd
-from datetime import datetime
-import sys
 import os
+import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from str_processor import STRProcessor
@@ -164,20 +161,31 @@ Reservation          , test3               , 3333333333      , 2025-03-15   , 20
         assert results['updates'][2]['reservationCode'] == '3333333333'
     
     def test_scan_str_files_detects_payout_files(self, tmp_path):
-        """Test that scan_str_files detects Payout CSV files"""
+        """Test that scan_str_files detects Payout CSV files.
+
+        The Airbnb ingest rewrite (airbnb-export-format-update) replaced the single
+        ``airbnb`` bucket with ``airbnb_pending`` / ``airbnb_realised`` and dropped the
+        ``reservation`` filename rule (Req 1.5). A ``reservations.csv`` whose header is
+        not an Airbnb header (no ``Type`` + ``Bruto-inkomsten``) is therefore no longer
+        classified as Airbnb by name alone.
+        """
         # Create test files
         (tmp_path / "Payout_from_2025-01-01_until_2025-12-31.csv").write_text("test")
         (tmp_path / "Check-in_2025-01-01.xls").write_text("test")
         (tmp_path / "reservations.csv").write_text("test")
-        
+
         processor = STRProcessor(test_mode=True)
         files = processor.scan_str_files(str(tmp_path))
-        
+
         assert 'booking_payout' in files
         assert len(files['booking_payout']) == 1
         assert 'Payout_from' in files['booking_payout'][0]
         assert len(files['booking']) == 1
-        assert len(files['airbnb']) == 1
+        # New bucket keys; the legacy `airbnb` key is gone, and reservations.csv
+        # (non-Airbnb header, no `airbnb` token) is not classified as Airbnb.
+        assert 'airbnb' not in files
+        assert files['airbnb_pending'] == []
+        assert files['airbnb_realised'] == []
     
     def test_process_booking_payout_price_per_night(self, tmp_path):
         """Test that price per night is correctly calculated"""

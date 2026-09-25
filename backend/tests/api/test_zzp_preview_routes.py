@@ -378,7 +378,9 @@ def test_email_preview_non_draft_invoice_returns_400(preview_client, mock_invoic
     assert resp.status_code == 400
     data = resp.get_json()
     assert data['success'] is False
-    assert 'Only draft invoices can be previewed' in data['error']
+    # New contract: an untyped ValueError no longer reflects its raw text
+    # (CodeQL: information exposure) — a static, non-sensitive message is returned.
+    assert data['error'] == 'Invalid request'
 
 
 @pytest.mark.api
@@ -396,7 +398,10 @@ def test_email_preview_contact_without_email_returns_400(preview_client, mock_in
     assert resp.status_code == 400
     data = resp.get_json()
     assert data['success'] is False
-    assert 'Contact email address is missing' in data['error']
+    # New contract: an untyped ValueError (no machine `code`) no longer reflects
+    # its raw text (CodeQL: information exposure) — a static message is returned.
+    # The typed InvoiceEmailMissingError case is covered by the test below.
+    assert data['error'] == 'Invalid request'
 
 
 @pytest.mark.api
@@ -418,9 +423,10 @@ def test_email_preview_missing_email_carries_code(preview_client, mock_invoice_s
     assert resp.status_code == 400
     data = resp.get_json()
     assert data['success'] is False
-    # Backward compatible: the English message still reads.
-    assert 'Contact email address is missing' in data['error']
-    # New: a stable machine code the SPA localizes.
+    # The raw exception text is no longer reflected (CodeQL: information exposure);
+    # a static, non-sensitive message is returned instead.
+    assert data['error'] == 'Invoice cannot be emailed'
+    # The stable machine code the SPA localizes is what the client keys off.
     assert data['code'] == 'errors.invoice.emailMissing'
 
 

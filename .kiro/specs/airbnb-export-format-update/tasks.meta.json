@@ -1,0 +1,495 @@
+{
+  "pbtResults": {
+    "2.8 Property test — Grouping: one booking per code, Payout excluded": {
+      "status": "passed",
+      "lastRunTimestamp": 1790356482171
+    },
+    "2.7 Property test — Blank or non-numeric amounts are zero": {
+      "status": "passed",
+      "lastRunTimestamp": 1790356681305
+    },
+    "2.6 Property test — Amounts parse across notations": {
+      "status": "passed",
+      "lastRunTimestamp": 1790356694544
+    }
+  },
+  "executionHistory": {
+    "1.1 Implement `parse_airbnb_amount(value) -> float`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353814711
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353826967
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353994710
+      }
+    ],
+    "1.2 Write unit tests for `parse_airbnb_amount`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353814860
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354006458
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354195445
+      }
+    ],
+    "1.3 Implement `parse_airbnb_date(value) -> datetime | None`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353814972
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353828371
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353996064
+      }
+    ],
+    "1.4 Write unit tests for `parse_airbnb_date`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815084
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354007883
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354196836
+      }
+    ],
+    "2.1 Implement `build_booking_from_group(code, rows, source_file, status, tax_rate_service, tenant) -> dict`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815199
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354005061
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354194158
+      }
+    ],
+    "2.2 Rewrite `process_airbnb_multi(file_paths, tax_rate_service=None, tenant=None, status=\"realised\")`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815323
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356152397
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356295545
+      }
+    ],
+    "2.3 Anchored example tests against `.agent-output/airbnb_pending.csv`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815421
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356304009
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356597316
+      }
+    ],
+    "2.4 Property test — Gross is sum of Bruto-inkomsten": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815515
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356305420
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356593564
+      }
+    ],
+    "2.5 Property test — Channel fee is sum of Servicekosten, no hardcoded factor": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815601
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356603667
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356734430
+      }
+    ],
+    "2.6 Property test — Amounts parse across notations": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815714
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356605002
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356735442
+      }
+    ],
+    "2.7 Property test — Blank or non-numeric amounts are zero": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815811
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356606006
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356736826
+      }
+    ],
+    "2.8 Property test — Grouping: one booking per code, Payout excluded": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353815899
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356306773
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356594967
+      }
+    ],
+    "2.9 Property test — Dates and derived periods": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816003
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356607171
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356737769
+      }
+    ],
+    "2.10 Property test — Output contract completeness": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816122
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356308371
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356595929
+      }
+    ],
+    "3. Checkpoint — parser complete": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816221
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356918521
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790357032969
+      }
+    ],
+    "4.1 Implement Airbnb detection helpers in `scan_str_files`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816337
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353829747
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353997469
+      }
+    ],
+    "4.2 Classification unit tests over both sample headers": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816446
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354008806
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354197800
+      }
+    ],
+    "4.3 Property test — Airbnb file detection": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816544
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354013665
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354199146
+      }
+    ],
+    "4.4 Property test — Realised vs. pending classification": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816682
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354206672
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356147162
+      }
+    ],
+    "4.5 Thread classification through `_process_airbnb_multi` and `process_airbnb_multi` call sites": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816781
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356303157
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356598576
+      }
+    ],
+    "4.6 Property test — Status follows file classification": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816875
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356742412
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356911126
+      }
+    ],
+    "5.1 Implement `upsert_airbnb_bookings(realised, planned, tenant=None) -> dict`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353816965
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353830796
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353998611
+      }
+    ],
+    "5.2 DB upsert idempotence integration test (local Docker MySQL test schema)": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353817066
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354208261
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356145890
+      }
+    ],
+    "5.3 Property test — Re-import is idempotent (keyed refresh)": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353817205
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354209275
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356145024
+      }
+    ],
+    "6.1 Route Airbnb save through `upsert_airbnb_bookings`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353817305
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356153405
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356296693
+      }
+    ],
+    "7. Final checkpoint — verification and wiring": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790353817407
+      },
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790357039052
+      },
+      {
+        "executionId": "b2be89b7-3236-4bfa-a88b-fe1f2702aea4",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790362173646
+      }
+    ],
+    "1. Amount and date parsers in `str_airbnb_parser`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790354196944
+      }
+    ],
+    "5. Persistence: `str_database.upsert_airbnb_bookings`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356146022
+      }
+    ],
+    "6. Wire the upload/save route": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356296791
+      }
+    ],
+    "2. Rewrite `str_airbnb_parser` grouping and dict assembly": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356737918
+      }
+    ],
+    "4. Scanner detection and classification in `str_processor`": [
+      {
+        "executionId": "c1d25ca2-3e2f-41f3-b5d4-edc867dcda75",
+        "chatSessionId": "sess_5a262d36-428b-455e-b44e-9fa673d71fcd",
+        "timestamp": 1790356911258
+      }
+    ]
+  }
+}

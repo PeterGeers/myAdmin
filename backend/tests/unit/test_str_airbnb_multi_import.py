@@ -7,23 +7,59 @@ Feature: str-airbnb-multi-file-import
 Reference: .kiro/specs/str-airbnb-multi-file-import/design.md
 """
 
-import sys
 import os
-import re
-import pytest
-import pandas as pd
-import tempfile
 import shutil
-from datetime import datetime, date, timedelta
-from unittest.mock import patch, MagicMock
-from hypothesis import given, strategies as st, settings, assume, HealthCheck
+import sys
+import tempfile
+from datetime import date, datetime, timedelta
+from unittest.mock import MagicMock
+
+import pandas as pd
+import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+# The old single-row Airbnb parser (`_calculate_airbnb_row`) was replaced by the
+# new two-file export format (spec airbnb-export-format-update): rows arrive as
+# Boeking/Doorloop-totaal pairs grouped by Bevestigingscode, gross/fee are summed
+# per group, status comes from file classification, and the hardcoded 15% fee is
+# gone (Req 3.4). The financial/parsing tests below therefore exercise the new
+# public parser `build_booking_from_group` instead of the removed method.
+from str_airbnb_parser import build_booking_from_group
 from str_processor import STRProcessor
 
 # Single knob for all property tests in this file
 MAX_EXAMPLES = 20
+
+
+def _new_format_group(gross, fee, *, listing="Green Studio", nights=2,
+                      code="HM12345678", checkin="06/15/2025",
+                      checkout="06/17/2025", reserved="01/01/2025",
+                      guest="Test Guest", info=""):
+    """Build a single-booking new-format DataFrame (one Boeking row).
+
+    New-format columns: Type / Bevestigingscode / Bruto-inkomsten (US notation) /
+    Servicekosten (European notation) / dates in MM/DD/YYYY. One row per group is
+    enough to drive `build_booking_from_group`, which sums amounts across the group.
+    """
+    # Servicekosten uses European notation in the real exports (e.g. "42,59").
+    fee_str = f"{fee:.2f}".replace(".", ",")
+    return pd.DataFrame([{
+        "Type": "Boeking",
+        "Bevestigingscode": code,
+        "Boekingsdatum": reserved,
+        "Begindatum": checkin,
+        "Einddatum": checkout,
+        "Nachten": nights,
+        "Gast": guest,
+        "Advertentie": listing,
+        "Informatie": info,
+        "Valuta": "EUR",
+        "Bruto-inkomsten": f"{gross:.2f}",
+        "Servicekosten": fee_str,
+    }])
 
 
 # ---------------------------------------------------------------------------
@@ -373,126 +409,93 @@ class TestProperty3DeduplicationKeepsOnePerBevestigingscode:
 
 class TestProperty4FinancialCalculationCorrectness:
     """
-    Property 4: Financial calculation correctness.
+    Property 4: Financial calculation correctness (new export format).
 
-    For any valid Airbnb booking row with a non-negative Inkomsten value,
-    _calculate_airbnb_row SHALL produce amountChannelFee == paidOut * 0.15,
-    amountGross == paidOut + amountChannelFee, and the tax amounts SHALL
-    match the output of calculate_str_taxes() for the same gross and
-    check-in date. Listing normalization SHALL be applied consistently.
+    For any Booking_Group, ``build_booking_from_group`` SHALL produce
+    ``amountGross`` equal to the sum of the parsed ``Bruto-inkomsten`` values
+    and ``amountChannelFee`` equal to the sum of the parsed ``Servicekosten``
+    values (no hardcoded 15% factor — spec airbnb-export-format-update, Req 3.4),
+    the tax amounts SHALL match ``calculate_str_taxes()`` for the same gross,
+    check-in date, and fee, and listing normalization SHALL be applied.
 
-    **Validates: Requirements 3.1, 3.2**
+    **Validates: Requirements 3.1, 3.2, 3.4**
     """
 
-    @given(row_data=airbnb_row_strategy())
+    @given(
+        gross=st.floats(min_value=0.01, max_value=50000.0, allow_nan=False, allow_infinity=False),
+        fee=st.floats(min_value=0.0, max_value=5000.0, allow_nan=False, allow_infinity=False),
+    )
     @settings(max_examples=MAX_EXAMPLES, deadline=5000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
-    def test_channel_fee_is_15_percent_of_paid_out(self, row_data):
-        """amountChannelFee == paidOut * 0.15 for any valid row.
+    def test_channel_fee_is_sum_of_servicekosten(self, gross, fee):
+        """amountChannelFee equals the summed Servicekosten (no 15% factor).
 
         Feature: str-airbnb-multi-file-import, Property 4: Financial calculation correctness
         """
-        # Skip cancelled rows with zero earnings (they return None)
-        assume(not ('Geannuleerd' in row_data['Status'] and row_data['Inkomsten'] == '€ 0,00'))
-
-        processor = STRProcessor(test_mode=True)
-        df = pd.DataFrame([row_data])
-        result = processor._calculate_airbnb_row(
-            df.iloc[0], df.columns, '2025-01-01 test.csv'
+        gross, fee = round(gross, 2), round(fee, 2)
+        group = _new_format_group(gross, fee)
+        result = build_booking_from_group(
+            "HM12345678", group, "2025-01-01 test.csv", "realised"
         )
+        assert abs(result["amountChannelFee"] - fee) < 0.02
 
-        if result is None:
-            return  # Row was skipped (cancelled with zero earnings)
-
-        # Parse the earnings to get paid_out
-        earnings_str = row_data['Inkomsten']
-        clean = earnings_str.replace('€', '').replace(' ', '')
-        parts = clean.split(',')
-        integer_part = parts[0].replace('.', '')
-        decimal_part = parts[1] if len(parts) == 2 else '00'
-        paid_out = float(f"{integer_part}.{decimal_part}")
-
-        expected_fee = round(paid_out * 0.15, 2)
-        assert abs(result['amountChannelFee'] - expected_fee) < 0.02
-
-    @given(row_data=airbnb_row_strategy())
+    @given(
+        gross=st.floats(min_value=0.01, max_value=50000.0, allow_nan=False, allow_infinity=False),
+        fee=st.floats(min_value=0.0, max_value=5000.0, allow_nan=False, allow_infinity=False),
+    )
     @settings(max_examples=MAX_EXAMPLES, deadline=5000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
-    def test_gross_equals_paid_out_plus_channel_fee(self, row_data):
-        """amountGross == paidOut + amountChannelFee for any valid row.
+    def test_gross_is_sum_of_bruto_inkomsten(self, gross, fee):
+        """amountGross equals the summed Bruto-inkomsten, independent of the fee.
 
         Feature: str-airbnb-multi-file-import, Property 4: Financial calculation correctness
         """
-        assume(not ('Geannuleerd' in row_data['Status'] and row_data['Inkomsten'] == '€ 0,00'))
-
-        processor = STRProcessor(test_mode=True)
-        df = pd.DataFrame([row_data])
-        result = processor._calculate_airbnb_row(
-            df.iloc[0], df.columns, '2025-01-01 test.csv'
+        gross, fee = round(gross, 2), round(fee, 2)
+        group = _new_format_group(gross, fee)
+        result = build_booking_from_group(
+            "HM12345678", group, "2025-01-01 test.csv", "realised"
         )
+        assert abs(result["amountGross"] - gross) < 0.02
 
-        if result is None:
-            return
-
-        # Parse paidOut the same way the production code does (from Inkomsten)
-        earnings_str = row_data['Inkomsten']
-        clean = earnings_str.replace('€', '').replace(' ', '')
-        parts = clean.split(',')
-        integer_part = parts[0].replace('.', '')
-        decimal_part = parts[1] if len(parts) == 2 else '00'
-        paid_out = float(f"{integer_part}.{decimal_part}")
-
-        expected_gross = paid_out + paid_out * 0.15
-        assert abs(result['amountGross'] - expected_gross) < 0.02
-
-    @given(row_data=airbnb_row_strategy())
+    @given(
+        gross=st.floats(min_value=0.01, max_value=50000.0, allow_nan=False, allow_infinity=False),
+        fee=st.floats(min_value=0.0, max_value=5000.0, allow_nan=False, allow_infinity=False),
+    )
     @settings(max_examples=MAX_EXAMPLES, deadline=5000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
-    def test_tax_amounts_match_calculate_str_taxes(self, row_data):
-        """Tax amounts match output of calculate_str_taxes() for same gross and date.
+    def test_tax_amounts_match_calculate_str_taxes(self, gross, fee):
+        """Tax amounts match calculate_str_taxes() for the same gross/date/fee.
 
         Feature: str-airbnb-multi-file-import, Property 4: Financial calculation correctness
         """
-        assume(not ('Geannuleerd' in row_data['Status'] and row_data['Inkomsten'] == '€ 0,00'))
-
-        processor = STRProcessor(test_mode=True)
-        df = pd.DataFrame([row_data])
-        result = processor._calculate_airbnb_row(
-            df.iloc[0], df.columns, '2025-01-01 test.csv'
+        gross, fee = round(gross, 2), round(fee, 2)
+        group = _new_format_group(gross, fee)
+        result = build_booking_from_group(
+            "HM12345678", group, "2025-01-01 test.csv", "realised"
         )
 
-        if result is None:
-            return
-
-        # Independently calculate taxes using the same function
-        tax_calc = processor.calculate_str_taxes(
-            result['amountGross'],
-            row_data['Begindatum'],
-            result['amountChannelFee'],
+        from str_utils import calculate_str_taxes
+        tax_calc = calculate_str_taxes(
+            result["amountGross"], result["checkinDate"], result["amountChannelFee"]
         )
 
-        assert abs(result['amountVat'] - tax_calc['amount_vat']) < 0.02
-        assert abs(result['amountTouristTax'] - tax_calc['amount_tourist_tax']) < 0.02
-        assert abs(result['amountNett'] - tax_calc['amount_nett']) < 0.02
+        assert abs(result["amountVat"] - tax_calc["amount_vat"]) < 0.02
+        assert abs(result["amountTouristTax"] - tax_calc["amount_tourist_tax"]) < 0.02
+        assert abs(result["amountNett"] - tax_calc["amount_nett"]) < 0.02
 
-    @given(row_data=airbnb_row_strategy())
+    @given(
+        advertentie=st.sampled_from(["groen", "Green", "rode", "Red", "Tuinhuis", "garden", "Unknown Listing"]),
+    )
     @settings(max_examples=MAX_EXAMPLES, deadline=5000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
-    def test_listing_normalization_applied(self, row_data):
-        """Listing normalization is applied consistently to all rows.
+    def test_listing_normalization_applied(self, advertentie):
+        """Listing normalization is applied to the Advertentie value.
 
         Feature: str-airbnb-multi-file-import, Property 4: Financial calculation correctness
         """
-        assume(not ('Geannuleerd' in row_data['Status'] and row_data['Inkomsten'] == '€ 0,00'))
-
-        processor = STRProcessor(test_mode=True)
-        df = pd.DataFrame([row_data])
-        result = processor._calculate_airbnb_row(
-            df.iloc[0], df.columns, '2025-01-01 test.csv'
+        group = _new_format_group(200.0, 30.0, listing=advertentie)
+        result = build_booking_from_group(
+            "HM12345678", group, "2025-01-01 test.csv", "realised"
         )
 
-        if result is None:
-            return
-
-        # The listing should be normalized
-        expected = processor._normalize_listing_name(str(row_data['Advertentie']))
-        assert result['listing'] == expected
+        from str_utils import normalize_listing_name
+        assert result["listing"] == normalize_listing_name(str(advertentie))
 
 
 # ---------------------------------------------------------------------------
@@ -666,38 +669,21 @@ class TestProperty6EuropeanCurrencyParsingRoundTrip:
     )
     @settings(max_examples=MAX_EXAMPLES, deadline=5000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
     def test_parsed_earnings_match_in_booking(self, amount):
-        """Earnings parsed in _calculate_airbnb_row match the original amount.
+        """Bruto-inkomsten parsed by the new parser matches the original amount.
 
-        Feature: str-airbnb-multi-file-import, Property 6: European currency parsing round-trip
+        In the new export format the gross is the sum of Bruto-inkomsten (no 15%
+        uplift), so a single-row group's amountGross equals the input amount.
+
+        Feature: str-airbnb-multi-file-import, Property 6: currency parsing round-trip
         """
         amount = round(amount, 2)
-        formatted = format_european_currency(amount)
-
-        processor = STRProcessor(test_mode=True)
-        row_data = {
-            'Begindatum': '15-06-2025',
-            'Einddatum': '17-06-2025',
-            'Naam van de gast': 'Test Guest',
-            'Advertentie': 'Green Studio',
-            '# nachten': 2,
-            'Inkomsten': formatted,
-            'Bevestigingscode': 'HM12345678',
-            'Status': 'Bevestigd',
-            'Contact': '+31612345678',
-            '# volwassenen': 2,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-01-01',
-        }
-        df = pd.DataFrame([row_data])
-        result = processor._calculate_airbnb_row(
-            df.iloc[0], df.columns, '2025-01-01 test.csv'
+        group = _new_format_group(amount, 0.0)
+        result = build_booking_from_group(
+            "HM12345678", group, "2025-01-01 test.csv", "realised"
         )
 
         assert result is not None
-        # amountGross = paidOut + paidOut * 0.15 = paidOut * 1.15
-        expected_gross = round(amount * 1.15, 2)
-        assert abs(result['amountGross'] - expected_gross) < 0.02
+        assert abs(result["amountGross"] - amount) < 0.02
 
     @given(
         amount=st.floats(min_value=1000.0, max_value=99999.99, allow_nan=False, allow_infinity=False),
@@ -794,7 +780,6 @@ class TestProperty7ScopedOverwriteInvariant:
 
         # Track which DELETE calls are made
         deleted_pairs = []
-        inserted_records = []
 
         mock_cursor = MagicMock()
         def track_execute(query, params=None):
@@ -944,64 +929,63 @@ class TestAirbnbMultiImportUnitTests:
         assert 'bad2.csv' in error_msg
         assert 'bad3.csv' in error_msg
 
-    def test_cancelled_rows_with_zero_earnings_skipped(self):
-        """Cancelled rows with zero earnings are skipped (Req 3.6).
+    def test_payout_rows_excluded_from_bookings(self):
+        """Payout / blank-confirmation-code rows produce no booking (Req 2.3).
+
+        The new export interleaves informational Payout rows with booking rows;
+        only non-blank-code booking rows yield dicts. This replaces the old
+        "cancelled row with zero earnings is skipped" behaviour.
 
         Feature: str-airbnb-multi-file-import
         """
         processor = STRProcessor(test_mode=True)
 
-        row_data = {
-            'Begindatum': '15-06-2025',
-            'Einddatum': '17-06-2025',
-            'Naam van de gast': 'Cancelled Guest',
-            'Advertentie': 'Green Studio',
-            '# nachten': 2,
-            'Inkomsten': '€ 0,00',
-            'Bevestigingscode': 'HM99999999',
-            'Status': 'Geannuleerd',
-            'Contact': '+31612345678',
-            '# volwassenen': 2,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-01-01',
+        payout_row = {
+            "Type": "Payout",
+            "Bevestigingscode": "",
+            "Boekingsdatum": "",
+            "Begindatum": "",
+            "Einddatum": "",
+            "Nachten": "",
+            "Gast": "",
+            "Advertentie": "",
+            "Informatie": "Transfer naar Example BV",
+            "Valuta": "EUR",
+            "Bruto-inkomsten": "",
+            "Servicekosten": "",
         }
-        df = pd.DataFrame([row_data])
-        result = processor._calculate_airbnb_row(
-            df.iloc[0], df.columns, '2025-01-01 test.csv'
-        )
+        booking_row = _new_format_group(200.0, 30.0, code="HM99999998").iloc[0].to_dict()
 
-        assert result is None
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            df = pd.DataFrame([payout_row, booking_row])
+            path = write_df_to_csv(df, tmp_dir, "airbnb_pending.csv")
+            result = processor._process_airbnb_multi([path])
 
-    def test_cancelled_rows_with_nonzero_earnings_not_skipped(self):
-        """Cancelled rows with non-zero earnings are NOT skipped.
+            # Payout row dropped; only the real booking remains.
+            assert len(result) == 1
+            assert result[0]["reservationCode"] == "HM99999998"
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def test_booking_group_produces_one_dict_with_file_status(self):
+        """A booking group yields exactly one dict, tagged with the file's status.
+
+        Status now comes from file classification (planned vs realised), not from
+        any per-row Status column (spec airbnb-export-format-update, Req 6.5).
 
         Feature: str-airbnb-multi-file-import
         """
-        processor = STRProcessor(test_mode=True)
-
-        row_data = {
-            'Begindatum': '15-06-2025',
-            'Einddatum': '17-06-2025',
-            'Naam van de gast': 'Cancelled Guest',
-            'Advertentie': 'Green Studio',
-            '# nachten': 2,
-            'Inkomsten': '€ 150,00',
-            'Bevestigingscode': 'HM99999998',
-            'Status': 'Geannuleerd',
-            'Contact': '+31612345678',
-            '# volwassenen': 2,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-01-01',
-        }
-        df = pd.DataFrame([row_data])
-        result = processor._calculate_airbnb_row(
-            df.iloc[0], df.columns, '2025-01-01 test.csv'
+        group = _new_format_group(150.0, 22.5, code="HM99999997")
+        result = build_booking_from_group(
+            "HM99999997", group, "2025-01-01 test.csv", "planned"
         )
 
         assert result is not None
-        assert result['status'] == 'cancelled'
+        assert result["status"] == "planned"
+        assert result["reservationCode"] == "HM99999997"
+        assert abs(result["amountGross"] - 150.0) < 0.02
+        assert abs(result["amountChannelFee"] - 22.5) < 0.02
 
     def test_multiple_listings_all_appear_in_output(self, temp_dir):
         """Multiple listings in combined data all appear in output (Req 3.3).
