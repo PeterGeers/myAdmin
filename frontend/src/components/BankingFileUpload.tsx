@@ -169,7 +169,18 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
           }
 
           if (resolution.status === 'none') {
-            setMessage(t('accountSelection.noAccountConfigured'));
+            const knownAccounts = currentLookupData.bank_accounts;
+            if (knownAccounts.length === 0) {
+              // Edge case: nothing to choose from — keep informing the user (2.4)
+              setMessage(t('accountSelection.noAccountConfigured'));
+              setLoading(false);
+              return;
+            }
+            // No match — fall back to the account-selection popup populated with
+            // the tenant's full known-accounts list rather than resolution candidates.
+            setAccountCandidates(knownAccounts);
+            setPendingProcessing({ files: selectedFiles, lookupData: currentLookupData });
+            setShowAccountDialog(true);
             setLoading(false);
             return;
           }
