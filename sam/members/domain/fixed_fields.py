@@ -584,12 +584,16 @@ def _validate_value(fld: FixedField, value: Any) -> Optional[str]:
     """Validate a single present, non-null value against its field definition.
 
     Returns an error reason string, or None when the value is valid.
+
+    A blank/whitespace string on an OPTIONAL field is treated as "empty" (valid) — clearing an
+    optional field (e.g. wiping the Dutch ``tussenvoegsel``/name_infix) is a normal edit, not an
+    error. Only a REQUIRED string/reference field rejects a blank value ("must not be blank").
     """
     if fld.type is FieldType.STRING or fld.type is FieldType.REFERENCE:
         if not isinstance(value, str):
             return "must be a string"
         if not value.strip():
-            return "must not be blank"
+            return "must not be blank" if fld.required else None
         return None
 
     if fld.type is FieldType.DATE:

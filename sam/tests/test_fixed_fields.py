@@ -181,6 +181,26 @@ def test_null_required_field_fails():
     assert "membership.status" in exc.value.errors
 
 
+@pytest.mark.parametrize("blank", ["", " ", "   "])
+def test_blank_optional_string_is_valid_clearing_an_optional_field(blank):
+    # Clearing an OPTIONAL string field (e.g. tussenvoegsel/name_infix) is a normal edit — a
+    # blank/whitespace value means "empty", NOT a "must not be blank" error. (Regression: a
+    # cleared tussenvoegsel wrongly returned 422 "must not be blank".)
+    m = _valid_member()
+    m["personal"]["name_infix"] = blank
+    validate_fixed_fields(m)  # must not raise
+
+
+@pytest.mark.parametrize("blank", ["", " ", "   "])
+def test_blank_required_string_still_fails(blank):
+    # A REQUIRED string field still rejects a blank/whitespace value.
+    m = _valid_member()
+    m["personal"]["first_name"] = blank
+    with pytest.raises(FieldValidationError) as exc:
+        validate_fixed_fields(m)
+    assert exc.value.errors["personal.first_name"] == "must not be blank"
+
+
 def test_partial_update_skips_absent_required_fields_but_still_checks_present_ones():
     # Absent key in a partial update = "leave unchanged" → allowed.
     validate_fixed_fields({"membership": {"status": "active"}}, partial=True)

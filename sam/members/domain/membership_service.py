@@ -1796,6 +1796,12 @@ class MembershipService:
             "functional_groups": [
                 self._serialize_functional_group(g) for g in config.functional_groups
             ],
+            # The tenant's ENABLED scope dimensions (e.g. region + its allowed values). The Add/
+            # Edit modal's scope control + the table's region filter read their option list from
+            # this array (frontend `ScopeDimension` shape). Same source as `_scope_vocab`, so the
+            # dropdown and the write-validator's allowed set stay in lockstep. Empty when the
+            # tenant has no enabled dimension (or no provider is wired).
+            "dimensions": self._serialize_scope_dimensions(tenant_id),
             "membership_type_options": options,
             # The tenant's selectable view contexts (S5c task 3.2, design C-VIEW). Sourced from
             # the injected ViewContextsProvider (the projection reader's config#views row in
@@ -1864,6 +1870,29 @@ class MembershipService:
             "allowed_transitions": allowed_transitions,
             "requires_approval": requires_approval,
         }
+
+    def _serialize_scope_dimensions(self, tenant_id: str) -> List[Dict[str, Any]]:
+        """Project the tenant's ENABLED scope dimensions into the frontend `dimensions` shape.
+
+        The Add/Edit modal's region control + the table's region filter read their option list
+        from ``FieldConfig.dimensions`` (a ``[{key, label, enabled, values}]`` array — see the
+        frontend ``ScopeDimension`` type). Sourced from the SAME injected scope-config provider
+        that feeds :meth:`_scope_vocab` (``scope_dimensions.values`` is the single source of
+        truth), so the dropdown values and the write-validator's allowed set can never diverge.
+        Empty when no provider is wired or the tenant has no enabled dimension.
+        """
+        if self._scope_config_provider is None:
+            return []
+        config = self._scope_config_provider.get_scope_config(tenant_id)
+        return [
+            {
+                "key": dim.key,
+                "label": dict(dim.label),
+                "enabled": bool(dim.enabled),
+                "values": list(dim.normalized_values()),
+            }
+            for dim in config.enabled()
+        ]
 
     @staticmethod
     def _serialize_functional_group(group: FunctionalGroup) -> Dict[str, Any]:

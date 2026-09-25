@@ -176,6 +176,38 @@ class TestScopeDimensionSourcesChoices:
             svc.get_field_config(TENANT)
 
 
+class TestFieldConfigEmitsDimensions:
+    """get_field_config must emit a `dimensions` array so the Add/Edit modal's region control +
+    the table's region filter have their option list. The frontend reads region values ONLY from
+    `FieldConfig.dimensions` (shape {key,label,enabled,values}); without it the region <Select>
+    is empty and un-typeable. Regression for the prod "region dropdown shows nothing" bug.
+    """
+
+    def test_dimensions_array_carries_enabled_dimension_values(self, catalog_repo):
+        overlay = _overlay_with_choiceless_enum("region")
+        dims = [ScopeDimension(key="region", label={"nl": "Regio", "en": "Region"},
+                               values=REGION_VALUES)]
+        svc = _service(overlay, dims, catalog_repo)
+
+        config = svc.get_field_config(TENANT)
+
+        assert "dimensions" in config
+        region = next(d for d in config["dimensions"] if d["key"] == "region")
+        assert region["values"] == list(REGION_VALUES)
+        assert region["enabled"] is True
+        assert region["label"] == {"nl": "Regio", "en": "Region"}
+
+    def test_disabled_dimension_is_omitted_from_dimensions(self, catalog_repo):
+        # A disabled dimension is not offered as a dropdown source (mirrors _scope_vocab).
+        overlay = TenantOverlay(fields={})  # no choiceless enum → no OverlayError
+        dims = [ScopeDimension(key="region", values=REGION_VALUES, enabled=False)]
+        svc = _service(overlay, dims, catalog_repo)
+
+        config = svc.get_field_config(TENANT)
+
+        assert config["dimensions"] == []
+
+
 # ── Phase 2 (R3): the change-gated overlay-enum validation activates for region ───────
 
 

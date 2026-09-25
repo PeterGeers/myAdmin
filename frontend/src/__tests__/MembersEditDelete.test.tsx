@@ -65,7 +65,7 @@ const mockFullMember: Member = {
   member_id: 'm-1',
   name: 'Jan',
   region: 'Noord',
-  personal: { first_name: 'Jan', last_name: 'de Vries', email: 'jan@h-dcn.example' },
+  personal: { first_name: 'Jan', last_name: 'de Vries', name_infix: 'van der', email: 'jan@h-dcn.example' },
   membership: { membership_type: 'gewoon', status: 'active' },
 } as Member;
 
@@ -73,6 +73,7 @@ const mockFieldConfig: FieldConfig = {
   fields: [
     { key: 'first_name', group: 'personal', label: { nl: 'Voornaam', en: 'First name' }, type: 'string', required: true, functional_group: 'personal', order: 10 },
     { key: 'last_name', group: 'personal', label: { nl: 'Achternaam', en: 'Last name' }, type: 'string', required: true, functional_group: 'personal', order: 20 },
+    { key: 'name_infix', group: 'personal', label: { nl: 'Tussenvoegsel', en: 'Name infix' }, type: 'string', required: false, functional_group: 'personal', order: 25 },
     { key: 'email', group: 'personal', label: { nl: 'E-mail', en: 'Email' }, type: 'string', required: true, functional_group: 'personal', order: 30 },
     {
       key: 'membership_type', group: 'membership', label: { nl: 'Type', en: 'Type' }, type: 'reference', required: true,
@@ -160,12 +161,26 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
       const [memberId, body] = mockUpdateMember.mock.calls[0] as [string, Record<string, unknown>];
       expect(memberId).toBe('m-1');
       expect(body).toEqual({
-        personal: { first_name: 'Jan Jansen', last_name: 'de Vries', email: 'jan@h-dcn.example' },
+        personal: { first_name: 'Jan Jansen', last_name: 'de Vries', name_infix: 'van der', email: 'jan@h-dcn.example' },
         membership: { membership_type: 'erelid' },
         scope_values: { region: ['Zuid'] },
       });
       expect(body).not.toHaveProperty('tenant');
       expect(body).not.toHaveProperty('tenant_id');
+    });
+
+    it('clears an optional field by sending an empty string when it is wiped', async () => {
+      // Regression: clearing an OPTIONAL field (tussenvoegsel/name_infix) must SEND "" so the
+      // server clears it — a blank must not be silently dropped ("leave unchanged"), which made
+      // wiping a no-op. The member had name_infix="van der"; emptying it sends name_infix="".
+      const dialog = await openEditModal();
+      fillByName(dialog, 'name_infix', '');  // wipe the optional field
+      fireEvent.click(within(dialog).getByText('editModal.save'));
+      await waitFor(() => expect(mockUpdateMember).toHaveBeenCalledTimes(1));
+
+      const [, body] = mockUpdateMember.mock.calls[0] as [string, Record<string, unknown>];
+      const personal = body.personal as Record<string, unknown>;
+      expect(personal.name_infix).toBe('');  // explicit clear, not omitted
     });
   });
 
