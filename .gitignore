@@ -81,6 +81,9 @@ backend/reports/
 backend/tests/reports/*
 !backend/tests/reports/.gitkeep
 
+# SAM module-plane reports (CI-generated)
+sam/reports/
+
 # Build artifacts (should not be in git)
 backend/frontend/
 frontend/coverage/

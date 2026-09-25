@@ -1,6 +1,10 @@
 name: Full Test Suite
 
 on:
+  schedule:
+    # 02:00 Europe/Amsterdam (CET, UTC+1) = 01:00 UTC. Note: during CEST (summer,
+    # UTC+2) this fires at 03:00 local — GitHub cron has no timezone/DST support.
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
       scope:
@@ -17,7 +21,7 @@ jobs:
   backend-lint:
     name: Backend Lint & Static Analysis
     runs-on: ubuntu-latest
-    if: ${{ inputs.scope == 'both' || inputs.scope == 'backend' }}
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -142,7 +146,7 @@ jobs:
   backend-tests:
     name: Backend Full Test Suite
     runs-on: ubuntu-latest
-    if: ${{ inputs.scope == 'both' || inputs.scope == 'backend' }}
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -203,10 +207,65 @@ jobs:
           path: backend/reports/
           retention-days: 30
 
+  sam-tests:
+    name: SAM Module-Plane Test Suite
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: sam/shared/requirements.txt
+
+      - name: Install dependencies
+        working-directory: sam
+        run: |
+          pip install -r shared/requirements.txt
+          pip install pytest pytest-html hypothesis
+
+      - name: Run all SAM tests
+        working-directory: sam
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          python -m pytest \
+            --tb=short -q \
+            --junitxml=reports/junit-results.xml \
+            --html=reports/test-report.html --self-contained-html \
+            2>&1 | tee reports/test-output.txt
+
+      - name: Generate summary
+        if: always()
+        working-directory: sam
+        run: |
+          mkdir -p reports
+          echo "## SAM Module-Plane Test Results" > reports/SUMMARY.md
+          echo "" >> reports/SUMMARY.md
+          echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/SUMMARY.md
+          echo "" >> reports/SUMMARY.md
+          if [ -f reports/test-output.txt ]; then
+            tail -5 reports/test-output.txt >> reports/SUMMARY.md
+          else
+            echo "No test output file found" >> reports/SUMMARY.md
+          fi
+
+      - name: Upload SAM test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sam-test-reports
+          path: sam/reports/
+          retention-days: 30
+
   frontend-tests:
     name: Frontend Full Test Suite
     runs-on: ubuntu-latest
-    if: ${{ inputs.scope == 'both' || inputs.scope == 'frontend' }}
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'frontend' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
