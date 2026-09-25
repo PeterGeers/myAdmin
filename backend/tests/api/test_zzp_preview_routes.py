@@ -400,6 +400,31 @@ def test_email_preview_contact_without_email_returns_400(preview_client, mock_in
 
 
 @pytest.mark.api
+def test_email_preview_missing_email_carries_code(preview_client, mock_invoice_service):
+    """A typed InvoiceEmailMissingError surfaces the API-standard v1.0 machine `code`.
+
+    Replaces the old client-side error-string sniff: the SPA localizes
+    `errors.invoice.emailMissing` instead of matching on the English message.
+    Requirements: 8.9 (API response & error standard v1.0, task 3.8)
+    """
+    from services.invoice_email_service import InvoiceEmailMissingError
+
+    mock_invoice_service.get_email_preview.side_effect = InvoiceEmailMissingError(
+        "Contact email address is missing"
+    )
+
+    resp = preview_client.get('/api/zzp/invoices/1/email-preview')
+
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data['success'] is False
+    # Backward compatible: the English message still reads.
+    assert 'Contact email address is missing' in data['error']
+    # New: a stable machine code the SPA localizes.
+    assert data['code'] == 'errors.invoice.emailMissing'
+
+
+@pytest.mark.api
 def test_email_preview_bcc_contains_admin_email(preview_client, mock_invoice_service):
     """Email preview BCC field contains the tenant admin email.
 

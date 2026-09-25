@@ -486,7 +486,13 @@ def preview_invoice_email(
         error_msg = str(ve)
         if "not found" in error_msg.lower():
             return jsonify({"success": False, "error": error_msg}), 404
-        return jsonify({"success": False, "error": error_msg}), 400
+        # API standard v1.0: a typed missing-email error carries a machine `code` the SPA
+        # localizes (`errors.invoice.emailMissing`) — no more error-string sniffing client-side.
+        code = getattr(ve, "code", None)
+        body = {"success": False, "error": error_msg}
+        if code:
+            body["code"] = code
+        return jsonify(body), 400
     except Exception as e:
         logger.error("preview_invoice_email error for %s/%s: %s", tenant, invoice_id, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

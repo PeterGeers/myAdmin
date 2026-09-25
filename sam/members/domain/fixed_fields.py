@@ -68,7 +68,19 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Optional, Sequence
 
+from sam.members.domain.error_codes import (
+    FieldError,
+    VALIDATION_INVALID_DATE,
+    VALIDATION_MUST_BE_A_STRING,
+    VALIDATION_MUST_BE_ONE_OF,
+    VALIDATION_MUST_NOT_BE_BLANK,
+    VALIDATION_REQUIRED,
+    VALIDATION_UNSUPPORTED_FIELD_TYPE,
+    MEMBER_NUMBER_FORMAT,
+)
+
 __all__ = [
+    "FieldError",
     "FieldGroup",
     "FieldType",
     "MembershipStatus",
@@ -278,13 +290,15 @@ class FixedField:
 class FieldValidationError(Exception):
     """Raised when a member's fixed data fails base-registry validation.
 
-    Carries ``errors`` — a mapping of dotted field key → human-readable reason — so callers
-    (the domain service / handler) can surface all problems at once rather than one at a time.
+    Carries ``errors`` — a mapping of dotted field key → :class:`FieldError` (a machine ``code``
+    + human ``detail`` + optional ``params``, RFC 9457 per-entry) — so callers (the domain
+    service / handler) can surface all problems at once, LOCALIZED via the code, rather than one
+    raw English string at a time (API response & error standard v1.0).
     """
 
-    def __init__(self, errors: Mapping[str, str]):
-        self.errors = dict(errors)
-        detail = "; ".join(f"{k}: {v}" for k, v in self.errors.items())
+    def __init__(self, errors: Mapping[str, FieldError]):
+        self.errors: dict[str, FieldError] = dict(errors)
+        detail = "; ".join(f"{k}: {v.detail}" for k, v in self.errors.items())
         super().__init__(f"fixed-field validation failed: {detail}")
 
 
@@ -544,23 +558,35 @@ def roles_for_option(
 
 def validate_member_number_format(
     value: Any, fmt: Optional[MemberNumberFormat]
-) -> Optional[str]:
-    """Return an error reason if ``value`` violates the tenant ``member_number`` format, else None.
+) -> Optional[FieldError]:
+    """Return a :class:`FieldError` if ``value`` violates the tenant ``member_number`` format, else None.
 
     Authoritative create/edit/import validation (R4.2/R4.8): a present ``member_number`` must be
     a non-blank string AND satisfy the tenant format pattern (when one is configured). An empty/
     absent format imposes no constraint beyond "non-blank string". Generation stays OUT.
+
+    All failures carry the ``errors.member.numberFormat`` code (API standard v1.0); ``params``
+    carries the format hint (``example``/``pattern``) for i18n interpolation, and ``detail`` keeps
+    the English message so a client that cannot resolve the code still shows it.
     """
     if not isinstance(value, str) or not value.strip():
-        return "must be a non-blank string"
+        return FieldError(code=MEMBER_NUMBER_FORMAT, detail="must be a non-blank string")
     if fmt is None or fmt.is_empty():
         return None
     if not fmt.matches(value):
         example = fmt.example()
         pattern = fmt.as_regex()
         if example is not None:
-            return f"must match the tenant member-number format (e.g. {example})"
-        return f"must match the tenant member-number format {pattern!r}"
+            return FieldError(
+                code=MEMBER_NUMBER_FORMAT,
+                detail=f"must match the tenant member-number format (e.g. {example})",
+                params={"example": example},
+            )
+        return FieldError(
+            code=MEMBER_NUMBER_FORMAT,
+            detail=f"must match the tenant member-number format {pattern!r}",
+            params={"pattern": pattern},
+        )
     return None
 
 
@@ -569,21 +595,28 @@ def validate_member_number_format(
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def _validate_date(value: Any) -> Optional[str]:
-    """Return an error reason if ``value`` is not an ISO-8601 (YYYY-MM-DD) date, else None."""
+def _validate_date(value: Any) -> Optional[FieldError]:
+    """Return a :class:`FieldError` if ``value`` is not an ISO-8601 (YYYY-MM-DD) date, else None.
+
+    Both the wrong-shape and the impossible-calendar-date cases carry the shared
+    ``validation.invalidDate`` code; ``detail`` keeps the specific English wording.
+    """
     if not isinstance(value, str) or not _ISO_DATE_RE.match(value):
-        return "must be an ISO-8601 date (YYYY-MM-DD)"
+        return FieldError(
+            code=VALIDATION_INVALID_DATE, detail="must be an ISO-8601 date (YYYY-MM-DD)"
+        )
     try:
         _dt.date.fromisoformat(value)
     except ValueError:
-        return "is not a valid calendar date"
+        return FieldError(code=VALIDATION_INVALID_DATE, detail="is not a valid calendar date")
     return None
 
 
-def _validate_value(fld: FixedField, value: Any) -> Optional[str]:
+def _validate_value(fld: FixedField, value: Any) -> Optional[FieldError]:
     """Validate a single present, non-null value against its field definition.
 
-    Returns an error reason string, or None when the value is valid.
+    Returns a :class:`FieldError` (machine ``code`` + English ``detail`` + optional ``params``),
+    or None when the value is valid.
 
     A blank/whitespace string on an OPTIONAL field is treated as "empty" (valid) — clearing an
     optional field (e.g. wiping the Dutch ``tussenvoegsel``/name_infix) is a normal edit, not an
@@ -591,9 +624,13 @@ def _validate_value(fld: FixedField, value: Any) -> Optional[str]:
     """
     if fld.type is FieldType.STRING or fld.type is FieldType.REFERENCE:
         if not isinstance(value, str):
-            return "must be a string"
+            return FieldError(code=VALIDATION_MUST_BE_A_STRING, detail="must be a string")
         if not value.strip():
-            return "must not be blank" if fld.required else None
+            if fld.required:
+                return FieldError(
+                    code=VALIDATION_MUST_NOT_BE_BLANK, detail="must not be blank"
+                )
+            return None
         return None
 
     if fld.type is FieldType.DATE:
@@ -605,15 +642,23 @@ def _validate_value(fld: FixedField, value: Any) -> Optional[str]:
         # (with tenant-supplied choices) enforces membership downstream.
         if fld.choices is None:
             if not isinstance(value, str) or not value.strip():
-                return "must be a non-blank string"
+                return FieldError(
+                    code=VALIDATION_MUST_BE_A_STRING, detail="must be a non-blank string"
+                )
             return None
         if value not in fld.choices:
             allowed = ", ".join(fld.choices)
-            return f"must be one of: {allowed}"
+            return FieldError(
+                code=VALIDATION_MUST_BE_ONE_OF,
+                detail=f"must be one of: {allowed}",
+                params={"allowed": list(fld.choices)},
+            )
         return None
 
     # Defensive: an unknown type in the registry is a programming error, not user input.
-    return f"unsupported field type: {fld.type}"
+    return FieldError(
+        code=VALIDATION_UNSUPPORTED_FIELD_TYPE, detail=f"unsupported field type: {fld.type}"
+    )
 
 
 def validate_fixed_fields(
@@ -639,7 +684,7 @@ def validate_fixed_fields(
     Raises :class:`FieldValidationError` (with a key→reason map) if anything is invalid;
     returns None on success.
     """
-    errors: dict[str, str] = {}
+    errors: dict[str, FieldError] = {}
 
     for fld in FIXED_FIELDS:
         group_data = member.get(fld.group.value)
@@ -651,7 +696,9 @@ def validate_fixed_fields(
             # Missing/null: an error only if required and we are not doing a partial update.
             missing = (not has_key) or (value is None)
             if fld.required and missing and not (partial and not has_key):
-                errors[fld.dotted_key()] = "is required"
+                errors[fld.dotted_key()] = FieldError(
+                    code=VALIDATION_REQUIRED, detail="is required"
+                )
             continue
 
         reason = _validate_value(fld, value)

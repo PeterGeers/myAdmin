@@ -28,6 +28,7 @@ import {
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { transitionMembership } from '../../services/membersApiService';
+import { applyApiError } from '../../shared/api/applyApiError';
 import type { Member, FieldConfig } from '../../types/members';
 import { allowedTargetsFor, targetRequiresApproval } from './transitionTargets';
 
@@ -91,9 +92,10 @@ export const MembersTransitionModal: React.FC<MembersTransitionModalProps> = ({
       onDone();
       onClose();
     } catch (err) {
-      // A denied transition (409 with reasons) surfaces its message; never crash.
-      const message = err instanceof Error ? err.message : t('transition.toast.error');
-      toast({ title: message, status: 'error' });
+      // A denied transition (409) surfaces its reasons in the toast, LOCALIZED via code (API
+      // standard v1.0, task 4.5); a network/unknown failure degrades to the localized fallback.
+      // No form fields here → no setFieldError.
+      applyApiError(err, { toast, t });
     } finally {
       setSubmitting(false);
     }

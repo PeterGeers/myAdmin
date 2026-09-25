@@ -234,8 +234,7 @@ def test_create_member_missing_required_fields_returns_422():
     # No personal.first_name / email → fixed-field validation fails → 422 with per-field errors.
     resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
     assert resp["statusCode"] == 422
-    errors = json.loads(resp["body"])["errors"]
-    assert "personal.first_name" in errors
+    assert "personal.first_name" in _error_fields(resp)
 
 
 def test_create_active_member_without_motor_fails_hdcn_hook_422():
@@ -243,7 +242,7 @@ def test_create_active_member_without_motor_fails_hdcn_hook_422():
     body = _valid_member_body(member_number="3001", status="active")
     resp = app.handler(_event("POST", "/members", body=body))
     assert resp["statusCode"] == 422
-    assert "overlay.motor" in json.loads(resp["body"])["errors"]
+    assert "overlay.motor" in _error_fields(resp)
 
 
 def test_create_active_member_with_motor_passes(repo):
@@ -638,7 +637,7 @@ def test_create_role_restricted_enum_value_denied_role_returns_422(overlay_servi
         _event("POST", "/members", groups=("Members_Read",), body=body)
     )
     assert resp["statusCode"] == 422
-    assert "overlay.tier" in json.loads(resp["body"])["errors"]
+    assert "overlay.tier" in _error_fields(resp)
 
 
 def test_create_role_restricted_enum_value_allowed_role_returns_200(overlay_service):
@@ -677,4 +676,149 @@ def test_create_omitting_visible_show_when_field_returns_422(overlay_service):
         _event("POST", "/members", groups=("Members_CRUD", "Regio_All"), body=body)
     )
     assert resp["statusCode"] == 422
-    assert "overlay.motor_brand" in json.loads(resp["body"])["errors"]
+    assert "overlay.motor_brand" in _error_fields(resp)
+
+
+# ── Platform API response & error standard v1.0 — envelope + fail-loud catch-all ──────
+#
+# (Error-surfacing spec, Phase 1.) Every response carries the unified envelope: success
+# `{success:true, data}`, error `{success:false, error, code?, errors?/reasons?}`, always with
+# the real HTTP status. An UNANTICIPATED error becomes a BODIED 500 (never an empty 502), and the
+# anticipated domain mappings are unchanged (the catch-all is LAST, never shadowing them).
+
+
+def _envelope(resp):
+    return json.loads(resp["body"])
+
+
+def _error_fields(resp) -> set[str]:
+    """The set of ``field`` keys in a 422 body's RFC 9457 ``errors`` array (v1.0 shape).
+
+    Under the standard the 422 ``errors`` is a list of ``{field, code, params?, detail}`` entries
+    (not the old ``{field: reason}`` map), so tests that only care WHICH fields failed read the
+    ``field`` values here.
+    """
+    return {entry["field"] for entry in _envelope(resp)["errors"]}
+
+
+def test_success_response_carries_success_true_and_data_envelope(repo):
+    # A 2xx create → {success:true, data:{...}} with the real 200 status.
+    body = _valid_member_body(member_number="E-1")
+    resp = app.handler(_event("POST", "/members", groups=("Regio_All",), body=body))
+    assert resp["statusCode"] == 200
+    env = _envelope(resp)
+    assert env["success"] is True
+    assert "data" in env and env["data"]["membership"]["member_number"] == "E-1"
+
+
+def test_validation_error_carries_success_false_error_envelope(repo):
+    # A 422 → {success:false, error, errors:{...}} with the real 422 status (anticipated mapping
+    # unchanged; envelope now carries success:false).
+    resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
+    assert resp["statusCode"] == 422
+    env = _envelope(resp)
+    assert env["success"] is False
+    assert env["error"] == "Validation failed"
+    assert env["code"] == "errors.validation.failed"
+    # v1.0: errors is an RFC 9457 array of {field, code, detail}.
+    assert isinstance(env["errors"], list)
+    assert "personal.first_name" in _error_fields(resp)
+
+
+def test_transition_denied_carries_success_false_and_reasons(repo):
+    # A 409 transition denial → {success:false, error, reasons:[...]} (anticipated mapping).
+    body = _valid_member_body(member_number="E-2", status="application")
+    create = app.handler(_event("POST", "/members", body=body))
+    mid = _data(create)["member_id"]
+    resp = app.handler(
+        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "pending"})
+    )
+    assert resp["statusCode"] == 409
+    env = _envelope(resp)
+    assert env["success"] is False
+    assert isinstance(env["reasons"], list)
+
+
+def test_unhandled_exception_returns_bodied_500_not_empty_502(monkeypatch, repo, hooks):
+    # Fail-loud: an UNANTICIPATED error in the domain dispatch becomes a BODIED 500 with a stable
+    # code — never an empty 502 the SPA can only show as "Failed to fetch". No internals leak.
+    class _BoomService:
+        def create_member(self, *a, **k):
+            raise RuntimeError("boom: a secret stack detail that must NOT leak")
+
+    monkeypatch.setattr(app, "_get_membership_service", lambda: _BoomService())
+
+    resp = app.handler(
+        _event("POST", "/members", groups=("Regio_All",), body=_valid_member_body(member_number="E-3"))
+    )
+    assert resp["statusCode"] == 500
+    env = _envelope(resp)
+    assert env["success"] is False
+    assert env["error"] == "Internal error"
+    assert env["code"] == "errors.api.serverError"
+    # The internal exception text is NEVER surfaced to the client.
+    assert "boom" not in resp["body"]
+
+
+def test_catch_all_does_not_shadow_anticipated_mappings(repo):
+    # The catch-all is LAST: anticipated domain errors keep their specific statuses/bodies.
+    # 404 (out-of-scope/absent member on an update).
+    ghost = app.handler(_event("PUT", "/members/does-not-exist", body={"personal": {"first_name": "x"}}))
+    assert ghost["statusCode"] == 404
+    assert _envelope(ghost)["success"] is False
+    # 501 (a declared-but-unimplemented route would answer 501, not 500) is covered elsewhere;
+    # here we assert the 404 path is not swallowed into a 500 by the catch-all.
+
+
+# ── Task 3.6 (dt) — RFC 9457 array shape + top-level code on structured errors ────────
+
+
+def test_422_errors_is_rfc9457_array_with_field_code_detail(repo):
+    # A 422 body carries `errors` as an ARRAY of {field, code, params?, detail} (not a map) and a
+    # top-level summary `code`. A missing required first_name → validation.required on that field.
+    resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
+    assert resp["statusCode"] == 422
+    env = _envelope(resp)
+    assert env["code"] == "errors.validation.failed"
+    errors = env["errors"]
+    assert isinstance(errors, list) and errors
+    by_field = {e["field"]: e for e in errors}
+    assert "personal.first_name" in by_field
+    entry = by_field["personal.first_name"]
+    # Each entry is machine-code + human-detail (RFC 9457 per-entry).
+    assert entry["code"] == "errors.validation.required"
+    assert isinstance(entry["detail"], str) and entry["detail"].strip()
+    # A parameter-free entry does not carry an empty params key.
+    assert "params" not in entry or entry["params"]
+
+
+def test_422_mustBeOneOf_entry_carries_allowed_params(repo):
+    # An invalid closed-enum value surfaces validation.mustBeOneOf with params.allowed for i18n.
+    body = _valid_member_body(member_number="E-9")
+    body["membership"]["status"] = "not-a-real-status"
+    resp = app.handler(_event("POST", "/members", groups=("Regio_All",), body=body))
+    assert resp["statusCode"] == 422
+    by_field = {e["field"]: e for e in _envelope(resp)["errors"]}
+    entry = by_field["membership.status"]
+    assert entry["code"] == "errors.validation.mustBeOneOf"
+    assert "allowed" in entry["params"]
+
+
+def test_409_reasons_is_rfc9457_array_with_code_and_detail(repo):
+    # A 409 transition denial carries `reasons` as an ARRAY of {code, detail} (no `field`) and a
+    # top-level `code`.
+    body = _valid_member_body(member_number="E-10", status="application")
+    create = app.handler(_event("POST", "/members", body=body))
+    mid = _data(create)["member_id"]
+    resp = app.handler(
+        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "pending"})
+    )
+    assert resp["statusCode"] == 409
+    env = _envelope(resp)
+    assert env["code"] == "errors.transition.denied"
+    reasons = env["reasons"]
+    assert isinstance(reasons, list) and reasons
+    first = reasons[0]
+    assert first["code"] == "errors.transition.denied"
+    assert isinstance(first["detail"], str) and first["detail"].strip()
+    assert "field" not in first  # a denial is not tied to one input field

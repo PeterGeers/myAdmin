@@ -59,6 +59,8 @@ Use the Table Filter Framework v2 — a hybrid approach: text search filters in 
 
 When implementing or modifying tables or filters, read the full framework guide at `.kiro/specs/Common/Frameworks/table-filter-framework-v2/design.md`
 
+This is one of the platform's shared building blocks — see `37-shared-building-blocks.md` for the full registry (and reach for a registered block before inventing a local variant).
+
 ## Reference Implementation
 
 `frontend/src/pages/ZZPInvoices.tsx` correctly demonstrates all patterns above (dark theme, FilterableHeader, row-click modal, orange primary actions, i18n, responsive wrapping). Use it as a concrete example when building new pages.
