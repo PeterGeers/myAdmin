@@ -237,8 +237,16 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             )
 
             if upsert_result.get("error"):
+                # Log the real DB error server-side; return a static message so we
+                # do not leak exception/SQL details to the client (CodeQL:
+                # information exposure through an exception).
+                logger.error(
+                    "upsert_airbnb_bookings failed for tenant %s: %s",
+                    tenant,
+                    upsert_result["error"],
+                )
                 return jsonify(
-                    {"success": False, "error": upsert_result["error"]}
+                    {"success": False, "error": "Failed to save Airbnb bookings"}
                 ), 500
 
             realised_inserted = upsert_result.get("realised_inserted", 0)
