@@ -132,20 +132,30 @@ export function buildValidationSchema(
 
 interface PayloadDeps {
   dimensionKey: string;
+  /**
+   * The member being EDITED, when this is an update (the Add modal passes null). Used to detect
+   * a field the user CLEARED: a now-blank field that HAD a value must be sent as `""` so the
+   * server clears it. On a create (member null) blanks are simply omitted (nothing to clear).
+   */
+  member?: Member | null;
 }
 
 /**
  * Shape the module's NESTED write payload from the flat Formik values, honoring each field's
  * STORAGE group. A `personal`/`membership` fixed field lands under that nested block; an overlay
  * (variable) field lands under `overlay`; the scope dimension becomes `scope_values.<key>: [v]`.
- * A field HIDDEN by an unmet `show_when` is NOT sent (mirroring the server's hidden-not-required),
- * and a blank optional value is dropped so a create/patch carries only meaningful data. NO tenant
- * field is ever included — the module stamps it authoritatively (Property 2).
+ * A field HIDDEN by an unmet `show_when` is NOT sent (mirroring the server's hidden-not-required).
+ *
+ * Blank handling: on a CREATE a blank optional value is dropped (nothing to persist). On an EDIT,
+ * a field the user CLEARED (now blank but the member had a value) is sent as `""` so the server
+ * clears it — otherwise "wiping" an optional field like the Dutch `tussenvoegsel` would be a
+ * silent no-op (a dropped blank means "leave unchanged"). NO tenant field is ever included — the
+ * module stamps it authoritatively (Property 2).
  */
 export function shapeWritePayload(
   fields: FieldConfigField[],
   values: FormValues,
-  { dimensionKey }: PayloadDeps,
+  { dimensionKey, member }: PayloadDeps,
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   const personal: Record<string, unknown> = {};
@@ -165,11 +175,19 @@ export function shapeWritePayload(
     if (!evaluateShowWhen(f.show_when, values)) continue;
 
     const raw = values[f.key];
-    if (raw === undefined || raw === '') continue; // drop blanks (leave-unchanged on patch)
+    const blank = raw === undefined || (typeof raw === 'string' && raw.trim() === '');
+    let out: unknown = raw;
+    if (blank) {
+      // On EDIT, only send an explicit clear ("") when the field previously HELD a value; on
+      // CREATE (or an already-blank field) drop it. Prevents over-sending empty keys on create.
+      const had = member != null && String(memberValue(member, f)).trim() !== '';
+      if (!had) continue;
+      out = '';
+    }
 
-    if (f.group === 'personal') personal[f.key] = raw;
-    else if (f.group === 'membership') membership[f.key] = raw;
-    else overlay[f.key] = raw;
+    if (f.group === 'personal') personal[f.key] = out;
+    else if (f.group === 'membership') membership[f.key] = out;
+    else overlay[f.key] = out;
   }
 
   if (Object.keys(personal).length > 0) body.personal = personal;
