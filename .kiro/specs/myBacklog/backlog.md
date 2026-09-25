@@ -51,22 +51,6 @@ How can we manage s3 management attributes similar as in Flask
 Check the current settings and what is needed
 
 
-# SPEC CREATED → `.kiro/specs/multi-tenant/s5k-member-identity-and-number-policy/`
-**Member identity & Lidnummer cleanup** — a SMALL spec: `member_id` internal-only; `member_number`
-an OPTIONAL plain string (numeric, alphanumeric, or empty) with the optional per-tenant
-`member_number_format` validation retained; DELETE the `membernum#` uniqueness-guard mechanism
-(`save_member` → single `PutItem`; drop the 1152 guard rows). Auto member-number GENERATION was
-designed then **REJECTED (user, 2026-09-24): too complex for a simple administration** — a club
-admin types/imports the Lidnummer. If "suggest next number" is ever wanted, it is a cheap per-tenant
-UX toggle (`members.suggest_next_number` + reuse `member_number_format`), NOT a backend engine — see
-the spec's FUTURE section. Full sponsors/clubs entity modelling may be a follow-up; making the
-Lidnummer optional is the prerequisite. Requirements/design/tasks live in the spec folder.
-
-> The cross-plane "tenant-configurable behavior" ALIGNMENT investigation (2026-09-24) that this
-> item once carried is preserved below under the **Fail-loud integrity / generic-vs-tenant
-> placement** spec — its natural home, now that it is no longer tied to member numbering.
-
-
 # SPEC: Fail-loud integrity — kill silent fallbacks + reconcile stale projection + post-deploy pre-checks
 **One spec — the projection-reconcile gap is an INSTANCE of the fallback pattern ("trust a
 stale/derived value instead of failing/resyncing"), so they share a design.** Raised by the user
@@ -322,3 +306,28 @@ of the gsheet JSON, not to s5k:
 ## Import members data directly from gsheet
 Read /home/peter/projects/h-dcn/.kiro/specs/Members/migrationHDCNLedenbestand
 See also the lastest version of scripts\aws\h-dcn
+
+
+
+
+
+# SPEC CREATED → `.kiro/specs/Common/Frameworks/api-response-standard/` (moved from `Common/error-surfacing-standard/`, Phase 5.1)
+
+**Platform API response & error standard v1.0 — for ALL UI/UX apps + backends.** Raised 2026-09-24
+during s5k prod verify: adding a member returned a bare **502 / "Failed to fetch"** (an unhandled
+`TypeError` in `_reject_invalid_overlay_enum_values` — hotfixed in s5k). The empty 502 exposed that
+error handling is inconsistent + unversioned platform-wide. Principles: Flask is the REFERENCE
+implementation (not rewritten); ONE envelope everywhere; every failure user-visible AND localized;
+fail loud; written down as v1.0 steering. The spec: (1) SAM gains a last-resort catch-all → bodied
+5xx (no more empty 502); (2) SAM adopts the Flask envelope (`success` added in `_response`/`_error`)
+so both planes emit `{success, data|error, code?, errors?[], reasons?[]}` + real status, following
+**RFC 9457 (Problem Details)** §3.1 for validation errors — `errors`/`reasons` are per-entry ARRAYS
+of `{field?, code, params?, detail}` (machine code + human detail); (3) codes + i18n IN SCOPE — the
+backend sends a stable `code` (a key in the existing `errors.*`/`validation.*` i18n namespaces), the
+SPA maps `code → localized` NL/EN copy falling back to `detail` (kills the raw-English toast + ZZP's
+`errorMsg.includes('email')` string-sniff); (4) the SPA renders 422 field errors inline + 409
+reasons via a shared `applyApiError` helper; (5) versioned **v1.0** steering doc all apps conform to.
+SAM compliance everywhere is IN scope (incl. per-field codes in Members). NOTE: Flask has NO
+per-field error contract today (flat `{error}`), so per-field codes are a NEW capability v1.0 raises
+for both planes, not "SAM catches up". Relates to the Fail-loud integrity spec + the
+Shared-frontend-component spec.

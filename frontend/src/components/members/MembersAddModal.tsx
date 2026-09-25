@@ -36,6 +36,7 @@ import * as Yup from 'yup';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { useAuth } from '../../context/AuthContext';
 import { createMember } from '../../services/membersApiService';
+import { applyApiError } from '../../shared/api/applyApiError';
 import type { FieldConfig, MembershipType } from '../../types/members';
 import { MembersFieldFormBody } from './MembersFieldFormBody';
 import {
@@ -81,6 +82,19 @@ export const MembersAddModal: React.FC<MembersAddModalProps> = ({
     [fieldConfig, lang],
   );
 
+  // Map a backend DOTTED field key (`personal.first_name`, `overlay.<dim>`) to this form's own
+  // Formik field name (the BARE key, or `region` for the scope dimension — see
+  // MembersFieldFormBody where `name = isScope ? 'region' : field.key`). Returns undefined when
+  // the field is not on this form, so applyApiError folds it into the summary toast (task 4.5).
+  const formFieldNameFor = useMemo(() => {
+    const formNames = new Set(fields.map((f) => f.key));
+    return (dotted: string): string | undefined => {
+      const bare = dotted.includes('.') ? dotted.slice(dotted.indexOf('.') + 1) : dotted;
+      if (dimensionKey && bare === dimensionKey) return 'region';
+      return formNames.has(bare) ? bare : undefined;
+    };
+  }, [fields, dimensionKey]);
+
   const initialValues = useMemo(() => buildInitialValues(fields, null), [fields]);
 
   const validationSchema = useMemo(
@@ -90,7 +104,15 @@ export const MembersAddModal: React.FC<MembersAddModalProps> = ({
 
   const handleSubmit = async (
     values: Record<string, string>,
-    { setSubmitting, resetForm }: { setSubmitting: (b: boolean) => void; resetForm: () => void },
+    {
+      setSubmitting,
+      resetForm,
+      setFieldError,
+    }: {
+      setSubmitting: (b: boolean) => void;
+      resetForm: () => void;
+      setFieldError: (field: string, message: string) => void;
+    },
   ) => {
     const body = shapeWritePayload(fields, values, { dimensionKey });
     try {
@@ -100,8 +122,16 @@ export const MembersAddModal: React.FC<MembersAddModalProps> = ({
       onSaved();
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('addModal.toast.error');
-      toast({ title: message, status: 'error' });
+      // API standard v1.0: render a 422's per-field errors INLINE (localized via code) + a
+      // summary toast; unmatched fields / non-ApiError degrade gracefully (C3, task 4.5).
+      applyApiError(err, {
+        toast,
+        t,
+        setFieldError,
+        // The backend keys fields DOTTED (`personal.first_name`); Formik names inputs by the
+        // BARE key (`first_name`, or `region` for the scope dimension) — map dotted → own name.
+        fieldNameFor: formFieldNameFor,
+      });
     } finally {
       setSubmitting(false);
     }
