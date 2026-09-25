@@ -1,12 +1,13 @@
-import sys
 import os
-import pytest
+import sys
+from unittest.mock import patch
+
 import pandas as pd
-from unittest.mock import patch, MagicMock, mock_open
-from datetime import datetime, date
+import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from str_processor import STRProcessor
+
 
 class TestSTRProcessor:
     
@@ -17,21 +18,27 @@ class TestSTRProcessor:
     
     @pytest.fixture
     def sample_airbnb_data(self):
-        """Sample Airbnb CSV data"""
+        """Sample Airbnb CSV data in the NEW export format.
+
+        The new Airbnb export presents each booking as a Boeking/Doorloop-totaal
+        pair sharing one Bevestigingscode. This fixture holds the single Boeking
+        row for one booking; status is driven by file classification (not columns),
+        so no Status column is present. Columns use the new-format names:
+        Type / Bruto-inkomsten / Servicekosten / Bevestigingscode, dates MM/DD/YYYY.
+        """
         return {
-            'Begindatum': '15-01-2025',
-            'Einddatum': '17-01-2025',
-            'Naam van de gast': 'John Doe',
-            'Advertentie': 'Green Studio',
-            '# nachten': 2,
-            'Inkomsten': '€ 190,10',
+            'Type': 'Boeking',
             'Bevestigingscode': 'ABC123',
-            'Status': 'Bevestigd',
-            'Contact': '+31612345678',
-            '# volwassenen': 2,
-            '# kinderen': 0,
-            "# baby's": 0,
-            'Gereserveerd': '2025-01-01'
+            'Boekingsdatum': '01/01/2025',
+            'Begindatum': '01/15/2025',
+            'Einddatum': '01/17/2025',
+            'Nachten': 2,
+            'Gast': 'John Doe',
+            'Advertentie': 'Green Studio',
+            'Informatie': '',
+            'Valuta': 'EUR',
+            'Servicekosten': '"28,52"',
+            'Bruto-inkomsten': 190.10,
         }
     
     @pytest.fixture
@@ -122,48 +129,75 @@ class TestSTRProcessor:
         result = str_processor._normalize_listing_name(None)
         assert result is None
     
+    @patch('str_processor._airbnb_header_columns')
     @patch('os.listdir')
     @patch('os.path.isfile')
-    def test_scan_str_files_success(self, mock_isfile, mock_listdir, str_processor):
-        """Test successful STR file scanning"""
+    def test_scan_str_files_success(self, mock_isfile, mock_listdir, mock_header, str_processor):
+        """Airbnb CSVs classify into pending/realised buckets by header (Req 1.1-1.4).
+
+        A pending header (no Uitbetaald/Verwacht op) → airbnb_pending; a realised
+        header (both markers present) → airbnb_realised. The old `airbnb` bucket key
+        and the `reservation` filename rule are gone (Req 1.5).
+        """
         mock_listdir.return_value = [
-            'reservation_export.csv',
+            'airbnb_pending.csv',
+            'airbnb_08_2026-09_2026.csv',
             'check-in_report.xlsx',
             'jabakirechtstreeks_data.xlsx',
             'other_file.txt'
         ]
         mock_isfile.return_value = True
-        
+
+        pending_cols = ['Datum', 'Type', 'Bevestigingscode', 'Bruto-inkomsten']
+        realised_cols = ['Datum', 'Verwacht op', 'Type', 'Bevestigingscode',
+                         'Uitbetaald', 'Bruto-inkomsten']
+
+        def header_side_effect(path):
+            return realised_cols if 'airbnb_08' in path else pending_cols
+
+        mock_header.side_effect = header_side_effect
+
         files = str_processor.scan_str_files('/test/folder')
-        
-        assert len(files['airbnb']) == 1
+
+        # New bucket keys — no legacy `airbnb` key
+        assert 'airbnb' not in files
+        assert len(files['airbnb_pending']) == 1
+        assert len(files['airbnb_realised']) == 1
         assert len(files['booking']) == 1
         assert len(files['direct']) == 1
-        assert 'reservation_export.csv' in files['airbnb'][0]
+        assert 'airbnb_pending.csv' in files['airbnb_pending'][0]
+        assert 'airbnb_08_2026-09_2026.csv' in files['airbnb_realised'][0]
         assert 'check-in_report.xlsx' in files['booking'][0]
         assert 'jabakirechtstreeks_data.xlsx' in files['direct'][0]
-    
+
     @patch('os.listdir')
     def test_scan_str_files_error(self, mock_listdir, str_processor):
         """Test STR file scanning with error"""
         mock_listdir.side_effect = Exception("Permission denied")
-        
+
         files = str_processor.scan_str_files('/test/folder')
-        
-        assert files['airbnb'] == []
+
+        assert files['airbnb_pending'] == []
+        assert files['airbnb_realised'] == []
         assert files['booking'] == []
         assert files['direct'] == []
-    
+
+    @patch('str_processor._airbnb_header_columns')
     @patch('os.listdir')
     @patch('os.path.isfile')
-    def test_scan_str_files_no_matches(self, mock_isfile, mock_listdir, str_processor):
-        """Test STR file scanning with no matching files"""
-        mock_listdir.return_value = ['document.pdf', 'image.jpg']
+    def test_scan_str_files_no_matches(self, mock_isfile, mock_listdir, mock_header, str_processor):
+        """Non-CSV/non-STR files match no bucket; a former `reservation*.csv` name
+        with a non-Airbnb header is NOT classified as Airbnb (Req 1.5)."""
+        mock_listdir.return_value = ['document.pdf', 'image.jpg', 'reservation_export.csv']
         mock_isfile.return_value = True
-        
+        # reservation_export.csv is a .csv, so the scanner reads its header. Header
+        # lacks Type + Bruto-inkomsten → not an Airbnb file (name token alone gone).
+        mock_header.return_value = ['col_a', 'col_b']
+
         files = str_processor.scan_str_files('/test/folder')
-        
-        assert files['airbnb'] == []
+
+        assert files['airbnb_pending'] == []
+        assert files['airbnb_realised'] == []
         assert files['booking'] == []
         assert files['direct'] == []
     
@@ -174,31 +208,60 @@ class TestSTRProcessor:
     
     @patch('pandas.read_csv')
     def test_process_airbnb_success(self, mock_read_csv, str_processor, sample_airbnb_data):
-        """Test successful Airbnb processing via multi-file path"""
+        """New-format Airbnb rows group by Bevestigingscode into one booking dict.
+
+        Columns are the new-format names (Type/Bruto-inkomsten/Servicekosten/
+        Bevestigingscode), dates are MM/DD/YYYY. A pending file (header lacks the
+        realised markers) yields status='planned' from file classification (Req 6.1).
+        """
         mock_df = pd.DataFrame([sample_airbnb_data])
         mock_read_csv.return_value = mock_df
-        
+
         with patch('os.path.basename', return_value='test.csv'):
             result = str_processor._process_airbnb_multi(['test.csv'])
-        
+
         assert len(result) == 1
         assert result[0]['channel'] == 'airbnb'
         assert result[0]['listing'] == 'Green Studio'
         assert result[0]['nights'] == 2
         assert result[0]['guestName'] == 'John Doe'
         assert result[0]['reservationCode'] == 'ABC123'
-    
+        # Status comes from file classification: no realised markers → planned (Req 6.1, 6.5)
+        assert result[0]['status'] == 'planned'
+        # Gross is the sum of Bruto-inkomsten; fee the sum of Servicekosten (Req 3.1, 3.2)
+        assert result[0]['amountGross'] == 190.10
+        assert result[0]['amountChannelFee'] == 28.52
+
     @patch('pandas.read_csv')
-    def test_process_airbnb_cancelled_no_earnings(self, mock_read_csv, str_processor, sample_airbnb_data):
-        """Test Airbnb processing skips cancelled bookings with no earnings"""
-        sample_airbnb_data['Status'] = 'Geannuleerd'
-        sample_airbnb_data['Inkomsten'] = '€ 0,00'
-        mock_df = pd.DataFrame([sample_airbnb_data])
+    def test_process_airbnb_payout_rows_excluded(self, mock_read_csv, str_processor, sample_airbnb_data):
+        """Payout rows (blank Bevestigingscode) are excluded from grouping (Req 2.3).
+
+        The new format interleaves informational Payout rows with booking rows; only
+        the non-blank-code booking rows produce dicts. Here one real booking + one
+        Payout row → exactly one booking dict.
+        """
+        payout_row = {
+            'Type': 'Payout',
+            'Bevestigingscode': '',
+            'Boekingsdatum': '',
+            'Begindatum': '',
+            'Einddatum': '',
+            'Nachten': '',
+            'Gast': '',
+            'Advertentie': '',
+            'Informatie': 'Transfer naar Example BV',
+            'Valuta': 'EUR',
+            'Servicekosten': '',
+            'Bruto-inkomsten': '',
+        }
+        mock_df = pd.DataFrame([payout_row, sample_airbnb_data])
         mock_read_csv.return_value = mock_df
-        
+
         result = str_processor._process_airbnb_multi(['test.csv'])
-        
-        assert len(result) == 0  # Should be skipped
+
+        # Payout row dropped; only the real booking remains
+        assert len(result) == 1
+        assert result[0]['reservationCode'] == 'ABC123'
     
     @patch('pandas.read_csv')
     def test_process_airbnb_error(self, mock_read_csv, str_processor):
