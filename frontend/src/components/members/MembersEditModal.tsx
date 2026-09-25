@@ -92,7 +92,9 @@ export const MembersEditModal: React.FC<MembersEditModalProps> = ({
     { setSubmitting }: { setSubmitting: (b: boolean) => void },
   ) => {
     if (!member) { setSubmitting(false); return; }
-    const body = shapeWritePayload(fields, values, { dimensionKey });
+    // Pass the member so a CLEARED optional field (now blank, previously set) is sent as "" to
+    // clear it server-side — not silently dropped ("leave unchanged").
+    const body = shapeWritePayload(fields, values, { dimensionKey, member });
     try {
       await updateMember(member.member_id, body);
       toast({ title: t('editModal.toast.success'), status: 'success' });
