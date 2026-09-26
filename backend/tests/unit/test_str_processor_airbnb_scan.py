@@ -15,10 +15,11 @@ from str_processor import (
     _is_airbnb_file,
 )
 
-# Sample exports captured from the real Airbnb downloads.
-_SAMPLES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", ".agent-output"
-)
+# Committed sample exports (real Airbnb download shape; guest names anonymised).
+# These live under version control so the SAM/backend CI checkout has them — the
+# previous location (repo-root .agent-output/) is git-ignored, so CI had no files
+# and the parser raised "All files failed to parse" (spec task C2 / H2).
+_SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "fixtures", "str")
 PENDING_SAMPLE = os.path.join(_SAMPLES_DIR, "airbnb_pending.csv")
 REALISED_SAMPLE = os.path.join(_SAMPLES_DIR, "airbnb_08_2026-09_2026.csv")
 

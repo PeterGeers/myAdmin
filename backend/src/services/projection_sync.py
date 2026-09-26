@@ -214,7 +214,9 @@ def build_config_scope_row(
 
     return ProjectionItem(
         tenant_id=tenant_id,
-        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE),
+        sort_key=schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE
+        ),
         version=_scope_config_version(tenant),
         attributes={"dimensions": dimensions},
     )
@@ -341,7 +343,9 @@ def _map_functional_group(raw: Mapping[str, Any]) -> dict[str, Any]:
     label = raw.get("label")
     group["label"] = dict(label) if isinstance(label, Mapping) else {}
     order = raw.get("order")
-    group["order"] = order if isinstance(order, int) and not isinstance(order, bool) else 0
+    group["order"] = (
+        order if isinstance(order, int) and not isinstance(order, bool) else 0
+    )
     return group
 
 
@@ -436,7 +440,9 @@ def build_config_fields_row(
 
     return ProjectionItem(
         tenant_id=tenant_id,
-        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS),
+        sort_key=schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
+        ),
         version=_scope_config_version(tenant),
         attributes={
             "fields": fields,
@@ -553,7 +559,9 @@ def build_config_views_row(
 
     return ProjectionItem(
         tenant_id=tenant_id,
-        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS),
+        sort_key=schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS
+        ),
         version=_scope_config_version(tenant),
         attributes={"contexts": contexts},
     )
@@ -966,13 +974,9 @@ class ProjectionSync:
         Returns:
             The stored ``scopegrant#…`` sort-key values (possibly empty).
         """
-        scopegrant_prefix = (
-            schema.RECORD_TYPE_SCOPEGRANT + schema.SORT_KEY_SEPARATOR
-        )
+        scopegrant_prefix = schema.RECORD_TYPE_SCOPEGRANT + schema.SORT_KEY_SEPARATOR
         query_kwargs: dict[str, Any] = {
-            "KeyConditionExpression": (
-                "#pk = :pk AND begins_with(#sk, :sk_prefix)"
-            ),
+            "KeyConditionExpression": ("#pk = :pk AND begins_with(#sk, :sk_prefix)"),
             "ExpressionAttributeNames": {
                 "#pk": schema.PARTITION_KEY_ATTR,
                 "#sk": schema.SORT_KEY_ATTR,
@@ -991,9 +995,7 @@ class ProjectionSync:
                 if not isinstance(row, Mapping):
                     continue
                 sort_key = row.get(schema.SORT_KEY_ATTR)
-                if isinstance(sort_key, str) and sort_key.startswith(
-                    scopegrant_prefix
-                ):
+                if isinstance(sort_key, str) and sort_key.startswith(scopegrant_prefix):
                     sort_keys.append(sort_key)
             last_key = response.get("LastEvaluatedKey")
             if not last_key:
@@ -1061,6 +1063,7 @@ def _is_conditional_check_failure(exc: BaseException) -> bool:
     if not isinstance(error, Mapping):
         return False
     return error.get("Code") == "ConditionalCheckFailedException"
+
 
 # --- C2 scopegrant#<email>#<dimension> builder (S5b design.md C2, R2.1/R2.2) ---
 

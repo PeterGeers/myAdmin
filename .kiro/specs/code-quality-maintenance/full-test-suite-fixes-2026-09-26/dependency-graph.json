@@ -1,0 +1,42 @@
+{
+  "specId": "68b6448d-bc27-413c-aa71-147bf2f05c9c",
+  "spec": "full-test-suite-fixes-2026-09-26",
+  "ciRun": 36221515479,
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (2026-09-26)",
+  "priorities": {
+    "critical": ["C1", "C2"],
+    "high": ["H1", "H2", "H3", "H4", "H5", "H6", "H7"],
+    "medium": ["M1", "M2"],
+    "low": ["L1", "L2"]
+  },
+  "nodes": [
+    { "id": "C1", "title": "Decouple Flask from auth import path (SAM collection)", "priority": "critical", "effort": "M", "plane": "sam", "rootCause": "flask ImportError via auth/__init__ -> tenant_context" },
+    { "id": "C2", "title": "Fix Airbnb sample fixture / parser setup error", "priority": "critical", "effort": "M", "plane": "backend", "rootCause": "ValueError: All files failed to parse airbnb_pending.csv" },
+    { "id": "H1", "title": "Projection property tests must use mock_db", "priority": "high", "effort": "M", "plane": "backend", "rootCause": "real DB connection guardrail trip" },
+    { "id": "H2", "title": "Airbnb header/classification returns None", "priority": "high", "effort": "M", "plane": "backend", "rootCause": "header detection returns None" },
+    { "id": "H3", "title": "MembersPage empty rows + region badge", "priority": "high", "effort": "M", "plane": "frontend", "rootCause": "table renders no rows / missing span badge" },
+    { "id": "H4", "title": "BankingFileUpload zero-Revolut abort path", "priority": "high", "effort": "M", "plane": "frontend", "rootCause": "dialog shown instead of error" },
+    { "id": "H5", "title": "Auto-fix 13 ruff lint errors", "priority": "high", "effort": "S", "plane": "lint", "rootCause": "UP045/RUF100/RUF022/UP035/I001" },
+    { "id": "H6", "title": "Manual SIM102 fix", "priority": "high", "effort": "S", "plane": "lint", "rootCause": "nested if" },
+    { "id": "H7", "title": "ruff format 6 files", "priority": "high", "effort": "S", "plane": "lint", "rootCause": "formatting drift" },
+    { "id": "M1", "title": "MembersPage view-context default columns", "priority": "medium", "effort": "S", "plane": "frontend", "rootCause": "expected false to be true" },
+    { "id": "M2", "title": "SAM import-boundary guard test", "priority": "medium", "effort": "S", "plane": "sam", "rootCause": "prevent C1 recurrence" },
+    { "id": "L1", "title": "Pin ruff==0.16.5", "priority": "low", "effort": "S", "plane": "ci", "rootCause": "reproducibility" },
+    { "id": "L2", "title": "Commit canonical Airbnb sample fixtures", "priority": "low", "effort": "S", "plane": "backend", "rootCause": "prevent C2/H2 recurrence" }
+  ],
+  "edges": [
+    { "from": "C2", "to": "H2", "type": "shares-root-cause", "note": "same Airbnb header/format defect; fix header handling once" },
+    { "from": "C1", "to": "M2", "type": "enables", "note": "import guard verifiable only after decoupling" },
+    { "from": "H3", "to": "M1", "type": "likely-resolves", "note": "same MembersPage column/context refactor" },
+    { "from": "H5", "to": "H6", "type": "precedes", "note": "auto-fix first, then the one manual SIM102" },
+    { "from": "H6", "to": "H7", "type": "precedes", "note": "resolve lint edits before formatting to avoid re-reflow churn" },
+    { "from": "C2", "to": "L2", "type": "prevents-recurrence" },
+    { "from": "H5", "to": "L1", "type": "prevents-recurrence" }
+  ],
+  "recommendedOrder": ["C1", "C2", "H1", "H2", "H3", "H4", "H5", "H6", "H7", "M1", "M2", "L1", "L2"],
+  "notes": [
+    "C1 and C2 are collection/setup blockers — nothing downstream in their plane runs until they pass.",
+    "Lint chain must run H5 -> H6 -> H7 in order.",
+    "Verify M1 after H3 (may already be green)."
+  ]
+}

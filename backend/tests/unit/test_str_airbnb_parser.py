@@ -97,11 +97,10 @@ class TestParseAirbnbAmount:
         assert parse_airbnb_amount(" 76.67 ") == 76.67
 
 
-# Locate the sample the same way test_str_processor_airbnb_scan.py does:
-# a path relative to this test file up to the repo-root .agent-output dir.
-_SAMPLES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", ".agent-output"
-)
+# Locate the committed sample the same way test_str_processor_airbnb_scan.py does:
+# backend/tests/fixtures/str/ (version-controlled, so CI has it — the old
+# repo-root .agent-output/ location was git-ignored; spec task C2 / H2).
+_SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "fixtures", "str")
 PENDING_SAMPLE = os.path.join(_SAMPLES_DIR, "airbnb_pending.csv")
 
 

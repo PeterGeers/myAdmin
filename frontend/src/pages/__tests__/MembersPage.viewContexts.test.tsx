@@ -373,12 +373,13 @@ describe('MembersPage — view contexts (task 3.3)', () => {
       expect(screen.getByText('view.compact')).toBeInTheDocument();
       expect(screen.getByText('view.full')).toBeInTheDocument();
 
-      // Fixed compact columns + region badge render (today's default behavior).
-      // "Noord" now appears both as the read-only Badge <span> and as an option
-      // in the scope enum-filter (task 4.2), so assert on the Badge <span>.
+      // Fixed compact columns + region cell render (today's default behavior).
+      // "Noord" appears as a plain table cell (<td>) — the purple Badge was
+      // intentionally removed (commit ea6e4ab) — and ALSO as an option in the
+      // scope enum-filter (task 4.2), so assert on the table-cell (<td>) node.
       expect(screen.getByText('jan@h-dcn.example')).toBeInTheDocument();
       expect(
-        screen.getAllByText('Noord').some((el) => el.tagName.toLowerCase() === 'span'),
+        screen.getAllByText('Noord').some((el) => el.tagName.toLowerCase() === 'td'),
       ).toBe(true);
 
       // Full view reveals the overlay columns (iban/payment_method) by label.
