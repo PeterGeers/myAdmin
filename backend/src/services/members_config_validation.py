@@ -40,15 +40,16 @@ fail-fast with a descriptive :class:`MembersConfigError` (mirroring ``OverlayErr
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping, Optional
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 __all__ = [
-    "MembersConfigError",
-    "FIXED_FIELD_KEYS",
     "CALCULATED_FIELD_KEYS",
+    "FIXED_FIELD_KEYS",
     "OVERLAY_GROUP",
-    "validate_members_param",
+    "MembersConfigError",
     "validate_field_overlay",
+    "validate_members_param",
     "validate_view_contexts",
 ]
 
@@ -118,7 +119,9 @@ _BASE_DOTTED_KEYS: frozenset[str] = FIXED_FIELD_KEYS | CALCULATED_FIELD_KEYS
 
 #: The bare (undotted) canonical keys — a view context may reference a field by its short key
 #: (e.g. "member_number") as in the design examples, so both forms resolve.
-_BASE_BARE_KEYS: frozenset[str] = frozenset(k.split(".", 1)[1] for k in _BASE_DOTTED_KEYS)
+_BASE_BARE_KEYS: frozenset[str] = frozenset(
+    k.split(".", 1)[1] for k in _BASE_DOTTED_KEYS
+)
 
 #: The fixed-base dotted keys that are platform-REQUIRED (may be tightened, never loosened).
 #: Transcribed from fixed_fields.py (required=True): the overlay may not make these optional.
@@ -188,7 +191,7 @@ def validate_field_overlay(overlay: Any) -> None:
     reasons: dict[str, str] = {}
     catalog = _catalog_keys(overlay)
 
-    def _check_group(dotted: str, group: Optional[str]) -> None:
+    def _check_group(dotted: str, group: str | None) -> None:
         # Reference-validate only when the tenant authored a catalog (empty → base defaults).
         if group and catalog and group not in catalog:
             reasons[dotted] = (
@@ -207,7 +210,9 @@ def validate_field_overlay(overlay: Any) -> None:
                 continue
             if isinstance(spec, Mapping):
                 if spec.get("required") is False and dotted in _REQUIRED_FIXED_KEYS:
-                    reasons[dotted] = "cannot make a platform-required fixed field optional"
+                    reasons[dotted] = (
+                        "cannot make a platform-required fixed field optional"
+                    )
                 _check_group(dotted, spec.get("functional_group"))
 
     # fields — the added variable fields, keyed by canonical key (lands under `overlay`).
@@ -220,9 +225,13 @@ def validate_field_overlay(overlay: Any) -> None:
                 reasons[dotted] = (
                     "variable field key collides with a fixed/calculated field key"
                 )
-            elif isinstance(spec, Mapping) and spec.get("type") == "enum":
-                if not spec.get("choices") and not spec.get("options"):
-                    reasons[dotted] = "an enum variable field must declare choices/options"
+            elif (
+                isinstance(spec, Mapping)
+                and spec.get("type") == "enum"
+                and not spec.get("choices")
+                and not spec.get("options")
+            ):
+                reasons[dotted] = "an enum variable field must declare choices/options"
             if isinstance(spec, Mapping):
                 _check_group(dotted, spec.get("functional_group"))
 
@@ -234,8 +243,8 @@ def validate_field_overlay(overlay: Any) -> None:
 
 
 def _resolvable_field_keys(
-    field_overlay: Optional[Mapping[str, Any]],
-    scope_dimensions: Optional[Iterable[Any]],
+    field_overlay: Mapping[str, Any] | None,
+    scope_dimensions: Iterable[Any] | None,
 ) -> set[str]:
     """The full set of field_keys a view context may reference for this tenant.
 
@@ -271,8 +280,8 @@ def _resolvable_field_keys(
 def validate_view_contexts(
     view_contexts: Any,
     *,
-    field_overlay: Optional[Mapping[str, Any]] = None,
-    scope_dimensions: Optional[Iterable[Any]] = None,
+    field_overlay: Mapping[str, Any] | None = None,
+    scope_dimensions: Iterable[Any] | None = None,
 ) -> None:
     """Fail fast if any ``members.view_contexts`` field_key does not resolve (R5.1a).
 
@@ -331,8 +340,8 @@ def validate_members_param(
     key: str,
     value: Any,
     *,
-    sibling_field_overlay: Optional[Mapping[str, Any]] = None,
-    sibling_scope_dimensions: Optional[Iterable[Any]] = None,
+    sibling_field_overlay: Mapping[str, Any] | None = None,
+    sibling_scope_dimensions: Iterable[Any] | None = None,
 ) -> None:
     """Validate one ``members.<key>`` value on save; no-op for keys with no save-time rule.
 

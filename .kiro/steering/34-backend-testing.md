@@ -174,3 +174,7 @@ Reports are stored in `backend/tests/reports/` with timestamped filenames. The s
 ### Full Spec
 
 #[[file:.kiro/specs/test-maintenance-framework/design.md]]
+
+## Keep tests in sync with product code
+
+A behavior change in a route/service MUST update its allocated test(s) in the SAME change — the full rule (how to find the paired test, fixtures under `backend/tests/fixtures/`, never weaken assertions, surface contradicting tests) lives in `30-backend-api-flask-mysql.md` → "Change-With-Tests Contract", and is reinforced by the `test-sync-on-source-change` hook. Stale tests that lag an intentional code change are the top recurring Full Test Suite failure.

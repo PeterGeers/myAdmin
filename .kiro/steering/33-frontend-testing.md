@@ -40,3 +40,7 @@ The test maintenance framework's frontend scanner (`python -m backend.scripts.te
 ## Full Guide
 
 #[[file:.kiro/specs/Common/Test approach/frontend/vitest-guide.md]]
+
+## Keep tests in sync with product code
+
+A behavior or markup change in a component MUST update its allocated test(s) in the SAME change — the full rule (finding the paired test, `*.preservation`/`*-bug`/`*props` tests, never weaken assertions, surface contradicting tests) lives in `32-frontend-ui.md` → "Change-With-Tests Contract", and is reinforced by the `test-sync-on-source-change` hook. Stale tests that lag an intentional code change are the top recurring Full Test Suite failure.

@@ -31,6 +31,8 @@ jobs:
         working-directory: backend
         run: |
           pip install -r requirements.txt
+          # ruff pin MUST match backend/requirements-test.txt (the canonical source).
+          # Bump both together, deliberately — a floating ruff can turn lint red overnight.
           pip install ruff==0.16.5 vulture
 
       - name: Ruff lint

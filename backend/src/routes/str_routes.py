@@ -257,9 +257,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             # Generate and save future summary for planned bookings
             if planned_bookings:
                 str_processor = STRProcessor(test_mode=test_mode)
-                future_summary = str_processor.generate_future_summary(
-                    planned_bookings
-                )
+                future_summary = str_processor.generate_future_summary(planned_bookings)
                 str_db.insert_future_summary(future_summary)
 
             return jsonify(

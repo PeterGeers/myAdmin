@@ -64,3 +64,17 @@ This is one of the platform's shared building blocks — see `37-shared-building
 ## Reference Implementation
 
 `frontend/src/pages/ZZPInvoices.tsx` correctly demonstrates all patterns above (dark theme, FilterableHeader, row-click modal, orange primary actions, i18n, responsive wrapping). Use it as a concrete example when building new pages.
+
+## Change-With-Tests Contract (component ⇄ allocated tests)
+
+**When you change a component's behavior or rendered markup, update its allocated test(s) in the SAME change.** Leaving the paired test asserting the old behavior is incomplete — it passes locally by luck and breaks the nightly Full Test Suite days later (the most common recurring CI failure; see `.kiro/specs/code-quality-maintenance/`). Two real examples that bit us: de-badging the MembersPage region cell (`<span>` Badge → plain `<td>`) and adding the Lidnummer column first broke `MembersPage.test.tsx`; changing Revolut account-resolution to open the popup-with-all-known-accounts broke `BankingFileUpload.account-resolution-preservation.test.tsx`.
+
+Applies to any observable change: rendered element/tag (a `<Badge>`/`<span>` → `<td>` change breaks `tagName`/role queries), column order, a dialog/error path, an API/response shape the component reads.
+
+Required steps for every behavior/markup change:
+1. **Find the allocated test(s).** `src/pages/Foo.tsx` / `src/components/**/Foo.tsx` → `src/**/__tests__/Foo*.test.tsx`. Also grep the test tree for the changed component/testid/label — look for `*.preservation`, `*-bug`, and `*props` tests that encode intended behavior.
+2. **Update the test(s)** to the intended new behavior, in the same change.
+3. **Do not weaken or delete assertions to go green.** If two tests now contradict (e.g. a `preservation` test asserts the old path while a `-bug` test asserts the new), STOP and surface the conflict — do not pick a side silently.
+4. **Run the paired test(s)**: `npx vitest run <paths>`.
+
+The `test-sync-on-source-change` hook (`.kiro/hooks/`) reminds you of this on every product-file save; the rule here is the source of truth even when the hook does not fire.

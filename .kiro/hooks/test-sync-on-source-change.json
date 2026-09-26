@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Paired Test Sync on Source Change",
+      "trigger": "PostFileSave",
+      "description": "When a product source file (backend/src or frontend/src, excluding test files) is saved, remind the agent to locate and co-update the file's allocated test(s) in the same change, then run them.",
+      "matcher": "backend/src/.*\\.py$|frontend/src/(?!.*__tests__/).*\\.(ts|tsx)$",
+      "action": {
+        "type": "agent",
+        "prompt": "A PRODUCT source file was just saved. Behavioral changes MUST be accompanied by an update to the paired test(s) in the SAME change — do not leave the allocated test asserting the old behavior (this is how nightly CI breaks days later).\n\nDo the following for the saved file:\n1. LOCATE the paired test(s). Backend: use the Dependency Mapper (backend/scripts/test_maintenance/) or the naming convention (src/services/foo.py -> tests/unit/test_foo*.py; src/routes/foo.py -> tests/**/test_foo*.py). Frontend: src/pages/Foo.tsx / src/components/**/Foo.tsx -> src/**/__tests__/Foo*.test.tsx, plus any *.preservation / *-bug / *props test that references the changed symbol. Grep the test dir for the changed function/component/CSV-format/field name.\n2. ASSESS: did this save change observable behavior (output shape, rendered markup, parsed values, an export/file format, an API contract)? If yes, the paired tests and any committed fixtures/sample files likely need updating too.\n3. UPDATE the paired test(s) and fixtures to match the intended new behavior — in this same change. If a test encodes the OLD behavior, update it; if two tests now contradict each other, surface the conflict rather than guessing.\n4. RUN only the paired test(s): backend `python -m pytest <paths> -q`; frontend `npx vitest run <paths>`. Report pass/fail.\n\nIf the save was a pure refactor with no behavior change, say so briefly and skip. Do NOT weaken or delete assertions just to make tests pass — align them with the deliberate new behavior."
+      }
+    }
+  ]
+}

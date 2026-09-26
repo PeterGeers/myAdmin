@@ -49,9 +49,9 @@ still well-formed and re-running on unchanged input is a no-op.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
-from dataclasses import dataclass, field
 from typing import Any
 
 from services import projection_schema as schema

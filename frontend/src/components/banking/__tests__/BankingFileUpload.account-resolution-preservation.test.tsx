@@ -293,8 +293,17 @@ describe('Preservation Property Tests — Account Resolution', () => {
   // Validates: Requirement 3.1 (zero case preservation)
   // -------------------------------------------------------------------------
 
-  describe('Zero Revolut accounts — error message and abort', () => {
-    it('should show error when no Revolut account is configured', async () => {
+  // NOTE (spec full-test-suite-fixes-2026-09-26 task H4): a Revolut import with
+  // NO REVO match but a NON-EMPTY known-accounts list no longer aborts with an
+  // error. That old "abort + noAccountConfigured" behavior was deliberately
+  // changed (see BankingFileUpload.tsx `resolution.status === 'none'` branch and
+  // BankingFileUpload.no-match-popup-bug.test.tsx): the component now FALLS BACK to
+  // the account-selection popup populated with ALL known accounts, and shows no
+  // error. The `noAccountConfigured` error is now reserved for the truly-empty
+  // case (knownAccounts.length === 0). These tests are updated to that ratified
+  // behavior; the empty-list abort is covered by the sibling no-match-popup test.
+  describe('No Revolut match with known accounts — falls back to the popup', () => {
+    it('opens the account popup with all known accounts (no error) when no Revolut account matches', async () => {
       const accounts = [
         { rekeningNummer: 'NL44RABO0123456789', Account: '1100', administration: 'TestTenant' },
         { rekeningNummer: 'NL55INGB9876543210', Account: '1200', administration: 'TestTenant' },
@@ -320,17 +329,16 @@ describe('Preservation Property Tests — Account Resolution', () => {
         expect(defaultSetLoading).toHaveBeenCalledWith(false);
       });
 
-      // PRESERVATION: No dialog shown
+      // The account-selection dialog opens (fallback to known accounts).
       const dialog = screen.queryByRole('dialog');
-      expect(dialog).toBeNull();
+      expect(dialog).not.toBeNull();
 
-      // PRESERVATION: Error message shown about no configured account
-      // After i18n refactoring, the message uses a translation key
-      expect(defaultSetMessage).toHaveBeenCalledWith(
+      // The truly-empty `noAccountConfigured` error is NOT shown (known list is non-empty).
+      expect(defaultSetMessage).not.toHaveBeenCalledWith(
         expect.stringContaining('accountSelection.noAccountConfigured')
       );
 
-      // PRESERVATION: Transactions NOT loaded (processing aborted)
+      // Transactions are NOT auto-loaded — processing pauses for the user's pick.
       expect(defaultOnTransactionsLoaded).not.toHaveBeenCalled();
     });
 
@@ -338,7 +346,7 @@ describe('Preservation Property Tests — Account Resolution', () => {
       [arbitraryOnlyNonRevolutAccounts()],
       { numRuns: 15 },
     )(
-      'PROPERTY: for any set of non-Revolut accounts, Revolut file upload shows error',
+      'PROPERTY: for any non-empty set of non-Revolut accounts, a Revolut upload opens the popup (no error)',
       async (nonRevolutAccounts) => {
         const lookupData = buildLookupData(nonRevolutAccounts);
         const { unmount } = renderComponent(lookupData);
@@ -364,17 +372,17 @@ describe('Preservation Property Tests — Account Resolution', () => {
           expect(defaultSetLoading).toHaveBeenCalledWith(false);
         });
 
-        // PRESERVATION: No dialog
+        // The popup opens (fallback to the known accounts) since the known list
+        // is non-empty (arbitraryOnlyNonRevolutAccounts generates >= 1 account).
         const dialog = screen.queryByRole('dialog');
-        expect(dialog).toBeNull();
+        expect(dialog).not.toBeNull();
 
-        // PRESERVATION: Error message about no Revolut account
-        // After i18n refactoring, the message uses a translation key
-        expect(defaultSetMessage).toHaveBeenCalledWith(
+        // The truly-empty `noAccountConfigured` error is NOT shown.
+        expect(defaultSetMessage).not.toHaveBeenCalledWith(
           expect.stringContaining('accountSelection.noAccountConfigured')
         );
 
-        // PRESERVATION: No transactions loaded
+        // No transactions auto-loaded — processing pauses for the user's pick.
         expect(defaultOnTransactionsLoaded).not.toHaveBeenCalled();
 
         unmount();

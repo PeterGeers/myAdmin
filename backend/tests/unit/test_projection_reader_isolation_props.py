@@ -96,6 +96,18 @@ def _test_modules(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+class FakeParameterService:
+    """In-memory ``ParameterService`` stand-in — read-only, no DB I/O.
+
+    Injected into ``ProjectionSync`` so a projecting tenant's C2 config-row build
+    does not lazily construct ``ParameterService(DatabaseManager(...))`` (which the
+    unit-test connection guard blocks). ``get_param`` → ``None`` is empty-is-valid.
+    """
+
+    def get_param(self, namespace, key, tenant=None, role=None, user=None):
+        return None
+
+
 class FakeTable:
     def __init__(self):
         self.store: dict[tuple, dict] = {}
@@ -133,10 +145,30 @@ class FakeTable:
         item = self.store.get(self._key_tuple(Key))
         return {"Item": dict(item)} if item is not None else {}
 
-    def query(self, KeyConditionExpression=None):
+    def query(
+        self,
+        KeyConditionExpression=None,
+        ExpressionAttributeNames=None,
+        ExpressionAttributeValues=None,
+        **_kwargs,
+    ):
         # Scope to exactly one partition, mirroring a real Query + LeadingKeys.
-        tenant_id = _tenant_from_condition(KeyConditionExpression)
-        items = [dict(v) for k, v in self.store.items() if k[0] == tenant_id]
+        # Handles both the reader's boto3 Key(...).eq(...) condition object and
+        # the sync's string "#pk = :pk AND begins_with(#sk, :sk_prefix)" form
+        # (scopegrant reconciliation). Single page.
+        if isinstance(KeyConditionExpression, str):
+            values = ExpressionAttributeValues or {}
+            tenant_id = values.get(":pk")
+            sk_prefix = values.get(":sk_prefix")
+        else:
+            tenant_id = _tenant_from_condition(KeyConditionExpression)
+            sk_prefix = None
+        items = [
+            dict(v)
+            for k, v in self.store.items()
+            if k[0] == tenant_id
+            and (sk_prefix is None or str(k[1]).startswith(sk_prefix))
+        ]
         return {"Items": items}
 
 
@@ -284,7 +316,9 @@ def test_projection_reader_isolates_tenants(state):
 
     # Populate the projection table through the REAL builder + sync (T12/T16).
     table = FakeTable()
-    ProjectionSync(_FakeSource(sources), table=table).sync_all()
+    ProjectionSync(
+        _FakeSource(sources), table=table, parameter_service=FakeParameterService()
+    ).sync_all()
 
     reader = ProjectionReader(table=table)
 

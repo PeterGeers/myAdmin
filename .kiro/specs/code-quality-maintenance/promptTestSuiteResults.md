@@ -1,20 +1,13 @@
 # Code Quality Maintenance Prompt (CI Results Only)
 
-Run the "Full Test Suite" GitHub Actions workflow and analyze the results: backend tests, frontend tests, and lint/static analysis. No local scans — purely CI-based.
+Download the artifacts of the last run of the "Full Test Suite" GitHub Actions workflow and analyze the results: backend tests, sam tests, frontend tests, and lint/static analysis. No local scans — purely CI-based. 
 
 ---
 
 ## Prompt
 
-### Step 1: Trigger the Full Test Suite
+### Step 1: Download the artifacts
 
-```bash
-cd /home/peter/projects/myAdmin
-export GH_PAGER=""
-gh workflow run "Full Test Suite" --field scope=both --ref $(git branch --show-current)
-```
-
-Wait for completion (repeat until status shows "completed"):
 
 ```bash
 gh run list --workflow=full-test-suite.yml --limit=1 --json status,conclusion,databaseId 2>&1 | head -5
@@ -131,8 +124,6 @@ rm -rf /tmp/test-reports
 
 Follow all Lessons Learned rules from `prompt.md` in this same directory. Key rules for this workflow:
 
-- **Rule 7**: Always run on the feature branch (`--ref`), not main
-- **Rule 9**: Read CI artifacts (zip reports) — don't scrape log streams
-- **Rule 10**: Commit and push before triggering CI
-- **Rule 11**: Hypothesis flaky tests need `derandomize=True` + `deadline=None`
-- **Rule 13**: Lint failures are blocking — treat with same priority as test failures
+- **Rule 1**: Read CI artifacts (zip reports) — don't scrape log streams
+- **Rule 2**: Hypothesis flaky tests need `derandomize=True` + `deadline=None`
+- **Rule 3**: Lint failures are blocking — treat with same priority as test failures
