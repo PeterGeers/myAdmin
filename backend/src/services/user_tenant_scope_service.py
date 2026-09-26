@@ -105,9 +105,7 @@ class UserTenantScopeService:
 
     # -- read ----------------------------------------------------------------
 
-    def get_scope(
-        self, email: str, administration: str, module: str
-    ) -> dict[str, Any]:
+    def get_scope(self, email: str, administration: str, module: str) -> dict[str, Any]:
         """Return the user's ``scopes`` for ``(email, administration, module)``.
 
         Returns an empty dict ``{}`` when no row exists (absent record = no grant,
@@ -314,8 +312,7 @@ class UserTenantScopeService:
 
         meta: dict[str, dict[str, Any]] = {}
         if not (
-            isinstance(raw_dimensions, Sequence)
-            and not isinstance(raw_dimensions, str)
+            isinstance(raw_dimensions, Sequence) and not isinstance(raw_dimensions, str)
         ):
             return meta
 
@@ -347,7 +344,7 @@ class UserTenantScopeService:
         """Fire the best-effort projection sync; never break the write (R2.4)."""
         try:
             self._enqueue_sync(administration)
-        except Exception as exc:  # noqa: BLE001 — best-effort, never propagate
+        except Exception as exc:
             logger.warning(
                 "user_tenant_scope: enqueue_sync failed for administration %r: %s "
                 "— scope write is unaffected; reconciliation will backstop",

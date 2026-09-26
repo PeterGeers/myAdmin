@@ -114,6 +114,18 @@ def _test_modules(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+class FakeParameterService:
+    """In-memory ``ParameterService`` stand-in — read-only, no DB I/O.
+
+    Injected into ``ProjectionSync`` so a projecting tenant's C2 config-row build
+    does not lazily construct ``ParameterService(DatabaseManager(...))`` (which the
+    unit-test connection guard blocks). ``get_param`` → ``None`` is empty-is-valid.
+    """
+
+    def get_param(self, namespace, key, tenant=None, role=None, user=None):
+        return None
+
+
 class FakeTable:
     """In-memory stand-in for a boto3 DynamoDB Table (the projection table).
 
@@ -154,17 +166,35 @@ class FakeTable:
         self.store[self._key_tuple(Item)] = dict(Item)
         return {}
 
-    def query(self, KeyConditionExpression=None):
-        """Return every item whose partition key equals the queried tenant_id.
+    def query(
+        self,
+        KeyConditionExpression=None,
+        ExpressionAttributeNames=None,
+        ExpressionAttributeValues=None,
+        **_kwargs,
+    ):
+        """Return this tenant's items, mirroring a real ``Query`` + LeadingKeys.
 
-        Mirrors the read side's ``Query`` on the partition key. The
-        ``KeyConditionExpression`` produced by ``Key('tenant_id').eq(tid)``
-        carries the target value in its ``_values``; we extract it so the fake
-        returns exactly that tenant's partition (structurally tenant-scoped).
+        Handles BOTH call styles the projection code uses:
+        * the read side's boto3 ``Key('tenant_id').eq(tid)`` condition object
+          (partition-only), and
+        * the sync's string expression ``"#pk = :pk AND begins_with(#sk,
+          :sk_prefix)"`` used for scopegrant reconciliation, where the partition
+          value is ``:pk`` and the sort-key prefix is ``:sk_prefix``.
+        Structurally tenant-scoped; single page (no ``LastEvaluatedKey``).
         """
-        tenant_id = _partition_value_of(KeyConditionExpression)
+        if isinstance(KeyConditionExpression, str):
+            values = ExpressionAttributeValues or {}
+            tenant_id = values.get(":pk")
+            sk_prefix = values.get(":sk_prefix")
+        else:
+            tenant_id = _partition_value_of(KeyConditionExpression)
+            sk_prefix = None
         items = [
-            dict(v) for (pk, _sk), v in self.store.items() if pk == tenant_id
+            dict(v)
+            for (pk, sk), v in self.store.items()
+            if pk == tenant_id
+            and (sk_prefix is None or str(sk).startswith(sk_prefix))
         ]
         return {"Items": items}
 
@@ -363,7 +393,9 @@ def test_projection_converges_after_a_source_change(
     target_admin = admins[target_index % len(admins)]
 
     table = FakeTable()
-    sync = ProjectionSync(FakeSource(sources), table=table)
+    sync = ProjectionSync(
+        FakeSource(sources), table=table, parameter_service=FakeParameterService()
+    )
     provider: FakeSource = sync._source  # the same mutable provider
 
     # In-process trigger over the real sync (T21 + T16). enqueue() drains and

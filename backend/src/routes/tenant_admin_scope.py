@@ -152,14 +152,18 @@ def _resolve_tenant_and_target(username: str):
 
     # Verify the caller has access to this tenant.
     if tenant not in user_tenants:
-        return None, None, (
-            jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
+        return (
+            None,
+            None,
+            (
+                jsonify(
+                    {
+                        "error": "Access denied",
+                        "message": f"You do not have access to tenant: {tenant}",
+                    }
+                ),
+                403,
             ),
-            403,
         )
 
     # Resolve the target user and verify they belong to this tenant.
@@ -174,19 +178,22 @@ def _resolve_tenant_and_target(username: str):
         return None, None, (jsonify({"error": f"User not found: {username}"}), 404)
 
     if not target_user_tenants or tenant not in target_user_tenants:
-        return None, None, (
-            jsonify(
-                {
-                    "error": "User not in this tenant",
-                    "message": f"User {username} does not have access to tenant {tenant}",
-                }
+        return (
+            None,
+            None,
+            (
+                jsonify(
+                    {
+                        "error": "User not in this tenant",
+                        "message": f"User {username} does not have access to tenant {tenant}",
+                    }
+                ),
+                403,
             ),
-            403,
         )
 
     target_email = (
-        get_user_attribute(user_response.get("UserAttributes", []), "email")
-        or username
+        get_user_attribute(user_response.get("UserAttributes", []), "email") or username
     )
     return tenant, target_email, None
 
@@ -245,9 +252,7 @@ def set_user_scope(username, module, user_email, user_roles) -> ResponseReturnVa
     data = request.get_json(silent=True) or {}
     scopes = data.get("scopes")
     if scopes is None:
-        return jsonify(
-            {"success": False, "error": "scopes is required"}
-        ), 400
+        return jsonify({"success": False, "error": "scopes is required"}), 400
 
     service = _build_scope_service()
     try:
@@ -393,10 +398,9 @@ def resync_projection(user_email, user_roles) -> ResponseReturnValue:
     try:
         sync = get_default_trigger()._resolve_sync()
         result = sync.sync_administration(tenant)
-    except Exception as e:  # noqa: BLE001 — explicit action: surface the failure
+    except Exception as e:
         print(
-            f"AUDIT: Projection resync FAILED for tenant {tenant} "
-            f"by {user_email}: {e}",
+            f"AUDIT: Projection resync FAILED for tenant {tenant} by {user_email}: {e}",
             flush=True,
         )
         return jsonify(

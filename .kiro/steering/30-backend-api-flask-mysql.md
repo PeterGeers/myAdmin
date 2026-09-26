@@ -92,3 +92,17 @@ except Exception as e:
 - GET params: `request.args.get('param', default)`
 - POST/PUT body: `request.get_json()`
 - Always validate required fields before processing
+
+## Change-With-Tests Contract (product code ⇄ allocated tests)
+
+**When you change behavior in a route/service, update its allocated test(s) in the SAME change.** A behavioral edit that leaves the paired test asserting the old behavior is incomplete — it passes locally by luck and breaks the nightly Full Test Suite days later (this is the single most common recurring CI failure; see `.kiro/specs/code-quality-maintenance/`).
+
+Applies to any observable change: output/return shape, parsed values, an import/export FILE FORMAT (e.g. the Airbnb CSV parser), an API response contract, an error/abort path, or a fixture/sample file the tests read.
+
+Required steps for every behavior change:
+1. **Find the allocated test(s).** Naming: `src/services/foo.py` → `tests/unit/test_foo*.py`; `src/routes/foo.py` → `tests/**/test_foo*.py`. Also grep the test tree for the changed symbol / format / field name — a change often has *property* tests (`*_props.py`), *preservation* tests, and `*-bug` tests that encode intended behavior.
+2. **Update the test AND any committed fixtures/samples** to the intended new behavior, in the same change. Never point a test at a git-ignored scratch file (e.g. `.agent-output/`) — commit fixtures under `backend/tests/fixtures/`.
+3. **Do not weaken or delete assertions to go green.** Align them with the deliberate new behavior. If two tests now contradict each other (one asserts old, one asserts new), STOP and surface the conflict — do not pick a side silently.
+4. **Run the paired test(s)** before considering the change done: `python -m pytest <paths> -q`.
+
+The `test-sync-on-source-change` hook (`.kiro/hooks/`) reminds you of this on every product-file save; the rule here is the source of truth even when the hook does not fire.

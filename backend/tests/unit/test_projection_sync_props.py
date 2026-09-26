@@ -94,6 +94,20 @@ def _test_modules(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+class FakeParameterService:
+    """In-memory ``ParameterService`` stand-in — read-only, no DB I/O.
+
+    ``ProjectionSync`` lazily builds ``ParameterService(DatabaseManager(...))`` for
+    its ``parameter_service`` seam when a *projecting* tenant reaches the C2 config
+    row build. Under the unit-test connection guard that real ``DatabaseManager``
+    construction raises. Injecting this fake keeps the sync hermetic. ``get_param``
+    returns ``None`` (empty-is-valid): the C2 builders still emit well-formed rows.
+    """
+
+    def get_param(self, namespace, key, tenant=None, role=None, user=None):
+        return None
+
+
 class FakeTable:
     """In-memory stand-in for a boto3 DynamoDB Table (the projection table).
 
@@ -133,6 +147,32 @@ class FakeTable:
                     raise _conditional_check_failed()
         self.store[self._key_tuple(Item)] = dict(Item)
         return {}
+
+    def query(
+        self,
+        KeyConditionExpression=None,
+        ExpressionAttributeNames=None,
+        ExpressionAttributeValues=None,
+        **_kwargs,
+    ):
+        """Tenant-scoped Query, single page.
+
+        Supports the string-expression form the sync uses for scopegrant
+        reconciliation — ``"#pk = :pk AND begins_with(#sk, :sk_prefix)"`` with the
+        partition value in ``:pk`` and the SK prefix in ``:sk_prefix`` — returning
+        only this tenant's items whose sort key begins with that prefix. All items
+        fit in one page, so no ``LastEvaluatedKey`` is returned.
+        """
+        values = ExpressionAttributeValues or {}
+        pk = values.get(":pk")
+        sk_prefix = values.get(":sk_prefix")
+        items = [
+            dict(v)
+            for (item_pk, item_sk), v in self.store.items()
+            if item_pk == pk
+            and (sk_prefix is None or str(item_sk).startswith(sk_prefix))
+        ]
+        return {"Items": items}
 
 
 def _conditional_check_failed():
@@ -312,7 +352,9 @@ def test_sync_is_write_only_to_projection_and_zero_mysql_writes(state, run_steps
     db = SpyDb(tenants, modules_by_admin, roles_by_admin)
     provider = DatabaseSourceProvider(db)
     table = FakeTable()
-    sync = ProjectionSync(provider, table=table)
+    sync = ProjectionSync(
+        provider, table=table, parameter_service=FakeParameterService()
+    )
 
     # Drive the arbitrary sequence of sync runs.
     for kind, arg in run_steps:
@@ -385,7 +427,9 @@ def test_sync_via_fake_source_writes_only_projection_table(state, run_steps):
             return sources.get(administration)
 
     table = FakeTable()
-    sync = ProjectionSync(FakeSource(), table=table)
+    sync = ProjectionSync(
+        FakeSource(), table=table, parameter_service=FakeParameterService()
+    )
 
     for kind, arg in run_steps:
         if kind == "all" or not admins:

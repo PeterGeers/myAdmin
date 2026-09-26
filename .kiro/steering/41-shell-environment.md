@@ -156,9 +156,15 @@ task-generated `.log`/`.txt` output can trigger per-file read approvals. Minimis
   stdout directly (append the `<<<DONE marker=$?>>>` marker) instead of
   `cmd > out.log` then reading `out.log`. Most verification (pytest summaries, build
   output) needs no file at all — judge success from the streamed output.
-- **When a scratch file is genuinely needed, write it under `.agent-output/`.** That
-  directory is the one conventional, git-ignored (`.gitignore`) home for task logs /
-  command dumps / temporary output. Keeping scratch in one known place avoids
+- **When a scratch file is genuinely needed, write it under the repo-root
+  `.agent-output/`.** The canonical location is
+  `/home/peter/projects/myAdmin/.agent-output/` for the bash/terminal tool and
+  `\\wsl.localhost\Ubuntu\home\peter\projects\myAdmin\.agent-output\` for file
+  tools — always resolve it against the repo root, never against the current
+  working directory (a relative `.agent-output/` from inside `backend/` lands in
+  the wrong place, e.g. a stray `backend/.agent-output/`). It is the one
+  conventional, git-ignored home for task logs / command dumps / temporary output
+  (`.gitignore` line: `.agent-output/`). Keeping scratch in one known place avoids
   new-path surprises and keeps logs out of commits. Clean it up when done.
 - **Keep approvals meaningful for sensitive files.** Reads of `.env`, credential stores,
   keys, and anything under `**/*secret*` / `**/*credential*` should still prompt — the

@@ -103,25 +103,37 @@ const waitForRows = async () => {
 };
 
 /**
- * Find the read-only region SCOPE BADGE (<span>) for a value. A region value now
- * appears twice — as a Badge <span> in the row AND as an <option> in the scope
- * enum-filter — so we disambiguate by tag.
+ * Find the read-only region SCOPE cell for a value. The region renders as a
+ * plain table cell (`<td>`) — the purple `<Badge>` was intentionally removed
+ * (commit ea6e4ab). The same value ALSO appears as an `<option>` in the scope
+ * enum-filter `<select>`, so we disambiguate by picking the table-cell node.
  */
 const regionBadge = (value: string): HTMLElement => {
   const match = screen
     .getAllByText(value)
-    .find((el) => el.tagName.toLowerCase() === 'span');
-  if (!match) throw new Error(`No region badge <span> for "${value}"`);
+    .find((el) => el.tagName.toLowerCase() === 'td');
+  if (!match) throw new Error(`No region cell <td> for "${value}"`);
   return match;
 };
 
-/** Read the member-name cell order from the rendered table body. */
+/**
+ * Read the member-name column order from the rendered table body. The compact
+ * table now leads with member_number (Lidnummer, commit 3dde030), so the name is
+ * no longer the first cell — pick the cell whose text is one of the known member
+ * names rather than assuming a fixed column index.
+ */
 const nameColumnOrder = (): string[] => {
   const rows = screen.getAllByRole('row');
   // row[0] is the header row; data rows follow.
   return rows
     .slice(1)
-    .map((r) => within(r).getAllByRole('cell')[0]?.textContent ?? '')
+    .map(
+      (r) =>
+        within(r)
+          .getAllByRole('cell')
+          .map((c) => c.textContent ?? '')
+          .find((t) => ['Jan', 'Piet', 'Marie'].includes(t)) ?? '',
+    )
     .filter((t) => ['Jan', 'Piet', 'Marie'].includes(t));
 };
 

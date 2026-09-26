@@ -12,7 +12,14 @@ import functools
 import json
 from typing import Any
 
-from flask import jsonify, request
+# NOTE: Flask is intentionally NOT imported at module scope. This module is part of
+# the `auth` package, which is re-exported by `auth/__init__.py` and vendored onto
+# the Flask-free SAM/Lambda plane (via `sam/pretokengen/handler.py` importing
+# `auth.cognito_utils`). A top-level `from flask import ...` here made the entire
+# `auth` package un-importable without Flask, collapsing the SAM test suite
+# (ModuleNotFoundError: No module named 'flask'). `jsonify`/`request` are only ever
+# needed at request time inside the `tenant_required` decorator, so they are
+# imported lazily there. See spec full-test-suite-fixes-2026-09-26 task C1.
 
 
 def get_user_tenants(jwt_token: str) -> list[str]:
@@ -224,6 +231,11 @@ def tenant_required(allow_sysadmin: bool = False):
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
+            # Flask is imported lazily (request-time only) so that importing this
+            # module — and therefore the whole `auth` package — does not require
+            # Flask on the SAM/Lambda plane. See the module-level note (task C1).
+            from flask import jsonify, request
+
             # Get user_roles from kwargs (injected by cognito_required)
             user_roles = kwargs.get("user_roles", [])
 

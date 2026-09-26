@@ -37,6 +37,8 @@ jobs:
         working-directory: backend
         run: |
           pip install -r requirements.txt
+          # ruff pin MUST match backend/requirements-test.txt (the canonical source).
+          # Bump both together, deliberately — a floating ruff can turn lint red overnight.
           pip install ruff==0.16.5 vulture
 
       - name: Create reports directory
@@ -226,6 +228,12 @@ jobs:
         working-directory: sam
         run: |
           pip install -r shared/requirements.txt
+          # boto3 is provided by the AWS Lambda runtime by default (so it is not in
+          # shared/requirements.txt, the ship-to-Lambda layer manifest), but the CI
+          # test runner does NOT get Lambda's bundled boto3. The SAM handlers import
+          # services.dynamodb_client (-> boto3), so install it explicitly here.
+          # Pinned to match backend/requirements.txt.
+          pip install boto3==1.42.30
           pip install pytest pytest-html hypothesis
 
       - name: Run all SAM tests

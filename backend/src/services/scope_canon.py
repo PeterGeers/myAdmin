@@ -38,7 +38,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-__all__ = ["scope_canon", "CANONICAL_SEPARATOR"]
+__all__ = ["CANONICAL_SEPARATOR", "scope_canon"]
 
 #: The single separator every space / ``-`` / ``/`` run folds to.
 CANONICAL_SEPARATOR = " "
@@ -63,9 +63,7 @@ def scope_canon(value: object) -> str:
     decomposed = unicodedata.normalize("NFKD", value)
 
     # 2. Strip combining marks (category "Mn") — the diacritic-fold.
-    without_marks = "".join(
-        ch for ch in decomposed if unicodedata.category(ch) != "Mn"
-    )
+    without_marks = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
 
     # 3. Casefold (locale-independent aggressive lowercasing).
     folded = without_marks.casefold()

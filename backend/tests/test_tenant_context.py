@@ -332,18 +332,14 @@ class TestTenantRequiredDecorator:
                 'Authorization': token
             }
         ):
-            # Mock user_roles in kwargs
-            with patch('auth.tenant_context.request') as mock_request:
-                mock_request.headers.get.side_effect = lambda key, default='': {
-                    'X-Tenant': 'GoodwinSolutions',
-                    'Authorization': token
-                }.get(key, default)
-                
-                # This would normally be called by the decorator
-                # Testing the logic separately
-                from flask import request
-                tenant = get_current_tenant(request)
-                assert tenant == 'GoodwinSolutions'
+            # The decorator resolves the tenant from the active Flask request
+            # context. `tenant_context` imports Flask lazily (inside the decorator)
+            # so that the `auth` package stays importable on the Flask-free SAM
+            # plane — there is therefore no module-level `auth.tenant_context.request`
+            # to patch; use the real request context instead.
+            from flask import request
+            tenant = get_current_tenant(request)
+            assert tenant == 'GoodwinSolutions'
 
 
 if __name__ == '__main__':
