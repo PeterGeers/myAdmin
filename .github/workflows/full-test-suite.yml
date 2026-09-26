@@ -8,21 +8,21 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Which tests to run"
+        description: "Which plane(s) to run"
         required: true
-        default: "both"
+        default: "all"
         type: choice
         options:
-          - both
-          - backend
-          - frontend
-          - sam
+          - all # backend + sam + frontend (everything)
+          - backend # backend Flask plane only (lint + tests) — NOT sam
+          - sam # SAM module plane only (tests + report-only lint)
+          - frontend # frontend only (tests + report-only lint/typecheck)
 
 jobs:
   backend-lint:
     name: Backend Lint & Static Analysis
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' }}
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'all' || inputs.scope == 'backend' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -149,7 +149,7 @@ jobs:
   backend-tests:
     name: Backend Full Test Suite
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' }}
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'all' || inputs.scope == 'backend' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -213,9 +213,10 @@ jobs:
   sam-tests:
     name: SAM Module-Plane Test Suite
     runs-on: ubuntu-latest
-    # Runs on schedule, and for scope both/backend (SAM is a backend-plane suite)
-    # OR the dedicated `sam` scope so the module plane can be dispatched on its own.
-    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' || inputs.scope == 'sam' }}
+    # Runs on the nightly schedule, on scope `all`, or on the dedicated `sam`
+    # scope. NOTE: scope `backend` no longer runs SAM — the module plane is
+    # separately selectable (use `sam`, or `all` for everything).
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'all' || inputs.scope == 'sam' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -237,7 +238,9 @@ jobs:
           # services.dynamodb_client (-> boto3), so install it explicitly here.
           # Pinned to match backend/requirements.txt.
           pip install boto3==1.42.30
-          pip install pytest pytest-html hypothesis
+          # ruff pin MUST match backend/requirements-test.txt (canonical). Used for the
+          # REPORT-ONLY SAM lint below — SAM shares the backend ruff policy (backend/ruff.toml).
+          pip install pytest pytest-html hypothesis ruff==0.16.5
 
       - name: Run all SAM tests
         working-directory: sam
@@ -249,6 +252,35 @@ jobs:
             --junitxml=reports/junit-results.xml \
             --html=reports/test-report.html --self-contained-html \
             2>&1 | tee reports/test-output.txt
+
+      # REPORT-ONLY (non-blocking): SAM has never been ruff-linted. Surface the
+      # backlog as an artifact without failing the job. Flip to blocking in a
+      # follow-up once the findings are cleaned up. Uses the shared backend ruff
+      # policy so SAM and the Flask plane stay consistent.
+      - name: Ruff lint (SAM, report-only)
+        if: always()
+        working-directory: sam
+        run: |
+          mkdir -p reports/lint
+          echo "## SAM Ruff Lint Report (REPORT-ONLY — non-blocking)" > reports/lint/ruff-lint.md
+          echo "" >> reports/lint/ruff-lint.md
+          echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/lint/ruff-lint.md
+          echo "Ruff version: $(ruff --version)" >> reports/lint/ruff-lint.md
+          echo "Config: backend/ruff.toml (shared policy)" >> reports/lint/ruff-lint.md
+          echo "" >> reports/lint/ruff-lint.md
+          ruff check . --config ../backend/ruff.toml --output-format=concise > reports/lint/ruff-errors.txt 2>&1 || true
+          if [ -s reports/lint/ruff-errors.txt ] && ! grep -q "^All checks passed" reports/lint/ruff-errors.txt; then
+            echo "### Summary by Rule" >> reports/lint/ruff-lint.md
+            echo '```' >> reports/lint/ruff-lint.md
+            grep -oP ':\s+\K[A-Z]+[0-9]+' reports/lint/ruff-errors.txt | sort | uniq -c | sort -rn >> reports/lint/ruff-lint.md
+            echo '```' >> reports/lint/ruff-lint.md
+            echo "" >> reports/lint/ruff-lint.md
+            echo "Total findings: $(wc -l < reports/lint/ruff-errors.txt)" >> reports/lint/ruff-lint.md
+          else
+            echo "✅ No ruff findings." >> reports/lint/ruff-lint.md
+          fi
+          # Report-only: never fail the step.
+          ruff format --check . --config ../backend/ruff.toml > reports/lint/ruff-format-output.txt 2>&1 || true
 
       - name: Generate summary
         if: always()
@@ -276,7 +308,7 @@ jobs:
   frontend-tests:
     name: Frontend Full Test Suite
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'frontend' }}
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'all' || inputs.scope == 'frontend' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -308,6 +340,37 @@ jobs:
           VITE_REDIRECT_SIGN_IN: http://localhost:3000/
           VITE_REDIRECT_SIGN_OUT: http://localhost:3000/
           VITE_DOCS_URL: /docs
+
+      # REPORT-ONLY (non-blocking): the frontend has no CI eslint/typecheck gate
+      # yet. Surface findings as an artifact without failing the job; flip to
+      # blocking in a follow-up once clean.
+      - name: ESLint (report-only)
+        if: always()
+        working-directory: frontend
+        run: |
+          mkdir -p reports/lint
+          echo "## Frontend ESLint Report (REPORT-ONLY — non-blocking)" > reports/lint/eslint.md
+          echo "" >> reports/lint/eslint.md
+          echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/lint/eslint.md
+          echo "" >> reports/lint/eslint.md
+          echo '```' >> reports/lint/eslint.md
+          npx eslint src >> reports/lint/eslint.md 2>&1 || true
+          echo '```' >> reports/lint/eslint.md
+
+      - name: TypeScript typecheck (tsc --noEmit, report-only)
+        if: always()
+        working-directory: frontend
+        run: |
+          mkdir -p reports/lint
+          echo "## Frontend TypeScript Typecheck (REPORT-ONLY — non-blocking)" > reports/lint/tsc.md
+          echo "" >> reports/lint/tsc.md
+          echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/lint/tsc.md
+          echo "tsc version: $(npx tsc --version)" >> reports/lint/tsc.md
+          echo "" >> reports/lint/tsc.md
+          echo '```' >> reports/lint/tsc.md
+          # tsconfig.json already sets noEmit; -p keeps the same include/paths as the build.
+          npx tsc --noEmit -p tsconfig.json >> reports/lint/tsc.md 2>&1 || true
+          echo '```' >> reports/lint/tsc.md
 
       - name: Generate summary
         if: always()
