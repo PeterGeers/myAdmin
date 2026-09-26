@@ -16,6 +16,7 @@ on:
           - both
           - backend
           - frontend
+          - sam
 
 jobs:
   backend-lint:
@@ -212,7 +213,9 @@ jobs:
   sam-tests:
     name: SAM Module-Plane Test Suite
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' }}
+    # Runs on schedule, and for scope both/backend (SAM is a backend-plane suite)
+    # OR the dedicated `sam` scope so the module plane can be dispatched on its own.
+    if: ${{ github.event_name == 'schedule' || inputs.scope == 'both' || inputs.scope == 'backend' || inputs.scope == 'sam' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
