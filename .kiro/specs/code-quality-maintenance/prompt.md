@@ -1,301 +1,256 @@
-# Code Quality Maintenance Prompt
+# Code Quality Improvement Prompt
 
-## add item to add code reduction, dead code and duplicate code prevention
+A **local, source-focused** code-quality scan — no CI, no test-suite execution. It looks
+for ways to make the codebase smaller and more consistent: **code reduction, duplicate
+code, dead code, over-long files, and the (non-)use of the project's own frameworks /
+reusable building blocks** (people re-implementing something a shared helper, hook, or
+abstraction already provides).
 
-Paste this into Kiro to run the full analysis and generate fix tasks automatically.
+> **Scope split.** Running the CI **Full Test Suite** and triaging test/lint failures is a
+> SEPARATE task — see `promptTestSuiteResults.md` in this same directory. This prompt does
+> NOT trigger workflows, download CI artifacts, or analyze test failures. It reads the
+> source tree and produces a code-quality improvement spec.
+
+Paste this into Kiro to run the analysis and generate improvement tasks automatically.
 
 ---
 
 ## Prompt
 
-Run the "Full Test Suite" GitHub Actions workflow for both backend and frontend. While it runs, perform a local code quality scan. Then combine all findings into an actionable spec.
+Perform a local code-quality scan of the repository and combine the findings into an
+actionable spec. Do NOT run the test suite or CI — this is a static, source-level review.
 
-### Step 1: Trigger the Full Test Suite
+Analyze the following dimensions. For each, capture concrete file paths + line counts /
+match locations so the generated tasks are directly actionable.
 
-```bash
-cd /home/peter/projects/myAdmin
-gh workflow run "Full Test Suite" --field scope=both --ref $(git branch --show-current)
-```
+### 1. File length (split candidates)
 
-Wait for completion:
-
-```bash
-# Poll until completed
-gh run list --workflow=full-test-suite.yml --limit=1 --json status,conclusion,databaseId 2>&1 | head -5
-```
-
-Download the artifacts:
+Find over-long source files — they are the usual home of duplication and dead code.
 
 ```bash
-RUN_ID=$(gh run list --workflow=full-test-suite.yml --limit=1 --json databaseId --jq '.[0].databaseId' 2>&1 | head -1)
-gh run download $RUN_ID --dir /tmp/test-reports
+# Backend Python + frontend TS/TSX over 500 lines (flag > 1000 as critical)
+find backend/src frontend/src -type f \( -name '*.py' -o -name '*.ts' -o -name '*.tsx' \) \
+  -not -path '*/node_modules/*' -not -path '*/__pycache__/*' \
+  -exec wc -l {} + | sort -rn | awk '$1 > 500 {print}' | head -60
+
+# SAM plane too (module handlers grow quietly)
+find sam -type f -name '*.py' -not -path '*/node_modules/*' -not -path '*/__pycache__/*' \
+  -exec wc -l {} + | sort -rn | awk '$1 > 500 {print}' | head -40
 ```
 
-### Step 2: Analyze test failures from downloaded reports
+Record: files 500–1000 lines, files > 1000 lines (critical). For each large file, note
+WHAT could be extracted (a cohesive helper, a sub-module, repeated blocks).
 
-Read the actual report files — do NOT parse log streams or use `--log`:
+### 2. Dead code
 
 ```bash
-# Backend test summary
-cat /tmp/test-reports/backend-test-reports/test-output.txt | grep -E "(FAILED|PASSED|ERROR|passed|failed)" | tail -20
+# Backend + SAM
+vulture backend/src/ backend/vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
+vulture sam/ --min-confidence 80
 
-# Frontend test summary
-cat /tmp/test-reports/frontend-test-reports/SUMMARY.md
-
-# Backend failures detail
-cat /tmp/test-reports/backend-test-reports/test-output.txt | grep "FAILED"
+# Frontend: unused exports / files (heuristic — review before deleting)
+# Look for exported symbols never imported elsewhere, and orphaned components.
+grep -rn "export " frontend/src/ --include='*.ts' --include='*.tsx' | wc -l
 ```
 
-Extract:
+Record each finding with confidence. Vulture at ≥ 80 is high-signal; still verify a symbol
+is not referenced dynamically (getattr, string dispatch, route registration) before proposing removal.
 
-- Total tests passed / failed / errored per suite
-- List of each failing test with error type (Flaky, AssertionError, ImportError, etc.)
-- Group failures by root cause
+### 3. Duplicate / near-duplicate code (code reduction)
 
-### Step 3: Analyze Backend Lint & Static Analysis
-
-The CI now generates a downloadable `backend-lint-reports` artifact. Read it:
+Find repeated logic that should be collapsed into one shared implementation.
 
 ```bash
-# Reports are in /tmp/test-reports/backend-lint-reports/
-cat /tmp/test-reports/backend-lint-reports/SUMMARY.md
-cat /tmp/test-reports/backend-lint-reports/ruff-lint.md
-cat /tmp/test-reports/backend-lint-reports/ruff-format.md
-cat /tmp/test-reports/backend-lint-reports/vulture.md
+# Repeated function/const signatures (candidates for a shared helper)
+grep -rhoP '^\s*(def|async def)\s+\w+' backend/src sam --include='*.py' | sort | uniq -c | sort -rn | head -30
+grep -rhoP 'export (async )?function \w+|export const \w+\s*=' frontend/src --include='*.ts' --include='*.tsx' | sort | uniq -c | sort -rn | head -30
+
+# Copy-pasted blocks: look for identical multi-line snippets (e.g. the same try/except
+# envelope, the same fetch+unwrap, the same date-format). Grep a distinctive line and see
+# how many files repeat it.
 ```
 
-If the lint artifact is missing (older workflow version), fall back to log parsing:
+Record: the duplicated pattern, every location it appears, and the single place it should
+live (an existing helper if one exists — see §4 — or a new shared one).
+
+### 4. (Non-)use of frameworks / reusable building blocks  ← primary focus
+
+The project ships shared abstractions; new code should USE them rather than re-implement.
+Flag hand-rolled code that bypasses an existing, documented building block. Check the
+project's own conventions (steering `37-shared-building-blocks.md`, `30-backend-api-flask-mysql.md`,
+`31-backend-database-flask-mysql.md`, `32-frontend-ui.md`) for the canonical helpers, then grep for bypasses:
 
 ```bash
-LINT_JOB_ID=$(gh run view $RUN_ID --json jobs --jq '.jobs[] | select(.name=="Backend Lint & Static Analysis") | .databaseId' 2>&1 | head -1)
-gh run view $RUN_ID --log --job=$LINT_JOB_ID 2>&1 | grep "##\[error\]" | sed 's/.*##\[error\]//' | cut -d: -f4 | sort | uniq -c | sort -rn > /tmp/test-reports/ruff-summary.txt
-cat /tmp/test-reports/ruff-summary.txt
+# Backend DB: raw mysql.connector instead of DatabaseManager / dialect_helpers
+grep -rn "import mysql.connector\|mysql\.connector\.connect" backend/src --include='*.py' \
+  | grep -v "database.py\|scalability_manager.py"
+# Raw SQL string-interpolation instead of parameterized %s (injection + bypass smell)
+grep -rn "execute(.*f\"\|execute(.*%\s*(" backend/src --include='*.py' | head
+
+# Backend auth: routes NOT using the shared decorators (@cognito_required/@tenant_required/@module_required)
+grep -rLn "cognito_required\|tenant_required\|module_required" backend/src/routes --include='*.py'
+
+# Frontend data fetching: direct axios/fetch instead of the shared service/api layer
+grep -rn "axios\.\|fetch(" frontend/src --include='*.ts' --include='*.tsx' \
+  | grep -v "src/services/\|apiService\|test"
+# Frontend filters/tables: bespoke table/filter code instead of the shared framework
+#   (GenericFilter / the Table Filter Framework / shared hooks) — grep for local re-impls.
+grep -rn "useState.*filter\|\.filter(.*includes(" frontend/src --include='*.tsx' | head
+
+# Frontend UI: hardcoded values instead of the Chakra theme / shared components
+grep -rn "#[0-9a-fA-F]\{6\}\|colorScheme=" frontend/src --include='*.tsx' | head
 ```
 
-Include in the spec:
+For each hit, decide: is this a legitimate low-level site (the helper's own
+implementation, an intentional exception) or a bypass that should be migrated to the shared
+building block? Record the bypasses with the specific building block they should adopt.
 
-- Total ruff errors by rule code
-- Which rules are auto-fixable vs manual
-- Whether it's a version mismatch (local vs CI ruff version)
-
-### Step 4: Local code quality scan
-
-Run these locally and capture output:
-
-1. **File length**: Find all `.py` files in `backend/src/`, `backend/src/routes/`, `backend/src/services/` and all `.ts`/`.tsx` files in `frontend/src/` exceeding 500 lines. Flag files over 1000 lines as critical.
-
-2. **Dead code**: Run `vulture backend/src/ backend/vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/` and capture findings.
-
-3. **Missing tests**: Find backend modules (`backend/src/*.py`, `backend/src/routes/*.py`, `backend/src/services/*.py`) without corresponding test files. Find frontend components without matching test files.
-
-4. **Type safety**: Check for Python functions in services/routes missing type hints. Check for TypeScript `any` usage in `frontend/src/`.
-
-5. **Ruff version alignment**: Compare local `ruff --version` with CI version (check workflow file or CI logs). If mismatched, note in findings.
-
-6. **Mobile compliance**: Verify that all frontend functions/components are optimized for mobile devices unless a component is explicitly marked as not requiring it. Treat any function/component that renders UI, handles user interaction, or affects layout as requiring mobile optimization. Flag violations where:
-
-   - Fixed pixel widths/heights that don't adapt to small viewports (e.g. `width: 1200px`, non-responsive `min-width`) instead of responsive units (`%`, `rem`, `vw`, `clamp()`) or responsive breakpoints.
-   - Missing responsive breakpoints — components with desktop-only layouts and no mobile/tablet handling (no media queries, no responsive Tailwind/MUI breakpoints like `sm:`/`md:` or `xs`/`sm` props).
-   - Touch targets smaller than 44x44px (buttons, links, icons meant to be tapped).
-   - Horizontal overflow risks — wide tables, grids, or flex rows without `overflow-x` handling or a mobile stacked/card fallback.
-   - Hover-only interactions with no touch/tap equivalent (e.g. tooltips or menus that only appear on `:hover`).
-   - Non-responsive font sizes or spacing hardcoded for desktop.
-   - Viewport/meta issues — check `index.html` has `<meta name="viewport" content="width=device-width, initial-scale=1">`.
-
-   A function/component is **exempt** only if it carries an explicit marker that it is not required to be mobile-optimized — e.g. a `// mobile-exempt:` comment, a `data-mobile-exempt` attribute, or an entry in a documented exemption list. Record exempt items separately (do not count them as violations) so reviewers can audit the exemptions.
-
-   Suggested scan:
-
-   ```bash
-   # Fixed pixel widths (heuristic — review matches)
-   grep -rn "width:\s*[0-9]\{3,\}px\|minWidth:\s*[0-9]\{3,\}\|min-width:\s*[0-9]\{3,\}px" frontend/src/ --include="*.ts" --include="*.tsx" --include="*.css" | grep -vi "mobile-exempt"
-
-   # Components with no responsive breakpoints (no media queries / no responsive props)
-   grep -rLn "@media\|sm:\|md:\|lg:\|breakpoints\|useMediaQuery" frontend/src/ --include="*.tsx" | grep -vi "mobile-exempt"
-
-   # Hover-only interactions
-   grep -rn ":hover" frontend/src/ --include="*.css" --include="*.tsx" | grep -vi "mobile-exempt"
-
-   # Explicitly exempt items (record separately, do not flag)
-   grep -rn "mobile-exempt" frontend/src/
-   ```
-
-Exclude: test files, `.venv/`, `node_modules/`, `__pycache__/`, `build/`, `dist/`, `.hypothesis/`, `mysql_data/`.
-
-### Step 5: Generate the spec
-
-Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YYYY-MM-DD/` (use today's date) containing:
-
-**requirements.md**: Summary of all findings with counts:
-
-- Test failures: X backend, Y frontend (grouped by root cause)
-- Lint failures: N ruff errors (grouped by rule code, auto-fixable vs manual)
-- File length violations: N files over 500 lines, M over 1000
-- Dead code: N items
-- Missing test coverage: N modules without tests
-- Type safety: N issues
-- Mobile compliance: N components/functions not mobile-optimized (plus M explicitly exempt, listed separately)
-- Stale documentation: N outdated files
-
-**tasks.md**: Actionable fix tasks grouped by priority:
-
-1. **Critical** — test import errors and broken fixtures (tests that can't even collect)
-2. **High** — test assertion failures (tests that run but fail), ruff lint errors (CI-blocking)
-3. **Medium** — file length violations over 1000 lines, dead code removal
-4. **Low** — missing test coverage, type hints, stale documentation, files 500-1000 lines
-
-Mobile compliance violations should be prioritized by user impact: **High** for components that are unusable on mobile (horizontal overflow, touch targets too small, no responsive layout on primary user flows), **Medium** for degraded-but-usable issues (hover-only interactions with keyboard/tap fallback missing, non-responsive spacing), **Low** for cosmetic issues on secondary/admin-only screens.
-
-Each task should have: file path, specific action, estimated effort (S/M/L).
-
-Do NOT fix the issues — only generate the spec with the analysis and task list.
-
-### Step 6: Compare with previous run
-
-Check `.kiro/specs/code-quality-maintenance/` for the most recent previous spec (e.g. `code-quality-fixes-YYYY-MM-DD/`). If one exists:
-
-1. Compare failure counts — are they going down?
-2. Identify **recurring failures** that were "fixed" last time but reappear. Flag these prominently.
-3. Identify **new failures introduced by the previous fix sprint** (regression from refactoring).
-4. Add a "Lessons / Recurring Issues" section to requirements.md noting patterns that keep coming back.
-
-### Step 7: Clean up downloaded reports
-
-After generating the spec, remove temporary files:
+### 5. Type safety
 
 ```bash
-rm -rf /tmp/test-reports
+# Frontend: explicit `any` in production code (not tests)
+grep -rn ":\s*any\b\|as any\|<any>" frontend/src --include='*.ts' --include='*.tsx' \
+  | grep -v "__tests__\|\.test\." | head -40
+
+# Backend: public service/route functions missing return/param type hints (heuristic)
+grep -rn "def \w\+(" backend/src/services backend/src/routes --include='*.py' \
+  | grep -v "->" | head -40
 ```
+
+### 6. Mobile compliance (frontend)
+
+Every frontend function/component that renders UI, handles interaction, or affects layout
+must be mobile-optimized unless it carries an explicit exemption marker. Flag:
+
+- Fixed pixel widths/heights that don't adapt (`width: 1200px`, non-responsive `min-width`) instead of responsive units (`%`, `rem`, `vw`, `clamp()`) or breakpoints.
+- Missing responsive breakpoints — desktop-only layouts with no mobile/tablet handling (no media queries, no Tailwind `sm:`/`md:`, no MUI/Chakra `{ base, md }` props / `useBreakpointValue`).
+- Touch targets smaller than 44x44px.
+- Horizontal-overflow risks — wide tables/grids/flex rows without `overflow-x` handling or a stacked/card mobile fallback.
+- Hover-only interactions with no touch/tap equivalent.
+- Non-responsive font sizes / spacing hardcoded for desktop.
+- Viewport meta — confirm `index.html` has `<meta name="viewport" content="width=device-width, initial-scale=1">`.
+
+A component is **exempt** only with an explicit marker — a `// mobile-exempt: <reason>` comment,
+a `data-mobile-exempt` attribute, or a documented exemption-list entry. Record exempt items
+separately (do not count them as violations).
+
+```bash
+# Fixed pixel widths (heuristic — review matches)
+grep -rn "width:\s*[0-9]\{3,\}px\|minWidth:\s*[0-9]\{3,\}\|min-width:\s*[0-9]\{3,\}px" frontend/src/ --include="*.ts" --include="*.tsx" --include="*.css" | grep -vi "mobile-exempt"
+# Components with no responsive breakpoints
+grep -rLn "@media\|sm:\|md:\|lg:\|breakpoints\|useMediaQuery\|useBreakpointValue" frontend/src/ --include="*.tsx" | grep -vi "mobile-exempt"
+# Hover-only interactions
+grep -rn ":hover\|_hover" frontend/src/ --include="*.css" --include="*.tsx" | grep -vi "mobile-exempt"
+# Explicitly exempt items (record separately, do not flag)
+grep -rn "mobile-exempt" frontend/src/
+```
+
+### 7. Stale documentation (light pass)
+
+Flag docs that clearly no longer match the code (reference deleted modules, old endpoints,
+retired frameworks). Keep this light — it is the lowest-priority signal.
+
+**Exclude everywhere:** test files, `.venv/`, `node_modules/`, `__pycache__/`, `build/`,
+`dist/`, `.hypothesis/`, `mysql_data/`, `.agent-output/`.
+
+---
+
+## Generate the spec
+
+Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YYYY-MM-DD/`
+(today's date). Conform to Kiro spec conventions: include `requirements.md`, `tasks.md`,
+`tasks.meta.json` (seed `{"pbtResults":{},"executionHistory":{}}`), and `.config.kiro`
+(`{"specId":"<uuid>","workflowType":"requirements-first","specType":"bugfix"}`).
+
+**requirements.md** — findings with counts:
+
+- File length: N files 500–1000 lines, M files > 1000 (critical), by plane (backend/sam/frontend).
+- Dead code: N items (with confidence).
+- Duplicate code: N patterns and their repeat counts + locations.
+- Framework/reusable-code bypasses: N sites re-implementing a shared building block (with the block each should adopt).
+- Type safety: N issues.
+- Mobile compliance: N not mobile-optimized (plus M explicitly exempt, listed separately).
+- Stale documentation: N outdated files.
+
+**tasks.md** — improvement tasks grouped by priority. Each task: file path(s), specific
+action, estimated effort (S ≤ 30 min / M ≤ 2 h / L > 2 h), and a verification note.
+
+1. **High** — duplicate-code consolidation and framework-bypass migrations with broad reach
+   (a repeated pattern in many files; a bypass of the DB/auth/service layer that carries
+   security or consistency risk); dead-code removal that shrinks the surface materially.
+2. **Medium** — files > 1000 lines split into cohesive modules; remaining framework
+   bypasses; type-safety gaps in service/route layers.
+3. **Low** — files 500–1000 lines refactored opportunistically; minor `any`/type-hint
+   gaps; stale documentation.
+
+Mobile-compliance violations are prioritized by user impact: **High** for unusable-on-mobile
+(horizontal overflow, tap targets too small, no responsive layout on primary flows),
+**Medium** for degraded-but-usable, **Low** for cosmetic issues on secondary/admin-only screens.
+
+Do NOT fix the issues in this pass — only generate the spec with the analysis and task list.
+
+## Compare with the previous run
+
+Check `.kiro/specs/code-quality-maintenance/` for the most recent previous
+`code-quality-fixes-YYYY-MM-DD/`. If one exists:
+
+1. Are the counts going down (fewer duplicates, smaller files, fewer bypasses)?
+2. Flag **recurring** items that were meant to be fixed last cycle but reappear.
+3. Flag **new** debt introduced since (a fresh > 1000-line file, a new framework bypass).
+4. Add a "Lessons / Recurring Issues" section to requirements.md.
 
 ---
 
 ## Terminal Rules
 
-**CRITICAL: All terminal commands must use bash/Linux syntax.**
+**All terminal commands must use bash/Linux syntax.** (Full rules: steering `41-shell-environment.md`.)
 
-- The workspace runs on WSL Ubuntu at `/home/peter/projects/myAdmin`
-- Use `cat`, `grep`, `wc -l`, `head`, `tail`, `sed`, `find`, `sort`, `uniq` — standard Linux tools
-- Use `2>&1 | head -N` or `2>&1 | tail -N` to limit output (avoids pager issues)
-- NEVER use PowerShell cmdlets, Windows paths, or `Get-Content`
-- Always pipe through `head`/`tail` to prevent `less`/pager from blocking the terminal
-- Set `GH_PAGER=""` if `gh` commands hang on output
+- Workspace runs on WSL Ubuntu at `/home/peter/projects/myAdmin`; use `cat`, `grep`, `wc -l`,
+  `head`, `tail`, `sed`, `find`, `sort`, `uniq`.
+- Limit output with `2>&1 | head -N` / `tail -N`; never use PowerShell cmdlets or Windows paths.
+- Empty output does not mean failure — judge by the in-band `<<<DONE marker=$?>>>` marker; if
+  output is swallowed, redirect to a file under `.agent-output/` and read that.
 
 ---
 
-## Lessons Learned (from 2026-06-27 → 2026-06-29 → 2026-08-03 cycles)
+## Principles when executing the generated tasks
 
-These rules must be followed when executing the generated tasks:
+### 1. Reuse before rewrite
 
-### Rule 1: Delete tests for removed modules — don't plan workarounds
+Before adding a helper/component, check whether one already exists (steering
+`37-shared-building-blocks.md`; grep the services/hooks/utils). Prefer adopting the shared
+building block over introducing a parallel implementation — the point of this task is to
+REDUCE code, not add more.
 
-When a source module is deleted/renamed and tests fail on `ModuleNotFoundError` or `ImportError`, the correct action is to **delete or rewrite the test file**. Do not mark the task done with "move to PYTHONPATH" or "will fix later."
+### 2. Consolidate duplicates into ONE home
 
-### Rule 2: Run affected tests after each refactoring task
+When collapsing repeated logic, move it to a single shared function/module and update every
+call site in the same change. Do not leave a half-migrated split where some callers use the
+new helper and others keep the copy.
 
-Every file split or structural change must be followed by running the tests that reference the changed module. A task is not done until those tests pass. The task description should include: "Verify: `pytest tests/unit/test_<module>.py -v` passes."
+### 3. Verify a symbol is truly dead before deleting
 
-### Rule 3: Update test fixtures when adding guards/decorators
+Vulture ≥ 80 is high-signal, but confirm the symbol is not referenced dynamically
+(`getattr`, string dispatch, route/blueprint registration, a template, an entry-point)
+before removing. Prefer deletion over commenting-out.
 
-When adding auth decorators, module guards, or function guards to a route, search for existing tests on that endpoint (`grep -r "route_path" backend/tests/`) and update their fixtures in the same commit. Otherwise the tests will silently break.
+### 4. Split large files along cohesion seams
 
-### Rule 4: Grep all tests when changing defaults
+When splitting a > 1000-line file, extract cohesive units (one concern per module), keep the
+public import surface stable (re-export from the original module path if others import it),
+and change behavior in zero places — this is a structural refactor, not a rewrite.
 
-When changing a default value (e.g. storage provider, API endpoint, response format), grep the **entire test suite** for the old value — not just the obvious test file. Use: `grep -r "old_value" backend/tests/ frontend/src/` to find all dependents.
+### 5. A behavior change drags its tests along
 
-### Rule 5: Never mark the spec complete until CI is green
+If any reduction/refactor changes observable behavior, update the paired test(s) in the same
+change (steering "Change-With-Tests Contract" in `30-backend-api-flask-mysql.md` /
+`32-frontend-ui.md`). A pure move/rename with no behavior change needs no test change, but
+run the affected tests to confirm.
 
-The final implicit task of any quality spec is: "Full Test Suite passes with 0 failures." If CI still shows failures after all tasks are checked off, the spec is not done. Add a verification step:
+### 6. Mobile-first is the default
 
-```bash
-gh workflow run "Full Test Suite" --field scope=both --ref $(git branch --show-current)
-# Wait for completion, then verify:
-# Backend: 0 failures
-# Frontend: 0 failures
-# Lint: 0 errors
-```
-
-Only then close the spec.
-
-### Rule 6: Tasks.md must include verification commands
-
-Each task in tasks.md should end with a concrete verification command, e.g.:
-
-```
-Verify: pytest backend/tests/unit/test_storage_resolver.py -v (expect 4 pass)
-Verify: npx vitest run src/components/TenantAdmin/ChartOfAccounts.test.tsx (expect 8 pass)
-```
-
-This prevents marking tasks done without confirming the fix works.
-
-### Rule 7: Always run the Full Test Suite on the feature branch — not main
-
-When triggering `gh workflow run`, always specify `--ref <feature-branch>`. Running on main tests code that doesn't include your changes.
-
-### Rule 8: Pin ruff version — or check CI version first
-
-The CI installs ruff via `pip install ruff` (latest). Before running local lint checks, verify your local ruff version matches CI. If there's a mismatch:
-
-```bash
-# Check CI version from workflow logs or install the same:
-pip install ruff==<ci-version>
-```
-
-A ruff version upgrade can introduce hundreds of new rules. The fix strategy is:
-
-1. `ruff check src/ --fix --unsafe-fixes` (auto-fix what's possible)
-2. `ruff check src/ --add-noqa` (suppress intentional patterns)
-3. `ruff format src/` (fix formatting)
-4. Manually fix remaining misplaced `noqa` comments
-
-### Rule 9: Read CI artifacts (zip reports) — don't scrape log streams
-
-The CI generates downloadable report artifacts (test-output.txt, SUMMARY.md, junit-results.xml). Always download and read these with `cat`/`grep` rather than parsing raw log output with `gh run view --log`. Log streams are noisy, paginated, and unreliable.
-
-### Rule 10: Commit and push before triggering CI
-
-The Full Test Suite runs against committed code on GitHub. Local changes that haven't been pushed will NOT be tested. Always:
-
-1. Fix the issues locally
-2. Verify locally (ruff check, pytest, etc.)
-3. `git add -A && git commit && git push`
-4. THEN trigger the workflow on the feature branch
-
-### Rule 11: Hypothesis flaky tests are chronic — fix aggressively
-
-Every Hypothesis property test in CI should have `@settings(derandomize=True, deadline=None)`. CI timing variability means:
-
-- `deadline=200ms` will fail randomly (tests take 300-600ms on CI runners)
-- Without `derandomize=True`, tests falsify non-deterministically
-
-When a Hypothesis test fails as "Flaky", add BOTH `derandomize=True` AND `deadline=None` — not just one.
-
-### Rule 12: Clean up junk files before committing
-
-After terminal issues or pager problems, check for garbage files in the repo root:
-
-```bash
-find . -maxdepth 1 -name "*2>*" -o -name "*cat*" | grep -v .git
-```
-
-Remove them before committing to avoid pre-push hook failures (gitguardian scans all staged files).
-
-### Rule 13: Include Lint & Static Analysis as a blocking task
-
-Ruff lint failures block the CI workflow just like test failures. The tasks.md must include a task for "Ruff lint passes" with the same priority as test failures. The verification is:
-
-```bash
-ruff check src/ --exclude src/validate_pattern/
-ruff format --check src/ --exclude src/validate_pattern/
-vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
-```
-
-### Rule 14: Mobile-first is the default — desktop-only is the exception
-
-Every frontend function/component that renders UI or handles interaction must be mobile-optimized unless it carries an explicit exemption marker (`// mobile-exempt: <reason>`, `data-mobile-exempt`, or a documented exemption list entry). When adding or refactoring a component:
-
-1. Use responsive units and breakpoints (`%`, `rem`, `vw`, `clamp()`, Tailwind `sm:`/`md:`, MUI `useMediaQuery`/breakpoint props) instead of fixed pixel dimensions.
-2. Ensure tap targets are at least 44x44px.
-3. Give wide tables/grids a mobile fallback (horizontal scroll container or stacked card layout).
-4. Provide a touch/tap equivalent for any hover-only interaction.
-
-If a component genuinely does not need mobile support (e.g. an internal desktop-only admin tool), add the exemption marker with a reason so it is recorded — never silently skip it. The mobile compliance scan (Step 4, item 6) must run every cycle, and violations must appear in tasks.md prioritized by user impact.
+Every UI-rendering/interaction/layout component must be mobile-optimized unless explicitly
+marked exempt (`// mobile-exempt: <reason>`, `data-mobile-exempt`, or a documented list).
+Use responsive units/breakpoints, ≥ 44x44px tap targets, a mobile fallback for wide
+tables/grids, and a tap equivalent for any hover-only interaction. Record exemptions with a
+reason — never silently skip.
