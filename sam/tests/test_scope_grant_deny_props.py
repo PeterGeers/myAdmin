@@ -65,11 +65,11 @@ if _BACKEND_SRC not in sys.path:
 
 from services import projection_schema as schema
 
+from sam.members.domain.scope_dimensions import WILDCARD, ScopeDimension
+
 # The deny-by-default seam (design C5) — module-level in app.py.
 from sam.members.handler.app import _scope_access_from_grant
-from sam.members.domain.scope_dimensions import WILDCARD, ScopeDimension
 from sam.members.repository.projection_config_reader import MembersProjectionReader
-
 
 # ---------------------------------------------------------------------------
 # In-memory fake DynamoDB table (query side only) — mirrors the example tests

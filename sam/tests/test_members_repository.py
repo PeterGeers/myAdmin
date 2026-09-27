@@ -46,7 +46,6 @@ from sam.members.repository.members_repository import (
     MembersRepository,
 )
 
-
 # ---------------------------------------------------------------------------
 # In-memory fake DynamoDB (table + client) — faithful to the surface used
 # ---------------------------------------------------------------------------
@@ -202,8 +201,6 @@ def _parse_key_condition(condition):
     Handles both a bare ``Key(pk).eq(t)`` and the ``&``-combined
     ``Key(pk).eq(t) & Key(sk).begins_with(p)`` the repository issues.
     """
-    expr = condition.get_expression()
-    operator = expr["format"] if isinstance(expr, dict) and "format" in expr else None
     # boto3 conditions expose .get_expression() -> {"operator", "values"}; an AND yields
     # nested conditions. Normalise by walking the values.
     return _walk_condition(condition)

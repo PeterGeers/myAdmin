@@ -25,15 +25,16 @@ invocations reuse them and never recompile per request.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Optional, Pattern
+from re import Pattern
 
 from sam.members.handler.routes import ROUTES, RouteSpec
 
 __all__ = [
-    "RouteMatch",
     "MethodNotAllowed",
     "NoRouteMatch",
+    "RouteMatch",
     "Router",
     "get_router",
 ]
@@ -174,7 +175,7 @@ class Router:
 
 # ── Warm-reuse singleton ──────────────────────────────────────────────────────────────
 
-_ROUTER: Optional[Router] = None
+_ROUTER: Router | None = None
 
 
 def get_router() -> Router:

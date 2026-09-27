@@ -447,15 +447,17 @@ def test_property_config_fields_round_trips(overlay):
 #       the equivalence is genuine, not tautological.
 # ═══════════════════════════════════════════════════════════════════════════════════════
 
+import services.projection_schema as _schema
+
 from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.field_resolver import (
     FieldOrigin,
     FieldResolver,
     StaticOverlayProvider,
 )
-from sam.members.repository.projection_config_reader import MembersProjectionReader as _Reader
-
-import services.projection_schema as _schema  # noqa: F401 (kept explicit for clarity)
+from sam.members.repository.projection_config_reader import (
+    MembersProjectionReader as _Reader,
+)
 
 _FIXED_DOTTED_SET = frozenset(f.dotted_key() for f in FIXED_FIELDS)
 _CALC_DOTTED_SET = frozenset(c.dotted_key() for c in CALCULATED_FIELDS)
@@ -594,14 +596,13 @@ def test_property_functional_groups_catalog_round_trips(catalog):
 # (TenantOverlay ⊕ the broadened attributes → FieldResolver.resolve surfaces them)
 # ---------------------------------------------------------------------------
 
-from sam.members.domain.field_resolver import (  # noqa: E402
+from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     FunctionalGroup,
     OverlayField,
 )
-from sam.members.domain.fixed_fields import (  # noqa: E402
+from sam.members.domain.fixed_fields import (
     EnumOption,
-    FieldType,
     MemberNumberFormat,
 )
 

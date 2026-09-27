@@ -61,8 +61,8 @@ from .view_contexts import ViewContext
 
 __all__ = [
     "SEED_VIEW_CONTEXTS",
-    "seed_view_contexts_list",
     "build_seed_view_contexts",
+    "seed_view_contexts_list",
 ]
 
 

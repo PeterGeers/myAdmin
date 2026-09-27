@@ -56,23 +56,24 @@ data).
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
-from sam.members.handler import app
-from sam.members.handler.routes import ROUTES, RouteGroup, RouteSpec, route_names
+from sam.members.domain.field_resolver import StaticOverlayProvider
 from sam.members.domain.lifecycle_config import (
     HDCN_LIFECYCLE_CONFIG,
     StaticLifecycleConfigProvider,
 )
 from sam.members.domain.membership_service import MembershipService
-from sam.members.domain.field_resolver import StaticOverlayProvider
 from sam.members.domain.scope_dimensions import (
     SAMPLE_SCOPE_CONFIG,
     StaticScopeConfigProvider,
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
+from sam.members.handler import app
+from sam.members.handler.routes import route_names
 from sam.members.migration.hdcn_backfill import (
     MembershipTypeMapper,
     RegionCanonicalizer,
@@ -148,7 +149,7 @@ class ParityCheck:
 
     dimension: Dimension
     hdcn_behaviour: str
-    migrated_route: Optional[str]
+    migrated_route: str | None
     outcome: Outcome
     observed: str
 
@@ -168,14 +169,14 @@ class ParityReport:
 
     tenant_id: str
     region: str
-    checks: List[ParityCheck] = field(default_factory=list)
+    checks: list[ParityCheck] = field(default_factory=list)
 
     # -- recording --------------------------------------------------------------------
     def record(
         self,
         dimension: Dimension,
         hdcn_behaviour: str,
-        migrated_route: Optional[str],
+        migrated_route: str | None,
         outcome: Outcome,
         observed: str,
     ) -> ParityCheck:
@@ -184,16 +185,16 @@ class ParityReport:
         return check
 
     # -- queries ----------------------------------------------------------------------
-    def by_dimension(self, dimension: Dimension) -> List[ParityCheck]:
+    def by_dimension(self, dimension: Dimension) -> list[ParityCheck]:
         return [c for c in self.checks if c.dimension is dimension]
 
-    def failures(self) -> List[ParityCheck]:
+    def failures(self) -> list[ParityCheck]:
         return [c for c in self.checks if c.outcome is Outcome.FAIL]
 
-    def manual_items(self) -> List[ParityCheck]:
+    def manual_items(self) -> list[ParityCheck]:
         return [c for c in self.checks if c.outcome is Outcome.MANUAL]
 
-    def asserted_checks(self) -> List[ParityCheck]:
+    def asserted_checks(self) -> list[ParityCheck]:
         return [c for c in self.checks if c.asserted]
 
     def routes_covered(self) -> set:
@@ -205,7 +206,7 @@ class ParityReport:
         """True when every ASSERTED check passed (MANUAL items are not assertions)."""
         return all(c.outcome is Outcome.PASS for c in self.asserted_checks())
 
-    def summary(self) -> Dict[str, int]:
+    def summary(self) -> dict[str, int]:
         counts = {o.value: 0 for o in Outcome}
         for c in self.checks:
             counts[c.outcome.value] += 1
@@ -214,7 +215,7 @@ class ParityReport:
     # -- rendering (the human-readable walkthrough artifact for task 6.2) -------------
     def render(self) -> str:
         """Render the report as a plain-text walkthrough artifact (Go/No-Go evidence)."""
-        lines: List[str] = []
+        lines: list[str] = []
         lines.append("=" * 78)
         lines.append(
             f"Members parity/walkthrough report — tenant={self.tenant_id!r} "
@@ -239,7 +240,7 @@ class ParityReport:
         lines.append("=" * 78)
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """A JSON-friendly view (for writing the artifact to disk if desired)."""
         return {
             "tenant_id": self.tenant_id,
@@ -327,7 +328,7 @@ class MembersParityHarness:
             tenant_hooks=self.hooks,
         )
         self._seed_catalog()
-        self._original_service_getter: Optional[Callable[[], MembershipService]] = None
+        self._original_service_getter: Callable[[], MembershipService] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
         self._original_grants: Any = None
@@ -338,7 +339,7 @@ class MembersParityHarness:
         for entry in HDCN_MEMBERSHIP_TYPES:
             self.repo.save_membership_type(self.tenant_id, entry)
 
-    def install(self) -> "MembersParityHarness":
+    def install(self) -> MembersParityHarness:
         """Point the module edge at this harness's wired service (like the dispatch tests).
 
         Access is gated the normal SaaS way — capability (token) + scope grant (projection).
@@ -378,10 +379,10 @@ class MembersParityHarness:
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
 
-    def __enter__(self) -> "MembersParityHarness":
+    def __enter__(self) -> MembersParityHarness:
         return self.install()
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.uninstall()
 
     # -- request driving --------------------------------------------------------------
@@ -394,16 +395,16 @@ class MembersParityHarness:
         capabilities: Sequence[str] = _ADMIN_CAPS,
         groups: Sequence[str] = ("Regio_All",),
         sub: str = "admin-sub",
-        body: Optional[Mapping[str, Any]] = None,
-        query: Optional[Mapping[str, Any]] = None,
-        tenant: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        body: Mapping[str, Any] | None = None,
+        query: Mapping[str, Any] | None = None,
+        tenant: str | None = None,
+    ) -> dict[str, Any]:
         """Build an API Gateway proxy event with verified authorizer claims.
 
         ``authenticated=False`` omits the authorizer context entirely, so the edge sees no
         verified token and answers 401 — the unauthenticated walkthrough path.
         """
-        request_context: Dict[str, Any] = {}
+        request_context: dict[str, Any] = {}
         if authenticated:
             request_context = {
                 "authorizer": {
@@ -430,7 +431,7 @@ class MembersParityHarness:
             "requestContext": request_context,
         }
 
-    def call(self, method: str, path: str, **kwargs: Any) -> Dict[str, Any]:
+    def call(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """Drive one request through the module edge and return the proxy response dict."""
         return app.handler(self.event(method, path, **kwargs))
 
@@ -444,13 +445,13 @@ class MembersParityHarness:
         self,
         member_id: str,
         *,
-        region: Optional[str] = None,
-        member_number: Optional[str] = None,
-        status: Optional[str] = None,
+        region: str | None = None,
+        member_number: str | None = None,
+        status: str | None = None,
         membership_type: str = "erelid",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """A well-formed create body for the pilot tenant (mirrors the dispatch-test shape)."""
-        membership: Dict[str, Any] = {
+        membership: dict[str, Any] = {
             "membership_type": membership_type,
             "joined_date": "2024-01-01",
         }
@@ -706,7 +707,7 @@ class MembersParityHarness:
         # expected statuses are the "route answered as designed" set — importantly NOT
         # {404 no-route, 501 not-implemented}. Where a request is intentionally minimal we
         # accept the module's honest client-error answer (e.g. 422/409) as "route answered".
-        checks: List[tuple] = [
+        checks: list[tuple] = [
             # ── Member CRUD (8 h-dcn behaviours) ──
             ("create_member", "POST", "/members",
              self.valid_member_body("API-NEW", member_number="C-2001"), None, {200}, {},
@@ -818,14 +819,14 @@ class MembersParityHarness:
         record["tenant_id"] = self.tenant_id
         self.repo.save_member(self.tenant_id, record)
 
-        def transition(to_state: str, context: Optional[Mapping[str, Any]] = None) -> int:
-            payload: Dict[str, Any] = {"to_state": to_state}
+        def transition(to_state: str, context: Mapping[str, Any] | None = None) -> int:
+            payload: dict[str, Any] = {"to_state": to_state}
             if context is not None:
                 payload["context"] = dict(context)
             resp = self.call("POST", f"/members/{mid}/memberships/MS-1/transition", body=payload)
             return resp["statusCode"]
 
-        def current_status() -> Optional[str]:
+        def current_status() -> str | None:
             m = self.repo.get_member(self.tenant_id, mid)
             return (m or {}).get("membership", {}).get("status")
 

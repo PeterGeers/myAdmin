@@ -41,14 +41,11 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
-import json
-import pathlib
 import re
 
 import pytest
 
 from sam.members.handler import app
-
 
 # ── (i) behavioural guard: a cognito:groups-only token is denied (403) ─────────────────
 

@@ -24,8 +24,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt import algorithms
 
 from sam.shared.auth_utils import (
-    DecodedEntitlements,
     ENTITLEMENT_CLAIM_NAME,
+    DecodedEntitlements,
     JWKSCache,
     JWTVerifier,
     PoolConfig,

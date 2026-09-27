@@ -37,16 +37,16 @@ deactivates or deletes; a re-seed is an idempotent upsert.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Mapping, Optional, Sequence
 
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.migration.hdcn_backfill import HDCN_TENANT_ID, MembershipTypeMapper
 
 __all__ = [
-    "HDCN_TENANT_ID",
-    "HDCN_MEMBERSHIP_TYPES",
     "BACKFILL_EMITTABLE_CODES",
+    "HDCN_MEMBERSHIP_TYPES",
+    "HDCN_TENANT_ID",
     "CatalogSeedPlan",
     "SeedItem",
     "build_seed_plan",

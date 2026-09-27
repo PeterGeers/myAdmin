@@ -54,8 +54,8 @@ from .fixed_fields import EnumOption, FieldType
 
 __all__ = [
     "SEED_FUNCTIONAL_GROUPS",
-    "seed_overlay_dict",
     "build_seed_overlay",
+    "seed_overlay_dict",
 ]
 
 

@@ -32,22 +32,23 @@ Design constraints honoured here (per the design of record):
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from typing import Any, Mapping
+from typing import Any
 
 from sam.members.domain.error_codes import (
-    FieldError,
     MEMBERSHIP_TYPE_LABEL,
     MEMBERSHIP_TYPE_ORDER,
     MEMBERSHIP_TYPE_TENANT,
     MEMBERSHIP_TYPE_TYPE_CODE,
+    FieldError,
 )
 
 __all__ = [
     "CATALOG_LOCALES",
+    "SORT_KEY_SEPARATOR",
     "MembershipTypeEntry",
     "MembershipTypeValidationError",
-    "SORT_KEY_SEPARATOR",
 ]
 
 #: The i18n locales a catalog label carries (design C8: ``label {"nl": ..., "en": ...}``).
@@ -157,7 +158,7 @@ class MembershipTypeEntry:
         if errors:
             raise MembershipTypeValidationError(errors)
 
-    def deactivated(self) -> "MembershipTypeEntry":
+    def deactivated(self) -> MembershipTypeEntry:
         """Return a copy with ``active=False`` — the soft-delete transform (no hard delete)."""
         return replace(self, active=False)
 
@@ -181,7 +182,7 @@ class MembershipTypeEntry:
         }
 
     @classmethod
-    def from_item(cls, item: Mapping[str, Any]) -> "MembershipTypeEntry":
+    def from_item(cls, item: Mapping[str, Any]) -> MembershipTypeEntry:
         """Rebuild an entry from a stored item (inverse of :meth:`to_item`).
 
         Tolerant of the physical primary-key attributes the repository adds (e.g. ``sk``):

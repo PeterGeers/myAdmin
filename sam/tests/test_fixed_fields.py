@@ -16,8 +16,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from sam.members.domain.fixed_fields import (
-    FIXED_FIELDS,
     FIXED_FIELD_GROUPS,
+    FIXED_FIELDS,
     MEMBERSHIP_FIELDS,
     PERSONAL_FIELDS,
     FieldGroup,

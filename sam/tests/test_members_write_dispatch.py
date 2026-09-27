@@ -40,7 +40,6 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.handler import app
 from sam.members.domain.lifecycle_config import (
     HDCN_LIFECYCLE_CONFIG,
     StaticLifecycleConfigProvider,
@@ -48,12 +47,12 @@ from sam.members.domain.lifecycle_config import (
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
-from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
+from sam.members.handler import app
 from sam.members.repository.members_repository import DynamoDbMembersRepository
+from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
 
 # The faithful in-memory DynamoDB fake (single-item writes; s5k removed the transaction + counter).
 from sam.tests.test_members_repository import FakeDynamoTable
-
 
 # ── Service wired like production: real repo over the fake table + h-dcn config/hooks ──
 
@@ -565,8 +564,8 @@ def test_duplicate_member_number_across_members_is_allowed(table):
 # field). The frontend legs (options filtered by role; hidden field not rendered/required)
 # live in ``frontend/src/components/members/fieldForm.test.ts``.
 
-from sam.members.domain.field_resolver import StaticOverlayProvider  # noqa: E402
-from sam.tests.test_members_resolved_field_surface import (  # noqa: E402
+from sam.members.domain.field_resolver import StaticOverlayProvider
+from sam.tests.test_members_resolved_field_surface import (
     _overlay_with_groups_and_options,
 )
 

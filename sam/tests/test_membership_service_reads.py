@@ -43,7 +43,6 @@ from sam.members.domain.membership_service import (
 )
 from sam.members.repository.members_repository import MembersRepository
 
-
 # ---------------------------------------------------------------------------
 # In-memory fake repository (the domain depends on the Protocol shape only)
 # ---------------------------------------------------------------------------

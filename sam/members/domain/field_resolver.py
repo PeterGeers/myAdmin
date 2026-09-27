@@ -41,17 +41,15 @@ What this module is NOT:
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Mapping, Optional, Protocol, Sequence, runtime_checkable
-
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from .calculated_fields import CALCULATED_FIELDS, CalculatedField
 from .fixed_fields import (
     FIXED_FIELDS,
     EnumOption,
-    FieldGroup,
     FieldType,
     FixedField,
     MemberNumberFormat,
@@ -59,17 +57,17 @@ from .fixed_fields import (
 
 __all__ = [
     "OVERLAY_GROUP",
-    "FieldOrigin",
-    "ResolvedField",
     "FieldConfig",
-    "OverlayField",
+    "FieldOrigin",
+    "FieldResolver",
     "FixedFieldOverride",
     "FunctionalGroup",
+    "OverlayError",
+    "OverlayField",
+    "ResolvedField",
+    "StaticOverlayProvider",
     "TenantOverlay",
     "TenantOverlayProvider",
-    "StaticOverlayProvider",
-    "OverlayError",
-    "FieldResolver",
     "evaluate_show_when",
 ]
 
@@ -106,12 +104,12 @@ class ResolvedField:
     required: bool
     origin: FieldOrigin
     label: Mapping[str, str] = field(default_factory=dict)   # i18n {"nl": ..., "en": ...}
-    choices: Optional[Sequence[str]] = None                  # for FieldType.ENUM (bare value list)
-    options: Optional[Sequence[EnumOption]] = None           # rich enum options {value,label,roles?} (R4.11/R4.12)
+    choices: Sequence[str] | None = None                  # for FieldType.ENUM (bare value list)
+    options: Sequence[EnumOption] | None = None           # rich enum options {value,label,roles?} (R4.11/R4.12)
     functional_group: str = ""                               # PARAMETER-DRIVEN display group (R4.9), orthogonal to `group`
-    member_number_format: Optional[MemberNumberFormat] = None  # only on member_number (task 1.4b)
-    show_when: Optional[Mapping[str, Any]] = None            # per-field conditional visibility (R4.12)
-    calculated_from: Optional[Sequence[str]] = None          # inputs of a CALCULATED field (R4.4), else None
+    member_number_format: MemberNumberFormat | None = None  # only on member_number (task 1.4b)
+    show_when: Mapping[str, Any] | None = None            # per-field conditional visibility (R4.12)
+    calculated_from: Sequence[str] | None = None          # inputs of a CALCULATED field (R4.4), else None
     visible: bool = True
     read_only: bool = False                                  # True for CALCULATED fields (derived, never stored)
     order: int = 0
@@ -137,7 +135,7 @@ class FieldConfig:
     #: Empty when the tenant authored no catalog (fields then carry only base-default groups).
     #: Modals / view contexts SECTION by these (design C-SURFACE); a field whose
     #: ``functional_group`` is absent from this catalog falls back to a default section at render.
-    functional_groups: tuple["FunctionalGroup", ...] = ()
+    functional_groups: tuple[FunctionalGroup, ...] = ()
 
     def by_group(self) -> Mapping[str, tuple[ResolvedField, ...]]:
         buckets: dict[str, list[ResolvedField]] = {}
@@ -145,7 +143,7 @@ class FieldConfig:
             buckets.setdefault(f.group, []).append(f)
         return {g: tuple(fs) for g, fs in buckets.items()}
 
-    def field(self, dotted_key: str) -> Optional[ResolvedField]:
+    def field(self, dotted_key: str) -> ResolvedField | None:
         """Return the resolved field for a canonical dotted key, or ``None``."""
         for f in self.fields:
             if f.dotted_key() == dotted_key:
@@ -185,10 +183,10 @@ class OverlayField:
     type: FieldType = FieldType.STRING
     required: bool = False
     label: Mapping[str, str] = field(default_factory=dict)
-    choices: Optional[Sequence[str]] = None
-    options: Optional[Sequence[EnumOption]] = None
-    functional_group: Optional[str] = None
-    show_when: Optional[Mapping[str, Any]] = None
+    choices: Sequence[str] | None = None
+    options: Sequence[EnumOption] | None = None
+    functional_group: str | None = None
+    show_when: Mapping[str, Any] | None = None
     visible: bool = True
     order: int = 0
 
@@ -203,14 +201,14 @@ class FixedFieldOverride:
     base value as-is".
     """
 
-    label: Optional[Mapping[str, str]] = None
-    visible: Optional[bool] = None
-    required: Optional[bool] = None   # may only tighten (optional→required), never loosen
-    functional_group: Optional[str] = None   # reassign the field's display group (R4.9); storage bucket unchanged
-    options: Optional[Sequence[EnumOption]] = None  # tenant enum values/labels/roles for a Fixed enum (R4.11/R4.12)
-    show_when: Optional[Mapping[str, Any]] = None   # per-field conditional visibility (R4.12)
-    member_number_format: Optional[MemberNumberFormat] = None  # only meaningful for member_number (task 1.4b)
-    order: Optional[int] = None
+    label: Mapping[str, str] | None = None
+    visible: bool | None = None
+    required: bool | None = None   # may only tighten (optional→required), never loosen
+    functional_group: str | None = None   # reassign the field's display group (R4.9); storage bucket unchanged
+    options: Sequence[EnumOption] | None = None  # tenant enum values/labels/roles for a Fixed enum (R4.11/R4.12)
+    show_when: Mapping[str, Any] | None = None   # per-field conditional visibility (R4.12)
+    member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
+    order: int | None = None
 
 
 @dataclass(frozen=True)
@@ -291,7 +289,7 @@ class StaticOverlayProvider:
     fail-safe default (adding a tenant is additive; a missing overlay is not an error).
     """
 
-    def __init__(self, overlays: Optional[Mapping[str, TenantOverlay]] = None):
+    def __init__(self, overlays: Mapping[str, TenantOverlay] | None = None):
         self._overlays = dict(overlays or {})
 
     def get_overlay(self, tenant_id: str) -> TenantOverlay:
@@ -328,7 +326,7 @@ class FieldResolver:
     def resolve(
         self,
         tenant_id: str,
-        scope_vocab: Optional[Mapping[str, Sequence[str]]] = None,
+        scope_vocab: Mapping[str, Sequence[str]] | None = None,
     ) -> FieldConfig:
         """Return the resolved field config for ``tenant_id`` (fixed base ⊕ overlay).
 
@@ -474,7 +472,7 @@ class FieldResolver:
     def _as_variable_field(
         name: str,
         of: OverlayField,
-        scope_vocab: Optional[Mapping[str, Sequence[str]]] = None,
+        scope_vocab: Mapping[str, Sequence[str]] | None = None,
     ) -> ResolvedField:
         """Project a tenant-defined variable field into a resolved field under the overlay group.
 
@@ -512,7 +510,7 @@ class FieldResolver:
     @staticmethod
     def _reject_invalid_overlay(
         overlay: TenantOverlay,
-        scope_vocab: Optional[Mapping[str, Sequence[str]]] = None,
+        scope_vocab: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         """Fail fast if the overlay tries to weaken a platform invariant (a config bug).
 
@@ -532,7 +530,7 @@ class FieldResolver:
         catalog = set(overlay.functional_groups.keys())
         vocab_keys = set((scope_vocab or {}).keys())
 
-        def _check_group(dotted: str, group: Optional[str]) -> None:
+        def _check_group(dotted: str, group: str | None) -> None:
             # Reference-validate only when the tenant authored a catalog (empty → base defaults).
             if group and catalog and group not in catalog:
                 reasons[dotted] = (
@@ -599,7 +597,7 @@ def _member_value(record: Mapping[str, Any], key: str) -> Any:
 
 
 def evaluate_show_when(
-    show_when: Optional[Mapping[str, Any]], record: Mapping[str, Any]
+    show_when: Mapping[str, Any] | None, record: Mapping[str, Any]
 ) -> bool:
     """Return whether a field's ``show_when`` condition holds for ``record`` (R4.12).
 

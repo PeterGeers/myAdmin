@@ -77,6 +77,7 @@ def _run_import_with_flask_hidden(import_stmt: str) -> subprocess.CompletedProce
         capture_output=True,
         text=True,
         env=env,
+        check=False,
     )
 
 

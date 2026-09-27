@@ -20,13 +20,13 @@ from __future__ import annotations
 import pytest
 
 from sam.members.domain.error_codes import (
-    FieldError,
     MEMBER_NUMBER_FORMAT,
     VALIDATION_INVALID_DATE,
     VALIDATION_MUST_BE_A_STRING,
     VALIDATION_MUST_BE_ONE_OF,
     VALIDATION_MUST_NOT_BE_BLANK,
     VALIDATION_REQUIRED,
+    FieldError,
 )
 from sam.members.domain.fixed_fields import (
     FieldValidationError,

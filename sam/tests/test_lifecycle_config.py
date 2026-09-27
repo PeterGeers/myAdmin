@@ -40,7 +40,6 @@ from sam.members.domain.lifecycle_config import (
     evaluate_required_fields,
 )
 
-
 # ── A small valid config reused across tests ──────────────────────────────────────────
 
 

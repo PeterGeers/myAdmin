@@ -64,41 +64,42 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any
 
 from sam.members.domain.error_codes import (
-    FieldError,
+    MEMBER_NUMBER_FORMAT,
     VALIDATION_INVALID_DATE,
     VALIDATION_MUST_BE_A_STRING,
     VALIDATION_MUST_BE_ONE_OF,
     VALIDATION_MUST_NOT_BE_BLANK,
     VALIDATION_REQUIRED,
     VALIDATION_UNSUPPORTED_FIELD_TYPE,
-    MEMBER_NUMBER_FORMAT,
+    FieldError,
 )
 
 __all__ = [
+    "FIXED_FIELDS",
+    "FIXED_FIELD_GROUPS",
+    "MEMBERSHIP_FIELDS",
+    "MEMBER_NUMBER_FIELD_KEY",
+    "PERSONAL_FIELDS",
+    "EnumOption",
     "FieldError",
     "FieldGroup",
     "FieldType",
-    "MembershipStatus",
-    "EnumOption",
-    "MemberNumberFormat",
-    "MEMBER_NUMBER_FIELD_KEY",
-    "FixedField",
     "FieldValidationError",
-    "PERSONAL_FIELDS",
-    "MEMBERSHIP_FIELDS",
-    "FIXED_FIELDS",
-    "FIXED_FIELD_GROUPS",
-    "field_by_key",
+    "FixedField",
+    "MemberNumberFormat",
+    "MembershipStatus",
     "canonical_keys",
+    "field_by_key",
     "option_values",
     "roles_for_option",
-    "validate_member_number_format",
     "validate_fixed_fields",
+    "validate_member_number_format",
 ]
 
 
@@ -171,7 +172,7 @@ class EnumOption:
 
     value: str
     label: Mapping[str, str] = field(default_factory=dict)
-    roles: Optional[Sequence[str]] = None
+    roles: Sequence[str] | None = None
 
     def allows_role(self, caller_roles: Sequence[str]) -> bool:
         """Return True if a caller holding ``caller_roles`` may select this option (R4.12).
@@ -203,13 +204,13 @@ class MemberNumberFormat:
 
     prefix: str = ""
     width: int = 0
-    regex: Optional[str] = None
+    regex: str | None = None
 
     def is_empty(self) -> bool:
         """True when this format imposes no constraint (no regex and no positive width)."""
         return not self.regex and self.width <= 0
 
-    def as_regex(self) -> Optional[str]:
+    def as_regex(self) -> str | None:
         """Return the effective regex for this format, or ``None`` when unconstrained.
 
         A supplied ``regex`` wins; otherwise a ``prefix``+``width`` is compiled into an
@@ -233,7 +234,7 @@ class MemberNumberFormat:
             # than silently accepting; the authoring-time validation should have caught it.
             return False
 
-    def example(self) -> Optional[str]:
+    def example(self) -> str | None:
         """A human-readable example value (``prefix`` + ``width`` zeros+1), for error messages."""
         if self.regex:
             return None
@@ -265,11 +266,11 @@ class FixedField:
     type: FieldType
     required: bool = False
     label: Mapping[str, str] = field(default_factory=dict)   # i18n, e.g. {"nl": ..., "en": ...}
-    choices: Optional[Sequence[str]] = None                  # for FieldType.ENUM (None → open/tenant-config)
-    options: Optional[Sequence[EnumOption]] = None           # rich enum options {value,label,roles?} (R4.11/R4.12)
-    functional_group: Optional[str] = None                   # base default display group (R4.9); None → storage group
-    member_number_format: Optional[MemberNumberFormat] = None  # only meaningful for member_number (task 1.4b)
-    show_when: Optional[Mapping[str, Any]] = None            # per-field conditional-visibility condition (R4.12)
+    choices: Sequence[str] | None = None                  # for FieldType.ENUM (None → open/tenant-config)
+    options: Sequence[EnumOption] | None = None           # rich enum options {value,label,roles?} (R4.11/R4.12)
+    functional_group: str | None = None                   # base default display group (R4.9); None → storage group
+    member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
+    show_when: Mapping[str, Any] | None = None            # per-field conditional-visibility condition (R4.12)
     order: int = 0
 
     def dotted_key(self) -> str:
@@ -519,7 +520,7 @@ del _seen_keys, _f, _dotted
 _FIELD_BY_DOTTED: Mapping[str, FixedField] = {f.dotted_key(): f for f in FIXED_FIELDS}
 
 
-def field_by_key(dotted_key: str) -> Optional[FixedField]:
+def field_by_key(dotted_key: str) -> FixedField | None:
     """Return the :class:`FixedField` for a canonical dotted key (``group.field``), or None."""
     return _FIELD_BY_DOTTED.get(dotted_key)
 
@@ -532,14 +533,14 @@ def canonical_keys() -> tuple[str, ...]:
 # ── Enum-option helpers (R4.11 / R4.12) ───────────────────────────────────────────────
 
 
-def option_values(options: Optional[Sequence[EnumOption]]) -> tuple[str, ...]:
+def option_values(options: Sequence[EnumOption] | None) -> tuple[str, ...]:
     """The bare option *values* of a rich enum-option list (for value-membership checks)."""
     return tuple(o.value for o in (options or ()))
 
 
 def roles_for_option(
-    options: Optional[Sequence[EnumOption]], value: Any
-) -> Optional[frozenset[str]]:
+    options: Sequence[EnumOption] | None, value: Any
+) -> frozenset[str] | None:
     """Return the role gate for the option whose value == ``value`` (R4.12).
 
     Returns ``None`` when the value is not a role-restricted option (unknown value, or an
@@ -557,8 +558,8 @@ def roles_for_option(
 
 
 def validate_member_number_format(
-    value: Any, fmt: Optional[MemberNumberFormat]
-) -> Optional[FieldError]:
+    value: Any, fmt: MemberNumberFormat | None
+) -> FieldError | None:
     """Return a :class:`FieldError` if ``value`` violates the tenant ``member_number`` format, else None.
 
     Authoritative create/edit/import validation (R4.2/R4.8): a present ``member_number`` must be
@@ -595,7 +596,7 @@ def validate_member_number_format(
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def _validate_date(value: Any) -> Optional[FieldError]:
+def _validate_date(value: Any) -> FieldError | None:
     """Return a :class:`FieldError` if ``value`` is not an ISO-8601 (YYYY-MM-DD) date, else None.
 
     Both the wrong-shape and the impossible-calendar-date cases carry the shared
@@ -612,7 +613,7 @@ def _validate_date(value: Any) -> Optional[FieldError]:
     return None
 
 
-def _validate_value(fld: FixedField, value: Any) -> Optional[FieldError]:
+def _validate_value(fld: FixedField, value: Any) -> FieldError | None:
     """Validate a single present, non-null value against its field definition.
 
     Returns a :class:`FieldError` (machine ``code`` + English ``detail`` + optional ``params``),

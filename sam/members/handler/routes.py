@@ -35,13 +35,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 __all__ = [
+    "ROUTES",
     "HttpMethod",
     "RouteGroup",
     "RouteSpec",
-    "ROUTES",
     "route_names",
     "routes_by_group",
 ]
@@ -107,7 +106,7 @@ class RouteSpec:
     method: HttpMethod
     path: str
     group: RouteGroup
-    capability: Optional[str]
+    capability: str | None
     self_service: bool
     summary: str
 

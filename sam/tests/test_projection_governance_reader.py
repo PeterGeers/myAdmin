@@ -22,8 +22,6 @@ real table + IAM ``LeadingKeys`` enforces. No live AWS, no MySQL.
 import os
 import sys
 
-import pytest
-
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.pretokengen` imports.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _REPO_ROOT not in sys.path:
@@ -36,7 +34,6 @@ if _BACKEND_SRC not in sys.path:
 from services import projection_schema as schema
 
 from sam.pretokengen.projection_governance_reader import ProjectionGovernanceReader
-
 
 # ---------------------------------------------------------------------------
 # In-memory fake DynamoDB table (read side)

@@ -55,7 +55,6 @@ from sam.members.tenants.hdcn.hooks import (
     register_hdcn_hooks,
 )
 
-
 # ── The generic registry: resolve-by-(name, tenant) + safe defaults ───────────────────
 
 

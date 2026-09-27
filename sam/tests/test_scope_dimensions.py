@@ -30,7 +30,6 @@ from sam.members.domain.scope_dimensions import (
     enabled_dimensions,
 )
 
-
 # ── Model shape ───────────────────────────────────────────────────────────────────────
 
 

@@ -1,0 +1,32 @@
+{
+  "specId": "2abfb5ce-6f0f-4f2d-a882-6a819795f41c",
+  "spec": "full-test-suite-status-2026-09-27",
+  "ciRun": 36298666527,
+  "ciConclusion": "success",
+  "priorRun": 36221515479,
+  "priorConclusion": "failure",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (2026-09-27, green)",
+  "note": "Status/verification spec — the analyzed run is GREEN, so there are no fix tasks. Nodes below are OPTIONAL follow-ups from the report-only lint backlogs + a hygiene fix; none block CI.",
+  "priorities": {
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": ["L1", "L2", "L3", "L4"]
+  },
+  "nodes": [
+    { "id": "L1", "title": "Burn down SAM ruff report-only backlog (493)", "priority": "low", "effort": "M", "plane": "sam", "blocking": false },
+    { "id": "L2", "title": "Reduce frontend ESLint backlog (1105)", "priority": "low", "effort": "L", "plane": "frontend", "blocking": false },
+    { "id": "L3", "title": "Flip frontend tsc --noEmit to blocking (already clean)", "priority": "low", "effort": "S", "plane": "ci", "blocking": false },
+    { "id": "L4", "title": "Fix stale prompt.md reference in the runbook", "priority": "low", "effort": "S", "plane": "docs", "blocking": false }
+  ],
+  "edges": [
+    { "from": "L1", "to": "L1-blocking", "type": "enables", "note": "clear SAM ruff backlog before promoting the SAM lint step to blocking" },
+    { "from": "L2", "to": "L2-blocking", "type": "enables", "note": "clear frontend eslint errors before promoting to blocking" }
+  ],
+  "recommendedOrder": ["L4", "L3", "L1", "L2"],
+  "notes": [
+    "No dependency chain among fixes — there are no failures to fix.",
+    "L4 (docs) and L3 (tsc already clean) are the cheapest/safest; L1/L2 are backlog burn-downs.",
+    "Prefer running L1/L2 via prompt-code-quality.md (local scan), not this CI runbook."
+  ]
+}

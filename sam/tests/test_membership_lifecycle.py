@@ -49,7 +49,6 @@ from sam.members.domain.transition_hooks import (
     TransitionHookRegistry,
 )
 
-
 # ── A minimal repository (the engine does not touch it for a transition COMPUTATION) ──
 
 

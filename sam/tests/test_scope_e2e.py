@@ -87,7 +87,6 @@ from sam.members.repository.projection_config_reader import MembersProjectionRea
 # ── Fixtures for both planes' in-memory fakes ──────────────────────────────────────────
 from sam.tests.test_membership_service_reads import FakeMembersRepository
 
-
 TENANT = "h-dcn"
 MODULE = "MEMBERS"
 EMAIL = "member-test@example.com"

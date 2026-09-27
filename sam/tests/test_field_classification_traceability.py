@@ -34,11 +34,13 @@ from __future__ import annotations
 
 import pytest
 
-from sam.members.domain.calculated_fields import CALCULATED_FIELDS, calculated_field_by_key
-from sam.members.domain.fixed_fields import FIXED_FIELDS, field_by_key
+from sam.members.domain.calculated_fields import (
+    CALCULATED_FIELDS,
+    calculated_field_by_key,
+)
 from sam.members.domain.field_resolver import FieldResolver, StaticOverlayProvider
+from sam.members.domain.fixed_fields import FIXED_FIELDS, field_by_key
 from sam.members.domain.seed_overlay import build_seed_overlay
-
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
 # The classification-table contract — encoded ROW-BY-ROW from design.md

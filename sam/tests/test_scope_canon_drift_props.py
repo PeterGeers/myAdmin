@@ -57,11 +57,11 @@ if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
 # The two transcriptions under distinct qualified names (distinct package paths → no collision).
-from sam.members.domain.scope_canon import scope_canon as sam_scope_canon
-from sam.members.domain.scope_canon import CANONICAL_SEPARATOR as SAM_SEPARATOR
-from services.scope_canon import scope_canon as flask_scope_canon
 from services.scope_canon import CANONICAL_SEPARATOR as FLASK_SEPARATOR
+from services.scope_canon import scope_canon as flask_scope_canon
 
+from sam.members.domain.scope_canon import CANONICAL_SEPARATOR as SAM_SEPARATOR
+from sam.members.domain.scope_canon import scope_canon as sam_scope_canon
 
 # ---------------------------------------------------------------------------
 # A curated shared vocabulary of realistic region-like values (and case/diacritic/

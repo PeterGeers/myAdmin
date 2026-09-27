@@ -32,14 +32,11 @@ import ast
 import inspect
 import json
 
-import pytest
-
 from sam.members.handler import app
 from sam.shared.auth_utils import (
     InvalidTokenError,
     ServiceUnavailableError,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────────────
 
@@ -496,7 +493,7 @@ def test_response_serializes_dynamodb_decimals():
 
     resp = app._response(
         200,
-        {"data": {"member_number": Decimal("42"), "balance": Decimal("12.50")}},
+        {"data": {"member_number": Decimal(42), "balance": Decimal("12.50")}},
     )
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])  # would raise if the body were not valid JSON
