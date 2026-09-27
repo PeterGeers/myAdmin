@@ -112,12 +112,52 @@ def _get_jwt_verifier():
         return _jwt_verifier_instance
 
     # (3) Neither configured — base64 fallback for local dev / tests.
-    logger.warning(
-        "JWT cryptographic verification disabled: neither COGNITO_POOL_KEYS nor the "
-        "legacy single-pool env vars (COGNITO_USER_POOL_ID, COGNITO_REGION, "
-        "COGNITO_APP_CLIENT_ID) are configured. Falling back to base64 payload decoding."
-    )
+    #
+    # H1 (risk F1): the base64 fallback trusts an UNSIGNED token payload, so an
+    # attacker could forge cognito:groups. It is only ever acceptable off-production
+    # (local dev / tests). In production — or wherever the operator has explicitly
+    # opted in via REQUIRE_JWT_VERIFICATION=true — a missing verifier is a hard
+    # misconfiguration, not a licence to downgrade auth. We log LOUDLY here; the
+    # actual fail-closed rejection happens in extract_user_credentials (which turns
+    # a None verifier into 503 rather than falling through to _extract_with_base64).
+    if _jwt_verification_required():
+        logger.error(
+            "JWT cryptographic verification is REQUIRED (RAILWAY_ENVIRONMENT=production "
+            "or REQUIRE_JWT_VERIFICATION=true) but NO verifier could be configured: "
+            "neither COGNITO_POOL_KEYS nor the legacy single-pool env vars "
+            "(COGNITO_USER_POOL_ID, COGNITO_REGION, COGNITO_APP_CLIENT_ID) are set. "
+            "Authentication will FAIL CLOSED (503) — the unsigned base64 fallback is "
+            "disabled in this environment. Configure a Cognito verifier."
+        )
+    else:
+        logger.warning(
+            "JWT cryptographic verification disabled: neither COGNITO_POOL_KEYS nor the "
+            "legacy single-pool env vars (COGNITO_USER_POOL_ID, COGNITO_REGION, "
+            "COGNITO_APP_CLIENT_ID) are configured. Falling back to base64 payload "
+            "decoding (safe for local dev / tests only, NOT production)."
+        )
     return None
+
+
+def _jwt_verification_required() -> bool:
+    """Whether a cryptographic JWT verifier is MANDATORY in this environment (H1, F1).
+
+    The unsigned base64 fallback (:func:`_extract_with_base64`) is only acceptable
+    off-production. This returns ``True`` — meaning "no verifier => fail closed, never
+    fall through to base64" — when either:
+
+    * ``RAILWAY_ENVIRONMENT`` is ``"production"`` (case-insensitive), or
+    * the operator has explicitly opted in with ``REQUIRE_JWT_VERIFICATION=true``.
+
+    Kept as a tiny, independently testable predicate so the fail-closed decision has a
+    single source of truth (mirrors the ``RAILWAY_ENVIRONMENT != "production"`` gate
+    used elsewhere, e.g. app.py CORS origins).
+    """
+    if os.environ.get("RAILWAY_ENVIRONMENT", "").lower() == "production":
+        return True
+    if os.environ.get("REQUIRE_JWT_VERIFICATION", "false").lower() == "true":
+        return True
+    return False
 
 
 # Role-based permission mapping
@@ -278,10 +318,26 @@ ROLE_PERMISSIONS = {
 
 def cors_headers() -> dict[str, str]:
     """
-    Standard CORS headers for all API responses
+    Standard CORS headers for the Lambda-style response-dict path.
+
+    This helper builds the ``headers`` dict returned by ``handle_options_request``,
+    ``create_error_response`` and ``create_success_response`` — the response-dict
+    (API-Gateway / Lambda) convention, NOT the browser CORS layer served by Flask.
+    The Flask app enforces an env-driven origin allowlist (``ALLOWED_ORIGINS`` in
+    ``app.py`` via Flask-CORS with ``supports_credentials=True``); this helper is a
+    separate path and does not participate in that layer.
+
+    Security invariant (risk F3, security-assessment-2026-09-26):
+        ``Access-Control-Allow-Origin: *`` is safe here ONLY because it is paired
+        with ``Access-Control-Allow-Credentials: false``. A wildcard origin combined
+        with credentials is what browsers forbid and what leaks cross-origin. With
+        credentials off there is nothing sensitive to leak, so the wildcard is
+        non-exploitable BY DESIGN. Do NOT set ACAC to "true" on this path — if a
+        credentialed response is ever needed here, switch to an explicit allowlisted
+        origin (mirroring ``app.ALLOWED_ORIGINS``) instead of the wildcard.
 
     Returns:
-        dict: CORS headers
+        dict: CORS headers (wildcard origin, credentials disabled).
     """
     return {
         "Access-Control-Allow-Origin": "*",
@@ -289,6 +345,8 @@ def cors_headers() -> dict[str, str]:
         # R2 (S2): X-Enhanced-Groups is NOT accepted — roles come only from the
         # verified token's cognito:groups, never from a client-supplied header.
         "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        # INVARIANT (F3): must stay "false" — the wildcard origin above is only
+        # safe while credentials are disabled. See the docstring.
         "Access-Control-Allow-Credentials": "false",
     }
 
@@ -412,7 +470,26 @@ def extract_user_credentials(
         if verifier is not None:
             return _extract_with_verifier(verifier, jwt_token)
 
-        # Fallback: base64 payload decoding (no cryptographic verification)
+        # H1 (risk F1): FAIL CLOSED when a verifier is required but unconfigured.
+        # In production (RAILWAY_ENVIRONMENT=production) or when REQUIRE_JWT_VERIFICATION
+        # is explicitly true, we MUST NOT fall through to the unsigned base64 path —
+        # doing so would trust an attacker-forgeable cognito:groups claim. Reject every
+        # request with 503 instead. The base64 fallback survives ONLY for local dev /
+        # tests (verifier genuinely unconfigured AND not a verification-required env).
+        if _jwt_verification_required():
+            return (
+                None,
+                None,
+                create_error_response(
+                    503,
+                    "Authentication service unavailable",
+                    "JWT verification is required in this environment but is not "
+                    "configured.",
+                ),
+            )
+
+        # Fallback: base64 payload decoding (no cryptographic verification) —
+        # local dev / tests only.
         return _extract_with_base64(jwt_token)
 
     except Exception as e:

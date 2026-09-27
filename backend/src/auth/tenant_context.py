@@ -205,6 +205,68 @@ def validate_tenant_access(
     return True, None
 
 
+def _log_sysadmin_bypass(
+    user_email: str,
+    user_roles: list[str],
+    injected_tenant: str | None,
+    route: str,
+    request_obj=None,
+) -> None:
+    """Emit a structured audit-log entry when a SysAdmin uses the tenant bypass.
+
+    F2 (security-assessment-2026-09-26 M1): ``tenant_required(allow_sysadmin=True)``
+    injects the client-supplied ``X-Tenant`` header WITHOUT validating it against the
+    caller's verified ``custom:tenants`` — a legitimate but real cross-tenant
+    capability. This records *who* exercised it, *which* tenant they injected, and
+    *on what route*, so the bypass is auditable rather than an untracked ``print``.
+
+    Reuses the established audit pattern in
+    :func:`auth.cognito_utils.log_successful_access` (structured JSON via
+    ``ACCESS_LOG:``) rather than inventing a new logging scheme. ``cognito_utils`` is
+    imported lazily to keep the ``auth`` package importable on the Flask-free SAM
+    plane (see the module-level note).
+
+    Args:
+        user_email: Authenticated caller's email (injected by ``cognito_required``).
+        user_roles: Caller's global roles.
+        injected_tenant: The unvalidated tenant selected via the ``X-Tenant`` header.
+        route: The handler function name being invoked.
+        request_obj: Optional Flask request, used to record the HTTP method/path.
+    """
+    details: dict[str, Any] = {
+        "injected_tenant": injected_tenant,
+        "route": route,
+        "bypass": "allow_sysadmin",
+        "tenant_validated": False,
+    }
+    if request_obj is not None:
+        try:
+            details["method"] = request_obj.method
+            details["path"] = request_obj.path
+        except Exception:
+            # Never let audit-log enrichment break the request path.
+            pass
+
+    try:
+        from auth.cognito_utils import log_successful_access
+
+        log_successful_access(
+            user_email=user_email,
+            user_roles=user_roles,
+            operation="sysadmin_tenant_bypass",
+            details=details,
+        )
+    except Exception as e:
+        # Auditing must never take down the route; fall back to a flushed print so
+        # the bypass is still visible in logs even if the audit helper is unavailable.
+        print(
+            "SYSADMIN_BYPASS_AUDIT_FALLBACK: "
+            + json.dumps({"user_email": user_email, **details})
+            + f" (audit-helper error: {type(e).__name__})",
+            flush=True,
+        )
+
+
 def tenant_required(allow_sysadmin: bool = False):
     """
     Decorator to enforce tenant context on routes
@@ -238,6 +300,8 @@ def tenant_required(allow_sysadmin: bool = False):
 
             # Get user_roles from kwargs (injected by cognito_required)
             user_roles = kwargs.get("user_roles", [])
+            # user_email is injected by cognito_required alongside user_roles.
+            user_email = kwargs.get("user_email", "unknown")
 
             # Extract tenant from request
             tenant = get_current_tenant(request)
@@ -252,7 +316,19 @@ def tenant_required(allow_sysadmin: bool = False):
 
             # SysAdmin bypass (if allowed)
             if allow_sysadmin and "SysAdmin" in user_roles:
-                print(f"⚠️ SysAdmin bypass for {f.__name__}", flush=True)
+                # F2 (security-assessment-2026-09-26 M1): on an allow_sysadmin
+                # route the client-supplied X-Tenant header is injected WITHOUT
+                # membership validation — a real cross-tenant capability. Emit a
+                # STRUCTURED audit trail (not a bare print) of who used the
+                # bypass, which tenant they injected, and on what route, reusing
+                # the established `log_successful_access` audit pattern.
+                _log_sysadmin_bypass(
+                    user_email=user_email,
+                    user_roles=user_roles,
+                    injected_tenant=tenant,
+                    route=f.__name__,
+                    request_obj=request,
+                )
                 kwargs["tenant"] = tenant
                 kwargs["user_tenants"] = user_tenants
                 return f(*args, **kwargs)
