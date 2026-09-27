@@ -18,7 +18,7 @@ member and everything hanging off it (memberships, delegates, payments) under ac
 patterns that never leave the tenant partition::
 
     Table: sam-members                    (sam-members-test in test/dev; PAY_PER_REQUEST)
-      PK  tenant_id                        -- partition key = tenancy boundary (LeadingKeys)
+      PK  tenant_id                        -- partition key = tenancy boundary (structural)
       SK  record_type#id                   -- see the record-type tokens below
       attrs: personal{}, membership{}, scope_values{}, overlay{}, ...
 
@@ -104,9 +104,16 @@ MEMBERS_TABLE_ENV_VAR = "MEMBERS_TABLE"
 
 #: Partition-key attribute name. Its value is the ``tenant_id`` — the tenancy boundary. Making
 #: the tenant the partition key means a query cannot address more than one tenant's partition,
-#: so cross-tenant reads are structurally unaddressable (Property 1). IAM
-#: ``dynamodb:LeadingKeys`` (see :data:`LEADING_KEYS_IAM_POLICY_PLAN`) restricts a caller's
-#: *credentials* to their own partition as defense-in-depth.
+#: so cross-tenant reads are structurally unaddressable (Property 1). This structural pinning
+#: is the ONLY tenancy control deployed today: the repository is the sole DynamoDB touch-point
+#: and every read/write is keyed by this attribute (there is no ``.scan()`` anywhere).
+#:
+#: IAM ``dynamodb:LeadingKeys`` (see :data:`LEADING_KEYS_IAM_POLICY_PLAN`) would add a
+#: *credential*-level backstop over this structural isolation — but it is a PLAN, NOT deployed
+#: (risk S1 / security-assessment-2026-09-26 M2). The Members Lambda runs as a single shared
+#: principal with NO per-tenant ``PrincipalTag``, so the ``LeadingKeys`` condition would not
+#: constrain anything as-is; deploying it needs per-request session tagging (a live-IAM change
+#: out of scope for that task). Do NOT read this attribute's isolation as IAM-enforced today.
 PARTITION_KEY_ATTR = "tenant_id"
 
 #: Sort-key attribute name. Holds the ``record_type#id`` composite value (see below).
@@ -396,14 +403,33 @@ def get_members_table_resource(*, region: str | None = None):
     return resource.Table(table_name)
 
 
-# --- IAM LeadingKeys policy plan (defense in depth) ------------------------
+# --- IAM LeadingKeys policy plan (NOT deployed — see status note) ----------
 
 #: IAM policy *plan* for tenant-scoped access to the Members table using
 #: ``dynamodb:LeadingKeys``. The partition key already makes cross-tenant reads unaddressable
-#: (correctness, Property 1); this condition additionally restricts a caller's *credentials*
-#: to their own partition (defense in depth), mirroring the S3 projection plan. The
-#: ``${aws:PrincipalTag/tenant_id}`` placeholder is illustrative — binding a principal to its
-#: tenant is a Step-4 IAM decision, captured here so the repository and provisioning build
+#: (correctness, Property 1); this condition would ADDITIONALLY restrict a caller's
+#: *credentials* to their own partition (defense in depth), mirroring the S3 projection plan.
+#:
+#: STATUS — NOT DEPLOYED (risk S1 / security-assessment-2026-09-26 M2). This is a plan only,
+#: for TWO reasons that both have to be resolved before it enforces anything:
+#:
+#:   1. It is not attached to the Members Lambda. ``sam/members/template.yaml``
+#:      (``MembersFunction.Policies``) grants table-scoped DynamoDB actions with NO
+#:      ``LeadingKeys`` condition. So today isolation is STRUCTURAL-ONLY: it rests entirely on
+#:      the repository always pinning the ``tenant_id`` partition key (which it does — every
+#:      read/write is keyed, and there is no ``.scan()``).
+#:   2. The ``${aws:PrincipalTag/tenant_id}`` placeholder needs a per-request ``tenant_id``
+#:      principal tag to resolve to. The Lambda runs as a SINGLE SHARED principal with no
+#:      per-tenant ``PrincipalTag``, so even if attached the condition would match nothing
+#:      meaningful (the tag would be empty/constant, not the caller's tenant). Making it real
+#:      requires per-request scoped credentials / session tagging — a larger, live-IAM change
+#:      in the ``nonprofit-deploy`` account, deliberately out of scope for the M2 task runner.
+#:
+#: So: do NOT claim ``LeadingKeys`` enforcement anywhere while this is undeployed. The strong
+#: compensating control today is the repository-invariant test in
+#: ``sam/tests/test_members_repository_tenant_invariant.py`` (asserts every read/write pins the
+#: ``tenant_id`` partition key and that no ``.scan()`` is used). Binding a principal to its
+#: tenant is the Step-4 IAM decision, captured here so the repository and provisioning build
 #: against one agreed shape.
 LEADING_KEYS_IAM_POLICY_PLAN: dict = {
     "Version": "2012-10-17",
@@ -423,8 +449,10 @@ LEADING_KEYS_IAM_POLICY_PLAN: dict = {
             "Resource": "arn:aws:dynamodb:*:*:table/${MEMBERS_TABLE}",
             "Condition": {
                 "ForAllValues:StringEquals": {
-                    # LeadingKeys == the partition-key values a caller may touch — bound to
-                    # the caller's own tenant only (defense in depth over the PK isolation).
+                    # LeadingKeys == the partition-key values a caller may touch — WOULD bind
+                    # a caller to its own tenant (defense in depth over the PK isolation) IF
+                    # deployed with a per-request ``tenant_id`` PrincipalTag. Not deployed today
+                    # (single shared principal, no such tag) — see the STATUS note above.
                     "dynamodb:LeadingKeys": ["${aws:PrincipalTag/tenant_id}"]
                 }
             },
@@ -434,7 +462,12 @@ LEADING_KEYS_IAM_POLICY_PLAN: dict = {
 
 
 def leading_keys_iam_policy_json() -> str:
-    """Return the LeadingKeys IAM policy plan as a formatted JSON string (for Step-4 / docs)."""
+    """Return the LeadingKeys IAM policy *plan* as a formatted JSON string (for Step-4 / docs).
+
+    NOTE: this is the UNDEPLOYED plan (see :data:`LEADING_KEYS_IAM_POLICY_PLAN` status note) —
+    it is not attached to any principal today. Emitting it (e.g. in a provisioning reminder)
+    must not be read as evidence that ``LeadingKeys`` is enforced.
+    """
     import json
 
     return json.dumps(LEADING_KEYS_IAM_POLICY_PLAN, indent=2)
