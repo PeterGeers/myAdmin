@@ -119,6 +119,42 @@ class TestSTRUpload:
         assert result['platform'] == 'airbnb'
         assert len(result['realised']) == 1
 
+    @patch('werkzeug.datastructures.FileStorage.save')
+    @patch('os.remove')
+    @patch('routes.str_routes.STRProcessor')
+    def test_upload_same_filename_twice_produces_distinct_stored_paths(
+        self, mock_processor_cls, mock_remove, mock_save, client, str_auth
+    ):
+        """Two uploads of the same filename must be stored under distinct paths (F4)."""
+        mock_processor = MagicMock()
+        mock_processor_cls.return_value = mock_processor
+        mock_processor.process_str_files.return_value = []
+        mock_processor.separate_by_status.return_value = {'realised': [], 'planned': []}
+        mock_processor.generate_summary.return_value = {}
+
+        def _upload_once():
+            data = {
+                'file': (io.BytesIO(b'csv,data,here\n'), 'airbnb_export.csv'),
+                'platform': 'airbnb',
+            }
+            resp = client.post(
+                '/api/str/upload',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data',
+            )
+            assert resp.status_code == 200
+            # temp_paths passed to the processor are the stored paths
+            return mock_processor.process_str_files.call_args[0][0][0]
+
+        first_path = _upload_once()
+        second_path = _upload_once()
+
+        assert first_path != second_path
+        # UUID prefix pattern: {tenant}_{uuid8}_{secure_filename}
+        assert first_path.endswith('airbnb_export.csv')
+        assert second_path.endswith('airbnb_export.csv')
+
     @patch('routes.str_routes.STRProcessor')
     def test_upload_empty_filename_returns_400(self, mock_processor_cls, client, str_auth):
         """File with empty filename returns 400."""
@@ -621,6 +657,58 @@ class TestSTRImportPayout:
         result = json.loads(response.data)
         assert result['success'] is True
         assert result['database']['updated'] == 10
+
+    @patch('werkzeug.datastructures.FileStorage.save')
+    @patch('os.remove')
+    @patch('routes.str_routes.STRDatabase')
+    @patch('routes.str_routes.STRProcessor')
+    def test_import_payout_same_filename_twice_produces_distinct_stored_paths(
+        self, mock_proc_cls, mock_db_cls, mock_remove, mock_save, client, str_auth
+    ):
+        """Two payout imports of the same filename must be stored under distinct paths (F4)."""
+        mock_proc = MagicMock()
+        mock_proc_cls.return_value = mock_proc
+        mock_proc._process_booking_payout.return_value = {
+            'summary': {
+                'total_rows': 1,
+                'reservation_rows': 1,
+                'updated_count': 0,
+                'error_count': 0,
+            },
+            'updates': [],
+            'errors': [],
+        }
+        mock_db = MagicMock()
+        mock_db_cls.return_value = mock_db
+        mock_db.update_from_payout.return_value = {
+            'updated': 0,
+            'not_found': [],
+            'errors': [],
+        }
+
+        def _import_once():
+            data = {
+                'file': (
+                    io.BytesIO(b'payout,data\n'),
+                    'Payout_from_2024-06-01_until_2024-06-30.csv',
+                ),
+            }
+            resp = client.post(
+                '/api/str/import-payout',
+                headers=str_auth,
+                data=data,
+                content_type='multipart/form-data',
+            )
+            assert resp.status_code == 200
+            # stored path is the arg passed to _process_booking_payout
+            return mock_proc._process_booking_payout.call_args[0][0]
+
+        first_path = _import_once()
+        second_path = _import_once()
+
+        assert first_path != second_path
+        assert first_path.endswith('Payout_from_2024-06-01_until_2024-06-30.csv')
+        assert second_path.endswith('Payout_from_2024-06-01_until_2024-06-30.csv')
 
 
 # ============================================================================

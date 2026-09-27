@@ -185,6 +185,18 @@ Resources:
       # Both are scoped to the exact table ARN (+ any index ARN) in THIS account/region;
       # no wildcard table, no cross-account. The tables are managed outside this stack
       # (Retain) — this only grants ACCESS to them, it does not create them.
+      #
+      # TENANCY (risk S1 / security-assessment-2026-09-26 M2): there is intentionally NO
+      # `dynamodb:LeadingKeys` condition and NO per-tenant `PrincipalTag` here. The function
+      # runs as a SINGLE SHARED principal, so tenant isolation is STRUCTURAL-ONLY today — it
+      # rests on the repository (`sam/members/repository/members_repository.py`, the sole
+      # DynamoDB touch-point) always pinning the `tenant_id` partition key on every read/write
+      # (no `.scan()` anywhere). The `LeadingKeys` credential-level backstop is a documented
+      # PLAN only (`table_design.LEADING_KEYS_IAM_POLICY_PLAN`); deploying it would require
+      # per-request session tagging (a live-IAM change), so this template deliberately does NOT
+      # claim it. The compensating control is the repository-invariant test
+      # (`sam/tests/test_members_repository_tenant_invariant.py`). Keep this template, that
+      # test, and the `table_design.py` docs in agreement: structural isolation only, for now.
       Policies:
         - Version: "2012-10-17"
           Statement:

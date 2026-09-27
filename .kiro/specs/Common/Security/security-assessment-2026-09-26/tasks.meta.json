@@ -1,4 +1,124 @@
 {
   "pbtResults": {},
-  "executionHistory": {}
+  "executionHistory": {
+    "**H1. Fail closed on JWT verification in production (risk F1).** [M]": [
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495947244
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495954940
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790496254676
+      }
+    ],
+    "**M1. Inventory + audit-log the `allow_sysadmin=True` routes (risk F2).** [M]": [
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495947377
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790496269600
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790496557609
+      }
+    ],
+    "**M2. Deploy the `dynamodb:LeadingKeys` defense-in-depth for the SAM plane (risk S1).** [L]": [
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495947461
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790496583237
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790496955911
+      }
+    ],
+    "**L1. UUID-prefix STR upload filenames (risk F4).** [S]": [
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495947571
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790496970708
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790497126912
+      }
+    ],
+    "**L2. Verify + document the SAM OIDC deploy-role trust policy (risk S2).** [S]": [
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495947676
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790497145473
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790508009440
+      }
+    ],
+    "**L3. Guard the SAM handler→repository boundary (risk S3).** [S] (prevents regression of AP-S2)": [
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495947768
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790508014158
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790508152790
+      }
+    ],
+    "**L4. Tidy the Lambda-path `cors_headers()` origin (risk F3).** [S]": [
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790495947857
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790508167342
+      },
+      {
+        "executionId": "edbda62a-c26e-4198-a9a1-a3ae1afdb65f",
+        "chatSessionId": "sess_02f4f3a1-891a-46b2-b2b1-4e7cac7c0b6d",
+        "timestamp": 1790508313384
+      }
+    ]
+  }
 }
