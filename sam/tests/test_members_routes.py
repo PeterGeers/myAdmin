@@ -21,6 +21,7 @@ import json
 
 import pytest
 
+from sam.members.handler import app
 from sam.members.handler.router import (
     MethodNotAllowed,
     NoRouteMatch,
@@ -29,15 +30,12 @@ from sam.members.handler.router import (
 )
 from sam.members.handler.routes import (
     ROUTES,
-    HttpMethod,
     RouteGroup,
     route_names,
     routes_by_group,
 )
-from sam.members.handler import app
 from sam.members.repository import MembersRepository
 from sam.members.repository.members_repository import _StubMembersRepository
-
 
 # ── Route map: the union of ~18 h-dcn behaviours ──────────────────────────────────────
 
@@ -158,7 +156,7 @@ def test_every_declared_route_resolves_to_itself(router):
     for spec in ROUTES:
         concrete = spec.path
         for placeholder in ("member_id", "membership_id"):
-            concrete = concrete.replace("{%s}" % placeholder, "X")
+            concrete = concrete.replace(f"{{{placeholder}}}", "X")
         match = router.resolve(spec.method.value, concrete)
         assert isinstance(match, RouteMatch)
         assert match.spec.name == spec.name

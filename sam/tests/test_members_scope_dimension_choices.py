@@ -26,7 +26,6 @@ from sam.members.domain.field_resolver import (
 from sam.members.domain.fixed_fields import FieldType
 from sam.members.domain.membership_service import (
     MembershipService,
-    MemberValidationError,
 )
 from sam.members.domain.scope_dimensions import (
     ScopeDimension,
@@ -35,7 +34,6 @@ from sam.members.domain.scope_dimensions import (
 
 # Reuse the field-config test's in-memory fake catalog repo (read-only catalog surface).
 from sam.tests.test_field_config_endpoint import FakeCatalogRepository, _entry
-
 
 TENANT = "h-dcn"
 REGION_VALUES = (
@@ -239,18 +237,17 @@ class TestRegionChangeGatedValidation:
     def test_reject_invalid_overlay_enum_values_create_region_in_values_ok(self, svc):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        config = svc.get_field_config(TENANT)
         # Rebuild a ResolvedFieldConfig-like path is internal; drive via the write validator.
         errors: dict = {}
         # Access the resolved config object (not the serialized dict) via the resolver.
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))  # noqa: SLF001
+        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
         MS._reject_invalid_overlay_enum_values(resolved, _member("Oost"), errors)
         assert errors == {}
 
     def test_reject_invalid_overlay_enum_values_create_region_not_in_values_errors(self, svc):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))  # noqa: SLF001
+        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
         errors: dict = {}
         MS._reject_invalid_overlay_enum_values(resolved, _member("Atlantis"), errors)
         assert "overlay.region" in errors
@@ -258,7 +255,7 @@ class TestRegionChangeGatedValidation:
     def test_reject_invalid_overlay_enum_values_update_unchanged_legacy_ok(self, svc):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))  # noqa: SLF001
+        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
         legacy = _member("Groningen/Drente")  # old spelling, not in the current values
         errors: dict = {}
         MS._reject_invalid_overlay_enum_values(
@@ -269,7 +266,7 @@ class TestRegionChangeGatedValidation:
     def test_reject_invalid_overlay_enum_values_update_change_to_invalid_errors(self, svc):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))  # noqa: SLF001
+        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
         previous = _member("Oost")
         changed = _member("Atlantis")
         errors: dict = {}
@@ -281,7 +278,7 @@ class TestRegionChangeGatedValidation:
     def test_reject_invalid_overlay_enum_values_update_legacy_to_valid_ok(self, svc):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))  # noqa: SLF001
+        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
         previous = _member("Groningen/Drente")  # legacy
         changed = _member("Groningen/Drenthe")  # corrected, in values
         errors: dict = {}
@@ -301,9 +298,9 @@ class TestAppWiresScopeConfigProviderIntoService:
     def test_get_field_config_via_app_service_resolves_region_from_projection_scope(
         self, monkeypatch, catalog_repo
     ):
-        from sam.members.handler import app as members_app
         from sam.members.domain.field_resolver import StaticOverlayProvider
         from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
+        from sam.members.handler import app as members_app
 
         # Region overlay = choiceless enum (h-dcn's real shape); scope config carries the values.
         overlay = _overlay_with_choiceless_enum("region")
@@ -371,7 +368,7 @@ class TestOverlayEnumChoicesToleratesDictShape:
         config, _ = self._config_with_dict_choices()
         errors: dict = {}
         # Must NOT raise (the 502 case) and must accept a value present in the dict choices.
-        MembershipService._reject_invalid_overlay_enum_values(  # noqa: SLF001
+        MembershipService._reject_invalid_overlay_enum_values(
             config, {"overlay": {"motor_type": "BMW"}}, errors
         )
         assert errors == {}
@@ -379,7 +376,7 @@ class TestOverlayEnumChoicesToleratesDictShape:
     def test_invalid_value_against_dict_choices_is_a_clean_error(self):
         config, _ = self._config_with_dict_choices()
         errors: dict = {}
-        MembershipService._reject_invalid_overlay_enum_values(  # noqa: SLF001
+        MembershipService._reject_invalid_overlay_enum_values(
             config, {"overlay": {"motor_type": "Ducati"}}, errors
         )
         # A bad value is a 422-style FieldError (v1.0) whose English detail + params.allowed

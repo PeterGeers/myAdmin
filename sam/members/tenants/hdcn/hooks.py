@@ -43,7 +43,8 @@ evidence for the Go/No-Go rung distribution (R8.2).
 
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
 from sam.members.domain.fixed_fields import MembershipStatus
 from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
@@ -68,7 +69,7 @@ def _overlay(record: Mapping[str, Any]) -> Mapping[str, Any]:
     return overlay if isinstance(overlay, Mapping) else {}
 
 
-def _current_status(record: Mapping[str, Any]) -> Optional[str]:
+def _current_status(record: Mapping[str, Any]) -> str | None:
     """The record's ``membership.status`` as a raw string, or ``None``."""
     membership = record.get("membership") if isinstance(record, Mapping) else None
     if not isinstance(membership, Mapping):
@@ -79,7 +80,7 @@ def _current_status(record: Mapping[str, Any]) -> Optional[str]:
 
 def hdcn_validate_member(
     tenant_id: str, record: Mapping[str, Any]
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Validate h-dcn's club-specific member rules (Rung-3 ``validate_member``).
 
     Layered ON TOP of the generic fixed-field validation (the core still runs
@@ -94,7 +95,7 @@ def hdcn_validate_member(
     route (task 5.2) can merge these errors with the fixed-field errors and surface them all
     at once.
     """
-    errors: Dict[str, str] = {}
+    errors: dict[str, str] = {}
     if _current_status(record) == MembershipStatus.ACTIVE.value:
         overlay = _overlay(record)
         motor = overlay.get("motor") or overlay.get("motor_type")

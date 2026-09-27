@@ -30,13 +30,13 @@ from sam.members.domain.membership_type_catalog import (
 
 
 def _entry(**kw) -> MembershipTypeEntry:
-    base = dict(
-        tenant_id="h-dcn",
-        type_code="erelid",
-        label={"nl": "Erelid", "en": "Honorary member"},
-        active=True,
-        order=10,
-    )
+    base = {
+        "tenant_id": "h-dcn",
+        "type_code": "erelid",
+        "label": {"nl": "Erelid", "en": "Honorary member"},
+        "active": True,
+        "order": 10,
+    }
     base.update(kw)
     return MembershipTypeEntry(**base)
 
@@ -188,7 +188,7 @@ class TestItemRoundTrip:
         from decimal import Decimal
 
         e = MembershipTypeEntry.from_item(
-            {"tenant_id": "t", "type_code": "c", "label": {"nl": "L"}, "order": Decimal("7")}
+            {"tenant_id": "t", "type_code": "c", "label": {"nl": "L"}, "order": Decimal(7)}
         )
         assert e.order == 7
 

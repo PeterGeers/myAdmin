@@ -44,7 +44,6 @@ from sam.members.domain.scope_dimensions import ScopeConfig
 from sam.members.domain.view_contexts import DEFAULT_CONTEXT_KEY, ViewContext
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
-
 # ---------------------------------------------------------------------------
 # In-memory fake DynamoDB table (read side)
 # ---------------------------------------------------------------------------

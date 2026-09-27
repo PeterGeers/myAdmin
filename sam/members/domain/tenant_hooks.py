@@ -44,14 +44,10 @@ tenant-agnostic (no boto3 / HTTP).
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from enum import Enum
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Mapping,
-    Optional,
-    Sequence,
 )
 
 from .fixed_fields import MembershipStatus
@@ -99,7 +95,7 @@ class HookName(str, Enum):
 
 def default_validate_member(
     tenant_id: str, record: Mapping[str, Any]
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Safe default for ``validate_member``: no tenant-specific errors (an empty mapping).
 
     The generic core already validates the platform-fixed fields; a tenant with no bespoke
@@ -141,8 +137,8 @@ def default_resolve_visible_regions(
 def default_calculate_fee(
     tenant_id: str,
     record: Mapping[str, Any],
-    context: Optional[Mapping[str, Any]] = None,
-) -> Optional[float]:
+    context: Mapping[str, Any] | None = None,
+) -> float | None:
     """Safe default for ``calculate_fee``: no computed fee (``None``).
 
     Defined for completeness (design C5 mentions it for future clubs). h-dcn does not need it;
@@ -188,14 +184,14 @@ class TenantHookRegistry:
         # name -> { tenant_id -> hook }. Only registered hooks are stored; unregistered
         # (name, tenant) resolves to the default. Every known name gets an (empty) bucket so a
         # resolve for a valid name never KeyErrors on the outer dict.
-        self._hooks: Dict[HookName, Dict[str, Callable[..., Any]]] = {
+        self._hooks: dict[HookName, dict[str, Callable[..., Any]]] = {
             name: {} for name in HookName
         }
 
     # ── name coercion ─────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _coerce_name(hook_name: "HookName | str") -> HookName:
+    def _coerce_name(hook_name: HookName | str) -> HookName:
         """Coerce a hook name (enum or its string value) to :class:`HookName`, or raise.
 
         Accepting the string value as well as the enum keeps call sites ergonomic while still
@@ -214,7 +210,7 @@ class TenantHookRegistry:
     # ── registration ───────────────────────────────────────────────────────────────────
 
     def register(
-        self, hook_name: "HookName | str", tenant_id: str, hook: Callable[..., Any]
+        self, hook_name: HookName | str, tenant_id: str, hook: Callable[..., Any]
     ) -> None:
         """Register ``hook`` as ``hook_name``'s implementation for ``tenant_id``.
 
@@ -229,7 +225,7 @@ class TenantHookRegistry:
             raise TypeError("hook must be callable")
         self._hooks[name][tenant_id] = hook
 
-    def is_registered(self, hook_name: "HookName | str", tenant_id: str) -> bool:
+    def is_registered(self, hook_name: HookName | str, tenant_id: str) -> bool:
         """Whether ``tenant_id`` has a registered ``hook_name`` (vs. the safe default)."""
         name = self._coerce_name(hook_name)
         return tenant_id in self._hooks[name]
@@ -246,7 +242,7 @@ class TenantHookRegistry:
     # ── resolution / dispatch ──────────────────────────────────────────────────────────
 
     def resolve(
-        self, hook_name: "HookName | str", tenant_id: str
+        self, hook_name: HookName | str, tenant_id: str
     ) -> Callable[..., Any]:
         """Return ``tenant_id``'s ``hook_name`` implementation, or its safe generic default.
 
@@ -258,7 +254,7 @@ class TenantHookRegistry:
         return self._hooks[name].get(tenant_id, _DEFAULTS[name])
 
     def dispatch(
-        self, hook_name: "HookName | str", tenant_id: str, *args: Any, **kwargs: Any
+        self, hook_name: HookName | str, tenant_id: str, *args: Any, **kwargs: Any
     ) -> Any:
         """Resolve ``hook_name`` for ``tenant_id`` and invoke it with ``*args, **kwargs``.
 
@@ -281,7 +277,7 @@ class TenantHookRegistry:
         resolves to :data:`~sam.members.domain.transition_hooks.NOOP_TRANSITION_HOOK` there,
         matching this registry's ``on_transition`` default.
         """
-        on_transition_hooks: Dict[str, OnTransitionHook] = dict(
+        on_transition_hooks: dict[str, OnTransitionHook] = dict(
             self._hooks[HookName.ON_TRANSITION]
         )
         return TransitionHookRegistry(on_transition_hooks)

@@ -82,13 +82,13 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from auth.cognito_utils import _normalize_tenants_claim  # noqa: E402
-from auth.entitlement_claim_codec import CLAIM_NAME, encode_entitlements  # noqa: E402
-from auth.entitlement_resolver import resolve_entitlement  # noqa: E402
-from services.dynamodb_client import DynamoDBConfigError  # noqa: E402
-from services.module_registry import MODULE_REGISTRY  # noqa: E402
+from auth.cognito_utils import _normalize_tenants_claim
+from auth.entitlement_claim_codec import CLAIM_NAME, encode_entitlements
+from auth.entitlement_resolver import resolve_entitlement
+from services.dynamodb_client import DynamoDBConfigError
+from services.module_registry import MODULE_REGISTRY
 
-from sam.pretokengen.projection_governance_reader import (  # noqa: E402
+from sam.pretokengen.projection_governance_reader import (
     ProjectionGovernanceReader,
 )
 

@@ -49,7 +49,6 @@ from sam.shared.auth_utils import (
     reset_global_verifier,
 )
 
-
 # --- Test-pool coordinates (public, non-secret identifiers) ----------------- #
 #
 # ONLY the standing test pool is registered. Production Pool A (eu-west-1_Hdp40eWmu) is

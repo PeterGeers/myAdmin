@@ -43,13 +43,13 @@ def _members_config_providers():
     the projection. Reset around every test to mirror a fresh cold start; individual tests
     may still override these seams for their own fake-table-backed reader.
     """
-    from sam.members.handler import app as members_app
     from sam.members.domain.field_resolver import StaticOverlayProvider
     from sam.members.domain.scope_dimensions import (
         SAMPLE_SCOPE_CONFIG,
         StaticScopeConfigProvider,
     )
     from sam.members.domain.view_contexts import StaticViewContextsProvider
+    from sam.members.handler import app as members_app
 
     members_app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
         {"h-dcn": SAMPLE_SCOPE_CONFIG}

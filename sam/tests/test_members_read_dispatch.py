@@ -27,9 +27,8 @@ import json
 
 import pytest
 
-from sam.members.handler import app
 from sam.members.domain.membership_service import MembershipService
-
+from sam.members.handler import app
 
 # ── Fake repository + injected service ─────────────────────────────────────────────────
 

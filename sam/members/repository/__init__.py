@@ -24,8 +24,8 @@ from sam.members.repository.members_repository import (
 )
 
 __all__ = [
-    "MembersRepository",
     "DynamoDbMembersRepository",
+    "MembersRepository",
 ]
 
 # Note: the Lidmaatschap Beheer catalog *entity* (MembershipTypeEntry) lives in the domain

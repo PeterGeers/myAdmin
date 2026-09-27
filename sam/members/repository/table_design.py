@@ -57,37 +57,38 @@ table (PAY_PER_REQUEST, retain, managed outside CloudFormation) is Step 4 (task 
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Any, Mapping
+from typing import Any
 
 from services.dynamodb_client import get_dynamodb_resource, require_env
 
 __all__ = [
+    "LEADING_KEYS_IAM_POLICY_PLAN",
     "MEMBERS_TABLE_ENV_VAR",
     "PARTITION_KEY_ATTR",
-    "SORT_KEY_ATTR",
-    "SORT_KEY_SEPARATOR",
+    "RECORD_TYPE_DELEGATES",
     "RECORD_TYPE_MEMBER",
     "RECORD_TYPE_MEMBERSHIP",
-    "RECORD_TYPE_DELEGATES",
-    "RECORD_TYPE_PAYMENT",
     "RECORD_TYPE_MEMBERSHIP_TYPE",
-    "build_sort_key",
-    "split_sort_key",
-    "member_sk",
-    "membership_sk",
-    "delegates_sk",
-    "payment_sk",
-    "membership_type_sk",
-    "member_sk_prefix",
+    "RECORD_TYPE_PAYMENT",
+    "SORT_KEY_ATTR",
+    "SORT_KEY_SEPARATOR",
     "build_key",
-    "floats_to_decimal",
     "build_member_item",
     "build_membership_type_item",
-    "resolve_members_table_name",
+    "build_sort_key",
+    "delegates_sk",
+    "floats_to_decimal",
     "get_members_table_resource",
-    "LEADING_KEYS_IAM_POLICY_PLAN",
     "leading_keys_iam_policy_json",
+    "member_sk",
+    "member_sk_prefix",
+    "membership_sk",
+    "membership_type_sk",
+    "payment_sk",
+    "resolve_members_table_name",
+    "split_sort_key",
 ]
 
 # --- Config (fail-fast, reuses the T0 client) ------------------------------

@@ -26,7 +26,6 @@ from hypothesis import strategies as st
 
 from sam.members.domain.scope_access import (
     ADMIN_ROLE_DEFAULTS,
-    ScopeAccess,
     resolve_scope_access,
     resolve_scope_access_for_config,
 )

@@ -1,0 +1,48 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**L1. Burn down the SAM ruff report-only backlog (493 findings).** [M]": [
+      {
+        "executionId": "1f6ff782-68f7-41e0-8104-4838c70413a6",
+        "chatSessionId": "sess_53ff88c2-9d31-4c1c-a235-60d25d7ed575",
+        "timestamp": 1790492391052
+      },
+      {
+        "executionId": "1f6ff782-68f7-41e0-8104-4838c70413a6",
+        "chatSessionId": "sess_53ff88c2-9d31-4c1c-a235-60d25d7ed575",
+        "timestamp": 1790494839332
+      }
+    ],
+    "**L2. Reduce the frontend ESLint backlog (1105 problems: 5 errors, 1100 warnings).** [L]": [
+      {
+        "executionId": "1f6ff782-68f7-41e0-8104-4838c70413a6",
+        "chatSessionId": "sess_53ff88c2-9d31-4c1c-a235-60d25d7ed575",
+        "timestamp": 1790492391165
+      }
+    ],
+    "**L3. Consider flipping the frontend `tsc --noEmit` check to blocking.** [S]": [
+      {
+        "executionId": "1f6ff782-68f7-41e0-8104-4838c70413a6",
+        "chatSessionId": "sess_53ff88c2-9d31-4c1c-a235-60d25d7ed575",
+        "timestamp": 1790492391254
+      }
+    ],
+    "**L4. Fix the stale cross-reference in the runbook.** [S]": [
+      {
+        "executionId": "1f6ff782-68f7-41e0-8104-4838c70413a6",
+        "chatSessionId": "sess_53ff88c2-9d31-4c1c-a235-60d25d7ed575",
+        "timestamp": 1790492391366
+      },
+      {
+        "executionId": "1f6ff782-68f7-41e0-8104-4838c70413a6",
+        "chatSessionId": "sess_53ff88c2-9d31-4c1c-a235-60d25d7ed575",
+        "timestamp": 1790494838251
+      },
+      {
+        "executionId": "2cd791e6-b77a-4292-a861-83eacf302420",
+        "chatSessionId": "sess_53ff88c2-9d31-4c1c-a235-60d25d7ed575",
+        "timestamp": 1790495196313
+      }
+    ]
+  }
+}

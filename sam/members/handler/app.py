@@ -47,19 +47,12 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Dict, List, Mapping, Optional, Protocol
+from typing import Any, Protocol
 
-from sam.members.handler.router import (
-    MethodNotAllowed,
-    NoRouteMatch,
-    RouteMatch,
-    get_router,
-)
-from sam.members.handler.routes import (
-    RouteSpec,
-)
+from sam.members.domain.error_codes import FieldError
 from sam.members.domain.field_resolver import TenantOverlay, TenantOverlayProvider
 from sam.members.domain.fixed_fields import MembershipStatus
 from sam.members.domain.lifecycle_config import (
@@ -69,14 +62,13 @@ from sam.members.domain.lifecycle_config import (
 from sam.members.domain.membership_service import (
     DEFAULT_SCOPE_DIMENSION_KEY,
     MemberNotFound,
-    MemberValidationError,
     MembershipService,
     MembershipTypeConflict,
     MembershipTypeNotFound,
+    MemberValidationError,
     ScopeDenied,
     TransitionDenied,
 )
-from sam.members.domain.error_codes import FieldError
 from sam.members.domain.membership_type_catalog import MembershipTypeValidationError
 from sam.members.domain.scope_access import ScopeAccess, resolve_scope_access
 from sam.members.domain.scope_dimensions import (
@@ -86,6 +78,15 @@ from sam.members.domain.scope_dimensions import (
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.view_contexts import ViewContext, ViewContextsProvider
+from sam.members.handler.router import (
+    MethodNotAllowed,
+    NoRouteMatch,
+    RouteMatch,
+    get_router,
+)
+from sam.members.handler.routes import (
+    RouteSpec,
+)
 from sam.members.repository.members_repository import (
     DynamoDbMembersRepository,
 )
@@ -131,17 +132,17 @@ logger = logging.getLogger(__name__)
 # use for ``_get_membership_service`` (see ``sam/tests/conftest.py``).
 
 #: Test-only override for the scope-config provider (``None`` in production → fresh reader).
-_SCOPE_CONFIG_PROVIDER_OVERRIDE: Optional[ScopeConfigProvider] = None
+_SCOPE_CONFIG_PROVIDER_OVERRIDE: ScopeConfigProvider | None = None
 
 #: Test-only override for the overlay provider (``None`` in production → fresh reader).
-_OVERLAY_PROVIDER_OVERRIDE: Optional[TenantOverlayProvider] = None
+_OVERLAY_PROVIDER_OVERRIDE: TenantOverlayProvider | None = None
 
 #: Test-only override for the view-contexts provider (``None`` in production → fresh reader).
 #: Mirrors :data:`_OVERLAY_PROVIDER_OVERRIDE` — a test injects a ``StaticViewContextsProvider``
 #: (or a ``MembersProjectionReader`` over a fake table) so the field-config endpoint's
 #: ``view_contexts`` can be driven without an AWS round-trip. When unset (production), each read
 #: builds a fresh projection reader (see :class:`_ProjectionViewContextsProvider`).
-_VIEW_CONTEXTS_PROVIDER_OVERRIDE: Optional[ViewContextsProvider] = None
+_VIEW_CONTEXTS_PROVIDER_OVERRIDE: ViewContextsProvider | None = None
 
 
 def _new_projection_reader() -> MembersProjectionReader:
@@ -162,7 +163,7 @@ def _new_projection_reader() -> MembersProjectionReader:
 #: all-access caller → ``["*"]``, a ``required_for``-capability caller with no grant → deny)
 #: without an AWS round-trip. When unset (production), each request reads grants off the same
 #: fresh :class:`MembersProjectionReader` used for the scope config (one Query per partition).
-_SCOPE_GRANTS_READER_OVERRIDE: Optional["_ScopeGrantsReader"] = None
+_SCOPE_GRANTS_READER_OVERRIDE: _ScopeGrantsReader | None = None
 
 
 class _ScopeGrantsReader(Protocol):
@@ -173,7 +174,7 @@ class _ScopeGrantsReader(Protocol):
     a test may inject any object with the same method.
     """
 
-    def get_scope_grants(self, tenant_id: str, email: str) -> Mapping[str, List[str]]:
+    def get_scope_grants(self, tenant_id: str, email: str) -> Mapping[str, list[str]]:
         ...
 
 
@@ -188,7 +189,7 @@ def _scope_config_provider() -> ScopeConfigProvider:
     return _new_projection_reader()
 
 
-def _scope_grants_reader() -> "_ScopeGrantsReader":
+def _scope_grants_reader() -> _ScopeGrantsReader:
     """The active scope-GRANT reader for this request (override, else fresh reader).
 
     Returns the test override when one is installed; otherwise a fresh projection reader.
@@ -297,10 +298,10 @@ def _build_tenant_hooks() -> TenantHookRegistry:
 _TENANT_HOOKS = _build_tenant_hooks()
 
 __all__ = [
-    "handler",
-    "RouteNotImplemented",
     "AuthorizationError",
+    "RouteNotImplemented",
     "TenantResolutionError",
+    "handler",
 ]
 
 
@@ -423,8 +424,8 @@ def _error(
     status: int,
     message: str,
     *,
-    code: Optional[str] = None,
-    params: Optional[Mapping[str, Any]] = None,
+    code: str | None = None,
+    params: Mapping[str, Any] | None = None,
     **extra: Any,
 ) -> dict:
     """Shape a JSON error envelope ``{success:false, error, code?, params?, ...}``.
@@ -555,17 +556,17 @@ class RequestContext:
             is retained on the context for diagnostics and any future single-dimension caller.
     """
 
-    tenant_id: Optional[str] = None
-    sub: Optional[str] = None
-    groups: List[str] = field(default_factory=list)
-    capability: Optional[str] = None
-    allowed_scopes: Dict[str, List[str]] = field(default_factory=dict)
+    tenant_id: str | None = None
+    sub: str | None = None
+    groups: list[str] = field(default_factory=list)
+    capability: str | None = None
+    allowed_scopes: dict[str, list[str]] = field(default_factory=dict)
     claims: Mapping[str, Any] = field(default_factory=dict)
     path_params: Mapping[str, str] = field(default_factory=dict)
-    scope_dimension_key: Optional[str] = None
+    scope_dimension_key: str | None = None
 
 
-def _requested_tenant_from_request(request: ParsedRequest) -> Optional[str]:
+def _requested_tenant_from_request(request: ParsedRequest) -> str | None:
     """The client's SELECTED active tenant from the ``X-Tenant`` header, or ``None`` (s5f).
 
     A per-request SELECTOR, never an authorization: the returned value is validated against
@@ -591,7 +592,7 @@ def _requested_tenant_from_request(request: ParsedRequest) -> Optional[str]:
 
 
 def _establish_tenant_context(
-    entitlement: DecodedEntitlements, requested_tenant: Optional[str]
+    entitlement: DecodedEntitlements, requested_tenant: str | None
 ) -> str:
     """Resolve the request's ACTIVE ``tenant_id`` (s5f — verify-before-trust + selection).
 
@@ -656,8 +657,8 @@ def _establish_tenant_context(
 
 
 def _gating_dimension_key(
-    tenant_id: str, provider: Optional[ScopeConfigProvider] = None
-) -> Optional[str]:
+    tenant_id: str, provider: ScopeConfigProvider | None = None
+) -> str | None:
     """The key of the dimension that gates this tenant's reads, or ``None`` if tenant-wide.
 
     Derived **generically** from the tenant's scope config (data, via
@@ -681,7 +682,7 @@ def _gating_dimension_key(
 
 
 def _scope_access_from_grant(
-    tenant_id: str, dimension: ScopeDimension, granted_values: Optional[List[str]]
+    tenant_id: str, dimension: ScopeDimension, granted_values: list[str] | None
 ):
     """Map a caller's PROJECTED grant values for one dimension to a :class:`ScopeAccess` (C5).
 
@@ -726,9 +727,9 @@ def _resolve_scope_access(
     tenant_id: str,
     claims: Mapping[str, Any],
     *,
-    config_provider: Optional[ScopeConfigProvider] = None,
-    grants_reader: Optional["_ScopeGrantsReader"] = None,
-) -> Dict[str, List[str]]:
+    config_provider: ScopeConfigProvider | None = None,
+    grants_reader: _ScopeGrantsReader | None = None,
+) -> dict[str, list[str]]:
     """Resolve the caller's allowed scope as a PER-DIMENSION map — the scope seam (C5).
 
     s5d task 4.1 (R3.3/R6.2, ODx2 Option A, design → enforcement item 3, Property 6):
@@ -780,7 +781,7 @@ def _resolve_scope_access(
 
     # LOOP over ALL enabled dimensions (drop the enabled[0] shortcut). Each dimension is
     # resolved independently; a dimension with no grant maps to [] (deny for that dimension).
-    allowed: Dict[str, List[str]] = {}
+    allowed: dict[str, list[str]] = {}
     for dimension in enabled:
         granted_values = grants.get(dimension.key)
         granted_list = list(granted_values) if granted_values is not None else None
@@ -814,7 +815,7 @@ def _authenticate_and_authorize(
     request: ParsedRequest,
     spec: RouteSpec,
     verifier: Any = None,
-    path_params: Optional[Mapping[str, str]] = None,
+    path_params: Mapping[str, str] | None = None,
 ) -> RequestContext:
     """Authenticate the caller, establish tenant context, and authorize the route.
 
@@ -871,7 +872,7 @@ def _authenticate_and_authorize(
         else _new_projection_reader()
     )
     if _SCOPE_GRANTS_READER_OVERRIDE is not None:
-        grants_reader: "_ScopeGrantsReader" = _SCOPE_GRANTS_READER_OVERRIDE
+        grants_reader: _ScopeGrantsReader = _SCOPE_GRANTS_READER_OVERRIDE
     elif hasattr(config_provider, "get_scope_grants"):
         # In production the fresh projection reader satisfies BOTH seams, so reuse it and
         # keep the one-Query-per-partition property (its per-invocation cache).
@@ -885,7 +886,7 @@ def _authenticate_and_authorize(
     #     s5d task 4.1: allowed_scopes is now a per-dimension map {dimension: [values]}.
     #     A self-service route (no capability) carries an empty map — the domain enforces
     #     ownership on `sub`, not scope.
-    allowed_scopes: Dict[str, List[str]] = {}
+    allowed_scopes: dict[str, list[str]] = {}
     if spec.capability is not None:
         granted = has_capability(claims, tenant_id, spec.capability)
         if granted is not True:
@@ -935,7 +936,7 @@ def _authenticate_and_authorize(
 #: repository. It is storage-agnostic — the repository (design C6) is the sole DynamoDB
 #: touch-point — so the edge simply hands each read to it. Tests replace :data:`_SERVICE`
 #: (or patch :func:`_get_membership_service`) with a service over an in-memory fake repo.
-_SERVICE: Optional[MembershipService] = None
+_SERVICE: MembershipService | None = None
 
 
 def _get_membership_service() -> MembershipService:
@@ -1357,7 +1358,7 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             code="errors.api.badRequest",
             missing=str(exc.args[0]) if exc.args else None,
         )
-    except Exception:  # noqa: BLE001 — last-resort catch-all (v1.0 fail-loud, steering `37`)
+    except Exception:
         # Any UNANTICIPATED error (a bug, a bad data shape, a dependency failure) becomes a
         # BODIED 500 — never an empty 502 the SPA can only render as "Failed to fetch". The full
         # traceback is logged SERVER-side (CloudWatch); the client gets only a stable code +

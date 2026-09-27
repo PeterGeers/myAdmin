@@ -51,8 +51,9 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
+from typing import Any
 
 import jwt
 import requests
@@ -65,6 +66,8 @@ from jwt import algorithms
 # docstring; a drift test asserts the vendored copy decodes identically to the source).
 from sam.shared.entitlement_claim import (
     CLAIM_NAME as ENTITLEMENT_CLAIM_NAME,
+)
+from sam.shared.entitlement_claim import (
     DecodedEntitlements,
     decode_entitlements,
 )
@@ -230,7 +233,7 @@ def _load_pool_entry(pool_key: str, environ: Mapping[str, str]) -> PoolConfig:
     )
 
 
-def _parse_pool_keys(raw: Optional[str]) -> List[str]:
+def _parse_pool_keys(raw: str | None) -> list[str]:
     """Split COGNITO_POOL_KEYS into a clean, ordered, de-duplicated list (fail-fast)."""
     if raw is None or raw.strip() == "":
         raise PoolRegistryError(
@@ -238,7 +241,7 @@ def _parse_pool_keys(raw: Optional[str]) -> List[str]:
             f"key; an empty registry is a misconfiguration, not a valid state "
             f"(no-dangerous-fallbacks)."
         )
-    keys: List[str] = []
+    keys: list[str] = []
     for token in raw.split(","):
         key = token.strip()
         if key and key not in keys:
@@ -259,7 +262,7 @@ class PoolRegistry:
     """
 
     def __init__(self, entries: Iterable[PoolConfig]):
-        by_iss: Dict[str, PoolConfig] = {}
+        by_iss: dict[str, PoolConfig] = {}
         for entry in entries:
             if entry.iss in by_iss:
                 raise PoolRegistryError(
@@ -270,7 +273,7 @@ class PoolRegistry:
             by_iss[entry.iss] = entry
         self._by_iss = by_iss
 
-    def get(self, iss: str) -> Optional[PoolConfig]:
+    def get(self, iss: str) -> PoolConfig | None:
         """Return the pool for ``iss``, or ``None`` if the issuer is unknown."""
         return self._by_iss.get(iss)
 
@@ -281,7 +284,7 @@ class PoolRegistry:
             raise UnknownIssuerError(iss)
         return pool
 
-    def issuers(self) -> List[str]:
+    def issuers(self) -> list[str]:
         """Return the registered issuers (diagnostics only, not decisions)."""
         return list(self._by_iss.keys())
 
@@ -292,7 +295,7 @@ class PoolRegistry:
         return iss in self._by_iss
 
 
-def load_pool_registry(environ: Optional[Mapping[str, str]] = None) -> PoolRegistry:
+def load_pool_registry(environ: Mapping[str, str] | None = None) -> PoolRegistry:
     """Load the issuer->pool registry from the environment (fail-fast, no defaults).
 
     Reads ``COGNITO_POOL_KEYS`` for the declared pool keys, then loads each pool's
@@ -335,7 +338,7 @@ def _default_fetcher(jwks_uri: str) -> Mapping:
 class _IssuerEntry:
     """One issuer's cached key-set: ``kid -> JWK dict`` plus the fetch timestamp."""
 
-    keys: Dict[str, dict] = field(default_factory=dict)
+    keys: dict[str, dict] = field(default_factory=dict)
     fetched_at: float = 0.0
 
     def is_expired(self, ttl_seconds: int, now: float) -> bool:
@@ -345,14 +348,14 @@ class _IssuerEntry:
         return (now - self.fetched_at) > ttl_seconds
 
 
-def _index_keys_by_kid(document: Mapping) -> Dict[str, dict]:
+def _index_keys_by_kid(document: Mapping) -> dict[str, dict]:
     """Build a ``kid -> JWK`` map from a JWKS document, skipping keyless entries."""
     keys = document.get("keys") if isinstance(document, Mapping) else None
     if not isinstance(keys, list):
         raise JWKSFetchError(
             "<jwks-document>", "response did not contain a 'keys' array"
         )
-    indexed: Dict[str, dict] = {}
+    indexed: dict[str, dict] = {}
     for key in keys:
         if isinstance(key, Mapping):
             kid = key.get("kid")
@@ -382,13 +385,13 @@ class JWKSCache:
     def __init__(
         self,
         registry: PoolRegistry,
-        fetcher: Optional[JwksFetcher] = None,
+        fetcher: JwksFetcher | None = None,
         ttl_seconds: int = _DEFAULT_TTL_SECONDS,
     ):
         self._registry = registry
         self._fetcher = fetcher or _default_fetcher
         self._ttl_seconds = ttl_seconds
-        self._entries: Dict[str, _IssuerEntry] = {}
+        self._entries: dict[str, _IssuerEntry] = {}
         self._lock = threading.Lock()
 
     def get_signing_key(self, iss: str, kid: str) -> dict:
@@ -468,7 +471,7 @@ class JWTVerifier:
     def __init__(
         self,
         registry: PoolRegistry,
-        jwks_cache: Optional[JWKSCache] = None,
+        jwks_cache: JWKSCache | None = None,
         cache_ttl: int = _DEFAULT_TTL_SECONDS,
     ):
         self._registry = registry
@@ -607,13 +610,13 @@ class JWTVerifier:
 # scope so warm invocations reuse cached keys and never re-read the registry or
 # refetch JWKS on the hot path.
 
-_GLOBAL_VERIFIER: Optional[JWTVerifier] = None
+_GLOBAL_VERIFIER: JWTVerifier | None = None
 _GLOBAL_VERIFIER_LOCK = threading.Lock()
 
 
 def get_global_verifier(
-    registry: Optional[PoolRegistry] = None,
-    fetcher: Optional[JwksFetcher] = None,
+    registry: PoolRegistry | None = None,
+    fetcher: JwksFetcher | None = None,
     ttl_seconds: int = _DEFAULT_TTL_SECONDS,
 ) -> JWTVerifier:
     """Return the execution-environment-wide :class:`JWTVerifier`, building it once.
@@ -660,7 +663,7 @@ def reset_global_verifier() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _claims_from_authorizer_context(event: Mapping[str, Any]) -> Optional[dict]:
+def _claims_from_authorizer_context(event: Mapping[str, Any]) -> dict | None:
     """Return API Gateway Cognito-authorizer verified claims, or ``None`` if absent.
 
     Supports both API Gateway integrations:
@@ -699,7 +702,7 @@ def _claims_from_authorizer_context(event: Mapping[str, Any]) -> Optional[dict]:
     return None
 
 
-def _bearer_token_from_event(event: Mapping[str, Any]) -> Optional[str]:
+def _bearer_token_from_event(event: Mapping[str, Any]) -> str | None:
     """Extract the raw bearer token from the event's Authorization header.
 
     Handles the case-insensitive header name and both single-value (``headers``) and
@@ -709,7 +712,7 @@ def _bearer_token_from_event(event: Mapping[str, Any]) -> Optional[str]:
     if not isinstance(event, Mapping):
         return None
 
-    def _find(headers: Mapping[str, Any]) -> Optional[str]:
+    def _find(headers: Mapping[str, Any]) -> str | None:
         for name, value in headers.items():
             if isinstance(name, str) and name.lower() == "authorization":
                 if isinstance(value, list):
@@ -737,7 +740,7 @@ def _bearer_token_from_event(event: Mapping[str, Any]) -> Optional[str]:
 
 def get_verified_claims(
     event: Mapping[str, Any],
-    verifier: Optional[JWTVerifier] = None,
+    verifier: JWTVerifier | None = None,
 ) -> dict:
     """Return verified JWT claims for a Lambda handler — API-GW-authorizer preferred.
 
@@ -781,7 +784,7 @@ def get_verified_claims(
     return active_verifier.verify_token(token)
 
 
-def get_groups(claims: Mapping[str, Any]) -> List[str]:
+def get_groups(claims: Mapping[str, Any]) -> list[str]:
     """Return the roles from a verified token's ``cognito:groups`` claim (R2.2).
 
     Groups come **only** from the verified token — never from ``X-Enhanced-Groups`` or
@@ -835,15 +838,15 @@ class VerifiedIdentity:
         claims: The full verified claims dict (for callers that need more).
     """
 
-    sub: Optional[str]
-    email: Optional[str]
-    groups: List[str]
+    sub: str | None
+    email: str | None
+    groups: list[str]
     claims: Mapping[str, Any]
 
 
 def get_verified_identity(
     event: Mapping[str, Any],
-    verifier: Optional[JWTVerifier] = None,
+    verifier: JWTVerifier | None = None,
 ) -> VerifiedIdentity:
     """Return the caller's identity + roles from the verified token — the one correct entry point.
 
@@ -937,7 +940,7 @@ def get_entitlements_from_claims(
 
 def get_entitlements(
     event: Mapping[str, Any],
-    verifier: Optional[JWTVerifier] = None,
+    verifier: JWTVerifier | None = None,
 ) -> DecodedEntitlements:
     """Return the decoded entitlement from the request's VERIFIED token (R5.1, R5.2).
 
@@ -973,7 +976,7 @@ def has_capability(
     claims: Mapping[str, Any],
     tenant: str,
     capability: str,
-) -> Optional[bool]:
+) -> bool | None:
     """Answer "does this verified user hold ``capability`` for ``tenant``?" from the token.
 
     Reads the per-user answer from the VERIFIED token's ``custom:entitlements`` claim

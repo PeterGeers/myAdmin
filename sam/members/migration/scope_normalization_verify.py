@@ -39,8 +39,9 @@ with enforcement and normalization-at-write (Property 4).
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, List, Mapping, Sequence
+from typing import Any
 
 from sam.members.domain.field_resolver import _member_value
 from sam.members.domain.scope_canon import scope_canon
@@ -48,9 +49,9 @@ from sam.members.domain.scope_dimensions import ScopeDimension
 
 __all__ = [
     "ScopeNormalizationReport",
-    "verify_scope_normalization",
-    "members_matching_grant",
     "member_scope_value",
+    "members_matching_grant",
+    "verify_scope_normalization",
 ]
 
 
@@ -119,9 +120,9 @@ def verify_scope_normalization(
     # The dimension's canonical vocabulary, reduced to canonical space once (R9.6).
     canonical_by_canon = {scope_canon(v): v for v in dimension.values}
 
-    distinct: List[str] = []
+    distinct: list[str] = []
     seen_raw: set[str] = set()
-    offenders: List[str] = []
+    offenders: list[str] = []
     seen_offender: set[str] = set()
 
     for member in members:
@@ -157,7 +158,7 @@ def members_matching_grant(
     members: Sequence[Mapping[str, Any]],
     grant_values: Sequence[str],
     dimension: ScopeDimension,
-) -> List[Mapping[str, Any]]:
+) -> list[Mapping[str, Any]]:
     """Return the members whose scope-field value matches ``grant_values`` (R9.5 second clause).
 
     The exact-grant subset: a member is included when its (canonicalized) scope-field value is
@@ -171,7 +172,7 @@ def members_matching_grant(
     """
     granted = {scope_canon(v) for v in grant_values}
     granted.discard("")  # a blank grant value can never match a real member value
-    matched: List[Mapping[str, Any]] = []
+    matched: list[Mapping[str, Any]] = []
     for member in members:
         raw = member_scope_value(member, dimension)
         if raw is None:

@@ -27,17 +27,14 @@ import pytest
 from sam.members.domain.calculated_fields import (
     CALCULATED_FIELDS,
     CalculatedField,
-    calculated_field_by_key,
-    compute_calculated_fields,
-)
-from sam.members.domain.calculated_fields import (
     _derive_age,
     _derive_application_year,
     _derive_birthday,
     _derive_display_name,
     _derive_years_member,
+    calculated_field_by_key,
+    compute_calculated_fields,
 )
-
 
 # A fixed reference "today" so age/years_member are deterministic regardless of the run date.
 _TODAY = _dt.date(2025, 6, 15)

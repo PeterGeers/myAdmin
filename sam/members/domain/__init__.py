@@ -26,18 +26,18 @@ from .membership_type_catalog import (
 )
 
 __all__ = [
+    "CATALOG_LOCALES",
     "OVERLAY_GROUP",
     "FieldConfig",
     "FieldOrigin",
     "FieldResolver",
     "FixedFieldOverride",
+    "MembershipTypeEntry",
+    "MembershipTypeValidationError",
     "OverlayError",
     "OverlayField",
     "ResolvedField",
     "StaticOverlayProvider",
     "TenantOverlay",
     "TenantOverlayProvider",
-    "CATALOG_LOCALES",
-    "MembershipTypeEntry",
-    "MembershipTypeValidationError",
 ]

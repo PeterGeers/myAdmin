@@ -48,7 +48,6 @@ from services import projection_schema as schema
 
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
-
 # ---------------------------------------------------------------------------
 # Recording in-memory fake DynamoDB table (read side)
 # ---------------------------------------------------------------------------

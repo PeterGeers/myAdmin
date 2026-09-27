@@ -39,14 +39,15 @@ plain shape both sides agree on.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
     "DEFAULT_CONTEXT_KEY",
+    "StaticViewContextsProvider",
     "ViewContext",
     "ViewContextsProvider",
-    "StaticViewContextsProvider",
     "default_view_context",
 ]
 
@@ -85,8 +86,8 @@ class ViewContext:
     permission_roles: Sequence[str] = ()
     columns: Sequence[str] = ()
     filterable_columns: Sequence[str] = ()
-    default_sort: Optional[Mapping[str, Any]] = None
-    page_size: Optional[int] = None
+    default_sort: Mapping[str, Any] | None = None
+    page_size: int | None = None
 
     @property
     def is_default(self) -> bool:
@@ -136,7 +137,7 @@ class StaticViewContextsProvider:
     DynamoDB-backed reader's behavior so tests and production agree.
     """
 
-    def __init__(self, contexts_by_tenant: Optional[Mapping[str, Sequence[ViewContext]]] = None):
+    def __init__(self, contexts_by_tenant: Mapping[str, Sequence[ViewContext]] | None = None):
         self._contexts_by_tenant = dict(contexts_by_tenant or {})
 
     def get_view_contexts(self, tenant_id: str) -> tuple[ViewContext, ...]:

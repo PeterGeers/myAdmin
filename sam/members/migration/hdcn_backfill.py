@@ -41,8 +41,9 @@ import json
 import os
 import re
 import uuid
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Iterator, Mapping, Optional, Protocol, Sequence
+from typing import Any, Protocol
 
 from sam.members.domain.fixed_fields import (
     FieldValidationError,
@@ -51,20 +52,20 @@ from sam.members.domain.fixed_fields import (
 from sam.members.domain.scope_canon import scope_canon
 
 __all__ = [
-    "HDCN_TENANT_ID",
     "FIXED_SOURCE_COLUMNS",
-    "MembershipTypeMapper",
-    "RegionCanonicalizer",
-    "RowTransformError",
-    "RowSkipped",
-    "map_hdcn_row",
-    "HdcnSourceAdapter",
+    "HDCN_TENANT_ID",
+    "BackfillPlan",
     "FileSourceAdapter",
+    "HdcnSourceAdapter",
     "IterableSourceAdapter",
     "LegacyDynamoSourceAdapter",
+    "MembershipTypeMapper",
+    "RegionCanonicalizer",
+    "RowSkipped",
+    "RowTransformError",
     "TransformedRow",
-    "BackfillPlan",
     "build_backfill_plan",
+    "map_hdcn_row",
 ]
 
 #: The pilot tenant the backfill stamps. This is the ONE legitimate place a tenant literal
@@ -97,7 +98,7 @@ class RegionCanonicalizer:
         self,
         values: Iterable[str] = (),
         *,
-        aliases: Optional[Mapping[str, str]] = None,
+        aliases: Mapping[str, str] | None = None,
     ):
         self._canonical_by_canon: dict[str, str] = {scope_canon(v): v for v in values}
         # aliases: raw spelling -> canonical value; matched on the raw's scope_canon.
@@ -295,8 +296,8 @@ class MembershipTypeMapper:
     def __init__(
         self,
         *,
-        aliases: Optional[Mapping[str, str]] = None,
-        known_codes: Optional[Iterable[str]] = None,
+        aliases: Mapping[str, str] | None = None,
+        known_codes: Iterable[str] | None = None,
     ):
         self._aliases = {k.strip().lower(): v for k, v in (aliases or self.DEFAULT_ALIASES).items()}
         self._known_codes = set(known_codes) if known_codes is not None else None
@@ -334,7 +335,7 @@ class MembershipTypeMapper:
 # ── The pure transform (storage-agnostic; the heart of the backfill) ──────────────────
 
 
-def _clean(value: Any) -> Optional[str]:
+def _clean(value: Any) -> str | None:
     """Normalize a raw cell: strip strings, treat empty / whitespace as absent (``None``)."""
     if value is None:
         return None
@@ -370,7 +371,7 @@ def _skip_label(personal: Mapping[str, Any], overlay: Mapping[str, Any]) -> str:
     return name or "<empty>"
 
 
-def _iso_date_part(raw: Any) -> Optional[str]:
+def _iso_date_part(raw: Any) -> str | None:
     """Extract the ``YYYY-MM-DD`` date part from a source date/datetime string, or None.
 
     The h-dcn export carries dates as ISO datetimes (e.g. ``2023-04-12T22:00:00.000Z``); the
@@ -382,7 +383,7 @@ def _iso_date_part(raw: Any) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def _year_to_iso(raw: Any) -> Optional[str]:
+def _year_to_iso(raw: Any) -> str | None:
     """Map a bare year (e.g. ``"2023"``) to ``<year>-01-01``, or None if not a 4-digit year."""
     if raw is None:
         return None
@@ -390,7 +391,7 @@ def _year_to_iso(raw: Any) -> Optional[str]:
     return f"{m.group(1)}-01-01" if m else None
 
 
-def _shape_member_number(raw: Any) -> Optional[str]:
+def _shape_member_number(raw: Any) -> str | None:
     """Shape a raw source member number to the ``M00001`` form, or return None if unusable.
 
     Accepts an int, or a string that either already matches ``^M\\d{5}$`` (passed through) or
@@ -416,9 +417,9 @@ def _shape_member_number(raw: Any) -> Optional[str]:
 def map_hdcn_row(
     raw_row: Mapping[str, Any],
     *,
-    type_mapper: Optional[MembershipTypeMapper] = None,
+    type_mapper: MembershipTypeMapper | None = None,
     tenant_id: str = HDCN_TENANT_ID,
-    region_canonicalizer: Optional["RegionCanonicalizer"] = None,
+    region_canonicalizer: RegionCanonicalizer | None = None,
 ) -> dict[str, Any]:
     """Map ONE raw h-dcn member row to a member record for the new model (pure, no I/O).
 
@@ -458,7 +459,7 @@ def map_hdcn_row(
     personal: dict[str, Any] = {}
     membership: dict[str, Any] = {}
     overlay: dict[str, Any] = {}
-    region_raw: Optional[str] = None
+    region_raw: str | None = None
     signed_date_raw: Any = None   # `Datum ondertekening` → joined_date (primary)
     join_year_raw: Any = None     # `Aanmeldingsjaar` → joined_date fallback (calculated field)
     reasons: dict[str, str] = {}
@@ -630,7 +631,7 @@ class FileSourceAdapter:
     to force a format.
     """
 
-    def __init__(self, path: str, *, fmt: Optional[str] = None, encoding: str = "utf-8"):
+    def __init__(self, path: str, *, fmt: str | None = None, encoding: str = "utf-8"):
         self._path = path
         self._encoding = encoding
         self._fmt = (fmt or self._infer_format(path)).lower()
@@ -685,7 +686,7 @@ class LegacyDynamoSourceAdapter:
     and ``rows()`` raises so nobody accidentally relies on live legacy access.
     """
 
-    def __init__(self, table_name: str, *, region: Optional[str] = None):
+    def __init__(self, table_name: str, *, region: str | None = None):
         self._table_name = table_name
         self._region = region
 
@@ -774,9 +775,9 @@ class BackfillPlan:
 def build_backfill_plan(
     adapter: HdcnSourceAdapter,
     *,
-    type_mapper: Optional[MembershipTypeMapper] = None,
+    type_mapper: MembershipTypeMapper | None = None,
     tenant_id: str = HDCN_TENANT_ID,
-    region_canonicalizer: Optional["RegionCanonicalizer"] = None,
+    region_canonicalizer: RegionCanonicalizer | None = None,
 ) -> BackfillPlan:
     """Read the source (read-only) + transform every row into a :class:`BackfillPlan`.
 

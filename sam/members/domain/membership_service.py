@@ -54,12 +54,22 @@ service never learns where the data lives.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
+from sam.members.domain.calculated_fields import CALCULATED_FIELDS
+from sam.members.domain.error_codes import (
+    ENUM_ROLE_RESTRICTED,
+    MEMBERSHIP_TYPE_RETIRED,
+    MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
+    VALIDATION_MUST_BE_ONE_OF,
+    VALIDATION_REQUIRED,
+    VALIDATION_UNSUPPORTED_FIELD_TYPE,
+    FieldError,
+)
 from sam.members.domain.field_resolver import (
     OVERLAY_GROUP,
-    FieldConfig as ResolvedFieldConfig,
     FieldOrigin,
     FieldResolver,
     FunctionalGroup,
@@ -69,24 +79,16 @@ from sam.members.domain.field_resolver import (
     _member_value,
     evaluate_show_when,
 )
-from sam.members.domain.error_codes import (
-    FieldError,
-    ENUM_ROLE_RESTRICTED,
-    MEMBERSHIP_TYPE_RETIRED,
-    MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
-    VALIDATION_MUST_BE_ONE_OF,
-    VALIDATION_REQUIRED,
-    VALIDATION_UNSUPPORTED_FIELD_TYPE,
+from sam.members.domain.field_resolver import (
+    FieldConfig as ResolvedFieldConfig,
 )
-from sam.members.domain.scope_canon import scope_canon
-from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.fixed_fields import (
+    MEMBER_NUMBER_FIELD_KEY,
     EnumOption,
     FieldGroup,
     FieldType,
     FieldValidationError,
     MemberNumberFormat,
-    MEMBER_NUMBER_FIELD_KEY,
     MembershipStatus,
     roles_for_option,
     validate_fixed_fields,
@@ -104,17 +106,18 @@ from sam.members.domain.membership_type_catalog import (
     MembershipTypeEntry,
     MembershipTypeValidationError,
 )
+from sam.members.domain.scope_canon import scope_canon
 from sam.members.domain.scope_dimensions import (
     WILDCARD,
     ScopeConfigProvider,
 )
+from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
+from sam.members.domain.transition_hooks import TransitionHookRegistry
 from sam.members.domain.view_contexts import (
     StaticViewContextsProvider,
     ViewContext,
     ViewContextsProvider,
 )
-from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
-from sam.members.domain.transition_hooks import TransitionHookRegistry
 from sam.members.repository.members_repository import (
     Member,
     Membership,
@@ -123,17 +126,17 @@ from sam.members.repository.members_repository import (
 )
 
 __all__ = [
-    "MembershipService",
+    "DEFAULT_SCOPE_DIMENSION_KEY",
+    "MEMBERSHIP_STATUS_FIELD_KEY",
+    "MEMBERSHIP_TYPE_FIELD_KEY",
     "MemberNotFound",
-    "MembershipTypeNotFound",
+    "MemberValidationError",
+    "MembershipService",
     "MembershipTypeConflict",
+    "MembershipTypeNotFound",
+    "ScopeDenied",
     "TransitionDenied",
     "TransitionResult",
-    "MemberValidationError",
-    "ScopeDenied",
-    "MEMBERSHIP_STATUS_FIELD_KEY",
-    "DEFAULT_SCOPE_DIMENSION_KEY",
-    "MEMBERSHIP_TYPE_FIELD_KEY",
 ]
 
 def _as_field_error(value: Any) -> FieldError:
@@ -237,7 +240,7 @@ class TransitionDenied(Exception):
     def __init__(
         self,
         tenant_id: str,
-        from_state: Optional[MembershipStatus],
+        from_state: MembershipStatus | None,
         to_state: MembershipStatus,
         reasons: Sequence[str],
     ):
@@ -266,7 +269,7 @@ class MemberValidationError(Exception):
     """
 
     def __init__(self, errors: Mapping[str, FieldError]):
-        self.errors: Dict[str, FieldError] = {
+        self.errors: dict[str, FieldError] = {
             str(k): _as_field_error(v) for k, v in errors.items()
         }
         detail = "; ".join(f"{k}: {v.detail}" for k, v in self.errors.items())
@@ -352,12 +355,12 @@ class MembershipService:
     def __init__(
         self,
         repository: MembersRepository,
-        overlay_provider: Optional[TenantOverlayProvider] = None,
-        lifecycle_provider: Optional[LifecycleConfigProvider] = None,
-        transition_hooks: Optional[TransitionHookRegistry] = None,
-        tenant_hooks: Optional[TenantHookRegistry] = None,
-        view_contexts_provider: Optional[ViewContextsProvider] = None,
-        scope_config_provider: Optional[ScopeConfigProvider] = None,
+        overlay_provider: TenantOverlayProvider | None = None,
+        lifecycle_provider: LifecycleConfigProvider | None = None,
+        transition_hooks: TransitionHookRegistry | None = None,
+        tenant_hooks: TenantHookRegistry | None = None,
+        view_contexts_provider: ViewContextsProvider | None = None,
+        scope_config_provider: ScopeConfigProvider | None = None,
     ):
         self._repo = repository
         self._field_resolver = FieldResolver(
@@ -368,7 +371,7 @@ class MembershipService:
         # a scope-dimension-backed overlay enum (h-dcn `region`) sources its dropdown choices
         # from `scope_dimensions.values` (single source of truth). Optional — a service built
         # without it resolves exactly as before (no scope-sourced choices).
-        self._scope_config_provider: Optional[ScopeConfigProvider] = scope_config_provider
+        self._scope_config_provider: ScopeConfigProvider | None = scope_config_provider
         # The view-context seam (S5c task 3.2, design C-VIEW). Mirrors the overlay/scope
         # provider injection: the service depends only on the ViewContextsProvider Protocol,
         # never on where the contexts live. Defaults to the empty StaticViewContextsProvider,
@@ -427,7 +430,7 @@ class MembershipService:
     @staticmethod
     def _record_scope_values(
         member: Member, dimension_key: str
-    ) -> List[str]:
+    ) -> list[str]:
         """The member's canonical value for the gating dimension, as a 0-or-1-element list.
 
         Scope is a **plain member field** now — the ``scope_values`` bucket is retired (S5d
@@ -514,7 +517,7 @@ class MembershipService:
     # ── Self-service ownership (design C1 self_service routes) ────────────────────────
 
     @staticmethod
-    def _owns_record(member: Member, requester_sub: Optional[str]) -> bool:
+    def _owns_record(member: Member, requester_sub: str | None) -> bool:
         """Whether ``requester_sub`` identifies the owner of ``member`` (self-service).
 
         A member may read their OWN record even without a broad scope grant. Ownership is
@@ -552,7 +555,7 @@ class MembershipService:
         member_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str],
+        requester_sub: str | None,
         self_service: bool,
     ) -> Member:
         """Fetch a member and enforce scope + self-service, or raise :class:`MemberNotFound`.
@@ -587,7 +590,7 @@ class MembershipService:
         """
         if not isinstance(record, Mapping):
             return record
-        enriched: Dict[str, Any] = {k: v for k, v in record.items()}
+        enriched: dict[str, Any] = {k: v for k, v in record.items()}
         for calc in CALCULATED_FIELDS:
             value = calc.evaluate(enriched)
             if value is None:
@@ -606,8 +609,8 @@ class MembershipService:
         tenant_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        filters: Optional[Mapping[str, Any]] = None,
-    ) -> List[Member]:
+        filters: Mapping[str, Any] | None = None,
+    ) -> list[Member]:
         """List the tenant's members, narrowed to the caller's scope (design C4, Property 4/6).
 
         Asks the repository for the tenant's members (keyed by ``tenant_id`` — Property 1),
@@ -639,8 +642,8 @@ class MembershipService:
         tenant_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        filters: Optional[Mapping[str, Any]] = None,
-    ) -> List[Member]:
+        filters: Mapping[str, Any] | None = None,
+    ) -> list[Member]:
         """Export the tenant's members (scope-narrowed) — the export projection.
 
         Same scope semantics as :meth:`list_members` (a scoped exporter exports only their
@@ -656,7 +659,7 @@ class MembershipService:
         member_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = False,
     ) -> Member:
         """Fetch one member by id, enforcing scope + self-service (design C1/C4).
@@ -677,7 +680,7 @@ class MembershipService:
     def get_self(
         self,
         tenant_id: str,
-        requester_sub: Optional[str],
+        requester_sub: str | None,
     ) -> Member:
         """Return the calling member's OWN record (the ``GET /members/me`` self-service read).
 
@@ -703,9 +706,9 @@ class MembershipService:
         member_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = False,
-    ) -> List[Membership]:
+    ) -> list[Membership]:
         """List a member's memberships, gated by the parent member's visibility.
 
         The membership read is only permitted once the parent member passes the scope /
@@ -729,7 +732,7 @@ class MembershipService:
         membership_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = False,
     ) -> Membership:
         """Fetch one membership of a member, gated by the parent member's visibility.
@@ -758,9 +761,9 @@ class MembershipService:
         member_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = False,
-    ) -> List[Payment]:
+    ) -> list[Payment]:
         """List a member's payments, gated by the parent member's visibility.
 
         Same gate as the membership reads: the parent member must be visible (scope or
@@ -779,7 +782,7 @@ class MembershipService:
     # ── Lifecycle state machine (design C2, R1.4 — task 5.0) ──────────────────────────
 
     @staticmethod
-    def _current_state(member: Member) -> Optional[MembershipStatus]:
+    def _current_state(member: Member) -> MembershipStatus | None:
         """Read a member's current lifecycle state from ``membership.status``.
 
         Returns the parsed :class:`MembershipStatus`, or ``None`` when the record carries no
@@ -811,7 +814,7 @@ class MembershipService:
         updated["membership"] = membership
         return updated
 
-    def get_lifecycle_config(self, tenant_id: str) -> Optional[LifecycleConfig]:
+    def get_lifecycle_config(self, tenant_id: str) -> LifecycleConfig | None:
         """Return the tenant's :class:`LifecycleConfig`, or ``None`` if none is configured.
 
         A thin pass-through to the injected provider, exposed so the WRITE route (task 5.2)
@@ -826,7 +829,7 @@ class MembershipService:
         member: Member,
         to_state: MembershipStatus,
         *,
-        context: Optional[Mapping[str, Any]] = None,
+        context: Mapping[str, Any] | None = None,
     ) -> TransitionResult:
         """Compute a membership lifecycle transition (design C2, R1.4) — the pure decision.
 
@@ -894,13 +897,15 @@ class MembershipService:
                 from_state,
                 to_state,
                 [
-                    f"no transition from {from_state.value!r} to {to_state.value!r} is "
-                    "declared for this tenant"
+                    (
+                        f"no transition from {from_state.value!r} to {to_state.value!r} is "
+                        "declared for this tenant"
+                    )
                 ],
             )
 
         # (3) Evaluate the declarative guards + the target state's required-field rules.
-        reasons: List[str] = []
+        reasons: list[str] = []
         guard_eval: GuardEvaluation = evaluate_guards(rule.guards, member, ctx)
         if guard_eval.denied:
             reasons.extend(guard_eval.reasons)
@@ -966,7 +971,7 @@ class MembershipService:
             tenant_id, scope_vocab=self._scope_vocab(tenant_id)
         )
 
-        errors: Dict[str, FieldError] = {}
+        errors: dict[str, FieldError] = {}
         try:
             validate_fixed_fields(record, partial=partial)
         except FieldValidationError as exc:
@@ -1018,7 +1023,7 @@ class MembershipService:
     def _drop_hidden_required_errors(
         config: ResolvedFieldConfig,
         record: Member,
-        errors: Dict[str, FieldError],
+        errors: dict[str, FieldError],
     ) -> None:
         """Remove "required" errors for fields hidden by an unmet ``show_when`` (R4.12).
 
@@ -1046,7 +1051,7 @@ class MembershipService:
         config: ResolvedFieldConfig,
         record: Member,
         partial: bool,
-        errors: Dict[str, FieldError],
+        errors: dict[str, FieldError],
     ) -> None:
         """Require a VISIBLE, SHOWN overlay field that is marked required (R4.9/R4.12).
 
@@ -1078,7 +1083,7 @@ class MembershipService:
         config: ResolvedFieldConfig,
         record: Member,
         caller_roles: Sequence[str],
-        errors: Dict[str, FieldError],
+        errors: dict[str, FieldError],
     ) -> None:
         """Reject a write that sets a role-restricted enum value the caller may not choose (R4.12).
 
@@ -1115,9 +1120,9 @@ class MembershipService:
     def _reject_invalid_overlay_enum_values(
         config: ResolvedFieldConfig,
         record: Member,
-        errors: Dict[str, FieldError],
+        errors: dict[str, FieldError],
         *,
-        previous: Optional[Member] = None,
+        previous: Member | None = None,
     ) -> None:
         """Reject an OVERLAY enum value that is not one of the field's ``choices`` (A.5).
 
@@ -1183,7 +1188,7 @@ class MembershipService:
     def _validate_member_number(
         config: ResolvedFieldConfig,
         record: Member,
-        errors: Dict[str, FieldError],
+        errors: dict[str, FieldError],
     ) -> None:
         """Authoritatively validate a present ``member_number`` against the tenant format (R4.8).
 
@@ -1204,7 +1209,7 @@ class MembershipService:
             errors[MEMBER_NUMBER_FIELD_KEY] = reason
 
     @staticmethod
-    def _membership_type_of(record: Mapping[str, Any]) -> Optional[str]:
+    def _membership_type_of(record: Mapping[str, Any]) -> str | None:
         """The record's ``membership.membership_type`` reference, or ``None`` if unset.
 
         Used to detect whether an update actually CHANGES the type (so the reference check is
@@ -1275,7 +1280,7 @@ class MembershipService:
                 }
             )
 
-    def _sanitize_write_payload(self, body: Mapping[str, Any]) -> Dict[str, Any]:
+    def _sanitize_write_payload(self, body: Mapping[str, Any]) -> dict[str, Any]:
         """Copy a client write payload, stripping fields the client may NEVER set.
 
         Verify-before-trust (Property 2): the ``tenant_id`` / partition key is authoritative
@@ -1300,7 +1305,7 @@ class MembershipService:
         member: Member,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str],
+        requester_sub: str | None,
         self_service: bool,
     ) -> None:
         """Authorize a WRITE against the caller's scope, or raise :class:`ScopeDenied` (403).
@@ -1325,7 +1330,7 @@ class MembershipService:
         body: Mapping[str, Any],
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         caller_roles: Sequence[str] = (),
     ) -> Member:
         """Create a member for the tenant (design C1 write / C2 / C5 / C6, R1.4/R3.3).
@@ -1373,7 +1378,7 @@ class MembershipService:
         self._validate_membership_type_reference(tenant_id, record)
         # A.5: authoritatively enforce OVERLAY enum dropdowns against their `choices` on create
         # (every present value is checked — there is no prior state to tolerate).
-        overlay_enum_errors: Dict[str, str] = {}
+        overlay_enum_errors: dict[str, str] = {}
         self._reject_invalid_overlay_enum_values(
             self._field_resolver.resolve(
                 tenant_id, scope_vocab=self._scope_vocab(tenant_id)
@@ -1399,7 +1404,7 @@ class MembershipService:
         body: Mapping[str, Any],
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = False,
         caller_roles: Sequence[str] = (),
     ) -> Member:
@@ -1458,7 +1463,7 @@ class MembershipService:
         # patch actually CHANGES (partial-update-friendly) — an untouched legacy value (e.g. a
         # pre-existing off-list `motor_brand`) does NOT block an unrelated edit like an address
         # change. Mirrors the membership_type "only-when-changed" rule above.
-        overlay_enum_errors: Dict[str, str] = {}
+        overlay_enum_errors: dict[str, str] = {}
         self._reject_invalid_overlay_enum_values(
             self._field_resolver.resolve(
                 tenant_id, scope_vocab=self._scope_vocab(tenant_id)
@@ -1477,8 +1482,8 @@ class MembershipService:
         member_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        requester_sub: str | None = None,
+    ) -> dict[str, Any]:
         """Delete a member (admin-gated at the edge; scope-checked here — design C6).
 
         Loads the member within the tenant (Property 1), authorizes the delete against its
@@ -1508,7 +1513,7 @@ class MembershipService:
         body: Mapping[str, Any],
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
     ) -> Membership:
         """Create a membership for a member, gated by the parent member's write scope.
 
@@ -1531,7 +1536,7 @@ class MembershipService:
         body: Mapping[str, Any],
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
     ) -> Membership:
         """Update a membership, gated by the parent member's write scope.
 
@@ -1556,8 +1561,8 @@ class MembershipService:
         membership_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        requester_sub: str | None = None,
+    ) -> dict[str, Any]:
         """Delete a membership (admin-gated at the edge; parent member's write scope here)."""
         self._writable_member_or_raise(
             tenant_id, member_id, allowed_scopes, requester_sub=requester_sub
@@ -1572,8 +1577,8 @@ class MembershipService:
         to_state: MembershipStatus,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        context: Optional[Mapping[str, Any]] = None,
-        requester_sub: Optional[str] = None,
+        context: Mapping[str, Any] | None = None,
+        requester_sub: str | None = None,
     ) -> TransitionResult:
         """Apply + PERSIST a lifecycle transition to a member (design C2 / C5, R1.4).
 
@@ -1608,9 +1613,9 @@ class MembershipService:
         to_state: MembershipStatus,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        context: Optional[Mapping[str, Any]] = None,
-        requester_sub: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        context: Mapping[str, Any] | None = None,
+        requester_sub: str | None = None,
+    ) -> dict[str, Any]:
         """Apply one transition to many members, reporting a per-item outcome (admin capability).
 
         Applies :meth:`transition_member` to each id independently and records a per-item
@@ -1618,7 +1623,7 @@ class MembershipService:
         exactly which items moved and which were denied/not-found — never an all-or-nothing
         silent failure. Each item's guards/scope/hook are enforced individually.
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for member_id in member_ids:
             try:
                 outcome = self.transition_member(
@@ -1657,9 +1662,9 @@ class MembershipService:
         body: Mapping[str, Any],
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Replace a member's delegate set (design C1 write; self-service allowed).
 
         The parent member must be writable by the caller — via scope OR, because this is a
@@ -1690,9 +1695,9 @@ class MembershipService:
         body: Mapping[str, Any],
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Record a delegate INVITATION intent for a prospective delegate (design C1 write).
 
         Pilot scope: no live email/SNS here (no shared mail util is wired into this module,
@@ -1739,7 +1744,7 @@ class MembershipService:
         member_id: str,
         allowed_scopes: Mapping[str, Sequence[str]],
         *,
-        requester_sub: Optional[str] = None,
+        requester_sub: str | None = None,
         self_service: bool = False,
     ) -> Member:
         """Load a member within the tenant and authorize a WRITE against it, or raise.
@@ -1761,7 +1766,7 @@ class MembershipService:
         return member
 
     @staticmethod
-    def _deep_merge(base: Dict[str, Any], patch: Mapping[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(base: dict[str, Any], patch: Mapping[str, Any]) -> dict[str, Any]:
         """Recursively merge ``patch`` into a copy of ``base`` (partial-update semantics).
 
         Nested mappings (e.g. ``personal`` / ``membership``) are merged key-by-key so a
@@ -1783,7 +1788,7 @@ class MembershipService:
 
     # ── Resolved field config (design C3 + C8, R2.3/R2.4 — task 3.3) ──────────────────
 
-    def _scope_vocab(self, tenant_id: str) -> Dict[str, tuple]:
+    def _scope_vocab(self, tenant_id: str) -> dict[str, tuple]:
         """The ``{member_field_key: values}`` map for this tenant's ENABLED scope dimensions.
 
         S5j (design D1a): built from the injected scope-config provider, keyed by each enabled
@@ -1797,14 +1802,14 @@ class MembershipService:
         if self._scope_config_provider is None:
             return {}
         config = self._scope_config_provider.get_scope_config(tenant_id)
-        vocab: Dict[str, tuple] = {}
+        vocab: dict[str, tuple] = {}
         for dim in config.enabled():
             field_key = dim.field or dim.key
             if field_key:
                 vocab[field_key] = dim.normalized_values()
         return vocab
 
-    def get_field_config(self, tenant_id: str) -> Dict[str, Any]:
+    def get_field_config(self, tenant_id: str) -> dict[str, Any]:
         """Return the tenant's resolved field config for the presentation-only frontend.
 
         Composes the two authoritative domain pieces (the frontend holds NO rules — it
@@ -1834,7 +1839,7 @@ class MembershipService:
         fields = [
             self._serialize_field(f, options=options) for f in config.fields
         ]
-        by_group: Dict[str, List[Dict[str, Any]]] = {}
+        by_group: dict[str, list[dict[str, Any]]] = {}
         for field_payload in fields:
             by_group.setdefault(field_payload["group"], []).append(field_payload)
 
@@ -1879,7 +1884,7 @@ class MembershipService:
             "lifecycle": self._serialize_lifecycle(tenant_id),
         }
 
-    def _serialize_lifecycle(self, tenant_id: str) -> Optional[Dict[str, Any]]:
+    def _serialize_lifecycle(self, tenant_id: str) -> dict[str, Any] | None:
         """Project the tenant's :class:`LifecycleConfig` into the SPA's `lifecycle` shape (C2).
 
         Sourced from the injected :class:`LifecycleConfigProvider` (the module's declarative
@@ -1905,8 +1910,8 @@ class MembershipService:
         if config is None:
             return None
 
-        allowed_transitions: Dict[str, List[str]] = {}
-        requires_approval: List[str] = []
+        allowed_transitions: dict[str, list[str]] = {}
+        requires_approval: list[str] = []
         for rule in config.transitions:
             frm = rule.from_state.value
             to = rule.to_state.value
@@ -1925,7 +1930,7 @@ class MembershipService:
             "requires_approval": requires_approval,
         }
 
-    def _serialize_scope_dimensions(self, tenant_id: str) -> List[Dict[str, Any]]:
+    def _serialize_scope_dimensions(self, tenant_id: str) -> list[dict[str, Any]]:
         """Project the tenant's ENABLED scope dimensions into the frontend `dimensions` shape.
 
         The Add/Edit modal's region control + the table's region filter read their option list
@@ -1949,7 +1954,7 @@ class MembershipService:
         ]
 
     @staticmethod
-    def _serialize_functional_group(group: FunctionalGroup) -> Dict[str, Any]:
+    def _serialize_functional_group(group: FunctionalGroup) -> dict[str, Any]:
         """Project a :class:`FunctionalGroup` (display-section) catalog entry to pure JSON (R4.9).
 
         Carries the section ``key``, its bilingual ``{nl,en}`` ``label`` (the section heading the
@@ -1963,7 +1968,7 @@ class MembershipService:
         }
 
     @staticmethod
-    def _serialize_view_context(vc: ViewContext) -> Dict[str, Any]:
+    def _serialize_view_context(vc: ViewContext) -> dict[str, Any]:
         """Project a :class:`ViewContext` into the JSON-friendly shape the frontend renders.
 
         Carries the context's key / bilingual ``{nl,en}`` label / ``permission_roles`` (the
@@ -1984,7 +1989,7 @@ class MembershipService:
             "is_default": vc.is_default,
         }
 
-    def _active_membership_type_options(self, tenant_id: str) -> List[Dict[str, Any]]:
+    def _active_membership_type_options(self, tenant_id: str) -> list[dict[str, Any]]:
         """The tenant's ACTIVE catalog entries as JSON-friendly dropdown options (design C8).
 
         Asks the repository for the tenant's active membership types (``active_only=True``,
@@ -2003,7 +2008,7 @@ class MembershipService:
 
     def list_membership_types(
         self, tenant_id: str, *, active_only: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """List the tenant's Lidmaatschap Beheer catalog entries (design C8, R2.4).
 
         The MANAGEMENT read behind ``GET /membership-types``. Asks the repository for the
@@ -2022,7 +2027,7 @@ class MembershipService:
         entries = self._repo.list_membership_types(tenant_id, active_only=active_only)
         return [self._serialize_catalog_entry(entry) for entry in entries]
 
-    def get_membership_type(self, tenant_id: str, type_code: str) -> Dict[str, Any]:
+    def get_membership_type(self, tenant_id: str, type_code: str) -> dict[str, Any]:
         """Fetch one Lidmaatschap Beheer catalog entry by its ``type_code`` (design C8, R2.4).
 
         The read behind ``GET /membership-types/{type_code}``. Fetches within the tenant
@@ -2047,7 +2052,7 @@ class MembershipService:
 
     def create_membership_type(
         self, tenant_id: str, body: Mapping[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a Lidmaatschap Beheer catalog entry for the tenant (design C8, R2.4).
 
         Builds a :class:`MembershipTypeEntry` from the client body, stamping the authoritative
@@ -2069,7 +2074,7 @@ class MembershipService:
 
     def update_membership_type(
         self, tenant_id: str, type_code: str, body: Mapping[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Update an existing catalog entry (design C8, R2.4).
 
         Loads the entry within the tenant (Property 1); an absent code raises
@@ -2108,7 +2113,7 @@ class MembershipService:
 
     def deactivate_membership_type(
         self, tenant_id: str, type_code: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Soft-delete (retire) a catalog entry: ``active=false`` — NEVER a hard delete (C8).
 
         The retired type keeps existing members' references valid (design C8 referential
@@ -2144,7 +2149,7 @@ class MembershipService:
         )
 
     @staticmethod
-    def _serialize_catalog_option(entry: MembershipTypeEntry) -> Dict[str, Any]:
+    def _serialize_catalog_option(entry: MembershipTypeEntry) -> dict[str, Any]:
         """Project a catalog entry to the DROPDOWN-OPTION shape (the active-only feed, C8).
 
         The presentation shape the ``membership_type`` field's ``options`` carry: the
@@ -2159,7 +2164,7 @@ class MembershipService:
         }
 
     @staticmethod
-    def _serialize_catalog_entry(entry: MembershipTypeEntry) -> Dict[str, Any]:
+    def _serialize_catalog_entry(entry: MembershipTypeEntry) -> dict[str, Any]:
         """Project a catalog entry to the MANAGEMENT shape (the catalog read routes, C8).
 
         Carries the full management view — ``type_code`` (the reference key), i18n ``label``,
@@ -2175,7 +2180,7 @@ class MembershipService:
         }
 
     @staticmethod
-    def _serialize_enum_option(opt: EnumOption) -> Dict[str, Any]:
+    def _serialize_enum_option(opt: EnumOption) -> dict[str, Any]:
         """Project a rich :class:`EnumOption` (``{value, label{nl,en}, roles?}``) to pure JSON.
 
         Surfaces the value-level ``roles`` gate (R4.12) so the frontend can filter a dropdown to
@@ -2183,13 +2188,13 @@ class MembershipService:
         gate (:meth:`_reject_disallowed_enum_values`). ``roles`` is omitted when the option is
         open (no restriction) so the payload stays minimal.
         """
-        payload: Dict[str, Any] = {"value": opt.value, "label": dict(opt.label)}
+        payload: dict[str, Any] = {"value": opt.value, "label": dict(opt.label)}
         if opt.roles:
             payload["roles"] = list(opt.roles)
         return payload
 
     @staticmethod
-    def _serialize_member_number_format(fmt: MemberNumberFormat) -> Dict[str, Any]:
+    def _serialize_member_number_format(fmt: MemberNumberFormat) -> dict[str, Any]:
         """Project a :class:`MemberNumberFormat` to pure JSON for the frontend's format feedback.
 
         Carries the tenant's ``member_number`` format so the Add/Edit modal can give IMMEDIATE
@@ -2209,7 +2214,7 @@ class MembershipService:
         field: ResolvedField,
         *,
         options: Sequence[Mapping[str, Any]],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Project a :class:`ResolvedField` into the JSON-friendly shape the frontend renders.
 
         Carries what the frontend needs to render the resolved field set in the sectioned
@@ -2229,7 +2234,7 @@ class MembershipService:
           enum) the ``{value, label, roles?}`` options carrying the value-level role gate (R4.12);
           else the bare ``choices`` list; else ``None``.
         """
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "key": field.key,
             "group": field.group,
             "type": field.type.value,

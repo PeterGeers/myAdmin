@@ -60,8 +60,6 @@ AWS) and only set for local testing against the T0 ``dynamodb-local`` container.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from services import projection_schema as schema
 
 from sam.members.domain.field_resolver import (
@@ -449,7 +447,7 @@ class MembersProjectionReader:
 
     # ── internals ──────────────────────────────────────────────────────────────────────
 
-    def _find_config_row(self, tenant_id: str, config_id: str) -> Optional[dict]:
+    def _find_config_row(self, tenant_id: str, config_id: str) -> dict | None:
         """Return the ``config#<config_id>`` row for ``tenant_id``, or ``None`` if absent.
 
         A missing row is valid (the caller collapses it to the empty/tenant-wide default);

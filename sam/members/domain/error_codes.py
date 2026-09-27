@@ -35,8 +35,9 @@ in ``errors.json`` by task 3.7; this module just names them (camelCase leaf, per
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional
+from typing import Any
 
 __all__ = [
     "FieldError",
@@ -76,9 +77,9 @@ class FieldError:
 
     code: str
     detail: str
-    params: Optional[Mapping[str, Any]] = field(default=None)
+    params: Mapping[str, Any] | None = field(default=None)
 
-    def as_entry(self, *, field_key: Optional[str] = None) -> dict[str, Any]:
+    def as_entry(self, *, field_key: str | None = None) -> dict[str, Any]:
         """Render this error as an RFC 9457 per-entry dict.
 
         ``field_key`` (the dotted field path) is included as ``field`` when supplied — the

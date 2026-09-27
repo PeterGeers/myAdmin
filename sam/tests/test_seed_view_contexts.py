@@ -59,8 +59,8 @@ from sam.members.domain.seed_view_contexts import (
 )
 from sam.members.domain.view_contexts import (
     DEFAULT_CONTEXT_KEY,
-    ViewContext,
     StaticViewContextsProvider,
+    ViewContext,
 )
 
 _TENANT_ID = "seed-tenant"

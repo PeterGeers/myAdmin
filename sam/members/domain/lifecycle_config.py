@@ -44,25 +44,26 @@ only how they are *shaped, validated, and interpreted*.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Mapping, Optional, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from .fixed_fields import MembershipStatus
 
 __all__ = [
-    "RuleOperator",
+    "HDCN_LIFECYCLE_CONFIG",
+    "GuardEvaluation",
     "GuardRule",
-    "RequiredFieldRule",
-    "TransitionRule",
     "LifecycleConfig",
     "LifecycleConfigError",
-    "GuardEvaluation",
+    "LifecycleConfigProvider",
+    "RequiredFieldRule",
+    "RuleOperator",
+    "StaticLifecycleConfigProvider",
+    "TransitionRule",
     "evaluate_guards",
     "evaluate_required_fields",
-    "LifecycleConfigProvider",
-    "StaticLifecycleConfigProvider",
-    "HDCN_LIFECYCLE_CONFIG",
 ]
 
 
@@ -109,7 +110,7 @@ class GuardRule:
     field: str
     op: RuleOperator
     value: Any = None
-    reason: Optional[str] = None
+    reason: str | None = None
 
     def denial_reason(self) -> str:
         """The message to surface when this guard denies a transition."""
@@ -130,7 +131,7 @@ class RequiredFieldRule:
 
     field: str
     when_status: MembershipStatus
-    reason: Optional[str] = None
+    reason: str | None = None
 
     def denial_reason(self) -> str:
         if self.reason:
@@ -211,7 +212,7 @@ class LifecycleConfig:
 
     def transition(
         self, from_state: MembershipStatus, to_state: MembershipStatus
-    ) -> Optional[TransitionRule]:
+    ) -> TransitionRule | None:
         """Return the :class:`TransitionRule` for the edge, or ``None`` if not in the graph.
 
         A ``None`` result means the transition is **not declared** — the engine denies it
@@ -324,7 +325,7 @@ def _reject_invalid_config(
         raise LifecycleConfigError(reasons)
 
 
-def _validate_guard(guard: GuardRule) -> Optional[str]:
+def _validate_guard(guard: GuardRule) -> str | None:
     """Return a reason if the guard is structurally malformed, else ``None``."""
     if not isinstance(guard.field, str) or not guard.field.strip():
         return "guard needs a non-empty field path"
@@ -415,7 +416,7 @@ def _guard_holds(guard: GuardRule, member: Mapping[str, Any], context: Mapping[s
 def evaluate_guards(
     guards: Sequence[GuardRule],
     member: Mapping[str, Any],
-    context: Optional[Mapping[str, Any]] = None,
+    context: Mapping[str, Any] | None = None,
 ) -> GuardEvaluation:
     """Evaluate ALL guards on a transition (logical AND) against ``(member, context)``.
 
@@ -438,7 +439,7 @@ def evaluate_required_fields(
     rules: Sequence[RequiredFieldRule],
     member: Mapping[str, Any],
     status: MembershipStatus,
-    context: Optional[Mapping[str, Any]] = None,
+    context: Mapping[str, Any] | None = None,
 ) -> GuardEvaluation:
     """Evaluate the "field required when status = Y" rules that apply at ``status``.
 
@@ -478,7 +479,7 @@ class LifecycleConfigProvider(Protocol):
     the engine treats "no config" as "no transitions allowed" (deny, never a silent allow).
     """
 
-    def get_lifecycle_config(self, tenant_id: str) -> Optional[LifecycleConfig]:
+    def get_lifecycle_config(self, tenant_id: str) -> LifecycleConfig | None:
         ...
 
 
@@ -492,7 +493,7 @@ class StaticLifecycleConfigProvider:
     the engine denies transitions for a tenant with no configured lifecycle.
     """
 
-    def __init__(self, configs: Optional[Mapping[str, LifecycleConfig]] = None):
+    def __init__(self, configs: Mapping[str, LifecycleConfig] | None = None):
         materialised = dict(configs or {})
         for tenant_id, cfg in materialised.items():
             if not isinstance(cfg, LifecycleConfig):
@@ -503,7 +504,7 @@ class StaticLifecycleConfigProvider:
             _ = cfg.allowed_states
         self._configs: dict[str, LifecycleConfig] = materialised
 
-    def get_lifecycle_config(self, tenant_id: str) -> Optional[LifecycleConfig]:
+    def get_lifecycle_config(self, tenant_id: str) -> LifecycleConfig | None:
         return self._configs.get(tenant_id)
 
 

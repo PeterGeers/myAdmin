@@ -87,18 +87,18 @@ class FakeCognitoBoto3Client:
         for email in existing or set():
             self.users[email] = {"pre-existing": True}
 
-    def admin_get_user(self, *, UserPoolId, Username):  # noqa: N803 — boto3 kwarg names
+    def admin_get_user(self, *, UserPoolId, Username):
         if Username not in self.users:
             raise self.exceptions.UserNotFoundException(Username)
         return {"Username": Username, "UserPoolId": UserPoolId}
 
-    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, MessageAction=None):  # noqa: N803
+    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, MessageAction=None):
         if Username in self.users:
             raise self.exceptions.UsernameExistsException(Username)
         attrs = {a["Name"]: a["Value"] for a in UserAttributes}
         self.users[Username] = {"pool": UserPoolId, "attributes": attrs, "message": MessageAction}
 
-    def admin_set_user_password(self, *, UserPoolId, Username, Password, Permanent):  # noqa: N803
+    def admin_set_user_password(self, *, UserPoolId, Username, Password, Permanent):
         self.passwords[Username] = {"password": Password, "permanent": Permanent}
 
 

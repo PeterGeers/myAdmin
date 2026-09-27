@@ -58,8 +58,7 @@ _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TESTS_DIR not in sys.path:
     sys.path.insert(0, _TESTS_DIR)
 
-from test_members_repository import FakeDynamoTable  # noqa: E402
-
+from test_members_repository import FakeDynamoTable
 
 FIXTURE = os.path.join(_REPO_ROOT, "sam", "tests", "fixtures", "hdcn_ledenbestand_sample.csv")
 

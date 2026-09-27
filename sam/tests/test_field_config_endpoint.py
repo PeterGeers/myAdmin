@@ -48,7 +48,6 @@ from sam.members.domain.membership_service import (
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.handler import app
 
-
 # ---------------------------------------------------------------------------
 # In-memory fake repository (catalog surface only — the service depends on the Protocol)
 # ---------------------------------------------------------------------------

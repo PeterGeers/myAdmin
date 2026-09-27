@@ -40,9 +40,9 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from sam.members.domain.field_resolver import (
+    FixedFieldOverride,
     FunctionalGroup,
     OverlayField,
-    FixedFieldOverride,
     StaticOverlayProvider,
     TenantOverlay,
     evaluate_show_when,
@@ -56,11 +56,9 @@ from sam.members.domain.membership_service import (
     MembershipService,
     MemberValidationError,
 )
-from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 
 # Reuse the field-config test's in-memory fake catalog repo (read-only catalog surface).
 from sam.tests.test_field_config_endpoint import FakeCatalogRepository, _entry
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────────────
 

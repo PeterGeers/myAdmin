@@ -37,7 +37,6 @@ if _BACKEND_SRC not in sys.path:
 from auth.entitlement_claim_codec import CLAIM_NAME
 from services.dynamodb_client import DynamoDBConfigError
 
-
 # ---------------------------------------------------------------------------
 # Fakes / helpers
 # ---------------------------------------------------------------------------
@@ -190,9 +189,8 @@ class TestFailFastConfig:
         for var in ("GOVERNANCE_PROJECTION_TABLE", "AWS_REGION"):
             monkeypatch.delenv(var, raising=False)
 
-        with caplog.at_level(logging.INFO):
-            with pytest.raises(DynamoDBConfigError):
-                handler_mod.handler(make_v2_event(), context=None)
+        with caplog.at_level(logging.INFO), pytest.raises(DynamoDBConfigError):
+            handler_mod.handler(make_v2_event(), context=None)
 
         # It must NOT have been swallowed into a fail-safe omit log.
         omit_records = [
@@ -211,9 +209,8 @@ class TestFailFastConfig:
         """
         _install_reader(monkeypatch, RaisingTable(DynamoDBConfigError("bad config")))
 
-        with caplog.at_level(logging.INFO):
-            with pytest.raises(DynamoDBConfigError):
-                handler_mod.handler(make_v2_event(), context=None)
+        with caplog.at_level(logging.INFO), pytest.raises(DynamoDBConfigError):
+            handler_mod.handler(make_v2_event(), context=None)
 
         omit_records = [
             r for r in caplog.records if "omitting entitlement claim" in r.getMessage()

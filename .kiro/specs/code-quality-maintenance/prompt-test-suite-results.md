@@ -120,10 +120,12 @@ rm -rf /tmp/test-reports
 
 ---
 
-## Lessons Learned Reference
+## Lessons Learned (CI workflow)
 
-Follow all Lessons Learned rules from `prompt.md` in this same directory. Key rules for this workflow:
+These CI-specific Lessons Learned rules used to live in the shared `prompt.md`, which was
+renamed to `prompt-code-quality.md` and refocused to a local, source-only scan — it no
+longer carries these CI rules. They are inlined here so this runbook stays self-contained:
 
-- **Rule 1**: Read CI artifacts (zip reports) — don't scrape log streams
-- **Rule 2**: Hypothesis flaky tests need `derandomize=True` + `deadline=None`
-- **Rule 3**: Lint failures are blocking — treat with same priority as test failures
+- **Rule 1**: Read CI artifacts (zip reports) — don't scrape log streams (no `--log`).
+- **Rule 2**: Hypothesis flaky tests need `derandomize=True` + `deadline=None`.
+- **Rule 3**: Lint failures are blocking — treat with the same priority as test failures.

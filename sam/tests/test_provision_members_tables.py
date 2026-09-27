@@ -60,18 +60,18 @@ provision_mod = _load_script_module()
 
 
 class _FakeWaiter:
-    def wait(self, TableName=None):  # noqa: N803 - boto3 kwarg name
+    def wait(self, TableName=None):
         return None
 
 
 class FakeDynamoClient:
     """Client surface used by the script: describe_table, get_waiter."""
 
-    def __init__(self, resource: "FakeDynamoResource"):
+    def __init__(self, resource: FakeDynamoResource):
         self._resource = resource
         self.describe_calls: list[str] = []
 
-    def describe_table(self, TableName=None):  # noqa: N803 - boto3 kwarg name
+    def describe_table(self, TableName=None):
         self.describe_calls.append(TableName)
         if TableName not in self._resource.tables:
             raise ClientError(
@@ -85,7 +85,7 @@ class FakeDynamoClient:
 
 
 class _FakeTable:
-    def __init__(self, resource: "FakeDynamoResource", name: str):
+    def __init__(self, resource: FakeDynamoResource, name: str):
         self._resource = resource
         self._name = name
 
@@ -114,7 +114,7 @@ class FakeDynamoResource:
         self.created.append(dict(kwargs))
         return _FakeTable(self, name)
 
-    def Table(self, name):  # noqa: N802 - mirrors boto3 resource.Table
+    def Table(self, name):
         return _FakeTable(self, name)
 
 

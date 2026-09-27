@@ -34,7 +34,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-__all__ = ["scope_canon", "CANONICAL_SEPARATOR"]
+__all__ = ["CANONICAL_SEPARATOR", "scope_canon"]
 
 #: The single separator every space / ``-`` / ``/`` run folds to.
 CANONICAL_SEPARATOR = " "

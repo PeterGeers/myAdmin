@@ -27,14 +27,15 @@ the record; a missing/blank input yields ``None`` (the field simply isn't shown)
 from __future__ import annotations
 
 import datetime as _dt
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
 from .fixed_fields import FieldGroup, FieldType
 
 __all__ = [
-    "CalculatedField",
     "CALCULATED_FIELDS",
+    "CalculatedField",
     "calculated_field_by_key",
     "compute_calculated_fields",
 ]
@@ -58,7 +59,7 @@ def _membership(record: Mapping[str, Any]) -> Mapping[str, Any]:
     return m if isinstance(m, Mapping) else {}
 
 
-def _parse_iso_date(value: Any) -> Optional[_dt.date]:
+def _parse_iso_date(value: Any) -> _dt.date | None:
     """Parse an ISO-8601 ``YYYY-MM-DD`` (or ``YYYY-MM-DDT...``) string to a date, else None."""
     text = _s(value)
     if not text:
@@ -69,7 +70,7 @@ def _parse_iso_date(value: Any) -> Optional[_dt.date]:
         return None
 
 
-def _derive_display_name(record: Mapping[str, Any]) -> Optional[str]:
+def _derive_display_name(record: Mapping[str, Any]) -> str | None:
     """``first_name`` [+ ``name_infix``] + ``last_name`` — the human-readable short name."""
     p = _personal(record)
     parts = [_s(p.get("first_name")), _s(p.get("name_infix")), _s(p.get("last_name"))]
@@ -77,7 +78,7 @@ def _derive_display_name(record: Mapping[str, Any]) -> Optional[str]:
     return joined or None
 
 
-def _derive_age(record: Mapping[str, Any], *, today: Optional[_dt.date] = None) -> Optional[int]:
+def _derive_age(record: Mapping[str, Any], *, today: _dt.date | None = None) -> int | None:
     """Whole years between ``birth_date`` and today (never negative → None for a future date)."""
     born = _parse_iso_date(_personal(record).get("birth_date"))
     if born is None:
@@ -87,7 +88,7 @@ def _derive_age(record: Mapping[str, Any], *, today: Optional[_dt.date] = None) 
     return years if years >= 0 else None
 
 
-def _derive_birthday(record: Mapping[str, Any]) -> Optional[str]:
+def _derive_birthday(record: Mapping[str, Any]) -> str | None:
     """Day + month of ``birth_date`` as ``MM-DD`` (year-independent), else None."""
     born = _parse_iso_date(_personal(record).get("birth_date"))
     if born is None:
@@ -96,8 +97,8 @@ def _derive_birthday(record: Mapping[str, Any]) -> Optional[str]:
 
 
 def _derive_years_member(
-    record: Mapping[str, Any], *, today: Optional[_dt.date] = None
-) -> Optional[int]:
+    record: Mapping[str, Any], *, today: _dt.date | None = None
+) -> int | None:
     """Whole years since ``joined_date`` (membership tenure), else None."""
     joined = _parse_iso_date(_membership(record).get("joined_date"))
     if joined is None:
@@ -107,7 +108,7 @@ def _derive_years_member(
     return years if years >= 0 else None
 
 
-def _derive_application_year(record: Mapping[str, Any]) -> Optional[int]:
+def _derive_application_year(record: Mapping[str, Any]) -> int | None:
     """The application year: the ``created_at`` year, else the ``joined_date`` year.
 
     Prefer the record-creation timestamp (``created_at``); when it is absent (e.g. a data
@@ -142,10 +143,10 @@ class CalculatedField:
     type: FieldType
     label: Mapping[str, str] = field(default_factory=dict)
     inputs: Sequence[str] = ()
-    functional_group: Optional[str] = None
-    show_when: Optional[Mapping[str, Any]] = None
+    functional_group: str | None = None
+    show_when: Mapping[str, Any] | None = None
     order: int = 0
-    compute: Optional[Callable[[Mapping[str, Any]], Any]] = None
+    compute: Callable[[Mapping[str, Any]], Any] | None = None
 
     def dotted_key(self) -> str:
         """Fully-qualified path of the calculated field, e.g. ``personal.display_name``."""
@@ -212,7 +213,9 @@ CALCULATED_FIELDS: tuple[CalculatedField, ...] = (
 
 # Fail fast at import time on a duplicate calculated key, or a collision with a fixed field key —
 # calculated keys share the canonical-key namespace and must be unique/non-colliding.
-from .fixed_fields import FIXED_FIELDS as _FIXED_FIELDS  # noqa: E402 (import after registry decl)
+from .fixed_fields import (
+    FIXED_FIELDS as _FIXED_FIELDS,
+)
 
 _seen: set[str] = set()
 _fixed_dotted = {f.dotted_key() for f in _FIXED_FIELDS}
@@ -229,7 +232,7 @@ del _seen, _fixed_dotted, _c, _dk
 _CALC_BY_DOTTED: Mapping[str, CalculatedField] = {c.dotted_key(): c for c in CALCULATED_FIELDS}
 
 
-def calculated_field_by_key(dotted_key: str) -> Optional[CalculatedField]:
+def calculated_field_by_key(dotted_key: str) -> CalculatedField | None:
     """Return the :class:`CalculatedField` for a canonical dotted key, or ``None``."""
     return _CALC_BY_DOTTED.get(dotted_key)
 

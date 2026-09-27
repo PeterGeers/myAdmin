@@ -51,8 +51,8 @@ reads by the resolved ``allowed_scopes`` (task 3.2).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import List, Optional, Sequence
 
 from sam.members.domain.scope_dimensions import (
     WILDCARD,
@@ -61,8 +61,8 @@ from sam.members.domain.scope_dimensions import (
 )
 
 __all__ = [
-    "ScopeAccess",
     "ADMIN_ROLE_DEFAULTS",
+    "ScopeAccess",
     "resolve_scope_access",
     "resolve_scope_access_for_config",
 ]
@@ -92,7 +92,7 @@ class ScopeAccess:
     """
 
     full_access: bool
-    allowed_scopes: List[str] = field(default_factory=list)
+    allowed_scopes: list[str] = field(default_factory=list)
     access_type: str = "none"
 
     def is_denied(self) -> bool:
@@ -115,7 +115,7 @@ def _admin_roles_for(dimension: ScopeDimension) -> frozenset[str]:
     return ADMIN_ROLE_DEFAULTS | frozenset(str(r) for r in extra)
 
 
-def _granted_values(dimension: ScopeDimension, user_roles: Sequence[str]) -> List[str]:
+def _granted_values(dimension: ScopeDimension, user_roles: Sequence[str]) -> list[str]:
     """The subset of the dimension's declared values the user's roles grant (scoped).
 
     s5d clean break (R2.2/R8.1, Property 5): the ``Regio_*`` scope-in-role-name encoding is
@@ -131,7 +131,7 @@ def _granted_values(dimension: ScopeDimension, user_roles: Sequence[str]) -> Lis
 
 def resolve_scope_access(
     tenant: str,
-    dimension: Optional[ScopeDimension],
+    dimension: ScopeDimension | None,
     user_roles: Sequence[str],
 ) -> ScopeAccess:
     """Resolve a user's scope access for one dimension (design C4, R3.3, Property 4).

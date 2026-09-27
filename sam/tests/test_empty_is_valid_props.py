@@ -64,17 +64,16 @@ if _BACKEND_SRC not in sys.path:
 
 from services import projection_schema as schema
 
+from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.field_resolver import (
     FieldOrigin,
     FieldResolver,
     TenantOverlay,
 )
-from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.fixed_fields import FIXED_FIELDS
 from sam.members.domain.scope_access import resolve_scope_access
 from sam.members.domain.scope_dimensions import WILDCARD, ScopeConfig
 from sam.members.repository.projection_config_reader import MembersProjectionReader
-
 
 # ---------------------------------------------------------------------------
 # In-memory fake DynamoDB table (query side only) — mirrors the example tests

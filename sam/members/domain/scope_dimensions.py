@@ -44,19 +44,20 @@ What this module is NOT:
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from typing import Mapping, Optional, Protocol, Sequence, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 __all__ = [
+    "SAMPLE_SCOPE_CONFIG",
     "WILDCARD",
-    "ScopeDimension",
     "ScopeConfig",
     "ScopeConfigError",
     "ScopeConfigProvider",
+    "ScopeDimension",
     "StaticScopeConfigProvider",
     "enabled_dimensions",
-    "SAMPLE_SCOPE_CONFIG",
 ]
 
 #: The "all values" sentinel a fully-scoped (admin/national) user resolves to, and the
@@ -97,7 +98,7 @@ class ScopeDimension:
     """
 
     key: str
-    field: Optional[str] = None
+    field: str | None = None
     label: Mapping[str, str] = dataclass_field(default_factory=dict)
     enabled: bool = True
     values: Sequence[str] = ()
@@ -157,7 +158,7 @@ class ScopeConfig:
         """Only the dimensions that are switched on (disabled ones collapse to tenant-wide)."""
         return enabled_dimensions(self.dimensions)
 
-    def dimension(self, key: str) -> Optional[ScopeDimension]:
+    def dimension(self, key: str) -> ScopeDimension | None:
         """Return the dimension with ``key`` (enabled or not), or ``None`` if absent."""
         for d in self.dimensions:
             if d.key == key:
@@ -273,7 +274,7 @@ class StaticScopeConfigProvider:
 
     def __init__(
         self,
-        configs: Optional[Mapping[str, Sequence[ScopeDimension]]] = None,
+        configs: Mapping[str, Sequence[ScopeDimension]] | None = None,
     ):
         # Validate each tenant's dimensions eagerly by materialising a ScopeConfig.
         self._configs: dict[str, ScopeConfig] = {

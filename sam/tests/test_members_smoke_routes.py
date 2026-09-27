@@ -47,11 +47,10 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.members.handler import app
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
+from sam.members.handler import app
 from sam.tests.conftest import FakeScopeGrantsReader
-
 
 # ── Fake repository (member + catalog surface) with tenant-query capture ───────────────
 

@@ -28,15 +28,16 @@ not), and side-effect-free by default.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping, Optional, Protocol, runtime_checkable
+from collections.abc import Mapping
+from typing import Any, Protocol, runtime_checkable
 
 from .fixed_fields import MembershipStatus
 
 __all__ = [
-    "OnTransitionHook",
     "NOOP_TRANSITION_HOOK",
-    "noop_on_transition",
+    "OnTransitionHook",
     "TransitionHookRegistry",
+    "noop_on_transition",
 ]
 
 
@@ -79,7 +80,7 @@ def noop_on_transition(
     :meth:`TransitionHookRegistry.resolve`), so the engine can always call *a* hook without a
     tenant conditional and a tenant that needs no side-effect on a transition pays nothing.
     """
-    return None
+    return
 
 
 #: The single shared no-op instance the engine falls back to for an unregistered tenant.
@@ -99,7 +100,7 @@ class TransitionHookRegistry:
     ``tenant_id`` lookups — the registry has no knowledge of any specific tenant (Property 5).
     """
 
-    def __init__(self, hooks: Optional[Mapping[str, OnTransitionHook]] = None):
+    def __init__(self, hooks: Mapping[str, OnTransitionHook] | None = None):
         self._hooks: dict[str, OnTransitionHook] = dict(hooks or {})
 
     def register(self, tenant_id: str, hook: OnTransitionHook) -> None:

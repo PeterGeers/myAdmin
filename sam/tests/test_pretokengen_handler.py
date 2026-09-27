@@ -45,7 +45,6 @@ from auth.entitlement_resolver import resolve_entitlement
 from services import projection_schema as schema
 from services.module_registry import MODULE_REGISTRY
 
-
 # ---------------------------------------------------------------------------
 # In-memory fake projection table
 # ---------------------------------------------------------------------------

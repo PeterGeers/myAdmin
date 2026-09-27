@@ -28,7 +28,6 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sam.members.domain.fixed_fields import FIXED_FIELDS, FieldType, canonical_keys
 from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.field_resolver import (
     OVERLAY_GROUP,
@@ -38,12 +37,11 @@ from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     OverlayError,
     OverlayField,
-    ResolvedField,
     StaticOverlayProvider,
     TenantOverlay,
     TenantOverlayProvider,
 )
-
+from sam.members.domain.fixed_fields import FIXED_FIELDS, FieldType, canonical_keys
 
 # ── Helpers ───────────────────────────────────────────────────────────────────────────
 
@@ -318,11 +316,11 @@ def test_property_variable_count_matches_overlay_and_base_is_constant(overlay):
 # Validates: Requirements R4.4, R4.9, R4.11, R4.12, R4.2, R4.8 (Property 2 basis)
 # ══════════════════════════════════════════════════════════════════════════════════════
 
-from sam.members.domain.fixed_fields import (  # noqa: E402
+from sam.members.domain.field_resolver import FunctionalGroup
+from sam.members.domain.fixed_fields import (
     EnumOption,
     MemberNumberFormat,
 )
-from sam.members.domain.field_resolver import FunctionalGroup  # noqa: E402
 
 
 def test_empty_overlay_yields_fixed_plus_calculated_zero_variable():

@@ -30,8 +30,6 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
@@ -39,13 +37,12 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.scope_dimensions import SAMPLE_SCOPE_CONFIG, ScopeDimension
+from sam.members.domain.scope_dimensions import SAMPLE_SCOPE_CONFIG
 from sam.members.migration.scope_normalization_verify import (
-    members_matching_grant,
     member_scope_value,
+    members_matching_grant,
     verify_scope_normalization,
 )
-
 
 # The SYNTHETIC sample region dimension (canonical set North/South/East/West) — a test
 # fixture, NOT a tenant's real vocabulary (D17).

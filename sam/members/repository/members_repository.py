@@ -28,15 +28,16 @@ Design notes carried on the signatures (for the tasks that implement them):
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from typing import Any, Mapping, Optional, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.repository import table_design as td
 
 __all__ = [
-    "MembersRepository",
     "DynamoDbMembersRepository",
+    "MembersRepository",
 ]
 
 # Convenience aliases so the intent of each argument is legible in the signatures.
@@ -61,7 +62,7 @@ class MembersRepository(Protocol):
 
     # ── Member CRUD ──────────────────────────────────────────────────────────────────
 
-    def get_member(self, tenant_id: str, member_id: str) -> Optional[Member]:
+    def get_member(self, tenant_id: str, member_id: str) -> Member | None:
         """Return the member ``member_id`` for ``tenant_id``, or ``None`` if absent."""
         ...
 
@@ -69,8 +70,8 @@ class MembersRepository(Protocol):
         self,
         tenant_id: str,
         *,
-        filters: Optional[Mapping[str, Any]] = None,
-        scope_filter: Optional[Mapping[str, Sequence[str]]] = None,
+        filters: Mapping[str, Any] | None = None,
+        scope_filter: Mapping[str, Sequence[str]] | None = None,
     ) -> Sequence[Member]:
         """List the tenant's members, optionally narrowed by filters / scope values."""
         ...
@@ -92,7 +93,7 @@ class MembersRepository(Protocol):
 
     def get_membership(
         self, tenant_id: str, member_id: str, membership_id: str
-    ) -> Optional[Membership]:
+    ) -> Membership | None:
         """Return a single membership of a member, or ``None`` if absent."""
         ...
 
@@ -154,7 +155,7 @@ class MembersRepository(Protocol):
 
     def get_membership_type(
         self, tenant_id: str, type_code: str
-    ) -> Optional[MembershipTypeEntry]:
+    ) -> MembershipTypeEntry | None:
         """Return the catalog entry ``type_code`` for ``tenant_id``, or ``None`` if absent."""
         ...
 
@@ -166,7 +167,7 @@ class MembersRepository(Protocol):
 
     def deactivate_membership_type(
         self, tenant_id: str, type_code: str
-    ) -> Optional[MembershipTypeEntry]:
+    ) -> MembershipTypeEntry | None:
         """Soft-delete a catalog entry (``active=false``) — never a hard delete (C8).
 
         Deactivating keeps existing members' references valid while removing the type from the
@@ -319,7 +320,7 @@ class DynamoDbMembersRepository:
 
     # ── Member CRUD ────────────────────────────────────────────────────────────────────
 
-    def get_member(self, tenant_id: str, member_id: str) -> Optional[Member]:
+    def get_member(self, tenant_id: str, member_id: str) -> Member | None:
         self._require_tenant(tenant_id)
         response = self.table.get_item(
             Key=td.build_key(tenant_id, td.member_sk(member_id))
@@ -330,8 +331,8 @@ class DynamoDbMembersRepository:
         self,
         tenant_id: str,
         *,
-        filters: Optional[Mapping[str, Any]] = None,
-        scope_filter: Optional[Mapping[str, Sequence[str]]] = None,
+        filters: Mapping[str, Any] | None = None,
+        scope_filter: Mapping[str, Sequence[str]] | None = None,
     ) -> Sequence[Member]:
         """List the tenant's member records (SK ``member#<id>`` exactly, not their children).
 
@@ -387,7 +388,7 @@ class DynamoDbMembersRepository:
 
     def get_membership(
         self, tenant_id: str, member_id: str, membership_id: str
-    ) -> Optional[Membership]:
+    ) -> Membership | None:
         self._require_tenant(tenant_id)
         response = self.table.get_item(
             Key=td.build_key(tenant_id, td.membership_sk(member_id, membership_id))
@@ -496,7 +497,7 @@ class DynamoDbMembersRepository:
 
     def get_membership_type(
         self, tenant_id: str, type_code: str
-    ) -> Optional[MembershipTypeEntry]:
+    ) -> MembershipTypeEntry | None:
         self._require_tenant(tenant_id)
         response = self.table.get_item(
             Key=td.build_key(tenant_id, td.membership_type_sk(type_code))
@@ -529,7 +530,7 @@ class DynamoDbMembersRepository:
 
     def deactivate_membership_type(
         self, tenant_id: str, type_code: str
-    ) -> Optional[MembershipTypeEntry]:
+    ) -> MembershipTypeEntry | None:
         """Soft-delete a catalog entry (``active=false``) — never a hard delete (C8).
 
         Reads the entry, flips ``active`` to ``False``, and re-persists it, so existing member
