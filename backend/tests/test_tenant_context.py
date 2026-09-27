@@ -342,5 +342,109 @@ class TestTenantRequiredDecorator:
             assert tenant == 'GoodwinSolutions'
 
 
+class TestSysAdminBypassAuditLog:
+    """Test that the allow_sysadmin bypass emits a structured audit log.
+
+    Security assessment 2026-09-26, task M1 (risk F2): on a
+    ``tenant_required(allow_sysadmin=True)`` route the client-supplied
+    ``X-Tenant`` header is injected without membership validation. The bypass
+    path must emit a structured audit trail of the injected tenant, the caller,
+    and the route.
+    """
+
+    def _make_token(self, tenants):
+        payload = {"email": "sysadmin@test.com", "custom:tenants": tenants}
+        header = base64.urlsafe_b64encode(
+            json.dumps({"alg": "HS256"}).encode()
+        ).decode().rstrip('=')
+        payload_encoded = base64.urlsafe_b64encode(
+            json.dumps(payload).encode()
+        ).decode().rstrip('=')
+        return f"Bearer {header}.{payload_encoded}.signature"
+
+    def test_sysadmin_bypass_logs_injected_tenant(self):
+        """Bypass path audit-logs the injected tenant, caller, and route."""
+        from auth.tenant_context import tenant_required
+
+        app = Flask(__name__)
+
+        @app.route('/test-bypass')
+        @tenant_required(allow_sysadmin=True)
+        def bypass_route(user_email, user_roles, tenant, user_tenants):
+            return {'tenant': tenant}
+
+        # SysAdmin injecting a tenant NOT in their own token (cross-tenant reach).
+        token = self._make_token(["OwnTenant"])
+
+        # log_successful_access writes the structured entry via print("ACCESS_LOG: ...");
+        # patch it where it is used so we can assert the audit content.
+        with patch('auth.cognito_utils.log_successful_access') as mock_log:
+            with app.test_request_context(
+                path='/test-bypass',
+                method='POST',
+                headers={
+                    'X-Tenant': 'InjectedTenant',
+                    'Authorization': token,
+                },
+            ):
+                # Directly invoke the decorated view with the kwargs that
+                # cognito_required would have injected.
+                bypass_route(
+                    user_email='sysadmin@test.com',
+                    user_roles=['SysAdmin'],
+                )
+
+        assert mock_log.called, "bypass path must emit an audit log"
+        _, kwargs = mock_log.call_args
+        assert kwargs['user_email'] == 'sysadmin@test.com'
+        assert kwargs['operation'] == 'sysadmin_tenant_bypass'
+        details = kwargs['details']
+        assert details['injected_tenant'] == 'InjectedTenant'
+        assert details['route'] == 'bypass_route'
+        assert details['tenant_validated'] is False
+
+    def test_sysadmin_bypass_emits_access_log_line(self):
+        """End-to-end: the bypass produces an ACCESS_LOG line naming the tenant."""
+        from auth.tenant_context import tenant_required
+
+        app = Flask(__name__)
+
+        @app.route('/test-bypass-2')
+        @tenant_required(allow_sysadmin=True)
+        def bypass_route_2(user_email, user_roles, tenant, user_tenants):
+            return {'tenant': tenant}
+
+        token = self._make_token(["OwnTenant"])
+
+        # Use the real log_successful_access; capture its printed output.
+        import builtins
+        printed = []
+        real_print = builtins.print
+
+        def _capture(*args, **kw):
+            printed.append(" ".join(str(a) for a in args))
+            return real_print(*args, **kw)
+
+        with patch('builtins.print', side_effect=_capture):
+            with app.test_request_context(
+                path='/test-bypass-2',
+                method='GET',
+                headers={
+                    'X-Tenant': 'InjectedTenant',
+                    'Authorization': token,
+                },
+            ):
+                bypass_route_2(
+                    user_email='sysadmin@test.com',
+                    user_roles=['SysAdmin'],
+                )
+
+        access_lines = [p for p in printed if p.startswith('ACCESS_LOG:')]
+        assert access_lines, "expected an ACCESS_LOG audit line from the bypass"
+        joined = "\n".join(access_lines)
+        assert 'InjectedTenant' in joined
+        assert 'sysadmin_tenant_bypass' in joined
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

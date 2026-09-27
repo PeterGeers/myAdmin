@@ -12,6 +12,7 @@ Extracted from app.py during refactoring (Phase 4.1)
 
 import logging
 import os
+import uuid
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
@@ -91,7 +92,9 @@ def str_upload_authenticated(
         temp_paths = []
         for file in uploaded_files:
             filename = secure_filename(file.filename)
-            temp_path = os.path.join(UPLOAD_FOLDER, filename)
+            # UUID-prefix so concurrent same-name uploads cannot overwrite each other
+            unique_filename = f"{tenant}_{uuid.uuid4().hex[:8]}_{filename}"
+            temp_path = os.path.join(UPLOAD_FOLDER, unique_filename)
             file.save(temp_path)
             temp_paths.append(temp_path)
 
@@ -636,7 +639,9 @@ def str_import_payout_authenticated(user_email, user_roles) -> ResponseReturnVal
             ), 400
 
         filename = secure_filename(file.filename)
-        temp_path = os.path.join(UPLOAD_FOLDER, filename)
+        # UUID-prefix so concurrent same-name uploads cannot overwrite each other
+        unique_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
+        temp_path = os.path.join(UPLOAD_FOLDER, unique_filename)
         file.save(temp_path)
 
         print(f"Processing Payout CSV: {filename}", flush=True)

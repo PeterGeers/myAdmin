@@ -155,3 +155,59 @@ class TestCORSAppConfiguration:
         assert 'ALLOWED_ORIGINS' in content
         # Verify RAILWAY_ENVIRONMENT check exists
         assert 'RAILWAY_ENVIRONMENT' in content
+
+
+class TestLambdaPathCorsHeaders:
+    """Requirement F3: the Lambda-style ``cors_headers()`` helper is safe by design.
+
+    This helper (auth.cognito_utils.cors_headers) is the response-dict/Lambda path,
+    NOT the Flask-CORS layer. Its wildcard origin is only non-exploitable while
+    credentials stay disabled — the assertions below lock that invariant in.
+    """
+
+    def test_cors_headers_credentials_are_false(self):
+        """F3 invariant: Access-Control-Allow-Credentials must stay 'false'.
+
+        The wildcard origin is only safe because credentials are off; a
+        wildcard-plus-credentials combination is what browsers forbid.
+        """
+        from auth.cognito_utils import cors_headers
+
+        headers = cors_headers()
+        assert headers["Access-Control-Allow-Credentials"] == "false"
+
+    def test_cors_headers_never_pairs_wildcard_origin_with_credentials(self):
+        """F3 invariant: if the origin is '*', credentials must be disabled.
+
+        This is the actual exploitability condition — a wildcard origin is only
+        dangerous when paired with credentials. Assert the pair can never both
+        be 'permissive'.
+        """
+        from auth.cognito_utils import cors_headers
+
+        headers = cors_headers()
+        origin = headers["Access-Control-Allow-Origin"]
+        creds = headers["Access-Control-Allow-Credentials"]
+
+        if origin == "*":
+            assert creds == "false", (
+                "Wildcard Access-Control-Allow-Origin must never be paired with "
+                "Access-Control-Allow-Credentials: true"
+            )
+
+    def test_error_and_success_responses_carry_acac_false(self):
+        """The response builders that reuse cors_headers() keep ACAC:false."""
+        from auth.cognito_utils import (
+            create_error_response,
+            create_success_response,
+            handle_options_request,
+        )
+
+        for response in (
+            create_error_response(500, "boom"),
+            create_success_response({"ok": True}, 200),
+            handle_options_request(),
+        ):
+            assert (
+                response["headers"]["Access-Control-Allow-Credentials"] == "false"
+            )
