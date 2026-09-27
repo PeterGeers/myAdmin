@@ -1,0 +1,349 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Types and foundation": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582152
+      },
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517591754
+      },
+      {
+        "executionId": "c7f81045-1dfc-44d4-8e28-803f4551dfb9",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790519334818
+      }
+    ],
+    "2.1 Create `frontend/src/hooks/useLazyOptions.ts`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582282
+      },
+      {
+        "executionId": "c7f81045-1dfc-44d4-8e28-803f4551dfb9",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790519465094
+      }
+    ],
+    "2.2 Unit tests `frontend/src/hooks/__tests__/useLazyOptions.test.ts`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582397
+      }
+    ],
+    "2.3 Property test `frontend/src/hooks/__tests__/useLazyOptions.property.test.ts`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582491
+      },
+      {
+        "executionId": "e74ea1d3-c73e-4b74-9852-435557c496d8",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790520427117
+      },
+      {
+        "executionId": "e74ea1d3-c73e-4b74-9852-435557c496d8",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790520567704
+      }
+    ],
+    "3.1 Create `frontend/src/components/common/LazySelect.tsx`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582615
+      },
+      {
+        "executionId": "e74ea1d3-c73e-4b74-9852-435557c496d8",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790520780351
+      }
+    ],
+    "3.2 Unit tests `frontend/src/components/common/__tests__/LazySelect.test.tsx`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582697
+      },
+      {
+        "executionId": "e74ea1d3-c73e-4b74-9852-435557c496d8",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790521000609
+      }
+    ],
+    "3.3 Property test `frontend/src/components/common/__tests__/LazySelect.property.test.tsx`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582779
+      },
+      {
+        "executionId": "e74ea1d3-c73e-4b74-9852-435557c496d8",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790521289753
+      }
+    ],
+    "4. Checkpoint — foundation complete": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582857
+      },
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790521478833
+      },
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790521501516
+      }
+    ],
+    "5.1 Adopt LazySelect in `frontend/src/components/members/MembersFieldFormBody.tsx`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517582952
+      },
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790521530053
+      },
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790521791094
+      }
+    ],
+    "5.2 Update paired Members tests (Change-With-Tests Contract)": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583061
+      },
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790522158913
+      }
+    ],
+    "5.3 Validation checkpoint": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583171
+      },
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790522166915
+      },
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790522183278
+      }
+    ],
+    "6.1 Adopt LazySelect in `frontend/src/components/BankingTransactionModal.tsx`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583297
+      },
+      {
+        "executionId": "955f2ad4-9a15-4468-8263-b01c6cf0057b",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790532322250
+      },
+      {
+        "executionId": "955f2ad4-9a15-4468-8263-b01c6cf0057b",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790532447538
+      }
+    ],
+    "6.2 Update paired test `frontend/src/__tests__/BankingTransactionModal.test.tsx`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583411
+      },
+      {
+        "executionId": "955f2ad4-9a15-4468-8263-b01c6cf0057b",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790532599442
+      }
+    ],
+    "6.3 Validation checkpoint — modal compiles; test passes; an out-of-list account displays and": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583521
+      },
+      {
+        "executionId": "955f2ad4-9a15-4468-8263-b01c6cf0057b",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790532605851
+      },
+      {
+        "executionId": "955f2ad4-9a15-4468-8263-b01c6cf0057b",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790532619072
+      }
+    ],
+    "7.1 Adopt LazySelect in `frontend/src/components/PDFUploadForm.tsx`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583628
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536155322
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536357060
+      }
+    ],
+    "7.2 Update the paired PDFUploadForm test(s)": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583759
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536635807
+      }
+    ],
+    "7.3 Validation checkpoint — modal compiles; tests pass; a long folder list is searchable and a": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517583870
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536641784
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536659902
+      }
+    ],
+    "8.1 Create the guide `.kiro/specs/Common/Frameworks/lazy-select/LAZY_SELECT.md`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517584039
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536673233
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536817580
+      }
+    ],
+    "8.2 Update `.kiro/steering/37-shared-building-blocks.md`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517584156
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536824868
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536894678
+      }
+    ],
+    "8.3 Update `.kiro/steering/32-frontend-ui.md`": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517584277
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536900319
+      },
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536954587
+      }
+    ],
+    "9. Final checkpoint": [
+      {
+        "executionId": "4942c8c8-2725-4210-b6a5-de75cd8de8a4",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790517584393
+      }
+    ],
+    "2. Implement useLazyOptions hook": [
+      {
+        "executionId": "e74ea1d3-c73e-4b74-9852-435557c496d8",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790520567808
+      }
+    ],
+    "3. Implement LazySelect component": [
+      {
+        "executionId": "e74ea1d3-c73e-4b74-9852-435557c496d8",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790521289888
+      }
+    ],
+    "5. Validation 1 — Members app (eager enum + async feed; remove s5j stopgap)": [
+      {
+        "executionId": "94b39566-12d4-4c01-9f5c-96bde7753d8d",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790522183391
+      }
+    ],
+    "6. Validation 2 — FIN Transaction modal (query-backed source)": [
+      {
+        "executionId": "955f2ad4-9a15-4468-8263-b01c6cf0057b",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790532619178
+      }
+    ],
+    "7. Validation 3 — FIN Import Invoice modal (long external list + query-backed)": [
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536659997
+      }
+    ],
+    "8. Documentation and steering registry": [
+      {
+        "executionId": "413ccf62-d566-47ee-b7d9-22bd4e38912a",
+        "chatSessionId": "sess_e2bf5cc6-1d48-480d-9bae-bd2a91338191",
+        "timestamp": 1790536954732
+      }
+    ]
+  }
+}

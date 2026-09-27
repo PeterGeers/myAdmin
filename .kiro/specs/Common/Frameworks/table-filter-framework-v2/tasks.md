@@ -223,7 +223,7 @@ Phased implementation of the table filter framework v2: new hooks (`useColumnFil
   - Ensure all tests pass, ask the user if questions arise.
   - Push to main
 
-- [ ] 11. High-priority component migrations
+- [x] 11. High-priority component migrations
   - [x] 11.1 Migrate MutatiesReport (Pattern B: hook replacement)
     - Replace `useState`/`useEffect` filter + sort boilerplate with `useFilterableTable`
     - Replace `<Th><Input .../>` patterns with `FilterableHeader`
@@ -314,7 +314,7 @@ Phased implementation of the table filter framework v2: new hooks (`useColumnFil
   - Ensure all tests pass, ask the user if questions arise.
   - Push it to main
 
-- [ ] 16. Low-priority migration and documentation
+- [x] 16. Low-priority migration and documentation
   - [x] 16.1 Migrate BnbFutureReport (Pattern A: FilterPanel swap)
     - Replace standalone `Select` for listing filter with `FilterPanel` + `GenericFilter`
     - Preserve read-only report behavior
@@ -369,7 +369,7 @@ Phased implementation of the table filter framework v2: new hooks (`useColumnFil
     - Move `.kiro/specs/Common/Filters a generic approach/archive/UnifiedAdminYearFilter-fix-strategy.md` to confirm it's archived
     - Update `.kiro/specs/Common/Filters a generic approach/findings 20260417/table-filter-audit.md` with a note that the migration is complete
 
-- [ ] 18. Final checkpoint — All migrations, cleanup, and documentation complete
+- [x] 18. Final checkpoint — All migrations, cleanup, and documentation complete
   - Ensure all 16 components are migrated and compile without errors
   - Ensure BankConnect and HealthCheck retain their accepted exception patterns (Requirements 9.2, 9.3)
   - Ensure all tests pass, ask the user if questions arise.

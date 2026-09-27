@@ -135,44 +135,9 @@ parameter-driven data. Findings (read-only, both planes):
   (D). (Steering 36 already states this order — Part C is the evidence + audit behind it.)
 
 
-# SPEC: Shared frontend component library — enforce reuse (filters, dropdowns, layout)
-**One spec — "how do we enforce reuse" + the specific reusable components that keep getting
-reinvented.**
+# Candidates for Shared frontend component library
 
-## Goal: enforce reuse of code used in many places
-How do we make shared building blocks the DEFAULT (not copy-paste)? A discoverable set of
-components/hooks + a convention (and ideally a lint/steering nudge) so tables, filters, and
-dropdowns are built from one place.
-
-## Piece 1 — Table Filter Framework v2 is not yet a real framework/library
-The hybrid table approach exists but isn't packaged as a true reusable library: text-search
-filters in column headers (`FilterableHeader`), dropdowns/multi-select above the table
-(`FilterPanel`), hooks `useColumnFilters`/`useTableSort`/`useFilterableTable`, parameter-driven
-`useTableConfig`, a clear-all/reset. Make it a real, documented, imported-everywhere library.
-Guide: `.kiro/specs/Common/Frameworks/table-filter-framework-v2/design.md`.
-
-## Piece 2 — A REUSABLE lazy/edit-on-click dropdown for the WHOLE platform
-Raised 2026-09-24 during s5j. A better design than the always-open `<select>` for editing a
-field that already has a value: show the CURRENT value as plain text (or a closed control) and
-only reveal the dropdown + options WHEN the user interacts (click/focus). The content stays as-is
-until the user opens it.
-- Why: an always-open `<select {...formikField}>` only preselects when the stored value EXACTLY
-  matches a rendered `<option value>`; otherwise it shows the placeholder and the value looks
-  BLANK. Bites on: a LEGACY value retired from the option set, a role-gated option the caller
-  can't pick, or a value simply absent. (s5j shipped a NARROW stopgap in
-  `MembersFieldFormBody.renderOptions` — prepend the current value as a synthetic option; THIS is
-  the generic replacement.)
-- Scope: ONE reusable component (e.g. `frontend/src/components/common/LazySelect.tsx`) + optional
-  `useLazyOptions` hook (options resolved/loaded on OPEN — supports async sources too), used by
-  EVERY dropdown (FIN/STR/ZZP/TENADMIN/Members/tenant-admin editors). Contract: always DISPLAY the
-  current value (never blank it) even if not in the option set; reveal options only on
-  interaction; on pick, replace; a value not in the list is preserved until changed (the
-  "tolerate legacy, enforce on change" rule). Chakra-consistent; keyboard + ARIA combobox
-  accessible. Migrate incrementally; once Members adopts it, REMOVE the s5j stopgap (leave a
-  pointer).
-- Calculated/derived fields stay NON-editable (nothing to pick).
-
-## Piece 3 (candidate) — Member modal responsive multi-column layout
+## (candidate) — Member modal responsive multi-column layout
 The member modal is one long list of fields with functional separators. Nice to have 3–4 columns
 on desktop, reducing to 1 on mobile. Fits here IF built on a shared responsive-layout primitive;
 otherwise it can be a small standalone tweak. Decide during design.
