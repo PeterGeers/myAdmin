@@ -155,9 +155,7 @@ def _jwt_verification_required() -> bool:
     """
     if os.environ.get("RAILWAY_ENVIRONMENT", "").lower() == "production":
         return True
-    if os.environ.get("REQUIRE_JWT_VERIFICATION", "false").lower() == "true":
-        return True
-    return False
+    return os.environ.get("REQUIRE_JWT_VERIFICATION", "false").lower() == "true"
 
 
 # Role-based permission mapping

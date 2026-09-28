@@ -28,6 +28,11 @@ import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 import MembersPage from '../pages/MembersPage';
 import * as membersApiService from '../services/membersApiService';
 import type { Member, FieldConfig } from '../types/members';
+import {
+  getLazySelectDisplay,
+  pickLazySelectOption,
+  pickMembershipType,
+} from './helpers/lazySelect';
 
 vi.mock('../services/membersApiService');
 
@@ -134,8 +139,12 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
       expect((dialog.querySelector('[name="first_name"]') as HTMLInputElement).value).toBe('Jan');
       expect((dialog.querySelector('[name="last_name"]') as HTMLInputElement).value).toBe('de Vries');
       expect((dialog.querySelector('[name="email"]') as HTMLInputElement).value).toBe('jan@h-dcn.example');
-      expect((dialog.querySelector('[name="membership_type"]') as HTMLSelectElement).value).toBe('gewoon');
-      expect((dialog.querySelector('[name="region"]') as HTMLSelectElement).value).toBe('Noord');
+      // membership_type + region are now LazySelect comboboxes — read the trigger's displayed value
+      // at rest instead of `.value` on a native control. The async membership_type catalog has NOT
+      // resolved at rest (it loads on open), so the trigger shows the raw stored value `gewoon`; the
+      // eager region source resolves immediately, so its in-set value shows as `Noord`.
+      expect(getLazySelectDisplay('membership_type', dialog)).toContain('gewoon');
+      expect(getLazySelectDisplay('region', dialog)).toContain('Noord');
     });
   });
 
@@ -152,8 +161,10 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
     it('calls updateMember with the storage-group-shaped nested body (NO tenant)', async () => {
       const dialog = await openEditModal();
       fillByName(dialog, 'first_name', 'Jan Jansen');
-      fillByName(dialog, 'membership_type', 'erelid');
-      fillByName(dialog, 'region', 'Zuid');
+      // membership_type (async catalog) + region (eager) → drive through the LazySelect combobox so
+      // Formik `setFieldValue` fires. Pick the Dutch labels ("Erelid" → erelid; "Zuid").
+      await pickMembershipType('Erelid', mockListMembershipTypes, dialog);
+      await pickLazySelectOption('region', 'Zuid', { container: dialog });
 
       fireEvent.click(within(dialog).getByText('editModal.save'));
       await waitFor(() => expect(mockUpdateMember).toHaveBeenCalledTimes(1));

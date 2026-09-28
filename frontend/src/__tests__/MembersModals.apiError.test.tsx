@@ -18,6 +18,7 @@ import { MembersTransitionModal } from '../components/members/MembersTransitionM
 import * as membersApiService from '../services/membersApiService';
 import { ApiError } from '../shared/api/ApiError';
 import type { Member, FieldConfig } from '../types/members';
+import { pickLazySelectOption, pickMembershipType } from './helpers/lazySelect';
 
 vi.mock('../services/membersApiService');
 
@@ -77,18 +78,22 @@ const openAddModal = async () => {
   return screen.getByRole('dialog');
 };
 
+// first_name / last_name / email are plain text Inputs → still addressable by `name`.
 const fillByName = (dialog: HTMLElement, name: string, value: string) => {
   const control = dialog.querySelector(`[name="${name}"]`) as HTMLElement | null;
   if (!control) throw new Error(`No form control with name="${name}"`);
   fireEvent.change(control, { target: { value } });
 };
 
-const fillValidForm = (dialog: HTMLElement) => {
+// membership_type (async catalog) + region (eager scope dimension) route through the shared
+// LazySelect combobox — open then pick so Formik `setFieldValue` fires. Labels resolve to `nl`
+// (this suite does not init i18n). The active catalog here has a single entry (Erelid).
+const fillValidForm = async (dialog: HTMLElement) => {
   fillByName(dialog, 'first_name', 'Piet');
   fillByName(dialog, 'last_name', 'de Nieuwe');
   fillByName(dialog, 'email', 'piet@h-dcn.example');
-  fillByName(dialog, 'membership_type', 'erelid');
-  fillByName(dialog, 'region', 'Zuid');
+  await pickMembershipType('Erelid', mockListMembershipTypes, dialog);
+  await pickLazySelectOption('region', 'Zuid', { container: dialog });
 };
 
 // NOTE: this file deliberately does NOT initialize i18n — like the sibling MembersAddModal test,
@@ -126,7 +131,7 @@ describe('MembersAddModal — 422 field errors (task 4.4)', () => {
     );
 
     const dialog = await openAddModal();
-    fillValidForm(dialog);
+    await fillValidForm(dialog);
     fireEvent.click(within(dialog).getByText('addModal.save'));
 
     await waitFor(() => expect(mockCreateMember).toHaveBeenCalledTimes(1));
@@ -155,7 +160,7 @@ describe('MembersAddModal — 422 field errors (task 4.4)', () => {
     );
 
     const dialog = await openAddModal();
-    fillValidForm(dialog);
+    await fillValidForm(dialog);
     fireEvent.click(within(dialog).getByText('addModal.save'));
 
     await waitFor(() => expect(toastSpy).toHaveBeenCalled());
@@ -168,7 +173,7 @@ describe('MembersAddModal — 422 field errors (task 4.4)', () => {
     mockCreateMember.mockRejectedValue(new Error('Failed to fetch'));
 
     const dialog = await openAddModal();
-    fillValidForm(dialog);
+    await fillValidForm(dialog);
     fireEvent.click(within(dialog).getByText('addModal.save'));
 
     await waitFor(() => expect(toastSpy).toHaveBeenCalled());

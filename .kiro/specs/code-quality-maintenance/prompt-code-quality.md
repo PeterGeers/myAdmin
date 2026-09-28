@@ -7,7 +7,7 @@ reusable building blocks** (people re-implementing something a shared helper, ho
 abstraction already provides).
 
 > **Scope split.** Running the CI **Full Test Suite** and triaging test/lint failures is a
-> SEPARATE task — see `promptTestSuiteResults.md` in this same directory. This prompt does
+> SEPARATE task — see `prompt-test-suite-results.md` in this same directory. This prompt does
 > NOT trigger workflows, download CI artifacts, or analyze test failures. It reads the
 > source tree and produces a code-quality improvement spec.
 
@@ -22,6 +22,10 @@ actionable spec. Do NOT run the test suite or CI — this is a static, source-le
 
 Analyze the following dimensions. For each, capture concrete file paths + line counts /
 match locations so the generated tasks are directly actionable.
+
+**Exclude everywhere** (all dimensions below): test files, `.venv/`, `node_modules/`,
+`__pycache__/`, `build/`, `dist/`, `.hypothesis/`, `mysql_data/`, `.agent-output/`. Section 8
+(missing tests) is the one exception — it deliberately reads test files to detect coverage gaps.
 
 ### 1. File length (split candidates)
 
@@ -150,8 +154,60 @@ grep -rn "mobile-exempt" frontend/src/
 Flag docs that clearly no longer match the code (reference deleted modules, old endpoints,
 retired frameworks). Keep this light — it is the lowest-priority signal.
 
-**Exclude everywhere:** test files, `.venv/`, `node_modules/`, `__pycache__/`, `build/`,
-`dist/`, `.hypothesis/`, `mysql_data/`, `.agent-output/`.
+### 8. Missing tests (test coverage gaps)
+
+Find source modules/components that ship WITHOUT a paired test — a static, filename-level
+heuristic (this prompt does not run the suite; execution/coverage is `prompt-test-suite-results.md`'s
+job). The project's test-location conventions (steering `34-backend-testing.md`,
+`33-frontend-testing.md`): backend source `backend/src/**` is tested under `backend/tests/**`,
+SAM source `sam/**` under `sam/tests/**`, and frontend source under `frontend/src/**` is tested
+either in a sibling `__tests__/` dir or a co-located `*.test.ts(x)` file.
+
+A source file is a **missing-test candidate** when no test file references it by name. Heuristic:
+derive each source module's basename and check whether any test file mentions it (by import or by a
+`test_<name>` / `<name>.test` filename).
+
+```bash
+# Backend: src modules with NO matching test file referencing them (by module basename).
+# Skip dunder/init, migrations, and pure __main__ entrypoints.
+for f in $(find backend/src -name '*.py' -not -name '__init__.py' -not -path '*/__pycache__/*'); do
+  base=$(basename "$f" .py)
+  grep -rql -e "import .*\b$base\b" -e "from .*\b$base\b" backend/tests --include='*.py' 2>/dev/null \
+    || echo "NO-TEST  $f"
+done | head -60
+
+# SAM: same heuristic against sam/tests.
+for f in $(find sam -name '*.py' -not -name '__init__.py' -not -path '*/tests/*' -not -path '*/__pycache__/*'); do
+  base=$(basename "$f" .py)
+  grep -rql -e "\b$base\b" sam/tests --include='*.py' 2>/dev/null || echo "NO-TEST  $f"
+done | head -60
+
+# Frontend: components/pages/hooks/services with NO co-located *.test.* and NO __tests__ reference.
+# Exclude type-only files, index barrels, and files that ARE tests/mocks.
+for f in $(find frontend/src -name '*.ts' -o -name '*.tsx' \
+    | grep -vE '\.(test|spec)\.|/__tests__/|/__mocks__/|\.d\.ts$|/index\.(ts|tsx)$'); do
+  base=$(basename "$f" | sed -E 's/\.(ts|tsx)$//')
+  grep -rql "\b$base\b" frontend/src --include='*.test.ts' --include='*.test.tsx' 2>/dev/null \
+    || echo "NO-TEST  $f"
+done | head -80
+```
+
+Not every source file needs its own test — thin re-export barrels, generated code, pure type
+declarations, config, and trivial glue are legitimately untested. For each candidate, decide:
+
+- **Genuinely untested behavior** (a service, route/handler, hook, non-trivial component, or a
+  pure-logic util with branches) → propose a test task, sized by surface area.
+- **Legitimately test-exempt** (barrel/index, types-only, generated, trivial pass-through) →
+  record separately, do NOT count as a gap.
+
+Prioritize the gaps by risk: **untested auth / DB / money / tenant-scoping logic and API
+route/Lambda handlers rank highest** (a silent break there is expensive); leaf presentational
+components and simple formatters rank lowest. Prefer filling a gap by extending an existing
+sibling test file over creating a brand-new one where that fits the convention.
+
+Applies the global excludes (`.venv/`, `node_modules/`, `__pycache__/`, `build/`, `dist/`,
+`.hypothesis/`, `mysql_data/`, `.agent-output/`) — but, unlike the other dimensions, this one
+READS test files (they are the signal for what is / isn't covered), so do not exclude them here.
 
 ---
 
@@ -170,6 +226,7 @@ Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YY
 - Framework/reusable-code bypasses: N sites re-implementing a shared building block (with the block each should adopt).
 - Type safety: N issues.
 - Mobile compliance: N not mobile-optimized (plus M explicitly exempt, listed separately).
+- Missing tests: N source files with no paired test, by plane (backend/sam/frontend) and by risk tier (plus M test-exempt, listed separately).
 - Stale documentation: N outdated files.
 
 **tasks.md** — improvement tasks grouped by priority. Each task: file path(s), specific
@@ -186,6 +243,12 @@ action, estimated effort (S ≤ 30 min / M ≤ 2 h / L > 2 h), and a verificatio
 Mobile-compliance violations are prioritized by user impact: **High** for unusable-on-mobile
 (horizontal overflow, tap targets too small, no responsive layout on primary flows),
 **Medium** for degraded-but-usable, **Low** for cosmetic issues on secondary/admin-only screens.
+
+Missing-test tasks are prioritized by risk: **High** for untested auth / DB / money /
+tenant-scoping logic and API route / Lambda handlers, **Medium** for untested services, hooks,
+and non-trivial components, **Low** for simple utils / leaf presentational components. Each task
+names the source file, the sibling test file to extend (or the new test path to create), and the
+behavior/branches that most need coverage.
 
 Do NOT fix the issues in this pass — only generate the spec with the analysis and task list.
 

@@ -1,0 +1,33 @@
+{
+  "specId": "e957ad32-fc3b-42a0-95f8-e9531b0323aa",
+  "spec": "full-test-suite-fixes-2026-09-28",
+  "ciRun": 36384687261,
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (2026-09-28)",
+  "priorities": {
+    "critical": [],
+    "high": ["H1", "H2", "H3"],
+    "medium": ["M1", "M2"],
+    "low": ["L1"]
+  },
+  "nodes": [
+    { "id": "H1", "title": "Migrate 3 Members-modal test files to drive the membership_type LazySelect combobox", "priority": "high", "effort": "M", "plane": "frontend", "rootCause": "stale tests query retired native <select name=membership_type>; membership_type migrated to LazySelect combobox" },
+    { "id": "H2", "title": "Resolve ruff SIM103 in cognito_utils.py:158 (return condition directly)", "priority": "high", "effort": "S", "plane": "lint", "rootCause": "SIM103; only a hidden unsafe fix — rewrite by hand" },
+    { "id": "H3", "title": "Resolve ruff S110 in tenant_context.py:246 (try-except-pass -> log)", "priority": "high", "effort": "S", "plane": "lint", "rootCause": "S110 bare try/except/pass swallows exception" },
+    { "id": "M1", "title": "Factor Members-modal LazySelect interaction into one shared test helper", "priority": "medium", "effort": "S", "plane": "frontend", "rootCause": "prevent H1 recurrence on next control refactor" },
+    { "id": "M2", "title": "Confirm auth/ lint-debt origin (git blame) and prevent recurrence", "priority": "medium", "effort": "S", "plane": "lint", "rootCause": "SIM103/S110 likely entered with 2026-09-26 Flask decoupling" },
+    { "id": "L1", "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)", "priority": "low", "effort": "S", "plane": "ci", "rootCause": "reproducibility (L1 pin from 09-26)" }
+  ],
+  "edges": [
+    { "from": "H1", "to": "M1", "type": "enables", "note": "extract the shared combobox helper only after the query pattern is proven in H1" },
+    { "from": "H2", "to": "M2", "type": "informs", "note": "blame confirms whether SIM103 arrived with the Flask decoupling" },
+    { "from": "H3", "to": "M2", "type": "informs", "note": "blame confirms whether S110 arrived with the Flask decoupling" }
+  ],
+  "recommendedOrder": ["H1", "H2", "H3", "M1", "M2", "L1"],
+  "notes": [
+    "No critical/collection blockers this cycle — backend and SAM are green; all work is High/Medium/Low.",
+    "H1 (frontend) and H2/H3 (lint) are fully independent and can run in parallel; H2 and H3 are independent of each other.",
+    "H1 is test-side ONLY — the membership_type -> LazySelect migration is intentional product; reverting it re-introduces the old synthetic-value bug the framework fixed.",
+    "H2: do NOT run `ruff check --fix --unsafe-fixes` blindly for SIM103 — apply by hand and verify boolean semantics.",
+    "M1 after H1; M2 after H2/H3; L1 any time."
+  ]
+}
