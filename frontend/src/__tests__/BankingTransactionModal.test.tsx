@@ -17,12 +17,9 @@ import BankingTransactionModal from '../components/BankingTransactionModal';
 import type { BankingTransactionModalProps } from '../components/BankingTransactionModal';
 import type { Transaction } from '../components/BankingProcessor.types';
 
-// Mock AccountSelect to avoid complex select rendering
-vi.mock('../components/common/AccountSelect', () => ({
-  default: ({ value, onChange }: any) => (
-    <input data-testid="account-select" value={value || ''} onChange={(e) => onChange(e.target.value)} />
-  ),
-}));
+// Debet/Credit render as LazySelect (task 6.1): a role="combobox" trigger whose accessible name
+// comes from the `label` prop (t('table.debit')/'Debit', t('table.credit')/'Credit'). LazySelect
+// owns its own listbox, so no AccountSelect mock is needed.
 
 const mockTransaction: Transaction = {
   ID: 42,
@@ -98,6 +95,40 @@ describe('BankingTransactionModal', () => {
     render(<BankingTransactionModal {...defaultProps} />);
     expect(screen.getByDisplayValue('TXN001')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Test payment')).toBeInTheDocument();
+  });
+
+  it('renders Debet and Credit as LazySelect comboboxes', () => {
+    render(<BankingTransactionModal {...defaultProps} />);
+    // Two LazySelect triggers expose the ARIA combobox pattern with accessible names from the label.
+    const comboboxes = screen.getAllByRole('combobox');
+    expect(comboboxes).toHaveLength(2);
+    expect(screen.getByRole('combobox', { name: 'Debit' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Credit' })).toBeInTheDocument();
+  });
+
+  it('displays an out-of-list account value at rest (tolerate legacy)', () => {
+    // defaultProps.chartAccounts is [], so Debet '4000' / Credit '1300' are out-of-set and shown raw.
+    render(<BankingTransactionModal {...defaultProps} />);
+    const debit = screen.getByRole('combobox', { name: 'Debit' });
+    const credit = screen.getByRole('combobox', { name: 'Credit' });
+    expect(debit).toHaveTextContent('4000');
+    expect(credit).toHaveTextContent('1300');
+  });
+
+  it('does not offer an out-of-list value as a selectable option when opened', () => {
+    render(<BankingTransactionModal {...defaultProps} />);
+    const debit = screen.getByRole('combobox', { name: 'Debit' });
+    fireEvent.click(debit);
+    // Open with an empty chart of accounts: '4000' is displayed at rest but is not a selectable option.
+    const options = screen.queryAllByRole('option');
+    expect(options.every((o) => o.textContent !== '4000')).toBe(true);
+  });
+
+  it('shows the in-set label when the account value is present in chartAccounts', () => {
+    const chartAccounts = [{ Account: '4000', AccountName: 'Sales' }] as BankingTransactionModalProps['chartAccounts'];
+    render(<BankingTransactionModal {...defaultProps} chartAccounts={chartAccounts} />);
+    // In-set value renders as "value - name" via the mapped LazyOption label.
+    expect(screen.getByRole('combobox', { name: 'Debit' })).toHaveTextContent('4000 - Sales');
   });
 
   it('shows administration field that cannot be edited', () => {

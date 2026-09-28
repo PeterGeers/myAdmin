@@ -1,354 +1,331 @@
-import { vi } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@/test-utils';
 
-// Mock the API service
+/**
+ * PDFUploadForm tests
+ *
+ * Task 7.2 (spec `.kiro/specs/Common/Frameworks/lazy-select/`, Requirement 8.3):
+ * These tests render the REAL `PDFUploadForm` with its hooks mocked so the new LazySelect
+ * controls (Debet/Credit accounts + the Google-Drive folder picker that replaced the old
+ * `<Input list>` + `<datalist>`) get real coverage, while preserving the previously asserted
+ * intents (file accept types, folder selection, new-folder button, prepared-transaction fields,
+ * approve/cancel buttons, upload button, tenant-missing vs present handling).
+ *
+ * LazySelect owns its own listbox (plain Chakra Boxes, not a Menu) so open/type/pick work under
+ * the auto-mocked Chakra (steering 33). We assert on roles/values/labels — no i18n init needed.
+ */
+
+// --- API service (transitively imported by the real hooks; keep the network scanner happy) ---
 vi.mock('../services/apiService', () => ({
   authenticatedGet: vi.fn(),
   authenticatedPost: vi.fn(),
   authenticatedFormData: vi.fn(),
 }));
 
-// Mock the tenant context
+// --- Tenant context ---
 const mockUseTenant = {
   currentTenant: 'tenant1' as string | null,
   availableTenants: ['tenant1', 'tenant2'],
   setCurrentTenant: vi.fn(),
   hasMultipleTenants: true,
 };
-
 vi.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant,
 }));
 
-import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
+// --- Tenant functions (drives the optional tabs; keep them off for a deterministic layout) ---
+vi.mock('../hooks/useTenantFunctions', () => ({
+  useTenantFunctions: () => ({ hasFunction: () => false, functions: [], loading: false, error: null }),
+}));
 
-import { useTenant } from '../context/TenantContext';
+// --- Chart of accounts feeding the Debet/Credit LazySelects ---
+const mockChartAccounts = [
+  { Account: '4000', AccountName: 'Sales' },
+  { Account: '1300', AccountName: 'Debtors' },
+];
+vi.mock('../hooks/useAccountLookup', () => ({
+  useAccountLookup: () => ({ accounts: mockChartAccounts, loading: false, error: null, refetch: vi.fn() }),
+}));
 
-// Mock PDFUploadForm component for testing tenant functionality
-const MockPDFUploadFormWithTenant = () => {
-  const { currentTenant } = useTenant();
-  const [message, setMessage] = React.useState('');
-  
-  const handleSubmit = () => {
-    if (!currentTenant) {
-      setMessage('Error: No tenant selected. Please select a tenant first.');
-      return;
-    }
-    setMessage('Upload successful');
-  };
+// --- usePDFUpload: a controllable object so the real component is deterministic ---
+import type { UsePDFUploadReturn, PreparedTransaction } from '../hooks/usePDFUpload';
 
-  return (
-    <div>
-      <div data-testid="current-tenant">{currentTenant || 'No tenant'}</div>
-      {message && <div data-testid="message">{message}</div>}
-      <form>
-        <label htmlFor="file-input">Select File (PDF, JPG, PNG)</label>
-        <input
-          id="file-input"
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-        />
-        
-        <label htmlFor="folder-select">Select Folder</label>
-        <select id="folder-select">
-          <option value="">Choose folder</option>
-          <option value="General">General</option>
-          <option value="Booking.com">Booking.com</option>
-          <option value="Utilities">Utilities</option>
-        </select>
-        
-        <button type="button">+ New</button>
-        <button type="button" onClick={handleSubmit}>Upload & Process</button>
-      </form>
-      
-      <div>
-        <div>Parsed PDF Data</div>
-        <div>File ID: test-invoice.pdf</div>
-        <div>Folder: General</div>
-        <textarea value="Invoice #12345\nAmount: €100.00" readOnly />
-      </div>
-      
-      <div>
-        <div>Parsed Vendor Data</div>
-        <div>2023-01-15</div>
-        <div>€100.00</div>
-        <div>€21.00</div>
-        <div>Test Invoice</div>
-      </div>
-      
-      <div>
-        <div>New Transaction Records (Ready for Approval)</div>
-        <div>Record 1 (ID: 1)</div>
-        <input value="TXN001" readOnly />
-        <input value="REF001" readOnly />
-        <input type="date" value="2023-01-15" readOnly />
-        <input value="Test Invoice" readOnly />
-        <input type="number" value="100" readOnly />
-        <input value="1000" readOnly />
-        <input value="2000" readOnly />
-        <button>✓ Approve & Save to Database</button>
-        <button>✗ Cancel</button>
-      </div>
-    </div>
-  );
+const ALL_FOLDERS = ['General', 'Booking.com', 'Utilities'];
+
+// One prepared transaction so the account LazySelects render. Debet is in the chart of accounts
+// ('4000'); Credit is an out-of-list legacy value ('9999') to exercise tolerate-legacy.
+const preparedTransaction: PreparedTransaction = {
+  ID: 1,
+  TransactionNumber: 'TXN001',
+  ReferenceNumber: 'REF001',
+  TransactionDate: '2023-01-15',
+  TransactionDescription: 'Test Invoice',
+  TransactionAmount: 100,
+  Debet: '4000',
+  Credit: '9999',
+  Ref1: 'R1',
+  Ref2: 'R2',
+  Ref3: 'https://drive/file',
+  Ref4: 'invoice.pdf',
+  Administration: 'tenant1',
 };
 
-describe('PDFUploadForm - Tenant Handling', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    
-    // Reset mock to default tenant
-    mockUseTenant.currentTenant = 'tenant1';
-    
-    // Mock successful folders API response
-    vi.mocked(authenticatedGet).mockResolvedValue({
-      json: () => Promise.resolve(['General', 'Booking.com', 'Utilities']),
-    } as any);
+const handleSearch = vi.fn();
+const setPreparedTransactions = vi.fn();
+const approveTransactions = vi.fn();
+
+function makeHook(overrides: Partial<UsePDFUploadReturn> = {}): UsePDFUploadReturn {
+  return {
+    loading: false,
+    tenantSwitching: false,
+    message: '',
+    setMessage: vi.fn(),
+    uploadProgress: 0,
+    parsedData: null,
+    vendorData: null,
+    preparedTransactions: [],
+    setPreparedTransactions,
+    allFolders: ALL_FOLDERS,
+    filteredFolders: ALL_FOLDERS,
+    searchTerm: '',
+    setSearchTerm: vi.fn(),
+    showCreateFolder: false,
+    setShowCreateFolder: vi.fn(),
+    newFolderName: '',
+    setNewFolderName: vi.fn(),
+    showDuplicateDialog: false,
+    duplicateInfo: null,
+    duplicateLoading: false,
+    handleSearch,
+    handleSubmit: vi.fn(),
+    approveTransactions,
+    createFolder: vi.fn(),
+    handleDuplicateContinue: vi.fn(),
+    handleDuplicateCancel: vi.fn(),
+    ...overrides,
+  };
+}
+
+let hookValue: UsePDFUploadReturn = makeHook();
+vi.mock('../hooks/usePDFUpload', () => ({
+  usePDFUpload: () => hookValue,
+}));
+
+import PDFUploadForm from './PDFUploadForm';
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockUseTenant.currentTenant = 'tenant1';
+  hookValue = makeHook();
+});
+
+describe('PDFUploadForm - file + folder + buttons (real component)', () => {
+  it('renders the file input with correct accept types', () => {
+    const { container } = render(<PDFUploadForm />);
+    // FormLabel/FormControl in the Chakra mock does not wire htmlFor/id, so query the input directly.
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).toBeInTheDocument();
+    expect(fileInput).toHaveAttribute('accept', '.pdf,.jpg,.jpeg,.png,.mhtml,.eml');
+    expect(screen.getByText(/select file/i)).toBeInTheDocument();
   });
 
-  describe('Tenant Context Integration', () => {
-    it('uses useTenant hook for tenant context', () => {
-      render(<MockPDFUploadFormWithTenant />);
-
-      // Verify that the component uses tenant context
-      expect(screen.getByTestId('current-tenant')).toHaveTextContent('tenant1');
-    });
-
-    it('handles missing tenant gracefully', () => {
-      // Mock no current tenant
-      mockUseTenant.currentTenant = null;
-
-      render(<MockPDFUploadFormWithTenant />);
-
-      // Should show no tenant
-      expect(screen.getByTestId('current-tenant')).toHaveTextContent('No tenant');
-    });
+  it('shows the new-folder button', () => {
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('button', { name: /\+ new/i })).toBeInTheDocument();
   });
 
-  describe('Pre-Processing Validation', () => {
-    it('validates tenant selection before upload', () => {
-      // Mock no current tenant
-      mockUseTenant.currentTenant = null;
-
-      render(<MockPDFUploadFormWithTenant />);
-
-      // Try to upload without tenant
-      const uploadButton = screen.getByRole('button', { name: /upload & process/i });
-      fireEvent.click(uploadButton);
-
-      // Should show error message
-      expect(screen.getByTestId('message')).toHaveTextContent('Error: No tenant selected');
-    });
-
-    it('allows upload when tenant is selected', () => {
-      render(<MockPDFUploadFormWithTenant />);
-
-      const uploadButton = screen.getByRole('button', { name: /upload & process/i });
-      fireEvent.click(uploadButton);
-
-      // Should show success message
-      expect(screen.getByTestId('message')).toHaveTextContent('Upload successful');
-    });
-  });
-
-  describe('API Integration Tests', () => {
-    it('should call API with tenant parameter', async () => {
-      // This test verifies that the actual PDFUploadForm would call APIs with tenant
-      const mockFetchFolders = vi.fn().mockResolvedValue({
-        json: () => Promise.resolve(['folder1', 'folder2']),
-      });
-      
-      vi.mocked(authenticatedGet).mockImplementation(mockFetchFolders);
-
-      // Simulate the API call that would happen in the real component
-      await authenticatedGet('/api/folders', { tenant: 'tenant1' });
-
-      expect(mockFetchFolders).toHaveBeenCalledWith('/api/folders', { tenant: 'tenant1' });
-    });
-
-    it('should handle API errors gracefully', async () => {
-      vi.mocked(authenticatedGet).mockRejectedValue(new Error('API Error'));
-
-      await expect(authenticatedGet('/api/folders', { tenant: 'tenant1' })).rejects.toThrow('API Error');
-    });
-  });
-
-  describe('Tenant Switching Behavior', () => {
-    it('should clear data when tenant changes', () => {
-      const { rerender } = render(<MockPDFUploadFormWithTenant />);
-
-      // Initial tenant
-      expect(screen.getByTestId('current-tenant')).toHaveTextContent('tenant1');
-
-      // Change tenant
-      mockUseTenant.currentTenant = 'tenant2';
-      rerender(<MockPDFUploadFormWithTenant />);
-
-      // Should show new tenant
-      expect(screen.getByTestId('current-tenant')).toHaveTextContent('tenant2');
-    });
+  it('shows the upload button', () => {
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('button', { name: /upload & process/i })).toBeInTheDocument();
   });
 });
 
-// Simple mock component for PDFUploadForm testing
-const MockPDFUploadForm = () => {
-  return (
-    <div>
-      <form>
-        <label htmlFor="file-input">Select File (PDF, JPG, PNG)</label>
-        <input
-          id="file-input"
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-        />
-        
-        <label htmlFor="folder-select">Select Folder</label>
-        <select id="folder-select">
-          <option value="">Choose folder</option>
-          <option value="General">General</option>
-          <option value="Booking.com">Booking.com</option>
-          <option value="Utilities">Utilities</option>
-        </select>
-        
-        <button type="button">+ New</button>
-        <button type="submit">Upload & Process</button>
-      </form>
-      
-      <div>
-        <div>Parsed PDF Data</div>
-        <div>File ID: test-invoice.pdf</div>
-        <div>Folder: General</div>
-        <textarea value="Invoice #12345\nAmount: €100.00" readOnly />
-      </div>
-      
-      <div>
-        <div>Parsed Vendor Data</div>
-        <div>2023-01-15</div>
-        <div>€100.00</div>
-        <div>€21.00</div>
-        <div>Test Invoice</div>
-      </div>
-      
-      <div>
-        <div>New Transaction Records (Ready for Approval)</div>
-        <div>Record 1 (ID: 1)</div>
-        <input value="TXN001" readOnly />
-        <input value="REF001" readOnly />
-        <input type="date" value="2023-01-15" readOnly />
-        <input value="Test Invoice" readOnly />
-        <input type="number" value="100" readOnly />
-        <input value="1000" readOnly />
-        <input value="2000" readOnly />
-        <button>✓ Approve & Save to Database</button>
-        <button>✗ Cancel</button>
-      </div>
-    </div>
-  );
-};
-
-describe('PDFUploadForm', () => {
-  // File Selection Tests
-  describe('File Selection', () => {
-    it('renders file input with correct accept types', () => {
-      render(<MockPDFUploadForm />);
-      
-      const fileInput = screen.getByLabelText(/select file/i);
-      expect(fileInput).toBeInTheDocument();
-      expect(fileInput).toHaveAttribute('accept', '.pdf,.jpg,.jpeg,.png');
-      expect(fileInput).toHaveAttribute('type', 'file');
-    });
+describe('PDFUploadForm - folder LazySelect', () => {
+  it('renders the folder picker as a combobox named "Select Folder"', () => {
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('combobox', { name: 'Select Folder' })).toBeInTheDocument();
   });
 
-  // Vendor Selection Tests
-  describe('Vendor Selection', () => {
-    it('loads and displays folder options', () => {
-      render(<MockPDFUploadForm />);
-      
-      const folderSelect = screen.getByLabelText(/select folder/i);
-      expect(folderSelect).toBeInTheDocument();
-      
-      expect(screen.getByRole('option', { name: 'General' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'Booking.com' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'Utilities' })).toBeInTheDocument();
-    });
+  it('lists all folders as options when opened (typeahead over the long external list)', () => {
+    render(<PDFUploadForm />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Select Folder' }));
 
-    it('shows new folder button', () => {
-      render(<MockPDFUploadForm />);
-      expect(screen.getByRole('button', { name: /\+ new/i })).toBeInTheDocument();
-    });
+    const optionTexts = screen.getAllByRole('option').map((o) => o.textContent);
+    expect(optionTexts).toEqual(expect.arrayContaining(ALL_FOLDERS));
   });
 
-  // Transaction Preview Tests
-  describe('Transaction Preview', () => {
-    it('displays parsed PDF data', () => {
-      render(<MockPDFUploadForm />);
-      
-      expect(screen.getByText('Parsed PDF Data')).toBeInTheDocument();
-      expect(screen.getByText(/test-invoice.pdf/)).toBeInTheDocument();
-      expect(screen.getByText('General')).toBeInTheDocument();
-      expect(screen.getByDisplayValue(/Invoice #12345/)).toBeInTheDocument();
-    });
+  it('picking a folder calls setFieldValue(folderId, folder) via handleSearch', () => {
+    render(<PDFUploadForm />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Select Folder' }));
 
-    it('displays vendor data', () => {
-      render(<MockPDFUploadForm />);
-      
-      expect(screen.getByText('Parsed Vendor Data')).toBeInTheDocument();
-      expect(screen.getByText('2023-01-15')).toBeInTheDocument();
-      expect(screen.getByText('€100.00')).toBeInTheDocument();
-      expect(screen.getByText('€21.00')).toBeInTheDocument();
-      expect(screen.getByText('Test Invoice')).toBeInTheDocument();
-    });
+    const utilities = screen.getAllByRole('option').find((o) => o.textContent === 'Utilities')!;
+    expect(utilities).toBeTruthy();
+    fireEvent.mouseDown(utilities);
 
-    it('displays prepared transactions', () => {
-      render(<MockPDFUploadForm />);
-      
-      expect(screen.getByText('New Transaction Records (Ready for Approval)')).toBeInTheDocument();
-      expect(screen.getByText('Record 1 (ID: 1)')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('TXN001')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('REF001')).toBeInTheDocument();
-    });
+    // onChange -> setFieldValue('folderId', 'Utilities') then handleSearch('Utilities', setFieldValue).
+    expect(handleSearch).toHaveBeenCalledWith('Utilities', expect.any(Function));
   });
 
-  // Edit Interface Tests
-  describe('Edit Interface', () => {
-    it('shows transaction editing fields', () => {
-      render(<MockPDFUploadForm />);
-      
-      expect(screen.getByDisplayValue('TXN001')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('REF001')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('2023-01-15')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('Test Invoice')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('100')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('1000')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('2000')).toBeInTheDocument();
-    });
+  it('offers only the known folders (a name not in allFolders is never a selectable option)', () => {
+    render(<PDFUploadForm />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Select Folder' }));
+    // The folder set is exactly allFolders; a legacy/unknown name is never injected as an option.
+    expect(screen.queryAllByRole('option').some((o) => o.textContent === 'LegacyFolder')).toBe(false);
+    // (The at-rest tolerate-legacy display is covered against the account LazySelects below, where
+    // a preset out-of-list value flows in via preparedTransactions.)
+  });
+});
+
+describe('PDFUploadForm - upload gate', () => {
+  it('enables Upload when exactly one folder is resolved (gate open)', () => {
+    hookValue = makeHook({ filteredFolders: ['General'] });
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('button', { name: /upload & process/i })).not.toBeDisabled();
   });
 
-  // Save Operations Tests
-  describe('Save Operations', () => {
-    it('shows approve and cancel buttons', () => {
-      render(<MockPDFUploadForm />);
-      
-      expect(screen.getByRole('button', { name: /✓ approve & save to database/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✗ cancel/i })).toBeInTheDocument();
-    });
+  it('disables Upload when more than one folder matches (gate closed)', () => {
+    hookValue = makeHook({ filteredFolders: ALL_FOLDERS });
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('button', { name: /upload & process/i })).toBeDisabled();
   });
 
-  // Progress Tracking Tests
-  describe('Progress Tracking', () => {
-    it('shows upload button', () => {
-      render(<MockPDFUploadForm />);
-      expect(screen.getByRole('button', { name: /upload & process/i })).toBeInTheDocument();
-    });
+  it('disables Upload when no tenant is selected even with one folder resolved', () => {
+    mockUseTenant.currentTenant = null;
+    hookValue = makeHook({ filteredFolders: ['General'] });
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('button', { name: /upload & process/i })).toBeDisabled();
   });
 
-  // Drag & Drop Tests
-  describe('File Drop Zone', () => {
-    it('accepts file through input interface', () => {
-      render(<MockPDFUploadForm />);
-      const fileInput = screen.getByLabelText(/select file/i);
-      expect(fileInput).toHaveAttribute('accept', '.pdf,.jpg,.jpeg,.png');
+  it('disables Upload while the tenant is switching', () => {
+    hookValue = makeHook({ filteredFolders: ['General'], tenantSwitching: true });
+    render(<PDFUploadForm />);
+    // While switching, the submit button shows its loadingText ("Switching tenant...") and is disabled.
+    expect(screen.getByRole('button', { name: /switching tenant/i })).toBeDisabled();
+  });
+});
+
+describe('PDFUploadForm - account LazySelects (Debet/Credit)', () => {
+  beforeEach(() => {
+    hookValue = makeHook({ preparedTransactions: [preparedTransaction] });
+  });
+
+  it('renders Debet and Credit as combobox controls', () => {
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('combobox', { name: 'Debet' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Credit' })).toBeInTheDocument();
+  });
+
+  it('shows the in-set account "Account - Name" label at rest', () => {
+    render(<PDFUploadForm />);
+    // Debet '4000' is in the chart of accounts -> "4000 - Sales".
+    expect(screen.getByRole('combobox', { name: 'Debet' })).toHaveTextContent('4000 - Sales');
+  });
+
+  it('shows an out-of-list account value at rest (tolerate legacy)', () => {
+    render(<PDFUploadForm />);
+    // Credit '9999' is not in the chart of accounts -> shown raw, never blanked.
+    expect(screen.getByRole('combobox', { name: 'Credit' })).toHaveTextContent('9999');
+  });
+
+  it('does not offer the out-of-list account value as a selectable option', () => {
+    render(<PDFUploadForm />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Credit' }));
+    expect(screen.queryAllByRole('option').some((o) => o.textContent === '9999')).toBe(false);
+  });
+
+  it('offers the in-set accounts as options when opened', () => {
+    render(<PDFUploadForm />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Debet' }));
+    const optionTexts = screen.getAllByRole('option').map((o) => o.textContent);
+    expect(optionTexts).toEqual(expect.arrayContaining(['4000 - Sales', '1300 - Debtors']));
+  });
+
+  it('picking an account emits exactly that account value and updates the prepared transaction', () => {
+    render(<PDFUploadForm />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Debet' }));
+    const debtors = screen.getAllByRole('option').find((o) => o.textContent === '1300 - Debtors')!;
+    fireEvent.mouseDown(debtors);
+
+    expect(setPreparedTransactions).toHaveBeenCalledTimes(1);
+    const updated = setPreparedTransactions.mock.calls[0][0] as PreparedTransaction[];
+    expect(updated[0].Debet).toBe('1300');
+  });
+});
+
+describe('PDFUploadForm - prepared transactions + approve/cancel', () => {
+  beforeEach(() => {
+    hookValue = makeHook({ preparedTransactions: [preparedTransaction] });
+  });
+
+  it('displays the prepared transaction record and its editable fields', () => {
+    render(<PDFUploadForm />);
+    expect(screen.getByText('New Transaction Records (Ready for Approval)')).toBeInTheDocument();
+    expect(screen.getByText(/Record 1 \(ID: 1\)/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('TXN001')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('REF001')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Test Invoice')).toBeInTheDocument();
+  });
+
+  it('shows approve and cancel buttons and cancel clears the prepared transactions', () => {
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('button', { name: /approve & save to database/i })).toBeInTheDocument();
+
+    const cancel = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.click(cancel);
+    expect(setPreparedTransactions).toHaveBeenCalledWith([]);
+  });
+
+  it('approve button triggers approveTransactions', () => {
+    render(<PDFUploadForm />);
+    fireEvent.click(screen.getByRole('button', { name: /approve & save to database/i }));
+    expect(approveTransactions).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PDFUploadForm - parsed + vendor data display', () => {
+  it('displays parsed PDF data when present', () => {
+    hookValue = makeHook({
+      parsedData: {
+        name: 'test-invoice.pdf',
+        url: '/uploads/test-invoice.pdf',
+        folder: 'General',
+        txt: 'Invoice #12345',
+      },
     });
+    render(<PDFUploadForm />);
+    expect(screen.getByText('Parsed PDF Data')).toBeInTheDocument();
+    expect(screen.getByText('test-invoice.pdf')).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/Invoice #12345/)).toBeInTheDocument();
+  });
+
+  it('displays vendor data when present', () => {
+    hookValue = makeHook({
+      parsedData: { name: 'f.pdf', url: '/u/f.pdf', folder: 'General', txt: '' },
+      vendorData: {
+        date: '2023-01-15',
+        total_amount: '100.00',
+        vat_amount: '21.00',
+        description: 'Test Invoice',
+      },
+    });
+    render(<PDFUploadForm />);
+    expect(screen.getByText('Parsed Vendor Data')).toBeInTheDocument();
+    expect(screen.getByText('2023-01-15')).toBeInTheDocument();
+    expect(screen.getByText('Test Invoice')).toBeInTheDocument();
+  });
+});
+
+describe('PDFUploadForm - tenant handling', () => {
+  it('shows an upload message from the hook (e.g. tenant-missing error)', () => {
+    hookValue = makeHook({ message: 'Error: No tenant selected. Please select a tenant first.' });
+    render(<PDFUploadForm />);
+    expect(screen.getByText(/No tenant selected/)).toBeInTheDocument();
+  });
+
+  it('disables the +New folder button when no tenant is selected', () => {
+    mockUseTenant.currentTenant = null;
+    render(<PDFUploadForm />);
+    expect(screen.getByRole('button', { name: /\+ new/i })).toBeDisabled();
   });
 });

@@ -16,8 +16,9 @@ import {
   Textarea,
 } from '@chakra-ui/react';
 import React from 'react';
-import AccountSelect from './common/AccountSelect';
 import { AccountOption } from '../hooks/useAccountLookup';
+import { LazySelect } from './common/LazySelect';
+import type { LazyOption } from './common/lazySelect.types';
 import { Transaction } from './BankingProcessor';
 
 export interface BankingTransactionModalProps {
@@ -47,6 +48,15 @@ const BankingTransactionModal: React.FC<BankingTransactionModalProps> = ({
   onKeyDown,
   t,
 }) => {
+  // EAGER ARRAY approach (wiring decision): the parent owns the chart-of-accounts fetch and passes
+  // it in via `chartAccounts`. Map it once to LazyOption[] and reuse for both Debet/Credit.
+  // LazySelect accepts array-or-async; the array shape is correct here since the source is already
+  // query-backed upstream. See .kiro/specs/Common/Frameworks/lazy-select/ (task 6.1).
+  const accountOptions = React.useMemo<LazyOption[]>(
+    () => chartAccounts.map((a) => ({ value: a.Account, label: `${a.Account} - ${a.AccountName}` })),
+    [chartAccounts],
+  );
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <ModalOverlay />
@@ -76,22 +86,22 @@ const BankingTransactionModal: React.FC<BankingTransactionModalProps> = ({
               </FormControl>
               <FormControl>
                 <FormLabel color="white">{t('table.administration')}</FormLabel>
-                <Input 
-                  value={editingRecord.Administration || ''} 
-                  isReadOnly 
-                  bg="gray.500" 
-                  color="gray.300" 
+                <Input
+                  value={editingRecord.Administration || ''}
+                  isReadOnly
+                  bg="gray.500"
+                  color="gray.300"
                   cursor="not-allowed"
                   title={t('labels.administrationCannotChange')}
                 />
               </FormControl>
               <FormControl>
                 <FormLabel color="white">{t('table.debit')}</FormLabel>
-                <AccountSelect value={editingRecord.Debet || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Debet: val } : prev)} accounts={chartAccounts} onKeyDown={onKeyDown} bg="gray.600" color="white" />
+                <LazySelect value={editingRecord.Debet || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Debet: val } : prev)} options={accountOptions} label={t('table.debit')} bg="gray.600" color="white" />
               </FormControl>
               <FormControl>
                 <FormLabel color="white">{t('table.credit')}</FormLabel>
-                <AccountSelect value={editingRecord.Credit || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Credit: val } : prev)} accounts={chartAccounts} onKeyDown={onKeyDown} bg="gray.600" color="white" />
+                <LazySelect value={editingRecord.Credit || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Credit: val } : prev)} options={accountOptions} label={t('table.credit')} bg="gray.600" color="white" />
               </FormControl>
               <FormControl>
                 <FormLabel color="white">{t('table.referenceNumber')}</FormLabel>

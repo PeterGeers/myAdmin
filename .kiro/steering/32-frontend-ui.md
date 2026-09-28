@@ -31,6 +31,7 @@ Follow the BankingProcessor pattern:
 - Standard button layout: Cancel (left, ghost) + Save/Submit (right, orange solid)
 - Loading state on submit button
 - Close on overlay click disabled for edit modals (`closeOnOverlayClick={false}`)
+- **Open mode is an explicit decision, made BEFORE coding.** When adding a new record/CRUD modal, decide and state up front whether it opens **read-only-first** (view, then an explicit Edit/“Bewerken” button to enter edit mode) or **straight-to-edit** (editable on open). Do not default silently — the platform is currently mixed (Members, User Management, and Tenant Management open read-only-first; FIN Transactions and most config tables open editable), so the choice must be deliberate. Prefer **read-only-first** for higher-stakes or permission-sensitive records (it also gives view-only users a natural home); straight-to-edit is acceptable for simple config rows. A platform-wide standard is not yet ratified — see myBacklog; until then, record the choice in the modal's PR/spec.
 
 ## Responsive Design
 
@@ -58,6 +59,12 @@ Use the Table Filter Framework v2 — a hybrid approach: text search filters in 
 - Clear all / reset button to return to default view
 
 When implementing or modifying tables or filters, read the full framework guide at `.kiro/specs/Common/Frameworks/table-filter-framework-v2/design.md`
+
+This is one of the platform's shared building blocks — see `37-shared-building-blocks.md` for the full registry (and reach for a registered block before inventing a local variant).
+
+## Dropdowns / editable selects
+
+For a single-value dropdown that edits a field already holding a value — especially where the stored value may not be in the current option set (legacy, role-gated, or externally sourced) — use the shared **LazySelect** building block instead of a bare `<Select>` or `<Input>`+`<datalist>`. It is always-searchable and "tolerates legacy": the current value is shown at rest (never blanked), with options supplied as an array or an (async) function. Full guide: `.kiro/specs/Common/Frameworks/lazy-select/LAZY_SELECT.md`. Reference: `MembersFieldFormBody.tsx`.
 
 This is one of the platform's shared building blocks — see `37-shared-building-blocks.md` for the full registry (and reach for a registered block before inventing a local variant).
 
