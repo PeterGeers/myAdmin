@@ -1,0 +1,119 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test (BEFORE implementing the fix)": {
+      "status": "passed",
+      "failingExample": "AssertionError: expected [ 'goodwin' ] to include 'h-dcn'.\n\nAfter switching the active tenant to 'h-dcn' in-app (setCurrentTenant, no reload), GET /api/auth/me was NOT re-invoked with X-Tenant: h-dcn — authMeCalls remained ['goodwin'] (only the mount-time fetch for the origin tenant). Consequently the rendered MainMenu still showed the \"🏢 Tenant Administration\" (Tenant_Admin) button (over-show, req 1.2) and did NOT show \"👥 Members Overview\" (Members_CRUD, held only on h-dcn) (under-show, req 1.3). Confirms the bug: no tenant-keyed role re-resolution on switch (reqs 1.1, 1.4).",
+      "lastRunTimestamp": 1790621293322
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test (BEFORE implementing the fix)": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621008661
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621014939
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621336245
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing the fix)": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621008796
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621342564
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621730851
+      }
+    ],
+    "3.1 Add explicit-tenant + no-store support to `getCurrentUserRoles(tenant?)`": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621008905
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621736519
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621878504
+      }
+    ],
+    "3.2 Add `refreshRolesForTenant(tenant)` to `AuthContext`": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621009018
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621883698
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790622121615
+      }
+    ],
+    "3.3 Wire the trigger in `App.tsx` `AppContent`": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621009118
+      },
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790622126786
+      }
+    ],
+    "3.4 Verify SysAdmin is preserved and roles are not stripped on the frontend": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621009229
+      }
+    ],
+    "3.5 Verify bug condition exploration test now passes (Fix Checking)": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621009345
+      }
+    ],
+    "3.6 Verify preservation tests still pass (no regressions)": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621009456
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "b3607570-c664-4f72-b337-b84ef3ab46c5",
+        "chatSessionId": "sess_e37b6544-8741-4143-b1bc-a3a9c927ca8f",
+        "timestamp": 1790621009612
+      }
+    ]
+  }
+}

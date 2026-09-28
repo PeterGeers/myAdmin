@@ -139,10 +139,10 @@ export function decodeJWTPayload(token: string): JWTPayload | null {
 
     // Decode payload (second part of JWT)
     const payload = parts[1];
-    
+
     // Add padding if needed for base64 decoding
     const paddedPayload = payload + '='.repeat((4 - (payload.length % 4)) % 4);
-    
+
     // Decode base64 and parse JSON
     const decodedPayload = JSON.parse(atob(paddedPayload));
 
@@ -179,9 +179,12 @@ export async function getCurrentAuthTokens(): Promise<AuthTokens | null> {
 /**
  * Extract user roles from JWT token
  * 
+ * @param tenant - Optional tenant to resolve roles for. When provided, the
+ *   X-Tenant header is set from this argument; otherwise it is read from
+ *   localStorage 'selectedTenant' (login/mount path unchanged).
  * @returns Array of role names from cognito:groups claim
  */
-export async function getCurrentUserRoles(): Promise<string[]> {
+export async function getCurrentUserRoles(tenant?: string): Promise<string[]> {
   try {
     const tokens = await getCurrentAuthTokens();
     if (!tokens?.accessToken) {
@@ -193,14 +196,14 @@ export async function getCurrentUserRoles(): Promise<string[]> {
       const idToken = tokens.idToken;
       if (idToken) {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const tenant = localStorage.getItem('selectedTenant') || '';
+        const selectedTenant = tenant || localStorage.getItem('selectedTenant') || '';
         const headers: Record<string, string> = {
           'Authorization': `Bearer ${idToken}`,
         };
-        if (tenant) {
-          headers['X-Tenant'] = tenant;
+        if (selectedTenant) {
+          headers['X-Tenant'] = selectedTenant;
         }
-        const resp = await fetch(`${apiUrl}/api/auth/me`, { headers });
+        const resp = await fetch(`${apiUrl}/api/auth/me`, { headers, cache: 'no-store' });
         if (resp.ok) {
           const data = await resp.json();
           return data.roles || [];
@@ -413,7 +416,7 @@ export async function getCurrentUserTenants(): Promise<string[]> {
     // Parse custom:tenants - it's stored as a JSON string array
     let tenantsValue = payload['custom:tenants'];
     console.log('[Tenants] Raw value from JWT:', tenantsValue, 'Type:', typeof tenantsValue);
-    
+
     if (!tenantsValue) {
       console.log('[Tenants] No custom:tenants in JWT');
       return [];
@@ -428,7 +431,7 @@ export async function getCurrentUserTenants(): Promise<string[]> {
     // If it's a string, try to parse it
     if (typeof tenantsValue === 'string') {
       console.log('[Tenants] Attempting to parse string:', tenantsValue);
-      
+
       // Handle double-escaped JSON from Cognito (e.g., "[\"GoodwinSolutions\",\"PeterPrive\"]")
       // Check if the string contains escaped quotes
       if (tenantsValue.includes('\\"')) {
@@ -436,12 +439,12 @@ export async function getCurrentUserTenants(): Promise<string[]> {
         tenantsValue = tenantsValue.replace(/\\"/g, '"');
         console.log('[Tenants] After unescaping:', tenantsValue);
       }
-      
+
       // Now try to parse the JSON
       try {
         const parsed = JSON.parse(tenantsValue);
         console.log('[Tenants] Parse result:', parsed, 'Type:', typeof parsed);
-        
+
         // Return array or wrap in array
         if (Array.isArray(parsed)) {
           console.log('[Tenants] Final result (array):', parsed);
