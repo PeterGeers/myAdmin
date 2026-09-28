@@ -37,24 +37,50 @@ export function useTenantModules() {
       return;
     }
 
+    // Capture the tenant that triggered this effect so the request targets it
+    // explicitly and a superseded response can be discarded (see below).
+    const tenantAtStart = currentTenant;
+    let cancelled = false;
+
     const fetchModules = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        const response = await authenticatedGet('/api/tenant/modules');
+
+        // Pass the tenant explicitly (so X-Tenant matches the effect's tenant,
+        // not a lagging localStorage read) and use no-store so a tenant switch
+        // never replays a previous tenant's cached response — the URL is
+        // identical across tenants, so an HTTP cache would otherwise serve stale
+        // module lists.
+        const response = await authenticatedGet('/api/tenant/modules', {
+          tenant: tenantAtStart,
+          cache: 'no-store',
+        });
         const data: TenantModules = await response.json();
+        // Ignore results for a tenant we've since switched away from.
+        if (cancelled || tenantAtStart !== currentTenant) {
+          return;
+        }
         setModules(data.available_modules || []);
       } catch (err) {
+        if (cancelled) {
+          return;
+        }
         console.error('Failed to fetch tenant modules:', err);
         setError('Failed to load available modules');
         setModules([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchModules();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentTenant]);
 
   return {
@@ -82,7 +108,7 @@ export function useAllTenantModules() {
       try {
         setLoading(true);
         setError(null);
-        
+
         const response = await authenticatedGet('/api/tenant/modules/all');
         const data: AllTenantModules = await response.json();
         setTenantModules(data.tenants || {});
