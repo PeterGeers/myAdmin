@@ -210,18 +210,16 @@ const MembersPage: React.FC = () => {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [fieldConfig]);
 
-  // ── Scope / region pre-filter (task 4.2, design C-SCOPE; R5.3, R5.4) ──────────
-  // The scope column (`region`) is surfaced two ways:
-  //   1. a plain field value in the row (standard column layout, no badge), and
-  //   2. an ENUM-select PRE-FILTER whose options are the tenant's authored
-  //      `config#scope` dimension `values` (parameter data, generic placeholder
-  //      names by default — R4.5), drawn from `FieldConfig.dimensions`.
+  // ── Scope / region dimension resolution (task 4.2, design C-SCOPE; R5.3) ──────
+  // The scope column (`region`) is surfaced as a plain field value in the row
+  // (standard column layout, no badge) and filtered/sorted through the standard
+  // Table Filter Framework free-text input, exactly like every other column.
   // Row scope itself is ALWAYS enforced SERVER-SIDE (the module edge's
-  // `resolve_scope_access` returns only in-scope rows from `GET /members`); this
-  // is purely a client-side narrowing of the already-scoped rows and NEVER
-  // invents scope. The filter is wired through the shared `useFilterableTable`
-  // on the `region` key, so it applies IN EVERY view context (a context chooses
-  // columns, never rows).
+  // `resolve_scope_access` returns only in-scope rows from `GET /members`); the
+  // region text filter is purely a client-side narrowing of the already-scoped
+  // rows and NEVER invents scope. The filter is wired through the shared
+  // `useFilterableTable` on the `region` key, so it applies IN EVERY view
+  // context (a context chooses columns, never rows).
   const scopeDimension = useMemo<ScopeDimension | undefined>(() => {
     const dims = fieldConfig?.dimensions ?? [];
     // Prefer the `region` dimension (h-dcn's one wired dimension); otherwise the
@@ -231,14 +229,6 @@ const MembersPage: React.FC = () => {
       ?? dims.find(d => d.enabled !== false)
     );
   }, [fieldConfig]);
-
-  // The enum options for the scope pre-filter, straight from the dimension's
-  // authored `values`. Absent/empty → no options → the header falls back to the
-  // free-text filter (the toolkit's default), never crashing.
-  const scopeFilterOptions = useMemo<string[]>(
-    () => scopeDimension?.values ?? [],
-    [scopeDimension],
-  );
 
   // ── View contexts (design C-VIEW) ────────────────────────────────────────────
   // The full list of authored contexts (or a single synthesized default when the
@@ -364,7 +354,7 @@ const MembersPage: React.FC = () => {
   // (`bg="gray.800"`, per steering 32; same shape as ZZPDebtors / PDFValidation).
   // Every figure is computed from `processedData` — the rows AFTER the shared
   // toolkit's filters + sort — so the strip recomputes automatically as the user
-  // types a column filter, changes the scope enum-select, sorts, or SWITCHES VIEW
+  // types a column filter, sorts, or SWITCHES VIEW
   // CONTEXT (the context feeds per-context defaults into the same toolkit, so the
   // strip follows the selection). `total` is the full scoped set the module
   // returned; `filtered` is the currently-visible subset.
@@ -632,7 +622,7 @@ const MembersPage: React.FC = () => {
           crash the whole page with "Element type is invalid"), whereas
           `Box`/`Text` render identically in-app and under test. Every figure is
           recomputed from `processedData` (the filtered+sorted rows), so the strip
-          follows every column filter, sort, scope-select, and view-context switch. */}
+          follows every column filter, sort, and view-context switch. */}
       {!loading && (
         <Flex
           mb={4}
@@ -687,14 +677,6 @@ const MembersPage: React.FC = () => {
                         isFilterable(f.key) ? (v) => setFilter(f.key, v) : undefined
                       }
                       placeholder={t('filters.placeholder')}
-                      // The scope column gets the enum pre-filter (config#scope
-                      // dimension values); every other column keeps the free-text
-                      // filter. Applies regardless of the selected context.
-                      filterOptions={
-                        f.key === 'region' && scopeFilterOptions.length > 0
-                          ? scopeFilterOptions
-                          : undefined
-                      }
                       sortable
                       sortDirection={columnSortDirection(f.key)}
                       onSort={() => handleSort(f.key)}
@@ -756,12 +738,6 @@ const MembersPage: React.FC = () => {
                       filterValue={isFilterable('region') ? filters.region : undefined}
                       onFilterChange={isFilterable('region') ? (v) => setFilter('region', v) : undefined}
                       placeholder={t('filters.placeholder')}
-                      // Scope pre-filter: an enum-select drawn from the tenant's
-                      // config#scope dimension values (R5.4). Falls back to the
-                      // free-text filter when the tenant authored no values.
-                      filterOptions={
-                        scopeFilterOptions.length > 0 ? scopeFilterOptions : undefined
-                      }
                       sortable
                       sortDirection={columnSortDirection('region')}
                       onSort={() => handleSort('region')}
