@@ -375,8 +375,8 @@ describe('MembersPage — view contexts (task 3.3)', () => {
 
       // Fixed compact columns + region cell render (today's default behavior).
       // "Noord" appears as a plain table cell (<td>) — the purple Badge was
-      // intentionally removed (commit ea6e4ab) — and ALSO as an option in the
-      // scope enum-filter (task 4.2), so assert on the table-cell (<td>) node.
+      // intentionally removed (commit ea6e4ab) — so assert on the table-cell
+      // (<td>) node.
       expect(screen.getByText('jan@h-dcn.example')).toBeInTheDocument();
       expect(
         screen.getAllByText('Noord').some((el) => el.tagName.toLowerCase() === 'td'),

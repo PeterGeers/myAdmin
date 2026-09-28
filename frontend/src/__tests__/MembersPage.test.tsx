@@ -105,8 +105,7 @@ const waitForRows = async () => {
 /**
  * Find the read-only region SCOPE cell for a value. The region renders as a
  * plain table cell (`<td>`) — the purple `<Badge>` was intentionally removed
- * (commit ea6e4ab). The same value ALSO appears as an `<option>` in the scope
- * enum-filter `<select>`, so we disambiguate by picking the table-cell node.
+ * (commit ea6e4ab). We pick the table-cell node for the value.
  */
 const regionBadge = (value: string): HTMLElement => {
   const match = screen
@@ -154,8 +153,7 @@ describe('MembersPage (Leden Overzicht)', () => {
       await waitForRows();
 
       expect(screen.getByText('jan@h-dcn.example')).toBeInTheDocument();
-      // Region values are shown as read-only Badges (<span>). They ALSO appear as
-      // options in the scope enum-filter, so assert on the badge <span> node.
+      // Region values are shown as read-only cells (<td>), one per row.
       expect(regionBadge('Noord')).toBeInTheDocument();
       expect(regionBadge('Zuid')).toBeInTheDocument();
       expect(regionBadge('West')).toBeInTheDocument();
@@ -173,8 +171,8 @@ describe('MembersPage (Leden Overzicht)', () => {
       render(<MembersPage />);
       await waitForRows();
 
-      // The region FilterableHeader control (label is the raw i18n key). With a
-      // configured scope dimension it is an enum-select (task 4.2).
+      // The region FilterableHeader control (label is the raw i18n key) is the
+      // standard free-text filter input, like every other column.
       const regionFilter = screen.getByLabelText('Filter by filters.region');
       fireEvent.change(regionFilter, { target: { value: 'Noord' } });
 
@@ -193,36 +191,31 @@ describe('MembersPage (Leden Overzicht)', () => {
       render(<MembersPage />);
       await waitForRows();
 
-      // Region values render as read-only Badges (<span>), one per row — the
-      // scope indicator. (They also appear as enum-filter options; regionBadge
-      // disambiguates by picking the <span>.)
+      // Region values render as read-only cells (<td>), one per row — the
+      // scope indicator.
       expect(regionBadge('Noord')).toBeInTheDocument();
       expect(regionBadge('Zuid')).toBeInTheDocument();
       expect(regionBadge('West')).toBeInTheDocument();
     });
 
-    it('renders the scope filter as an enum-select drawn from the config#scope dimension values', async () => {
+    it('renders the scope filter as the standard free-text input (Table Filter Framework v2)', async () => {
       render(<MembersPage />);
       await waitForRows();
 
-      // The region column filter is a <select> (combobox), not a free-text box,
-      // because the field config carries a `region` scope dimension with values.
+      // The region column filter is the standard free-text <input>, exactly like
+      // every other column — not an enum <select>. Even though the field config
+      // carries a `region` scope dimension, the header no longer pre-fills enum
+      // options; it uses the shared toolkit's default text filter.
       const regionFilter = screen.getByLabelText('Filter by filters.region');
-      expect(regionFilter.tagName.toLowerCase()).toBe('select');
-
-      // Its options are EXACTLY the dimension's authored values (+ the empty
-      // "clear" option) — never invented client-side.
-      const options = within(regionFilter as HTMLSelectElement)
-        .getAllByRole('option') as HTMLOptionElement[];
-      const values = options.map((o) => o.value).filter((v) => v !== '');
-      expect(values).toEqual(['Noord', 'Zuid', 'Oost', 'West']);
+      expect(regionFilter.tagName.toLowerCase()).toBe('input');
+      expect(regionFilter.tagName.toLowerCase()).not.toBe('select');
     });
 
-    it('selecting a scope value narrows the rows to that scope (client-side over already-scoped rows)', async () => {
+    it('typing a region value narrows the rows to that scope (client-side over already-scoped rows)', async () => {
       render(<MembersPage />);
       await waitForRows();
 
-      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLSelectElement;
+      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
       fireEvent.change(regionFilter, { target: { value: 'Zuid' } });
 
       await waitFor(() => {
@@ -232,11 +225,11 @@ describe('MembersPage (Leden Overzicht)', () => {
       });
     });
 
-    it('applies the scope enum-filter in an explicit-columns view context too (applies regardless of context)', async () => {
+    it('renders the standard free-text region filter in an explicit-columns view context too (applies regardless of context)', async () => {
       // A view context whose explicit columns include `region` drives the
-      // explicit-columns render path (design C-VIEW). The scope pre-filter must
-      // still be the enum-select drawn from the dimension values there — a
-      // context chooses columns, never the scope machinery.
+      // explicit-columns render path (design C-VIEW). The region filter must
+      // still be the standard free-text input there — a context chooses columns,
+      // never the region filter behavior.
       mockGetFieldConfig.mockResolvedValue({
         ...mockFieldConfig,
         // The explicit-columns path resolves each column key against `fields`, so
@@ -255,15 +248,10 @@ describe('MembersPage (Leden Overzicht)', () => {
 
       // In the explicit-columns path the header label is the resolved FIELD label
       // (here "Regio"), so the aria-label is "Filter by Regio".
-      const regionFilter = screen.getByLabelText('Filter by Regio') as HTMLSelectElement;
-      expect(regionFilter.tagName.toLowerCase()).toBe('select');
-      const values = within(regionFilter)
-        .getAllByRole('option')
-        .map((o) => (o as HTMLOptionElement).value)
-        .filter((v) => v !== '');
-      expect(values).toEqual(['Noord', 'Zuid', 'Oost', 'West']);
+      const regionFilter = screen.getByLabelText('Filter by Regio') as HTMLInputElement;
+      expect(regionFilter.tagName.toLowerCase()).toBe('input');
 
-      // And selecting a value narrows the rows in this context as well.
+      // And typing a value narrows the rows in this context as well.
       fireEvent.change(regionFilter, { target: { value: 'West' } });
       await waitFor(() => {
         expect(screen.getByText('Marie')).toBeInTheDocument();
@@ -350,7 +338,7 @@ describe('MembersPage (Leden Overzicht)', () => {
       render(<MembersPage />);
       await waitForRows();
 
-      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLSelectElement;
+      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
       fireEvent.change(regionFilter, { target: { value: 'Noord' } });
 
       // The stats strip follows `processedData`: total stays 3 (full scoped set),
@@ -407,7 +395,7 @@ describe('MembersPage (Leden Overzicht)', () => {
       });
 
       const regionFilter =
-        (await screen.findByLabelText('Filter by Regio')) as HTMLSelectElement;
+        (await screen.findByLabelText('Filter by Regio')) as HTMLInputElement;
       fireEvent.change(regionFilter, { target: { value: 'Zuid' } });
 
       await waitFor(() => {
