@@ -10,7 +10,12 @@ Based on the architecture at .kiro/specs/Common/Multitennant/architecture.md
 import base64
 import functools
 import json
+import logging
 from typing import Any
+
+# Module logger. Uses the stdlib ``logging`` only (no Flask coupling), so it is safe
+# on the Flask-free SAM plane. Mirrors the pattern in ``auth.cognito_utils``.
+logger = logging.getLogger(__name__)
 
 # NOTE: Flask is intentionally NOT imported at module scope. This module is part of
 # the `auth` package, which is re-exported by `auth/__init__.py` and vendored onto
@@ -243,9 +248,14 @@ def _log_sysadmin_bypass(
         try:
             details["method"] = request_obj.method
             details["path"] = request_obj.path
-        except Exception:
-            # Never let audit-log enrichment break the request path.
-            pass
+        except AttributeError:
+            # Never let audit-log enrichment break the request path. A request-like
+            # object missing ``method``/``path`` just yields a less-detailed audit
+            # record; log at debug so the swallow is visible without adding noise.
+            logger.debug(
+                "sysadmin bypass audit: request enrichment skipped (missing method/path)",
+                exc_info=True,
+            )
 
     try:
         from auth.cognito_utils import log_successful_access

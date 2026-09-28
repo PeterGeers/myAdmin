@@ -1,0 +1,62 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**H1. Migrate the 3 Members-modal test files to drive the `membership_type` `LazySelect` combobox (10 failures, 3 files).** [M] — **STALE TESTS from an intentional product migration; do NOT revert the component.**": [
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591260531
+      },
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591286866
+      }
+    ],
+    "**H2. Resolve ruff SIM103 in `cognito_utils.py` (CI-blocking).** [S]": [
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591260682
+      },
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591287698
+      }
+    ],
+    "**H3. Resolve ruff S110 in `tenant_context.py` (CI-blocking).** [S]": [
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591260798
+      },
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591288799
+      }
+    ],
+    "**M1. Factor the Members-modal `LazySelect` interaction into one shared test helper.** [S]": [
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591260926
+      }
+    ],
+    "**M2. Confirm the `auth/` lint debt origin and prevent recurrence.** [S]": [
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591261064
+      }
+    ],
+    "**L1. Confirm ruff stays pinned to 0.16.5 (reproducibility).** [S]": [
+      {
+        "executionId": "3ce45b74-1756-4722-8702-7d19cfd59360",
+        "chatSessionId": "sess_7b22f102-6399-442f-8c1a-4daf9a5a467f",
+        "timestamp": 1790591261209
+      }
+    ]
+  }
+}

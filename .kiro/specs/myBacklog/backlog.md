@@ -137,11 +137,6 @@ parameter-driven data. Findings (read-only, both planes):
 
 # Candidates for Shared frontend component library
 
-## (candidate) — Member modal responsive multi-column layout
-The member modal is one long list of fields with functional separators. Nice to have 3–4 columns
-on desktop, reducing to 1 on mobile. Fits here IF built on a shared responsive-layout primitive;
-otherwise it can be a small standalone tweak. Decide during design.
-
 
 # Code quality and Full test suite
 Do they need updates to support the SAM platform? (Cross-cutting audit — may feed the fail-loud

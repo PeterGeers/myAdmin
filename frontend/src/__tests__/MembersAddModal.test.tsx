@@ -27,6 +27,12 @@ import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 import MembersPage from '../pages/MembersPage';
 import * as membersApiService from '../services/membersApiService';
 import type { Member, FieldConfig } from '../types/members';
+import {
+  getLazySelectTrigger,
+  openLazySelect,
+  pickLazySelectOption,
+  pickMembershipType,
+} from './helpers/lazySelect';
 
 vi.mock('../services/membersApiService');
 
@@ -100,18 +106,25 @@ const openAddModal = async () => {
   return screen.getByRole('dialog');
 };
 
+// first_name / last_name / email are plain text Inputs → still addressable by `name`.
 const fillByName = (dialog: HTMLElement, name: string, value: string) => {
   const control = dialog.querySelector(`[name="${name}"]`) as HTMLElement | null;
   if (!control) throw new Error(`No form control with name="${name}"`);
   fireEvent.change(control, { target: { value } });
 };
 
-const fillValidForm = (dialog: HTMLElement) => {
+// membership_type (async catalog) + region (eager scope dimension) now route through LazySelect —
+// they are comboboxes, not native controls. Drive them via the shared helper: open, then pick the
+// option so Formik `setFieldValue` fires. Picks the Dutch label (LazySelect resolves labels via the
+// active i18n language; this suite does not init i18n, so labels fall back to `nl`).
+const fillValidForm = async (dialog: HTMLElement) => {
   fillByName(dialog, 'first_name', 'Piet');
   fillByName(dialog, 'last_name', 'de Nieuwe');
   fillByName(dialog, 'email', 'piet@h-dcn.example');
-  fillByName(dialog, 'membership_type', 'erelid');
-  fillByName(dialog, 'region', 'Zuid');
+  // membership_type: async source → wait for listMembershipTypes(true) → pick "Erelid" (value erelid).
+  await pickMembershipType('Erelid', mockListMembershipTypes, dialog);
+  // region: eager options from the field-config dimension values → pick "Zuid".
+  await pickLazySelectOption('region', 'Zuid', { container: dialog });
 };
 
 describe('MembersAddModal (Add / application) — broadened over the resolved field set', () => {
@@ -139,34 +152,42 @@ describe('MembersAddModal (Add / application) — broadened over the resolved fi
       // Section headings from the functional_groups catalog.
       expect(within(dialog).getByText('Persoonlijk')).toBeInTheDocument();
       expect(within(dialog).getByText('Lidmaatschap')).toBeInTheDocument();
-      // Resolved fields render as controls (by their stable name attribute).
+      // Plain text fields render as native controls (by their stable name attribute).
       expect(dialog.querySelector('[name="first_name"]')).toBeTruthy();
       expect(dialog.querySelector('[name="email"]')).toBeTruthy();
-      expect(dialog.querySelector('[name="membership_type"]')).toBeTruthy();
+      // membership_type is now the shared LazySelect combobox (testid `${name}-lazyselect`),
+      // not a native `<select name="membership_type">`.
+      expect(within(dialog).getByTestId('membership_type-lazyselect')).toBeInTheDocument();
+      expect(getLazySelectTrigger('membership_type', dialog)).toBeInTheDocument();
     });
   });
 
   describe('value-level role-restricted enum options (R4.12)', () => {
+    // The `tier` overlay enum is a rich-enum LazySelect (eager options). Its role-restricted
+    // `premium` option is offered only when the caller holds `Members_CRUD` (LazySelect applies
+    // `filterOption`). Options render into the listbox only after the combobox is opened.
     it('renders a role-restricted option for a caller holding the role', async () => {
       currentRoles = ['Members_CRUD'];
       const dialog = await openAddModal();
-      expect(within(dialog).getByRole('option', { name: 'Premium' })).toBeInTheDocument();
+      const listbox = await openLazySelect('tier', { container: dialog });
+      expect(within(listbox).getByRole('option', { name: 'Premium' })).toBeInTheDocument();
     });
 
     it('hides a role-restricted option for a caller lacking the role', async () => {
       currentRoles = ['Members_Read'];
       const dialog = await openAddModal();
+      const listbox = await openLazySelect('tier', { container: dialog });
       // The open option is still there…
-      expect(within(dialog).getByRole('option', { name: 'Standaard' })).toBeInTheDocument();
+      expect(within(listbox).getByRole('option', { name: 'Standaard' })).toBeInTheDocument();
       // …but the gated one is filtered out (convenience; the domain is authoritative).
-      expect(within(dialog).queryByRole('option', { name: 'Premium' })).not.toBeInTheDocument();
+      expect(within(listbox).queryByRole('option', { name: 'Premium' })).not.toBeInTheDocument();
     });
   });
 
   describe('valid submit (R8.3, Property 2)', () => {
     it('calls createMember with the storage-group-shaped nested body and NO tenant field', async () => {
       const dialog = await openAddModal();
-      fillValidForm(dialog);
+      await fillValidForm(dialog);
       fireEvent.click(within(dialog).getByText('addModal.save'));
 
       await waitFor(() => expect(mockCreateMember).toHaveBeenCalledTimes(1));
@@ -198,7 +219,7 @@ describe('MembersAddModal (Add / application) — broadened over the resolved fi
     it('closes the modal and reloads members after a successful create', async () => {
       const dialog = await openAddModal();
       const callsBeforeSubmit = mockListMembers.mock.calls.length;
-      fillValidForm(dialog);
+      await fillValidForm(dialog);
       fireEvent.click(within(dialog).getByText('addModal.save'));
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
