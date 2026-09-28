@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { TenantProvider } from './context/TenantContext';
 import { useTenantModules } from './hooks/useTenantModules';
 import { useTenantFunctions } from './hooks/useTenantFunctions';
+import { useTenantRoleSync } from './hooks/useTenantRoleSync';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 import { HelpButton } from './components/help';
 import { MenuGroup } from './components/MenuGroup';
@@ -55,6 +56,12 @@ function AppContent() {
   const { isAuthenticated, loading, user, logout, refreshUserRoles } = useAuth();
   const { hasFIN, hasSTR, hasZZP, hasMEMBERS, loading: modulesLoading } = useTenantModules();
   const { hasFunction } = useTenantFunctions();
+
+  // Re-resolve user.roles for the active tenant on every in-app tenant switch
+  // (no reload). Encapsulated in useTenantRoleSync so the bridge (currentTenant
+  // -> refreshRolesForTenant) is a single reusable production unit the context
+  // tests exercise directly, rather than a copy of the effect.
+  useTenantRoleSync();
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
   // Check if user should be prompted to register a passkey

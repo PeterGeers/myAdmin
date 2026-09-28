@@ -5,7 +5,7 @@
  * Uses AWS Amplify for Cognito integration.
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { getCurrentUser, signOut } from 'aws-amplify/auth';
 import {
   getCurrentUserRoles,
@@ -44,6 +44,7 @@ interface AuthContextValue {
   // Authentication actions
   logout: () => Promise<void>;
   refreshUserRoles: () => Promise<void>;
+  refreshRolesForTenant: (tenant: string) => Promise<void>;
 
   // Role checking utilities
   hasRole: (role: string) => boolean;
@@ -74,6 +75,16 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Out-of-order guard for rapid tenant switches. A monotonically increasing
+  // request id records which role re-resolution was started last; the latest
+  // requested tenant is tracked alongside it. When a response resolves, its
+  // result is applied only if it is still the most recent request — so a late
+  // response for a superseded tenant never overwrites a newer one. This mirrors
+  // the cancelled-flag + tenant-at-start idiom in useTenantModules; here the
+  // guard is internal so out-of-order is safe even without effect cleanup.
+  const roleRequestSeq = useRef(0);
+  const latestRequestedTenant = useRef<string | null>(null);
 
   /**
    * Check current authentication state
@@ -143,6 +154,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   /**
+   * Re-resolve ONLY user.roles for an explicitly supplied tenant.
+   *
+   * Called when the active tenant changes (in-app switch, no reload) so the
+   * menu is gated on the newly selected tenant's effective (merged global +
+   * per-tenant) roles. Updates user.roles in place — email/name/tenants/sub are
+   * left untouched and there is no intermediate empty state, so a still-valid
+   * entry never flickers away. getCurrentUserRoles(tenant) sets X-Tenant from
+   * the argument, uses a fresh (no-store) body, and falls back to the JWT
+   * cognito:groups on failure, so on error we degrade to global roles rather
+   * than clearing the set.
+   *
+   * Out-of-order guard: the tenant and a sequence number are captured at call
+   * start; after the await resolves the result is applied only if this is still
+   * the latest request (its seq is the current max and its tenant is still the
+   * latest requested), so a late response for a superseded tenant is discarded.
+   */
+  const refreshRolesForTenant = async (tenant: string) => {
+    const tenantAtStart = tenant;
+    const seq = ++roleRequestSeq.current;
+    latestRequestedTenant.current = tenantAtStart;
+
+    const roles = await getCurrentUserRoles(tenantAtStart);
+
+    // Ignore results for a tenant we've since switched away from.
+    if (seq !== roleRequestSeq.current || latestRequestedTenant.current !== tenantAtStart) {
+      return;
+    }
+
+    setUser(prev => (prev ? { ...prev, roles } : prev));
+  };
+
+  /**
    * Check if user has a specific role
    */
   const hasRole = (role: string): boolean => {
@@ -193,6 +236,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated: !!user,
     logout,
     refreshUserRoles,
+    refreshRolesForTenant,
     hasRole,
     hasAnyRole,
     hasAllRoles,
@@ -233,10 +277,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
  */
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-  
+
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  
+
   return context;
 }

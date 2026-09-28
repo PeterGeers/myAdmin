@@ -22,6 +22,7 @@ vi.mock('./AuthContext', async () => ({
     isAuthenticated: true,
     logout: vi.fn(),
     refreshUserRoles: vi.fn(),
+    refreshRolesForTenant: vi.fn(),
     hasRole: vi.fn(),
     hasAnyRole: vi.fn(),
     hasAllRoles: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('./AuthContext', async () => ({
 // Test component that uses tenant context
 function TestComponent() {
   const { currentTenant, availableTenants, hasMultipleTenants } = useTenant();
-  
+
   return (
     <div>
       <div data-testid="current-tenant">{currentTenant || 'none'}</div>
