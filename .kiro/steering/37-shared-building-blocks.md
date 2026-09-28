@@ -19,7 +19,7 @@ it never copies them (facts live in one place; `00-index.md`).
 | --- | --- | --- | --- | --- |
 | Table Filter Framework v2 | frontend | Stable | `.kiro/specs/Common/Frameworks/table-filter-framework-v2/design.md` | `frontend/src/pages/ZZPInvoices.tsx` |
 | API response & error standard v1.0 | full-stack | Stable | `.kiro/specs/Common/Frameworks/api-response-standard/` | SAM Members; ZZP invoice |
-| Lazy edit-on-click dropdown | frontend | Planned | tbd (myBacklog) | tbd |
+| Lazy edit-on-click dropdown | frontend | Stable | `.kiro/specs/Common/Frameworks/lazy-select/LAZY_SELECT.md` | `frontend/src/components/members/MembersFieldFormBody.tsx` |
 
 Scope = which plane(s) the block serves. Status = Stable (use it) · In-progress (being built) ·
 Planned (don't rely on it yet). When a block changes state, update its row here.
@@ -78,6 +78,17 @@ ENVELOPE (P1, `backend/src/*_routes.py`); SAM Members is the conforming full-sta
 is the i18n-code reference (`errors.invoice.emailMissing`). Full guide (with the v1.0 contract +
 changelog): `.kiro/specs/Common/Frameworks/api-response-standard/` (`design.md`). Cross-links: the
 Fail-loud integrity spec.
+
+### Lazy edit-on-click dropdown (frontend · Stable)
+A single-value, always-searchable dropdown (`LazySelect`) that replaces assorted always-open
+`<select>` / `<Input>`+`<datalist>` selectors. It follows "tolerate legacy, enforce on change": the
+current value is always shown at rest (never blanked) even when it is out of the option set, and
+options are supplied as EITHER an array OR an (async) function — enum, API feed, SQL query, and
+external list all fit. Component `frontend/src/components/common/LazySelect.tsx` + hook
+`frontend/src/hooks/useLazyOptions.ts` + types `lazySelect.types.ts`. Full guide:
+`.kiro/specs/Common/Frameworks/lazy-select/LAZY_SELECT.md`. Reference: `MembersFieldFormBody.tsx`
+(parameter-driven enum/reference/scope + async membership_type), also adopted in
+`BankingTransactionModal.tsx` and `PDFUploadForm.tsx`.
 
 ## Relationship to the other steering files
 
