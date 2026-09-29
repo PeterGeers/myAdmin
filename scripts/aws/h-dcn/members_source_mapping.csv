@@ -20,7 +20,9 @@ source_column,col_index,target,rule,note
 #                     single          one column -> target (default)
 #                     coalesce        first-non-empty across columns sharing the SAME target
 #                     date            ISO-datetime -> YYYY-MM-DD date part
-#                     member_number   shape to the tenant member_number string
+#                     member_number   Lidnummer present -> 'M'+shaped digits (member); Lidnummer
+#                                     empty -> 'C_'+Achternaam (CONTACT: sponsor/club, org name is
+#                                     the unique+stable match key); both empty -> UNMATCHABLE
 #                     membership_type map free-text type -> catalog type_code
 #                     region          canonicalize onto the tenant region value set
 #                     gender          Dutch Man/Vrouw (and m/v) -> tenant enum M/V/X/N
@@ -45,13 +47,19 @@ source_column,col_index,target,rule,note
 # canonicalizer, NOT copied verbatim (different value set: e.g. region "Noord Holland" no hyphen /
 # "Geen" not "Overig"; status "active"/"left" not "Actief"/"Sponsor"; type_code "gewoon_lid").
 #
+# NOT MAPPED HERE (structural, not a sheet column):
+#   tenant_id  - stamped on EVERY record from the runner's REQUIRED --tenant argument (e.g.
+#                'h-dcn'); the sheet has no tenant column and every row is implicitly this tenant.
+#                It is the DynamoDB partition key, not member data. (No default tenant - steering.)
+#   member_id  - a uuid4 MINTED per record (internal key); the sheet has no member_id column.
+#
 # NOTE: col indexes/headers below reflect the documented 49-column 2026 export
 # (migrationHDCNLedenbestand/gdrive-member-migrate.md). VERIFY against the live sheet header on first
 # direct-read run (reuse h-dcn/backend/scripts/debug_sheet_headers.py logic) and adjust rows here.
 # ============================================================================================
 Tijdstempel,0,membership.joined_date,coalesce,"Member-since timestamp; joined_date also derives from Datum ondertekening / Aanmeldingsjaar (coalesce, first-non-empty)"
-Lidnummer,1,membership.member_number,member_number,Human member number (Lidnummer); shaped to the tenant string form
-Achternaam,2,personal.last_name,single,Last name
+Lidnummer,1,membership.member_number,member_number,"Member number. Lidnummer present -> M<shaped> (member). Lidnummer EMPTY -> a CONTACT (sponsor/club/dealer, not a member): member_number = 'C_' + Achternaam (org name, unique+stable, used verbatim as the match key) - see member_number rule. Empty Lidnummer AND empty Achternaam -> UNMATCHABLE (reported, not written)."
+Achternaam,2,personal.last_name,single,"Last name (for a CONTACT this is the organisation name; ALSO used as the 'C_'+name contact member_number when Lidnummer is empty - see the Lidnummer row)"
 Initialen,3,personal.initials,single,Initials
 Voornaam,4,personal.first_name,single,First name
 Tussenvoegsel,5,personal.name_infix,single,"Name infix (van, de, ...)"
