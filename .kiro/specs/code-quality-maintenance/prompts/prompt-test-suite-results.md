@@ -13,11 +13,13 @@ Download the artifacts of the last run of the "Full Test Suite" GitHub Actions w
 gh run list --workflow=full-test-suite.yml --limit=1 --json status,conclusion,databaseId 2>&1 | head -5
 ```
 
-Download the artifacts:
+Download the artifacts into the repo-root `.agent-output/` scratch dir (the one
+git-ignored home for task output — **not** `/tmp`). It MUST be cleaned up after use
+(see Step 6):
 
 ```bash
 RUN_ID=$(gh run list --workflow=full-test-suite.yml --limit=1 --json databaseId --jq '.[0].databaseId' 2>&1 | head -1)
-gh run download $RUN_ID --dir /tmp/test-reports
+gh run download $RUN_ID --dir /home/peter/projects/myAdmin/.agent-output/test-reports
 ```
 
 ### Step 2: Analyze test failures from downloaded reports
@@ -26,13 +28,13 @@ Read the actual report files — do NOT parse log streams or use `--log`:
 
 ```bash
 # Backend test summary
-cat /tmp/test-reports/backend-test-reports/test-output.txt | grep -E "(FAILED|PASSED|ERROR|passed|failed)" | tail -20
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/backend-test-reports/test-output.txt | grep -E "(FAILED|PASSED|ERROR|passed|failed)" | tail -20
 
 # Frontend test summary
-cat /tmp/test-reports/frontend-test-reports/SUMMARY.md
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/frontend-test-reports/SUMMARY.md
 
 # Backend failures detail
-cat /tmp/test-reports/backend-test-reports/test-output.txt | grep "FAILED"
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/backend-test-reports/test-output.txt | grep "FAILED"
 ```
 
 Extract:
@@ -46,18 +48,18 @@ Extract:
 The CI generates a downloadable `backend-lint-reports` artifact. Read it:
 
 ```bash
-cat /tmp/test-reports/backend-lint-reports/SUMMARY.md
-cat /tmp/test-reports/backend-lint-reports/ruff-lint.md
-cat /tmp/test-reports/backend-lint-reports/ruff-format.md
-cat /tmp/test-reports/backend-lint-reports/vulture.md
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/backend-lint-reports/SUMMARY.md
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/backend-lint-reports/ruff-lint.md
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/backend-lint-reports/ruff-format.md
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/backend-lint-reports/vulture.md
 ```
 
 If the lint artifact is missing (older workflow version), fall back to log parsing:
 
 ```bash
 LINT_JOB_ID=$(gh run view $RUN_ID --json jobs --jq '.jobs[] | select(.name=="Backend Lint & Static Analysis") | .databaseId' 2>&1 | head -1)
-gh run view $RUN_ID --log --job=$LINT_JOB_ID 2>&1 | grep "##\[error\]" | sed 's/.*##\[error\]//' | cut -d: -f4 | sort | uniq -c | sort -rn > /tmp/test-reports/ruff-summary.txt
-cat /tmp/test-reports/ruff-summary.txt
+gh run view $RUN_ID --log --job=$LINT_JOB_ID 2>&1 | grep "##\[error\]" | sed 's/.*##\[error\]//' | cut -d: -f4 | sort | uniq -c | sort -rn > /home/peter/projects/myAdmin/.agent-output/test-reports/ruff-summary.txt
+cat /home/peter/projects/myAdmin/.agent-output/test-reports/ruff-summary.txt
 ```
 
 Include in the spec:
@@ -99,10 +101,12 @@ Check `.kiro/specs/code-quality-maintenance/full-test-suite-fixes/` for the most
 
 ### Step 6: Clean up downloaded reports
 
-After generating the spec, remove temporary files:
+The downloaded artifacts are scratch data — they live in `.agent-output/` only for the
+duration of this analysis and **must be deleted after use**. Once the spec is generated,
+remove them:
 
 ```bash
-rm -rf /tmp/test-reports
+rm -rf /home/peter/projects/myAdmin/.agent-output/test-reports
 ```
 
 ---
