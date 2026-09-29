@@ -19,6 +19,7 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
+from auth.admin_pool_resolver import resolve_pool_id_for_email
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -34,9 +35,12 @@ class SignupService:
     def __init__(self):
         """Initialize Cognito client and promo DB config"""
         self.region = os.getenv("AWS_REGION", "eu-west-1")
-        self.user_pool_id = os.getenv(
-            "SIGNUP_COGNITO_USER_POOL_ID", os.getenv("COGNITO_USER_POOL_ID")
-        )
+        # Preserve the explicit dedicated-signup-pool override as a fast-path. The
+        # legacy ``COGNITO_USER_POOL_ID`` fallback is NOT read here anymore: when the
+        # override is unset the pool is resolved lazily per self-service email via the
+        # shared registry-backed resolver (email mode) — see ``_resolve_user_pool_id``.
+        # (Bugfix cognito-admin-pool-resolution, task 3.3.6.)
+        self.signup_pool_id_override = os.getenv("SIGNUP_COGNITO_USER_POOL_ID")
         self.app_client_id = os.getenv("SIGNUP_COGNITO_APP_CLIENT_ID")
         self.csrf_secret = os.getenv("CSRF_SECRET", "")
         self.redirect_url = os.getenv(
@@ -55,6 +59,22 @@ class SignupService:
     def _get_connection(self):
         """Get a connection to the promo database via DatabaseManager"""
         return self.db.get_connection()
+
+    def _resolve_user_pool_id(self, email: str) -> str | None:
+        """Resolve the signup target user pool id for ``email``.
+
+        Preserves the explicit ``SIGNUP_COGNITO_USER_POOL_ID`` override (dedicated
+        signup pool): when set it is returned unchanged, fast-path, without touching the
+        registry. When it is unset, the pool is resolved via the shared registry-backed
+        resolver in email mode (mirroring how ``cognito_utils`` selects the validation
+        pool), replacing the former direct ``os.getenv("COGNITO_USER_POOL_ID")`` legacy
+        read. When the registry is absent the resolver itself falls back to the legacy
+        single-pool var, so observable behavior is preserved in single-pool
+        deployments. (Bugfix cognito-admin-pool-resolution, task 3.3.6.)
+        """
+        if self.signup_pool_id_override:
+            return self.signup_pool_id_override
+        return resolve_pool_id_for_email(email)
 
     # ========================================================================
     # Input Validation

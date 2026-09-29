@@ -75,6 +75,30 @@ def app():
     return app
 
 
+# The registry-resolved pool id these routes thread into admin_get_user
+# (cognito-admin-pool-resolution). Token mode is exercised end-to-end in the
+# resolver's own tests; here we stub the resolver to a deterministic pool id so
+# the route wiring is tested and we can assert the pool is threaded through.
+RESOLVED_POOL_ID = "eu-west-1_xyrlzfqbl"
+
+
+@pytest.fixture(autouse=True)
+def mock_pool():
+    """Stub token-mode pool resolution to a deterministic pool id.
+
+    ``_resolve_tenant_and_target`` now resolves the target Cognito pool via the
+    shared registry-backed resolver (token mode) instead of the legacy
+    ``COGNITO_USER_POOL_ID`` module var. In this verifier-less unit env the
+    resolver would otherwise raise ``PoolResolutionError``; patching it keeps the
+    route logic under test and lets us assert the resolved pool is threaded into
+    ``admin_get_user``.
+    """
+    with patch(
+        "routes.tenant_admin_scope._resolve_pool_id", return_value=RESOLVED_POOL_ID
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_cognito():
     with patch("routes.tenant_admin_scope.cognito_client") as mock:
@@ -130,6 +154,12 @@ class TestGetUserScope:
         # tenant + canonical module + resolved email flow to the service
         mock_scope_service.get_scope.assert_called_once_with(
             "user@example.com", "TenantA", "MEMBERS"
+        )
+        # The target-user lookup targets the registry-RESOLVED pool (token mode),
+        # not the legacy COGNITO_USER_POOL_ID var (cognito-admin-pool-resolution).
+        assert (
+            mock_cognito.admin_get_user.call_args.kwargs["UserPoolId"]
+            == RESOLVED_POOL_ID
         )
 
     def test_get_empty_when_no_grant(self, app, mock_cognito, mock_scope_service):

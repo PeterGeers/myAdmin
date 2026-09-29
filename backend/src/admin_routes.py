@@ -1,6 +1,20 @@
 """
 System Administration Routes
 Handles user and role management for SysAdmin users
+
+Pool resolution (bugfix ``cognito-admin-pool-resolution``, R1/R2):
+    These admin ops no longer read the legacy single-pool ``COGNITO_USER_POOL_ID``
+    var (which pointed at the PROD pool in every environment). Every route is
+    ``@cognito_required(required_roles=["SysAdmin"])`` and therefore carries an
+    authenticated caller token, so each op resolves its target pool per request
+    through the shared registry-backed resolver in **token mode**
+    (:func:`auth.admin_pool_resolver.resolve_pool_id_for_token`), keyed to the
+    caller token's verified ``iss`` — exactly how token validation resolves it. Only
+    the value passed as ``UserPoolId=...`` changes; every request/response contract
+    is preserved. When the pool cannot be resolved (registry misconfigured, or the
+    registry-absent legacy fallback is also unset), the resolver raises
+    :class:`PoolResolutionError`, which replaces the old ``COGNITO_USER_POOL_ID not
+    configured`` guard with a clear 500 misconfiguration response.
 """
 
 import os
@@ -14,23 +28,48 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import boto3
 from botocore.exceptions import ClientError
 
+from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
 # Initialize Cognito client
 AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 
 print(f"🔧 Admin Routes - AWS Region: {AWS_REGION}", flush=True)
-print(f"🔧 Admin Routes - User Pool ID: {USER_POOL_ID}", flush=True)
-
-if not USER_POOL_ID:
-    print(
-        "⚠️ WARNING: COGNITO_USER_POOL_ID not set in environment variables!", flush=True
-    )
 
 cognito_client = boto3.client("cognito-idp", region_name=AWS_REGION)
+
+
+def _caller_token() -> str:
+    """Return the raw caller JWT from the request ``Authorization`` header.
+
+    Every admin route here is gated by ``@cognito_required``, which has already
+    validated the ``Bearer`` token before the handler runs; this simply re-reads
+    that same header and strips the ``Bearer `` prefix to hand the raw token to the
+    shared resolver's token mode. Mirrors how
+    :func:`auth.cognito_utils.extract_user_credentials` reads the token.
+
+    Returns:
+        The raw JWT (without the ``Bearer `` prefix), or ``""`` when the header is
+        absent/malformed (the resolver then surfaces the misconfiguration).
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[len("Bearer ") :].strip()
+    return auth_header.strip()
+
+
+def _resolve_pool_id():
+    """Resolve the target Cognito pool id for this admin request (token mode).
+
+    Resolves through the shared registry-backed resolver keyed to the caller
+    token's verified ``iss`` (2.3), replacing the legacy ``COGNITO_USER_POOL_ID``
+    read. Raises :class:`PoolResolutionError` when the pool cannot be resolved so
+    each handler can map it to a clear misconfiguration response (replacing the old
+    ``COGNITO_USER_POOL_ID not configured`` 500 guard).
+    """
+    return resolve_pool_id_for_token(_caller_token())
 
 
 @admin_bp.route("/test", methods=["GET"])
@@ -59,12 +98,12 @@ def list_users(user_email, user_roles):
         return jsonify({"success": True}), 200
 
     try:
-        if not USER_POOL_ID:
-            return jsonify(
-                {"success": False, "error": "COGNITO_USER_POOL_ID not configured"}
-            ), 500
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
 
-        response = cognito_client.list_users(UserPoolId=USER_POOL_ID, Limit=60)
+        response = cognito_client.list_users(UserPoolId=pool_id, Limit=60)
 
         users = []
         for user in response.get("Users", []):
@@ -90,7 +129,7 @@ def list_users(user_email, user_roles):
             # Get user's groups
             try:
                 groups_response = cognito_client.admin_list_groups_for_user(
-                    Username=user.get("Username"), UserPoolId=USER_POOL_ID
+                    Username=user.get("Username"), UserPoolId=pool_id
                 )
                 user_data["groups"] = [
                     g["GroupName"] for g in groups_response.get("Groups", [])
@@ -126,6 +165,11 @@ def create_user(user_email, user_roles):
                 {"success": False, "error": "Email and password are required"}
             ), 400
 
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
         # Build user attributes
         user_attributes = [
             {"Name": "email", "Value": email},
@@ -138,7 +182,7 @@ def create_user(user_email, user_roles):
 
         # Create user
         response = cognito_client.admin_create_user(
-            UserPoolId=USER_POOL_ID,
+            UserPoolId=pool_id,
             Username=email,
             UserAttributes=user_attributes,
             TemporaryPassword=password,
@@ -151,7 +195,7 @@ def create_user(user_email, user_roles):
         for group_name in groups:
             try:
                 cognito_client.admin_add_user_to_group(
-                    UserPoolId=USER_POOL_ID, Username=username, GroupName=group_name
+                    UserPoolId=pool_id, Username=username, GroupName=group_name
                 )
             except ClientError as e:
                 print(f"⚠️ Failed to add user to group {group_name}: {e}", flush=True)
@@ -192,7 +236,12 @@ def list_groups(user_email, user_roles):
         return jsonify({"success": True}), 200
 
     try:
-        response = cognito_client.list_groups(UserPoolId=USER_POOL_ID, Limit=60)
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+        response = cognito_client.list_groups(UserPoolId=pool_id, Limit=60)
 
         groups = []
         for group in response.get("Groups", []):
@@ -227,8 +276,13 @@ def add_user_to_group(username, user_email, user_roles):
         if not group_name:
             return jsonify({"success": False, "error": "groupName is required"}), 400
 
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
         cognito_client.admin_add_user_to_group(
-            UserPoolId=USER_POOL_ID, Username=username, GroupName=group_name
+            UserPoolId=pool_id, Username=username, GroupName=group_name
         )
 
         return jsonify(
@@ -244,8 +298,13 @@ def add_user_to_group(username, user_email, user_roles):
 def remove_user_from_group(username, group_name, user_email, user_roles):
     """Remove a user from a group (revoke role)"""
     try:
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
         cognito_client.admin_remove_user_from_group(
-            UserPoolId=USER_POOL_ID, Username=username, GroupName=group_name
+            UserPoolId=pool_id, Username=username, GroupName=group_name
         )
 
         return jsonify(
@@ -264,7 +323,12 @@ def remove_user_from_group(username, group_name, user_email, user_roles):
 def enable_user(username, user_email, user_roles):
     """Enable a user account"""
     try:
-        cognito_client.admin_enable_user(UserPoolId=USER_POOL_ID, Username=username)
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+        cognito_client.admin_enable_user(UserPoolId=pool_id, Username=username)
 
         return jsonify({"success": True, "message": f"User {username} enabled"})
 
@@ -277,7 +341,12 @@ def enable_user(username, user_email, user_roles):
 def disable_user(username, user_email, user_roles):
     """Disable a user account"""
     try:
-        cognito_client.admin_disable_user(UserPoolId=USER_POOL_ID, Username=username)
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+        cognito_client.admin_disable_user(UserPoolId=pool_id, Username=username)
 
         return jsonify({"success": True, "message": f"User {username} disabled"})
 
@@ -290,7 +359,12 @@ def disable_user(username, user_email, user_roles):
 def delete_user(username, user_email, user_roles):
     """Delete a user account"""
     try:
-        cognito_client.admin_delete_user(UserPoolId=USER_POOL_ID, Username=username)
+        try:
+            pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+        cognito_client.admin_delete_user(UserPoolId=pool_id, Username=username)
 
         return jsonify({"success": True, "message": f"User {username} deleted"})
 
@@ -317,8 +391,13 @@ def update_user_attributes(username, user_email, user_roles):
             user_attributes.append({"Name": "name", "Value": name})
 
         if user_attributes:
+            try:
+                pool_id = _resolve_pool_id()
+            except PoolResolutionError as e:
+                return jsonify({"success": False, "error": str(e)}), 500
+
             cognito_client.admin_update_user_attributes(
-                UserPoolId=USER_POOL_ID,
+                UserPoolId=pool_id,
                 Username=username,
                 UserAttributes=user_attributes,
             )

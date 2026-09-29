@@ -27,6 +27,25 @@ def tenant_admin_auth():
         }
 
 
+# Registry-resolved TEST pool id the handlers must thread onto every admin op after
+# migrating off the legacy COGNITO_USER_POOL_ID read (cognito-admin-pool-resolution).
+RESOLVED_POOL_ID = 'eu-west-1_xyrlzfqbl'
+
+
+@pytest.fixture(autouse=True)
+def mock_pool_resolver():
+    """Resolve the caller-token pool to a known TEST pool id (token mode).
+
+    After the cognito-admin-pool-resolution migration every admin op resolves its
+    target pool via ``resolve_pool_id_for_token`` instead of the legacy env var.
+    Patching it here keeps the tests off real Cognito/registry while letting each
+    test assert the resolved pool id is the value threaded onto the admin calls.
+    """
+    with patch('routes.tenant_admin_users.resolve_pool_id_for_token',
+               return_value=RESOLVED_POOL_ID) as mock_resolve:
+        yield mock_resolve
+
+
 @pytest.fixture
 def mock_cognito_client():
     """Mock the cognito_client used in tenant_admin_users module."""
@@ -151,6 +170,8 @@ class TestListTenantUsers:
         assert data['success'] is True
         assert data['count'] == 1
         assert data['users'][0]['email'] == 'user1@example.com'
+        # list_users must act on the registry-resolved pool, not the legacy var
+        assert mock_cognito_client.list_users.call_args.kwargs['UserPoolId'] == RESOLVED_POOL_ID
 
     def test_list_users_access_denied_wrong_tenant(
         self, client, tenant_admin_auth, mock_cognito_client
@@ -291,6 +312,8 @@ class TestCreateTenantUser:
         assert response.status_code == 200 or response.status_code == 201
         data = json.loads(response.data)
         assert data['success'] is True
+        # New-user creation must target the registry-resolved pool
+        assert mock_cognito_client.admin_create_user.call_args.kwargs['UserPoolId'] == RESOLVED_POOL_ID
 
 
 # ============================================================================
@@ -358,6 +381,9 @@ class TestUpdateTenantUser:
         data = json.loads(response.data)
         assert data['success'] is True
         mock_cognito_client.admin_update_user_attributes.assert_called_once()
+        # Update must target the registry-resolved pool (both the get and the update)
+        assert mock_cognito_client.admin_get_user.call_args.kwargs['UserPoolId'] == RESOLVED_POOL_ID
+        assert mock_cognito_client.admin_update_user_attributes.call_args.kwargs['UserPoolId'] == RESOLVED_POOL_ID
 
     def test_update_user_disable_success(
         self, client, tenant_admin_auth, mock_get_tenant, mock_user_tenants,
@@ -379,6 +405,7 @@ class TestUpdateTenantUser:
         )
         assert response.status_code == 200
         mock_cognito_client.admin_disable_user.assert_called_once()
+        assert mock_cognito_client.admin_disable_user.call_args.kwargs['UserPoolId'] == RESOLVED_POOL_ID
 
 
 # ============================================================================
@@ -433,6 +460,9 @@ class TestDeleteTenantUser:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data['success'] is True
+        # The resolved pool must be threaded through CognitoService (both calls)
+        assert mock_svc.get_user_tenants.call_args.kwargs['user_pool_id'] == RESOLVED_POOL_ID
+        assert mock_svc.remove_tenant_from_user.call_args.kwargs['user_pool_id'] == RESOLVED_POOL_ID
 
 
 # ============================================================================

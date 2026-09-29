@@ -14,6 +14,7 @@ import boto3
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from auth.admin_pool_resolver import resolve_pool_id_for_email
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from dialect_helpers import dialect
@@ -211,11 +212,22 @@ def _generate_admin_name(company_name: str, email: str) -> str:
 
 
 def _update_cognito_tenants(email: str, admin_name: str) -> str:
-    """Add admin_name to Cognito user's custom:tenants. Returns error string or None."""
+    """Add admin_name to Cognito user's custom:tenants. Returns error string or None.
+
+    The target pool is resolved per request through the shared registry-backed resolver
+    in email mode (keyed to the target user's email) rather than read from the legacy
+    single-pool ``COGNITO_USER_POOL_ID`` var. The explicit
+    ``SIGNUP_COGNITO_USER_POOL_ID`` override (dedicated signup/provisioning pool) is
+    preserved unchanged as a fast-path; only the former nested
+    ``os.getenv("COGNITO_USER_POOL_ID")`` fallback is replaced by the resolver. When the
+    registry is absent the resolver itself falls back to the legacy var, so single-pool
+    deployments are observably unchanged. (Bugfix cognito-admin-pool-resolution, task
+    3.3.7.)
+    """
     try:
         region = os.getenv("AWS_REGION", "eu-west-1")
-        pool_id = os.getenv(
-            "SIGNUP_COGNITO_USER_POOL_ID", os.getenv("COGNITO_USER_POOL_ID")
+        pool_id = os.getenv("SIGNUP_COGNITO_USER_POOL_ID") or resolve_pool_id_for_email(
+            email
         )
         client = boto3.client("cognito-idp", region_name=region)
 
