@@ -665,6 +665,10 @@ class TestCognitoUserStatus:
 
         cognito, inv, tpl, ses = _make_service_mocks()
         cognito.get_user.return_value = None
+        # Migrated code resolves the admin-op pool via cognito.resolve_pool_id(...)
+        # rather than reading cognito.user_pool_id. Make the resolution deterministic
+        # so we can assert the admin op is threaded the RESOLVED pool.
+        cognito.resolve_pool_id.return_value = 'eu-west-1_TestPool'
 
         patches = _patch_lazy_imports(cognito, inv, tpl, ses)
         with patches['cognito'], patches['invitation'], \
@@ -675,8 +679,10 @@ class TestCognitoUserStatus:
 
         call_kwargs = cognito.client.admin_set_user_password.call_args[1]
         assert call_kwargs['Permanent'] is True
-        assert call_kwargs['UserPoolId'] == cognito.user_pool_id
+        # The password op must target the RESOLVED pool, not the legacy user_pool_id.
+        assert call_kwargs['UserPoolId'] == cognito.resolve_pool_id.return_value
         assert call_kwargs['Username'] == 'admin@acme.com'
+        cognito.resolve_pool_id.assert_called_with(username='admin@acme.com')
 
     def test_invitation_password_used_for_cognito(self):
         """The temporary password from the invitation is used."""

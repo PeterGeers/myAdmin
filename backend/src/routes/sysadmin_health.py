@@ -10,9 +10,10 @@ import time
 from datetime import datetime
 
 import boto3
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 
@@ -26,8 +27,25 @@ cognito_client = boto3.client(
 sns_client = boto3.client("sns", region_name=os.getenv("AWS_REGION", "eu-west-1"))
 
 # Configuration
-USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 SNS_TOPIC_ARN = os.getenv("SNS_TOPIC_ARN")
+
+
+def _caller_token() -> str:
+    """Return the raw caller JWT from the request ``Authorization`` header.
+
+    The health route is gated by ``@cognito_required(required_roles=["SysAdmin"])``,
+    which has already validated the ``Bearer`` token before the handler runs; this
+    simply re-reads that same header and strips the ``Bearer `` prefix to hand the raw
+    token to the shared resolver's token mode. Mirrors ``admin_routes._caller_token``.
+
+    Returns:
+        The raw JWT (without the ``Bearer `` prefix), or ``""`` when the header is
+        absent/malformed (the resolver then surfaces the misconfiguration).
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[len("Bearer ") :].strip()
+    return auth_header.strip()
 
 # Create blueprint
 sysadmin_health_bp = Blueprint("sysadmin_health", __name__)
@@ -87,9 +105,18 @@ def check_database_health() -> dict:
         }
 
 
-def check_cognito_health() -> dict:
+def check_cognito_health(pool_id: str) -> dict:
     """
     Check AWS Cognito health
+
+    The target user pool is resolved by the caller (``get_system_health``) through the
+    shared registry-backed resolver in token mode (bugfix
+    ``cognito-admin-pool-resolution``, R1/R2) instead of the legacy single-pool
+    ``COGNITO_USER_POOL_ID`` var, which pointed at the PROD pool in every environment.
+    Only the pool id source changes; the health-response contract is preserved.
+
+    Args:
+        pool_id: The registry-resolved user pool id to describe.
 
     Returns:
         dict: Health status with response time and details
@@ -97,7 +124,7 @@ def check_cognito_health() -> dict:
     start_time = time.time()
     try:
         # Test Cognito access by describing user pool
-        response = cognito_client.describe_user_pool(UserPoolId=USER_POOL_ID)
+        response = cognito_client.describe_user_pool(UserPoolId=pool_id)
 
         response_time = int((time.time() - start_time) * 1000)
 
@@ -111,7 +138,7 @@ def check_cognito_health() -> dict:
             "message": "AWS Cognito accessible",
             "lastChecked": datetime.utcnow().isoformat() + "Z",
             "details": {
-                "userPoolId": USER_POOL_ID,
+                "userPoolId": pool_id,
                 "userPoolName": response["UserPool"].get("Name", "Unknown"),
             },
         }
@@ -255,10 +282,29 @@ def get_system_health(user_email, user_roles) -> ResponseReturnValue:
     Note: Google Drive is tenant-specific and tested in Tenant Admin module
     """
     try:
+        # Resolve the target Cognito pool via the shared resolver in token mode
+        # (the SysAdmin route carries an authenticated caller token). If the pool
+        # cannot be resolved, degrade the Cognito check into the same "unhealthy"
+        # service entry it already returns for a Cognito exception rather than
+        # 500-ing the whole health endpoint.
+        try:
+            cognito_service_health = check_cognito_health(
+                resolve_pool_id_for_token(_caller_token())
+            )
+        except PoolResolutionError as e:
+            logger.error(f"Cognito health check failed (pool resolution): {e}")
+            cognito_service_health = {
+                "service": "cognito",
+                "status": "unhealthy",
+                "responseTime": 0,
+                "message": f"AWS Cognito error: {e!s}",
+                "lastChecked": datetime.utcnow().isoformat() + "Z",
+            }
+
         # Run all health checks (excluding Google Drive - tenant-specific)
         services = [
             check_database_health(),
-            check_cognito_health(),
+            cognito_service_health,
             check_sns_health(),
             check_openrouter_health(),
         ]

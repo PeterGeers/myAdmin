@@ -10,6 +10,7 @@ import os
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from services.cognito_service import CognitoService
@@ -21,6 +22,31 @@ logger = logging.getLogger(__name__)
 
 # Create blueprint
 tenant_admin_email_bp = Blueprint("tenant_admin_email", __name__)
+
+
+def _caller_token() -> str:
+    """Return the raw caller JWT from the request ``Authorization`` header.
+
+    Every route in this blueprint is gated by ``@cognito_required``, which has
+    already validated the ``Bearer`` token before the handler runs; this re-reads
+    that same header and strips the ``Bearer `` prefix to hand the raw token to the
+    shared resolver's token mode. Mirrors ``tenant_admin_users._caller_token``.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[len("Bearer ") :].strip()
+    return auth_header.strip()
+
+
+def _resolve_pool_id() -> str:
+    """Resolve the target Cognito pool id for this admin request (token mode).
+
+    Resolves through the shared registry-backed resolver keyed to the caller
+    token's verified ``iss`` (2.3), replacing the legacy ``COGNITO_USER_POOL_ID``
+    read so admin ops act on the caller-token's registry pool rather than the
+    legacy PROD var. Raises :class:`PoolResolutionError` on genuine misconfig.
+    """
+    return resolve_pool_id_for_token(_caller_token())
 
 
 @tenant_admin_email_bp.route("/api/tenant-admin/send-email", methods=["POST"])
@@ -88,7 +114,12 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
                 cognito_client = boto3.client(
                     "cognito-idp", region_name=os.getenv("AWS_REGION", "eu-west-1")
                 )
-                user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+                # Resolve the target pool via the shared registry-backed resolver
+                # (token mode, keyed to the caller token's verified iss) instead of
+                # the legacy COGNITO_USER_POOL_ID var. This best-effort lookup is
+                # already wrapped in the broad except below, so a PoolResolutionError
+                # falls back to the derived display name — contract preserved.
+                user_pool_id = _resolve_pool_id()
 
                 response = cognito_client.admin_get_user(
                     UserPoolId=user_pool_id,
@@ -286,7 +317,22 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
             cognito_client = boto3.client(
                 "cognito-idp", region_name=os.getenv("AWS_REGION", "eu-west-1")
             )
-            user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+            # Resolve the target pool via the shared registry-backed resolver
+            # (token mode, keyed to the caller token's verified iss) instead of the
+            # legacy COGNITO_USER_POOL_ID var, so the password-set and the
+            # subsequent admin_get_user act on the caller-token's registry pool.
+            try:
+                user_pool_id = _resolve_pool_id()
+            except PoolResolutionError as e:
+                logger.error(f"Failed to resolve target Cognito pool: {e}")
+                invitation_service.mark_invitation_failed(
+                    administration=tenant,
+                    email=recipient_email,
+                    error_message=f"Cognito pool resolution failed: {e!s}",
+                )
+                return jsonify(
+                    {"error": "Failed to update user password", "message": str(e)}
+                ), 500
 
             # Set new permanent password — moves user from
             # FORCE_CHANGE_PASSWORD to CONFIRMED status

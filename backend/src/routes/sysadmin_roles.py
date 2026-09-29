@@ -2,6 +2,18 @@
 SysAdmin Role Management Endpoints
 
 API endpoints for managing Cognito groups (roles)
+
+Bugfix ``cognito-admin-pool-resolution`` (R1/R2): these role/group admin ops previously
+targeted the legacy single-pool ``COGNITO_USER_POOL_ID`` var (which points at the PROD
+pool in every environment) via a module-level ``USER_POOL_ID``. They now resolve their
+target pool through the shared registry-backed resolver in **token mode**
+(:func:`auth.admin_pool_resolver.resolve_pool_id_for_token`), keyed to the caller
+token's verified ``iss``. Every route here is gated by
+``@cognito_required(required_roles=["SysAdmin"])`` so the caller token is reliably
+present on the Flask ``request`` and token mode applies. Only the value passed as
+``UserPoolId=...`` changes; every request/response contract is preserved. A
+:class:`PoolResolutionError` (genuine misconfig) maps to the existing 500
+``{"error": ...}`` shape.
 """
 
 import logging
@@ -11,6 +23,7 @@ import boto3
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 from services.module_registry import MODULE_REGISTRY
 
@@ -21,7 +34,31 @@ logger = logging.getLogger(__name__)
 cognito_client = boto3.client(
     "cognito-idp", region_name=os.getenv("AWS_REGION", "eu-west-1")
 )
-USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
+
+
+def _caller_token() -> str:
+    """Return the raw caller JWT from the request ``Authorization`` header.
+
+    Every route in this blueprint is gated by ``@cognito_required``, which has
+    already validated the ``Bearer`` token before the handler runs; this re-reads
+    that same header and strips the ``Bearer `` prefix to hand the raw token to the
+    shared resolver's token mode. Mirrors ``routes.sysadmin_helpers._caller_token``.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[len("Bearer ") :].strip()
+    return auth_header.strip()
+
+
+def _resolve_pool_id() -> str:
+    """Resolve the target Cognito pool id for this admin request (token mode).
+
+    Resolves through the shared registry-backed resolver keyed to the caller
+    token's verified ``iss`` (2.3), replacing the legacy ``COGNITO_USER_POOL_ID``
+    read. Raises :class:`PoolResolutionError` when the pool cannot be resolved so
+    each handler can map it to a clear misconfiguration (500) response.
+    """
+    return resolve_pool_id_for_token(_caller_token())
 
 # Build module role prefixes dynamically from MODULE_REGISTRY
 # e.g. ['Finance', 'STR', 'ZZP'] derived from required_roles like 'Finance_Read', 'STR_CRUD'
@@ -51,8 +88,11 @@ def list_roles(user_email, user_roles) -> ResponseReturnValue:
     - module: Finance_Read, Finance_CRUD, Finance_Export, STR_Read, STR_CRUD, STR_Export
     """
     try:
+        # Resolve the target Cognito pool from the caller token (token mode)
+        user_pool_id = _resolve_pool_id()
+
         # List all groups
-        response = cognito_client.list_groups(UserPoolId=USER_POOL_ID, Limit=60)
+        response = cognito_client.list_groups(UserPoolId=user_pool_id, Limit=60)
 
         groups = []
         for group in response.get("Groups", []):
@@ -60,7 +100,7 @@ def list_roles(user_email, user_roles) -> ResponseReturnValue:
 
             # Get user count for this group
             users_response = cognito_client.list_users_in_group(
-                UserPoolId=USER_POOL_ID, GroupName=group_name, Limit=60
+                UserPoolId=user_pool_id, GroupName=group_name, Limit=60
             )
             user_count = len(users_response.get("Users", []))
 
@@ -88,12 +128,12 @@ def list_roles(user_email, user_roles) -> ResponseReturnValue:
         # Handle pagination if needed
         while "NextToken" in response:
             response = cognito_client.list_groups(
-                UserPoolId=USER_POOL_ID, Limit=60, NextToken=response["NextToken"]
+                UserPoolId=user_pool_id, Limit=60, NextToken=response["NextToken"]
             )
             for group in response.get("Groups", []):
                 group_name = group["GroupName"]
                 users_response = cognito_client.list_users_in_group(
-                    UserPoolId=USER_POOL_ID, GroupName=group_name, Limit=60
+                    UserPoolId=user_pool_id, GroupName=group_name, Limit=60
                 )
                 user_count = len(users_response.get("Users", []))
 
@@ -119,6 +159,11 @@ def list_roles(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "roles": groups, "total": len(groups)})
 
+    except PoolResolutionError as e:
+        # Target pool could not be resolved (genuine misconfig) — preserve the
+        # existing 500 {"error": ...} shape.
+        logger.error(f"Error listing roles: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         logger.error(f"Error listing roles: {e}")
         import traceback
@@ -152,16 +197,19 @@ def create_role(user_email, user_roles) -> ResponseReturnValue:
         description = data.get("description", "")
         precedence = data.get("precedence")
 
+        # Resolve the target Cognito pool from the caller token (token mode)
+        user_pool_id = _resolve_pool_id()
+
         # Check if group already exists
         try:
-            cognito_client.get_group(UserPoolId=USER_POOL_ID, GroupName=group_name)
+            cognito_client.get_group(UserPoolId=user_pool_id, GroupName=group_name)
             return jsonify({"error": f"Role {group_name} already exists"}), 400
         except cognito_client.exceptions.ResourceNotFoundException:
             pass  # Group doesn't exist, we can create it
 
         # Create group
         create_params = {
-            "UserPoolId": USER_POOL_ID,
+            "UserPoolId": user_pool_id,
             "GroupName": group_name,
             "Description": description,
         }
@@ -181,6 +229,11 @@ def create_role(user_email, user_roles) -> ResponseReturnValue:
             }
         ), 201
 
+    except PoolResolutionError as e:
+        # Target pool could not be resolved (genuine misconfig) — preserve the
+        # existing 500 {"error": ...} shape.
+        logger.error(f"Error creating role: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         logger.error(f"Error creating role: {e}")
         import traceback
@@ -208,14 +261,17 @@ def update_role(user_email, user_roles, role_name) -> ResponseReturnValue:
     try:
         data = request.get_json()
 
+        # Resolve the target Cognito pool from the caller token (token mode)
+        user_pool_id = _resolve_pool_id()
+
         # Check if group exists
         try:
-            cognito_client.get_group(UserPoolId=USER_POOL_ID, GroupName=role_name)
+            cognito_client.get_group(UserPoolId=user_pool_id, GroupName=role_name)
         except cognito_client.exceptions.ResourceNotFoundException:
             return jsonify({"error": f"Role {role_name} not found"}), 404
 
         # Prepare update parameters
-        update_params = {"UserPoolId": USER_POOL_ID, "GroupName": role_name}
+        update_params = {"UserPoolId": user_pool_id, "GroupName": role_name}
 
         if "description" in data:
             update_params["Description"] = data["description"]
@@ -236,6 +292,11 @@ def update_role(user_email, user_roles, role_name) -> ResponseReturnValue:
             }
         )
 
+    except PoolResolutionError as e:
+        # Target pool could not be resolved (genuine misconfig) — preserve the
+        # existing 500 {"error": ...} shape.
+        logger.error(f"Error updating role: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         logger.error(f"Error updating role: {e}")
         import traceback
@@ -255,15 +316,18 @@ def delete_role(user_email, user_roles, role_name) -> ResponseReturnValue:
     Note: Group must have zero users before deletion
     """
     try:
+        # Resolve the target Cognito pool from the caller token (token mode)
+        user_pool_id = _resolve_pool_id()
+
         # Check if group exists
         try:
-            cognito_client.get_group(UserPoolId=USER_POOL_ID, GroupName=role_name)
+            cognito_client.get_group(UserPoolId=user_pool_id, GroupName=role_name)
         except cognito_client.exceptions.ResourceNotFoundException:
             return jsonify({"error": f"Role {role_name} not found"}), 404
 
         # Check for users in group
         users_response = cognito_client.list_users_in_group(
-            UserPoolId=USER_POOL_ID, GroupName=role_name, Limit=1
+            UserPoolId=user_pool_id, GroupName=role_name, Limit=1
         )
 
         if users_response.get("Users"):
@@ -274,7 +338,7 @@ def delete_role(user_email, user_roles, role_name) -> ResponseReturnValue:
             ), 409
 
         # Delete group
-        cognito_client.delete_group(UserPoolId=USER_POOL_ID, GroupName=role_name)
+        cognito_client.delete_group(UserPoolId=user_pool_id, GroupName=role_name)
 
         logger.info(f"Role {role_name} deleted by {user_email}")
 
@@ -286,6 +350,11 @@ def delete_role(user_email, user_roles, role_name) -> ResponseReturnValue:
             }
         )
 
+    except PoolResolutionError as e:
+        # Target pool could not be resolved (genuine misconfig) — preserve the
+        # existing 500 {"error": ...} shape.
+        logger.error(f"Error deleting role: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         logger.error(f"Error deleting role: {e}")
         import traceback

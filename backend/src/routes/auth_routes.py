@@ -22,6 +22,10 @@ from botocore.exceptions import ClientError
 from flask import Blueprint, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
 
+from auth.admin_pool_resolver import (
+    PoolResolutionError,
+    resolve_pool_id_for_email,
+)
 from auth.cognito_utils import cognito_required
 from auth.rate_limiter import RateLimiter
 from database import DatabaseManager
@@ -31,9 +35,18 @@ logger = logging.getLogger(__name__)
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 CODE_EXPIRY_MINUTES = 10
 MAX_ATTEMPTS = 3
+
+# Pool resolution (bugfix ``cognito-admin-pool-resolution``, R1 + R2): the admin
+# ops in this file (``admin_get_user`` / ``admin_set_user_password`` for password
+# reset) no longer read the legacy single-pool ``COGNITO_USER_POOL_ID`` var. The
+# target pool is resolved per request through the shared registry-backed resolver
+# (:func:`auth.admin_pool_resolver.resolve_pool_id_for_email`) in email mode, keyed
+# to the target user, exactly like token validation. forgot-password resolves with
+# ``anti_enumeration=True`` so a user absent from every pool yields ``None`` — handled
+# exactly like the existing ``UserNotFoundException`` branch (return the same success
+# message, never revealing whether the account exists).
 
 # Singleton rate limiter for password reset endpoints
 password_reset_limiter = RateLimiter()
@@ -83,9 +96,42 @@ def forgot_password() -> ResponseReturnValue:
 
         # Verify user exists in Cognito (silently — don't reveal to caller)
         cognito = boto3.client("cognito-idp", region_name=AWS_REGION)
+
+        # Resolve the target user's pool via the shared registry-backed resolver
+        # (email mode). anti_enumeration=True: a user absent from every registered
+        # pool resolves to None, handled exactly like the UserNotFoundException
+        # branch below — same success message, no existence signal (2.7 / 3.5).
+        try:
+            pool_id = resolve_pool_id_for_email(
+                email, anti_enumeration=True, client=cognito
+            )
+        except PoolResolutionError as exc:
+            # Registry misconfigured / no pool to act on: cannot safely act, but the
+            # anti-enumeration contract still requires the same success response.
+            logger.error(
+                "Password reset pool resolution failed for %s: %s", email, exc
+            )
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "If an account exists, a reset code has been sent.",
+                }
+            )
+
+        if pool_id is None:
+            # Not found in any registered pool — return success anyway
+            # (anti-enumeration), exactly like the UserNotFoundException branch.
+            logger.info(f"Password reset requested for non-existent user: {email}")
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "If an account exists, a reset code has been sent.",
+                }
+            )
+
         try:
             user_response = cognito.admin_get_user(
-                UserPoolId=USER_POOL_ID, Username=email
+                UserPoolId=pool_id, Username=email
             )
             user_status = user_response.get("UserStatus", "")
         except ClientError:
@@ -293,11 +339,34 @@ def confirm_reset_password() -> ResponseReturnValue:
                 }
             ), 400
 
-        # Code is valid — set new password via Cognito admin API
+        # Code is valid — set new password via Cognito admin API.
+        # Resolve the same target user's pool via the shared registry-backed
+        # resolver (email mode) so the password is set on the pool the user actually
+        # belongs to, not the legacy PROD var.
         cognito = boto3.client("cognito-idp", region_name=AWS_REGION)
         try:
+            pool_id = resolve_pool_id_for_email(
+                email, anti_enumeration=True, client=cognito
+            )
+        except PoolResolutionError as exc:
+            logger.error(
+                "Password reset pool resolution failed for %s: %s", email, exc
+            )
+            return jsonify(
+                {"success": False, "error": "Password update failed"}
+            ), 400
+
+        if pool_id is None:
+            # User no longer exists in any registered pool — treat as a password
+            # update failure (same non-500 contract as a Cognito error).
+            logger.error(f"Cognito password set failed for {email}: user not found")
+            return jsonify(
+                {"success": False, "error": "Password update failed"}
+            ), 400
+
+        try:
             cognito.admin_set_user_password(
-                UserPoolId=USER_POOL_ID,
+                UserPoolId=pool_id,
                 Username=email,
                 Password=new_password,
                 Permanent=True,

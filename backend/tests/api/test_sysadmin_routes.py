@@ -130,7 +130,8 @@ def test_create_tenant_invalid_name(client):
 
 
 @patch('routes.sysadmin_roles.cognito_client')
-def test_list_roles_success(mock_cognito, client):
+@patch('routes.sysadmin_roles._resolve_pool_id', return_value='us-east-1_test')
+def test_list_roles_success(mock_pool, mock_cognito, client):
     """Test successful role listing"""
     from datetime import datetime
     mock_cognito.list_groups.return_value = {
@@ -154,7 +155,8 @@ def test_list_roles_success(mock_cognito, client):
 
 
 @patch('routes.sysadmin_roles.cognito_client')
-def test_create_role_success(mock_cognito, client):
+@patch('routes.sysadmin_roles._resolve_pool_id', return_value='us-east-1_test')
+def test_create_role_success(mock_pool, mock_cognito, client):
     """Test successful role creation"""
     # Mock Cognito - group doesn't exist
     mock_cognito.get_group.side_effect = Exception('ResourceNotFoundException')
@@ -190,7 +192,8 @@ def test_create_role_missing_name(client):
 
 
 @patch('routes.sysadmin_roles.cognito_client')
-def test_delete_role_success(mock_cognito, client):
+@patch('routes.sysadmin_roles._resolve_pool_id', return_value='us-east-1_test')
+def test_delete_role_success(mock_pool, mock_cognito, client):
     """Test successful role deletion"""
     mock_cognito.get_group.return_value = {'Group': {'GroupName': 'TestRole'}}
     mock_cognito.list_users_in_group.return_value = {'Users': []}
@@ -204,7 +207,8 @@ def test_delete_role_success(mock_cognito, client):
 
 
 @patch('routes.sysadmin_roles.cognito_client')
-def test_delete_role_with_users(mock_cognito, client):
+@patch('routes.sysadmin_roles._resolve_pool_id', return_value='us-east-1_test')
+def test_delete_role_with_users(mock_pool, mock_cognito, client):
     """Test deleting role with users returns 409"""
     mock_cognito.get_group.return_value = {'Group': {'GroupName': 'TestRole'}}
     mock_cognito.list_users_in_group.return_value = {'Users': [{'Username': 'user1'}]}
