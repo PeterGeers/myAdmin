@@ -208,16 +208,21 @@ Why match in memory. The repository exposes `get_member(tenant, member_id)` (by 
    `by_number: dict[str, Member]` keyed on `membership.member_number` (blank numbers bucketed
    separately and reported — they cannot be matched, R7.5).
 2. Transforms the sheet rows into candidate records (the existing transform).
-3. Reconciles per candidate on its (stable, sheet-assigned) `member_number` (R7.2):
+3. Reconciles per candidate on its DERIVED `member_number` (R7.2): a member is `M<shaped>`; a
+   numberless CONTACT is `C_`+Achternaam (org name, unique+stable) — derived in the transform, no
+   sheet editing, no hashing.
    - number in `by_number` → UPDATE: reuse the existing `member_id`, `save_member` the merged record
      (a single `PutItem` — s5k, no guard);
    - number not in `by_number` → INSERT: mint `member_id`, `save_member`;
-   - candidate has NO number → UNMATCHABLE: not written, reported (R7.3) — the operator adds a number
-     in the sheet (approach A) and re-runs.
-4. Absence sweep (R7.4): any SAM member whose `member_number` was NOT seen in the sheet this run is
-   UPDATED to `status = "left"` via `save_member` (soft flag; never `delete_member`). A previously
-   `left` member present in the sheet is reactivated (its status comes from the transform, default
-   `active`).
+   - candidate derives NO number (empty Lidnummer AND empty Achternaam) → UNMATCHABLE: not written,
+     reported (R7.3).
+   Contacts are keyed and reconciled exactly like members (same `by_number` index); the `C_` prefix is
+   only a readable classifier. Editing a contact's org name changes its key → new contact + old one
+   swept `left` (R5.3 caveat, accepted).
+4. Absence sweep (R7.4): any SAM record — member (`M…`) OR contact (`C_…`) — whose `member_number`
+   was NOT seen in the sheet this run is UPDATED to `status = "left"` via `save_member` (soft flag;
+   never `delete_member`). A previously `left` record present in the sheet is reactivated (its status
+   comes from the transform, default `active`). Contacts are included in the sweep (confirmed).
 
 Because the match key is a stable sheet value and UPDATE reuses the existing `member_id`, re-runs are
 idempotent (R5.3) — this is what approach (A) buys over the s5k mint-a-uuid behaviour.

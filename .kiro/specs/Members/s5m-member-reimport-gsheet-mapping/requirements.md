@@ -102,10 +102,11 @@ are flagged (not deleted) for an admin to review and then delete manually.
 
 _Semantics (see R7):_
 - _Run mode: an OPERATOR CLI (not a tenant-admin UI). Dry-run stays the default; `--apply` writes._
-- _Matching is ALWAYS by `member_number` (Lidnummer). Because s5k makes `member_number` a plain
-  optional string of any format, the operator assigns a stable string number in the SHEET to any
-  numberless member before syncing (e.g. `AAAAA`, `AAAAB`, or a real Lidnummer) — approach (A). The
-  importer never invents or persists its own codes and never matches on the non-unique `Achternaam`._
+- _Matching is ALWAYS by `member_number`. A row WITH a Lidnummer is a MEMBER → `member_number` =
+  `M<shaped digits>`. A row with an EMPTY Lidnummer is a CONTACT (sponsor / sister club / dealer, not
+  a member) → `member_number` = `C_` + `Achternaam` (the organisation name, which is unique and
+  stable, used verbatim as the stable match key). No operator effort in the sheet, no hashing. A row
+  with empty Lidnummer AND empty Achternaam is UNMATCHABLE (reported, not written)._
 - _Reconciliation is an UPSERT: a matched `member_number` UPDATES the existing SAM record; an unseen
   `member_number` INSERTS a new one._
 - _A SAM member whose `member_number` is ABSENT from the current sheet is SOFT-flagged
@@ -288,34 +289,44 @@ empty (missing is missing — never a fabricated value, never a blocked import).
   READS it and NEVER writes back.
 - **R5.2** The sync never HARD-deletes a SAM member. A member gone from the sheet is soft-flagged
   (R7.4); actual deletion is a separate manual admin step after review.
-- **R5.3** Idempotency is achieved by matching on `member_number` (R7): because EVERY member — incl.
-  numberless sponsors/clubs — carries a stable member_number assigned in the sheet (approach A), a
-  re-run updates the same record instead of minting a duplicate. (This supersedes the s5k caveat that
-  numberless rows were non-idempotent: with a sheet-assigned number they are now idempotent.)
+- **R5.3** Idempotency is achieved by matching on `member_number` (R7): a MEMBER carries its `M…`
+  Lidnummer; a CONTACT (empty Lidnummer) is keyed by `C_` + its organisation name (`Achternaam`),
+  which is unique and stable. A re-run therefore updates the same record instead of minting a
+  duplicate. (This supersedes the s5k caveat that numberless rows were non-idempotent.) Caveat: if a
+  contact's organisation name is EDITED in the sheet, the derived `C_…` key changes → the sync treats
+  it as a new contact and soft-flags the old one `left` (R7.4); this is an accepted tradeoff, made
+  visible in the report — org names change rarely.
 
 ### R7 — reconciling sync (operator CLI upsert, match by member_number)
 - **R7.1** The importer runs as an OPERATOR CLI (not a tenant-admin UI). Dry-run stays the default;
   `--apply` performs the reconciliation. `--tenant` stays required (no default tenant). A new
   `--reconcile`/`--sync` mode selects the upsert+absence behaviour; without it the runner keeps its
   existing insert-only backfill behaviour (backward compatible).
-- **R7.2** Matching key: `member_number` ONLY. The operator MUST assign a stable string
-  `member_number` in the SHEET to every otherwise-numberless member before syncing (approach A —
-  `member_number` is a free string per s5k, e.g. `AAAAA`/`AAAAB` or a real Lidnummer). The importer
-  NEVER matches on `Achternaam` and NEVER invents/persists its own codes.
+- **R7.2** Matching key: `member_number` ONLY, DERIVED per row (no operator sheet-editing, no hashing):
+  - Lidnummer PRESENT → MEMBER, `member_number` = `M<shaped digits>` (the `member_number` rule).
+  - Lidnummer EMPTY, Achternaam PRESENT → CONTACT (sponsor/club/dealer), `member_number` = `C_` +
+    `Achternaam` (organisation name; unique + stable → the idempotent match key). The `M`/`C_` prefix
+    also classifies the row (member vs contact) at a glance; contacts additionally carry a
+    contact-ish `membership_type` from `Soort lidmaatschap` (s5k catalog code).
+  - Lidnummer EMPTY and Achternaam EMPTY → UNMATCHABLE: reported, not written (an empty row).
+  The tenant `member_number` FORMAT constraint MUST accept both the `M…` and `C_…` forms (the closed
+  `^M\d{5}$` regex is relaxed/extended so a `C_…` contact key validates) — a config impact (R2.3/R8).
 - **R7.3** Reconciliation is an UPSERT keyed on `member_number`:
   - a sheet row whose `member_number` matches an existing SAM member UPDATES that record (preserving
     its internal `member_id`);
-  - a sheet row whose `member_number` is not yet in SAM INSERTS a new member (minting `member_id`);
-  - a sheet row with NO `member_number` after cleanup is reported as UNMATCHABLE (not upserted) so the
-    operator fixes the sheet — it is never inserted blindly (that would re-create the non-idempotency).
+  - a sheet row whose `member_number` is not yet in SAM INSERTS a new record (minting `member_id`);
+  - a row that derives NO `member_number` (empty Lidnummer AND empty Achternaam, R7.2) is reported as
+    UNMATCHABLE (not upserted) — it is never inserted blindly (that would re-create non-idempotency).
   - **SHEET-WINS (confirmed 2026-09-29):** on UPDATE the sheet's mapped values OVERWRITE the SAM
     record's mapped fields. While the Google Sheet is h-dcn's system of record (until cutover), SAM is
     effectively READ-ONLY for synced fields — an in-app edit to a synced field is reverted to the
     sheet value on the next reconcile. This is intended; the sheet is authoritative during the interim.
     (Non-synced/derived fields and the internal `member_id` are untouched.)
-- **R7.4** Absence sweep: a SAM member whose `member_number` is ABSENT from the current sheet is
-  SOFT-flagged `status = "left"` (the closed `MembershipStatus` value; nl "Uitgeschreven"). It is
-  NOT deleted. A member already `left` that reappears in the sheet is reactivated per the sheet.
+- **R7.4** Absence sweep: a SAM record (MEMBER `M…` OR CONTACT `C_…`) whose `member_number` is ABSENT
+  from the current sheet is SOFT-flagged `status = "left"` (the closed `MembershipStatus` value; nl
+  "Uitgeschreven"). It is NOT deleted. A record already `left` that reappears in the sheet is
+  reactivated per the sheet. (Confirmed 2026-09-29: contacts are INCLUDED in the sweep — a contact
+  removed from the sheet is flagged `left` like a member.)
 - **R7.5** The sync reads all current SAM members for the tenant (single tenant-partition read) and
   indexes them by `member_number` to drive matching — the repository has no query-by-number, so this
   is done in memory. Members with a blank SAM `member_number` cannot be matched by number and are

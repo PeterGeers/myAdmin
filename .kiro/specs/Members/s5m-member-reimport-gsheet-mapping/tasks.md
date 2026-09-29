@@ -30,8 +30,9 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - Config edits in `scripts/aws/h-dcn/members_config.json` (already drafted; confirm on implement):
     add STRING overlay field `additional_info`; add `date` overlay fields `deregistration_date` and
     `termination_date` (functional_group `membership`, filterable); `magazine_pref` choices →
-    `Geen`/`Papier`/`Digitaal`; `payment_method` enum → free-text string. Re-run the config seed so
-    MySQL picks them up (onboarding path).
+    `Geen`/`Papier`/`Digitaal`; `payment_method` enum → free-text string; `member_number` format
+    switched from `prefix=M,width=5` to `regex ^(M\d{5}|C_.+)$` so BOTH members (`M#####`) and
+    contacts (`C_…`, R7.2) validate. Re-run the config seed so MySQL picks them up (onboarding path).
   - _Requirements: R0.1, R0.2, R0.4, R2.3, R2.7_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "mapping or loader or contract" -q`
 
@@ -39,8 +40,9 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - In `map_hdcn_row`, drive fixed/overlay mapping + dispositions from the loaded contract (task 2)
     rather than hardcoded dicts. Apply the per-`rule` conversions: `single`/`coalesce` copy with the
     R1 first-non-empty rule; `date` → `_iso_date_part()` to a bare `YYYY-MM-DD` (birth_date optional —
-    absent/unparseable leaves it unset, R2.1/R3.3; also the two membership date fields); `member_number`
-    shaping; `membership_type` catalog-code; `region` canonicalization; `gender` (Man/Vrouw→M/V);
+    absent/unparseable leaves it unset, R2.1/R3.3; also the two membership date fields);
+    `member_number` derivation (Lidnummer → `M<shaped>`; empty Lidnummer + Achternaam → `C_`+org-name
+    contact; both empty → no number, R7.2); `membership_type` catalog-code; `region` canonicalization; `gender` (Man/Vrouw→M/V);
     `magazine` (→ Geen/Papier/Digitaal, fallback Geen); `iban_or_payment` (conditional split →
     `overlay.iban` + `overlay.payment_method`).
   - Dispositions: `(calculated)` → not stored; `(excluded)` → dropped; `(additional_info)` and any
@@ -88,6 +90,20 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
     `--source`), `--worksheet`, `--credentials`. Build `GoogleSheetsSourceAdapter` when a sheet is
     requested, else `FileSourceAdapter`. Use the same adapter for the header probe. Keep `--tenant`
     required and dry-run the default; `--apply` still refuses a batch with mapping errors.
+  - How each flag is FORMATTED / RETRIEVED (Sheets API mechanics, design D5):
+    - `--sheet-id` = the spreadsheet ID from the URL (`.../spreadsheets/d/<ID>/edit`) — used
+      directly, no lookup. PREFERRED (unambiguous, no Drive call).
+    - `--sheet-name` = the human title (e.g. `HDCN Ledenbestand 2026`) — resolved to an ID via a
+      READ-ONLY Drive `files.list` (`name = '<title>' and mimeType =
+      'application/vnd.google-apps.spreadsheet'`), which is why this path also needs `drive.readonly`.
+      Fails clearly if 0 or >1 sheets match.
+    - `--worksheet` = the tab name (e.g. `Ledenbestand`) — becomes the A1 range prefix
+      `'<worksheet>'!A1:ZZ` in `spreadsheets.values.get`; omitted → the default/first sheet. Quote a
+      tab name with spaces in A1 notation.
+    - `--credentials` = filesystem PATH to the service-account JSON (default the shared h-dcn key,
+      R4.3) → `Credentials.from_service_account_file(path, scopes=[...])`.
+    - Retrieval chain: creds → (if name) Drive `files.list` → `values.get(spreadsheetId, range)` →
+      value matrix → row 0 headers → position-tracked `{header: value}` rows (R1).
   - _Requirements: R4.6, R5.1_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "runner or sheet or tenant" -q`
 
@@ -96,11 +112,13 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
     backfill stays the default). Per design D7:
     - read all tenant members via `repo.list_members` and index by `membership.member_number`
       (blank numbers bucketed + reported, R7.5);
-    - per transformed candidate: number matched → UPDATE reusing the existing `member_id`; number
-      unseen → INSERT (mint `member_id`); numberless candidate → UNMATCHABLE (not written, reported);
-    - absence sweep: SAM members whose number was not seen this run → `save_member` with
-      `status = "left"` (soft flag; NEVER `delete_member`); a `left` member present in the sheet is
-      reactivated.
+    - derive `member_number` per row: Lidnummer present → `M<shaped>`; empty Lidnummer + Achternaam →
+      `C_`+Achternaam (contact); both empty → UNMATCHABLE (reported, not written);
+    - per candidate: number matched → UPDATE reusing the existing `member_id`; unseen → INSERT (mint
+      `member_id`);
+    - absence sweep: SAM records (members AND `C_` contacts) whose number was not seen this run →
+      `save_member` with `status = "left"` (soft flag; NEVER `delete_member`); a `left` record present
+      in the sheet is reactivated.
   - Extend the fidelity report with sync sections: to-INSERT / to-UPDATE / to-LEAVE / UNMATCHABLE /
     duplicate-number collisions.
   - `--apply --reconcile` refuses on mapping errors OR duplicate sheet `member_number` values (R7.7).
@@ -138,8 +156,8 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
     EXISTING h-dcn service-account key at the shared path
     `/home/peter/projects/h-dcn/.googleCredentials.json` (re-download from Google Cloud if absent; the
     Sheet is already shared with that SA as Viewer) or pass `--credentials`; run against the
-    `nonprofit-deploy` account with `.env` static keys stripped; assign a stable member_number in the
-    sheet for numberless members BEFORE a reconcile. Live confirmation is a manual gated step.
+    `nonprofit-deploy` account with `.env` static keys stripped. (Numberless rows need NO sheet edit —
+    they become `C_`+Achternaam contacts automatically.) Live confirmation is a manual gated step.
   - _Requirements: R6.5_
   - _Verify:_ `cd sam && python -m pytest -q`
 

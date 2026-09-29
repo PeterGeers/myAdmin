@@ -173,9 +173,9 @@
       "membership.member_number": {
         "functional_group": "membership",
         "format": {
-          "prefix": "M",
-          "width": 5
-        }
+          "regex": "^(M\\d{5}|C_.+)$"
+        },
+        "_comment": "member_number accepts a MEMBER number 'M#####' OR a CONTACT key 'C_<organisation name>' (s5m R7.2: a numberless sponsor/club row is a contact keyed by C_+Achternaam). Was prefix=M,width=5; switched to a regex so both forms validate (regex wins over prefix/width in MemberNumberFormat)."
       }
     },
     "fields": {
