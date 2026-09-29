@@ -1,0 +1,429 @@
+{
+  "_comment": "h-dcn members CONFIG — the SINGLE onboarding source of truth (Decision D17/D18). This file is authored ONCE and drives BOTH: (1) seed-hdcn-members-config.py, which upserts it into MySQL members.scope_dimensions + members.field_overlay via ParameterService.set_param (→ enqueue_sync → config#scope / config#fields); and (2) the member backfill's region-canonicalization target (--scope-dimensions), so importer and enforcement share ONE vocabulary. The generic SAM core (HDCN_SCOPE_CONFIG) carries only a placeholder and is NEVER the runtime source (D16: no fallback). See scripts/aws/h-dcn/ONBOARDING.md.",
+  "scope_dimensions": [
+    {
+      "key": "region",
+      "field": "region",
+      "label": {
+        "nl": "Regio",
+        "en": "Region"
+      },
+      "enabled": true,
+      "values": [
+        "Brabant/Zeeland",
+        "Duitsland",
+        "Friesland",
+        "Geen",
+        "Groningen/Drenthe",
+        "Limburg",
+        "Noord Holland",
+        "Oost",
+        "Utrecht",
+        "Zuid Holland"
+      ],
+      "required_for": [
+        "Members_CRUD"
+      ]
+    }
+  ],
+  "field_overlay": {
+    "functional_groups": [
+      {
+        "key": "personal",
+        "label": {
+          "nl": "Persoonlijk",
+          "en": "Personal"
+        },
+        "order": 10
+      },
+      {
+        "key": "address",
+        "label": {
+          "nl": "Adres",
+          "en": "Address"
+        },
+        "order": 20
+      },
+      {
+        "key": "membership",
+        "label": {
+          "nl": "Lidmaatschap",
+          "en": "Membership"
+        },
+        "order": 30
+      },
+      {
+        "key": "motor",
+        "label": {
+          "nl": "Motor",
+          "en": "Motorcycle"
+        },
+        "order": 40
+      },
+      {
+        "key": "financial",
+        "label": {
+          "nl": "Financieel",
+          "en": "Financial"
+        },
+        "order": 50
+      },
+      {
+        "key": "administrative",
+        "label": {
+          "nl": "Administratief",
+          "en": "Administrative"
+        },
+        "order": 60
+      }
+    ],
+    "fixed_overrides": {
+      "personal.street": {
+        "functional_group": "address"
+      },
+      "personal.postal_code": {
+        "functional_group": "address"
+      },
+      "personal.city": {
+        "functional_group": "address"
+      },
+      "personal.country": {
+        "functional_group": "address"
+      },
+      "personal.gender": {
+        "functional_group": "personal",
+        "choices": [
+          {
+            "value": "M",
+            "label": {
+              "nl": "Man",
+              "en": "Male"
+            }
+          },
+          {
+            "value": "V",
+            "label": {
+              "nl": "Vrouw",
+              "en": "Female"
+            }
+          },
+          {
+            "value": "X",
+            "label": {
+              "nl": "Anders",
+              "en": "Other"
+            }
+          },
+          {
+            "value": "N",
+            "label": {
+              "nl": "Wil niet zeggen",
+              "en": "Prefer not to say"
+            }
+          }
+        ]
+      },
+      "membership.status": {
+        "functional_group": "membership",
+        "choices": [
+          {
+            "value": "application",
+            "label": {
+              "nl": "Aanmelding",
+              "en": "Application"
+            }
+          },
+          {
+            "value": "pending",
+            "label": {
+              "nl": "In behandeling",
+              "en": "Pending"
+            }
+          },
+          {
+            "value": "active",
+            "label": {
+              "nl": "Actief",
+              "en": "Active"
+            }
+          },
+          {
+            "value": "suspended",
+            "label": {
+              "nl": "Geschorst",
+              "en": "Suspended"
+            }
+          },
+          {
+            "value": "lapsed",
+            "label": {
+              "nl": "Verlopen",
+              "en": "Lapsed"
+            }
+          },
+          {
+            "value": "left",
+            "label": {
+              "nl": "Uitgeschreven",
+              "en": "Left"
+            }
+          }
+        ]
+      },
+      "membership.member_number": {
+        "functional_group": "membership",
+        "format": {
+          "prefix": "M",
+          "width": 5
+        }
+      }
+    },
+    "fields": {
+      "region": {
+        "functional_group": "membership",
+        "type": "enum",
+        "required": false,
+        "label": {
+          "nl": "Regio",
+          "en": "Region"
+        },
+        "order": 10,
+        "_comment": "region option VALUES live in scope_dimensions above (bucket 4), not here"
+      },
+      "magazine_pref": {
+        "functional_group": "membership",
+        "type": "enum",
+        "required": false,
+        "label": {
+          "nl": "Clubblad",
+          "en": "Magazine"
+        },
+        "order": 20,
+        "choices": [
+          {
+            "value": "Geen",
+            "label": {
+              "nl": "Geen",
+              "en": "None"
+            }
+          },
+          {
+            "value": "Papier",
+            "label": {
+              "nl": "Papier",
+              "en": "Paper"
+            }
+          },
+          {
+            "value": "Digitaal",
+            "label": {
+              "nl": "Digitaal",
+              "en": "Digital"
+            }
+          }
+        ]
+      },
+      "newsletter_pref": {
+        "functional_group": "membership",
+        "type": "enum",
+        "required": false,
+        "label": {
+          "nl": "Nieuwsbrief",
+          "en": "Newsletter"
+        },
+        "order": 30,
+        "choices": [
+          {
+            "value": "ja",
+            "label": {
+              "nl": "Ja",
+              "en": "Yes"
+            }
+          },
+          {
+            "value": "nee",
+            "label": {
+              "nl": "Nee",
+              "en": "No"
+            }
+          }
+        ]
+      },
+      "privacy_consent": {
+        "functional_group": "membership",
+        "type": "enum",
+        "required": true,
+        "label": {
+          "nl": "Privacy",
+          "en": "Privacy consent"
+        },
+        "order": 40,
+        "choices": [
+          {
+            "value": "ja",
+            "label": {
+              "nl": "Akkoord",
+              "en": "Agreed"
+            }
+          },
+          {
+            "value": "nee",
+            "label": {
+              "nl": "Niet akkoord",
+              "en": "Not agreed"
+            }
+          }
+        ]
+      },
+      "referral_source": {
+        "functional_group": "membership",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "Wie/wat/waar",
+          "en": "Referral source"
+        },
+        "order": 50,
+        "show_when": {
+          "field": "member_id",
+          "op": "not_exists"
+        },
+        "_comment": "DECIDED free-text (D10) — messy historical values kept verbatim, no enum"
+      },
+      "motor_brand": {
+        "functional_group": "motor",
+        "type": "enum",
+        "required": false,
+        "label": {
+          "nl": "Motormerk",
+          "en": "Motorcycle brand"
+        },
+        "order": 10,
+        "choices": [
+          {
+            "value": "harley_davidson",
+            "label": {
+              "nl": "Harley-Davidson",
+              "en": "Harley-Davidson"
+            }
+          },
+          {
+            "value": "indian",
+            "label": {
+              "nl": "Indian",
+              "en": "Indian"
+            }
+          },
+          {
+            "value": "buell",
+            "label": {
+              "nl": "Buell",
+              "en": "Buell"
+            }
+          },
+          {
+            "value": "eigenbouw",
+            "label": {
+              "nl": "Eigenbouw",
+              "en": "Custom-built"
+            }
+          }
+        ],
+        "_comment": "D11 closed enum; CONFIRM the show_when membership_type set before authoring"
+      },
+      "motor_type": {
+        "functional_group": "motor",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "Type",
+          "en": "Model"
+        },
+        "order": 20
+      },
+      "build_year": {
+        "functional_group": "motor",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "Bouwjaar",
+          "en": "Build year"
+        },
+        "order": 30
+      },
+      "license_plate": {
+        "functional_group": "motor",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "Kenteken",
+          "en": "License plate"
+        },
+        "order": 40
+      },
+      "iban": {
+        "functional_group": "financial",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "IBAN",
+          "en": "IBAN"
+        },
+        "order": 10
+      },
+      "payment_method": {
+        "functional_group": "financial",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "Betaalwijze",
+          "en": "Payment method"
+        },
+        "order": 20,
+        "_comment": "Free-text string (was a closed enum; relaxed because the non-incasso values are open/limited free text). On import (s5m): a valid IBAN in Bankrekeningnummer -> payment_method='incasso' (the common case is thus pre-populated for most members); a non-IBAN value -> payment_method=that raw text and iban left empty. FOLLOW-UP: a FORM-level default 'incasso' for manually-added members needs overlay-schema 'default' support (not in the VariableOverlayField model today) - out of s5m scope."
+      },
+      "notes": {
+        "functional_group": "administrative",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "Notities",
+          "en": "Notes"
+        },
+        "order": 10
+      },
+      "signature_date": {
+        "functional_group": "administrative",
+        "type": "date",
+        "required": false,
+        "label": {
+          "nl": "Datum ondertekening",
+          "en": "Signature date"
+        },
+        "order": 20
+      },
+      "deregistration_date": {
+        "functional_group": "membership",
+        "type": "date",
+        "required": false,
+        "label": {
+          "nl": "Afmelding",
+          "en": "Deregistration date"
+        },
+        "order": 60,
+        "_comment": "Member deregistration/cancellation date (h-dcn 'Afmelding'). Optional date overlay field so it is FILTERABLE (query members with a deregistration, or in a date range); stored ONLY when the source cell has a value, else left unset. Status is INDEPENDENT (s5m decision A): this date does NOT drive membership.status."
+      },
+      "termination_date": {
+        "functional_group": "membership",
+        "type": "date",
+        "required": false,
+        "label": {
+          "nl": "Beëindiging",
+          "en": "Termination date"
+        },
+        "order": 70,
+        "_comment": "Membership termination date (h-dcn 'Beeindiging'). Optional date overlay field so it is FILTERABLE; stored ONLY when the source cell has a value, else left unset. Status is INDEPENDENT (s5m decision A): this date does NOT drive membership.status."
+      }
+    }
+  }
+}
