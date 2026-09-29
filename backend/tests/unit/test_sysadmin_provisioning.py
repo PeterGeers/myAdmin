@@ -46,16 +46,24 @@ class TestGenerateAdminName:
 
 # ============================================================================
 # _update_cognito_tenants
+#
+# Bugfix cognito-admin-pool-resolution (task 3.3.7): the target pool is resolved per
+# request via the shared registry-backed resolver in EMAIL mode (keyed to the target
+# user's email), not read from the legacy COGNITO_USER_POOL_ID var. The explicit
+# SIGNUP_COGNITO_USER_POOL_ID override is preserved (fast-path); only the former nested
+# legacy fallback is replaced. Registry-absent -> resolver falls back to the legacy
+# var, so single-pool deployments are observably unchanged.
 # ============================================================================
 
 class TestUpdateCognitoTenants:
 
+    @patch('routes.sysadmin_provisioning.resolve_pool_id_for_email',
+           return_value='eu-west-1_TestPool')
     @patch('routes.sysadmin_provisioning.boto3')
-    @patch.dict('os.environ', {
-        'AWS_REGION': 'eu-west-1',
-        'COGNITO_USER_POOL_ID': 'eu-west-1_TestPool'
-    })
-    def test_adds_tenant_to_empty_list(self, mock_boto3):
+    @patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'}, clear=False)
+    def test_adds_tenant_to_empty_list(self, mock_boto3, mock_resolve):
+        import os as _os
+        _os.environ.pop('SIGNUP_COGNITO_USER_POOL_ID', None)
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
         mock_client.admin_get_user.return_value = {
@@ -67,17 +75,23 @@ class TestUpdateCognitoTenants:
         result = _update_cognito_tenants('user@test.com', 'NewTenant')
 
         assert result is None
+        # Resolver was consulted for the target user and its result was threaded in.
+        mock_resolve.assert_called_once_with('user@test.com')
+        assert mock_client.admin_get_user.call_args[1]['UserPoolId'] == 'eu-west-1_TestPool'
         mock_client.admin_update_user_attributes.assert_called_once()
         call_attrs = mock_client.admin_update_user_attributes.call_args[1]['UserAttributes']
         tenants = json.loads(call_attrs[0]['Value'])
         assert 'NewTenant' in tenants
+        # The resolved pool id is also threaded into the update call.
+        assert mock_client.admin_update_user_attributes.call_args[1]['UserPoolId'] == 'eu-west-1_TestPool'
 
+    @patch('routes.sysadmin_provisioning.resolve_pool_id_for_email',
+           return_value='eu-west-1_TestPool')
     @patch('routes.sysadmin_provisioning.boto3')
-    @patch.dict('os.environ', {
-        'AWS_REGION': 'eu-west-1',
-        'COGNITO_USER_POOL_ID': 'eu-west-1_TestPool'
-    })
-    def test_skips_if_tenant_already_present(self, mock_boto3):
+    @patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'}, clear=False)
+    def test_skips_if_tenant_already_present(self, mock_boto3, mock_resolve):
+        import os as _os
+        _os.environ.pop('SIGNUP_COGNITO_USER_POOL_ID', None)
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
         mock_client.admin_get_user.return_value = {
@@ -91,12 +105,13 @@ class TestUpdateCognitoTenants:
         assert result is None
         mock_client.admin_update_user_attributes.assert_not_called()
 
+    @patch('routes.sysadmin_provisioning.resolve_pool_id_for_email',
+           return_value='eu-west-1_TestPool')
     @patch('routes.sysadmin_provisioning.boto3')
-    @patch.dict('os.environ', {
-        'AWS_REGION': 'eu-west-1',
-        'COGNITO_USER_POOL_ID': 'eu-west-1_TestPool'
-    })
-    def test_returns_error_on_failure(self, mock_boto3):
+    @patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'}, clear=False)
+    def test_returns_error_on_failure(self, mock_boto3, mock_resolve):
+        import os as _os
+        _os.environ.pop('SIGNUP_COGNITO_USER_POOL_ID', None)
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
         mock_client.admin_get_user.side_effect = Exception('User not found')
@@ -105,6 +120,41 @@ class TestUpdateCognitoTenants:
 
         assert result is not None
         assert 'User not found' in result
+
+    @patch('routes.sysadmin_provisioning.resolve_pool_id_for_email')
+    @patch('routes.sysadmin_provisioning.boto3')
+    @patch.dict('os.environ', {
+        'AWS_REGION': 'eu-west-1',
+        'SIGNUP_COGNITO_USER_POOL_ID': 'eu-west-1_SignupPool',
+    }, clear=False)
+    def test_prefers_explicit_signup_override(self, mock_boto3, mock_resolve):
+        """When SIGNUP_COGNITO_USER_POOL_ID is set it wins (fast-path); resolver unused."""
+        mock_client = MagicMock()
+        mock_boto3.client.return_value = mock_client
+        mock_client.admin_get_user.return_value = {
+            'UserAttributes': [{'Name': 'custom:tenants', 'Value': '[]'}]
+        }
+
+        result = _update_cognito_tenants('user@test.com', 'NewTenant')
+
+        assert result is None
+        mock_resolve.assert_not_called()
+        assert mock_client.admin_get_user.call_args[1]['UserPoolId'] == 'eu-west-1_SignupPool'
+
+    @patch('routes.sysadmin_provisioning.resolve_pool_id_for_email',
+           side_effect=__import__('auth.admin_pool_resolver', fromlist=['UserPoolNotFoundError']).UserPoolNotFoundError('user@test.com'))
+    @patch('routes.sysadmin_provisioning.boto3')
+    @patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'}, clear=False)
+    def test_resolver_error_returns_warning_string_not_raise(self, mock_boto3, mock_resolve):
+        """A resolver failure is caught and surfaced as the warning string (contract preserved)."""
+        import os as _os
+        _os.environ.pop('SIGNUP_COGNITO_USER_POOL_ID', None)
+        mock_boto3.client.return_value = MagicMock()
+
+        result = _update_cognito_tenants('user@test.com', 'NewTenant')
+
+        assert result is not None
+        assert 'user@test.com' in result
 
 
 # ============================================================================

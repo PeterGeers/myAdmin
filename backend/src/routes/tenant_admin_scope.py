@@ -37,11 +37,11 @@ from botocore.exceptions import ClientError
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
 from routes.tenant_admin_users import (
-    USER_POOL_ID,
     cognito_client,
     get_user_attribute,
 )
@@ -79,6 +79,43 @@ def _canonical_module(module: str) -> str | None:
     if not module:
         return None
     return _CANONICAL_MODULES.get(module.lower())
+
+
+# ============================================================================
+# Pool resolution (cognito-admin-pool-resolution)
+# ============================================================================
+#
+# The target-user lookup below (admin_get_user) previously targeted the legacy
+# single-pool COGNITO_USER_POOL_ID var (PROD in every environment) via a
+# module-level USER_POOL_ID. It now resolves its target pool through the shared
+# registry-backed resolver in token mode, keyed to the caller token's verified
+# iss. Every route here is gated by @cognito_required(required_roles=
+# ["Tenant_Admin"]) so the caller token is reliably present on the Flask request.
+# Only the value passed as UserPoolId=... changes; every request/response
+# contract is preserved. A PoolResolutionError (genuine misconfig) maps to a 500
+# preserving the existing error tuple shape.
+
+
+def _caller_token() -> str:
+    """Return the raw caller JWT from the request ``Authorization`` header.
+
+    Mirrors ``routes.tenant_admin_users._caller_token`` — every route here is gated
+    by ``@cognito_required``, which has already validated the ``Bearer`` token.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[len("Bearer ") :].strip()
+    return auth_header.strip()
+
+
+def _resolve_pool_id() -> str:
+    """Resolve the target Cognito pool id for this admin request (token mode).
+
+    Resolves through the shared registry-backed resolver keyed to the caller
+    token's verified ``iss`` (2.3), replacing the legacy ``COGNITO_USER_POOL_ID``
+    read. Raises :class:`PoolResolutionError` when the pool cannot be resolved.
+    """
+    return resolve_pool_id_for_token(_caller_token())
 
 
 def _build_scope_service() -> UserTenantScopeService:
@@ -166,10 +203,16 @@ def _resolve_tenant_and_target(username: str):
             ),
         )
 
+    # Resolve the target Cognito pool from the caller token (token mode).
+    try:
+        user_pool_id = _resolve_pool_id()
+    except PoolResolutionError as e:
+        return None, None, (jsonify({"error": str(e)}), 500)
+
     # Resolve the target user and verify they belong to this tenant.
     try:
         user_response = cognito_client.admin_get_user(
-            UserPoolId=USER_POOL_ID, Username=username
+            UserPoolId=user_pool_id, Username=username
         )
         target_user_tenants = get_user_attribute(
             user_response.get("UserAttributes", []), "custom:tenants"

@@ -22,6 +22,7 @@ from botocore.exceptions import ClientError
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
@@ -36,7 +37,6 @@ tenant_admin_users_bp = Blueprint(
 
 # Initialize Cognito client
 AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 cognito_client = boto3.client("cognito-idp", region_name=AWS_REGION)
 cognito_service = CognitoService()
 
@@ -44,6 +44,31 @@ cognito_service = CognitoService()
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+def _caller_token() -> str:
+    """Return the raw caller JWT from the request ``Authorization`` header.
+
+    Every route in this blueprint is gated by ``@cognito_required``, which has
+    already validated the ``Bearer`` token before the handler runs; this re-reads
+    that same header and strips the ``Bearer `` prefix to hand the raw token to the
+    shared resolver's token mode. Mirrors how ``admin_routes._caller_token`` reads it.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[len("Bearer ") :].strip()
+    return auth_header.strip()
+
+
+def _resolve_pool_id() -> str:
+    """Resolve the target Cognito pool id for this admin request (token mode).
+
+    Resolves through the shared registry-backed resolver keyed to the caller
+    token's verified ``iss`` (2.3), replacing the legacy ``COGNITO_USER_POOL_ID``
+    read. Raises :class:`PoolResolutionError` when the pool cannot be resolved so
+    each handler can map it to a clear misconfiguration (500) response.
+    """
+    return resolve_pool_id_for_token(_caller_token())
 
 
 def get_user_attribute(user_attributes, attribute_name) -> str | None:
@@ -147,12 +172,18 @@ def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 403
 
+        # Resolve the target Cognito pool from the caller token (token mode)
+        try:
+            user_pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
         # Get all users from Cognito (paginated)
         all_cognito_users = []
         pagination_token = None
         while True:
             kwargs = {
-                "UserPoolId": USER_POOL_ID,
+                "UserPoolId": user_pool_id,
                 "Limit": 60,
             }
             if pagination_token:
@@ -261,6 +292,12 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 403
 
+        # Resolve the target Cognito pool from the caller token (token mode)
+        try:
+            user_pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
         # Get request data
         data = request.get_json()
         email = data.get("email")
@@ -296,7 +333,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
 
         try:
             user_response = cognito_client.admin_get_user(
-                UserPoolId=USER_POOL_ID, Username=email
+                UserPoolId=user_pool_id, Username=email
             )
             user_exists = True
             existing_user_tenants = get_user_attribute(
@@ -324,7 +361,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
             )
 
             cognito_client.admin_update_user_attributes(
-                UserPoolId=USER_POOL_ID,
+                UserPoolId=user_pool_id,
                 Username=username,
                 UserAttributes=[
                     {"Name": "custom:tenants", "Value": json.dumps(updated_tenants)}
@@ -472,7 +509,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
             # Create user
             try:
                 response = cognito_client.admin_create_user(
-                    UserPoolId=USER_POOL_ID,
+                    UserPoolId=user_pool_id,
                     Username=email,
                     UserAttributes=user_attributes,
                     TemporaryPassword=temp_password,
@@ -657,10 +694,16 @@ def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 403
 
+        # Resolve the target Cognito pool from the caller token (token mode)
+        try:
+            user_pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
         # Get target user and verify they belong to this tenant
         try:
             user_response = cognito_client.admin_get_user(
-                UserPoolId=USER_POOL_ID, Username=username
+                UserPoolId=user_pool_id, Username=username
             )
             target_user_tenants = get_user_attribute(
                 user_response.get("UserAttributes", []), "custom:tenants"
@@ -685,7 +728,7 @@ def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
         if name is not None:
             user_attributes = [{"Name": "name", "Value": name}]
             cognito_client.admin_update_user_attributes(
-                UserPoolId=USER_POOL_ID,
+                UserPoolId=user_pool_id,
                 Username=username,
                 UserAttributes=user_attributes,
             )
@@ -694,11 +737,11 @@ def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
         if enabled is not None:
             if enabled:
                 cognito_client.admin_enable_user(
-                    UserPoolId=USER_POOL_ID, Username=username
+                    UserPoolId=user_pool_id, Username=username
                 )
             else:
                 cognito_client.admin_disable_user(
-                    UserPoolId=USER_POOL_ID, Username=username
+                    UserPoolId=user_pool_id, Username=username
                 )
 
         print(
@@ -742,9 +785,18 @@ def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 403
 
+        # Resolve the target Cognito pool from the caller token (token mode) and
+        # thread it through CognitoService so it acts on the caller's registry pool.
+        try:
+            user_pool_id = _resolve_pool_id()
+        except PoolResolutionError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
         # Verify target user belongs to this tenant before proceeding
         try:
-            target_tenants = cognito_service.get_user_tenants(username)
+            target_tenants = cognito_service.get_user_tenants(
+                username, user_pool_id=user_pool_id
+            )
         except Exception:
             return jsonify({"error": f"User not found: {username}"}), 404
 
@@ -758,7 +810,7 @@ def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
 
         # Delegate to CognitoService — single code path with safety guard
         _success, user_deleted = cognito_service.remove_tenant_from_user(
-            username, tenant
+            username, tenant, user_pool_id=user_pool_id
         )
 
         # Clean up per-tenant roles from DB

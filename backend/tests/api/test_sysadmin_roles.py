@@ -13,6 +13,14 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime
 
 
+# The registry-resolved pool id these role/group admin ops thread into the
+# Cognito calls (cognito-admin-pool-resolution). The mock ``sysadmin-token`` is
+# not a verifiable JWT and the local registry (COGNITO_POOL_KEYS) is configured,
+# so token-mode resolution is stubbed to a deterministic pool id; the resolver's
+# own token/registry behavior is covered by its unit tests.
+RESOLVED_POOL_ID = 'eu-west-1_xyrlzfqbl'
+
+
 # ============================================================================
 # Authentication Enforcement Tests
 # ============================================================================
@@ -73,8 +81,9 @@ class TestListRoles:
     """Tests for GET /api/sysadmin/roles."""
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_list_roles_returns_categorized_groups(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """List roles returns groups categorized by type with precedence."""
         mock_cognito.list_groups.return_value = {
@@ -106,6 +115,10 @@ class TestListRoles:
         data = json.loads(response.data)
         assert data['success'] is True
         assert data['total'] == 2
+        # The admin op targets the pool resolved by the shared registry-backed
+        # resolver (cognito-admin-pool-resolution), threaded through as UserPoolId —
+        # never a hardcoded/legacy module read.
+        assert mock_cognito.list_groups.call_args.kwargs['UserPoolId'] == RESOLVED_POOL_ID
         roles = data['roles']
         sysadmin_role = next(r for r in roles if r['name'] == 'SysAdmin')
         assert sysadmin_role['category'] == 'platform'
@@ -124,8 +137,9 @@ class TestCreateRole:
     """Tests for POST /api/sysadmin/roles."""
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_create_role_missing_name_returns_400(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """Create role without name returns 400."""
         response = client.post(
@@ -139,8 +153,9 @@ class TestCreateRole:
         assert 'name' in data['error'].lower()
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_create_role_success_returns_201(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """Create role with valid data returns 201."""
         # Simulate group doesn't exist yet
@@ -173,8 +188,9 @@ class TestUpdateRole:
     """Tests for PUT /api/sysadmin/roles/<role_name>."""
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_update_role_nonexistent_returns_404(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """Update non-existent role returns 404."""
         mock_cognito.exceptions = MagicMock()
@@ -195,8 +211,9 @@ class TestUpdateRole:
         assert 'not found' in data['error'].lower()
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_update_role_success_returns_200(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """Update existing role returns 200."""
         mock_cognito.exceptions = MagicMock()
@@ -228,8 +245,9 @@ class TestDeleteRole:
     """Tests for DELETE /api/sysadmin/roles/<role_name>."""
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_delete_role_with_users_returns_409(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """Delete role that has active users returns 409."""
         mock_cognito.exceptions = MagicMock()
@@ -253,8 +271,9 @@ class TestDeleteRole:
         assert 'users' in data['error'].lower()
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_delete_role_nonexistent_returns_404(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """Delete non-existent role returns 404."""
         mock_cognito.exceptions = MagicMock()
@@ -272,8 +291,9 @@ class TestDeleteRole:
         assert response.status_code == 404
 
     @patch('routes.sysadmin_roles.cognito_client')
+    @patch('routes.sysadmin_roles._resolve_pool_id', return_value=RESOLVED_POOL_ID)
     def test_delete_role_empty_group_success(
-        self, mock_cognito, client, mock_auth_sysadmin
+        self, mock_pool, mock_cognito, client, mock_auth_sysadmin
     ):
         """Delete role with no users succeeds."""
         mock_cognito.exceptions = MagicMock()

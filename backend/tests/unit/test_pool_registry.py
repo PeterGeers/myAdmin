@@ -188,6 +188,44 @@ def test_load_pool_registry_declared_pool_with_no_vars_raises():
 
 
 # --------------------------------------------------------------------------- #
+# Declared-order accessor (additive, read-only)
+# --------------------------------------------------------------------------- #
+
+def test_entries_in_declared_order_returns_entries_in_pool_keys_order():
+    """entries_in_declared_order() returns PoolConfigs in COGNITO_POOL_KEYS order."""
+    registry = load_pool_registry(environ=_two_pool_env())
+
+    entries = registry.entries_in_declared_order()
+    assert [e.iss for e in entries] == [_TEST_ISS, _PROD_A_ISS]
+    assert [e.pool_label for e in entries] == ["myAdmin-test", "myAdmin"]
+    assert all(isinstance(e, PoolConfig) for e in entries)
+
+
+def test_entries_in_declared_order_reflects_reversed_pool_keys_order():
+    """Declaration order drives the result — reversing COGNITO_POOL_KEYS reverses it."""
+    env = {
+        "COGNITO_POOL_KEYS": "PROD_A,TEST",
+        **_TEST_POOL_ENV,
+        **_PROD_A_POOL_ENV,
+    }
+    registry = load_pool_registry(environ=env)
+
+    assert [e.iss for e in registry.entries_in_declared_order()] == [
+        _PROD_A_ISS,
+        _TEST_ISS,
+    ]
+
+
+def test_entries_in_declared_order_single_pool_returns_one_entry():
+    """A single declared pool yields a one-element list with that pool."""
+    registry = load_pool_registry(environ=_single_pool_env())
+
+    entries = registry.entries_in_declared_order()
+    assert len(entries) == 1
+    assert entries[0].iss == _TEST_ISS
+
+
+# --------------------------------------------------------------------------- #
 # Duplicate-issuer guard
 # --------------------------------------------------------------------------- #
 
