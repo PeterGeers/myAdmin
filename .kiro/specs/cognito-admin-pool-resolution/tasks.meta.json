@@ -1,0 +1,327 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Write bug-condition exploration tests (BEFORE implementing the fix)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635525236
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635539125
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635721006
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing the fix)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635525399
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635726699
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635920797
+      }
+    ],
+    "3.1 Implement the shared resolver `backend/src/auth/admin_pool_resolver.py`": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635525512
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635931151
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790636168775
+      }
+    ],
+    "3.2 Add the additive read-only `PoolRegistry.entries_in_declared_order()` accessor": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635525651
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790636174475
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790636257307
+      }
+    ],
+    "3.3.1 Migrate `backend/src/services/cognito_service.py`": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635525810
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790636269749
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790636673368
+      }
+    ],
+    "3.3.2 Migrate `backend/src/routes/auth_routes.py` (forgot-password / confirm-reset)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635525978
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790636678838
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790637051119
+      }
+    ],
+    "3.3.3 Migrate `backend/src/tenant_admin_routes.py` (`admin_list_groups_for_user`)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635526109
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790637282392
+      }
+    ],
+    "3.3.4 Migrate `backend/src/admin_routes.py` (list/create/enable/disable/delete user, groups, attribute updates)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635526240
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790637758094
+      }
+    ],
+    "3.3.5 Migrate `backend/src/services/user_language_service.py` (get/set `custom:preferred_language`)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635526390
+      },
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790637937664
+      }
+    ],
+    "3.3.6 Migrate `backend/src/services/signup_service.py`": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635526542
+      },
+      {
+        "executionId": "3b8933c4-73b9-429c-a7dd-6cb1429b5644",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790659704015
+      }
+    ],
+    "3.3.7 Migrate `backend/src/routes/sysadmin_provisioning.py`": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635526676
+      },
+      {
+        "executionId": "3b8933c4-73b9-429c-a7dd-6cb1429b5644",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790659727570
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790659764510
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790659950851
+      }
+    ],
+    "3.3.8 Migrate `backend/src/routes/sysadmin_health.py` (health/diagnostics admin reads)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635526808
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790659957255
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790672069991
+      }
+    ],
+    "3.3.9 Migrate `backend/src/routes/tenant_admin_users.py` (user management)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635526958
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790672092408
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790672721614
+      }
+    ],
+    "3.3.10 Migrate `backend/src/routes/tenant_admin_email.py` (two legacy sites)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635527087
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790672730319
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790672922003
+      }
+    ],
+    "3.3.11 Migrate `backend/src/routes/sysadmin_helpers.py` (helper admin ops)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635527223
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790672928499
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790673186960
+      }
+    ],
+    "3.3.12 Migrate `backend/src/routes/sysadmin_roles.py` (role/group admin ops)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635527361
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790673214565
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790673967588
+      }
+    ],
+    "4. Verify bug-condition exploration tests now pass (fix-checking)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635527489
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790673984753
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790674013310
+      }
+    ],
+    "5. Verify preservation tests still pass (no regressions)": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635527610
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790674025678
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790674053844
+      }
+    ],
+    "6. Checkpoint - full backend suite green and no direct legacy reads in admin paths": [
+      {
+        "executionId": "c6f59d96-7ae3-4ffe-8860-ab29489af17b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790635527755
+      },
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790674077080
+      },
+      {
+        "executionId": "34281de4-0574-4638-b598-40e34f63d7dc",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790676870466
+      }
+    ],
+    "3.3 Migrate the 12 admin-op files onto the helper (per the design migration table)": [
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790673967746
+      }
+    ],
+    "3. Fix the admin-pool split-brain via one shared registry-backed helper": [
+      {
+        "executionId": "68271d88-19f5-4bbd-8928-7daae115ea9b",
+        "chatSessionId": "sess_703c89c5-b779-41d9-aebb-19a19bf942ed",
+        "timestamp": 1790673967895
+      }
+    ]
+  }
+}

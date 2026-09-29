@@ -21,6 +21,7 @@ from typing import Any
 import boto3
 from flask import Blueprint
 
+from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_email
 from database import DatabaseManager
 
 # Initialize logger
@@ -35,7 +36,6 @@ tenant_admin_bp = Blueprint("tenant_admin", __name__)
 cognito_client = boto3.client(
     "cognito-idp", region_name=os.getenv("AWS_REGION", "eu-west-1")
 )
-USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 
 
 # ============================================================================
@@ -226,12 +226,32 @@ def get_user_attribute(user: dict[str, Any], attribute_name: str) -> Any:
 
 
 def get_user_groups(username: str) -> list[str]:
-    """Get Cognito groups for a user"""
+    """Get Cognito groups for a user.
+
+    Resolves the target user pool through the shared registry-backed resolver
+    (bugfix ``cognito-admin-pool-resolution``, R1/R2) instead of the legacy
+    single-pool ``COGNITO_USER_POOL_ID`` var. This op is keyed by the user's
+    email/username and carries no caller token, so it uses **email mode**
+    (:func:`resolve_pool_id_for_email`): the pool is resolved to the registered
+    pool the user belongs to (registry-absent -> legacy fallback, 3.4). The
+    resolver shares this module's ``cognito_client`` so the probe and the
+    ``admin_list_groups_for_user`` call target the same client.
+
+    The response contract is preserved exactly: a list of group names on success,
+    and ``[]`` on any failure (including a pool that cannot be resolved).
+    """
     try:
+        pool_id = resolve_pool_id_for_email(username, client=cognito_client)
         response = cognito_client.admin_list_groups_for_user(
-            UserPoolId=USER_POOL_ID, Username=username
+            UserPoolId=pool_id, Username=username
         )
         return [group["GroupName"] for group in response.get("Groups", [])]
+    except PoolResolutionError as e:
+        # Target pool could not be resolved (user absent from every registered
+        # pool, ambiguous, or registry misconfigured / legacy var unset). Preserve
+        # the original swallow-all contract: return no groups.
+        print(f"Error getting user groups: {e}", flush=True)
+        return []
     except Exception as e:
         print(f"Error getting user groups: {e}", flush=True)
         return []

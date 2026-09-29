@@ -209,3 +209,154 @@ class TestTenantAdminResendInvitation:
         assert response.status_code == 400
         data = json.loads(response.data)
         assert 'email' in data['error'].lower()
+
+
+# ============================================================================
+# Pool Resolution Tests (cognito-admin-pool-resolution, Task 3.3.10)
+# ============================================================================
+
+
+class TestTenantAdminEmailPoolResolution:
+    """Verify admin Cognito ops thread the registry-resolved pool id (token mode).
+
+    Both legacy ``COGNITO_USER_POOL_ID`` sites (the send-email best-effort lookup
+    and the resend-invitation password-set) now resolve the target pool via the
+    shared registry-backed resolver keyed to the caller token's verified ``iss``.
+
+    Validates: Requirements 2.1, 2.3, 2.4, 3.3
+    """
+
+    RESOLVED_POOL = 'eu-west-1_xyrlzfqbl'
+
+    @patch('routes.tenant_admin_email.get_current_tenant', return_value='test-tenant')
+    @patch('routes.tenant_admin_email._resolve_pool_id')
+    @patch('routes.tenant_admin_email.EmailTemplateService')
+    @patch('routes.tenant_admin_email.CognitoService')
+    @patch('boto3.client')
+    @patch('utils.frontend_url.get_frontend_url', return_value='http://localhost:3000')
+    def test_send_email_uses_resolved_pool_for_admin_get_user(
+        self, mock_url, mock_boto, mock_cognito_class, mock_email_class,
+        mock_resolve, mock_tenant, client, tenant_admin_auth
+    ):
+        """send-email must pass the registry-resolved pool to admin_get_user."""
+        mock_resolve.return_value = self.RESOLVED_POOL
+
+        mock_cognito_client = MagicMock()
+        mock_cognito_client.admin_get_user.return_value = {
+            'UserAttributes': [{'Name': 'name', 'Value': 'Resolved Name'}]
+        }
+        mock_boto.return_value = mock_cognito_client
+
+        mock_email_service = MagicMock()
+        mock_email_class.return_value = mock_email_service
+        mock_email_service.render_template.return_value = '<html>Email</html>'
+        mock_email_service.get_invitation_subject.return_value = 'Welcome'
+
+        mock_ses = MagicMock()
+        mock_ses.send_email.return_value = {'success': True, 'message_id': 'test-123'}
+
+        import services.ses_email_service
+        with patch.object(services.ses_email_service, 'SESEmailService',
+                          return_value=mock_ses):
+            response = client.post(
+                '/api/tenant-admin/send-email',
+                headers=tenant_admin_auth,
+                # No 'name' in user_data => triggers the admin_get_user lookup.
+                json={
+                    'email': 'user@example.com',
+                    'template_type': 'user_invitation',
+                    'user_data': {'username': 'user-uuid'},
+                }
+            )
+
+        assert response.status_code == 200
+        mock_resolve.assert_called()
+        # The resolved pool id must be threaded into the admin call.
+        _, kwargs = mock_cognito_client.admin_get_user.call_args
+        assert kwargs['UserPoolId'] == self.RESOLVED_POOL
+
+    @patch('routes.tenant_admin_email.get_current_tenant', return_value='test-tenant')
+    @patch('routes.tenant_admin_email._resolve_pool_id')
+    @patch('routes.tenant_admin_email.InvitationService')
+    @patch('routes.tenant_admin_email.EmailTemplateService')
+    @patch('boto3.client')
+    @patch('utils.frontend_url.get_frontend_url', return_value='http://localhost:3000')
+    def test_resend_invitation_uses_resolved_pool_for_password_set(
+        self, mock_url, mock_boto, mock_email_class, mock_inv_class,
+        mock_resolve, mock_tenant, client, tenant_admin_auth
+    ):
+        """resend-invitation must pass the resolved pool to admin_set_user_password."""
+        mock_resolve.return_value = self.RESOLVED_POOL
+
+        mock_inv = MagicMock()
+        mock_inv_class.return_value = mock_inv
+        mock_inv.resend_invitation.return_value = {
+            'success': True,
+            'temporary_password': 'TempPass123!',
+            'expires_at': '2030-01-01',
+            'expiry_days': 7,
+        }
+
+        mock_cognito_client = MagicMock()
+        mock_cognito_client.admin_get_user.return_value = {
+            'UserAttributes': [{'Name': 'name', 'Value': 'Resolved Name'}]
+        }
+        mock_boto.return_value = mock_cognito_client
+
+        mock_email_service = MagicMock()
+        mock_email_class.return_value = mock_email_service
+        mock_email_service.render_template.return_value = '<html>Email</html>'
+        mock_email_service.get_invitation_subject.return_value = 'Welcome'
+
+        mock_ses = MagicMock()
+        mock_ses.send_invitation.return_value = {'success': True, 'message_id': 'x'}
+
+        import services.ses_email_service
+        with patch.object(services.ses_email_service, 'SESEmailService',
+                          return_value=mock_ses):
+            response = client.post(
+                '/api/tenant-admin/resend-invitation',
+                headers=tenant_admin_auth,
+                json={'email': 'user@example.com', 'username': 'user-uuid'}
+            )
+
+        assert response.status_code == 200
+        # Both admin ops must act on the registry-resolved pool.
+        _, set_kwargs = mock_cognito_client.admin_set_user_password.call_args
+        assert set_kwargs['UserPoolId'] == self.RESOLVED_POOL
+        _, get_kwargs = mock_cognito_client.admin_get_user.call_args
+        assert get_kwargs['UserPoolId'] == self.RESOLVED_POOL
+
+    @patch('routes.tenant_admin_email.get_current_tenant', return_value='test-tenant')
+    @patch('routes.tenant_admin_email._resolve_pool_id')
+    @patch('routes.tenant_admin_email.InvitationService')
+    @patch('routes.tenant_admin_email.EmailTemplateService')
+    @patch('boto3.client')
+    def test_resend_invitation_pool_resolution_failure_returns_500(
+        self, mock_boto, mock_email_class, mock_inv_class,
+        mock_resolve, mock_tenant, client, tenant_admin_auth
+    ):
+        """A genuine pool-resolution misconfig maps to the 500 password-fail contract."""
+        from auth.admin_pool_resolver import PoolResolutionError
+        mock_resolve.side_effect = PoolResolutionError('registry misconfigured')
+
+        mock_inv = MagicMock()
+        mock_inv_class.return_value = mock_inv
+        mock_inv.resend_invitation.return_value = {
+            'success': True,
+            'temporary_password': 'TempPass123!',
+        }
+
+        mock_boto.return_value = MagicMock()
+        mock_email_class.return_value = MagicMock()
+
+        response = client.post(
+            '/api/tenant-admin/resend-invitation',
+            headers=tenant_admin_auth,
+            json={'email': 'user@example.com', 'username': 'user-uuid'}
+        )
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['error'] == 'Failed to update user password'
+        mock_inv.mark_invitation_failed.assert_called()

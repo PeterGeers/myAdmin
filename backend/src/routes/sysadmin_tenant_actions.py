@@ -223,7 +223,7 @@ def resend_invitation(user_email, user_roles, administration) -> ResponseReturnV
 
         # ── Set permanent password → keeps/moves status to CONFIRMED ─
         cognito.client.admin_set_user_password(
-            UserPoolId=cognito.user_pool_id,
+            UserPoolId=cognito.resolve_pool_id(username=email),
             Username=email,
             Password=temp_password,
             Permanent=True,

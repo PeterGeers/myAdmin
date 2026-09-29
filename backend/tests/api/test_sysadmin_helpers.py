@@ -136,8 +136,9 @@ class TestValidateAdministrationName:
 class TestGetUserGroups:
     """Tests for get_user_groups with mocked Cognito client."""
 
+    @patch('routes.sysadmin_helpers._resolve_pool_id', return_value='eu-west-1_xyrlzfqbl')
     @patch('routes.sysadmin_helpers.cognito_client')
-    def test_get_user_groups_returns_group_names(self, mock_cognito):
+    def test_get_user_groups_returns_group_names(self, mock_cognito, mock_resolve):
         """Should return list of group names for a user."""
         from routes.sysadmin_helpers import get_user_groups
 
@@ -150,9 +151,14 @@ class TestGetUserGroups:
 
         result = get_user_groups('test-user')
         assert result == ['TenantAdmin', 'Finance_CRUD']
+        # Bugfix cognito-admin-pool-resolution: the registry-resolved pool (token
+        # mode) must be threaded into the admin call, not the legacy PROD var.
+        _, kwargs = mock_cognito.admin_list_groups_for_user.call_args
+        assert kwargs['UserPoolId'] == 'eu-west-1_xyrlzfqbl'
 
+    @patch('routes.sysadmin_helpers._resolve_pool_id', return_value='eu-west-1_xyrlzfqbl')
     @patch('routes.sysadmin_helpers.cognito_client')
-    def test_get_user_groups_returns_empty_on_error(self, mock_cognito):
+    def test_get_user_groups_returns_empty_on_error(self, mock_cognito, mock_resolve):
         """Should return empty list when Cognito call fails."""
         from routes.sysadmin_helpers import get_user_groups
 
@@ -161,12 +167,29 @@ class TestGetUserGroups:
         result = get_user_groups('test-user')
         assert result == []
 
+    @patch('routes.sysadmin_helpers.cognito_client')
+    def test_get_user_groups_returns_empty_on_pool_resolution_error(self, mock_cognito):
+        """A PoolResolutionError must be swallowed into the [] failure contract."""
+        from routes.sysadmin_helpers import get_user_groups
+        from auth.admin_pool_resolver import PoolResolutionError
+
+        with patch(
+            'routes.sysadmin_helpers._resolve_pool_id',
+            side_effect=PoolResolutionError('registry misconfigured'),
+        ):
+            result = get_user_groups('test-user')
+
+        assert result == []
+        # Pool never resolved -> the admin op must not have run.
+        mock_cognito.admin_list_groups_for_user.assert_not_called()
+
 
 class TestGetTenantUserCount:
     """Tests for get_tenant_user_count with mocked Cognito client."""
 
+    @patch('routes.sysadmin_helpers._resolve_pool_id', return_value='eu-west-1_xyrlzfqbl')
     @patch('routes.sysadmin_helpers.cognito_client')
-    def test_get_tenant_user_count_counts_matching_users(self, mock_cognito):
+    def test_get_tenant_user_count_counts_matching_users(self, mock_cognito, mock_resolve):
         """Should count users that have the specified tenant in custom:tenants."""
         from routes.sysadmin_helpers import get_tenant_user_count
 
@@ -195,3 +218,7 @@ class TestGetTenantUserCount:
 
         result = get_tenant_user_count('tenant-a')
         assert result == 2
+        # Bugfix cognito-admin-pool-resolution: list_users targets the
+        # registry-resolved pool (token mode), not the legacy PROD var.
+        _, kwargs = mock_cognito.list_users.call_args
+        assert kwargs['UserPoolId'] == 'eu-west-1_xyrlzfqbl'

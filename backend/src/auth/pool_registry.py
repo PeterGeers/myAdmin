@@ -193,6 +193,24 @@ class PoolRegistry:
         """Return the registered issuers (for diagnostics/logging, not decisions)."""
         return list(self._by_iss.keys())
 
+    def entries_in_declared_order(self) -> list[PoolConfig]:
+        """Return the :class:`PoolConfig` entries in ``COGNITO_POOL_KEYS`` order.
+
+        Read-only, additive accessor. The registry is built by
+        :func:`load_pool_registry` from the declared pool keys in order, and the
+        backing ``dict`` preserves insertion order, so the returned list mirrors the
+        ``COGNITO_POOL_KEYS`` declaration order.
+
+        This is used by the admin-pool resolver's email-mode probe, which walks the
+        pools in a deterministic, declared order. It does not touch any existing
+        lookup behavior (:meth:`get`/:meth:`require`/:meth:`issuers`) that the
+        validation path relies on.
+
+        Returns:
+            The pools as an ordered list, matching ``COGNITO_POOL_KEYS`` order.
+        """
+        return list(self._by_iss.values())
+
     def __len__(self) -> int:
         return len(self._by_iss)
 

@@ -21,6 +21,29 @@ from services.user_language_service import (
 )
 
 
+# Registry env driving deterministic email-mode pool resolution to the TEST pool.
+# The migrated service resolves the target pool through the shared registry-backed
+# resolver, so tests that exercise the admin ops must pin the registry rather than
+# depend on the ambient backend .env. The legacy COGNITO_USER_POOL_ID points at a
+# different (PROD) pool to prove the migrated code no longer reads it.
+_TEST_POOL_ID = 'eu-west-1_xyrlzfqbl'
+_TEST_ISSUER = f'https://cognito-idp.eu-west-1.amazonaws.com/{_TEST_POOL_ID}'
+REGISTRY_TEST_ENV = {
+    'COGNITO_POOL_KEYS': 'TEST',
+    'TEST_COGNITO_ISSUER': _TEST_ISSUER,
+    'TEST_COGNITO_JWKS_URI': f'{_TEST_ISSUER}/.well-known/jwks.json',
+    'TEST_COGNITO_CLIENT_ID': 'test-client-id',
+    'TEST_COGNITO_POOL_LABEL': 'myAdmin-test',
+    # Legacy var points at a different pool — the migrated code must NOT read it.
+    'COGNITO_USER_POOL_ID': 'eu-west-1_Hdp40eWmu',
+    'COGNITO_CLIENT_ID': 'prod-client-id',
+    'AWS_REGION': 'eu-west-1',
+    'AWS_ACCESS_KEY_ID': 'test-key-id',
+    'AWS_SECRET_ACCESS_KEY': 'test-secret-key',
+    'TEST_MODE': 'true',
+}
+
+
 @pytest.fixture(autouse=True)
 def reset_cognito_client():
     """Reset the global cognito_client between tests to avoid state leakage."""
@@ -58,22 +81,38 @@ class TestGetUserLanguage:
     """Tests for get_user_language function."""
 
     @pytest.mark.unit
-    def test_returns_language_from_cognito_attributes(self, mock_cognito_client):
-        """get_user_language returns language from Cognito custom attributes."""
-        mock_cognito_client.admin_get_user.return_value = {
-            'UserAttributes': [
-                {'Name': 'email', 'Value': 'user@example.com'},
-                {'Name': 'custom:preferred_language', 'Value': 'en'},
-            ]
-        }
+    def test_returns_language_from_cognito_attributes(self):
+        """get_user_language returns language from the Cognito attribute on the
+        registry-resolved pool (email mode), not the legacy pool var."""
+        user_language_service.cognito_client = None
 
-        result = get_user_language('user@example.com')
+        mock_client = MagicMock()
+        pool_ids = []
+        mock_client.exceptions.UserNotFoundException = type(
+            'UserNotFoundException', (Exception,), {}
+        )
+        mock_client.admin_get_user.side_effect = lambda **kwargs: (
+            pool_ids.append(kwargs.get('UserPoolId')),
+            {
+                'UserAttributes': [
+                    {'Name': 'email', 'Value': 'user@example.com'},
+                    {'Name': 'custom:preferred_language', 'Value': 'en'},
+                ]
+            },
+        )[1]
+
+        with patch.dict(os.environ, REGISTRY_TEST_ENV, clear=True):
+            with patch(
+                'services.user_language_service.boto3.client', return_value=mock_client
+            ):
+                result = get_user_language('user@example.com')
 
         assert result == 'en'
-        mock_cognito_client.admin_get_user.assert_called_once_with(
-            UserPoolId='eu-west-1_TestPool',
-            Username='user@example.com',
-        )
+        # Email-mode resolution probes admin_get_user, then the read calls it again;
+        # every admin_get_user call must target the registry-resolved TEST pool
+        # (never the legacy COGNITO_USER_POOL_ID). Hence no assert_called_once.
+        assert pool_ids  # at least the read happened
+        assert all(pid == _TEST_POOL_ID for pid in pool_ids)
 
     @pytest.mark.unit
     def test_returns_nl_when_no_preferred_language_attribute(self, mock_cognito_client):
@@ -128,20 +167,40 @@ class TestUpdateUserLanguage:
     """Tests for update_user_language function."""
 
     @pytest.mark.unit
-    def test_succeeds_with_valid_language(self, mock_cognito_client):
-        """update_user_language returns True when update succeeds."""
-        mock_cognito_client.admin_update_user_attributes.return_value = {}
+    def test_succeeds_with_valid_language(self):
+        """update_user_language returns True and targets the registry-resolved pool
+        (email mode), not the legacy pool var, on successful update."""
+        user_language_service.cognito_client = None
 
-        result = update_user_language('user@example.com', 'en')
+        mock_client = MagicMock()
+        update_kwargs = {}
+        mock_client.exceptions.UserNotFoundException = type(
+            'UserNotFoundException', (Exception,), {}
+        )
+        # admin_get_user is the resolver's email-mode probe (user found -> resolves
+        # to the single registered TEST pool); the update then targets that pool.
+        mock_client.admin_get_user.return_value = {
+            'UserAttributes': [
+                {'Name': 'custom:preferred_language', 'Value': 'en'},
+            ],
+        }
+        mock_client.admin_update_user_attributes.side_effect = (
+            lambda **kwargs: (update_kwargs.update(kwargs), {})[1]
+        )
+
+        with patch.dict(os.environ, REGISTRY_TEST_ENV, clear=True):
+            with patch(
+                'services.user_language_service.boto3.client', return_value=mock_client
+            ):
+                result = update_user_language('user@example.com', 'en')
 
         assert result is True
-        mock_cognito_client.admin_update_user_attributes.assert_called_once_with(
-            UserPoolId='eu-west-1_TestPool',
-            Username='user@example.com',
-            UserAttributes=[
-                {'Name': 'custom:preferred_language', 'Value': 'en'}
-            ],
-        )
+        # The WRITE must target the registry-resolved TEST pool, never the legacy var.
+        assert update_kwargs.get('UserPoolId') == _TEST_POOL_ID
+        assert update_kwargs.get('Username') == 'user@example.com'
+        assert update_kwargs.get('UserAttributes') == [
+            {'Name': 'custom:preferred_language', 'Value': 'en'}
+        ]
 
     @pytest.mark.unit
     def test_fails_with_invalid_language_code(self, mock_cognito_client):

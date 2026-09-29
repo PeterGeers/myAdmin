@@ -15,6 +15,49 @@ from routes.tenant_admin_roles import tenant_admin_roles_bp
 from routes.tenant_admin_users import tenant_admin_users_bp
 
 
+# The registry-resolved pool id the migrated role/group admin ops thread into
+# admin_get_user (cognito-admin-pool-resolution). Token mode is exercised
+# end-to-end in the resolver's own tests; here we stub the resolver to a
+# deterministic pool id so the route wiring is tested and we can assert the pool
+# is threaded through.
+RESOLVED_POOL_ID = "eu-west-1_xyrlzfqbl"
+
+
+@pytest.fixture(autouse=True)
+def no_jwt_verifier():
+    """Force the base64 JWT fallback so the mock token is accepted.
+
+    In an environment where Cognito env vars are configured, ``cognito_required``
+    would cryptographically verify the token and reject our mock JWT (401). These
+    unit tests exercise the ROUTE logic, not JWT crypto, so we disable the verifier
+    singleton and let ``extract_user_credentials`` decode the unverified payload
+    (the same fallback used in local dev / verifier-less CI).
+    """
+    with patch("auth.cognito_utils._get_jwt_verifier", return_value=None), patch(
+        "auth.cognito_utils.get_verified_tenants", return_value=None
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_pool():
+    """Stub token-mode pool resolution to a deterministic pool id.
+
+    The migrated role/group admin ops resolve the target Cognito pool via the
+    shared registry-backed resolver (token mode) instead of the legacy
+    ``COGNITO_USER_POOL_ID`` module var. In this verifier-less unit env the
+    resolver would otherwise raise ``PoolResolutionError``; patching it keeps the
+    route logic under test and lets us assert the resolved pool is threaded into
+    the Cognito admin calls.
+    """
+    with patch(
+        "routes.tenant_admin_roles._resolve_pool_id", return_value=RESOLVED_POOL_ID
+    ), patch(
+        "routes.tenant_admin_users._resolve_pool_id", return_value=RESOLVED_POOL_ID
+    ):
+        yield
+
+
 def _make_jwt(payload):
     header = base64.urlsafe_b64encode(json.dumps({'alg': 'RS256'}).encode()).decode().rstrip('=')
     body = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
@@ -94,6 +137,9 @@ class TestAssignRolePerTenant:
         assert len(insert_calls) == 1
         assert insert_calls[0][0][1] == ('user@example.com', 'TenantA', 'Finance_CRUD', 'admin@example.com')
         mock_invalidate.assert_called_with('user@example.com', 'TenantA')
+        # The target-user lookup targets the registry-RESOLVED pool (token mode),
+        # not the legacy COGNITO_USER_POOL_ID var (cognito-admin-pool-resolution).
+        assert mock_cognito.admin_get_user.call_args.kwargs['UserPoolId'] == RESOLVED_POOL_ID
 
 
 class TestRemoveRolePerTenant:
