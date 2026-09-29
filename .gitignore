@@ -99,8 +99,9 @@ frontend/playwright-report/
 .DS_Store
 Thumbs.db
 
-# External platforms/repositories
-h-dcn/
+# External platforms/repositories (repo-root only — must NOT match scripts/aws/h-dcn/,
+# the tenant onboarding config which IS version-controlled)
+/h-dcn/
 
 # Terraform
 .terraform/

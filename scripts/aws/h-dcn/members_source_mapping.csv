@@ -1,0 +1,100 @@
+source_column,col_index,target,rule,note
+# ============================================================================================
+# h-dcn "HDCN Ledenbestand" source -> SAM Members mapping (s5m). SINGLE SOURCE OF TRUTH for the
+# import mapping contract (spec .kiro/specs/Members/s5m-member-reimport-gsheet-mapping).
+# Human- AND Kiro-editable. One row per SHEET COLUMN.
+#
+# COLUMNS:
+#   source_column : the disambiguated header "<header>#<colindex>". A UNIQUE header keeps its bare
+#                   name; a DUPLICATE header gets "#<colindex>" on the later occurrence(s) so no
+#                   column collides and its sheet position is tracked (spec R1.1).
+#   col_index     : 0-based sheet column index (audit aid; the authoritative disambiguator).
+#   target        : destination. One of:
+#                     personal.<key> / membership.<key>   -> a FIXED base field
+#                     overlay.<key>                        -> a CANONICAL overlay field (must exist
+#                                                             in members_config.json)
+#                     (calculated)                         -> NOT stored; a calculated field derives it
+#                     (excluded)                           -> deliberately dropped (unfit / duplicate)
+#                     (additional_info)                    -> concatenated into overlay.additional_info
+#   rule          : combination/conversion strategy (spec R0.2/R0.3):
+#                     single          one column -> target (default)
+#                     coalesce        first-non-empty across columns sharing the SAME target
+#                     date            ISO-datetime -> YYYY-MM-DD date part
+#                     member_number   shape to the tenant member_number string
+#                     membership_type map free-text type -> catalog type_code
+#                     region          canonicalize onto the tenant region value set
+#                     gender          Dutch Man/Vrouw (and m/v) -> tenant enum M/V/X/N
+#                     magazine        Clubblad -> magazine_pref enum; empty/unrecognized -> Geen
+#                     iban_or_payment ONE source col -> TWO targets (iban + payment_method),
+#                                     conditional on a simple IBAN test (see the Bankrekeningnummer
+#                                     row). target column shows both as "a+b".
+#                     concat          join into overlay.additional_info as "Label: value"
+#                     (blank)         for (calculated)/(excluded) disposition rows
+#   note          : free-text reason / reference.
+#
+# EDITING: change a target/rule to re-map a column; move a column between (excluded)/(calculated)/
+# (additional_info)/a real target by editing its row. Comment lines start with '#'. Keep it a valid
+# CSV (quote a value containing a comma). FREEZE = commit this file; the importer reads it verbatim.
+#
+# PROVENANCE: the source→field mapping, region-variant normalization, gender normalization and the
+# Clubblad→status business rule are PORTED from h-dcn's proven importer
+# (h-dcn/backend/scripts/import_members_sheets.py v2.0) — retargeted to SAM's ENGLISH canonical
+# values (this module) instead of h-dcn's old Dutch stored values. h-dcn's field_mapping (27 fields)
+# is the ground truth for which source column feeds which field. The region/gender/business-rule
+# VALUE tables are ported into the SAM canonical vocabulary in members_config.json + the region
+# canonicalizer, NOT copied verbatim (different value set: e.g. region "Noord Holland" no hyphen /
+# "Geen" not "Overig"; status "active"/"left" not "Actief"/"Sponsor"; type_code "gewoon_lid").
+#
+# NOTE: col indexes/headers below reflect the documented 49-column 2026 export
+# (migrationHDCNLedenbestand/gdrive-member-migrate.md). VERIFY against the live sheet header on first
+# direct-read run (reuse h-dcn/backend/scripts/debug_sheet_headers.py logic) and adjust rows here.
+# ============================================================================================
+Tijdstempel,0,membership.joined_date,coalesce,"Member-since timestamp; joined_date also derives from Datum ondertekening / Aanmeldingsjaar (coalesce, first-non-empty)"
+Lidnummer,1,membership.member_number,member_number,Human member number (Lidnummer); shaped to the tenant string form
+Achternaam,2,personal.last_name,single,Last name
+Initialen,3,personal.initials,single,Initials
+Voornaam,4,personal.first_name,single,First name
+Tussenvoegsel,5,personal.name_infix,single,"Name infix (van, de, ...)"
+Gezinslid,6,(excluded),,Family-member reference - ignored (not member data)
+Straat en huisnummer,7,personal.street,single,Street + house number
+Postcode,8,personal.postal_code,single,Postal code
+Woonplaats,9,personal.city,single,City
+Land,10,personal.country,single,Country
+Telefoonnummer,11,personal.phone,single,Phone
+E-mailadres,12,personal.email,coalesce,"Primary email; coalesces with the duplicate E-mailadres#34 (first-non-empty)"
+Geboorte datum,13,personal.birth_date,date,"Birth date (ISO datetime -> YYYY-MM-DD); OPTIONAL, missing stays missing"
+Geboortedag,14,(calculated),,Derived from birth_date (calculated field birth_day)
+Geboortemaand,15,(calculated),,Derived from birth_date (calculated field birth_month)
+Geboortejaar,16,(calculated),,Derived from birth_date (calculated field birth_year)
+Geslacht,17,personal.gender,gender,"Gender; source is Dutch Man/Vrouw -> normalize to tenant enum M/V/X/N (man->M, vrouw->V, m/v pass-through); ported from h-dcn gender_mapping"
+Regio,18,overlay.region,region,"H-DCN region canonicalized onto the tenant region value set. Geen remains Geen (a valid value in the set); an empty cell leaves overlay.region unset (missing stays missing)"
+Bestuursfunctie,19,(excluded),,Board function - ignored (not member data)
+in functie sinds,20,(excluded),,Board-function start date - ignored (not member data)
+Clubblad,21,overlay.magazine_pref,magazine,"Magazine preference dropdown Geen/Papier/Digitaal; source Papier/Digitaal map as-is, empty or unrecognized -> Geen"
+Soort lidmaatschap,22,membership.membership_type,membership_type,Membership type -> catalog type_code
+Bouwjaar,23,overlay.build_year,single,Motorcycle build year
+Motormerk,24,overlay.motor_brand,single,Motorcycle brand (tenant enum)
+Type motor,25,overlay.motor_type,single,Motorcycle model/type
+Kenteken,26,overlay.license_plate,single,License plate
+WieWatWaar,27,overlay.referral_source,single,How did you find us (free text)
+Bankrekeningnummer,28,overlay.iban+overlay.payment_method,iban_or_payment,"One source -> TWO targets: valid IBAN (simple test: >=15 chars, starts 2 letters) -> iban=value & payment_method='incasso'; non-IBAN text -> iban empty & payment_method=that raw text; empty -> both unset"
+H-DCN Clubblad,29,(excluded),,Duplicate of Clubblad (col 21)
+Datum ondertekening,30,membership.joined_date,coalesce,"Signature date -> joined_date (date part); coalesces with Tijdstempel / Aanmeldingsjaar"
+Aanmeldingsjaar,31,membership.joined_date,coalesce,"Registration year -> joined_date fallback (<year>-01-01); coalesce input"
+Ondertekening,32,(additional_info),concat,Signature info - kept in overlay.additional_info
+Naam voor akkoord,33,(additional_info),concat,Name for agreement - kept in overlay.additional_info
+E-mailadres#34,34,personal.email,coalesce,"Duplicate email column; coalesces into personal.email (first-non-empty keeps col 12)"
+H-DCN Clubblad#35,35,(excluded),,Duplicate of Clubblad (col 21)
+Digitale nieuwsbrieven,36,overlay.newsletter_pref,single,Newsletter preference
+Lidmaatschapsnummer,37,(excluded),,Alternative membership id - ignored (Lidnummer is the member number)
+#(blank),38,(excluded),,Blank-named column - dropped (empty attribute name)
+Afmelding,39,overlay.deregistration_date,date,"Deregistration date -> filterable overlay date field; stored only when present (empty -> unset). ISO-date-part."
+Beeindiging,40,overlay.termination_date,date,"Termination date -> filterable overlay date field; stored only when present (empty -> unset). ISO-date-part."
+Jubilaris,41,(excluded),,Anniversary flag - ignored (derivable from years_member)
+Bedrag,42,(excluded),,Amount/fee info - ignored (not member data)
+Inschrijfformulier,43,(excluded),,Registration form reference - ignored (not member data)
+KorteNaam,44,(excluded),,Short name - display_name is calculated from name parts
+E-Mail,45,(excluded),,Near-duplicate email column (mostly empty)
+Email Address,46,(excluded),,Near-duplicate email column (mostly empty)
+Opmerkingen,47,overlay.notes,single,Comments/notes
+#(blank),48,(excluded),,Blank-named column - dropped (empty attribute name)
