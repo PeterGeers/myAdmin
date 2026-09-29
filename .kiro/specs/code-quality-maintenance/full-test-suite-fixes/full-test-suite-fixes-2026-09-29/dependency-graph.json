@@ -1,0 +1,27 @@
+{
+  "specId": "8c26f67f-ae34-4542-887b-812bdcacce26",
+  "spec": "full-test-suite-fixes-2026-09-29",
+  "ciRun": 36530772053,
+  "ciConclusion": "success",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (2026-09-29)",
+  "priorities": {
+    "critical": [],
+    "high": [],
+    "medium": ["M1", "M2"],
+    "low": ["L1"]
+  },
+  "nodes": [
+    { "id": "M1", "title": "Confirm Members frontend area held green (LazySelect modal tests + MembersPage)", "priority": "medium", "effort": "S", "plane": "frontend", "type": "verification", "rootCause": "recurrence watch — Members area regressed 09-26 and 09-28, green 09-29; no code change" },
+    { "id": "M2", "title": "Confirm auth/ still ruff-clean and SIM103/S110 gate intact", "priority": "medium", "effort": "S", "plane": "lint", "type": "verification", "rootCause": "recurrence watch — 09-28 SIM103/S110 from e808368 fixed; confirm no new auth/ debt and rules still enabled" },
+    { "id": "L1", "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)", "priority": "low", "effort": "S", "plane": "ci", "type": "verification", "rootCause": "standing reproducibility guard carried forward" }
+  ],
+  "edges": [],
+  "recommendedOrder": ["M1", "M2", "L1"],
+  "notes": [
+    "CI run #36530772053 is fully GREEN — no critical/high fix work this cycle. All remaining tasks are read-only verification / recurrence-watch items.",
+    "Both 2026-09-28 regressions resolved and did not recur: frontend Members-modal LazySelect failures (10 -> 0) and auth/ ruff debt SIM103+S110 (2 -> 0).",
+    "M1, M2, L1 are fully independent verification tasks with no edges — run in any order or in parallel.",
+    "The Members frontend area remains the historical red zone (regressed 09-26 and 09-28); M1 keeps the pre-merge whole-group test habit visible even while green.",
+    "No config changes are proposed — the ruff gate is honest (SIM103/S110 enabled) and the 0.16.5 pin holds."
+  ]
+}

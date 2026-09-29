@@ -68,7 +68,7 @@ Include in the spec:
 
 ### Step 4: Generate the spec
 
-Create a new spec at `.kiro/specs/code-quality-maintenance/full-test-suite-fixes-YYYY-MM-DD/` (use today's date) containing:
+Create a new spec at `.kiro/specs/code-quality-maintenance/full-test-suite-fixes/full-test-suite-fixes-YYYY-MM-DD/` (use today's date — the dated spec folders live under the `full-test-suite-fixes/` subdirectory) containing:
 
 **requirements.md**: Summary of all findings with counts:
 
@@ -90,7 +90,7 @@ Ensure the tasks.md conform to Kirop requirements for tasks including .config.ki
 
 ### Step 5: Compare with previous run
 
-Check `.kiro/specs/code-quality-maintenance/` for the most recent previous spec (e.g. `full-test-suite-fixes-YYYY-MM-DD/` or `code-quality-fixes-YYYY-MM-DD/`). If one exists:
+Check `.kiro/specs/code-quality-maintenance/full-test-suite-fixes/` for the most recent previous spec (`full-test-suite-fixes-YYYY-MM-DD/`). The dated spec folders are organized into subdirectories: CI/test-suite specs under `full-test-suite-fixes/` and local code-quality specs under `code-quality-fixes/`. For this CI-based prompt, the directly comparable prior run is the newest folder under `full-test-suite-fixes/`; you may also glance at `code quality fixes/` for cross-cutting recurring debt. If a previous spec exists:
 
 1. Compare failure counts — are they going down?
 2. Identify **recurring failures** that were "fixed" last time but reappear. Flag these prominently.

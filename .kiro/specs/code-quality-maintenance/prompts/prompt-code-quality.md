@@ -82,7 +82,8 @@ live (an existing helper if one exists — see §4 — or a new shared one).
 The project ships shared abstractions; new code should USE them rather than re-implement.
 Flag hand-rolled code that bypasses an existing, documented building block. Check the
 project's own conventions (steering `37-shared-building-blocks.md`, `30-backend-api-flask-mysql.md`,
-`31-backend-database-flask-mysql.md`, `32-frontend-ui.md`) for the canonical helpers, then grep for bypasses:
+`31-backend-database-flask-mysql.md`, `32-frontend-ui.md`, and — for the SAM plane —
+`35-sam-module-architecture-sam.md`) for the canonical helpers, then grep for bypasses:
 
 ```bash
 # Backend DB: raw mysql.connector instead of DatabaseManager / dialect_helpers
@@ -93,6 +94,19 @@ grep -rn "execute(.*f\"\|execute(.*%\s*(" backend/src --include='*.py' | head
 
 # Backend auth: routes NOT using the shared decorators (@cognito_required/@tenant_required/@module_required)
 grep -rLn "cognito_required\|tenant_required\|module_required" backend/src/routes --include='*.py'
+
+# SAM DynamoDB: the repository is the SOLE DynamoDB touch-point (steering 35). A handler/router
+# that imports boto3 or calls DynamoDB directly is a layering bypass (cross-tenant risk).
+grep -rn "import boto3\|boto3\.\(resource\|client\)\|\.Table(\|\.query(\|\.scan(\|\.put_item(\|\.get_item(\|\.update_item(\|\.delete_item(" \
+  sam --include='*.py' | grep -vE "/repository/|/tests/|dynamodb_client\.py|\.aws-sam/"
+# SAM DynamoDB access should go through the shared services/dynamodb_client.py, not a raw
+# boto3.resource('dynamodb') built inline in a repository.
+grep -rn "boto3\.resource(\s*[\"']dynamodb" sam --include='*.py' \
+  | grep -vE "dynamodb_client\.py|/tests/|\.aws-sam/"
+# SAM auth: handlers hand-rolling JWT/claim decoding instead of sam/shared (auth_utils /
+# entitlement_claim — JWTVerifier, load_pool_registry, the decoded-entitlement helpers).
+grep -rn "jwt\.decode\|jwks\|from jose\|import jwt\b" sam --include='*.py' \
+  | grep -vE "/shared/|/tests/|\.aws-sam/"
 
 # Frontend data fetching: direct axios/fetch instead of the shared service/api layer
 grep -rn "axios\.\|fetch(" frontend/src --include='*.ts' --include='*.tsx' \
@@ -119,6 +133,10 @@ grep -rn ":\s*any\b\|as any\|<any>" frontend/src --include='*.ts' --include='*.t
 # Backend: public service/route functions missing return/param type hints (heuristic)
 grep -rn "def \w\+(" backend/src/services backend/src/routes --include='*.py' \
   | grep -v "->" | head -40
+
+# SAM: handler/domain/repository functions missing a return type hint (same heuristic).
+grep -rn "def \w\+(" sam --include='*.py' \
+  | grep -vE "/tests/|\.aws-sam/" | grep -v "->" | head -40
 ```
 
 ### 6. Mobile compliance (frontend)
@@ -213,8 +231,9 @@ READS test files (they are the signal for what is / isn't covered), so do not ex
 
 ## Generate the spec
 
-Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YYYY-MM-DD/`
-(today's date). Conform to Kiro spec conventions: include `requirements.md`, `tasks.md`,
+Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes/code-quality-fixes-YYYY-MM-DD/`
+(today's date — the dated spec folders live under the `code-quality-fixes/` subdirectory).
+Conform to Kiro spec conventions: include `requirements.md`, `tasks.md`,
 `tasks.meta.json` (seed `{"pbtResults":{},"executionHistory":{}}`), and `.config.kiro`
 (`{"specId":"<uuid>","workflowType":"requirements-first","specType":"bugfix"}`).
 
@@ -223,8 +242,8 @@ Create a new spec at `.kiro/specs/code-quality-maintenance/code-quality-fixes-YY
 - File length: N files 500–1000 lines, M files > 1000 (critical), by plane (backend/sam/frontend).
 - Dead code: N items (with confidence).
 - Duplicate code: N patterns and their repeat counts + locations.
-- Framework/reusable-code bypasses: N sites re-implementing a shared building block (with the block each should adopt).
-- Type safety: N issues.
+- Framework/reusable-code bypasses: N sites re-implementing a shared building block, by plane (backend/sam/frontend), with the block each should adopt (incl. SAM handler→repository DynamoDB-boundary violations).
+- Type safety: N issues, by plane (backend/sam missing type hints, frontend `any`).
 - Mobile compliance: N not mobile-optimized (plus M explicitly exempt, listed separately).
 - Missing tests: N source files with no paired test, by plane (backend/sam/frontend) and by risk tier (plus M test-exempt, listed separately).
 - Stale documentation: N outdated files.
@@ -254,8 +273,8 @@ Do NOT fix the issues in this pass — only generate the spec with the analysis 
 
 ## Compare with the previous run
 
-Check `.kiro/specs/code-quality-maintenance/` for the most recent previous
-`code-quality-fixes-YYYY-MM-DD/`. If one exists:
+Check `.kiro/specs/code-quality-maintenance/code-quality-fixes/` for the most
+recent previous `code-quality-fixes-YYYY-MM-DD/`. If one exists:
 
 1. Are the counts going down (fewer duplicates, smaller files, fewer bypasses)?
 2. Flag **recurring** items that were meant to be fixed last cycle but reappear.
