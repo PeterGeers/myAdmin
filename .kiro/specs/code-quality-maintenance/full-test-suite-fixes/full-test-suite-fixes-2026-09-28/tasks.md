@@ -16,7 +16,7 @@ _None this cycle._ Backend and SAM both collect and pass; there are no import/co
 
 ## High — running tests that fail + CI-blocking lint
 
-- [ ] **H1. Migrate the 3 Members-modal test files to drive the `membership_type` `LazySelect` combobox (10 failures, 3 files).** [M] — **STALE TESTS from an intentional product migration; do NOT revert the component.**
+- [x] **H1. Migrate the 3 Members-modal test files to drive the `membership_type` `LazySelect` combobox (10 failures, 3 files).** [M] — **STALE TESTS from an intentional product migration; do NOT revert the component.**
   - **File(s)** (tests only — no product change expected):
     - `frontend/src/__tests__/MembersAddModal.test.tsx` (5)
     - `frontend/src/__tests__/MembersEditDelete.test.tsx` (2)
@@ -33,12 +33,12 @@ _None this cycle._ Backend and SAM both collect and pass; there are no import/co
   - **Effort note**: single shared root cause across 3 files; factor the combobox interaction into one helper (see M1) so all 10 clear together — hence M not L.
   - **Verification**: `cd frontend && npx vitest run src/__tests__/MembersAddModal.test.tsx src/__tests__/MembersEditDelete.test.tsx src/__tests__/MembersModals.apiError.test.tsx` → 10 previously-failing tests pass, 0 new failures. Confirm no product file (`MembersFieldFormBody.tsx` / `LazySelect.tsx`) was modified.
 
-- [ ] **H2. Resolve ruff SIM103 in `cognito_utils.py` (CI-blocking).** [S]
+- [x] **H2. Resolve ruff SIM103 in `cognito_utils.py` (CI-blocking).** [S]
   - **File(s)**: `backend/src/auth/cognito_utils.py:158`.
   - **Action**: SIM103 — "Return the condition directly". Ruff offers only a *hidden* unsafe fix, so **rewrite by hand**: replace an `if <cond>: return True` / `return False` pattern with `return <cond>` (or `return bool(<cond>)` if a non-bool truthy value must be normalised). Do **not** run `ruff check --fix --unsafe-fixes` blindly; verify the boolean semantics are preserved (watch for `None`/truthy-vs-`True` differences).
   - **Verification**: `cd backend && ruff check src/auth/cognito_utils.py` → 0 errors; run the cognito_utils unit tests (`pytest tests -q -k cognito` or the file's suite) → green.
 
-- [ ] **H3. Resolve ruff S110 in `tenant_context.py` (CI-blocking).** [S]
+- [x] **H3. Resolve ruff S110 in `tenant_context.py` (CI-blocking).** [S]
   - **File(s)**: `backend/src/auth/tenant_context.py:246`.
   - **Action**: S110 — bare `try`/`except`/`pass` swallows the exception silently. Replace the `pass` with a real handler: log the exception (e.g. `logger.warning("...", exc_info=True)` or `logger.debug(...)`) and/or narrow the `except` to the specific expected exception type. A silent swallow here is high-risk — this is the package that hid the Flask import-coupling break last cycle. Avoid papering over it with `# noqa: S110`.
   - **Verification**: `cd backend && ruff check src/auth/tenant_context.py` → 0 errors; run the tenant_context suite (`pytest tests/test_tenant_context.py -q`) → green.
@@ -47,12 +47,12 @@ _None this cycle._ Backend and SAM both collect and pass; there are no import/co
 
 ## Medium — related / follow-on
 
-- [ ] **M1. Factor the Members-modal `LazySelect` interaction into one shared test helper.** [S]
+- [x] **M1. Factor the Members-modal `LazySelect` interaction into one shared test helper.** [S]
   - **File(s)**: the 3 Members modal test files + a shared helper (e.g. `frontend/src/__tests__/helpers/lazySelect.ts` or reuse an existing test-utils location).
   - **Action**: Once H1 lands, extract the combobox drive into a **single shared helper** — `openMembershipType(user)` / `pickMembershipType(user, name)` / `getMembershipTypeTrigger()` — wrapping the open-then-`findByRole('option')` flow, used by all 3 files. This makes the next LazySelect/control refactor a one-line helper change rather than 10 scattered query updates, and directly addresses Lessons #1/#2 (the Members area recurs one cycle behind a shared-building-block adoption). Optionally generalise it to any `{name}-lazyselect` trigger so other LazySelect consumers reuse it.
   - **Verification**: `cd frontend && npx vitest run src/__tests__/MembersAddModal.test.tsx src/__tests__/MembersEditDelete.test.tsx src/__tests__/MembersModals.apiError.test.tsx` → still green via the shared helper.
 
-- [ ] **M2. Confirm the `auth/` lint debt origin and prevent recurrence.** [S]
+- [x] **M2. Confirm the `auth/` lint debt origin and prevent recurrence.** [S]
   - **File(s)**: `backend/src/auth/cognito_utils.py`, `backend/src/auth/tenant_context.py`.
   - **Action**: `git blame` lines 158 / 246 to confirm whether SIM103/S110 entered with the 2026-09-26 Flask-decoupling edit (C1). If so, note it in the fix commit so the pattern (lint debt slipping in during a red cycle, surfacing the next red cycle) is visible. No behaviour change beyond H2/H3.
   - **Verification**: `cd backend && ruff check src/auth/` → 0 errors.
@@ -61,7 +61,7 @@ _None this cycle._ Backend and SAM both collect and pass; there are no import/co
 
 ## Low — hygiene / prevention
 
-- [ ] **L1. Confirm ruff stays pinned to 0.16.5 (reproducibility).** [S]
+- [x] **L1. Confirm ruff stays pinned to 0.16.5 (reproducibility).** [S]
   - **File(s)**: `backend/requirements-test.txt` (canonical pin), CI workflows `full-test-suite.yml` / `backend-code-quality.yml`.
   - **Action**: Verify the `ruff==0.16.5` pin (set as canonical on 2026-09-26 / L1) is still in force in all copies, so the 2-error count stays reproducible. No change expected — this is a guard.
   - **Verification**: `ruff --version` → `ruff 0.16.5` locally; grep the workflows/requirements confirm the pin unchanged.
