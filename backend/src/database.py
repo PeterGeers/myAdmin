@@ -107,19 +107,27 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         return self.config
 
     def get_connection(self, pool_type="primary"):
-        """Get database connection with scalability improvements"""
-        # Try scalability manager first (advanced pooling)
-        if DatabaseManager._scalability_manager:
-            try:
-                return DatabaseManager._scalability_manager.get_database_connection(
-                    pool_type
-                )
-            except Exception as e:
-                logger.warning(
-                    f"⚠️ Scalability manager connection failed, falling back to legacy: {e}"
-                )
+        """Get a RAW, caller-owned database connection.
 
-        # Fallback to legacy pool
+        Callers of this accessor use the raw pattern
+        ``conn = db.get_connection(); conn.cursor(...); ...; conn.close()`` and
+        therefore own the connection's lifecycle.
+
+        The scalability manager is DELIBERATELY bypassed here. Its
+        ``get_database_connection()`` returns ``AdvancedConnectionPool.get_connection``,
+        which is a ``@contextmanager`` that CLOSES the connection in its ``finally``
+        when the ``with`` block exits. Returning it from this raw accessor either
+        hands back a ``_GeneratorContextManager`` (no ``.cursor``) — the regression
+        that turned every raw-pattern endpoint into an HTTP 500 — or, if we entered
+        it here, an already-closed connection. Neither is a usable raw connection.
+        The context-managed path is still used correctly by ``get_cursor`` /
+        ``transaction`` inside a ``with`` block; only this raw accessor skips it.
+
+        ``pool_type`` is accepted for signature compatibility but has no effect on
+        the raw path (the legacy pool does not accept a pool type).
+        """
+        # Prefer the legacy pool: it returns a real pooled connection that the
+        # caller closes itself.
         if DatabaseManager._use_legacy_pool and DatabaseManager._legacy_pool:
             try:
                 return DatabaseManager._legacy_pool.get_connection()
