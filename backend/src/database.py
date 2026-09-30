@@ -65,16 +65,15 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 pool_config.update(
                     {
                         "pool_name": "legacy_pool",
-                        "pool_size": 20,  # Increased from 5 to 20 for better concurrency
+                        "pool_size": 10,  # Conservative size for a single small Railway instance
                         "pool_reset_session": True,
-                        "pool_recycle": 3600,  # Recycle connections every hour
                         "autocommit": False,
                     }
                 )
                 DatabaseManager._legacy_pool = pooling.MySQLConnectionPool(
                     **pool_config
                 )
-                logger.info("✅ Legacy connection pool initialized with 20 connections")
+                logger.info("✅ Legacy connection pool initialized with 10 connections")
             except Exception as e:
                 logger.warning(
                     f"⚠️ Legacy connection pool failed, using direct connections: {e}"
