@@ -114,3 +114,37 @@ This unifies why Members-config and Advanced felt inconsistent — they are the 
 
 
 
+
+# Projection version gap — config/param changes don't auto-bump the projection version
+**Problem (discovered during s5m h-dcn SAM Code migration, 2026-09-30):** a change to a
+tenant's `members.*` parameter (e.g. `members.field_overlay` via `seed-hdcn-members-config.py`
+or the Tenant-Admin config UI) does NOT propagate to the DynamoDB `governance_projection`
+`config#fields` / `config#scope` / `config#views` rows on its own. `ProjectionSync` writes each
+row only when its `version` strictly supersedes the stored one (`_conditional_put` +
+`_supersedes`, `services/projection_sync.py`), and that `version` is derived by
+`_scope_config_version(tenant)` from the **tenant row's** `version`/`updated_at`/`revision`/
+`modified_at` — NOT from the changed param's content. So after seeding the param, `sync_administration`
+reported `written=0 skipped=15` and the app kept serving the OLD field config until we manually
+bumped the tenant row (`UPDATE tenants SET updated_at = CURRENT_TIMESTAMP WHERE administration='h-dcn'`)
+and re-ran the sync (then `written=4`).
+
+**Impact:** any future members-config change (new/edited overlay field, changed enum values, a
+new `member_number` format regex) will SILENTLY not take effect in the app plane unless someone
+also touches the tenant row `updated_at` (or knows to). Easy to rediscover the hard way.
+
+**Interim workaround (what we did):** after seeding a param, bump the tenant row `updated_at`,
+then run the projection sync for that tenant. (For h-dcn, the sync must READ Railway MySQL and
+WRITE the real `governance_projection` in the `nonprofit-deploy` account — strip the `.env`
+personal-account AWS keys + local `AWS_ENDPOINT_URL_DYNAMODB`, force `AWS_PROFILE=nonprofit-deploy`.)
+
+**Proper fix (the deferred "task 6.x" the code comment references in `_scope_config_version`):**
+thread a per-parameter change revision through so a `members.*` param write bumps the relevant
+`config#*` projection version directly — no reliance on the coarse tenant-row timestamp. Options:
+(a) `ParameterService.set_param` stamps/increments a per-namespace revision the builders read;
+(b) the param-change route enqueues the sync AND the builders version off the param's own
+`updated_at` rather than the tenant row's. Either way: a config change should be sufficient on its
+own to propagate to the projection. Add a test that a param change alone yields `written>0`.
+
+**Scope:** `services/projection_sync.py` (`_scope_config_version` / the config#* builders),
+`services/parameter_service.py`, the members-config seed/route. Relates to the Tenant Administration
+registry spec (same params/projection plumbing).
