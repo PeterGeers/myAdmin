@@ -32,6 +32,13 @@ secret:
     - "**/.terraform/**"
     - "**/*.example"
     - "**/*-example.*"
+    # h-dcn backfill operator script: its docstring shows run-commands with
+    # `env -u AWS_SECRET_ACCESS_KEY ...` (env-var NAMES being unset, no values)
+    # and a <SPREADSHEET_ID> placeholder — GitGuardian "Generic CLI Secret"
+    # false positive (incident 37743385). The companion test file
+    # (sam/tests/test_hdcn_backfill.py) is already covered by **/tests/** above.
+    # No real credential is present in either file.
+    - "scripts/aws/backfill-hdcn-members.py"
 
   # Ignore known test/placeholder secrets
   ignored_matches:
