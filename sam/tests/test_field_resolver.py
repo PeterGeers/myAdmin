@@ -184,11 +184,13 @@ def test_override_can_tighten_optional_fixed_field_to_required():
 
 
 def test_overlay_cannot_loosen_a_platform_required_field():
-    # 'personal.first_name' is platform-required; an overlay must not make it optional.
-    overlay = TenantOverlay(overrides={"personal.first_name": FixedFieldOverride(required=False)})
+    # 'personal.last_name' is platform-required (the identity anchor); an overlay must not make
+    # it optional. (first_name is now optional, so last_name is the still-required example that
+    # exercises the guard.)
+    overlay = TenantOverlay(overrides={"personal.last_name": FixedFieldOverride(required=False)})
     with pytest.raises(OverlayError) as exc:
         _resolver({"t": overlay}).resolve("t")
-    assert "personal.first_name" in exc.value.reasons
+    assert "personal.last_name" in exc.value.reasons
 
 
 def test_overlay_cannot_override_an_unknown_fixed_field():

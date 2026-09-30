@@ -3,7 +3,7 @@
 Execution order is top-down. Each task names the file(s), the requirement(s) it satisfies, and a
 verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the backend venv).
 
-- [ ] 1. Duplicate-header position tracking + first-non-empty coalesce
+- [x] 1. Duplicate-header position tracking + first-non-empty coalesce
   - Add a shared row-build helper (used by both adapters, task 5/6) that makes repeated headers
     unique by appending the column index: first occurrence keeps the bare header, later ones become
     `<header>#<colindex>` (design D1/R1.1). No `dict` last-occurrence-wins.
@@ -17,7 +17,7 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "duplicate or coalesce or position" -q`
 
-- [ ] 2. Authored mapping CSV + loader (the declared contract)
+- [x] 2. Authored mapping CSV + loader (the declared contract)
   - The mapping file `scripts/aws/h-dcn/members_source_mapping.csv` is the AUTHORING surface (one row
     per sheet column: `source_column`,`col_index`,`target`,`rule`,`note`). A first version exists;
     review/adjust rows (targets, rules, dispositions) as needed.
@@ -36,13 +36,13 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R0.1, R0.2, R0.4, R2.3, R2.7_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "mapping or loader or contract" -q`
 
-- [ ] 3. Transform consumes the loaded mapping (birth_date, overlay, dispositions, additional_info)
+- [x] 3. Transform consumes the loaded mapping (birth_date, overlay, dispositions, additional_info)
   - In `map_hdcn_row`, drive fixed/overlay mapping + dispositions from the loaded contract (task 2)
     rather than hardcoded dicts. Apply the per-`rule` conversions: `single`/`coalesce` copy with the
     R1 first-non-empty rule; `date` → `_iso_date_part()` to a bare `YYYY-MM-DD` (birth_date optional —
     absent/unparseable leaves it unset, R2.1/R3.3; also the two membership date fields);
     `member_number` derivation (Lidnummer → `M<shaped>`; empty Lidnummer + Achternaam → `C_`+org-name
-    contact; both empty → no number, R7.2); `membership_type` catalog-code; `region` canonicalization; `gender` (Man/Vrouw→M/V);
+    contact; empty row → skipped; data-but-unkeyable → UNMATCHABLE, R7.2); `membership_type` catalog-code; `region` canonicalization; `gender` (Man/Vrouw→M/V);
     `magazine` (→ Geen/Papier/Digitaal, fallback Geen); `iban_or_payment` (conditional split →
     `overlay.iban` + `overlay.payment_method`).
   - Dispositions: `(calculated)` → not stored; `(excluded)` → dropped; `(additional_info)` and any
@@ -52,7 +52,7 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R0.3, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R3.3_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "overlay or disposition or additional or birth_date" -q`
 
-- [ ] 3b. Port h-dcn region variants + business rules (retargeted to SAM canonical values)
+- [x] 3b. Port h-dcn region variants + business rules (retargeted to SAM canonical values)
   - From `h-dcn/backend/scripts/import_members_sheets.py` v2.0: port the ~40-variant
     `regio_value_mapping` into the h-dcn region canonicalizer (`members_config_loader.REGION_ALIASES`
     + the region value set in `members_config.json`), RETARGETED to SAM canonical region values
@@ -64,7 +64,7 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R8.1, R8.2, R8.4_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "region or gender or clubblad or business" -q`
 
-- [ ] 4. Calculated birth fields
+- [x] 4. Calculated birth fields
   - In `sam/members/domain/calculated_fields.py` add pure derivations `_derive_birth_day/month/year/
     quarter` and register `birth_day`, `birth_month`, `birth_year`, `birth_quarter` in
     `CALCULATED_FIELDS` (PERSONAL, STRING, input `personal.birth_date`, `{nl,en}` labels), following
@@ -73,7 +73,7 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R3.1, R3.2, R3.3_
   - _Verify:_ `cd sam && python -m pytest tests/test_calculated_fields.py -q`
 
-- [ ] 5. GoogleSheetsSourceAdapter (read-only, lazy, matrix→rows) + FileSourceAdapter position tracking
+- [x] 5. GoogleSheetsSourceAdapter (read-only, lazy, matrix→rows) + FileSourceAdapter position tracking
   - Add `GoogleSheetsSourceAdapter` to `hdcn_backfill.py` per design D5: service-account auth,
     `spreadsheets.readonly` scope (+ `drive.readonly` for title→id), single `values.get`, LAZY Google
     imports, `_rows_from_matrix` (header row, pad short rows, drop blank-named columns) using the
@@ -85,7 +85,7 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R1.1, R1.2, R4.1, R4.2, R4.3, R4.4, R4.5, R5.1_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "gsheet or position or filesource" -q`
 
-- [ ] 6. Runner adapter selection + CLI flags
+- [x] 6. Runner adapter selection + CLI flags
   - In `scripts/aws/backfill-hdcn-members.py` add `--sheet-id`/`--sheet-name` (mutually exclusive with
     `--source`), `--worksheet`, `--credentials`. Build `GoogleSheetsSourceAdapter` when a sheet is
     requested, else `FileSourceAdapter`. Use the same adapter for the header probe. Keep `--tenant`
@@ -107,13 +107,14 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R4.6, R5.1_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "runner or sheet or tenant" -q`
 
-- [ ] 7. Reconciling sync (match by member_number, upsert, absence sweep)
+- [x] 7. Reconciling sync (match by member_number, upsert, absence sweep)
   - Add a `--reconcile` (a.k.a. `--sync`) mode to `backfill-hdcn-members.py` (additive — insert-only
     backfill stays the default). Per design D7:
     - read all tenant members via `repo.list_members` and index by `membership.member_number`
       (blank numbers bucketed + reported, R7.5);
     - derive `member_number` per row: Lidnummer present → `M<shaped>`; empty Lidnummer + Achternaam →
-      `C_`+Achternaam (contact); both empty → UNMATCHABLE (reported, not written);
+      `C_`+Achternaam (contact); EMPTY ROW (no meaningful data) → SKIPPED/excluded; a row with data but
+      no Lidnummer + no Achternaam → UNMATCHABLE (reported, not written);
     - per candidate: number matched → UPDATE reusing the existing `member_id`; unseen → INSERT (mint
       `member_id`);
     - absence sweep: SAM records (members AND `C_` contacts) whose number was not seen this run →
@@ -125,7 +126,7 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R5.2, R5.3, R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py -k "reconcile or sync or upsert or absence" -q`
 
-- [ ] 8. Tests — mapping contract, dedup, calculated fields, adapter row-shaping, lazy import, sync
+- [x] 8. Tests — mapping contract, dedup, calculated fields, adapter row-shaping, lazy import, sync
   - Mapping-contract tests (R0.4): every declared fixed/overlay target is populated from its source
     column(s) on a representative row; `OVERLAY_SOURCE_COLUMNS` values are a SUBSET of the overlay
     fields declared in `scripts/aws/h-dcn/members_config.json` (drift guard).
@@ -150,7 +151,7 @@ verification command. Tests run via the SAM plane: `sam/pytest.ini` (from the ba
   - _Requirements: R0.4, R2.6, R6.1, R6.2, R6.3, R6.4_
   - _Verify:_ `cd sam && python -m pytest tests/test_hdcn_backfill.py tests/test_calculated_fields.py -q`
 
-- [ ] 9. Full SAM suite green + document live-apply steps
+- [x] 9. Full SAM suite green + document live-apply steps
   - Run the SAM suite; fix any regressions.
   - Add/confirm operator notes for the live direct-read `--apply` and `--apply --reconcile`: place the
     EXISTING h-dcn service-account key at the shared path

@@ -21,28 +21,6 @@ What is this : https://report.guesty.com/apps/reservations?apiKey=89b048a6196d1b
 Checkin is between 2 months ago and 1 year into the future for Platform Manual
 
 
-# FIN Recalculation of balance sheet for validation
-Out of scope: Full recalculation mode (reading all years while excluding OpeningBalance records) is a separate audit/verification feature to be wired into tenant administration as its own deliverable. See future spec: balance-verification-audit.
-
-
-# ZZP Modal to manage trip presets
-The database has an is_manual boolean field on each preset:
-
-is_manual = true → user-created via the management UI
-is_manual = false → auto-learned from trip history
-Both show up equally on the Quick Entry screen — the user doesn't need to care how a preset was created. They just see their routes sorted by usage frequency.
-
-Where the distinction matters:
-
-Scenario	Manual	Auto-learned
-Shown in Quick Entry	✓ (always)	✓ (top X by use_count)
-User can edit	✓	✓
-User can delete	✓	✓
-Gets pruned if unused for 6 months	No	Yes (falls off the top X)
-Created before first trip	✓ (plan ahead)	✗ (needs trips first)
-So the practical value of manual presets: you can add a route you will drive (new client, new office) before you've actually driven it. Auto-learned ones only appear after you've used the route.
-
-In the management UI, you could show a small badge ("Handmatig" / "Geleerd") to distinguish them visually, but it's purely informationa
 
 # s3 object management module and SAM
 How can we manage s3 management attributes similar as in Flask and see  .kiro\specs\Common\image-asset-management
@@ -134,24 +112,5 @@ This unifies why Members-config and Advanced felt inconsistent — they are the 
   library" (the dashboard is a reuse consumer). Own spec.
 
 
-# Members re-import (h-dcn): birth dates missing + sponsors/clubs
-Data-quality finding 2026-09-24: the h-dcn member backfill loaded the membership START dates
-(`joined_date`) for all members but NONE of the real `birth_date` values — so birth-date-derived
-calculated fields (`age`, `birthday`) are empty for everyone (empty is CORRECT behaviour when the
-input is absent; the issue is the missing SOURCE data, not the calc). Fix belongs to a RE-IMPORT
-of the gsheet JSON, not to s5k:
-- Re-import must map the source birth date into `personal.birth_date` (check the gsheet column →
-  field mapping in `sam/members/migration/hdcn_backfill.py` / the import script — the birth-date
-  column was likely unmapped or mis-named).
-- WHILE re-importing, also load SPONSORS / other CLUBS (the driver behind s5k): rows land as member
-  records with an optional/empty Lidnummer + a `sponsor`/`club` `membership_type`. Depends on s5k
-  (optional Lidnummer) being shipped first.
-- Verify person-required fixed fields (e.g. `birth_date`) do NOT block a non-person row; if they
-  do, relax per type via the existing overlay required-override (NOT a new entity model — see s5k).
-- SCOPE: the import/backfill path + the gsheet source. Own task. Prerequisite: s5k.
-
-## Import members data directly from gsheet
-Read /home/peter/projects/h-dcn/.kiro/specs/Members/migrationHDCNLedenbestand
-See also the lastest version of scripts\aws\h-dcn
 
 

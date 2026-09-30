@@ -307,11 +307,15 @@ class FieldValidationError(Exception):
 
 PERSONAL_FIELDS: tuple[FixedField, ...] = (
     # Name parts (universal) — classification: `first_name, last_name, name_infix, initials`.
+    # first_name is OPTIONAL (platform contract): the h-dcn sheet carries ~58 organisation /
+    # contact rows (dealers, sister clubs, sponsors) that have an Achternaam (org name) but no
+    # Voornaam. A first name is NOT essential to identity; `last_name` stays the required
+    # identity anchor. Requiring it would make those contact rows un-importable.
     FixedField(
         key="first_name",
         group=FieldGroup.PERSONAL,
         type=FieldType.STRING,
-        required=True,
+        required=False,
         label={"nl": "Voornaam", "en": "First name"},
         order=10,
     ),

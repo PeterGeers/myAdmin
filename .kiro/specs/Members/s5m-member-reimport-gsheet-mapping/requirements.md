@@ -308,15 +308,19 @@ empty (missing is missing — never a fabricated value, never a blocked import).
     `Achternaam` (organisation name; unique + stable → the idempotent match key). The `M`/`C_` prefix
     also classifies the row (member vs contact) at a glance; contacts additionally carry a
     contact-ish `membership_type` from `Soort lidmaatschap` (s5k catalog code).
-  - Lidnummer EMPTY and Achternaam EMPTY → UNMATCHABLE: reported, not written (an empty row).
+  - EMPTY ROW (no meaningful data — e.g. no Lidnummer, no Achternaam, no other populated field) →
+    SKIPPED / excluded from the load entirely (a blank spacer row; not counted as an error, not
+    written). A row that HAS some data but still derives no `member_number` (no Lidnummer and no
+    Achternaam, yet e.g. an email present) is reported as UNMATCHABLE (visible, not written) so the
+    operator can fix the source.
   The tenant `member_number` FORMAT constraint MUST accept both the `M…` and `C_…` forms (the closed
   `^M\d{5}$` regex is relaxed/extended so a `C_…` contact key validates) — a config impact (R2.3/R8).
 - **R7.3** Reconciliation is an UPSERT keyed on `member_number`:
   - a sheet row whose `member_number` matches an existing SAM member UPDATES that record (preserving
     its internal `member_id`);
   - a sheet row whose `member_number` is not yet in SAM INSERTS a new record (minting `member_id`);
-  - a row that derives NO `member_number` (empty Lidnummer AND empty Achternaam, R7.2) is reported as
-    UNMATCHABLE (not upserted) — it is never inserted blindly (that would re-create non-idempotency).
+  - an EMPTY row (no meaningful data) is SKIPPED / excluded from the load (R7.2); a row that has data
+    but derives no `member_number` is reported as UNMATCHABLE (not upserted) — never inserted blindly.
   - **SHEET-WINS (confirmed 2026-09-29):** on UPDATE the sheet's mapped values OVERWRITE the SAM
     record's mapped fields. While the Google Sheet is h-dcn's system of record (until cutover), SAM is
     effectively READ-ONLY for synced fields — an in-app edit to a synced field is reverted to the

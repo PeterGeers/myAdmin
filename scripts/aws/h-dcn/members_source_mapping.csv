@@ -20,9 +20,11 @@ source_column,col_index,target,rule,note
 #                     single          one column -> target (default)
 #                     coalesce        first-non-empty across columns sharing the SAME target
 #                     date            ISO-datetime -> YYYY-MM-DD date part
-#                     member_number   Lidnummer present -> 'M'+shaped digits (member); Lidnummer
-#                                     empty -> 'C_'+Achternaam (CONTACT: sponsor/club, org name is
-#                                     the unique+stable match key); both empty -> UNMATCHABLE
+#                     member_number   the target column (SAM Code) is READ VERBATIM (trimmed) as
+#                                     membership.member_number and validated against the tenant
+#                                     member_number format; a meaningful row with a blank code is
+#                                     a data-gap error, an empty/spacer row is skipped. NEVER
+#                                     derived/regenerated (the SAM Code identity change).
 #                     membership_type map free-text type -> catalog type_code
 #                     region          canonicalize onto the tenant region value set
 #                     gender          Dutch Man/Vrouw (and m/v) -> tenant enum M/V/X/N
@@ -57,9 +59,10 @@ source_column,col_index,target,rule,note
 # (migrationHDCNLedenbestand/gdrive-member-migrate.md). VERIFY against the live sheet header on first
 # direct-read run (reuse h-dcn/backend/scripts/debug_sheet_headers.py logic) and adjust rows here.
 # ============================================================================================
-Tijdstempel,0,membership.joined_date,coalesce,"Member-since timestamp; joined_date also derives from Datum ondertekening / Aanmeldingsjaar (coalesce, first-non-empty)"
-Lidnummer,1,membership.member_number,member_number,"Member number. Lidnummer present -> M<shaped> (member). Lidnummer EMPTY -> a CONTACT (sponsor/club/dealer, not a member): member_number = 'C_' + Achternaam (org name, unique+stable, used verbatim as the match key) - see member_number rule. Empty Lidnummer AND empty Achternaam -> UNMATCHABLE (reported, not written)."
-Achternaam,2,personal.last_name,single,"Last name (for a CONTACT this is the organisation name; ALSO used as the 'C_'+name contact member_number when Lidnummer is empty - see the Lidnummer row)"
+SAM Code,0,membership.member_number,member_number,"AUTHORITATIVE member_number, read VERBATIM (trimmed) — the SAM Code identity change (user-approved). The sheet's NEW FIRST column holds the formatted number for every data row: Members 'M#####' (M06599), Donateurs 'D#####' (D00001++), Contacts 'C#####' (C00001++). Human-owned + STABLE (survives a re-sort); the importer READS it, NEVER regenerates it. A meaningful data row with a BLANK SAM Code is a DATA-GAP ERROR (reported, not written) - not silently derived. An EMPTY/spacer row (blank SAM Code + no other data) is SKIPPED. Validated against membership.member_number format ^(M\d{5}|D\d{5}|C\d{5})$. NOTE: inserting this as col 0 shifts every column below by one on the live sheet - verify header positions on the first direct-read run."
+Tijdstempel,1,membership.joined_date,coalesce,"Member-since timestamp (Dutch d-m-yyyy, SOME with a trailing time). joined_date FALLBACK: used only when Datum ondertekening is empty. Derivation PRIORITY (not sheet-column order): Datum ondertekening -> Tijdstempel -> Aanmeldingsjaar (<year>-01-01) -> today. Widest-populated date column (1215/1242)."
+Lidnummer,2,(excluded),,"Legacy H-DCN member number - RETIRED as the member_number source and DROPPED (the authoritative number is now the SAM Code column, read verbatim). No longer targets membership.member_number (exactly one column - SAM Code - does); dropped rather than folded into additional_info to keep the overlay clean (the alternative id Lidmaatschapsnummer at col 37 is likewise excluded)."
+Achternaam,3,personal.last_name,single,"Last name (for a CONTACT/organisation row this is the organisation name). No longer used to derive a 'C_'+name contact member_number - the SAM Code column supplies the contact's C##### number now."
 Initialen,3,personal.initials,single,Initials
 Voornaam,4,personal.first_name,single,First name
 Tussenvoegsel,5,personal.name_infix,single,"Name infix (van, de, ...)"
@@ -70,7 +73,7 @@ Woonplaats,9,personal.city,single,City
 Land,10,personal.country,single,Country
 Telefoonnummer,11,personal.phone,single,Phone
 E-mailadres,12,personal.email,coalesce,"Primary email; coalesces with the duplicate E-mailadres#34 (first-non-empty)"
-Geboorte datum,13,personal.birth_date,date,"Birth date (ISO datetime -> YYYY-MM-DD); OPTIONAL, missing stays missing"
+Geboorte datum,13,personal.birth_date,date,"Birth date (Dutch d-m-yyyy day-first, or ISO -> YYYY-MM-DD); OPTIONAL, missing/unparseable stays missing"
 Geboortedag,14,(calculated),,Derived from birth_date (calculated field birth_day)
 Geboortemaand,15,(calculated),,Derived from birth_date (calculated field birth_month)
 Geboortejaar,16,(calculated),,Derived from birth_date (calculated field birth_year)
@@ -87,14 +90,14 @@ Kenteken,26,overlay.license_plate,single,License plate
 WieWatWaar,27,overlay.referral_source,single,How did you find us (free text)
 Bankrekeningnummer,28,overlay.iban+overlay.payment_method,iban_or_payment,"One source -> TWO targets: valid IBAN (simple test: >=15 chars, starts 2 letters) -> iban=value & payment_method='incasso'; non-IBAN text -> iban empty & payment_method=that raw text; empty -> both unset"
 H-DCN Clubblad,29,(excluded),,Duplicate of Clubblad (col 21)
-Datum ondertekening,30,membership.joined_date,coalesce,"Signature date -> joined_date (date part); coalesces with Tijdstempel / Aanmeldingsjaar"
-Aanmeldingsjaar,31,membership.joined_date,coalesce,"Registration year -> joined_date fallback (<year>-01-01); coalesce input"
+Datum ondertekening,30,membership.joined_date,coalesce,"Signature date -> joined_date (Dutch d-m-yyyy or ISO -> YYYY-MM-DD). PRIMARY joined_date source (priority 1); falls back to Tijdstempel then Aanmeldingsjaar then today."
+Aanmeldingsjaar,31,membership.joined_date,coalesce,"Registration year -> joined_date FINAL fallback (<year>-01-01); used only when both Datum ondertekening and Tijdstempel are empty/unparseable (priority 3)."
 Ondertekening,32,(additional_info),concat,Signature info - kept in overlay.additional_info
 Naam voor akkoord,33,(additional_info),concat,Name for agreement - kept in overlay.additional_info
 E-mailadres#34,34,personal.email,coalesce,"Duplicate email column; coalesces into personal.email (first-non-empty keeps col 12)"
 H-DCN Clubblad#35,35,(excluded),,Duplicate of Clubblad (col 21)
 Digitale nieuwsbrieven,36,overlay.newsletter_pref,single,Newsletter preference
-Lidmaatschapsnummer,37,(excluded),,Alternative membership id - ignored (Lidnummer is the member number)
+Lidmaatschapsnummer,37,(excluded),,Alternative membership id - ignored (the SAM Code column is the authoritative member number)
 #(blank),38,(excluded),,Blank-named column - dropped (empty attribute name)
 Afmelding,39,overlay.deregistration_date,date,"Deregistration date -> filterable overlay date field; stored only when present (empty -> unset). ISO-date-part."
 Beeindiging,40,overlay.termination_date,date,"Termination date -> filterable overlay date field; stored only when present (empty -> unset). ISO-date-part."

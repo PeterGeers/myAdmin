@@ -40,6 +40,7 @@ import io
 import json
 import os
 import re
+import sys
 import uuid
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -52,10 +53,17 @@ from sam.members.domain.fixed_fields import (
 from sam.members.domain.scope_canon import scope_canon
 
 __all__ = [
-    "FIXED_SOURCE_COLUMNS",
+    "DEFAULT_GOOGLE_CREDENTIALS_FILE",
+    "DUPLICATE_HEADER_INDEX_SEP",
     "HDCN_TENANT_ID",
     "BackfillPlan",
+    "ColumnShiftWarning",
+    "DuplicateHeaderConflict",
     "FileSourceAdapter",
+    "GoogleSheetsSourceAdapter",
+    "build_position_tracked_row",
+    "contract_source_columns",
+    "detect_column_shift",
     "HdcnSourceAdapter",
     "IterableSourceAdapter",
     "LegacyDynamoSourceAdapter",
@@ -72,6 +80,25 @@ __all__ = [
 #: lives (design constraint): the backfill's whole job is to stamp the pilot tenant onto the
 #: migrated records. It must NOT become an ``if tenant == "h-dcn"`` branch in the generic core.
 HDCN_TENANT_ID = "h-dcn"
+
+#: Default filesystem PATH to the service-account JSON key the read-only Google Sheets adapter
+#: authenticates with (R4.3). Defaults to the SHARED h-dcn key — ONE key both the h-dcn importer
+#: and this SAM backfill use (the "HDCN Ledenbestand" Sheet is already shared with that service
+#: account as Viewer, so no Google Console change is needed). The file is gitignored and may be
+#: ABSENT on disk; the operator places it before the first live run, or overrides with
+#: ``--credentials`` (D5/D6). Never a real credential in the repo — only this path.
+DEFAULT_GOOGLE_CREDENTIALS_FILE = "/home/peter/projects/h-dcn/.googleCredentials.json"
+
+#: The ONLY OAuth scope the adapter requests to READ sheet values (R4.2/R5.1) — read-only, so the
+#: service account can never write/update/delete the source. Resolving a sheet by TITLE
+#: (``spreadsheet_name``) additionally needs a read-only Drive scope (added in ``_load_credentials``
+#: only for that path) — see :data:`_DRIVE_READONLY_SCOPE`.
+_SHEETS_READONLY_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
+
+#: Read-only Drive scope, added ONLY when resolving a spreadsheet by its human title via a
+#: read-only ``files.list`` (title → id). Never used for value reads. Read-only (R4.2/R5.1).
+_DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+
 
 class RegionCanonicalizer:
     """Normalizes a raw export region onto a tenant's CANONICAL value set (A.10 / D17).
@@ -120,93 +147,118 @@ class RegionCanonicalizer:
 _NULL_REGION_CANONICALIZER = RegionCanonicalizer()
 
 
-# ── Source-column contract (the h-dcn Ledenbestand shape the transform reads) ─────────
+# ── Duplicate-header position tracking (shared by every source adapter, R1.1/R1.2) ────
 
-#: The raw source column names the transform maps into the FIXED base. The h-dcn Ledenbestand
-#: (Google Sheet) columns → member-record fixed fields. Any column NOT named here (and not the
-#: region/type columns below) is treated as a club/Motor detail and folded into ``overlay``.
-FIXED_SOURCE_COLUMNS: Mapping[str, str] = {
-    # source column (LOWER-CASED; the transform matches on `col.strip().lower()`)
-    #                      -> dotted member-record fixed key (s5c canonical EN keys)
-    #
-    # NOTE (A.2, verified against the real Ledenbestand.json export 2026-09-22): the export
-    # has NO `member_id` column — the internal `member_id` is MINTED as a uuid4 by the
-    # transform (stable/opaque, decoupled from the human number). The human number is
-    # `Lidnummer` -> `membership.member_number` (shaped to `M00001` at map time). Column
-    # headers are capitalized / multi-word in the source; keys here are the lower-cased form.
-    #
-    # `naam` is a single display-name fallback (older exports); the current export carries the
-    # split parts (`Voornaam`/`Achternaam`/...), which map directly below.
-    "naam": "personal.last_name",
-    "voornaam": "personal.first_name",
-    "achternaam": "personal.last_name",
-    "tussenvoegsel": "personal.name_infix",
-    "initialen": "personal.initials",
-    "geslacht": "personal.gender",
-    "telefoon": "personal.phone",
-    "telefoonnummer": "personal.phone",  # real export header
-    "email": "personal.email",
-    "e-mailadres": "personal.email",  # real export header
-    # `adres` is a single address-line fallback; `straat` / `straat en huisnummer` are the
-    # real headers. The s5c base splits address into street/postal_code/city/country (stored
-    # under `personal`); map the primary line onto `personal.street`.
-    "adres": "personal.street",
-    "straat": "personal.street",
-    "straat en huisnummer": "personal.street",  # real export header
-    "postcode": "personal.postal_code",
-    "woonplaats": "personal.city",
-    "land": "personal.country",
-    # NOTE: `birth_date` is NOT imported as a fixed field. h-dcn treats it as a CALCULATED
-    # field (day+month only — "geboorte datum zonder jaar", a privacy choice), so `Geboorte
-    # datum` / `Geboortedag` / `Geboortemaand` / `Geboortejaar` are NOT mapped here; they fold
-    # into overlay (available if a later calculated field wants them). `personal.birth_date`
-    # stays unset (it is optional in the fixed registry).
-    "lidnummer": "membership.member_number",
-    "lidmaatschapstype": "membership.membership_type",
-    "soort lidmaatschap": "membership.membership_type",  # real export header
-    # NOTE: `membership.status` and `membership.joined_date` are NOT simple column maps — they
-    # are DERIVED after the column loop (see below):
-    #   * status: the export has NO status column → default to "active" (all Ledenbestand rows
-    #     are current members; a later refactor may derive left/lapsed from Afmelding/Beeindiging).
-    #   * joined_date: date-part of `Datum ondertekening`, falling back to `<Aanmeldingsjaar>-01-01`.
-    # NOTE: `einddatum`/`Afmelding`/`Beeindiging` (the h-dcn "left" dates) have no Fixed row in
-    # the s5c classification table, so they fold into `overlay`. `Aanmeldingsjaar` is a
-    # CALCULATED field (used here only as a joined_date fallback input, never stored as fixed).
-}
+#: Separator between a repeated header and its column index in a position-tracked key
+#: (``E-mailadres#34``). Chosen to match the s5m mapping-contract ``source_column`` form
+#: (``<header>#<colindex>``, R0.1/R1.1) so an adapter's row keys line up with the CSV.
+DUPLICATE_HEADER_INDEX_SEP = "#"
 
-#: Source columns for the DERIVED membership fields (status default + joined_date). Kept as
-#: named constants so the derivation and the "unmapped column" fold agree on the exact headers.
-_SIGNED_DATE_COLUMN = "datum ondertekening"      # ISO datetime → joined_date (date part)
-_JOIN_YEAR_COLUMN = "aanmeldingsjaar"            # 4-digit year → joined_date fallback (<year>-01-01)
-_DEFAULT_MEMBERSHIP_STATUS = "active"            # no status column in the export (A.2 decision)
+#: Matches a trailing ``#<digits>`` position-index suffix so the transform can strip it back
+#: to the BASE header before consulting the mapping tables / dispositions (R1.3).
+_INDEXED_HEADER_RE = re.compile(r"^(?P<base>.*)#(?P<index>\d+)$")
 
-#: The source column carrying the h-dcn region (normalized onto the ``overlay.region`` field).
-_REGION_SOURCE_COLUMN = "regio"
+
+def build_position_tracked_row(
+    headers: Sequence[Any],
+    values: Sequence[Any],
+) -> dict[str, Any]:
+    """Build one ``{header: value}`` row that NEVER loses a column to a header collision (R1.1).
+
+    The SHARED row-build helper used by every source adapter (``FileSourceAdapter`` reading the
+    raw CSV header row, ``GoogleSheetsSourceAdapter._rows_from_matrix``, task 5) so file and
+    sheet sources behave identically (R1.2). A plain ``dict(zip(headers, values))`` would let a
+    repeated header's LAST occurrence silently clobber the earlier one (Python dict
+    last-occurrence-wins) — precisely the bug that dropped ``peter@pgeer.nl`` when an empty
+    duplicate ``E-mailadres`` at col 34 overwrote the populated col 12.
+
+    Instead each REPEATED header is made unique by appending its 1-based COLUMN INDEX: the FIRST
+    occurrence keeps the BARE header, later occurrences become ``<header>#<colindex>`` — e.g.
+    ``E-mailadres`` (col 12) and ``E-mailadres#34`` (col 34). The index is the source column
+    position (1-based, matching the ``<header>#<colindex>`` mapping-contract form, R0.1). The
+    transform (:func:`map_hdcn_row`) strips the ``#<colindex>`` back to the base header (R1.3) so
+    both feed the same target and coalesce first-non-empty.
+
+    A blank-named column (``header`` empty/whitespace) is kept VERBATIM under its empty key here
+    (the transform drops it later, R1.5) — its column index is still consumed so later headers
+    keep their true position. Short value rows are tolerated (missing cells → ``""``); this
+    helper does not pad — the adapters normalize row width before calling it.
+    """
+    row: dict[str, Any] = {}
+    seen: dict[str, int] = {}
+    for col_index, header in enumerate(headers, start=1):
+        base = "" if header is None else str(header).strip()
+        value = values[col_index - 1] if col_index - 1 < len(values) else ""
+        occurrence = seen.get(base, 0) + 1
+        seen[base] = occurrence
+        # First occurrence keeps the bare header; a repeat is disambiguated by its column index.
+        key = base if occurrence == 1 else f"{base}{DUPLICATE_HEADER_INDEX_SEP}{col_index}"
+        row[key] = value
+    return row
+
+
+def _base_header(column: str) -> str:
+    """Strip a trailing ``#<colindex>`` position suffix back to the BASE header (R1.3).
+
+    ``E-mailadres#34`` → ``E-mailadres``; a bare header (or a header that merely CONTAINS a
+    ``#`` without a trailing numeric index) is returned unchanged. Matching against the mapping
+    tables / dispositions is always on this base so every position-tracked duplicate of a header
+    resolves to the SAME target and coalesces (R1.3/R1.4).
+    """
+    m = _INDEXED_HEADER_RE.match(column)
+    return m.group("base") if m else column
+
+
+# ── Source-column contract: the SINGLE authored mapping is the CSV (R0.1/R0.2/D0) ─────
+#
+# s5m single-source-of-truth cleanup (R0.1/R0.4): the source→target mapping is authored in ONE
+# place — ``scripts/aws/h-dcn/members_source_mapping.csv`` (parsed into a ``MappingContract`` by
+# ``members_mapping_loader``). There is NO second hand-maintained Python dict that can drift from
+# (or contradict) the CSV. The old module-level ``FIXED_SOURCE_COLUMNS`` / ``OVERLAY_SOURCE_
+# COLUMNS`` dicts (and the source-column-name constants ``_SIGNED_DATE_COLUMN`` /
+# ``_JOIN_YEAR_COLUMN`` / ``_REGION_SOURCE_COLUMN`` and the dead ``_STATUS_MAP`` /
+# ``_REGION_STORAGE_GROUP``) were retired: their "which column feeds which target" knowledge now
+# lives in the contract rows (the ``date``-ruled joined_date coalesce inputs, the ``region``-ruled
+# source column, etc.). Only the genuinely-DERIVED logic below is code, and it sources any column
+# NAMES from the loaded contract, never from a private copy.
+
+#: Default ``membership.status`` when the source carries no status (the Ledenbestand has no status
+#: column — A.2 decision): a genuinely-derived default, not source-column knowledge.
+_DEFAULT_MEMBERSHIP_STATUS = "active"
+
+#: joined_date DATE-valued source columns (BASE headers, lower-cased) in PRIORITY order. This is
+#: the genuinely-DERIVED combination order for the ``membership.joined_date`` target, which the
+#: contract declares via several ``coalesce`` inputs but which must be combined by an explicit
+#: priority rather than by the columns' raw sheet position (``Tijdstempel`` is physically col 0
+#: but is only the FALLBACK). Both inputs are parsed by :func:`_parse_source_date` (Dutch
+#: day-first ``d-m-yyyy`` AND ISO). Order (user-confirmed): the signature date wins, then the
+#: (widest-populated) member-since timestamp.
+_JOINED_DATE_DATE_SOURCES = ("datum ondertekening", "tijdstempel")
+
+#: joined_date bare-YEAR fallback source (BASE header, lower-cased): ``Aanmeldingsjaar`` → mapped
+#: to ``<year>-01-01`` only when no date-valued input above parsed. Kept LAST in the derivation.
+_JOINED_DATE_YEAR_SOURCE = "aanmeldingsjaar"
 
 #: The member FIELD the region normalizes onto. S5d D1/R3.4: scope is a PLAIN member field —
 #: the retired ``scope_values`` bucket is gone. For h-dcn ``region`` is a TENANT-ADDED field, so
 #: its storage bucket is ``overlay`` (dotted key ``overlay.region``). The value is a SCALAR
-#: (a member is single-valued per scope field, R3.2), never a list.
-_REGION_STORAGE_GROUP = "overlay"
+#: (a member is single-valued per scope field, R3.2), never a list. This is the derived TARGET
+#: key, not source-column knowledge — the SOURCE column for region is declared in the contract
+#: (the row whose ``rule`` is ``region``).
 _REGION_FIELD_KEY = "region"
 
-#: h-dcn's live status vocabulary (Dutch) → the platform's closed MembershipStatus values.
-#: h-dcn's export may carry either the Dutch or the canonical value; both map through.
-_STATUS_MAP: Mapping[str, str] = {
-    "aanvraag": "application",
-    "in behandeling": "pending",
-    "actief": "active",
-    "geschorst": "suspended",
-    "verlopen": "lapsed",
-    "vertrokken": "left",
-    # already-canonical values pass through unchanged
-    "application": "application",
-    "pending": "pending",
-    "active": "active",
-    "suspended": "suspended",
-    "lapsed": "lapsed",
-    "left": "left",
-}
+
+def contract_source_columns(contract: Any) -> set[str]:
+    """Return the set of BASE source headers (lower-cased) the loaded contract MAPS to a target.
+
+    The single-source-of-truth replacement for the old ``FIXED_SOURCE_COLUMNS.keys()`` probe: it
+    reads the loaded :class:`MappingContract` (task 2), so "which columns are recognized as
+    mapped" can never drift from the authored CSV. Includes every FIXED (``personal.*`` /
+    ``membership.*``) and OVERLAY (``overlay.*``, incl. the region column) source header. The
+    disposition sets (calculated / excluded / additional_info) are deliberately EXCLUDED — a
+    caller wanting the mapped-vs-unmapped split treats those as "not a mapped target".
+    """
+    return set(contract.fixed.keys()) | set(contract.overlay.keys())
 
 
 class RowTransformError(Exception):
@@ -227,11 +279,17 @@ class RowTransformError(Exception):
 class RowSkipped(Exception):
     """Raised when a source row is intentionally NOT a member and is skipped (not an error).
 
-    s5k: **currently unused.** A numberless row used to be treated as a non-member and raised
-    this; under s5k ``member_number`` is optional, so a sponsor / sister club / dealer with no
-    ``Lidnummer`` is now imported as a real member (identity is the minted ``member_id`` uuid).
-    The exception + the plan's ``skipped`` list are retained as an inert, non-blocking extension
-    point for any FUTURE intentional-skip rule; nothing in the transform raises it today.
+    ONE intentional-skip rule raises this today, landing the row in the plan's ``skipped``
+    bucket — counted as SKIPPED, never as an error, never transformed/written:
+
+    - **Empty/spacer row** — a row with NO meaningful data (no populated cell — where a
+      NO-VALID-EMAIL placeholder counts as empty and the blank-named column is ignored). A
+      placeholder-only row (e.g. ``E-mailadres`` = "GEEN GELDIG EMAILADRES") is treated as empty
+      and skipped SILENTLY, regardless of its (blank) ``SAM Code``.
+
+    A row that HAS meaningful data is NOT skipped — even one with a blank ``SAM Code``: a missing
+    authoritative member number on a real data row is a data-gap ERROR (RowTransformError,
+    reported, not written), not a silent skip. So over-skipping cannot hide a real member.
 
     Carries ``reason`` (why it was skipped) and ``label`` (a best-effort human identifier —
     e.g. the organisation name — for the report).
@@ -345,17 +403,30 @@ def _clean(value: Any) -> str | None:
     return value  # non-string (already-typed) values pass through
 
 
-#: Member-number format (A.2 / ONBOARDING §3): the human member number is a Fixed **string**,
-#: prefix ``M`` + a zero-padded 5-digit sequence (``M00001``) so it sorts lexicographically
-#: (``M00001`` < ``M00002`` < … < ``M00010``) — a bare integer would sort ``1, 10, 2``. The
-#: tenant format pattern authored in ``members.field_overlay`` is ``^M\d{5}$``; the backfill
-#: shapes the source ``Lidnummer`` to match it here.
-_MEMBER_NUMBER_PREFIX = "M"
-_MEMBER_NUMBER_WIDTH = 5
-_DIGITS_RE = re.compile(r"\d+")
+#: The AUTHORITATIVE source column that supplies the human ``member_number`` VERBATIM (the
+#: "SAM Code" identity change, user-approved). The real h-dcn Google Sheet now carries a new
+#: FIRST column ``SAM Code`` holding the formatted number for every data row — Members
+#: ``M<5 digits>`` (``M06599``), Donateurs ``D00001``++, Contacts ``C00001``++. This column is
+#: HUMAN-OWNED and STABLE (survives a sheet re-sort), so the importer READS it verbatim (trimmed)
+#: and NEVER regenerates it — replacing the old fragile derivation (M+Lidnummer / D-skip /
+#: C_+Achternaam). Matched on its BASE header, case-insensitive.
+_SAM_CODE_COLUMN = "sam code"
+
+#: The ``member_number`` FORMAT the SAM Code must satisfy (mirrors the tenant format authored in
+#: ``members_config.json`` → ``membership.field_overlay.member_number.format.regex``): a Member
+#: ``M#####`` / Donateur ``D#####`` / Contact ``C#####`` — all a single letter + exactly 5 digits.
+#: A present SAM Code that does NOT match is a data gap (RowTransformError), never silently kept.
+#: Kept in sync with the config regex; the importer validates the code it reads against it here
+#: (``validate_fixed_fields`` does NOT enforce the tenant member_number format — that is Parameter
+#: config resolved elsewhere — so the transform validates the authoritative code itself).
+_MEMBER_NUMBER_FORMAT_RE = re.compile(r"^(M\d{5}|D\d{5}|C\d{5})$")
 
 
-_ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
+_ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$")
+#: Dutch ``d-m-yyyy`` / ``dd-mm-yyyy`` (DAY-first), with an OPTIONAL trailing ` hh:mm[:ss]` time
+#: part. Groups: day, month, year. Verified against the live h-dcn sheet: ``Datum ondertekening``
+#: (``13-4-2023``, no time) and ``Tijdstempel`` (``4-5-2026 10:59:37`` — SOME carry a time).
+_DUTCH_DATE_RE = re.compile(r"^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$")
 _YEAR_RE = re.compile(r"^\s*(\d{4})\s*$")
 
 
@@ -371,16 +442,59 @@ def _skip_label(personal: Mapping[str, Any], overlay: Mapping[str, Any]) -> str:
     return name or "<empty>"
 
 
-def _iso_date_part(raw: Any) -> str | None:
-    """Extract the ``YYYY-MM-DD`` date part from a source date/datetime string, or None.
+def _valid_ymd(year: int, month: int, day: int) -> str | None:
+    """Return a normalized ``YYYY-MM-DD`` string for a valid calendar date, else None.
 
-    The h-dcn export carries dates as ISO datetimes (e.g. ``2023-04-12T22:00:00.000Z``); the
-    fixed registry wants a bare ISO calendar date. Takes the leading ``YYYY-MM-DD`` when present.
+    Uses :class:`datetime.date` so an impossible calendar day (e.g. ``31-2``, ``29-2`` in a
+    non-leap year) is rejected as well as a plainly out-of-range month/day. Returning None keeps
+    the caller's contract: an optional date field stays unset rather than raising or fabricating.
+    """
+    try:
+        return _dt.date(year, month, day).isoformat()
+    except ValueError:
+        return None
+
+
+def _parse_source_date(raw: Any) -> str | None:
+    """Normalize a source date/datetime string to a bare ``YYYY-MM-DD``, or None.
+
+    ONE code path used by BOTH ``joined_date`` and ``birth_date`` (and the overlay date fields)
+    so their date handling can never drift. Accepts two shapes seen on the live h-dcn sheet, in
+    ADDITION to the ISO form the OLD fixture uses:
+
+    - **Dutch ``d-m-yyyy`` / ``dd-mm-yyyy``** — DAY-first (user-confirmed): ``4-5-2026`` is
+      4 May 2026 (day=4, month=5). An OPTIONAL trailing ` hh:mm` / ` hh:mm:ss` time part
+      (``Tijdstempel`` carries some) is ignored — only the date is kept. Verified real samples:
+      ``13-4-2023`` → ``2023-04-13``, ``22-11-2025`` → ``2025-11-22``.
+    - **ISO ``YYYY-MM-DD``** (optionally followed by ``T…`` / ` …` time, as in the fixture's
+      ``2010-01-01T00:00:00.000Z``) → the leading calendar date.
+
+    Both are validated as real calendar dates (month 1-12, day 1-31, no impossible days); an
+    out-of-range or unparseable value returns None — the optional field stays unset, never
+    raises, never fabricates a date.
     """
     if raw is None:
         return None
-    m = _ISO_DATE_PREFIX_RE.match(str(raw).strip())
-    return m.group(1) if m else None
+    s = str(raw).strip()
+    if not s:
+        return None
+    # ISO first (YYYY-MM-DD[...]): the four-digit YEAR leads, so it is unambiguous vs the Dutch
+    # day-first form (which leads with a 1-2 digit day).
+    m = _ISO_DATE_PREFIX_RE.match(s)
+    if m:
+        return _valid_ymd(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    # Dutch d-m-yyyy (day-first), optional trailing time.
+    m = _DUTCH_DATE_RE.match(s)
+    if m:
+        return _valid_ymd(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+    return None
+
+
+#: Backwards-compatible alias. Historically the transform reduced an ISO datetime to its date
+#: part via ``_iso_date_part``; that role is now the broader :func:`_parse_source_date` (Dutch
+#: day-first ``d-m-yyyy`` AND ISO). The alias keeps any existing reference working and reads
+#: correctly at every call site (both fixed and overlay date fields route through it).
+_iso_date_part = _parse_source_date
 
 
 def _year_to_iso(raw: Any) -> str | None:
@@ -391,27 +505,354 @@ def _year_to_iso(raw: Any) -> str | None:
     return f"{m.group(1)}-01-01" if m else None
 
 
-def _shape_member_number(raw: Any) -> str | None:
-    """Shape a raw source member number to the ``M00001`` form, or return None if unusable.
+def _row_has_meaningful_data(raw_row: Mapping[str, Any]) -> bool:
+    """True if a raw source row carries ANY meaningful (populated) cell (R7.2 empty-row test).
 
-    Accepts an int, or a string that either already matches ``^M\\d{5}$`` (passed through) or
-    contains a run of digits (extracted + zero-padded to width, prefixed with ``M``). A value
-    with no digits yields ``None`` (the caller then records a missing-number reason).
+    Used to detect a truly-EMPTY row that must be SKIPPED (not counted as an error, not written).
+    A cell is "meaningful" when, after normalization, it still holds a value:
+    - the blank-NAMED column (empty/whitespace header) is IGNORED (it is a Google-Sheet export
+      artifact, dropped by the transform anyway, R1.5);
+    - an ``E-mailadres`` cell that is a NO-VALID-EMAIL placeholder (``_NO_VALID_EMAIL_INDICATORS``,
+      e.g. "GEEN GELDIG EMAILADRES") normalizes to empty and so does NOT count as meaningful —
+      a placeholder-only row is therefore empty and skipped silently;
+    - every other cell counts as meaningful when it is non-blank after a plain strip.
+
+    The header is matched on its BASE (position-tracking ``#<colindex>`` stripped) so a
+    duplicate column is judged like its bare sibling.
+    """
+    for column, value in raw_row.items():
+        base = _base_header((column or "").strip())
+        if base == "":
+            continue  # blank-named column is a dropped artifact — never "meaningful"
+        cleaned = _clean(value)
+        if cleaned is None:
+            continue
+        # An email placeholder normalizes to empty — it does not make the row meaningful.
+        if base.lower() == "e-mailadres" and _normalize_email(cleaned) is None:
+            continue
+        return True
+    return False
+
+
+def _read_sam_code(raw_row: Mapping[str, Any]) -> str | None:
+    """Read the authoritative ``SAM Code`` cell VERBATIM (trimmed), or None when blank/absent.
+
+    The SAM Code identity change (user-approved): ``member_number`` is now READ from the sheet's
+    ``SAM Code`` column (matched on its BASE header ``sam code``, case-insensitive — it is the
+    first column) rather than DERIVED from ``Lidnummer``/``Achternaam``. A present code is used
+    verbatim (trimmed); the caller validates it against :data:`_MEMBER_NUMBER_FORMAT_RE`. A blank
+    / absent cell yields ``None`` (the caller decides: an empty row is skipped, a meaningful row
+    with a blank code is a data-gap error). A position-tracked duplicate is matched on its base.
+    """
+    for column, value in raw_row.items():
+        if _base_header((column or "").strip()).lower() == _SAM_CODE_COLUMN:
+            cleaned = _clean(value)
+            if cleaned is not None:
+                return str(cleaned).strip()
+    return None
+
+
+# ── Per-rule value conversions (the mapping-contract `rule` strategies, R0.2/R0.3/D0b) ─
+
+#: Gender normalization — PORTED (s5m R8.1) from h-dcn's proven importer
+#: (``import_members_sheets.py`` v2.0 ``gender_mapping``), RETARGETED (R8.2) onto THIS tenant's
+#: ``gender`` enum authored in ``members_config.json`` (``M``/``V``/``X``/``N`` — the four
+#: choices on ``personal.gender``). Dutch ``Man``/``Vrouw`` (and the bare ``m``/``v``, plus the
+#: English ``male``/``female``) → ``M``/``V``; ``anders``/``other`` → ``X`` ("Anders"); an
+#: explicit "prefer not to say" → ``N``. Already-canonical ``M``/``V``/``X``/``N`` pass through
+#: (matched case-folded). An UNRECOGNIZED value is kept VERBATIM (never silently forced to a
+#: wrong code) so the fixed-field validation against the tenant ``gender`` choices surfaces it.
+_GENDER_MAP: Mapping[str, str] = {
+    # → M
+    "man": "M",
+    "m": "M",
+    "male": "M",
+    "manlijk": "M",
+    "mannelijk": "M",
+    "heer": "M",
+    "dhr": "M",
+    # → V
+    "vrouw": "V",
+    "v": "V",
+    "f": "V",
+    "female": "V",
+    "vrouwelijk": "V",
+    "mevrouw": "V",
+    "mevr": "V",
+    # → X ("Anders" / other)
+    "x": "X",
+    "anders": "X",
+    "other": "X",
+    "divers": "X",
+    # → N ("Wil niet zeggen" / prefer not to say)
+    "n": "N",
+    "onbekend": "N",
+    "unknown": "N",
+    "wil niet zeggen": "N",
+    "prefer not to say": "N",
+    "zegt liever niet": "N",
+}
+
+
+def _normalize_gender(raw: Any) -> str | None:
+    """Normalize a raw gender to the tenant enum (``M``/``V``/``X``/``N``), else keep verbatim."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    return _GENDER_MAP.get(s.lower(), s)
+
+
+#: Magazine (``Clubblad``) → the ``magazine_pref`` enum ``Geen``/``Papier``/``Digitaal`` (R0.2).
+#: PORTED (s5m R8.1) from h-dcn's ``Clubblad`` knowledge in ``import_members_sheets.py`` v2.0,
+#: RETARGETED (R8.2) onto THIS tenant's ``magazine_pref`` choices in ``members_config.json``
+#: (``Geen``/``Papier``/``Digitaal``). h-dcn's OLD Clubblad→membership-status rule
+#: (Papier→"Sponsor" / Digitaal→"Club") is NOT copied — those were h-dcn Dutch STATUS strings
+#: on the old table and are not a valid SAM ``membership_type``/``status`` in this catalog (D8);
+#: only the PREFERENCE variant knowledge (which spellings mean paper vs digital vs none) is
+#: reused. ``Papier``/``Digitaal`` map as-is (case/space-folded); anything meaning "none" (or
+#: empty, or unrecognized) falls back to ``Geen`` (the catch-all fallback, R0.2).
+_MAGAZINE_MAP: Mapping[str, str] = {
+    # → Papier
+    "papier": "Papier",
+    "paper": "Papier",
+    "print": "Papier",
+    "gedrukt": "Papier",
+    "op papier": "Papier",
+    "papieren": "Papier",
+    # → Digitaal
+    "digitaal": "Digitaal",
+    "digital": "Digitaal",
+    "digitale": "Digitaal",
+    "pdf": "Digitaal",
+    "email": "Digitaal",
+    "e-mail": "Digitaal",
+    "online": "Digitaal",
+    # → Geen (none / not wanted). Empty + unrecognized ALSO fall back to Geen (see below).
+    "geen": "Geen",
+    "none": "Geen",
+    "nee": "Geen",
+    "no": "Geen",
+    "niet": "Geen",
+    "n.v.t.": "Geen",
+    "nvt": "Geen",
+}
+
+
+def _normalize_magazine(raw: Any) -> str:
+    """Map a raw ``Clubblad`` value → ``magazine_pref`` enum; empty/unrecognized → ``Geen``."""
+    if raw is None:
+        return "Geen"
+    s = str(raw).strip()
+    if not s:
+        return "Geen"
+    return _MAGAZINE_MAP.get(s.lower(), "Geen")
+
+
+#: Email "NO-VALID-EMAIL" indicators — PORTED (s5m R8.1) from h-dcn's importer: sheet cells that
+#: are placeholders meaning "this member has no real email" rather than an actual address (the
+#: sheet was hand-maintained, and operators typed these to mark a missing/absent address). Such
+#: a value must be treated as EMPTY (the field left unset), NOT stored as if it were an address —
+#: otherwise ``no@email.com`` etc. would look like a deliverable address. Matched case-folded on
+#: the trimmed cell; a genuine address is never in this set. Kept as DATA (extensible), not code.
+_NO_VALID_EMAIL_INDICATORS: frozenset[str] = frozenset(
+    {
+        "geen",
+        "geen email",
+        "geen e-mail",
+        "geen emailadres",
+        "geen e-mailadres",
+        "geen mail",
+        "geen geldig emailadres",
+        "geen geldig e-mailadres",
+        "onbekend",
+        "n.v.t.",
+        "nvt",
+        "n/a",
+        "na",
+        "none",
+        "no email",
+        "no e-mail",
+        "noemail",
+        "no@email.com",
+        "geen@email.com",
+        "geen@geen.nl",
+        "-",
+        "--",
+        ".",
+        "x",
+        "xxx",
+    }
+)
+
+
+def _normalize_email(raw: Any) -> str | None:
+    """Normalize a raw email cell; a NO-VALID-EMAIL placeholder (R8.1) is treated as empty.
+
+    Returns the trimmed address, or ``None`` when the cell is blank OR is one of the
+    :data:`_NO_VALID_EMAIL_INDICATORS` placeholders (so a fake "geen email" marker never lands
+    on ``personal.email`` as if it were a real address). A genuine address passes through
+    verbatim (trimmed) — this does NOT validate deliverability, only strips known placeholders.
     """
     if raw is None:
         return None
     s = str(raw).strip()
     if not s:
         return None
-    # Already in the canonical shape (any digit count) → normalize the zero-padding to width.
-    if s[:1].upper() == _MEMBER_NUMBER_PREFIX and s[1:].isdigit():
-        digits = s[1:]
-    else:
-        m = _DIGITS_RE.search(s)
-        if not m:
-            return None
-        digits = m.group(0)
-    return f"{_MEMBER_NUMBER_PREFIX}{int(digits):0{_MEMBER_NUMBER_WIDTH}d}"
+    if s.lower() in _NO_VALID_EMAIL_INDICATORS:
+        return None
+    return s
+
+
+# ── Column-shift detection (data-quality safeguard, ported R8.1) ──────────────────────
+
+#: One detected COLUMN-SHIFT signal on a source row (R8.1) — a value that landed in a column it
+#: does not belong in, indicating the row's cells are shifted (a hand-maintained-sheet hazard).
+#: PORTED from h-dcn's importer, which detected a YEAR value sitting in ``Geslacht`` (gender) and
+#: a GENDER value sitting in ``Regio`` (region). Purely a WARNING surfaced in the fidelity report
+#: (like :class:`DuplicateHeaderConflict`) — it never blocks a row nor rewrites a value; the
+#: operator inspects the flagged column and fixes the source. Carries the offending column (base
+#: header), the suspicious value, and a short human reason.
+@dataclass(frozen=True)
+class ColumnShiftWarning:
+    column: str
+    value: str
+    reason: str
+
+
+#: A 4-digit year sitting where a gender is expected (``Geslacht``) — the classic shift signal.
+_LOOKS_LIKE_YEAR_RE = re.compile(r"^(19|20)\d{2}$")
+#: The known gender tokens (lower-cased) — a gender token sitting in ``Regio`` signals a shift.
+_GENDER_TOKENS: frozenset[str] = frozenset({"m", "v", "man", "vrouw", "male", "female", "x"})
+
+
+def detect_column_shift(raw_row: Mapping[str, Any]) -> list["ColumnShiftWarning"]:
+    """Detect column-shift signals on a source row (data-quality safeguard, R8.1 port).
+
+    Returns a list of :class:`ColumnShiftWarning` (empty when the row looks well-aligned). Two
+    signals ported from h-dcn's importer, matched on the BASE header (so a position-tracked
+    duplicate is checked too):
+    - a YEAR value (``19xx``/``20xx``) in ``Geslacht`` — a birth year shifted into the gender
+      column;
+    - a GENDER token (``M``/``V``/``Man``/``Vrouw``/…) in ``Regio`` — a gender shifted into the
+      region column.
+    It only READS the row (pure) — it neither mutates nor drops anything.
+    """
+    warnings: list[ColumnShiftWarning] = []
+    for column, value in raw_row.items():
+        base = _base_header((column or "").strip()).lower()
+        s = "" if value is None else str(value).strip()
+        if not s:
+            continue
+        if base == "geslacht" and _LOOKS_LIKE_YEAR_RE.match(s):
+            warnings.append(
+                ColumnShiftWarning(
+                    column=(column or "").strip(),
+                    value=s,
+                    reason="a year-like value in the gender column (Geslacht) suggests the "
+                    "row's columns are shifted",
+                )
+            )
+        elif base == "regio" and s.lower() in _GENDER_TOKENS:
+            warnings.append(
+                ColumnShiftWarning(
+                    column=(column or "").strip(),
+                    value=s,
+                    reason="a gender-like value in the region column (Regio) suggests the "
+                    "row's columns are shifted",
+                )
+            )
+    return warnings
+
+
+#: A simple IBAN test for the ``iban_or_payment`` conditional split (R0.3, per the CSV note):
+#: a value that (space-stripped) is >= 15 chars and starts with two letters is treated as an
+#: IBAN. This is deliberately loose (a data-quality heuristic, not a mod-97 validation) — the
+#: point is only to route a bank number to ``iban`` and free text to ``payment_method``.
+_IBAN_MIN_LEN = 15
+_IBAN_HEAD_RE = re.compile(r"^[A-Za-z]{2}")
+
+
+def _looks_like_iban(value: str) -> bool:
+    compact = re.sub(r"\s+", "", value)
+    return len(compact) >= _IBAN_MIN_LEN and bool(_IBAN_HEAD_RE.match(compact))
+
+
+def _split_iban_or_payment(raw: Any) -> tuple[str | None, str | None]:
+    """Split one ``Bankrekeningnummer`` value into (iban, payment_method) (R0.3 conditional split).
+
+    - a value passing :func:`_looks_like_iban` → ``iban=value`` (compacted) + ``payment_method``
+      = ``"incasso"`` (the common case is thus pre-populated for most members);
+    - a non-IBAN, non-empty value → ``payment_method`` = that raw text, ``iban`` left unset;
+    - an empty value → both unset (``None``, ``None``).
+    """
+    if raw is None:
+        return (None, None)
+    s = str(raw).strip()
+    if not s:
+        return (None, None)
+    if _looks_like_iban(s):
+        return (re.sub(r"\s+", "", s), "incasso")
+    return (None, s)
+
+
+# ── The authored mapping contract (loaded once, cached) ───────────────────────────────
+
+#: The parsed default mapping contract, lazily loaded + cached (the transform's default when a
+#: caller passes no explicit ``contract``). Loading is deferred to first use because the loader
+#: (``scripts/aws/h-dcn/members_mapping_loader.py``) is NOT on the normal import path — importing
+#: ``hdcn_backfill`` in the SAM Lambda runtime must never require the onboarding scripts dir.
+_DEFAULT_CONTRACT_CACHE: Any = None
+
+
+def _load_default_contract() -> Any:
+    """Load + cache the authored default :class:`MappingContract` (spec D0), lazily by path.
+
+    The loader + CSV live under ``scripts/aws/h-dcn/`` (not a Python package), so this imports
+    the module BY PATH (mirroring how the runner loads ``members_config_loader``) and caches the
+    result. ``map_hdcn_row`` calls this only when its caller supplies no explicit ``contract`` —
+    the runner (task 6) will pass the already-loaded contract, avoiding the re-load.
+    """
+    global _DEFAULT_CONTRACT_CACHE
+    if _DEFAULT_CONTRACT_CACHE is None:
+        import importlib.util
+
+        _hdcn_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+            "scripts",
+            "aws",
+            "h-dcn",
+        )
+        _loader_path = os.path.join(_hdcn_dir, "members_mapping_loader.py")
+        # The mapping loader imports its sibling ``members_config_loader`` as a top-level name for
+        # the drift guard, so the onboarding scripts dir must be importable while we load it.
+        if _hdcn_dir not in sys.path:
+            sys.path.insert(0, _hdcn_dir)
+        # Reuse an already-imported loader if present (e.g. the tests import it directly). Else
+        # import it BY PATH and REGISTER it in ``sys.modules`` BEFORE ``exec_module`` — ``@dataclass``
+        # resolves its module via ``sys.modules[cls.__module__]`` during class creation, so an
+        # unregistered module makes that lookup return ``None`` (an ``AttributeError`` on load).
+        _module = sys.modules.get("members_mapping_loader")
+        if _module is None:
+            _spec = importlib.util.spec_from_file_location("members_mapping_loader", _loader_path)
+            _module = importlib.util.module_from_spec(_spec)
+            sys.modules["members_mapping_loader"] = _module
+            _spec.loader.exec_module(_module)  # type: ignore[union-attr]
+        _DEFAULT_CONTRACT_CACHE = _module.load_mapping_contract()
+    return _DEFAULT_CONTRACT_CACHE
+
+
+#: One reported duplicate-header conflict (R1.6): two DIFFERENT non-empty values shared a base
+#: header, the first-in-column-order was KEPT, and this is the losing column (its INDEXED name,
+#: e.g. ``E-mailadres#34``) + the base header + the kept vs dropped values, so the fidelity
+#: report can show the operator exactly which column lost and reconcile the source.
+@dataclass(frozen=True)
+class DuplicateHeaderConflict:
+    base_header: str
+    losing_column: str
+    kept_value: str
+    dropped_value: str
 
 
 def map_hdcn_row(
@@ -420,6 +861,9 @@ def map_hdcn_row(
     type_mapper: MembershipTypeMapper | None = None,
     tenant_id: str = HDCN_TENANT_ID,
     region_canonicalizer: RegionCanonicalizer | None = None,
+    conflicts: list["DuplicateHeaderConflict"] | None = None,
+    shift_warnings: list["ColumnShiftWarning"] | None = None,
+    contract: Any = None,
 ) -> dict[str, Any]:
     """Map ONE raw h-dcn member row to a member record for the new model (pure, no I/O).
 
@@ -431,134 +875,351 @@ def map_hdcn_row(
                         street, postal_code, city, country, birth_date },
           membership: { member_number, status, membership_type, joined_date },
           overlay:    { region: <canonical region>,     # h-dcn: the scope FIELD, a scalar
-                        <club/Motor + unmapped detail>: <value>, ... } }
+                        <canonical overlay key>: <value>, ..., additional_info: <concat> } }
 
-    Steps:
-    - **Fixed base split** — columns named in :data:`FIXED_SOURCE_COLUMNS` land under
-      ``personal`` / ``membership``; ``status`` is mapped from h-dcn's Dutch vocabulary to the
-      closed platform enum; the source ``Lidnummer`` is shaped to the ``M00001``
-      ``member_number`` string. The top-level ``member_id`` is MINTED as a uuid4 (the export
-      has no member_id column; A.2/ONBOARDING §2).
-    - **membership_type → catalog code** — the raw type value is mapped to a ``type_code``
-      via ``type_mapper`` (C8; the catalog seed is task 4.2, kept decoupled).
-    - **overlay.region (the scope field)** — the ``regio`` column is normalized to the
-      dimension's canonical value via the shared ``scope_canon`` (S5d R9.2/D1) and stored as a
-      SCALAR on the ``overlay.region`` field (h-dcn's ``region`` is a tenant-added overlay
-      field). There is NO ``scope_values`` bucket — the member record has zero scope awareness.
-      An absent region omits the field (reported by the runner; a scoped user never matches it).
-    - **variable overlay** — every remaining, non-empty source column (club/Motor details)
-      folds into ``overlay`` unchanged, so no source data is silently dropped (fidelity).
-    - **validation** — the fixed fields are validated with ``validate_fixed_fields`` so a bad
-      mapping raises loudly (surfaced per-row in the dry-run report), never a silent write.
+    **Contract-driven (s5m Task 3, R0.3/D0).** The source→target mapping and every non-mapped
+    column's disposition come from the loaded :class:`MappingContract` (task 2's
+    ``members_mapping_loader.load_mapping_contract``) — NOT hardcoded dicts. Pass an explicit
+    ``contract`` (the runner does, once per batch) or leave it ``None`` to lazily load + cache
+    the authored default (``scripts/aws/h-dcn/members_source_mapping.csv``). Each column is
+    resolved in this order (design D2b): **FIXED → OVERLAY → CALCULATED (skip) → EXCLUDED (skip)
+    → additional_info** (anything mapped nowhere, kept, is concatenated into
+    ``overlay.additional_info``).
+
+    Per-``rule`` conversions applied to the coalesced source value (R0.2/R0.3):
+    - ``single`` / ``coalesce`` — copy (string), first-non-empty across duplicate/ordered columns;
+    - ``date`` — ISO datetime → bare ``YYYY-MM-DD`` (``birth_date`` optional, and the membership
+      ``deregistration_date`` / ``termination_date`` overlay dates; absent/unparseable → unset);
+    - ``member_number`` — READ VERBATIM (trimmed) from the authoritative ``SAM Code`` column
+      (Members ``M#####`` / Donateurs ``D#####`` / Contacts ``C#####``); validated against the
+      format regex. A meaningful row with a blank/malformed ``SAM Code`` is a data-gap error
+      (reported, not written); an empty/spacer row is skipped. It is NEVER derived/regenerated;
+    - ``membership_type`` — free text → catalog ``type_code`` (via ``type_mapper``, C8);
+    - ``region`` — canonicalized onto the tenant region value set (a scalar ``overlay.region``);
+    - ``gender`` — Dutch ``Man``/``Vrouw`` (and ``m``/``v``) → tenant enum ``M``/``V``;
+    - ``magazine`` — ``Clubblad`` → ``magazine_pref`` (``Geen``/``Papier``/``Digitaal``, fallback
+      ``Geen``);
+    - ``iban_or_payment`` — one ``Bankrekeningnummer`` → ``overlay.iban`` + ``overlay.
+      payment_method`` (valid IBAN → iban + ``incasso``; non-IBAN text → payment_method=text).
 
     ``tenant_id`` defaults to the pilot ``"h-dcn"`` (the value the backfill stamps). Raises
     :class:`RowTransformError` if the row cannot produce a valid fixed record.
+
+    **Duplicate-header safety (R1.3/R1.4/R1.6).** The adapters hand this transform a
+    collision-free row where a repeated source header has been position-tracked to
+    ``<header>#<colindex>`` (:func:`build_position_tracked_row`). Here each column key is first
+    stripped back to its BASE header (:func:`_base_header`) before consulting the contract, so
+    every column sharing a base feeds the SAME target and is combined by first-non-empty
+    COALESCE: the first non-empty value in column order wins; a later empty NEVER overwrites it.
+    Two DIFFERENT non-empty values sharing a base are a genuine conflict — the first is kept and
+    the loser is recorded (by its INDEXED column name) into the optional ``conflicts`` list for
+    the fidelity report (R1.6). A blank-named column is still dropped (R1.5).
+
+    **Data-quality safeguards (R8.1, ported from h-dcn's importer).** ``personal.email`` cells
+    that are NO-VALID-EMAIL placeholders (``geen email``, ``n.v.t.``, …) are treated as EMPTY so
+    a fake marker never wins the coalesce nor lands as a deliverable address. If a
+    ``shift_warnings`` list is supplied, column-shift signals (a year in ``Geslacht``, a gender
+    token in ``Regio``) are appended to it for the report — a warning only; nothing is blocked
+    or rewritten.
     """
     mapper = type_mapper or MembershipTypeMapper()
+    contract = contract if contract is not None else _load_default_contract()
+
+    # ── SAM Code identity + empty-row skip ─────────────────────────────────────────────
+    # The authoritative human ``member_number`` is READ from the ``SAM Code`` column verbatim
+    # (user-approved identity change) — no longer DERIVED from Lidnummer/Achternaam. Read it up
+    # front (on its BASE header, so a position-tracked duplicate is matched like its bare sibling)
+    # to drive both the empty-row skip and the member_number below.
+    sam_code = _read_sam_code(raw_row)
+
+    # Empty/spacer row: NO meaningful data (no populated cell — a NO-VALID-EMAIL placeholder and
+    # the blank-named column count as empty). Skipped SILENTLY (RowSkipped) regardless of SAM
+    # Code — never an error, never written. A meaningful row with a blank SAM Code is NOT skipped
+    # here; it becomes a data-gap error below.
+    if not _row_has_meaningful_data(raw_row):
+        raise RowSkipped("empty row (no meaningful data)", label="<empty>")
 
     personal: dict[str, Any] = {}
     membership: dict[str, Any] = {}
     overlay: dict[str, Any] = {}
-    region_raw: str | None = None
-    signed_date_raw: Any = None   # `Datum ondertekening` → joined_date (primary)
-    join_year_raw: Any = None     # `Aanmeldingsjaar` → joined_date fallback (calculated field)
     reasons: dict[str, str] = {}
+    conflict_out = conflicts if conflicts is not None else []
 
+    # Column-shift detection (R8.1, data-quality safeguard): flag year-in-Geslacht /
+    # gender-in-Regio into the optional ``shift_warnings`` list for the fidelity report. Never
+    # blocks the row nor rewrites a value — the operator inspects the flagged source column.
+    if shift_warnings is not None:
+        shift_warnings.extend(detect_column_shift(raw_row))
+
+    # First-non-empty COALESCE bookkeeping (R1.3/R1.4): a logical slot is "filled" by the FIRST
+    # column (in row order) that carries a non-empty value for it. Later columns sharing the same
+    # base header either agree (no-op) or conflict (recorded, first-in-order kept). Keyed by a
+    # stable slot id (the dotted target, "overlay:<key>", "additional_info:<base>", …); carries
+    # the kept RAW value + the INDEXED column that supplied it, so a later conflict can name the
+    # loser. ``slot_raw`` holds the accepted raw value so the rule conversion runs AFTER the loop
+    # (once every column sharing a base has been seen — a blank duplicate can never mask a
+    # populated sibling, R1.4).
+    filled: dict[str, tuple[str, str]] = {}
+    slot_raw: dict[str, Any] = {}
+    #: Additional-info accumulator: ordered (label, value) pairs collected in source-column order
+    #: and joined into ``overlay.additional_info`` after the loop (R2.7).
+    additional: list[tuple[str, str]] = []
+    #: joined_date source values collected PER source base header (lower-cased) — NOT collapsed
+    #: into the one column-order coalesce slot. joined_date has several contract inputs
+    #: (``Datum ondertekening`` / ``Tijdstempel`` / ``Aanmeldingsjaar``) that must be combined by
+    #: an EXPLICIT PRIORITY order (below), not by their raw sheet-column order (``Tijdstempel`` is
+    #: col 0, so a plain first-non-empty-in-column-order coalesce would wrongly let it beat the
+    #: authoritative ``Datum ondertekening`` at col 30). First non-empty per base header is kept.
+    joined_date_by_source: dict[str, str] = {}
+
+    def _coalesce(slot: str, indexed_column: str, base: str, new_value: Any) -> bool:
+        """Return True if ``slot`` should accept ``new_value`` now (first non-empty wins).
+
+        Records a :class:`DuplicateHeaderConflict` (and returns False) when the slot is already
+        filled by a DIFFERENT non-empty value from an earlier column (R1.6). A later empty value
+        never reaches here (callers guard on ``cleaned is not None``), so it can never overwrite.
+        """
+        new_str = str(new_value).strip() if not isinstance(new_value, str) else new_value.strip()
+        prior = filled.get(slot)
+        if prior is None:
+            filled[slot] = (new_str, indexed_column)
+            return True
+        kept_value, _kept_col = prior
+        if kept_value != new_str:
+            conflict_out.append(
+                DuplicateHeaderConflict(
+                    base_header=base,
+                    losing_column=indexed_column,
+                    kept_value=kept_value,
+                    dropped_value=new_str,
+                )
+            )
+        return False  # a genuine duplicate (equal or conflicting) — first-in-order already kept
+
+    # PASS 1 (in column order): coalesce each source column onto its contract slot. The rule
+    # CONVERSION is deferred to pass 2 so a blank duplicate can never mask a populated sibling.
     for column, value in raw_row.items():
-        col = (column or "").strip()
-        col_lower = col.lower()
+        indexed_column = (column or "").strip()
+        # R1.3: match on the BASE header — strip a position-tracking `#<colindex>` suffix so a
+        # duplicated header resolves to the SAME target as its bare sibling and coalesces.
+        base = _base_header(indexed_column)
+        col_lower = base.lower()
         cleaned = _clean(value)
 
-        if col_lower == _REGION_SOURCE_COLUMN:
-            region_raw = cleaned if isinstance(cleaned, str) else None
+        # R1.5: a blank-named source column is dropped (DynamoDB rejects an empty attribute
+        # name). Its index was already consumed by the row-builder; nothing to store.
+        if base == "":
             continue
 
-        if col_lower == _SIGNED_DATE_COLUMN:
-            signed_date_raw = cleaned
-            continue
-        if col_lower == _JOIN_YEAR_COLUMN:
-            # Aanmeldingsjaar is a CALCULATED field — captured ONLY as a joined_date fallback
-            # input; NOT stored as a fixed/overlay field.
-            join_year_raw = cleaned
+        fixed_map = contract.fixed.get(col_lower)
+        overlay_map = contract.overlay.get(col_lower)
+
+        # FIXED (personal.*/membership.*) — coalesce the RAW value onto the dotted-key slot.
+        if fixed_map is not None:
+            slot = fixed_map.target
+            # joined_date: DON'T fold its several inputs into the one column-order slot. Keep
+            # each source column's first-non-empty value under its BASE header so PASS 2 can
+            # combine them by an explicit PRIORITY order (Datum ondertekening → Tijdstempel →
+            # Aanmeldingsjaar), independent of the columns' physical sheet order (R: joined_date
+            # fallback). A position-tracked duplicate of the SAME source column still coalesces
+            # (first non-empty per base header wins).
+            if slot == "membership.joined_date":
+                if cleaned is not None and col_lower not in joined_date_by_source:
+                    joined_date_by_source[col_lower] = (
+                        cleaned if isinstance(cleaned, str) else str(cleaned).strip()
+                    )
+                continue
+            # EMAIL (R8.1): strip a NO-VALID-EMAIL placeholder to empty DURING coalesce, so a
+            # fake "geen email" marker in an earlier column never wins over a real address in a
+            # later duplicate — and never lands on personal.email as if it were deliverable.
+            if slot == "personal.email":
+                cleaned = _normalize_email(cleaned)
+            if cleaned is not None and _coalesce(slot, indexed_column, base, cleaned):
+                slot_raw[slot] = cleaned
             continue
 
-        dotted = FIXED_SOURCE_COLUMNS.get(col_lower)
-        if dotted is None:
-            # Unknown column → a club/Motor variable overlay field (kept verbatim).
-            # Skip an EMPTY-named column: `col` is "" for the source's blank-header column,
-            # and DynamoDB rejects an empty attribute name ("Empty attribute name" on write).
-            # The fidelity report already lists it as "(empty-named column — dropped)", so
-            # dropping it here makes that true (it must never reach the overlay item).
-            if cleaned is not None and col != "":
-                overlay[col] = cleaned
+        # OVERLAY (canonical overlay.* key(s)) — a `single`/`coalesce` row names one target; the
+        # `iban_or_payment` conditional split names two. Coalesce the RAW source value onto a
+        # slot keyed by the source base header (both targets share the one source value).
+        if overlay_map is not None:
+            slot = f"overlay-src:{col_lower}"
+            if cleaned is not None and _coalesce(slot, indexed_column, base, cleaned):
+                slot_raw[slot] = (overlay_map, cleaned)
             continue
 
-        group, key = dotted.split(".", 1)
+        # CALCULATED — the value is DERIVED by a calculated field, NOT stored (R2.2/R2.6).
+        if col_lower in contract.calculated:
+            continue
+
+        # EXCLUDED — deliberately dropped, unfit / (near-)duplicate (R2.6).
+        if col_lower in contract.excluded:
+            continue
+
+        # additional_info (declared, R2.7) OR any unmapped-but-kept column — concatenate into
+        # overlay.additional_info as `Label: value` (source header as the label). Coalesce so a
+        # position-tracked duplicate does not double-count; a genuine conflict is reported.
+        if cleaned is not None and _coalesce(
+            f"additional_info:{col_lower}", indexed_column, base, cleaned
+        ):
+            additional.append((indexed_column, str(cleaned).strip()))
+
+    # PASS 2: convert each coalesced raw value by its declared rule and write the target.
+
+    # ── FIXED targets ────────────────────────────────────────────────────────────────
+    for slot, raw in slot_raw.items():
+        fmap = None
+        # Only fixed slots are dotted keys present in the contract's fixed map (by target).
+        for m in contract.fixed.values():
+            if m.target == slot:
+                fmap = m
+                break
+        if fmap is None:
+            continue  # an overlay slot — handled below
+        group, key = slot.split(".", 1)
         target = personal if group == "personal" else membership
+        rule = fmap.rule
 
         if key == "member_number":
-            # A.2: shape the source `Lidnummer` to the sortable `M00001` string. A source
-            # value with no digits is unusable → recorded as a missing-number reason below.
-            shaped = _shape_member_number(cleaned)
-            if shaped is not None:
-                target[key] = shaped
-        elif key == "membership_type":
-            if cleaned is None:
-                reasons["membership.membership_type"] = "is required"
-            else:
-                try:
-                    target[key] = mapper.to_code(cleaned)
-                except ValueError as exc:
-                    reasons["membership.membership_type"] = str(exc)
-        elif cleaned is not None:
-            # Fixed personal/membership fields reaching this branch are STRING-typed (dates
-            # are handled elsewhere). The JSON export carries some as numbers (e.g. Postcode /
-            # Telefoonnummer as ints), so coerce to a trimmed string to satisfy the string
-            # validator — no data loss, just a type fix (A.2).
-            target[key] = str(cleaned).strip() if not isinstance(cleaned, str) else cleaned
+            # Handled after the loop from the authoritative ``SAM Code`` (read verbatim) — the
+            # raw value coalesced onto this slot is NOT copied as a plain string here.
+            continue
+        if key == "membership_type":
+            try:
+                target[key] = mapper.to_code(raw)
+            except ValueError as exc:
+                reasons[slot] = str(exc)
+            continue
+        if rule == "date":
+            # birth_date / joined_date etc. — reduce an ISO datetime to a bare YYYY-MM-DD. An
+            # unparseable value simply leaves the (optional) field unset (R2.1/R3.3). joined_date
+            # additionally gets a year/today fallback below.
+            iso = _iso_date_part(raw)
+            if iso is not None:
+                target[key] = iso
+            continue
+        if rule == "gender":
+            g = _normalize_gender(raw)
+            if g is not None:
+                target[key] = g
+            continue
+        # single / coalesce string copy. The JSON export carries some fixed fields as numbers
+        # (Postcode / Telefoonnummer as ints), so coerce to a trimmed string for the validator.
+        target[key] = str(raw).strip() if not isinstance(raw, str) else raw
 
-    # s5k: a row with NO usable member number (Lidnummer) is STILL a member. `member_number` is
-    # a plain OPTIONAL string now — a sponsor / sister club / dealer with no Lidnummer is a valid
-    # `sam-members` record (identity is the minted `member_id` uuid, not the human number). We
-    # simply LEAVE the key absent (an optional field is absent, never present-and-blank — the
-    # fixed-field validator rejects a blank string), so such rows validate and never collide on
-    # the duplicate-number key below.
-    #
-    # ⚠ Non-idempotent for numberless rows: the export carries no `member_id` column, so each run
-    # mints a fresh uuid. A numbered row can be reconciled by its human number, but a numberless
-    # row has no stable source key — re-running `--apply` would create a NEW record for the same
-    # real contact. Import numberless rows ONCE, then maintain them in-app (see backlog: h-dcn
-    # Members re-import). The fidelity report flags the numberless count so this is visible.
+    # joined_date — derived from its several contract inputs by an EXPLICIT PRIORITY order, NOT
+    # the columns' raw sheet order. Each input's value was collected per base header in PASS 1.
+    #   1. Datum ondertekening (the signature date — authoritative) parsed as a date;
+    #   2. else Tijdstempel (the member-since timestamp — the widest-populated column, 1215/1242)
+    #      parsed as a date — the fallback added so a member with no signature date but a
+    #      timestamp gets a REAL join date instead of today;
+    #   3. else Aanmeldingsjaar (a bare registration year) → <year>-01-01;
+    #   4. else default to today so a real member is never dropped for a missing join date
+    #      (A.2 decision).
+    # Both date inputs go through the SAME date parser (Dutch d-m-yyyy AND ISO) — the fix that
+    # stops every real Dutch date falling through to today.
+    joined_date: str | None = None
+    for _src in _JOINED_DATE_DATE_SOURCES:  # date-valued inputs, in priority order
+        _val = joined_date_by_source.get(_src)
+        if _val is not None:
+            joined_date = _parse_source_date(_val)
+            if joined_date is not None:
+                break
+    if joined_date is None:  # year fallback (Aanmeldingsjaar → <year>-01-01)
+        _year_val = joined_date_by_source.get(_JOINED_DATE_YEAR_SOURCE)
+        if _year_val is not None:
+            joined_date = _year_to_iso(_year_val)
+    membership["joined_date"] = joined_date or _dt.date.today().isoformat()
 
-    # A.2 DERIVED membership fields (no direct source column):
-    #  * status — the export has no status column → default to "active" (A.2 decision; all
-    #    Ledenbestand rows are current members). A later refactor may derive left/lapsed.
+    # ── OVERLAY targets (canonical keys) ───────────────────────────────────────────────
+    region_raw: str | None = None
+    for slot, payload in slot_raw.items():
+        if not slot.startswith("overlay-src:"):
+            continue
+        overlay_map, raw = payload
+        rule = overlay_map.rule
+
+        if rule == "region":
+            # Deferred: canonicalized after the loop (needs the injected canonicalizer). Stored
+            # on the plain `overlay.region` field as a SCALAR (S5d D1 — no scope_values bucket).
+            if isinstance(raw, str):
+                region_raw = raw
+            continue
+        if rule == "iban_or_payment":
+            iban, payment = _split_iban_or_payment(raw)
+            if iban is not None:
+                overlay["iban"] = iban
+            if payment is not None:
+                overlay["payment_method"] = payment
+            continue
+        if rule == "magazine":
+            overlay[overlay_map.targets[0]] = _normalize_magazine(raw)
+            continue
+        if rule == "date":
+            # Filterable overlay date fields (deregistration_date / termination_date): stored
+            # only when the source parses to a date, else left unset (R2.3).
+            iso = _iso_date_part(raw)
+            if iso is not None:
+                overlay[overlay_map.targets[0]] = iso
+            continue
+        # single / coalesce — copy onto the canonical overlay key (string).
+        overlay[overlay_map.targets[0]] = str(raw).strip() if not isinstance(raw, str) else raw
+
+    # membership_type is a REQUIRED fixed field. Flag it missing only if NO column supplied a
+    # value and no code was mapped (a blank duplicate never masks a populated sibling, R1.4).
+    if (
+        "membership_type" not in membership
+        and "membership.membership_type" not in reasons
+        and "membership.membership_type" not in slot_raw
+    ):
+        reasons["membership.membership_type"] = "is required"
+
+    # ── member_number — READ from the authoritative ``SAM Code`` (identity change) ──────
+    # The human number is READ verbatim from the ``SAM Code`` column (Members ``M#####`` /
+    # Donateurs ``D#####`` / Contacts ``C#####``), NOT derived from Lidnummer/Achternaam. This
+    # row already passed the empty-row test above, so it IS a meaningful data row:
+    #   - a present, non-blank SAM Code that MATCHES the format → used verbatim as member_number;
+    #   - a present SAM Code that does NOT match the format → a data-gap error (reported, not
+    #     written) — the authoritative code is malformed and must be fixed at source;
+    #   - a BLANK/absent SAM Code on a meaningful row → a data-gap error (reported, not written):
+    #     a missing code is a real gap, NOT something to silently derive around (user-approved).
+    if sam_code is None:
+        reasons["membership.member_number"] = (
+            "meaningful row has a blank 'SAM Code' — the authoritative member number is missing "
+            "(fix the source; the importer never derives it)"
+        )
+    elif not _MEMBER_NUMBER_FORMAT_RE.match(sam_code):
+        reasons["membership.member_number"] = (
+            f"'SAM Code' {sam_code!r} does not match the member-number format "
+            f"{_MEMBER_NUMBER_FORMAT_RE.pattern!r} (expected M#####/D#####/C#####)"
+        )
+    else:
+        membership["member_number"] = sam_code
+
+    # A.2 DERIVED: status — the export has no status column → default "active".
     membership.setdefault("status", _DEFAULT_MEMBERSHIP_STATUS)
-    #  * joined_date — date-part of `Datum ondertekening`; if absent, `<Aanmeldingsjaar>-01-01`;
-    #    if STILL absent (a numbered member with no signing date and no join year), default to
-    #    today (sysdate) so a real member is never dropped for a missing join date (A.2 decision).
-    #    Aanmeldingsjaar is a calculated field, used here only as a fallback INPUT.
-    joined = (
-        _iso_date_part(signed_date_raw)
-        or _year_to_iso(join_year_raw)
-        or _dt.date.today().isoformat()
-    )
-    membership["joined_date"] = joined
 
-    # A.2: mint a STABLE internal id (uuid4) — the export carries no member_id, and the
-    # internal id is intentionally decoupled from the human `member_number` (which may be
-    # reformatted/renumbered without re-keying the record subtree). ONBOARDING §2.
+    # A.2: mint a STABLE internal id (uuid4) — the export carries no member_id, and the internal
+    # id is intentionally decoupled from the human `member_number`. ONBOARDING §2.
     member_id = str(uuid.uuid4())
+    # Best-effort ref for the fidelity report: the member_number if valid, else the raw (possibly
+    # blank/malformed) SAM Code, else a name — so a data-gap row can still be found in the source.
+    member_ref = (
+        membership.get("member_number")
+        or sam_code
+        or _skip_label(personal, overlay)
+    )
 
-    member_ref = membership.get("member_number") or "<unknown>"
-
-    # S5d D1/R3.4: the region is a PLAIN member field, not a `scope_values` bucket. h-dcn's
-    # `region` is a tenant-added field → its storage bucket is `overlay`. Store the CANONICAL
-    # value (normalized via the shared `scope_canon`, R9.2) as a SCALAR (single-valued per
-    # scope field, R3.2). An absent region omits the field entirely (no empty placeholder).
+    # region (deferred canonicalization): store the CANONICAL value as a SCALAR on overlay.region
+    # (S5d D1/R3.4). An absent region omits the field entirely (no empty placeholder).
     if region_raw:
         canon = region_canonicalizer or _NULL_REGION_CANONICALIZER
         overlay[_REGION_FIELD_KEY] = canon.canonical(region_raw)
+
+    # additional_info (R2.7): concatenate the kept leftovers as `Label: value` pairs in stable
+    # source-column order, ` | ` delimiter, only non-empty cells. Unset if nothing contributed.
+    info = " | ".join(f"{label}: {val}" for label, val in additional if val)
+    if info:
+        overlay["additional_info"] = info
 
     record: dict[str, Any] = {
         "tenant_id": tenant_id,
@@ -627,8 +1288,14 @@ class FileSourceAdapter:
     is opened for reading only and is never written back (non-destructive, R5.2).
 
     Format detection: ``.json`` → a JSON array of row objects (or ``{"rows": [...]}``);
-    anything else → CSV with a header row (``csv.DictReader``). Pass ``fmt="csv"``/``"json"``
-    to force a format.
+    anything else → CSV. Pass ``fmt="csv"``/``"json"`` to force a format.
+
+    **Duplicate-header safety (R1.1/R1.2).** The CSV path reads the RAW header row itself (via
+    ``csv.reader``) and builds each row with the SHARED :func:`build_position_tracked_row` helper —
+    NOT ``csv.DictReader``, which silently collapses a repeated header to its last occurrence. A
+    duplicate header therefore becomes a distinct ``<header>#<colindex>`` key, exactly as
+    :meth:`GoogleSheetsSourceAdapter._rows_from_matrix` does, so file and sheet sources hand the
+    transform identical, collision-free rows.
     """
 
     def __init__(self, path: str, *, fmt: str | None = None, encoding: str = "utf-8"):
@@ -652,9 +1319,19 @@ class FileSourceAdapter:
 
     @staticmethod
     def _read_csv(fh: io.TextIOBase) -> Iterator[Mapping[str, Any]]:
-        for row in csv.DictReader(fh):
-            # DictReader keys are the header names; values are strings (or None for short rows).
-            yield {k: v for k, v in row.items() if k is not None}
+        # Read the RAW header row ourselves (NOT ``csv.DictReader``, which builds a plain dict
+        # keyed by header and so SILENTLY COLLAPSES a repeated header to its last occurrence —
+        # exactly the bug that dropped ``peter@pgeer.nl`` when an empty duplicate ``E-mailadres``
+        # clobbered the populated one). Instead we position-track every column with the SHARED
+        # ``build_position_tracked_row`` helper so a duplicate header becomes ``<header>#<colindex>``
+        # and file + sheet sources behave identically (R1.1/R1.2).
+        reader = csv.reader(fh)
+        try:
+            headers = next(reader)
+        except StopIteration:
+            return  # empty file → no rows
+        for values in reader:
+            yield build_position_tracked_row(headers, values)
 
     @staticmethod
     def _read_json(text: str) -> Iterator[Mapping[str, Any]]:
@@ -672,6 +1349,204 @@ class FileSourceAdapter:
         return f"{self._fmt.upper()} export file {os.path.basename(self._path)!r}"
 
 
+class GoogleSheetsSourceAdapter:
+    """A READ-ONLY :class:`HdcnSourceAdapter` reading the live "HDCN Ledenbestand" Sheet DIRECTLY.
+
+    Reads the Sheet via the Google Sheets API and yields the SAME ``{header: value}`` row shape
+    as :class:`FileSourceAdapter`, so :func:`map_hdcn_row` is source-agnostic (R4.1). It is
+    duck-typed against the :class:`HdcnSourceAdapter` Protocol (``rows()`` / ``describe()``) — no
+    base class.
+
+    **READ-ONLY (R4.2/R5.1).** Authenticates a service account with ONLY the
+    :data:`_SHEETS_READONLY_SCOPE` (``spreadsheets.readonly``), and calls ONLY
+    ``spreadsheets.values.get``. Resolving a sheet by TITLE (``spreadsheet_name``) additionally
+    requests the read-only Drive scope (:data:`_DRIVE_READONLY_SCOPE`) for a single ``files.list``.
+    It NEVER writes, updates, or deletes the source — the live Sheet stays h-dcn's system of record.
+
+    **Credentials (R4.3).** Reuses the EXISTING h-dcn service account (the Sheet is already shared
+    with it as Viewer). ``credentials_file`` defaults to the shared key
+    :data:`DEFAULT_GOOGLE_CREDENTIALS_FILE` (overridable via the runner's ``--credentials``). A
+    missing/invalid key file fails FAST with actionable setup guidance
+    (:meth:`_load_credentials` → :class:`FileNotFoundError`).
+
+    **Lazy imports (R4.4).** EVERY ``from google...`` / ``from googleapiclient...`` import lives
+    INSIDE the methods, never at module top — so ``import hdcn_backfill`` in the SAM Lambda runtime
+    (whose layer ships no Google libs) never fails. Mirrors ``backend/src/services/
+    google_oauth_service.py``.
+
+    Construction requires an id OR a name (not both required, at least one). ``worksheet`` is the
+    tab name (becomes the A1 range prefix ``'<tab>'!A1:ZZ``); ``cell_range`` overrides the derived
+    range entirely.
+    """
+
+    #: The A1 column span read when no explicit ``cell_range`` is given — a generous width so a
+    #: 49-column sheet (with duplicates + a trailing blank) is fully captured. ``_rows_from_matrix``
+    #: trims to the header row's real width.
+    _DEFAULT_A1_SPAN = "A1:ZZ"
+
+    def __init__(
+        self,
+        *,
+        spreadsheet_id: str | None = None,
+        spreadsheet_name: str | None = None,
+        worksheet: str | None = None,
+        credentials_file: str = DEFAULT_GOOGLE_CREDENTIALS_FILE,
+        cell_range: str | None = None,
+    ):
+        if not (spreadsheet_id or spreadsheet_name):
+            raise ValueError(
+                "GoogleSheetsSourceAdapter needs a spreadsheet_id or a spreadsheet_name "
+                "(pass --sheet-id or --sheet-name)"
+            )
+        self._spreadsheet_id = spreadsheet_id.strip() if spreadsheet_id else None
+        self._spreadsheet_name = spreadsheet_name.strip() if spreadsheet_name else None
+        self._worksheet = worksheet.strip() if worksheet else None
+        self._credentials_file = credentials_file
+        self._cell_range = cell_range
+
+    # ── Auth (lazy, read-only) ─────────────────────────────────────────────────────────
+
+    def _load_credentials(self, *, include_drive: bool = False):
+        """Load the service-account credentials, read-only scopes (R4.2/R4.3). LAZY import.
+
+        Fails FAST with an actionable :class:`FileNotFoundError` if the key file is missing, is
+        not valid JSON, or is a placeholder template (mirroring h-dcn's ``test_google_connection``
+        checks: file exists, valid JSON, not the template). ``include_drive`` adds the read-only
+        Drive scope needed ONLY to resolve a spreadsheet by title.
+        """
+        path = self._credentials_file
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f"Google service-account key not found at {path!r}. Place the EXISTING h-dcn "
+                f"service-account JSON key there (re-download from Google Cloud if absent; the "
+                f"'HDCN Ledenbestand' Sheet is already shared with that account as Viewer), or "
+                f"pass --credentials <path>."
+            )
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                info = json.load(fh)
+        except (OSError, ValueError) as exc:
+            raise FileNotFoundError(
+                f"Google service-account key at {path!r} is not valid JSON ({exc}). Re-download "
+                f"the service-account key from Google Cloud, or pass --credentials <path>."
+            ) from exc
+        if not isinstance(info, Mapping) or info.get("type") != "service_account":
+            raise FileNotFoundError(
+                f"Google service-account key at {path!r} is not a service-account key (missing "
+                f'"type": "service_account" — it may be a placeholder template or an OAuth client '
+                f"secret). Re-download the service-account key from Google Cloud."
+            )
+
+        # LAZY import (R4.4) — never at module top, so the SAM Lambda runtime (no Google libs) is safe.
+        from google.oauth2 import service_account
+
+        scopes = [_SHEETS_READONLY_SCOPE]
+        if include_drive:
+            scopes.append(_DRIVE_READONLY_SCOPE)
+        return service_account.Credentials.from_service_account_file(path, scopes=scopes)
+
+    def _resolve_spreadsheet_id(self) -> str:
+        """Return the spreadsheet id — use ``spreadsheet_id`` directly, else resolve by TITLE.
+
+        Title resolution is a single READ-ONLY Drive ``files.list`` for a spreadsheet named
+        exactly ``spreadsheet_name``; it fails clearly if 0 or >1 sheets match. LAZY imports.
+        """
+        if self._spreadsheet_id:
+            return self._spreadsheet_id
+
+        creds = self._load_credentials(include_drive=True)
+        # LAZY import (R4.4).
+        from googleapiclient.discovery import build
+
+        drive = build("drive", "v3", credentials=creds, cache_discovery=False)
+        safe_name = (self._spreadsheet_name or "").replace("'", "\\'")
+        query = (
+            f"name = '{safe_name}' and "
+            "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
+        )
+        response = (
+            drive.files()
+            .list(q=query, fields="files(id, name)", spaces="drive", pageSize=10)
+            .execute()
+        )
+        matches = response.get("files", [])
+        if not matches:
+            raise ValueError(
+                f"No Google Sheet titled {self._spreadsheet_name!r} was found (is it shared with "
+                f"the service account as Viewer?). Prefer --sheet-id for an unambiguous lookup."
+            )
+        if len(matches) > 1:
+            ids = ", ".join(m.get("id", "?") for m in matches)
+            raise ValueError(
+                f"{len(matches)} Google Sheets are titled {self._spreadsheet_name!r} ({ids}). "
+                f"Use --sheet-id to disambiguate."
+            )
+        return matches[0]["id"]
+
+    # ── Value fetch (single read-only values.get) ─────────────────────────────────────
+
+    def _a1_range(self) -> str:
+        """The A1 range to read: explicit ``cell_range``, else ``'<tab>'!A1:ZZ`` (or bare span)."""
+        if self._cell_range:
+            return self._cell_range
+        if self._worksheet:
+            # Quote the tab name for A1 notation (a name with spaces MUST be quoted).
+            return f"'{self._worksheet}'!{self._DEFAULT_A1_SPAN}"
+        return self._DEFAULT_A1_SPAN
+
+    def _fetch_values(self) -> list[list[Any]]:
+        """Fetch the raw value MATRIX via a single READ-ONLY ``spreadsheets.values.get`` (R4.2).
+
+        Returns the list-of-rows matrix Google returns (each row a list of cell values; short
+        rows are naturally shorter — :meth:`_rows_from_matrix` pads them). LAZY imports (R4.4).
+        """
+        creds = self._load_credentials()
+        spreadsheet_id = self._resolve_spreadsheet_id()
+        # LAZY import (R4.4).
+        from googleapiclient.discovery import build
+
+        sheets = build("sheets", "v4", credentials=creds, cache_discovery=False)
+        result = (
+            sheets.spreadsheets()
+            .values()
+            .get(spreadsheetId=spreadsheet_id, range=self._a1_range())
+            .execute()
+        )
+        return result.get("values", [])
+
+    # ── Matrix → position-tracked rows (R1/R4.5) ───────────────────────────────────────
+
+    @staticmethod
+    def _rows_from_matrix(matrix: Sequence[Sequence[Any]]) -> list[dict[str, Any]]:
+        """Turn a Sheets value MATRIX into position-tracked ``{header: value}`` rows (R4.5/R1).
+
+        Row 0 is the header row; each later row is zipped to it. Short rows are PADDED to the
+        header width (Sheets omits trailing empty cells) so every header always gets a value.
+        Duplicate headers are made unique via the SHARED :func:`build_position_tracked_row` helper
+        (``<header>#<colindex>``), and a blank-named column is kept verbatim here (the transform
+        drops it, R1.5). Pure — no network — so it is unit-testable on a synthetic matrix.
+        """
+        if not matrix:
+            return []
+        headers = list(matrix[0])
+        width = len(headers)
+        rows: list[dict[str, Any]] = []
+        for raw_values in matrix[1:]:
+            values = list(raw_values)
+            if len(values) < width:
+                values = values + [""] * (width - len(values))  # pad short rows to header width
+            rows.append(build_position_tracked_row(headers, values))
+        return rows
+
+    def rows(self) -> Iterable[Mapping[str, Any]]:
+        return self._rows_from_matrix(self._fetch_values())
+
+    def describe(self) -> str:
+        target = self._spreadsheet_id or self._spreadsheet_name or "<unknown>"
+        tab = f" [tab {self._worksheet!r}]" if self._worksheet else ""
+        return f"Google Sheet {target}{tab} (READ-ONLY, direct API)"
+
+
 class LegacyDynamoSourceAdapter:
     """READ-ONLY adapter over the legacy h-dcn ``Members`` DynamoDB table (documented STUB).
 
@@ -682,7 +1557,8 @@ class LegacyDynamoSourceAdapter:
     aws-accounts guardrail: never destructive against a data table). A concrete implementation
     would reuse ``services.dynamodb_client.get_dynamodb_resource`` and page a read-only
     ``scan`` of the legacy table, mapping each legacy item's attributes to the source-column
-    names in :data:`FIXED_SOURCE_COLUMNS`. It is left unbuilt on purpose (YAGNI for the pilot),
+    names declared in the authored mapping contract (``members_source_mapping.csv``). It is left
+    unbuilt on purpose (YAGNI for the pilot),
     and ``rows()`` raises so nobody accidentally relies on live legacy access.
     """
 
@@ -731,8 +1607,9 @@ class BackfillPlan:
     transformed: list[TransformedRow] = field(default_factory=list)
     #: (member_ref, {dotted_key: reason}) for rows that failed to map — surfaced, never dropped.
     errors: list[tuple[str, Mapping[str, str]]] = field(default_factory=list)
-    #: (label, reason) for rows intentionally SKIPPED. s5k: currently always empty — numberless
-    #: rows are now imported (valid members). Retained as an inert extension point (see RowSkipped).
+    #: (label, reason) for rows intentionally SKIPPED (counted as "skipped (empty)", DISTINCT
+    #: from errors — never transformed/written). s5m follow-up: an R7.2 EMPTY row (incl. a
+    #: placeholder-only row) and a Donateur-coded ``Lidnummer`` row both land here (see RowSkipped).
     skipped: list[tuple[str, str]] = field(default_factory=list)
     #: non-empty member numbers appearing on more than one row in this batch — a DATA-QUALITY
     #: warning only (reported; NOT skipped or blocked — the uniqueness guard was removed in s5k).
