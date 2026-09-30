@@ -72,6 +72,11 @@ CLASSIFICATION_TABLE: tuple[tuple[str | None, str, str], ...] = (
     ("birth_date", "personal", "fixed"),
     ("age", "personal", "calculated"),
     ("birthday", "personal", "calculated"),
+    # birth_date component derivations (s5m task 4 — filter/group helpers off birth_date)
+    ("birth_day", "personal", "calculated"),
+    ("birth_month", "personal", "calculated"),
+    ("birth_year", "personal", "calculated"),
+    ("birth_quarter", "personal", "calculated"),
     # gender (Fixed; Parameter enum values)
     ("gender", "personal", "fixed"),
     # contact

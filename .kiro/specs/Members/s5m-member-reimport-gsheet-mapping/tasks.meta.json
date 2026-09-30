@@ -1,0 +1,165 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Duplicate-header position tracking + first-non-empty coalesce": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694589118
+      },
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694606517
+      },
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694920773
+      }
+    ],
+    "2. Authored mapping CSV + loader (the declared contract)": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694589297
+      },
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694926272
+      },
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790695451044
+      }
+    ],
+    "3. Transform consumes the loaded mapping (birth_date, overlay, dispositions, additional_info)": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694589437
+      },
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790695457325
+      }
+    ],
+    "3b. Port h-dcn region variants + business rules (retargeted to SAM canonical values)": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694589582
+      },
+      {
+        "executionId": "8da60cef-3a2f-4d9b-930b-1638637f02cf",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790696932806
+      }
+    ],
+    "4. Calculated birth fields": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694589698
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790698281577
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790698408187
+      }
+    ],
+    "5. GoogleSheetsSourceAdapter (read-only, lazy, matrix→rows) + FileSourceAdapter position tracking": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694589837
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790698414829
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790698725373
+      }
+    ],
+    "6. Runner adapter selection + CLI flags": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694589993
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790698730897
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790699043606
+      }
+    ],
+    "7. Reconciling sync (match by member_number, upsert, absence sweep)": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694590110
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790699048952
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790699388661
+      }
+    ],
+    "8. Tests — mapping contract, dedup, calculated fields, adapter row-shaping, lazy import, sync": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694590283
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790699395207
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790699634738
+      }
+    ],
+    "9. Full SAM suite green + document live-apply steps": [
+      {
+        "executionId": "ccc5963d-4ca3-4d3c-a9f4-418706b70045",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790694590412
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790699641454
+      },
+      {
+        "executionId": "b847bbb9-8b39-4deb-a794-f33a5f85c275",
+        "chatSessionId": "sess_f12ea336-bc32-4fc7-b9d3-f70fcec68d27",
+        "timestamp": 1790700300015
+      }
+    ]
+  }
+}

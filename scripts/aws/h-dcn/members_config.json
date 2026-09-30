@@ -173,9 +173,9 @@
       "membership.member_number": {
         "functional_group": "membership",
         "format": {
-          "regex": "^(M\\d{5}|C_.+)$"
+          "regex": "^(M\\d{5}|D\\d{5}|C\\d{5})$"
         },
-        "_comment": "member_number accepts a MEMBER number 'M#####' OR a CONTACT key 'C_<organisation name>' (s5m R7.2: a numberless sponsor/club row is a contact keyed by C_+Achternaam). Was prefix=M,width=5; switched to a regex so both forms validate (regex wins over prefix/width in MemberNumberFormat)."
+        "_comment": "member_number is the AUTHORITATIVE 'SAM Code' read verbatim from the sheet (SAM Code identity change, user-approved): a Member 'M#####', a Donateur 'D#####', or a Contact 'C#####' - all one letter + exactly 5 digits. Was ^(M\\d{5}|C_.+)$ (M-member OR C_<name>-contact) before the SAM Code column supplied a uniform 5-digit code for all three. RE-RUN seed-hdcn-members-config.py to push this into MySQL members.field_overlay. Regex wins over prefix/width in MemberNumberFormat."
       }
     },
     "fields": {
@@ -391,6 +391,17 @@
           "en": "Notes"
         },
         "order": 10
+      },
+      "additional_info": {
+        "functional_group": "administrative",
+        "type": "string",
+        "required": false,
+        "label": {
+          "nl": "Aanvullende informatie",
+          "en": "Additional info"
+        },
+        "order": 15,
+        "_comment": "s5m R2.7: the single catch-all overlay STRING field. On import the leftover Additional-info source columns (mapping CSV disposition (additional_info), e.g. Ondertekening / Naam voor akkoord) are concatenated into it as 'Label: value' pairs, ' | ' delimiter, stable source-column order, only non-empty cells; unset if nothing contributes. Keeps overlay free of raw Dutch header keys."
       },
       "signature_date": {
         "functional_group": "administrative",

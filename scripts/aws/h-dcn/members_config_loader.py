@@ -27,11 +27,63 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(_THIS_DIR, "members_config.json")
 
 #: Region spelling ALIASES (raw export spelling → canonical value) that ``scope_canon`` cannot
-#: fold because they differ by a real letter, not case/diacritic/separator. TENANT DATA — kept
-#: here beside the config file, NOT in the generic core. h-dcn: the export's ``Groningen/Drente``
-#: misspelling maps onto the canonical ``Groningen/Drenthe`` (see members_config.json).
+#: fold because they differ by a real letter/word, not case/diacritic/separator. TENANT DATA —
+#: kept here beside the config file, NOT in the generic core.
+#:
+#: PORTED (s5m R8.1) from h-dcn's proven importer ``import_members_sheets.py`` v2.0
+#: ``regio_value_mapping`` (~40 variants) + ``VALID_REGIONS``, RETARGETED (R8.2) onto THIS
+#: tenant's ENGLISH-plane canonical region value set authored in ``members_config.json``
+#: (``region_values`` below) — NOT copied with h-dcn's old Dutch stored values. Key differences
+#: from h-dcn's targets: SAM uses ``Noord Holland`` / ``Zuid Holland`` (a SPACE, not the hyphen
+#: h-dcn stored) and ``Geen`` where h-dcn used ``Overig`` ("Other").
+#:
+#: Only genuine letter/word/label differences need an entry here — ``scope_canon`` already folds
+#: case, diacritics and separators on BOTH sides of the match (so ``noord-holland`` /
+#: ``NOORD HOLLAND`` / ``Noord  Holland`` all fold onto the canonical ``Noord Holland`` WITHOUT
+#: an alias). These aliases cover the real export's abbreviations, misspellings, merged/split
+#: region names and English labels that ``scope_canon`` cannot reach.
 REGION_ALIASES: Mapping[str, str] = {
+    # --- misspelling ``scope_canon`` cannot fold (real letter difference) -------------------
     "Groningen/Drente": "Groningen/Drenthe",
+    "Groningen/Drenthe": "Groningen/Drenthe",
+    "Groningen": "Groningen/Drenthe",
+    "Drenthe": "Groningen/Drenthe",
+    "Drente": "Groningen/Drenthe",
+    # --- Noord/Zuid Holland variants that differ by a WORD (Nrd/Zd/N-/Z-), not a separator ---
+    "Nrd Holland": "Noord Holland",
+    "N Holland": "Noord Holland",
+    "NH": "Noord Holland",
+    "Noord-Holland": "Noord Holland",
+    "Zd Holland": "Zuid Holland",
+    "Z Holland": "Zuid Holland",
+    "ZH": "Zuid Holland",
+    "Zuid-Holland": "Zuid Holland",
+    # --- Brabant / Zeeland split or abbreviated in the source → the merged canonical value ---
+    "Brabant": "Brabant/Zeeland",
+    "Zeeland": "Brabant/Zeeland",
+    "Noord Brabant": "Brabant/Zeeland",
+    "Noord-Brabant": "Brabant/Zeeland",
+    "NB": "Brabant/Zeeland",
+    # --- Oost (east) region spellings ---------------------------------------------------------
+    "Oost Nederland": "Oost",
+    "Overijssel": "Oost",
+    "Gelderland": "Oost",
+    "Flevoland": "Oost",
+    # --- Friesland spelling variant (Frisian) -------------------------------------------------
+    "Fryslan": "Friesland",
+    "Fryslân": "Friesland",
+    # --- Germany (English label) --------------------------------------------------------------
+    "Germany": "Duitsland",
+    # --- "Overig"/other/none → the SAM canonical ``Geen`` (h-dcn stored ``Overig``, R8.2) -----
+    "Overig": "Geen",
+    "Overige": "Geen",
+    "Anders": "Geen",
+    "Other": "Geen",
+    "Onbekend": "Geen",
+    "None": "Geen",
+    "N.v.t.": "Geen",
+    "NVT": "Geen",
+    "Buitenland": "Geen",
 }
 
 

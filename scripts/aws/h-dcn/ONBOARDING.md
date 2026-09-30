@@ -493,6 +493,43 @@ Run each script WITHOUT `--apply` first (dry-run is the default) and review, the
    `Drente`→`Drenthe` + `Overig`→`overig` aliases (§4/§6):
    `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
    `  backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py --source <export> --tenant h-dcn --apply`
+
+   **5b. Live direct-read alternative + reconciling sync (s5m, R6.5).** Instead of a `--source`
+   export you can read the live Google Sheet DIRECTLY (read-only, service account — design D5/D6).
+   Two MANUAL, gated prerequisites:
+   - **SA key on disk.** Place the EXISTING h-dcn service-account JSON at the shared default path
+     `/home/peter/projects/h-dcn/.googleCredentials.json` (re-download it from Google Cloud if
+     absent — the Sheet is already shared with that SA as **Viewer**), or pass `--credentials
+     <path>`. Scopes are read-only (`spreadsheets.readonly`; `+ drive.readonly` ONLY for the
+     `--sheet-name` title-lookup path). The SA never writes the source.
+   - **`.env` static keys STRIPPED** (steering 23): the repo `.env` exports `personal`-account keys
+     + a local DynamoDB endpoint that OUTRANK `AWS_PROFILE`, so a plain run silently hits the WRONG
+     account / the local emulator. Strip them, let the profile resolve, and **sanity-check identity
+     FIRST** — it MUST print `506221081911` (NonprofitDeployRole):
+     `env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \`
+     `  aws sts get-caller-identity --profile nonprofit-deploy --region eu-west-1 --output json`
+
+   Dry-run first (default; writes nothing), then apply. `--sheet-id` (from the URL
+   `.../spreadsheets/d/<ID>/edit`) is PREFERRED; `--sheet-name '<title>'` resolves via a read-only
+   Drive `files.list` (fails on 0 or >1 matches). `--reconcile` matches by `member_number`, upserts,
+   and soft-flags SAM records absent from the sheet as `status='left'` (NEVER deletes); a `left`
+   record back in the sheet reactivates. `--apply --reconcile` refuses on mapping errors OR duplicate
+   sheet `member_number` values (R7.7).
+   `env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \`
+   `  MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
+   `  backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \`
+   `  --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn --apply --reconcile`
+
+   - **Numberless rows need NO sheet edit** — an empty `Lidnummer` + an `Achternaam` becomes a
+     `C_`+Achternaam CONTACT automatically (R7.2); a truly empty row is skipped; data with neither
+     is reported UNMATCHABLE (not written).
+   - **Re-run the config seed** — this spec changed `members_config.json` (new overlay fields
+     `additional_info` / `deregistration_date` / `termination_date`, `magazine_pref` /
+     `payment_method` value changes, `member_number` regex `^(M\d{5}|C_.+)$`). Those take effect in
+     MySQL only once `scripts/aws/seed-hdcn-members-config.py` is RE-RUN (onboarding path). Live
+     confirmation of the actual data read is a MANUAL gated step (needs the credentials file on
+     disk) — documented here, not automated in CI.
+
 6. **Seed / confirm user ROLES** in `user_tenant_roles` (the `Members_CRUD` capability the
    `required_for` gate needs; a Tenant_Admin to author scope). Roles are INDEPENDENT of scope.
 7. **Author per-user scope grants** in `user_tenant_scope` (`{"region":["Oost"]}`, or

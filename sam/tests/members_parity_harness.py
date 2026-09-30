@@ -622,11 +622,13 @@ class MembersParityHarness:
 
         # A backfilled member (4.1 transform on a REAL-shaped export row) round-trips create →
         # read. Uses the real Ledenbestand column headers; the transform MINTS a uuid4
-        # member_id, shapes Lidnummer → M#####, defaults status→active, derives joined_date,
-        # and canonicalizes region via an INJECTED RegionCanonicalizer built from the synthetic
-        # sample vocabulary (D17 — tenant data injected, never a core constant).
+        # member_id, READS member_number verbatim from the SAM Code column (identity change),
+        # defaults status→active, derives joined_date, and canonicalizes region via an INJECTED
+        # RegionCanonicalizer built from the synthetic sample vocabulary (D17 — tenant data
+        # injected, never a core constant).
         region_lower = PILOT_REGION.lower()  # e.g. "north" — a case variant to canonicalize
         raw_row = {
+            "SAM Code": "M09001",
             "Lidnummer": "9001",
             "Voornaam": "Bram",
             "Achternaam": "Backfilled",
@@ -634,7 +636,9 @@ class MembersParityHarness:
             "Soort lidmaatschap": "Erelid",
             "Datum ondertekening": "2024-01-01T00:00:00.000Z",
             "Regio": region_lower,
-            "motor": "BMW R80",  # → overlay.motor (the h-dcn active-member hook requires it)
+            # `Type motor` maps to the canonical overlay key motor_type (s5m mapping contract),
+            # which satisfies the h-dcn active-member hook (overlay.motor OR overlay.motor_type).
+            "Type motor": "BMW R80",
         }
         canon = RegionCanonicalizer(_SAMPLE_REGION_VALUES)
         record = map_hdcn_row(
@@ -657,7 +661,7 @@ class MembersParityHarness:
         round_tripped = (
             create["statusCode"] == 200
             and read["statusCode"] == 200
-            and stored_number == "M09001"  # Lidnummer 9001 → M{n:05d}
+            and stored_number == "M09001"  # SAM Code read verbatim as member_number
             and read_data.get("membership", {}).get("membership_type") == "erelid"
         )
         report.record(

@@ -70,14 +70,22 @@ from services.projection_sync import (
     build_config_views_row,
 )
 
+from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.field_resolver import TenantOverlay
 from sam.members.domain.fixed_fields import FIXED_FIELDS, FieldType
 from sam.members.domain.scope_dimensions import ScopeConfig
 from sam.members.domain.view_contexts import DEFAULT_CONTEXT_KEY
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
-# The canonical keys a variable overlay field may NOT collide with (fixed base registry).
+# The canonical keys a variable overlay field may NOT collide with. The resolver rejects a
+# variable key that collides with a fixed OR a calculated field key (field_resolver
+# `_RESERVED_KEYS = _FIXED_KEYS | _CALCULATED_KEYS`), so the generators here must avoid the
+# FULL reserved set. Filtering only fixed keys let Hypothesis draw a calculated key such as
+# `age` as a random overlay name, which the resolver correctly rejects -> intermittent flake.
 _FIXED_KEYS = frozenset(f.key for f in FIXED_FIELDS)
+_CALCULATED_KEYS = frozenset(c.key for c in CALCULATED_FIELDS)
+#: All canonical keys a generated variable (overlay) field name must avoid (mirrors resolver).
+_RESERVED_KEYS = _FIXED_KEYS | _CALCULATED_KEYS
 # The canonical dotted keys a fixed-field override addresses (only real fixed fields).
 _FIXED_DOTTED = tuple(f.dotted_key() for f in FIXED_FIELDS)
 
@@ -236,7 +244,7 @@ def _field_overlay(draw):
     """
     field_names = draw(
         st.lists(
-            _TOKEN.filter(lambda k: k not in _FIXED_KEYS),
+            _TOKEN.filter(lambda k: k not in _RESERVED_KEYS),
             max_size=4,
             unique=True,
         )
@@ -477,7 +485,7 @@ def _resolver_safe_field_overlay(draw):
     the FULL authored→builder→reader→resolve path, not just the reader.
     """
     field_names = draw(
-        st.lists(_TOKEN.filter(lambda k: k not in _FIXED_KEYS), max_size=4, unique=True)
+        st.lists(_TOKEN.filter(lambda k: k not in _RESERVED_KEYS), max_size=4, unique=True)
     )
     fields = {name: draw(_overlay_field(name)) for name in field_names}
 
@@ -633,7 +641,7 @@ def _rich_domain_overlay(draw):
     group_keys = draw(st.lists(_TOKEN, min_size=1, max_size=3, unique=True))
     catalog = {k: FunctionalGroup(key=k, order=i) for i, k in enumerate(group_keys)}
 
-    fname = draw(_TOKEN.filter(lambda k: k not in _FIXED_KEYS))
+    fname = draw(_TOKEN.filter(lambda k: k not in _RESERVED_KEYS))
     options = draw(_enum_options())
     show_when = {"field": "membership.membership_type", "in": draw(st.lists(_TOKEN, min_size=1, max_size=2))}
     ovl_field = OverlayField(
