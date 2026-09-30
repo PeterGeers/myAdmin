@@ -45,7 +45,15 @@ This will check:
 - ✅ Docker is running
 - ✅ Containers are running
 
-### 3. Start the Application
+### 3. Install Git Hooks (dev)
+
+Install the committed pre-commit guard (ggshield secret scan + `ruff check` + `ruff format --check`, pinned to ruff 0.16.5) so unformatted/lint-dirty code is blocked before CI:
+
+```bash
+sh scripts/hooks/install-hooks.sh
+```
+
+### 4. Start the Application
 
 ```powershell
 # Start all containers
