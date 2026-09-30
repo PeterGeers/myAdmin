@@ -118,15 +118,17 @@ class TestSeedAlignsWithBackfill:
         # End-to-end: a backfill row's membership_type maps to a code that IS an active seed
         # entry — the dropdown/reference check would resolve it (C8).
         row = {
-            "member_id": "M-1",
-            "lidnummer": "1001",
-            "voornaam": "Alex",
-            "naam": "de Vries",
-            "email": "alex@example.com",
-            "status": "actief",
-            "lidmaatschapstype": raw_label,
-            "ingangsdatum": "2010-01-01",
-            "regio": "Noord",
+            # Real Ledenbestand export headers (the s5m mapping contract keys on these, not the
+            # legacy lower-cased aliases): SAM Code/Voornaam/Achternaam/Soort lidmaatschap/Regio/…
+            # SAM Code supplies the authoritative member_number (read verbatim, identity change).
+            "SAM Code": "M01001",
+            "Lidnummer": "1001",
+            "Voornaam": "Alex",
+            "Achternaam": "de Vries",
+            "E-mailadres": "alex@example.com",
+            "Soort lidmaatschap": raw_label,
+            "Datum ondertekening": "2010-01-01T00:00:00.000Z",
+            "Regio": "Noord",
         }
         code = map_hdcn_row(row)["membership"]["membership_type"]
         seeded = {e.type_code: e for e in HDCN_MEMBERSHIP_TYPES}

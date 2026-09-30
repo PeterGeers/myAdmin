@@ -230,10 +230,12 @@ def test_create_member_duplicate_number_is_allowed(repo):
 
 
 def test_create_member_missing_required_fields_returns_422():
-    # No personal.first_name / email → fixed-field validation fails → 422 with per-field errors.
+    # No personal.last_name (the required identity anchor) → fixed-field validation fails → 422
+    # with per-field errors. (first_name is now OPTIONAL, so last_name is the field that must be
+    # present; asserting on it keeps the missing-required-field behavior covered.)
     resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
     assert resp["statusCode"] == 422
-    assert "personal.first_name" in _error_fields(resp)
+    assert "personal.last_name" in _error_fields(resp)
 
 
 def test_create_active_member_without_motor_fails_hdcn_hook_422():
@@ -721,7 +723,8 @@ def test_validation_error_carries_success_false_error_envelope(repo):
     assert env["code"] == "errors.validation.failed"
     # v1.0: errors is an RFC 9457 array of {field, code, detail}.
     assert isinstance(env["errors"], list)
-    assert "personal.first_name" in _error_fields(resp)
+    # last_name is the still-required identity anchor (first_name is optional now).
+    assert "personal.last_name" in _error_fields(resp)
 
 
 def test_transition_denied_carries_success_false_and_reasons(repo):
@@ -774,7 +777,8 @@ def test_catch_all_does_not_shadow_anticipated_mappings(repo):
 
 def test_422_errors_is_rfc9457_array_with_field_code_detail(repo):
     # A 422 body carries `errors` as an ARRAY of {field, code, params?, detail} (not a map) and a
-    # top-level summary `code`. A missing required first_name → validation.required on that field.
+    # top-level summary `code`. A missing required last_name → validation.required on that field.
+    # (first_name is now OPTIONAL — last_name is the still-required identity anchor.)
     resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
     assert resp["statusCode"] == 422
     env = _envelope(resp)
@@ -782,8 +786,8 @@ def test_422_errors_is_rfc9457_array_with_field_code_detail(repo):
     errors = env["errors"]
     assert isinstance(errors, list) and errors
     by_field = {e["field"]: e for e in errors}
-    assert "personal.first_name" in by_field
-    entry = by_field["personal.first_name"]
+    assert "personal.last_name" in by_field
+    entry = by_field["personal.last_name"]
     # Each entry is machine-code + human-detail (RFC 9457 per-entry).
     assert entry["code"] == "errors.validation.required"
     assert isinstance(entry["detail"], str) and entry["detail"].strip()

@@ -29,6 +29,10 @@ from sam.members.domain.calculated_fields import (
     CalculatedField,
     _derive_age,
     _derive_application_year,
+    _derive_birth_day,
+    _derive_birth_month,
+    _derive_birth_quarter,
+    _derive_birth_year,
     _derive_birthday,
     _derive_display_name,
     _derive_years_member,
@@ -53,9 +57,19 @@ def _record(**groups) -> dict:
 # ── Registry shape ─────────────────────────────────────────────────────────────────────
 
 
-def test_calculated_registry_covers_the_five_derived_fields():
+def test_calculated_registry_covers_the_derived_fields():
     keys = {c.key for c in CALCULATED_FIELDS}
-    assert keys == {"display_name", "age", "birthday", "years_member", "application_year"}
+    assert keys == {
+        "display_name",
+        "age",
+        "birthday",
+        "birth_day",
+        "birth_month",
+        "birth_year",
+        "birth_quarter",
+        "years_member",
+        "application_year",
+    }
 
 
 def test_every_calculated_field_declares_inputs_and_is_computable():
@@ -176,6 +190,75 @@ def test_birthday_missing_group_returns_none():
     assert _derive_birthday({}) is None
 
 
+# ── birth_day / birth_month / birth_year / birth_quarter (D4, R3.1) ────────────────────
+
+
+def test_birth_day_returns_day_of_month():
+    rec = _record(personal={"birth_date": "1980-05-04"})
+    assert _derive_birth_day(rec) == "4"
+
+
+def test_birth_day_end_of_month():
+    rec = _record(personal={"birth_date": "1999-12-31"})
+    assert _derive_birth_day(rec) == "31"
+
+
+def test_birth_month_returns_month():
+    rec = _record(personal={"birth_date": "1980-05-04"})
+    assert _derive_birth_month(rec) == "5"
+
+
+def test_birth_month_december():
+    rec = _record(personal={"birth_date": "1999-12-31"})
+    assert _derive_birth_month(rec) == "12"
+
+
+def test_birth_year_returns_full_year():
+    rec = _record(personal={"birth_date": "1980-05-04"})
+    assert _derive_birth_year(rec) == "1980"
+
+
+@pytest.mark.parametrize(
+    "birth_date,expected",
+    [
+        ("1980-01-15", "1"),  # Jan → Q1
+        ("1980-03-31", "1"),  # Mar → Q1
+        ("1980-04-01", "2"),  # Apr → Q2
+        ("1980-06-30", "2"),  # Jun → Q2
+        ("1980-07-01", "3"),  # Jul → Q3
+        ("1980-09-30", "3"),  # Sep → Q3
+        ("1980-10-01", "4"),  # Oct → Q4
+        ("1980-12-31", "4"),  # Dec → Q4
+    ],
+)
+def test_birth_quarter_maps_month_to_quarter(birth_date, expected):
+    assert _derive_birth_quarter(_record(personal={"birth_date": birth_date})) == expected
+
+
+def test_birth_fields_accept_datetime_prefixed_string():
+    rec = _record(personal={"birth_date": "1990-08-15T10:00:00"})
+    assert _derive_birth_day(rec) == "15"
+    assert _derive_birth_month(rec) == "8"
+    assert _derive_birth_year(rec) == "1990"
+    assert _derive_birth_quarter(rec) == "3"
+
+
+@pytest.mark.parametrize("bad", [None, "", "   ", "not-a-date", "2020-13-40", {}])
+def test_birth_fields_missing_or_malformed_return_none(bad):
+    rec = _record(personal={} if bad == {} else {"birth_date": bad})
+    assert _derive_birth_day(rec) is None
+    assert _derive_birth_month(rec) is None
+    assert _derive_birth_year(rec) is None
+    assert _derive_birth_quarter(rec) is None
+
+
+def test_birth_fields_missing_group_return_none():
+    assert _derive_birth_day({}) is None
+    assert _derive_birth_month({}) is None
+    assert _derive_birth_year({}) is None
+    assert _derive_birth_quarter({}) is None
+
+
 # ── years_member ──────────────────────────────────────────────────────────────────────
 
 
@@ -262,6 +345,10 @@ def test_compute_calculated_fields_returns_every_key_and_never_raises():
     assert set(result) == {c.dotted_key() for c in CALCULATED_FIELDS}
     assert result["personal.display_name"] == "Jan van Dijk"
     assert result["personal.birthday"] == "06-15"
+    assert result["personal.birth_day"] == "15"
+    assert result["personal.birth_month"] == "6"
+    assert result["personal.birth_year"] == "1990"
+    assert result["personal.birth_quarter"] == "2"
     assert result["membership.application_year"] == 2015
     # age / years_member are computed against the real "today"; just assert they resolved to ints.
     assert isinstance(result["personal.age"], int)
