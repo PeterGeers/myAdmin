@@ -2,9 +2,13 @@ name: Full Test Suite
 
 on:
   schedule:
-    # 02:00 Europe/Amsterdam (CET, UTC+1) = 01:00 UTC. Note: during CEST (summer,
-    # UTC+2) this fires at 03:00 local — GitHub cron has no timezone/DST support.
-    - cron: "0 1 * * *"
+    # Target ~02:00 Europe/Amsterdam (CET, UTC+1) / ~03:00 during CEST (UTC+2).
+    # GitHub cron has no timezone/DST support, and it schedules on a best-effort
+    # basis: crons at the top of the hour (minute 0) sit in the busiest queue slot
+    # and are routinely delayed by hours. We observed the old "0 1" firing ~5h late
+    # (05:40-06:22 UTC) every night. Use an off-the-hour minute to cut that queue
+    # delay. Note: this reduces but cannot guarantee against GitHub's scheduling lag.
+    - cron: "37 1 * * *"
   workflow_dispatch:
     inputs:
       scope:
