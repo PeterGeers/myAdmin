@@ -77,10 +77,11 @@ def test_error_map_values_are_field_errors_not_strings():
 
 def test_required_field_carries_validation_required_code():
     m = _valid_member()
-    del m["personal"]["first_name"]
+    # last_name is the still-required identity anchor (first_name is now optional).
+    del m["personal"]["last_name"]
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    fe = exc.value.errors["personal.first_name"]
+    fe = exc.value.errors["personal.last_name"]
     assert fe.code == VALIDATION_REQUIRED
     # English detail preserved (the pre-v1.0 message).
     assert fe.detail == "is required"
@@ -89,20 +90,20 @@ def test_required_field_carries_validation_required_code():
 @pytest.mark.parametrize("blank", ["", " ", "   "])
 def test_blank_required_string_carries_must_not_be_blank_code(blank):
     m = _valid_member()
-    m["personal"]["first_name"] = blank
+    m["personal"]["last_name"] = blank
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    fe = exc.value.errors["personal.first_name"]
+    fe = exc.value.errors["personal.last_name"]
     assert fe.code == VALIDATION_MUST_NOT_BE_BLANK
     assert fe.detail == "must not be blank"
 
 
 def test_wrong_type_string_carries_must_be_a_string_code():
     m = _valid_member()
-    m["personal"]["first_name"] = 12345
+    m["personal"]["last_name"] = 12345
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    assert exc.value.errors["personal.first_name"].code == VALIDATION_MUST_BE_A_STRING
+    assert exc.value.errors["personal.last_name"].code == VALIDATION_MUST_BE_A_STRING
 
 
 def test_invalid_status_enum_carries_must_be_one_of_code_with_allowed_params():

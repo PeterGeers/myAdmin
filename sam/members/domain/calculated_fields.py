@@ -96,6 +96,30 @@ def _derive_birthday(record: Mapping[str, Any]) -> str | None:
     return f"{born.month:02d}-{born.day:02d}"
 
 
+def _derive_birth_day(record: Mapping[str, Any]) -> str | None:
+    """Day-of-month of ``birth_date`` (``1``–``31``) as text, else None."""
+    born = _parse_iso_date(_personal(record).get("birth_date"))
+    return str(born.day) if born is not None else None
+
+
+def _derive_birth_month(record: Mapping[str, Any]) -> str | None:
+    """Month of ``birth_date`` (``1``–``12``) as text, else None."""
+    born = _parse_iso_date(_personal(record).get("birth_date"))
+    return str(born.month) if born is not None else None
+
+
+def _derive_birth_year(record: Mapping[str, Any]) -> str | None:
+    """Year of ``birth_date`` (``YYYY``) as text, else None."""
+    born = _parse_iso_date(_personal(record).get("birth_date"))
+    return str(born.year) if born is not None else None
+
+
+def _derive_birth_quarter(record: Mapping[str, Any]) -> str | None:
+    """Calendar quarter of ``birth_date`` (``(month - 1) // 3 + 1`` → ``1``–``4``), else None."""
+    born = _parse_iso_date(_personal(record).get("birth_date"))
+    return str((born.month - 1) // 3 + 1) if born is not None else None
+
+
 def _derive_years_member(
     record: Mapping[str, Any], *, today: _dt.date | None = None
 ) -> int | None:
@@ -189,6 +213,42 @@ CALCULATED_FIELDS: tuple[CalculatedField, ...] = (
         inputs=("personal.birth_date",),
         order=56,
         compute=_derive_birthday,
+    ),
+    CalculatedField(
+        key="birth_day",
+        group=FieldGroup.PERSONAL,
+        type=FieldType.STRING,
+        label={"nl": "Geboortedag", "en": "Birth day"},
+        inputs=("personal.birth_date",),
+        order=57,
+        compute=_derive_birth_day,
+    ),
+    CalculatedField(
+        key="birth_month",
+        group=FieldGroup.PERSONAL,
+        type=FieldType.STRING,
+        label={"nl": "Geboortemaand", "en": "Birth month"},
+        inputs=("personal.birth_date",),
+        order=58,
+        compute=_derive_birth_month,
+    ),
+    CalculatedField(
+        key="birth_year",
+        group=FieldGroup.PERSONAL,
+        type=FieldType.STRING,
+        label={"nl": "Geboortejaar", "en": "Birth year"},
+        inputs=("personal.birth_date",),
+        order=59,
+        compute=_derive_birth_year,
+    ),
+    CalculatedField(
+        key="birth_quarter",
+        group=FieldGroup.PERSONAL,
+        type=FieldType.STRING,
+        label={"nl": "Geboortekwartaal", "en": "Birth quarter"},
+        inputs=("personal.birth_date",),
+        order=60,
+        compute=_derive_birth_quarter,
     ),
     CalculatedField(
         key="years_member",

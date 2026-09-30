@@ -57,6 +57,59 @@ Usage (from repo root, WSL)
       AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
       backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
       --source sam/tests/fixtures/hdcn_ledenbestand_sample.csv --tenant h-dcn --apply
+
+Live direct-read from the Google Sheet (no export file) — operator notes (R6.5)
+-------------------------------------------------------------------------------
+The `--sheet-id` / `--sheet-name` path reads the Sheet DIRECTLY, READ-ONLY, via a service
+account (design D5/D6). Two prerequisites, both MANUAL and gated:
+
+  1. Service-account key ON DISK. Place the EXISTING h-dcn service-account JSON at the shared
+     default path (re-download it from Google Cloud if absent — the Sheet is already shared with
+     that SA as Viewer), or point at another file with `--credentials`:
+         /home/peter/projects/h-dcn/.googleCredentials.json   (DEFAULT_GOOGLE_CREDENTIALS_FILE)
+     Scopes requested are read-only: `spreadsheets.readonly` (+ `drive.readonly` ONLY when a
+     sheet is resolved by TITLE via `--sheet-name`). The SA never writes the source.
+  2. Run against the nonprofit DATA account with the repo `.env` static keys STRIPPED
+     (steering 23-aws-accounts: `.env` exports `personal`-account keys + a local DynamoDB
+     endpoint that OUTRANK `AWS_PROFILE`, so a plain run silently hits the WRONG account /
+     the local emulator). Strip them and let the profile resolve; sanity-check identity FIRST
+     (MUST print 506221081911 / NonprofitDeployRole).
+
+  # sanity-check identity (must be 506221081911):
+  env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+      aws sts get-caller-identity --profile nonprofit-deploy --region eu-west-1 --output json
+
+  # dry-run (default — writes nothing) directly from the live Sheet by ID (PREFERRED):
+  env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+      MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
+      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn
+
+  # insert-only backfill APPLY (after a clean dry-run):
+  env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+      MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
+      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn --apply
+
+  # RECONCILING sync (match by member_number, upsert, soft-flag absentees status='left'):
+  #   dry-run reviews the to-INSERT / to-UPDATE / to-LEAVE / UNMATCHABLE plan; --apply --reconcile
+  #   refuses on mapping errors OR duplicate sheet member_number values (R7.7).
+  env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+      MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
+      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn --apply --reconcile
+
+`--sheet-name '<title>'` is accepted instead of `--sheet-id` (resolved via a read-only Drive
+`files.list`; needs `drive.readonly`; fails on 0 or >1 matches — prefer the ID). NUMBERLESS rows
+need NO sheet edit: an empty Lidnummer + an Achternaam becomes a `C_`+Achternaam CONTACT
+automatically; a truly empty row is skipped; data with neither is reported UNMATCHABLE.
+
+NOTE — config seed re-run (this spec changed `members_config.json`). The overlay fields
+`additional_info` / `deregistration_date` / `termination_date`, the `magazine_pref` /
+`payment_method` value changes, and the `member_number` regex (`^(M\d{5}|C_.+)$`) only take
+effect in MySQL once `scripts/aws/seed-hdcn-members-config.py` is RE-RUN (onboarding path).
+Live confirmation of the actual data read is a MANUAL gated step (needs the credentials file on
+disk); it is documented here, not automated in CI (R6.5).
 """
 
 from __future__ import annotations
@@ -65,6 +118,7 @@ import argparse
 import json
 import os
 import sys
+from dataclasses import dataclass, field
 
 # repo root + backend/src on sys.path so `sam.members...` and its `services.dynamodb_client`
 # dependency both import (mirrors provision-members-tables.py + sam/tests path setup).
@@ -76,12 +130,14 @@ if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
 from sam.members.migration.hdcn_backfill import (
-    FIXED_SOURCE_COLUMNS,
+    DEFAULT_GOOGLE_CREDENTIALS_FILE,
     HDCN_TENANT_ID,
     BackfillPlan,
     FileSourceAdapter,
+    GoogleSheetsSourceAdapter,
     MembershipTypeMapper,
     build_backfill_plan,
+    contract_source_columns,
 )
 from sam.members.repository import table_design as td
 from sam.members.repository.members_repository import DynamoDbMembersRepository
@@ -89,24 +145,65 @@ from sam.members.repository.members_repository import DynamoDbMembersRepository
 DEFAULT_REGION = "eu-west-1"
 #: How many transformed records to show as samples in the fidelity report.
 _SAMPLE_COUNT = 3
-#: The h-dcn source column that seeds the ``overlay.region`` scope field (mapped, not "unmapped").
-_REGION_SOURCE_COLUMN = "regio"
+
+
+def _load_mapping_contract():
+    """Load the authored mapping contract (the single-source CSV) via the h-dcn mapping loader.
+
+    Imports ``members_mapping_loader`` BY PATH (it lives under ``scripts/aws/h-dcn/``, not a
+    Python package) — mirroring how ``members_config_loader`` is loaded in :func:`backfill` — and
+    returns the parsed :class:`MappingContract`. Used to derive the "mapped" source-column set for
+    :func:`_classify_source_columns` so the fidelity report classifies against the CSV, not a
+    stale dict (s5m R0.1/R0.4).
+    """
+    import importlib.util
+
+    hdcn_dir = os.path.join(_REPO_ROOT, "scripts", "aws", "h-dcn")
+    # The mapping loader imports its sibling ``members_config_loader`` for the drift guard, so the
+    # onboarding scripts dir must be importable while we load it.
+    if hdcn_dir not in sys.path:
+        sys.path.insert(0, hdcn_dir)
+    module = sys.modules.get("members_mapping_loader")
+    if module is None:
+        loader_path = os.path.join(hdcn_dir, "members_mapping_loader.py")
+        spec = importlib.util.spec_from_file_location("members_mapping_loader", loader_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["members_mapping_loader"] = module
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module.load_mapping_contract()
+
+
+def _base_header(column: str) -> str:
+    """Strip a trailing ``#<colindex>`` position suffix back to the BASE header (spec R1.3).
+
+    Mirrors the transform's own base-header matching so a position-tracked duplicate
+    (``E-mailadres#34``) is classified by the SAME rule as its bare sibling.
+    """
+    if "#" in column:
+        head, _, tail = column.rpartition("#")
+        if tail.isdigit():
+            return head
+    return column
 
 
 def _classify_source_columns(
-    adapter: FileSourceAdapter,
+    adapter: FileSourceAdapter | GoogleSheetsSourceAdapter,
+    known_columns: set[str],
 ) -> tuple[list[str], list[str]]:
     """Inspect the source header READ-ONLY and split columns into (mapped, unmapped).
 
-    "Mapped" = a column the transform recognizes (a :data:`FIXED_SOURCE_COLUMNS` key or the
-    region column). "Unmapped/extra" = every other named column (folded into ``overlay`` by
-    ``map_hdcn_row``) plus the empty-named column (dropped). Task 6.2: unmapped/extra export
-    columns are OUT of scope — the importer TOLERATES them and LISTS them here; it does not
-    individually classify or surface them in the pilot UI. Case-insensitive, mirroring the
-    transform's own ``col_lower`` matching. Reads at most the first row (a header probe) — the
-    adapter stays read-only and the plan is still built from a fresh read.
+    "Mapped" = a column the loaded MAPPING CONTRACT declares a target for (a fixed
+    ``personal.*``/``membership.*`` source column or an ``overlay.*`` source column, incl. the
+    region column). ``known_columns`` is exactly that set (BASE headers, lower-cased), sourced
+    from :func:`sam.members.migration.hdcn_backfill.contract_source_columns` on the loaded
+    contract — the SINGLE authored CSV, never a stale in-code dict (s5m R0.1/R0.4). "Unmapped/
+    extra" = every other named column (a disposition column, or an unmapped-but-kept column
+    folded into ``overlay.additional_info`` by ``map_hdcn_row``) plus the empty-named column
+    (dropped). Task 6.2: unmapped/extra export columns are OUT of scope — the importer TOLERATES
+    them and LISTS them here. Case-insensitive and base-header matched, mirroring the transform's
+    own matching. Reads at most the first row (a header probe) — the adapter stays read-only and
+    the plan is still built from a fresh read.
     """
-    known = set(FIXED_SOURCE_COLUMNS.keys()) | {_REGION_SOURCE_COLUMN}
     columns: list[str] = []
     for row in adapter.rows():
         columns = [str(c) for c in row.keys()]
@@ -117,7 +214,7 @@ def _classify_source_columns(
         stripped = col.strip()
         if stripped == "":
             unmapped.append("(empty-named column — dropped)")
-        elif stripped.lower() in known:
+        elif _base_header(stripped).lower() in known_columns:
             mapped.append(stripped)
         else:
             unmapped.append(stripped)
@@ -143,6 +240,8 @@ def _print_fidelity_report(
     print(f"  source rows   : {plan.source_row_count}")
     print(f"  transformed ok: {plan.ok_count}")
     print(f"  errors        : {plan.error_count}")
+    print(f"  skipped (empty): {plan.skipped_count} "
+          "(empty/spacer rows — no meaningful data — excluded, NOT errors)")
     print(f"  missing region: {len(plan.rows_missing_region)}")
     print(f"  dup numbers   : {len(plan.duplicate_member_numbers)} "
           "(member numbers reused within this batch — data-quality warning)")
@@ -174,6 +273,12 @@ def _print_fidelity_report(
         print(f"  rows with NO resolved region (overlay.region absent): "
               f"{plan.rows_missing_region}")
 
+    if plan.skipped:
+        print("-" * 68)
+        print("  SKIPPED rows (empty/spacer — no meaningful data — deliberately excluded, NOT errors):")
+        for label, reason in plan.skipped:
+            print(f"    {label!r}: {reason}")
+
     if plan.errors:
         print("-" * 68)
         print("  ROWS THAT FAILED TO MAP (not written; fix the source/mapping and re-run):")
@@ -202,13 +307,240 @@ def _apply_plan(plan: BackfillPlan, repo: DynamoDbMembersRepository) -> int:
     return written
 
 
+# ── Reconciling sync (match by member_number, upsert, absence sweep) — s5m Task 7 / D7 ─
+
+#: The soft-flag status stamped on a SAM record whose ``member_number`` is ABSENT from the
+#: current sheet (R7.4 / R5.2). It is the closed :class:`MembershipStatus` value ``left`` ("nl:
+#: Uitgeschreven") — a SOFT flag written via ``save_member``; the sync NEVER ``delete_member``s.
+_LEFT_STATUS = "left"
+
+
+def _member_number_of(record) -> str:
+    """Return a record's ``membership.member_number`` (``M…``/``C_…``), or ``""`` if absent."""
+    return str((record.get("membership") or {}).get("member_number") or "")
+
+
+@dataclass
+class ReconcilePlan:
+    """The result of reconciling a sheet against the current SAM partition (dry-run or apply).
+
+    Drives the upsert + absence sweep (D7/R7): every sheet candidate is classified INSERT (its
+    number is new to SAM), UPDATE (its number matches an existing SAM record — the existing
+    ``member_id`` is reused, sheet-wins on mapped fields), or UNMATCHABLE (no ``member_number``
+    could be derived — reported, never written). Any SAM record whose number was NOT seen in the
+    sheet this run is swept to ``status = "left"`` (soft flag, R7.4). Duplicate sheet numbers and
+    duplicate SAM numbers are collected so ``--apply`` can refuse (R7.6/R7.7).
+    """
+
+    tenant_id: str
+    #: (member_number, record-to-save-with-reused-member_id) — an existing SAM record updated.
+    to_update: list[tuple[str, dict]] = field(default_factory=list)
+    #: (member_number, record-to-save) — a new SAM record (its minted member_id kept).
+    to_insert: list[tuple[str, dict]] = field(default_factory=list)
+    #: (member_number, member_id, record-to-save) — an existing SAM record soft-flagged ``left``.
+    to_leave: list[tuple[str, str, dict]] = field(default_factory=list)
+    #: candidate records that derived NO member_number — reported, not written (R7.2/R7.3).
+    unmatchable: list[dict] = field(default_factory=list)
+    #: sheet member_numbers appearing on more than one candidate this run (a matching hazard).
+    duplicate_sheet_numbers: dict[str, int] = field(default_factory=dict)
+    #: SAM member_numbers carried by more than one existing record (reported for reconciliation).
+    duplicate_sam_numbers: dict[str, list[str]] = field(default_factory=dict)
+    #: existing SAM member_ids with a BLANK member_number — cannot be matched by number (R7.5).
+    blank_number_members: list[str] = field(default_factory=list)
+
+
+def _index_sam_by_number(
+    repo: DynamoDbMembersRepository, tenant_id: str
+) -> tuple[dict[str, dict], dict[str, list[str]], list[str]]:
+    """Read the tenant's members once and index them by ``member_number`` (D7 step 1 / R7.5).
+
+    The repository exposes no query-by-number, so this is an in-memory index over a single
+    ``list_members`` read. Returns ``(by_number, duplicate_sam_numbers, blank_number_members)``:
+    ``by_number`` maps each non-blank ``member_number`` to its (first-seen) SAM record; a number
+    carried by more than one record is also collected into ``duplicate_sam_numbers`` (reported);
+    a record with a BLANK number cannot be matched and its ``member_id`` is bucketed separately
+    (R7.5). Members AND ``C_`` contacts are indexed identically.
+    """
+    by_number: dict[str, dict] = {}
+    owners: dict[str, list[str]] = {}
+    blank: list[str] = []
+    for member in repo.list_members(tenant_id):
+        number = _member_number_of(member)
+        member_id = str(member.get("member_id") or "")
+        if not number:
+            blank.append(member_id)
+            continue
+        owners.setdefault(number, []).append(member_id)
+        # First-seen wins as the match target; a duplicate is reported (below), not overwritten.
+        by_number.setdefault(number, dict(member))
+    duplicate_sam_numbers = {n: ids for n, ids in owners.items() if len(ids) > 1}
+    return by_number, duplicate_sam_numbers, blank
+
+
+def build_reconcile_plan(
+    plan: BackfillPlan,
+    repo: DynamoDbMembersRepository,
+    tenant_id: str,
+) -> ReconcilePlan:
+    """Reconcile the transformed sheet candidates against the current SAM partition (D7/R7).
+
+    Classifies every candidate as INSERT / UPDATE / UNMATCHABLE on its DERIVED ``member_number``
+    (R7.3), reusing the existing ``member_id`` on an UPDATE so re-runs are idempotent (R5.3), then
+    sweeps any SAM record whose number was NOT seen this run to ``status = "left"`` (soft flag,
+    R7.4 — members AND contacts). SHEET-WINS: an UPDATE saves the sheet-derived record (its mapped
+    fields overwrite SAM), keeping only the existing internal ``member_id`` (R7.3). Duplicate sheet
+    numbers and duplicate/blank SAM numbers are collected for the report / ``--apply`` refusal.
+    """
+    result = ReconcilePlan(tenant_id=tenant_id)
+    by_number, result.duplicate_sam_numbers, result.blank_number_members = _index_sam_by_number(
+        repo, tenant_id
+    )
+
+    seen_counts: dict[str, int] = {}
+    seen_numbers: set[str] = set()
+    for cand in plan.transformed:
+        record = dict(cand.record)
+        number = _member_number_of(record)
+        if not number:
+            # A candidate that derived no member_number is UNMATCHABLE (R7.2/R7.3): reported,
+            # never written. (In practice the required last_name usually makes such a row fail
+            # to map upstream; this catches any that still transform without a key.)
+            result.unmatchable.append(record)
+            continue
+        seen_counts[number] = seen_counts.get(number, 0) + 1
+        seen_numbers.add(number)
+        existing = by_number.get(number)
+        if existing is not None:
+            # UPDATE: reuse the existing internal member_id (SHEET-WINS on the mapped fields).
+            record["member_id"] = existing.get("member_id")
+            result.to_update.append((number, record))
+        else:
+            # INSERT: the candidate's freshly-minted member_id is kept.
+            result.to_insert.append((number, record))
+
+    result.duplicate_sheet_numbers = {n: c for n, c in seen_counts.items() if c > 1}
+
+    # Absence sweep (R7.4): any SAM record whose number was NOT seen in the sheet this run is
+    # soft-flagged `left`. Members AND C_ contacts are included. A record already `left` and gone
+    # from the sheet is re-flagged idempotently; one present in the sheet is reactivated via its
+    # (INSERT/UPDATE) sheet-derived record above.
+    for number, member in by_number.items():
+        if number in seen_numbers:
+            continue
+        swept = dict(member)
+        membership = dict(swept.get("membership") or {})
+        membership["status"] = _LEFT_STATUS
+        swept["membership"] = membership
+        result.to_leave.append((number, str(member.get("member_id") or ""), swept))
+
+    return result
+
+
+def _print_reconcile_report(recon: ReconcilePlan) -> None:
+    """Render the sync sections of the fidelity report (R7.6): INSERT/UPDATE/LEAVE/UNMATCHABLE."""
+    print("-" * 68)
+    print("  RECONCILE (sync) plan — match by member_number, upsert + soft-flag absence:")
+    print(f"    to-INSERT (new number)      : {len(recon.to_insert)}")
+    print(f"    to-UPDATE (matched number)  : {len(recon.to_update)}")
+    print(f"    to-LEAVE  (soft-flag left)  : {len(recon.to_leave)}")
+    print(f"    UNMATCHABLE (no number)     : {len(recon.unmatchable)}")
+    print(f"    blank SAM numbers (R7.5)    : {len(recon.blank_number_members)}")
+
+    if recon.to_leave:
+        print("-" * 68)
+        print("  SAM records ABSENT from the sheet → soft-flag status='left' (NOT deleted, R7.4):")
+        for number, member_id, _rec in sorted(recon.to_leave):
+            print(f"    {number}  (member_id {member_id})")
+
+    if recon.unmatchable:
+        print("-" * 68)
+        print("  UNMATCHABLE sheet rows (no member_number derivable — NOT written, R7.2):")
+        for rec in recon.unmatchable:
+            personal = rec.get("personal") or {}
+            label = " ".join(
+                str(personal.get(k, "")).strip() for k in ("first_name", "last_name")
+            ).strip()
+            print(f"    {label or '<empty>'}")
+
+    if recon.duplicate_sheet_numbers:
+        print("-" * 68)
+        print("  DUPLICATE member_number in the SHEET (blocks --apply --reconcile, R7.7):")
+        for number, count in sorted(recon.duplicate_sheet_numbers.items()):
+            print(f"    {number!r}: {count} rows")
+
+    if recon.duplicate_sam_numbers:
+        print("-" * 68)
+        print("  DUPLICATE member_number already in SAM (reconcile in the source, R7.6):")
+        for number, ids in sorted(recon.duplicate_sam_numbers.items()):
+            print(f"    {number!r}: members {ids}")
+
+
+def _apply_reconcile_plan(recon: ReconcilePlan, repo: DynamoDbMembersRepository) -> dict[str, int]:
+    """Apply the reconcile plan: UPSERT candidates + soft-flag absent records (D7/R7.3/R7.4).
+
+    Every write is a single ``save_member`` (s5k — no guard). Returns a counts dict
+    ``{inserted, updated, left}``. NEVER calls ``delete_member`` (R5.2): an absent record is only
+    soft-flagged ``status='left'``.
+    """
+    counts = {"inserted": 0, "updated": 0, "left": 0}
+    for _number, record in recon.to_insert:
+        repo.save_member(recon.tenant_id, record)
+        counts["inserted"] += 1
+    for _number, record in recon.to_update:
+        repo.save_member(recon.tenant_id, record)
+        counts["updated"] += 1
+    for _number, _member_id, record in recon.to_leave:
+        repo.save_member(recon.tenant_id, record)
+        counts["left"] += 1
+    return counts
+
+
+def _build_source_adapter(
+    source_path: str | None,
+    *,
+    fmt: str | None = None,
+    sheet_id: str | None = None,
+    sheet_name: str | None = None,
+    worksheet: str | None = None,
+    credentials_file: str = DEFAULT_GOOGLE_CREDENTIALS_FILE,
+) -> FileSourceAdapter | GoogleSheetsSourceAdapter:
+    """Build the READ-ONLY source adapter selected by the CLI flags (design D6, R4.6).
+
+    A Google Sheet is requested when ``sheet_id`` OR ``sheet_name`` is given → a
+    :class:`GoogleSheetsSourceAdapter` reading the live Sheet DIRECTLY (READ-ONLY, R5.1): the id
+    from the URL is used as-is (preferred), a title is resolved via a read-only Drive lookup, an
+    optional ``worksheet`` tab becomes the A1 range prefix, and ``credentials_file`` is the
+    service-account key path (default the shared h-dcn key). Otherwise a
+    :class:`FileSourceAdapter` over the ``--source`` export, as before. A fresh adapter is built
+    per call so the header-probe and the plan each read the source independently (never written).
+    """
+    if sheet_id or sheet_name:
+        return GoogleSheetsSourceAdapter(
+            spreadsheet_id=sheet_id,
+            spreadsheet_name=sheet_name,
+            worksheet=worksheet,
+            credentials_file=credentials_file,
+        )
+    if not source_path:
+        raise ValueError(
+            "No source given: pass --source <file>, or --sheet-id / --sheet-name for a live "
+            "Google Sheet."
+        )
+    return FileSourceAdapter(source_path, fmt=fmt)
+
+
 def backfill(
-    source_path: str,
+    source_path: str | None = None,
     *,
     region: str,
     apply: bool,
+    reconcile: bool = False,
     tenant_id: str = HDCN_TENANT_ID,
     fmt: str | None = None,
+    sheet_id: str | None = None,
+    sheet_name: str | None = None,
+    worksheet: str | None = None,
+    credentials_file: str = DEFAULT_GOOGLE_CREDENTIALS_FILE,
     known_codes: list[str] | None = None,
     members_config_path: str | None = None,
     repo: DynamoDbMembersRepository | None = None,
@@ -219,6 +551,12 @@ def backfill(
     fidelity report, and — only if ``apply`` — persists via the repository's ``save_member``.
     The target table name is resolved fail-fast from ``MEMBERS_TABLE``. ``repo`` may be injected
     for tests; in production it is resolved lazily + fail-fast on first write.
+
+    The source is either a file export (``source_path``/``--source``) or a live Google Sheet
+    (``sheet_id``/``sheet_name`` + optional ``worksheet``/``credentials_file``) — the SAME adapter
+    type is used for the header-probe and the plan (design D6/R4.6). Everything downstream
+    (:func:`build_backfill_plan`, :func:`_apply_plan`, the report, the ``--apply`` refusal on
+    mapping errors) is adapter-agnostic and unchanged.
 
     ``tenant_id`` is the administration the records are stamped with. The CLI requires it as an
     explicit ``--tenant`` argument (no hardcoded/default tenant — R8, steering 31); it defaults
@@ -247,7 +585,14 @@ def backfill(
         cfg = _loader.load_members_config(members_config_path)
         region_canonicalizer = _loader.region_canonicalizer(cfg)
 
-    adapter = FileSourceAdapter(source_path, fmt=fmt)
+    _adapter_kwargs = dict(
+        fmt=fmt,
+        sheet_id=sheet_id,
+        sheet_name=sheet_name,
+        worksheet=worksheet,
+        credentials_file=credentials_file,
+    )
+    adapter = _build_source_adapter(source_path, **_adapter_kwargs)
     plan = build_backfill_plan(
         adapter,
         type_mapper=type_mapper,
@@ -256,12 +601,54 @@ def backfill(
     )
 
     # Classify the source header so the report LISTS the tolerated unmapped/extra columns
-    # (task 6.2). A fresh read-only adapter probe — the source is never written.
-    _, unmapped_columns = _classify_source_columns(FileSourceAdapter(source_path, fmt=fmt))
+    # (task 6.2). The "known/mapped" column set comes from the loaded MAPPING CONTRACT — the
+    # single authored CSV — NOT a stale in-code dict, so the report judges mapped-vs-unmapped
+    # against the same source of truth the transform uses (s5m R0.1/R0.4). A fresh read-only
+    # adapter probe — the source is never written.
+    known_columns = contract_source_columns(_load_mapping_contract())
+    _, unmapped_columns = _classify_source_columns(
+        _build_source_adapter(source_path, **_adapter_kwargs), known_columns
+    )
 
     _print_fidelity_report(
         plan, apply=apply, table_name=table_name, unmapped_columns=unmapped_columns
     )
+
+    # ── Reconciling sync (--reconcile/--sync): match by member_number, upsert + absence sweep.
+    # Additive — without --reconcile the runner keeps its insert-only backfill behaviour (below).
+    if reconcile:
+        repository = repo or DynamoDbMembersRepository()
+        recon = build_reconcile_plan(plan, repository, tenant_id)
+        _print_reconcile_report(recon)
+
+        if not apply:
+            print("\nDRY-RUN (reconcile): no writes made. Review the sync plan, then re-run "
+                  "with --apply --reconcile to upsert + soft-flag.")
+            return 0
+
+        # Refuse (write nothing) on any mapping error (existing rule) OR duplicate sheet numbers
+        # (a matching hazard — "which record does this update?" is ambiguous), R7.7.
+        if plan.error_count:
+            print(f"\nREFUSING --apply --reconcile: {plan.error_count} row(s) failed to map. "
+                  "Fix them and re-run.", file=sys.stderr)
+            return 2
+        if recon.duplicate_sheet_numbers:
+            dupes = ", ".join(sorted(recon.duplicate_sheet_numbers))
+            print(f"\nREFUSING --apply --reconcile: the sheet has duplicate member_number(s) "
+                  f"[{dupes}] — resolve the duplicate in the source first (R7.7).",
+                  file=sys.stderr)
+            return 2
+
+        counts = _apply_reconcile_plan(recon, repository)
+        print("\n" + "=" * 68)
+        print("Reconcile apply summary")
+        print("=" * 68)
+        print(f"  table     : {table_name}")
+        print(f"  inserted  : {counts['inserted']}")
+        print(f"  updated   : {counts['updated']}")
+        print(f"  left      : {counts['left']}  (soft-flagged; never deleted)")
+        print("=" * 68)
+        return 0
 
     if not apply:
         print("\nDRY-RUN: no writes made. Review the fidelity report, then re-run with "
@@ -291,10 +678,44 @@ def build_parser() -> argparse.ArgumentParser:
         description="Backfill h-dcn members into the sam-members table. Dry-run by default; "
         "pass --apply to write. Non-destructive to the source.",
     )
-    parser.add_argument(
+    # Source-selection group (design D6/R4.6): EXACTLY ONE of a file export (--source) OR a live
+    # Google Sheet (--sheet-id / --sheet-name). --worksheet + --credentials accompany the sheet
+    # options. --sheet-id is preferred (unambiguous, no Drive lookup); --sheet-name resolves the
+    # title via a read-only Drive files.list (needs the drive.readonly scope).
+    source_group = parser.add_mutually_exclusive_group(required=True)
+    source_group.add_argument(
         "--source",
-        required=True,
-        help="Path to the READ-ONLY h-dcn export (CSV or JSON — a Google-Sheet export).",
+        help="Path to the READ-ONLY h-dcn export (CSV or JSON — a Google-Sheet export). Mutually "
+        "exclusive with --sheet-id/--sheet-name.",
+    )
+    source_group.add_argument(
+        "--sheet-id",
+        dest="sheet_id",
+        help="Google Sheet spreadsheet ID from the URL "
+        "(.../spreadsheets/d/<ID>/edit) — read DIRECTLY, READ-ONLY, no Drive lookup. PREFERRED "
+        "(unambiguous). Mutually exclusive with --source/--sheet-name.",
+    )
+    source_group.add_argument(
+        "--sheet-name",
+        dest="sheet_name",
+        help="Google Sheet human title (e.g. 'HDCN Ledenbestand 2026') — resolved to an ID via a "
+        "READ-ONLY Drive files.list (fails if 0 or >1 sheets match; prefer --sheet-id). Mutually "
+        "exclusive with --source/--sheet-id.",
+    )
+    parser.add_argument(
+        "--worksheet",
+        default=None,
+        help="Tab name within the Sheet (e.g. 'Ledenbestand') → A1 range prefix "
+        "\"'<worksheet>'!A1:ZZ\". Omit for the default/first sheet. Only used with "
+        "--sheet-id/--sheet-name.",
+    )
+    parser.add_argument(
+        "--credentials",
+        dest="credentials",
+        default=DEFAULT_GOOGLE_CREDENTIALS_FILE,
+        help="Filesystem PATH to the service-account JSON key used to READ the Sheet (default: "
+        f"the shared h-dcn key {DEFAULT_GOOGLE_CREDENTIALS_FILE}). Only used with "
+        "--sheet-id/--sheet-name.",
     )
     parser.add_argument(
         "--tenant",
@@ -332,6 +753,16 @@ def build_parser() -> argparse.ArgumentParser:
         "STRONGLY recommended for a real --apply so member regions match the scope grants; if "
         "omitted, regions are kept verbatim (and would surface as R9.5 offenders).",
     )
+    parser.add_argument(
+        "--reconcile",
+        "--sync",
+        dest="reconcile",
+        action="store_true",
+        help="Run as a RECONCILING SYNC (match by member_number, upsert, and soft-flag records "
+        "absent from the sheet as status='left' — never delete). ADDITIVE: without it the "
+        "runner keeps its insert-only backfill behaviour (R7.1). Dry-run stays the default; "
+        "--apply --reconcile writes and refuses on mapping errors OR duplicate sheet numbers.",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--apply",
@@ -357,8 +788,13 @@ def main(argv: list[str] | None = None) -> int:
             args.source,
             region=args.region,
             apply=args.apply,
+            reconcile=args.reconcile,
             tenant_id=args.tenant,
             fmt=args.format,
+            sheet_id=args.sheet_id,
+            sheet_name=args.sheet_name,
+            worksheet=args.worksheet,
+            credentials_file=args.credentials,
             known_codes=args.known_codes,
             members_config_path=args.members_config,
         )

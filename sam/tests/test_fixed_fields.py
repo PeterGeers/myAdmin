@@ -138,7 +138,9 @@ def test_optional_fields_may_be_absent_or_null():
 @pytest.mark.parametrize(
     "group,key",
     [
-        ("personal", "first_name"),
+        # NOTE: first_name is NOT required — ~58 real organisation/contact rows carry an
+        # Achternaam (org name) but no Voornaam; last_name is the required identity anchor. See
+        # the dedicated test_first_name_is_optional below.
         ("personal", "last_name"),
         # NOTE: email is NOT required (A.2b) — 66% of real members have none; see the
         # dedicated test_email_is_optional below. member_number is NOT required either (s5k) —
@@ -154,6 +156,15 @@ def test_missing_required_field_fails(group, key):
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
     assert f"{group}.{key}" in exc.value.errors
+
+
+def test_first_name_is_optional():
+    # first_name (Voornaam) is NOT required — ~58 real organisation/contact rows (dealers,
+    # sister clubs, sponsors) carry an Achternaam (org name) but no Voornaam. last_name stays
+    # the required identity anchor, so a record with no first_name is valid.
+    m = _valid_member()
+    del m["personal"]["first_name"]
+    validate_fixed_fields(m)  # must not raise
 
 
 def test_email_is_optional():
@@ -195,11 +206,13 @@ def test_blank_optional_string_is_valid_clearing_an_optional_field(blank):
 def test_blank_required_string_still_fails(blank):
     # A REQUIRED string field still rejects a blank/whitespace value.
     m = _valid_member()
-    m["personal"]["first_name"] = blank
+    # last_name is the still-required identity anchor (first_name is now optional), so a blank
+    # value on it is what exercises the required/mustNotBeBlank path.
+    m["personal"]["last_name"] = blank
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
     # v1.0: the error is a FieldError carrying a machine code + the English detail.
-    fe = exc.value.errors["personal.first_name"]
+    fe = exc.value.errors["personal.last_name"]
     assert fe.code == "errors.validation.mustNotBeBlank"
     assert fe.detail == "must not be blank"
 
@@ -235,18 +248,19 @@ def test_invalid_date_fails(bad_date):
 
 def test_blank_required_string_fails():
     m = _valid_member()
-    m["personal"]["first_name"] = "   "
+    # last_name is the still-required field (first_name is optional now).
+    m["personal"]["last_name"] = "   "
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    assert "personal.first_name" in exc.value.errors
+    assert "personal.last_name" in exc.value.errors
 
 
 def test_wrong_type_string_fails():
     m = _valid_member()
-    m["personal"]["first_name"] = 12345
+    m["personal"]["last_name"] = 12345
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    assert "personal.first_name" in exc.value.errors
+    assert "personal.last_name" in exc.value.errors
 
 
 def test_all_errors_are_collected_at_once():
