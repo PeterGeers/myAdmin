@@ -1,0 +1,29 @@
+{
+  "specId": "92654b86-cc61-40ce-8ce4-fd20b514c6e3",
+  "spec": "full-test-suite-fixes-2026-09-30",
+  "ciRun": 36676588374,
+  "ciConclusion": "failure",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (2026-09-30)",
+  "priorities": {
+    "critical": [],
+    "high": ["H1"],
+    "medium": ["M1"],
+    "low": ["L1"]
+  },
+  "nodes": [
+    { "id": "H1", "title": "Reformat 5 backend files flagged by ruff format (CI-blocking)", "priority": "high", "effort": "S", "plane": "lint", "type": "fix", "rootCause": "commit c829580 (2026-09-29 12:22, 'fix(auth): resolve Cognito admin ops to the registry pool') landed hand edits after the 09-29 suite without running `ruff format`; call-arg/comprehension line-wrapping and stray blank lines surfaced on the 09-30 scheduled run" },
+    { "id": "M1", "title": "Add a pre-commit / pre-push `ruff format --check` guard so format debt cannot land un-formatted again", "priority": "medium", "effort": "M", "plane": "ci", "type": "prevention", "rootCause": "recurring pattern — format/lint debt keeps entering via commits landed after the daily suite (09-26 format x6, 09-28 lint x2, 09-30 format x5); no local gate blocks an unformatted commit before push" },
+    { "id": "L1", "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)", "priority": "low", "effort": "S", "plane": "ci", "type": "verification", "rootCause": "standing reproducibility guard carried forward; local 0.16.5 already matches CI 0.16.5 this cycle" }
+  ],
+  "edges": [
+    { "from": "H1", "to": "M1", "type": "recommended-after", "reason": "land the format fix and get CI green first, then add the guard that prevents the recurrence" }
+  ],
+  "recommendedOrder": ["H1", "M1", "L1"],
+  "notes": [
+    "CI run #36676588374 is RED, but the only failing job is Backend Lint & Static Analysis -> Ruff Format (5 files). All three test planes are green: backend 6612 passed / 10 skipped, SAM all passed, frontend 2722 passed / 12 skipped. Ruff lint and vulture both pass.",
+    "H1 is a pure auto-fix: `ruff format backend/src/` rewrites all 5 files; there is no logic change and no manual editing required. Effort S.",
+    "Ruff version matched (local 0.16.5 == CI 0.16.5) — the 5 violations are real formatting drift, NOT a version mismatch.",
+    "3 of the 5 files are auth-plane (admin_pool_resolver.py, auth_routes.py, cognito_service.py) — same package that carried the 09-28 lint regression. The recurring vector is 'auth-plane commit lands after the daily suite'; M1 targets that vector directly.",
+    "M1 is a prevention task, not a repair — a local `ruff format --check` gate (pre-commit or pre-push) would have caught c829580 before it reached CI. Recommended after H1."
+  ]
+}

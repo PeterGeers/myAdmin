@@ -60,6 +60,7 @@ def _resolve_pool_id() -> str:
     """
     return resolve_pool_id_for_token(_caller_token())
 
+
 # Build module role prefixes dynamically from MODULE_REGISTRY
 # e.g. ['Finance', 'STR', 'ZZP'] derived from required_roles like 'Finance_Read', 'STR_CRUD'
 _MODULE_ROLE_PREFIXES = list(

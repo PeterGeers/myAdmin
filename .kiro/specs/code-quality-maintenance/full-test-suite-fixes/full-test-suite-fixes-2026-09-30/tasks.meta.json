@@ -1,0 +1,31 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**H1. Reformat the 5 backend files flagged by `ruff format` (the sole cause of the red run).** [S] — auto-fix, no logic change.": [
+      {
+        "executionId": "ed94cfee-7fc4-4c46-b784-c3628f1f76e8",
+        "chatSessionId": "sess_161e32ec-f772-4b7b-bee8-42e3f854b313",
+        "timestamp": 1790751351695
+      },
+      {
+        "executionId": "ed94cfee-7fc4-4c46-b784-c3628f1f76e8",
+        "chatSessionId": "sess_161e32ec-f772-4b7b-bee8-42e3f854b313",
+        "timestamp": 1790751359553
+      }
+    ],
+    "**M1. Add a local pre-commit / pre-push guard that runs `ruff format --check` (and `ruff check`) so unformatted code cannot reach CI.** [M] — prevention; run **after** H1.": [
+      {
+        "executionId": "ed94cfee-7fc4-4c46-b784-c3628f1f76e8",
+        "chatSessionId": "sess_161e32ec-f772-4b7b-bee8-42e3f854b313",
+        "timestamp": 1790751351832
+      }
+    ],
+    "**L1. Confirm ruff stays pinned to 0.16.5 (reproducibility guard).** [S]": [
+      {
+        "executionId": "ed94cfee-7fc4-4c46-b784-c3628f1f76e8",
+        "chatSessionId": "sess_161e32ec-f772-4b7b-bee8-42e3f854b313",
+        "timestamp": 1790751351920
+      }
+    ]
+  }
+}
