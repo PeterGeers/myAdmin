@@ -39,10 +39,13 @@ class ScalabilityConfig:
     """Configuration for scalability settings"""
 
     # Database Connection Pool Settings
-    db_pool_size: int = 50  # Increased from 5 to 50 (10x improvement)
+    # mysql-connector caps MySQLConnectionPool.pool_size at 32; kept conservative
+    # so the three pools (primary + readonly + analytics) sum modestly against one
+    # MySQL server: 20 + max(10, 20//5)=10 + max(5, 20//10)=5 = 35 total.
+    db_pool_size: int = 20  # <= 32 mysql-connector cap; conservative pool sum
     db_max_overflow: int = 100  # Additional connections when needed
     db_pool_timeout: int = 30  # Connection timeout
-    db_pool_recycle: int = 3600  # Recycle connections every hour
+    db_pool_recycle: int = 3600  # NOT applied by mysql-connector pools (SQLAlchemy-only kwarg); retained for reference
 
     # Thread Pool Settings
     max_worker_threads: int = 100  # Increased from 4 to 100 (25x improvement)
@@ -103,7 +106,6 @@ class AdvancedConnectionPool:
                     "pool_name": "primary_pool",
                     "pool_size": self.config.db_pool_size,
                     "pool_reset_session": True,
-                    "pool_recycle": self.config.db_pool_recycle,
                     "autocommit": False,
                     "charset": "utf8mb4",
                     "collation": "utf8mb4_unicode_ci",
@@ -140,7 +142,6 @@ class AdvancedConnectionPool:
                         10, self.config.db_pool_size // 5
                     ),  # 20% of primary pool
                     "pool_reset_session": True,
-                    "pool_recycle": self.config.db_pool_recycle,
                     "autocommit": True,  # Read-only operations can auto-commit
                     "charset": "utf8mb4",
                     "collation": "utf8mb4_unicode_ci",
@@ -172,7 +173,6 @@ class AdvancedConnectionPool:
                         5, self.config.db_pool_size // 10
                     ),  # 10% of primary pool
                     "pool_reset_session": True,
-                    "pool_recycle": self.config.db_pool_recycle,
                     "autocommit": True,
                     "charset": "utf8mb4",
                     "collation": "utf8mb4_unicode_ci",
@@ -398,7 +398,7 @@ class ScalabilityManager:
             "resource_monitoring": self.resource_monitor.get_metrics_summary(),
             "current_resources": self.resource_monitor.get_current_metrics(),
             "scalability_improvements": {
-                "database_connections_multiplier": f"{self.config.db_pool_size / 5}x",  # From 5 to 50
+                "database_connections_multiplier": f"{self.config.db_pool_size / 5}x",  # From 5 to db_pool_size (<= 32 connector cap)
                 "thread_pool_multiplier": f"{self.config.max_worker_threads / 4}x",  # From 4 to 100
                 "concurrent_user_capacity": "10x improvement",
                 "performance_monitoring": "Real-time",
