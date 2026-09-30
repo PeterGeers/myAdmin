@@ -362,7 +362,9 @@ def resolve_pool_id_for_email(
         pool_id_from_issuer(p.iss) for p in _entries_in_declared_order(registry)
     ]
     hits = [
-        pid for pid in candidate_pool_ids if admin_user_exists(pid, email, client=client)
+        pid
+        for pid in candidate_pool_ids
+        if admin_user_exists(pid, email, client=client)
     ]
 
     if len(hits) == 0:

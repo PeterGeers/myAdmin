@@ -1,0 +1,56 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# myAdmin pre-commit guard (committed, version-controlled).
+#
+# Install with: sh scripts/hooks/install-hooks.sh
+#
+# Runs, in order:
+#   1. ggshield secret scan   (secrets must never be committed)
+#   2. ruff check   backend/src/   (lint gate)
+#   3. ruff format --check backend/src/   (format gate)
+#
+# Any failing step aborts the commit with a non-zero exit, so unformatted /
+# lint-dirty code (a `c829580`-style commit) is blocked before it reaches CI.
+# Ruff is pinned to 0.16.5 to match backend/requirements-test.txt and the CI
+# workflows; the guard prefers the backend venv ruff and falls back to PATH.
+# ---------------------------------------------------------------------------
+set -e
+
+# Resolve repo root from this script's location so the hook works whether it is
+# symlinked or copied into .git/hooks/.
+SCRIPT_PATH="$0"
+# If invoked via the installed .git/hooks/pre-commit symlink, $0 may be that
+# path; git always runs hooks from the repo root, so use PWD as the anchor.
+REPO_ROOT="$(pwd)"
+
+# --- 1. Secret scan (preserve existing behaviour) --------------------------
+export PATH="$HOME/.local/bin:$PATH"
+if command -v ggshield >/dev/null 2>&1; then
+    ggshield secret scan pre-commit "$@"
+else
+    echo "pre-commit: WARNING ggshield not found on PATH; skipping secret scan." >&2
+fi
+
+# --- 2/3. Ruff lint + format (pinned 0.16.5) -------------------------------
+# Prefer the backend venv ruff, else fall back to PATH ruff.
+RUFF=""
+if [ -x "$REPO_ROOT/backend/.venv/bin/ruff" ]; then
+    RUFF="$REPO_ROOT/backend/.venv/bin/ruff"
+elif command -v ruff >/dev/null 2>&1; then
+    RUFF="ruff"
+fi
+
+if [ -z "$RUFF" ]; then
+    echo "pre-commit: ERROR ruff not found." >&2
+    echo "  Install it with:  pip install ruff==0.16.5" >&2
+    echo "  (or create the backend venv at backend/.venv with ruff==0.16.5)" >&2
+    exit 1
+fi
+
+echo "pre-commit: running ruff check backend/src/ ..."
+"$RUFF" check backend/src/
+
+echo "pre-commit: running ruff format --check backend/src/ ..."
+"$RUFF" format --check backend/src/
+
+echo "pre-commit: all checks passed."
