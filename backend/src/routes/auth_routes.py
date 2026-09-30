@@ -108,9 +108,7 @@ def forgot_password() -> ResponseReturnValue:
         except PoolResolutionError as exc:
             # Registry misconfigured / no pool to act on: cannot safely act, but the
             # anti-enumeration contract still requires the same success response.
-            logger.error(
-                "Password reset pool resolution failed for %s: %s", email, exc
-            )
+            logger.error("Password reset pool resolution failed for %s: %s", email, exc)
             return jsonify(
                 {
                     "success": True,
@@ -130,9 +128,7 @@ def forgot_password() -> ResponseReturnValue:
             )
 
         try:
-            user_response = cognito.admin_get_user(
-                UserPoolId=pool_id, Username=email
-            )
+            user_response = cognito.admin_get_user(UserPoolId=pool_id, Username=email)
             user_status = user_response.get("UserStatus", "")
         except ClientError:
             # User doesn't exist — return success anyway (anti-enumeration)
@@ -349,20 +345,14 @@ def confirm_reset_password() -> ResponseReturnValue:
                 email, anti_enumeration=True, client=cognito
             )
         except PoolResolutionError as exc:
-            logger.error(
-                "Password reset pool resolution failed for %s: %s", email, exc
-            )
-            return jsonify(
-                {"success": False, "error": "Password update failed"}
-            ), 400
+            logger.error("Password reset pool resolution failed for %s: %s", email, exc)
+            return jsonify({"success": False, "error": "Password update failed"}), 400
 
         if pool_id is None:
             # User no longer exists in any registered pool — treat as a password
             # update failure (same non-500 contract as a Cognito error).
             logger.error(f"Cognito password set failed for {email}: user not found")
-            return jsonify(
-                {"success": False, "error": "Password update failed"}
-            ), 400
+            return jsonify({"success": False, "error": "Password update failed"}), 400
 
         try:
             cognito.admin_set_user_password(

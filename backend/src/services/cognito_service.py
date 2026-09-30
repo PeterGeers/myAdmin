@@ -121,9 +121,7 @@ class CognitoService:
             # Normalize email to lowercase for Cognito case-sensitivity
             email = email.strip().lower()
 
-            pool_id = self.resolve_pool_id(
-                username=email, user_pool_id=user_pool_id
-            )
+            pool_id = self.resolve_pool_id(username=email, user_pool_id=user_pool_id)
 
             # Build user attributes
             user_attributes = [
@@ -159,9 +157,7 @@ class CognitoService:
             )
             raise
 
-    def get_user(
-        self, username: str, user_pool_id: str | None = None
-    ) -> dict | None:
+    def get_user(self, username: str, user_pool_id: str | None = None) -> dict | None:
         """
         Get user details from Cognito
 
@@ -173,12 +169,8 @@ class CognitoService:
             Dict with user information or None if not found
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
-            response = self.client.admin_get_user(
-                UserPoolId=pool_id, Username=username
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
+            response = self.client.admin_get_user(UserPoolId=pool_id, Username=username)
             return response
         except ClientError as e:
             if e.response["Error"]["Code"] == "UserNotFoundException":
@@ -258,9 +250,7 @@ class CognitoService:
             True if successful
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
             # Update name if provided
             if name is not None:
                 self.client.admin_update_user_attributes(
@@ -272,9 +262,7 @@ class CognitoService:
             # Update enabled status if provided
             if enabled is not None:
                 if enabled:
-                    self.client.admin_enable_user(
-                        UserPoolId=pool_id, Username=username
-                    )
+                    self.client.admin_enable_user(UserPoolId=pool_id, Username=username)
                 else:
                     self.client.admin_disable_user(
                         UserPoolId=pool_id, Username=username
@@ -287,9 +275,7 @@ class CognitoService:
             logger.error(f"Failed to update user {username}: {e}")
             raise
 
-    def delete_user(
-        self, username: str, user_pool_id: str | None = None
-    ) -> bool:
+    def delete_user(self, username: str, user_pool_id: str | None = None) -> bool:
         """
         Delete user from Cognito
 
@@ -301,12 +287,8 @@ class CognitoService:
             True if successful
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
-            self.client.admin_delete_user(
-                UserPoolId=pool_id, Username=username
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
+            self.client.admin_delete_user(UserPoolId=pool_id, Username=username)
             logger.info(f"User {username} deleted successfully")
             return True
         except ClientError as e:
@@ -332,9 +314,7 @@ class CognitoService:
             True if successful
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
             self.client.admin_add_user_to_group(
                 UserPoolId=pool_id, Username=username, GroupName=role
             )
@@ -359,9 +339,7 @@ class CognitoService:
             True if successful
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
             self.client.admin_remove_user_from_group(
                 UserPoolId=pool_id, Username=username, GroupName=role
             )
@@ -385,9 +363,7 @@ class CognitoService:
             List of group names
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
             response = self.client.admin_list_groups_for_user(
                 UserPoolId=pool_id, Username=username
             )
@@ -495,9 +471,7 @@ class CognitoService:
             logger.error(f"Failed to update group {name}: {e}")
             raise
 
-    def delete_group(
-        self, name: str, user_pool_id: str | None = None
-    ) -> bool:
+    def delete_group(self, name: str, user_pool_id: str | None = None) -> bool:
         """
         Delete Cognito group (role)
 
@@ -559,9 +533,7 @@ class CognitoService:
             True if successful
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
             # Get current user
             user = self.get_user(username, user_pool_id=pool_id)
             if not user:
@@ -612,9 +584,7 @@ class CognitoService:
             - user_deleted: True if user was deleted (had only one tenant)
         """
         try:
-            pool_id = self.resolve_pool_id(
-                username=username, user_pool_id=user_pool_id
-            )
+            pool_id = self.resolve_pool_id(username=username, user_pool_id=user_pool_id)
             # Get current user
             user = self.get_user(username, user_pool_id=pool_id)
             if not user:

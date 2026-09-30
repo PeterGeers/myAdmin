@@ -47,6 +47,7 @@ def _caller_token() -> str:
         return auth_header[len("Bearer ") :].strip()
     return auth_header.strip()
 
+
 # Create blueprint
 sysadmin_health_bp = Blueprint("sysadmin_health", __name__)
 
