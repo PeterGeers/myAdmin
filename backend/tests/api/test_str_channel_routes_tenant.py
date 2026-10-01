@@ -13,6 +13,22 @@ from flask import Flask
 from str_channel_routes import str_channel_bp
 
 
+def _wire_transaction(mock_db):
+    """Wire mock_db.transaction() as a context manager yielding (cursor, conn).
+
+    Mirrors the context-managed write API (`with db.transaction() as (cursor, conn):`),
+    which auto-commits once on clean exit. Returns (mock_cursor, mock_conn, cm) so a
+    test can assert the transaction was entered (durability) and inspect executed SQL.
+    """
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    cm = MagicMock()
+    cm.__enter__.return_value = (mock_cursor, mock_conn)
+    cm.__exit__.return_value = False
+    mock_db.transaction.return_value = cm
+    return mock_cursor, mock_conn, cm
+
+
 class TestStrChannelSaveTenantFiltering:
     """Test tenant filtering for str-channel/save route"""
     
@@ -84,14 +100,10 @@ class TestStrChannelSaveTenantFiltering:
             roles=["STR_CRUD"]  # STR_CRUD has bookings_create permission
         )
         
-        # Mock database operations
+        # Mock database operations via the context-managed write API
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        
         mock_db_manager.return_value = mock_db
-        mock_db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor, mock_conn, mock_cm = _wire_transaction(mock_db)
         
         # Create transactions for authorized tenant
         transactions = self.create_sample_transactions('PeterPrive')
@@ -116,11 +128,21 @@ class TestStrChannelSaveTenantFiltering:
         assert data['success'] is True
         assert data['saved_count'] == 2
         
-        # Verify database operations were called
+        # Commit-durability (Req 3.6): the write MUST go through transaction(),
+        # which auto-commits once on clean exit — not get_cursor() (no commit).
+        mock_db.transaction.assert_called_once()
+        mock_cm.__enter__.assert_called_once()
+        mock_db.get_cursor.assert_not_called()
+
+        # The correct INSERT statements executed inside the transaction (one per row).
         assert mock_cursor.execute.call_count == 2  # Two transactions
-        mock_conn.commit.assert_called_once()
-        mock_cursor.close.assert_called_once()
-        mock_conn.close.assert_called_once()
+        for call in mock_cursor.execute.call_args_list:
+            sql = call[0][0]
+            assert 'INSERT INTO' in sql
+            assert 'mutaties' in sql
+        # First row's params carry the expected administration (tenant durability).
+        first_params = mock_cursor.execute.call_args_list[0][0][1]
+        assert 'PeterPrive' in first_params
     
     @patch('str_channel_routes.DatabaseManager')
     def test_save_transactions_unauthorized_tenant_fails(self, mock_db_manager, client):
@@ -206,14 +228,10 @@ class TestStrChannelSaveTenantFiltering:
             roles=["STR_CRUD"]
         )
         
-        # Mock database operations
+        # Mock database operations via the context-managed write API
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        
         mock_db_manager.return_value = mock_db
-        mock_db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor, mock_conn, mock_cm = _wire_transaction(mock_db)
         
         # Create transactions for one of the authorized tenants
         transactions = self.create_sample_transactions('GoodwinSolutions')
@@ -238,9 +256,11 @@ class TestStrChannelSaveTenantFiltering:
         assert data['success'] is True
         assert data['saved_count'] == 2
         
-        # Verify database operations were called
+        # Commit-durability (Req 3.6): write committed via transaction(), not get_cursor().
+        mock_db.transaction.assert_called_once()
+        mock_cm.__enter__.assert_called_once()
+        mock_db.get_cursor.assert_not_called()
         assert mock_cursor.execute.call_count == 2
-        mock_conn.commit.assert_called_once()
     
     def test_save_transactions_missing_administration_field(self, client):
         """Test that transactions missing Administration field are rejected"""

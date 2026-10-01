@@ -1,0 +1,103 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# myAdmin pre-commit guard: database-access abstraction (Req 1.5, 1.6, 1.7).
+#
+# Runs the two static AST guards against the STAGED backend Python files, each
+# scoped to match the authoritative CI guard it mirrors:
+#   1. check_db_imports.py      — bans direct mysql.connector imports.
+#        Scope: all staged backend/**/*.py (its ALLOWED_FILES intentionally covers
+#        a few backend/tests files, so tests ARE in scope for this guard).
+#   2. check_raw_connection.py  — bans the raw get_connection()/_get_connection()
+#        escape pattern. Scope: staged backend/src/**/*.py ONLY — the guard's
+#        SCAN_DIRS is ['backend/src'] by design; backend/tests legitimately calls
+#        the private _get_connection() to test it and is out of scope. Passing test
+#        paths in single-file mode would bypass that scoping and false-positive, so
+#        the hook filters to backend/src/ to stay consistent with the nightly CI gate.
+#
+# Any violation exits non-zero and blocks the commit. Pure AST static analysis:
+# no DB connection, so it is fast and works offline. Bypassable with
+# `git commit --no-verify` by design (the authoritative gate is the nightly
+# Full Test Suite; this hook is fast local feedback only — Req 1.6).
+#
+# Mirrors the conventions of the sibling .githooks/pre-push hook: /bin/sh,
+# `git rev-parse --show-toplevel` for the repo root, prefer the backend venv
+# interpreter and fall back to PATH.
+# ---------------------------------------------------------------------------
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# Collect staged, added/copied/modified backend Python files (repo-root-relative
+# POSIX paths — the form the guards' allow-lists are keyed on). Deletions
+# (--diff-filter excludes D) and non-backend / non-.py files are skipped.
+staged_py=$(git diff --cached --name-only --diff-filter=ACM -- 'backend/**/*.py')
+
+if [ -z "$staged_py" ]; then
+    # Nothing in backend/ to check — let the commit through immediately.
+    exit 0
+fi
+
+# Partition the staged paths that still exist on disk into:
+#   import_files — all staged backend python (check_db_imports scope)
+#   raw_files    — only backend/src/** (check_raw_connection scope == its SCAN_DIRS)
+import_files=""
+raw_files=""
+for f in $staged_py; do
+    [ -f "$REPO_ROOT/$f" ] || continue
+    import_files="$import_files $f"
+    case "$f" in
+        backend/src/*) raw_files="$raw_files $f" ;;
+    esac
+done
+import_files=$(echo "$import_files" | xargs)
+raw_files=$(echo "$raw_files" | xargs)
+
+if [ -z "$import_files" ]; then
+    exit 0
+fi
+
+# Prefer the backend venv interpreter (matches the pre-commit ruff convention),
+# else fall back to python3 / python on PATH. The guards are stdlib-only (ast),
+# so any Python 3 works.
+PY=""
+if [ -x "$REPO_ROOT/backend/.venv/bin/python" ]; then
+    PY="$REPO_ROOT/backend/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+elif command -v python >/dev/null 2>&1; then
+    PY="python"
+fi
+
+if [ -z "$PY" ]; then
+    echo "pre-commit: ERROR no Python interpreter found." >&2
+    echo "  Install Python 3, or create the backend venv at backend/.venv." >&2
+    exit 1
+fi
+
+# Run both guards from the repo root so the path args match the repo-root-relative
+# keys in each guard's ALLOWED_FILES / PENDING_SITES allow-list. Run both even if
+# the first fails, so the committer sees every violation at once.
+status=0
+
+echo "pre-commit: checking staged backend file(s) for DB-access violations..."
+
+# Import guard: all staged backend python (tests included — matches its ALLOWED_FILES scope).
+if ! (cd "$REPO_ROOT" && "$PY" backend/scripts/check_db_imports.py $import_files); then
+    status=1
+fi
+
+# Raw-connection guard: ONLY staged backend/src python (matches its SCAN_DIRS=['backend/src']).
+if [ -n "$raw_files" ]; then
+    if ! (cd "$REPO_ROOT" && "$PY" backend/scripts/check_raw_connection.py $raw_files); then
+        status=1
+    fi
+fi
+
+if [ "$status" -ne 0 ]; then
+    echo "" >&2
+    echo "pre-commit: database-access guard failed — commit blocked." >&2
+    echo "  Fix the violations above, or bypass with 'git commit --no-verify'." >&2
+    exit 1
+fi
+
+echo "pre-commit: DB-access guards passed."
+exit 0

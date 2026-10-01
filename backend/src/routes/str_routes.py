@@ -349,23 +349,21 @@ def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
     """Get pricing recommendations with historical comparison"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        with db.get_cursor() as (cursor, conn):
+            # Get all recommendations with historical data and multipliers
+            query = f"""
+            SELECT listing_name, price_date, recommended_price, ai_recommended_adr, 
+                   ai_historical_adr, ai_variance, ai_reasoning, is_weekend, 
+                   event_uplift, event_name, last_year_adr, generated_at,
+                   base_rate, historical_mult, occupancy_mult, pace_mult, 
+                   event_mult, ai_correction, btw_adjustment
+            FROM pricing_recommendations 
+            WHERE price_date >= {dialect.current_date()}
+            ORDER BY listing_name, price_date
+            """
 
-        # Get all recommendations with historical data and multipliers
-        query = f"""
-        SELECT listing_name, price_date, recommended_price, ai_recommended_adr, 
-               ai_historical_adr, ai_variance, ai_reasoning, is_weekend, 
-               event_uplift, event_name, last_year_adr, generated_at,
-               base_rate, historical_mult, occupancy_mult, pace_mult, 
-               event_mult, ai_correction, btw_adjustment
-        FROM pricing_recommendations 
-        WHERE price_date >= {dialect.current_date()}
-        ORDER BY listing_name, price_date
-        """
-
-        cursor.execute(query)
-        results = cursor.fetchall()
+            cursor.execute(query)
+            results = cursor.fetchall()
 
         # Convert dates to strings and Decimals to floats
         for result in results:
@@ -397,11 +395,6 @@ def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        if "cursor" in locals():
-            cursor.close()
-        if "conn" in locals():
-            conn.close()
 
 
 @str_bp.route("/api/pricing/historical", methods=["GET"])
@@ -410,52 +403,50 @@ def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
     """Get historical ADR data for trend analysis"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        with db.get_cursor() as (cursor, conn):
+            # Get monthly historical ADR data with guest fee adjustment for Child Friendly
+            query = f"""
+            SELECT 
+                listing,
+                {dialect.year("checkinDate")} as year,
+                {dialect.month("checkinDate")} as month,
+                COUNT(*) as bookings,
+                AVG(
+                    CASE 
+                        WHEN listing = 'Child Friendly' AND guests > 2 
+                        THEN (amountGross - (guests - 2) * 30) / nights
+                        ELSE amountGross / nights
+                    END
+                ) as historical_adr
+            FROM bnb 
+            WHERE checkinDate >= {dialect.date_subtract(dialect.current_date(), 24, "MONTH")}
+            AND nights > 0
+            GROUP BY listing, {dialect.year("checkinDate")}, {dialect.month("checkinDate")}
+            ORDER BY listing, year, month
+            """
 
-        # Get monthly historical ADR data with guest fee adjustment for Child Friendly
-        query = f"""
-        SELECT 
-            listing,
-            {dialect.year("checkinDate")} as year,
-            {dialect.month("checkinDate")} as month,
-            COUNT(*) as bookings,
-            AVG(
-                CASE 
-                    WHEN listing = 'Child Friendly' AND guests > 2 
-                    THEN (amountGross - (guests - 2) * 30) / nights
-                    ELSE amountGross / nights
-                END
-            ) as historical_adr
-        FROM bnb 
-        WHERE checkinDate >= {dialect.date_subtract(dialect.current_date(), 24, "MONTH")}
-        AND nights > 0
-        GROUP BY listing, {dialect.year("checkinDate")}, {dialect.month("checkinDate")}
-        ORDER BY listing, year, month
-        """
+            cursor.execute(query)
+            historical_data = cursor.fetchall()
 
-        cursor.execute(query)
-        historical_data = cursor.fetchall()
+            # Convert Decimal to float for historical data
+            for row in historical_data:
+                if row["historical_adr"]:
+                    row["historical_adr"] = float(row["historical_adr"])
 
-        # Convert Decimal to float for historical data
-        for row in historical_data:
-            if row["historical_adr"]:
-                row["historical_adr"] = float(row["historical_adr"])
+            # Get recommended ADR data by month
+            rec_query = f"""
+            SELECT 
+                listing_name,
+                {dialect.year("price_date")} as year,
+                {dialect.month("price_date")} as month,
+                AVG(recommended_price) as recommended_adr
+            FROM pricing_recommendations 
+            GROUP BY listing_name, {dialect.year("price_date")}, {dialect.month("price_date")}
+            ORDER BY listing_name, year, month
+            """
 
-        # Get recommended ADR data by month
-        rec_query = f"""
-        SELECT 
-            listing_name,
-            {dialect.year("price_date")} as year,
-            {dialect.month("price_date")} as month,
-            AVG(recommended_price) as recommended_adr
-        FROM pricing_recommendations 
-        GROUP BY listing_name, {dialect.year("price_date")}, {dialect.month("price_date")}
-        ORDER BY listing_name, year, month
-        """
-
-        cursor.execute(rec_query)
-        recommended_data = cursor.fetchall()
+            cursor.execute(rec_query)
+            recommended_data = cursor.fetchall()
 
         # Convert Decimal to float for recommended data
         for row in recommended_data:
@@ -472,11 +463,6 @@ def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        if "cursor" in locals():
-            cursor.close()
-        if "conn" in locals():
-            conn.close()
 
 
 @str_bp.route("/api/pricing/listings", methods=["GET"])
@@ -485,12 +471,10 @@ def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
     """Get available listings for pricing"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        query = "SELECT listing_name, active FROM listings WHERE active = TRUE ORDER BY listing_name"
-        cursor.execute(query)
-        listings = cursor.fetchall()
+        with db.get_cursor() as (cursor, conn):
+            query = "SELECT listing_name, active FROM listings WHERE active = TRUE ORDER BY listing_name"
+            cursor.execute(query)
+            listings = cursor.fetchall()
 
         return jsonify(
             {
@@ -501,11 +485,6 @@ def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        if "cursor" in locals():
-            cursor.close()
-        if "conn" in locals():
-            conn.close()
 
 
 @str_bp.route("/api/pricing/multipliers", methods=["GET"])
@@ -513,10 +492,6 @@ def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
 def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
     """Get pricing multipliers breakdown"""
     try:
-        db = DatabaseManager(test_mode=test_mode)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
         listing = request.args.get("listing")
 
         if not listing:
@@ -524,19 +499,21 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
                 {"success": False, "error": "Listing parameter required"}
             ), 400
 
-        query = f"""
-        SELECT price_date, listing_name, recommended_price,
-               base_rate, historical_mult, occupancy_mult, pace_mult,
-               event_mult, ai_correction, btw_adjustment,
-               is_weekend, event_name
-        FROM pricing_recommendations
-        WHERE listing_name = %s
-        AND price_date >= {dialect.current_date()}
-        ORDER BY price_date
-        """
+        db = DatabaseManager(test_mode=test_mode)
+        with db.get_cursor() as (cursor, conn):
+            query = f"""
+            SELECT price_date, listing_name, recommended_price,
+                   base_rate, historical_mult, occupancy_mult, pace_mult,
+                   event_mult, ai_correction, btw_adjustment,
+                   is_weekend, event_name
+            FROM pricing_recommendations
+            WHERE listing_name = %s
+            AND price_date >= {dialect.current_date()}
+            ORDER BY price_date
+            """
 
-        cursor.execute(query, (listing,))
-        results = cursor.fetchall()
+            cursor.execute(query, (listing,))
+            results = cursor.fetchall()
 
         # Convert dates and decimals
         for result in results:
@@ -559,11 +536,6 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        if "cursor" in locals():
-            cursor.close()
-        if "conn" in locals():
-            conn.close()
 
 
 @str_bp.route("/api/str/write-future", methods=["POST"])
@@ -720,17 +692,15 @@ def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
     """Get BNB future revenue trend data"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        with db.get_cursor() as (cursor, conn):
+            query = """
+            SELECT date, channel, listing, amount, items
+            FROM bnbfuture
+            ORDER BY date, listing, channel
+            """
 
-        query = """
-        SELECT date, channel, listing, amount, items
-        FROM bnbfuture
-        ORDER BY date, listing, channel
-        """
-
-        cursor.execute(query)
-        results = cursor.fetchall()
+            cursor.execute(query)
+            results = cursor.fetchall()
 
         # Convert dates and decimals
         for row in results:
@@ -738,9 +708,6 @@ def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
                 row["date"] = str(row["date"])
             if row["amount"]:
                 row["amount"] = float(row["amount"])
-
-        cursor.close()
-        conn.close()
 
         return jsonify({"success": True, "data": results})
 

@@ -57,16 +57,21 @@ class TestReportingService:
     def test_get_cursor_context_manager(self, mock_db):
         mock_conn = Mock()
         mock_cursor = Mock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_connection.return_value = mock_conn
+        # The class get_cursor now delegates to self.db.get_cursor(), which is a
+        # context manager yielding (cursor, conn). It re-yields only the cursor.
+        mock_db.return_value.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.return_value.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         service = ReportingService()
         
         with service.get_cursor() as cursor:
             assert cursor == mock_cursor
         
-        mock_cursor.close.assert_called_once()
-        mock_conn.close.assert_called_once()
+        # Lifecycle (close) is owned by the manager's get_cursor context manager.
+        mock_db.return_value.get_cursor.return_value.__enter__.assert_called_once()
+        mock_db.return_value.get_cursor.return_value.__exit__.assert_called_once()
     
     def test_build_where_clause_empty_conditions(self):
         service = ReportingService()
@@ -125,8 +130,11 @@ class TestReportingService:
         mock_cursor.fetchall.return_value = [
             {'channel': 'Airbnb', 'listing': 'Property1', 'bookings': 10, 'gross_revenue': 5000.0}
         ]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_connection.return_value = mock_conn
+        # Read now goes through self.db.get_cursor() -> (cursor, conn).
+        mock_db.return_value.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.return_value.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         service = ReportingService()
         result = service.get_str_revenue_summary('2023-01-01', '2023-12-31')
@@ -138,7 +146,7 @@ class TestReportingService:
     
     @patch('reporting_routes.DatabaseManager')
     def test_get_str_revenue_summary_error(self, mock_db):
-        mock_db.return_value.get_connection.side_effect = Exception("Database error")
+        mock_db.return_value.get_cursor.side_effect = Exception("Database error")
         
         service = ReportingService()
         result = service.get_str_revenue_summary('2023-01-01', '2023-12-31')

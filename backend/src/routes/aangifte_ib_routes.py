@@ -423,16 +423,13 @@ def aangifte_ib_xlsx_export(
 
         # Debug: Check available administrations (filtered by user_tenants)
         db = DatabaseManager(test_mode=flag)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
 
         # Build query with tenant filtering — query base mutaties table directly
         placeholders = ", ".join(["%s"] * len(user_tenants))
         query = f"SELECT DISTINCT administration FROM mutaties WHERE administration IN ({placeholders}) ORDER BY administration"
-        cursor.execute(query, user_tenants)
-        available_admins = [row["administration"] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, user_tenants)
+            available_admins = [row["administration"] for row in cursor.fetchall()]
 
         from xlsx_export import XLSXExportProcessor
 

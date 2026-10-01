@@ -58,8 +58,10 @@ class TestMakeLedgers:
         
         # Setup mock cursor to return data
         mock_cursor.fetchall.side_effect = [balance_data, transaction_data]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.get_connection.return_value = mock_conn
+        mock_db.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')
@@ -82,8 +84,7 @@ class TestMakeLedgers:
         
         # Verify database calls
         assert mock_cursor.execute.call_count == 2
-        mock_cursor.close.assert_called_once()
-        mock_conn.close.assert_called_once()
+        mock_db.get_cursor.assert_called_once()
     
     def test_make_ledgers_no_balance_data(self):
         """Test make_ledgers with no balance data"""
@@ -119,8 +120,10 @@ class TestMakeLedgers:
         
         # Setup mock cursor
         mock_cursor.fetchall.side_effect = [balance_data, transaction_data]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.get_connection.return_value = mock_conn
+        mock_db.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')
@@ -152,8 +155,10 @@ class TestMakeLedgers:
         
         # Setup mock cursor
         mock_cursor.fetchall.side_effect = [balance_data, transaction_data]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.get_connection.return_value = mock_conn
+        mock_db.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')
@@ -171,8 +176,10 @@ class TestMakeLedgers:
         
         # Mock empty data
         mock_cursor.fetchall.side_effect = [[], []]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.get_connection.return_value = mock_conn
+        mock_db.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')

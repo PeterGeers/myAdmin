@@ -21,8 +21,10 @@ class TestGetCountryReportData:
 
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
-        mock_db.get_connection.return_value = mock_connection
-        mock_connection.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (
+            mock_cursor,
+            mock_connection,
+        )
 
         # Setup cursor responses for the 3 queries
         country_rows = [
@@ -50,8 +52,10 @@ class TestGetCountryReportData:
 
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
-        mock_db.get_connection.return_value = mock_connection
-        mock_connection.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (
+            mock_cursor,
+            mock_connection,
+        )
 
         mock_cursor.fetchall.side_effect = [[], []]
         mock_cursor.fetchone.return_value = (0,)
@@ -73,8 +77,10 @@ class TestGetCountryReportData:
 
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
-        mock_db.get_connection.return_value = mock_connection
-        mock_connection.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (
+            mock_cursor,
+            mock_connection,
+        )
 
         mock_cursor.fetchall.side_effect = [[], []]
         mock_cursor.fetchone.return_value = (0,)
@@ -86,14 +92,16 @@ class TestGetCountryReportData:
         assert region_data == []
         assert total_bookings == 0
 
-    def test_get_country_report_data_closes_cursor_and_connection(self, mock_db, mock_env):
-        """Test that cursor and connection are properly closed after query."""
+    def test_get_country_report_data_uses_managed_cursor(self, mock_db, mock_env):
+        """Test that the context-managed cursor is opened and released after query."""
         from services.country_report_service import get_country_report_data
 
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
-        mock_db.get_connection.return_value = mock_connection
-        mock_connection.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (
+            mock_cursor,
+            mock_connection,
+        )
 
         mock_cursor.fetchall.side_effect = [[], []]
         mock_cursor.fetchone.return_value = (0,)
@@ -101,8 +109,10 @@ class TestGetCountryReportData:
         with patch('database.DatabaseManager', return_value=mock_db):
             get_country_report_data(['tenant1'])
 
-        mock_cursor.close.assert_called_once()
-        mock_connection.close.assert_called_once()
+        # get_cursor() context manager entered and exited (connection released)
+        mock_db.get_cursor.assert_called_once()
+        mock_db.get_cursor.return_value.__enter__.assert_called_once()
+        mock_db.get_cursor.return_value.__exit__.assert_called_once()
 
 
 class TestGenerateCountryReportHtml:

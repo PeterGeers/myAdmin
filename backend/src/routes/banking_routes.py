@@ -220,9 +220,6 @@ def banking_filter_options(
         db = DatabaseManager(test_mode=banking_service.test_mode)
         table_name = "mutaties_test" if banking_service.test_mode else "mutaties"
 
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
         # Build administration filter based on user's accessible tenants
         if len(user_tenants) == 1:
             admin_filter = "AND administration = %s"
@@ -232,24 +229,22 @@ def banking_filter_options(
             admin_filter = f"AND administration IN ({placeholders})"
             admin_params = user_tenants
 
-        # Get distinct years (filtered by tenant)
-        # Uses YEAR() on base table — acceptable since administration index
-        # filters rows first. Not on vw_mutaties so no view materialization.
-        cursor.execute(
-            f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL {admin_filter} ORDER BY year DESC",
-            admin_params,
-        )
-        years = [str(row["year"]) for row in cursor.fetchall()]
+        with db.get_cursor() as (cursor, conn):
+            # Get distinct years (filtered by tenant)
+            # Uses YEAR() on base table — acceptable since administration index
+            # filters rows first. Not on vw_mutaties so no view materialization.
+            cursor.execute(
+                f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL {admin_filter} ORDER BY year DESC",
+                admin_params,
+            )
+            years = [str(row["year"]) for row in cursor.fetchall()]
 
-        # Get distinct administrations (only those user has access to)
-        cursor.execute(
-            f"SELECT DISTINCT administration FROM {table_name} WHERE administration IS NOT NULL {admin_filter} ORDER BY administration",
-            admin_params,
-        )
-        administrations = [row["administration"] for row in cursor.fetchall()]
-
-        cursor.close()
-        conn.close()
+            # Get distinct administrations (only those user has access to)
+            cursor.execute(
+                f"SELECT DISTINCT administration FROM {table_name} WHERE administration IS NOT NULL {admin_filter} ORDER BY administration",
+                admin_params,
+            )
+            administrations = [row["administration"] for row in cursor.fetchall()]
 
         return jsonify(
             {"success": True, "years": years, "administrations": administrations}

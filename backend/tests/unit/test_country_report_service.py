@@ -30,8 +30,10 @@ class TestGetCountryReportData:
         """Test that valid tenants return expected country, region, and total data."""
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
-        mock_db.get_connection.return_value = mock_connection
-        mock_connection.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (
+            mock_cursor,
+            mock_connection,
+        )
 
         country_rows = [
             ('NL', 'Netherlands', 'Nederland', 'Europe', 50),
@@ -58,8 +60,10 @@ class TestGetCountryReportData:
         """Test that empty query results are handled gracefully."""
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
-        mock_db.get_connection.return_value = mock_connection
-        mock_connection.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (
+            mock_cursor,
+            mock_connection,
+        )
 
         mock_cursor.fetchall.side_effect = [[], []]
         mock_cursor.fetchone.return_value = (0,)
@@ -73,9 +77,7 @@ class TestGetCountryReportData:
 
     def test_handles_database_exception(self, mock_db, mock_env):
         """Test that database exceptions propagate correctly."""
-        mock_connection = MagicMock()
-        mock_db.get_connection.return_value = mock_connection
-        mock_connection.cursor.side_effect = Exception("Database connection failed")
+        mock_db.get_cursor.side_effect = Exception("Database connection failed")
 
         with patch('database.DatabaseManager', return_value=mock_db):
             with pytest.raises(Exception, match="Database connection failed"):

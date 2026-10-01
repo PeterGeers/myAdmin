@@ -98,17 +98,6 @@ class TestTransactionLogic:
         assert hasattr(logic, 'db')
         assert logic.db is not None
     
-    def test_get_connection_success(self, transaction_logic):
-        """Test successful database connection delegates to DatabaseManager"""
-        mock_conn = MagicMock()
-        transaction_logic.db = MagicMock()
-        transaction_logic.db.get_connection.return_value = mock_conn
-        
-        connection = transaction_logic.get_connection()
-        
-        assert connection == mock_conn
-        transaction_logic.db.get_connection.assert_called_once()
-    
     def test_get_last_transactions_existing(self, transaction_logic, mock_connection, sample_template_transactions):
         """Test getting existing transactions"""
         mock_conn, mock_cursor = mock_connection
@@ -464,15 +453,6 @@ class TestTransactionLogic:
         
         assert len(saved) == 0  # Zero amount transaction skipped
         mock_cursor.execute.assert_not_called()
-    
-    def test_connection_error_handling(self, transaction_logic):
-        """Test database connection error handling"""
-        from db_exceptions import DatabaseError
-        transaction_logic.db = MagicMock()
-        transaction_logic.db.get_connection.side_effect = DatabaseError("Connection failed")
-        
-        with pytest.raises(DatabaseError):
-            transaction_logic.get_connection()
     
     def test_multiple_ref3_groups_handling(self, transaction_logic, mock_connection):
         """Test handling multiple transactions with different Ref3 values"""

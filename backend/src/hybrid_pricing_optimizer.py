@@ -285,14 +285,11 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         """Generate pricing for all active listings"""
         try:
             # Get all active listings
-            conn = self.db.get_connection()
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT listing_name FROM listings WHERE active = TRUE ORDER BY listing_name"
-            )
-            listings = [row["listing_name"] for row in cursor.fetchall()]
-            cursor.close()
-            conn.close()
+            with self.db.get_cursor() as (cursor, conn):
+                cursor.execute(
+                    "SELECT listing_name FROM listings WHERE active = TRUE ORDER BY listing_name"
+                )
+                listings = [row["listing_name"] for row in cursor.fetchall()]
 
             if not listings:
                 print("No active listings found")
@@ -306,12 +303,8 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             print(f"Generating pricing for {len(listings)} listings: {listings}")
 
             # Clear all existing recommendations first
-            conn = self.db.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM pricing_recommendations")
-            conn.commit()
-            cursor.close()
-            conn.close()
+            with self.db.transaction() as (cursor, conn):
+                cursor.execute("DELETE FROM pricing_recommendations")
             print("Cleared all existing pricing recommendations for new run")
 
             total_prices = 0
@@ -361,123 +354,113 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
     def _save_pricing_to_database(self, daily_prices, listing):
         """Save pricing to database"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
+        # Insert new recommendations
+        insert_sql = """
+        INSERT INTO pricing_recommendations 
+        (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        valid_prices = []
+        for price in daily_prices:
+            try:
+                datetime.strptime(price["date"], "%Y-%m-%d")
+                valid_prices.append(price)
+            except ValueError:
+                continue
 
         try:
-            # Clear ALL existing recommendations at start of new run
-            cursor.execute("DELETE FROM pricing_recommendations")
-            print("Cleared all existing pricing recommendations for new run")
+            # Clear-then-insert is an atomic replace committed once at the end
+            # (transaction() commits on success, rolls back on error).
+            with self.db.transaction() as (cursor, conn):
+                # Clear ALL existing recommendations at start of new run
+                cursor.execute("DELETE FROM pricing_recommendations")
+                print("Cleared all existing pricing recommendations for new run")
 
-            # Insert new recommendations
-            insert_sql = """
-            INSERT INTO pricing_recommendations 
-            (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
+                for price in valid_prices:
+                    cursor.execute(
+                        insert_sql,
+                        [
+                            listing,
+                            price["date"],
+                            price["price"],
+                            price["is_weekend"],
+                            price["event_uplift"],
+                            price["event_name"],
+                            price.get("ai_recommended_adr"),
+                            price.get("ai_historical_adr"),
+                            price.get("ai_variance"),
+                            price.get("ai_reasoning"),
+                            price.get("last_year_adr"),
+                            price.get("base_rate"),
+                            price.get("historical_mult"),
+                            price.get("occupancy_mult"),
+                            price.get("pace_mult"),
+                            price.get("event_mult"),
+                            price.get("ai_correction"),
+                            price.get("btw_adjustment"),
+                        ],
+                    )
 
-            valid_prices = []
-            for price in daily_prices:
-                try:
-                    datetime.strptime(price["date"], "%Y-%m-%d")
-                    valid_prices.append(price)
-                except ValueError:
-                    continue
-
-            for price in valid_prices:
-                cursor.execute(
-                    insert_sql,
-                    [
-                        listing,
-                        price["date"],
-                        price["price"],
-                        price["is_weekend"],
-                        price["event_uplift"],
-                        price["event_name"],
-                        price.get("ai_recommended_adr"),
-                        price.get("ai_historical_adr"),
-                        price.get("ai_variance"),
-                        price.get("ai_reasoning"),
-                        price.get("last_year_adr"),
-                        price.get("base_rate"),
-                        price.get("historical_mult"),
-                        price.get("occupancy_mult"),
-                        price.get("pace_mult"),
-                        price.get("event_mult"),
-                        price.get("ai_correction"),
-                        price.get("btw_adjustment"),
-                    ],
-                )
-
-            conn.commit()
             print(f"Saved {len(valid_prices)} pricing recommendations for {listing}")
             return True
 
         except Exception as e:
             print(f"Error saving pricing: {e}")
-            conn.rollback()
             return False
-        finally:
-            cursor.close()
-            conn.close()
 
     def _save_pricing_to_database_no_clear(self, daily_prices, listing):
         """Save pricing to database without clearing existing data"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
+        # Insert new recommendations without clearing
+        insert_sql = """
+        INSERT INTO pricing_recommendations 
+        (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        valid_prices = []
+        for price in daily_prices:
+            try:
+                datetime.strptime(price["date"], "%Y-%m-%d")
+                valid_prices.append(price)
+            except ValueError:
+                continue
 
         try:
-            # Insert new recommendations without clearing
-            insert_sql = """
-            INSERT INTO pricing_recommendations 
-            (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
+            # Committed once at the end (transaction() commits on success,
+            # rolls back on error) — preserving the original single-commit granularity.
+            with self.db.transaction() as (cursor, conn):
+                for price in valid_prices:
+                    cursor.execute(
+                        insert_sql,
+                        [
+                            listing,
+                            price["date"],
+                            price["price"],
+                            price["is_weekend"],
+                            price["event_uplift"],
+                            price["event_name"],
+                            price.get("ai_recommended_adr"),
+                            price.get("ai_historical_adr"),
+                            price.get("ai_variance"),
+                            price.get("ai_reasoning"),
+                            price.get("last_year_adr"),
+                            price.get("base_rate"),
+                            price.get("historical_mult"),
+                            price.get("occupancy_mult"),
+                            price.get("pace_mult"),
+                            price.get("event_mult"),
+                            price.get("ai_correction"),
+                            price.get("btw_adjustment"),
+                        ],
+                    )
 
-            valid_prices = []
-            for price in daily_prices:
-                try:
-                    datetime.strptime(price["date"], "%Y-%m-%d")
-                    valid_prices.append(price)
-                except ValueError:
-                    continue
-
-            for price in valid_prices:
-                cursor.execute(
-                    insert_sql,
-                    [
-                        listing,
-                        price["date"],
-                        price["price"],
-                        price["is_weekend"],
-                        price["event_uplift"],
-                        price["event_name"],
-                        price.get("ai_recommended_adr"),
-                        price.get("ai_historical_adr"),
-                        price.get("ai_variance"),
-                        price.get("ai_reasoning"),
-                        price.get("last_year_adr"),
-                        price.get("base_rate"),
-                        price.get("historical_mult"),
-                        price.get("occupancy_mult"),
-                        price.get("pace_mult"),
-                        price.get("event_mult"),
-                        price.get("ai_correction"),
-                        price.get("btw_adjustment"),
-                    ],
-                )
-
-            conn.commit()
             print(f"Saved {len(valid_prices)} pricing recommendations for {listing}")
             return True
 
         except Exception as e:
             print(f"Error saving pricing: {e}")
-            conn.rollback()
             return False
-        finally:
-            cursor.close()
-            conn.close()
 
     def _save_ai_insights_to_file(self, insights, listing):
         """Save AI insights to JSON file"""
@@ -525,8 +508,6 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
     def _get_events_data(self):
         """Get events from database"""
-        conn = self.db.get_connection()
-
         try:
             events_query = """
             SELECT event_name, start_date, end_date, uplift_percentage
@@ -537,7 +518,8 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             import pandas as pd
 
-            events_df = pd.read_sql(events_query, conn)
+            with self.db.get_cursor() as (_cursor, conn):
+                events_df = pd.read_sql(events_query, conn)
 
             events_list = []
             for _, row in events_df.iterrows():
@@ -555,15 +537,11 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         except Exception as e:
             print(f"Events data error: {e}")
             return {"events": []}
-        finally:
-            conn.close()
 
     def _get_listing_performance(self, listing):
         """Get listing attributes"""
         if not listing:
             return {"base_weekday_price": 85.0, "base_weekend_price": 110.0}
-
-        conn = self.db.get_connection()
 
         try:
             attributes_query = """
@@ -574,7 +552,8 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             import pandas as pd
 
-            attributes_df = pd.read_sql(attributes_query, conn, params=[listing])
+            with self.db.get_cursor() as (_cursor, conn):
+                attributes_df = pd.read_sql(attributes_query, conn, params=[listing])
 
             if not attributes_df.empty:
                 attr = attributes_df.iloc[0]
@@ -588,13 +567,9 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         except Exception as e:
             print(f"Listing data error: {e}")
             return {"base_weekday_price": 85.0, "base_weekend_price": 110.0}
-        finally:
-            conn.close()
 
     def _get_historical_data(self, listing=None):
         """Get listing-specific historical performance data"""
-        conn = self.db.get_connection()
-
         try:
             # Listing-specific historical data
             if listing:
@@ -649,9 +624,10 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
                 import pandas as pd
 
-                monthly_df = pd.read_sql(monthly_query, conn, params=[listing])
-                seasonal_df = pd.read_sql(seasonal_query, conn, params=[listing])
-                planned_df = pd.read_sql(planned_query, conn, params=[listing])
+                with self.db.get_cursor() as (_cursor, conn):
+                    monthly_df = pd.read_sql(monthly_query, conn, params=[listing])
+                    seasonal_df = pd.read_sql(seasonal_query, conn, params=[listing])
+                    planned_df = pd.read_sql(planned_query, conn, params=[listing])
 
                 return {
                     "listing": listing,
@@ -684,7 +660,8 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
                 import pandas as pd
 
-                monthly_df = pd.read_sql(monthly_query, conn)
+                with self.db.get_cursor() as (_cursor, conn):
+                    monthly_df = pd.read_sql(monthly_query, conn)
 
                 return {
                     "monthly_performance": monthly_df.to_dict("records"),
@@ -696,15 +673,11 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         except Exception as e:
             print(f"Historical data error: {e}")
             return {"avg_adr": 95.0}
-        finally:
-            conn.close()
 
     def _get_last_year_adr(self, listing, target_date):
         """Get ADR for same date last year"""
         if not listing:
             return None
-
-        conn = self.db.get_connection()
 
         try:
             # Look for bookings within ±7 days of same date last year
@@ -726,9 +699,10 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             import pandas as pd
 
-            result_df = pd.read_sql(
-                query, conn, params=[listing, last_year_date, last_year_date]
-            )
+            with self.db.get_cursor() as (_cursor, conn):
+                result_df = pd.read_sql(
+                    query, conn, params=[listing, last_year_date, last_year_date]
+                )
 
             if not result_df.empty and result_df.iloc[0]["avg_adr"] is not None:
                 return float(result_df.iloc[0]["avg_adr"])
@@ -738,13 +712,9 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         except Exception as e:
             print(f"Last year ADR lookup error: {e}")
             return None
-        finally:
-            conn.close()
 
     def _get_event_name_for_date(self, date):
         """Get event name for a specific date"""
-        conn = self.db.get_connection()
-
         try:
             query = """
             SELECT event_name
@@ -757,7 +727,8 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
             import pandas as pd
 
-            result_df = pd.read_sql(query, conn, params=[date])
+            with self.db.get_cursor() as (_cursor, conn):
+                result_df = pd.read_sql(query, conn, params=[date])
 
             if not result_df.empty:
                 return result_df.iloc[0]["event_name"]
@@ -766,5 +737,3 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 
         except Exception:
             return None
-        finally:
-            conn.close()

@@ -13,6 +13,23 @@ from datetime import datetime, timedelta
 from mutaties_cache import MutatiesCache, get_cache, invalidate_cache, TenantCacheEntry
 
 
+def _mock_cursor_cm(mock_db, mock_conn=None):
+    """Configure mock_db.get_cursor() as a context manager yielding (cursor, conn).
+
+    Mirrors the real DatabaseManager.get_cursor() contract used by the migrated
+    cache loader (`with db_manager.get_cursor() as (_cursor, conn):`). read_sql is
+    patched separately in each test, so the yielded conn only needs to unpack.
+    """
+    if mock_conn is None:
+        mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    cm = MagicMock()
+    cm.__enter__.return_value = (mock_cursor, mock_conn)
+    cm.__exit__.return_value = False
+    mock_db.get_cursor.return_value = cm
+    return mock_conn
+
+
 class TestMutatiesCacheInit:
     """Tests for MutatiesCache initialization."""
 
@@ -125,7 +142,7 @@ class TestGetData:
         result = cache.get_data(mock_db)
 
         pd.testing.assert_frame_equal(result, expected)
-        mock_db.get_connection.assert_not_called()
+        mock_db.get_cursor.assert_not_called()
 
     def test_get_data_expired_cache_triggers_refresh(self):
         """Expired cache triggers refresh from database."""
@@ -134,8 +151,7 @@ class TestGetData:
         cache.last_loaded = datetime.now() - timedelta(minutes=31)
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
 
         # Mock execute_query for _get_years_to_load
         mock_db.execute_query.return_value = []
@@ -161,8 +177,7 @@ class TestGetData:
         cache = MutatiesCache(ttl_minutes=30)
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []
 
         sample_data = pd.DataFrame({
@@ -197,8 +212,7 @@ class TestGetData:
         )
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
 
         new_year_data = pd.DataFrame({
             'Aangifte': ['IB'], 'TransactionNumber': ['T2'],
@@ -232,7 +246,7 @@ class TestLoadAdditionalYear:
         result = cache.load_additional_year(mock_db, 2024)
 
         assert result is False
-        mock_db.get_connection.assert_not_called()
+        mock_db.get_cursor.assert_not_called()
 
     def test_load_additional_year_success(self):
         """Loading a new year appends data and returns True."""
@@ -249,8 +263,7 @@ class TestLoadAdditionalYear:
         })
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
 
         year_data = pd.DataFrame({
             'Aangifte': ['IB'], 'TransactionNumber': ['T2'],
@@ -275,7 +288,7 @@ class TestLoadAdditionalYear:
         cache.data = pd.DataFrame({'jaar': [2024], 'Amount': [100.0]})
 
         mock_db = MagicMock()
-        mock_db.get_connection.side_effect = Exception("Connection failed")
+        mock_db.get_cursor.side_effect = Exception("Connection failed")
 
         result = cache.load_additional_year(mock_db, 2022)
 
@@ -287,8 +300,7 @@ class TestLoadAdditionalYear:
         cache.data = None
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
 
         year_data = pd.DataFrame({
             'Aangifte': ['IB'], 'TransactionNumber': ['T1'],
@@ -408,8 +420,7 @@ class TestRefresh:
         """Refresh loads data and updates last_loaded timestamp."""
         cache = MutatiesCache(ttl_minutes=30)
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []  # No closed years, no transaction years
 
         sample_data = pd.DataFrame({
@@ -444,8 +455,7 @@ class TestRefresh:
         """Refresh converts TransactionDate column to datetime."""
         cache = MutatiesCache()
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []
 
         sample_data = pd.DataFrame({
@@ -475,8 +485,7 @@ class TestRefresh:
         cache.last_loaded = datetime.now() - timedelta(hours=1)
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []
 
         with patch('mutaties_cache.pd.read_sql', side_effect=Exception("DB error")):
@@ -490,8 +499,7 @@ class TestRefresh:
         cache = MutatiesCache()
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []
 
         with patch('mutaties_cache.pd.read_sql', side_effect=Exception("DB error")):
@@ -509,8 +517,7 @@ class TestGetAvailableYears:
         cache.last_loaded = datetime.now()
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
 
         db_years = pd.DataFrame({'year': [2024, 2023, 2022]})
 

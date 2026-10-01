@@ -52,8 +52,6 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
 
         # Get database connection
         db = DatabaseManager(test_mode=test_mode)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
 
         # Query to get channel revenue data - EXACT match on administration
         query = """
@@ -79,22 +77,21 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         HAVING ABS(SUM(Amount)) > 0.01
         """
 
-        cursor.execute(query, (end_date, administration, pattern))
-        channel_data = cursor.fetchall()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, (end_date, administration, pattern))
+            channel_data = cursor.fetchall()
 
-        # Resolve STR revenue account from rekeningschema.parameters
-        str_revenue_query = f"""
-            SELECT Account FROM rekeningschema
-            WHERE administration = %s
-              AND {dialect.json_extract("parameters", "$.str_revenue_account")} = true
-            ORDER BY Account LIMIT 1
-        """
-        cursor.execute(str_revenue_query, (administration,))
-        str_revenue_rows = cursor.fetchall()
+            # Resolve STR revenue account from rekeningschema.parameters
+            str_revenue_query = f"""
+                SELECT Account FROM rekeningschema
+                WHERE administration = %s
+                  AND {dialect.json_extract("parameters", "$.str_revenue_account")} = true
+                ORDER BY Account LIMIT 1
+            """
+            cursor.execute(str_revenue_query, (administration,))
+            str_revenue_rows = cursor.fetchall()
 
         if not str_revenue_rows:
-            cursor.close()
-            conn.close()
             return jsonify(
                 {
                     "success": False,
@@ -128,8 +125,6 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
             )
 
         if not rate_info:
-            cursor.close()
-            conn.close()
             return jsonify(
                 {
                     "success": False,
@@ -183,9 +178,6 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
                 "Administration": row["administration"],
             }
             transactions.append(vat_transaction)
-
-        cursor.close()
-        conn.close()
 
         return jsonify(
             {
@@ -250,9 +242,6 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
         # Test mode uses testfinance.mutaties, production uses finance.mutaties
         table_name = "mutaties"
 
-        conn = db.get_connection()
-        cursor = conn.cursor()
-
         # Insert transactions
         insert_query = f"""
         INSERT INTO {table_name} 
@@ -262,29 +251,28 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
         """
 
         saved_count = 0
-        for transaction in transactions:
-            cursor.execute(
-                insert_query,
-                (
-                    transaction["TransactionDate"],
-                    transaction["TransactionNumber"],
-                    transaction["TransactionDescription"],
-                    transaction["TransactionAmount"],
-                    transaction["Debet"],
-                    transaction["Credit"],
-                    transaction["ReferenceNumber"],
-                    transaction["Ref1"],
-                    transaction["Ref2"],
-                    transaction["Ref3"],
-                    transaction["Ref4"],
-                    transaction["Administration"],
-                ),
-            )
-            saved_count += 1
-
-        conn.commit()
-        cursor.close()
-        conn.close()
+        # transaction() commits once on clean exit, preserving the original
+        # single commit-at-end granularity for the batch insert.
+        with db.transaction() as (cursor, conn):
+            for transaction in transactions:
+                cursor.execute(
+                    insert_query,
+                    (
+                        transaction["TransactionDate"],
+                        transaction["TransactionNumber"],
+                        transaction["TransactionDescription"],
+                        transaction["TransactionAmount"],
+                        transaction["Debet"],
+                        transaction["Credit"],
+                        transaction["ReferenceNumber"],
+                        transaction["Ref1"],
+                        transaction["Ref2"],
+                        transaction["Ref3"],
+                        transaction["Ref4"],
+                        transaction["Administration"],
+                    ),
+                )
+                saved_count += 1
 
         return jsonify(
             {"success": True, "saved_count": saved_count, "table": table_name}
@@ -325,8 +313,6 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
 
         # Get database connection
         db = DatabaseManager(test_mode=test_mode)
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
 
         # Query to get raw channel data - EXACT match on administration
         query = """
@@ -348,11 +334,9 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
         ORDER BY administration, ReferenceNumber
         """
 
-        cursor.execute(query, (end_date, administration, pattern))
-        preview_data = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, (end_date, administration, pattern))
+            preview_data = cursor.fetchall()
 
         return jsonify(
             {

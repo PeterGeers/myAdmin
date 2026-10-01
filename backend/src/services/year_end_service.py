@@ -317,35 +317,38 @@ class YearEndClosureService:
             error_msg = "; ".join(validation["errors"])
             raise RuntimeError(f"Cannot close year {year}: {error_msg}")
 
-        # Get database connection
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-
+        # All closure writes commit together atomically: a single transaction()
+        # wraps the closure entry, the opening balances and the status record, so
+        # either every change lands or none does (preserves the original one-commit
+        # granularity). transaction() auto-commits on success and auto-rolls-back
+        # on error.
         try:
-            # Step 2: Create year-end closure transaction
-            net_result = self._calculate_net_pl_result(administration, year)
-            closure_transaction_number = self.journal_helper.create_closure_transaction(
-                administration, year, net_result, cursor
-            )
+            with self.db.transaction() as (cursor, conn):
+                # Step 2: Create year-end closure transaction
+                net_result = self._calculate_net_pl_result(administration, year)
+                closure_transaction_number = (
+                    self.journal_helper.create_closure_transaction(
+                        administration, year, net_result, cursor
+                    )
+                )
 
-            # Step 3: Create opening balance transactions for next year
-            opening_transaction_number = self.journal_helper.create_opening_balances(
-                administration, year + 1, cursor
-            )
+                # Step 3: Create opening balance transactions for next year
+                opening_transaction_number = (
+                    self.journal_helper.create_opening_balances(
+                        administration, year + 1, cursor
+                    )
+                )
 
-            # Step 4: Record closure status
-            self._record_closure_status(
-                administration,
-                year,
-                user_email,
-                closure_transaction_number,
-                opening_transaction_number,
-                notes,
-                cursor,
-            )
-
-            # Commit all changes
-            conn.commit()
+                # Step 4: Record closure status
+                self._record_closure_status(
+                    administration,
+                    year,
+                    user_email,
+                    closure_transaction_number,
+                    opening_transaction_number,
+                    notes,
+                    cursor,
+                )
 
             # Invalidate cache so reports pick up new transactions
             from mutaties_cache import invalidate_cache
@@ -365,13 +368,8 @@ class YearEndClosureService:
             }
 
         except Exception as e:
-            # Rollback on any error
-            conn.rollback()
+            # transaction() has already rolled back on error
             raise RuntimeError(f"Failed to close year {year}: {e!s}") from e
-
-        finally:
-            cursor.close()
-            conn.close()
 
     def _record_closure_status(
         self,
@@ -470,33 +468,32 @@ class YearEndClosureService:
         closure_txn = closure_info.get("closure_transaction_number")
         opening_txn = closure_info.get("opening_balance_transaction_number")
 
-        # Get database connection
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-
+        # All reopen deletes commit together atomically: a single transaction()
+        # wraps the opening-balance delete, the closure delete and the status-record
+        # delete, so either every change lands or none does (preserves the original
+        # one-commit granularity). transaction() auto-commits on success and
+        # auto-rolls-back on error.
         try:
-            # Step 2: Delete opening balance transactions for next year
-            if opening_txn:
-                self.journal_helper.delete_transactions(
-                    administration, opening_txn, cursor
-                )
+            with self.db.transaction() as (cursor, conn):
+                # Step 2: Delete opening balance transactions for next year
+                if opening_txn:
+                    self.journal_helper.delete_transactions(
+                        administration, opening_txn, cursor
+                    )
 
-            # Step 3: Delete year-end closure transaction
-            if closure_txn:
-                self.journal_helper.delete_transactions(
-                    administration, closure_txn, cursor
-                )
+                # Step 3: Delete year-end closure transaction
+                if closure_txn:
+                    self.journal_helper.delete_transactions(
+                        administration, closure_txn, cursor
+                    )
 
-            # Step 4: Remove closure status record
-            delete_status = """
-                DELETE FROM year_closure_status
-                WHERE administration = %s
-                AND year = %s
-            """
-            cursor.execute(delete_status, [administration, year])
-
-            # Commit all changes
-            conn.commit()
+                # Step 4: Remove closure status record
+                delete_status = """
+                    DELETE FROM year_closure_status
+                    WHERE administration = %s
+                    AND year = %s
+                """
+                cursor.execute(delete_status, [administration, year])
 
             # Invalidate cache so reports pick up changes
             from mutaties_cache import invalidate_cache
@@ -511,10 +508,5 @@ class YearEndClosureService:
             }
 
         except Exception as e:
-            # Rollback on any error
-            conn.rollback()
+            # transaction() has already rolled back on error
             raise RuntimeError(f"Failed to reopen year {year}: {e!s}") from e
-
-        finally:
-            cursor.close()
-            conn.close()

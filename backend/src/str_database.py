@@ -6,7 +6,7 @@ from dialect_helpers import dialect
 class STRDatabase(DatabaseManager):
     def __init__(self, test_mode: bool = False):
         super().__init__(test_mode)
-        self.connection = self.get_connection()
+        self.connection = self._get_connection()
         # Uses existing tables: bnb, bnbplanned, bnbfuture
 
     def insert_realised_bookings(self, bookings: list[dict]) -> int:

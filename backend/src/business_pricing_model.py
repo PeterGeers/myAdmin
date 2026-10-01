@@ -64,15 +64,15 @@ class BusinessPricingModel:
             is_weekend = date.weekday() in [4, 5]
             return 110 if is_weekend else 85
 
-        conn = self.db.get_connection()
         try:
-            query = """
-            SELECT base_weekday_price, base_weekend_price
-            FROM listings 
-            WHERE listing_name = %s AND active = TRUE
-            """
+            with self.db.get_cursor() as (_cursor, conn):
+                query = """
+                SELECT base_weekday_price, base_weekend_price
+                FROM listings 
+                WHERE listing_name = %s AND active = TRUE
+                """
 
-            result_df = pd.read_sql(query, conn, params=[listing])
+                result_df = pd.read_sql(query, conn, params=[listing])
 
             if not result_df.empty:
                 is_weekend = date.weekday() in [4, 5]
@@ -88,66 +88,59 @@ class BusinessPricingModel:
             print(f"Base rate error: {e}")
             is_weekend = date.weekday() in [4, 5]
             return 110 if is_weekend else 85
-        finally:
-            conn.close()
 
     def _get_historical_multiplier(self, listing, date):
         """Get multiplier based on same date historical performance"""
-        conn = self.db.get_connection()
-
         try:
-            # Get ADR for same date ±7 days in previous years
-            query = """
-            SELECT AVG(amountGross/nights) as historical_adr
-            FROM bnb 
-            WHERE listing = %s 
-            AND MONTH(checkinDate) = %s
-            AND DAY(checkinDate) BETWEEN %s AND %s
-            AND YEAR(checkinDate) < %s
-            AND nights > 0
-            """
-
-            result_df = pd.read_sql(
-                query,
-                conn,
-                params=[
-                    listing,
-                    date.month,
-                    max(1, date.day - 7),
-                    min(31, date.day + 7),
-                    date.year,
-                ],
-            )
-
-            if not result_df.empty and result_df.iloc[0]["historical_adr"]:
-                historical_adr = float(result_df.iloc[0]["historical_adr"])
-
-                # Get annual baseline for this listing
-                baseline_query = """
-                SELECT AVG(amountGross/nights) as baseline_adr
+            with self.db.get_cursor() as (_cursor, conn):
+                # Get ADR for same date ±7 days in previous years
+                query = """
+                SELECT AVG(amountGross/nights) as historical_adr
                 FROM bnb 
                 WHERE listing = %s 
-                AND checkinDate >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH)
+                AND MONTH(checkinDate) = %s
+                AND DAY(checkinDate) BETWEEN %s AND %s
+                AND YEAR(checkinDate) < %s
                 AND nights > 0
                 """
-                baseline_df = pd.read_sql(baseline_query, conn, params=[listing])
 
-                if not baseline_df.empty and baseline_df.iloc[0]["baseline_adr"]:
-                    baseline_adr = float(baseline_df.iloc[0]["baseline_adr"])
-                    return round(historical_adr / baseline_adr, 3)
+                result_df = pd.read_sql(
+                    query,
+                    conn,
+                    params=[
+                        listing,
+                        date.month,
+                        max(1, date.day - 7),
+                        min(31, date.day + 7),
+                        date.year,
+                    ],
+                )
+
+                if not result_df.empty and result_df.iloc[0]["historical_adr"]:
+                    historical_adr = float(result_df.iloc[0]["historical_adr"])
+
+                    # Get annual baseline for this listing
+                    baseline_query = """
+                    SELECT AVG(amountGross/nights) as baseline_adr
+                    FROM bnb 
+                    WHERE listing = %s 
+                    AND checkinDate >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH)
+                    AND nights > 0
+                    """
+                    baseline_df = pd.read_sql(baseline_query, conn, params=[listing])
+
+                    if not baseline_df.empty and baseline_df.iloc[0]["baseline_adr"]:
+                        baseline_adr = float(baseline_df.iloc[0]["baseline_adr"])
+                        return round(historical_adr / baseline_adr, 3)
 
             return 1.0  # Default if no historical data
 
         except Exception as e:
             print(f"Historical multiplier error: {e}")
             return 1.0
-        finally:
-            conn.close()
 
     def _get_occupancy_multiplier(self, listing, date):
         """Get multiplier based on historical occupancy for this period"""
-        conn = self.db.get_connection()
-
         try:
             # Calculate occupancy for same month in previous years
             query = """
@@ -160,9 +153,10 @@ class BusinessPricingModel:
             AND YEAR(checkinDate) < %s
             """
 
-            result_df = pd.read_sql(
-                query, conn, params=[listing, date.month, date.year]
-            )
+            with self.db.get_cursor() as (_cursor, conn):
+                result_df = pd.read_sql(
+                    query, conn, params=[listing, date.month, date.year]
+                )
 
             if not result_df.empty:
                 _bookings = result_df.iloc[0]["bookings"]
@@ -187,67 +181,68 @@ class BusinessPricingModel:
         except Exception as e:
             print(f"Occupancy multiplier error: {e}")
             return 1.0
-        finally:
-            conn.close()
 
     def _get_booking_pace_multiplier(self, listing, date):
         """Get multiplier based on revenue trends over 12-month periods"""
-        conn = self.db.get_connection()
-
         try:
-            # First check if bnbfuture table has data
-            check_query = "SELECT COUNT(*) as count FROM bnbfuture WHERE listing = %s"
-            check_df = pd.read_sql(check_query, conn, params=[listing])
-
-            if check_df.iloc[0]["count"] == 0:
-                print(
-                    f"No bnbfuture data for {listing}, using default pace multiplier 1.0"
+            with self.db.get_cursor() as (_cursor, conn):
+                # First check if bnbfuture table has data
+                check_query = (
+                    "SELECT COUNT(*) as count FROM bnbfuture WHERE listing = %s"
                 )
-                return 1.0
+                check_df = pd.read_sql(check_query, conn, params=[listing])
 
-            # Get 2024 vs 2023 monthly revenue data for specific month
-            monthly_query = """
-            WITH monthly_data AS (
-                SELECT 
-                    YEAR(date) as year,
-                    MONTH(date) as month,
-                    SUM(amount) as monthly_amount
-                FROM bnbfuture 
-                WHERE listing = %s AND MONTH(date) = %s
-                GROUP BY YEAR(date), MONTH(date)
-            )
-            SELECT 
-                AVG(CASE WHEN year = 2024 THEN monthly_amount ELSE NULL END) as year_2024,
-                AVG(CASE WHEN year = 2023 THEN monthly_amount ELSE NULL END) as year_2023,
-                COUNT(*) as total_records
-            FROM monthly_data
-            """
+                if check_df.iloc[0]["count"] == 0:
+                    print(
+                        f"No bnbfuture data for {listing}, using default pace multiplier 1.0"
+                    )
+                    return 1.0
 
-            result_df = pd.read_sql(monthly_query, conn, params=[listing, date.month])
-
-            # If no data found with exact listing name, try aggregating all channels for this listing
-            if result_df.empty or result_df.iloc[0]["total_records"] == 0:
-                aggregate_query = """
-                WITH monthly_aggregated AS (
+                # Get 2024 vs 2023 monthly revenue data for specific month
+                monthly_query = """
+                WITH monthly_data AS (
                     SELECT 
                         YEAR(date) as year,
                         MONTH(date) as month,
-                        date,
-                        SUM(amount) as total_amount
+                        SUM(amount) as monthly_amount
                     FROM bnbfuture 
-                    WHERE listing = %s
-                    GROUP BY YEAR(date), MONTH(date), date
+                    WHERE listing = %s AND MONTH(date) = %s
+                    GROUP BY YEAR(date), MONTH(date)
                 )
                 SELECT 
-                    SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) 
-                        THEN total_amount ELSE 0 END) as last_12_months,
-                    SUM(CASE WHEN date BETWEEN DATE_SUB(CURDATE(), INTERVAL 24 MONTH) 
-                        AND DATE_SUB(CURDATE(), INTERVAL 12 MONTH) 
-                        THEN total_amount ELSE 0 END) as previous_12_months,
+                    AVG(CASE WHEN year = 2024 THEN monthly_amount ELSE NULL END) as year_2024,
+                    AVG(CASE WHEN year = 2023 THEN monthly_amount ELSE NULL END) as year_2023,
                     COUNT(*) as total_records
-                FROM monthly_aggregated
+                FROM monthly_data
                 """
-                result_df = pd.read_sql(aggregate_query, conn, params=[listing])
+
+                result_df = pd.read_sql(
+                    monthly_query, conn, params=[listing, date.month]
+                )
+
+                # If no data found with exact listing name, try aggregating all channels for this listing
+                if result_df.empty or result_df.iloc[0]["total_records"] == 0:
+                    aggregate_query = """
+                    WITH monthly_aggregated AS (
+                        SELECT 
+                            YEAR(date) as year,
+                            MONTH(date) as month,
+                            date,
+                            SUM(amount) as total_amount
+                        FROM bnbfuture 
+                        WHERE listing = %s
+                        GROUP BY YEAR(date), MONTH(date), date
+                    )
+                    SELECT 
+                        SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) 
+                            THEN total_amount ELSE 0 END) as last_12_months,
+                        SUM(CASE WHEN date BETWEEN DATE_SUB(CURDATE(), INTERVAL 24 MONTH) 
+                            AND DATE_SUB(CURDATE(), INTERVAL 12 MONTH) 
+                            THEN total_amount ELSE 0 END) as previous_12_months,
+                        COUNT(*) as total_records
+                    FROM monthly_aggregated
+                    """
+                    result_df = pd.read_sql(aggregate_query, conn, params=[listing])
 
             if not result_df.empty and result_df.iloc[0]["total_records"] > 0:
                 year_2024 = float(result_df.iloc[0]["year_2024"] or 0)
@@ -297,13 +292,9 @@ class BusinessPricingModel:
         except Exception as e:
             print(f"Monthly revenue trend error for {listing}: {e}")
             return 1.0
-        finally:
-            conn.close()
 
     def _get_event_multiplier(self, date):
         """Get event-based premium multiplier"""
-        conn = self.db.get_connection()
-
         try:
             query = """
             SELECT uplift_percentage, event_name
@@ -314,7 +305,8 @@ class BusinessPricingModel:
             LIMIT 1
             """
 
-            result_df = pd.read_sql(query, conn, params=[date])
+            with self.db.get_cursor() as (_cursor, conn):
+                result_df = pd.read_sql(query, conn, params=[date])
 
             if not result_df.empty:
                 uplift = float(result_df.iloc[0]["uplift_percentage"])
@@ -325,8 +317,6 @@ class BusinessPricingModel:
         except Exception as e:
             print(f"Event multiplier error: {e}")
             return 1.0
-        finally:
-            conn.close()
 
     def _get_btw_adjustment(self, date):
         """Get BTW (VAT) adjustment factor for pricing recommendations.
