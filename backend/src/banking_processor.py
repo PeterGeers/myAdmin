@@ -257,10 +257,15 @@ class BankingProcessor:
                         f"""
                         SELECT ID FROM {table_name}
                         WHERE Ref2 = %s
+                        AND Ref1 = %s
                         AND administration = %s
                         LIMIT 1
                     """,
-                        (ref2, transaction.get("administration")),
+                        (
+                            ref2,
+                            transaction.get("Ref1"),
+                            transaction.get("administration"),
+                        ),
                     )
 
                     if cursor.fetchone():

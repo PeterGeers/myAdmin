@@ -231,7 +231,7 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
           const row = rows[i];
           const currentIndex = transactionIndex + i;
           const isRevolutFile = file.name.toLowerCase().endsWith('.tsv') ||
-                               file.name.toLowerCase().startsWith('account-statement');
+            file.name.toLowerCase().startsWith('account-statement');
 
           const columns = isRevolutFile && file.name.toLowerCase().endsWith('.tsv')
             ? row.split('\t').map(col => col.trim())
@@ -262,33 +262,64 @@ const BankingFileUpload: React.FC<BankingFileUploadProps> = ({
         transactionIndex += rows.length;
       }
 
-      // Check for duplicates
-      const iban = allTransactions[0]?.Ref1;
-      const sequences = allTransactions.map(t => t.Ref2).filter(Boolean);
-
-      if (iban && sequences.length > 0) {
-        const response = await authenticatedPost('/api/banking/check-sequences', {
-          iban,
-          sequences,
-          test_mode: testMode
-        });
-
-        const checkResult = await response.json();
-
-        if (checkResult.success && checkResult.duplicates.length > 0) {
-          const filteredTransactions = allTransactions.filter(t => !checkResult.duplicates.includes(t.Ref2));
-          onTransactionsLoaded(filteredTransactions);
-          setMessage(t('messages.duplicatesFiltered', {
-            new: filteredTransactions.length,
-            duplicates: checkResult.duplicates.length
-          }));
+      // Check for duplicates — PER BANK ACCOUNT.
+      // A single Rabobank CSV can cover more than one of the tenant's own bank
+      // accounts. Rabobank's Volgnr (mapped to Ref2) restarts at 1 for each
+      // account, so a second account's low sequence numbers collide with the
+      // first account's existing sequences. We therefore group the parsed rows
+      // by Ref1 (the per-row IBAN) and run the duplicate check once per account,
+      // scoping each account's sequences — and each account's filter — to ONLY
+      // that account's returned duplicates. Rows with a falsy Ref1 are treated
+      // as their own group and pass through unchanged.
+      const groups = new Map<string, Transaction[]>();
+      for (const transaction of allTransactions) {
+        const groupKey = transaction.Ref1 ?? '';
+        const groupRows = groups.get(groupKey);
+        if (groupRows) {
+          groupRows.push(transaction);
         } else {
-          onTransactionsLoaded(allTransactions);
-          setMessage(t('messages.transactionsLoaded', { count: allTransactions.length }));
+          groups.set(groupKey, [transaction]);
         }
+      }
+
+      const keptTransactions: Transaction[] = [];
+      let totalDuplicates = 0;
+
+      for (const [groupKey, groupRows] of groups) {
+        const sequences = groupRows.map(t => t.Ref2).filter(Boolean);
+
+        // Only accounts with a real IBAN and at least one sequence are checked;
+        // everything else (e.g. a falsy Ref1 group) passes through unchanged.
+        if (groupKey && sequences.length > 0) {
+          const response = await authenticatedPost('/api/banking/check-sequences', {
+            iban: groupKey,
+            sequences,
+            test_mode: testMode
+          });
+
+          const checkResult = await response.json();
+
+          if (checkResult.success && checkResult.duplicates.length > 0) {
+            const groupDuplicates = checkResult.duplicates;
+            const groupKept = groupRows.filter(t => !groupDuplicates.includes(t.Ref2));
+            keptTransactions.push(...groupKept);
+            totalDuplicates += groupDuplicates.length;
+          } else {
+            keptTransactions.push(...groupRows);
+          }
+        } else {
+          keptTransactions.push(...groupRows);
+        }
+      }
+
+      onTransactionsLoaded(keptTransactions);
+      if (totalDuplicates > 0) {
+        setMessage(t('messages.duplicatesFiltered', {
+          new: keptTransactions.length,
+          duplicates: totalDuplicates
+        }));
       } else {
-        onTransactionsLoaded(allTransactions);
-        setMessage(t('messages.transactionsLoaded', { count: allTransactions.length }));
+        setMessage(t('messages.transactionsLoaded', { count: keptTransactions.length }));
       }
     } catch (error) {
       setMessage(t('messages.errorProcessing', { error: String(error) }));
