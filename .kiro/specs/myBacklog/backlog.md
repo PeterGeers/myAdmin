@@ -170,3 +170,7 @@ Passkey registreren mislukt. Probeer het opnieuw.
 **Proper fix (candidates):** (a) make `database.py` NOT call `load_dotenv()` at import time (load config explicitly at app startup instead), or at least have it NOT override an already-set `AWS_PROFILE` / already-exported AWS creds (`load_dotenv(override=False)` is already the default — the real issue is the `.env` exporting static AWS keys at all); (b) move the static personal-account AWS keys OUT of the repo `.env` so nothing re-injects them (use a profile for local DynamoDB too); (c) a shared `ops_env` helper that establishes the correct account/endpoint and is import-safe. Add a test that importing `database` does not mutate pre-set AWS_* env.
 
 **Scope:** `backend/src/database.py` (the import-time `load_dotenv()`), repo-root `.env` (static AWS keys), steering `41-shell-environment.md` (already warns about the `.env`-overrides-`AWS_PROFILE` hazard — this is the concrete code cause). Relates to the "Projection version gap" item above (both bite the same prod-projection path).
+
+
+# Your main branch isn't protected
+Protect this branch from force pushing or deletion, or require status checks before merging. View documentation. See https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
