@@ -6,7 +6,8 @@ None of these touch a live Cognito pool or a live governance API (per the task c
 - **The pure parser** (``build_load_plan`` / ``_normalize_row``): reads the editable file
   READ-ONLY, validates each row (email/role/tenants/scope), renders the ``custom:tenants`` /
   ``custom:scope`` claim shapes, and collects malformed rows as errors instead of crashing.
-- **The runner** (``scripts/aws/load-cognito-users.py``): dry-run creates NOTHING + calls no
+- **The runner** (``scripts/onboarding/members/_generic/load-cognito-users.py``): dry-run
+  creates NOTHING + calls no
   endpoint; ``--apply`` creates users via a FAKE cognito-idp client (in-memory) and assigns roles
   via a FAKE governance-endpoint client — and the test asserts the role went through the ENDPOINT
   SEAM, never a direct DB/projection write. Existing users are skipped (idempotent). Required args
@@ -41,7 +42,9 @@ FIXTURE = os.path.join(_REPO_ROOT, "sam", "tests", "fixtures", "cognito_users_sa
 
 def _load_runner_module():
     """Import the hyphen-named runner script by path (not a valid module name)."""
-    path = os.path.join(_REPO_ROOT, "scripts", "aws", "load-cognito-users.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "onboarding", "members", "_generic", "load-cognito-users.py"
+    )
     spec = importlib.util.spec_from_file_location("load_cognito_users", path)
     module = importlib.util.module_from_spec(spec)
     # Register before exec so dataclass introspection (which resolves the module via

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """members_config_loader.py — the SINGLE loader for h-dcn's onboarding members CONFIG.
 
-Reads ``scripts/aws/h-dcn/members_config.json`` (the single source of truth, Decision D18)
+Reads ``scripts/onboarding/members/h-dcn/members_config.json`` (the single source of truth,
+Decision D18)
 and exposes it to BOTH onboarding consumers so importer + config + enforcement never drift:
 
 - ``load_members_config()`` → the parsed ``{scope_dimensions, field_overlay}`` payloads that

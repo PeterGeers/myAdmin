@@ -1,6 +1,6 @@
 """
 S5 Task 4.0 — tests for the SAM-plane Members table provisioning script
-(``scripts/aws/provision-members-tables.py``).
+(``scripts/onboarding/members/_generic/provision-members-tables.py``).
 
 These pin the script's *contract* + its safety guards without touching real AWS or relying
 on a running emulator: an in-memory ``FakeDynamoResource`` (with a nested ``client``) stands
@@ -44,7 +44,9 @@ from sam.members.repository import table_design as td
 
 def _load_script_module():
     """Import the hyphen-named provisioning script by path (not a valid module name)."""
-    path = os.path.join(_REPO_ROOT, "scripts", "aws", "provision-members-tables.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "onboarding", "members", "_generic", "provision-members-tables.py"
+    )
     spec = importlib.util.spec_from_file_location("provision_members_tables", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

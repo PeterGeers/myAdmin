@@ -60,24 +60,38 @@ it runs anywhere; ``--apply`` performs the writes.
 
 Usage:
   # Dry-run (DEFAULT — reads Railway read-only to show the param diff, no writes):
-  python scripts/aws/project-config-to-prod.py --tenant h-dcn
+  python scripts/onboarding/members/_generic/project-config-to-prod.py --tenant h-dcn
 
   # Apply (seed → bump tenant → account guard → sync → read-back verify):
-  python scripts/aws/project-config-to-prod.py --tenant h-dcn --apply
+  python scripts/onboarding/members/_generic/project-config-to-prod.py --tenant h-dcn --apply
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import os
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(os.path.dirname(_THIS_DIR))
-_BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
-if _BACKEND_SRC not in sys.path:
-    sys.path.insert(0, _BACKEND_SRC)
+
+# Bootstrap: find the repo root by walking up to a marker (NOT by counting dirname levels —
+# Tenant-Onboarding Tooling R4), put it on sys.path, then hand off to the shared onboarding
+# `_lib` for repo-root + backend/src setup.
+_r = os.path.abspath(__file__)
+while _r != os.path.dirname(_r):
+    _r = os.path.dirname(_r)
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+        break
+if _r not in sys.path:
+    sys.path.insert(0, _r)
+from scripts.onboarding._lib.paths import (  # noqa: E402
+    ensure_backend_src_on_path,
+    import_by_path,
+    repo_root,
+)
+
+ensure_backend_src_on_path()
+_REPO_ROOT = repo_root()
 
 #: Repo-root .env — parsed by hand for RAILWAY_DB_* only (never re-sourced whole,
 #: so we don't re-inject the personal-account AWS keys; _restrip_aws_env also
@@ -94,18 +108,19 @@ _AWS_CLOBBER_VARS = (
 )
 
 
-def _load_seed_module():
-    """Import the sibling seed-hdcn-members-config.py by path (dashed filename).
+def _load_seed_module(tenant: str = "h-dcn"):
+    """Import the tenant's seed-*-members-config.py by path (dashed filename).
 
-    The seed script is not an importable module name (dashes), so load it by file
-    path to reuse its ``seed(tenant_id, *, apply, config_path, svc=None)`` exactly
-    rather than re-implementing the param authoring.
+    This generic runner reuses the TENANT's seed step rather than re-implementing param
+    authoring. The seed script lives in the tenant's config dir
+    (``../<tenant>/seed-hdcn-members-config.py``) — the generic runners sit under ``_generic/``;
+    each tenant's committed config + seed tool sits under ``<tenant>/``. Loaded by file path via
+    the shared `_lib` ``import_by_path`` (dashes make the filename a non-importable module name).
     """
-    path = os.path.join(_THIS_DIR, "seed-hdcn-members-config.py")
-    spec = importlib.util.spec_from_file_location("seed_hdcn_members_config", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
-    return module
+    path = os.path.join(
+        _THIS_DIR, os.pardir, tenant, "seed-hdcn-members-config.py"
+    )
+    return import_by_path("seed_hdcn_members_config", os.path.abspath(path))
 
 
 def _parse_env_file(path: str) -> dict[str, str]:
@@ -243,7 +258,7 @@ def _run_dry_run(args) -> int:
     from database import DatabaseManager
     from services.parameter_service import ParameterService
 
-    seed_module = _load_seed_module()
+    seed_module = _load_seed_module(args.tenant)
     db = DatabaseManager(test_mode=args.test_mode)
     svc = ParameterService(db)
 
@@ -288,7 +303,7 @@ def _run_apply(args) -> int:
     from services.projection_sync import DatabaseSourceProvider, ProjectionSync
     from services import projection_schema as pschema
 
-    seed_module = _load_seed_module()
+    seed_module = _load_seed_module(args.tenant)
 
     # ONE DatabaseManager / ONE connection target for seed + bump + source read.
     db = DatabaseManager(test_mode=args.test_mode)
@@ -373,7 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         default=None,
         help="Path to the members-config JSON (default: seed() falls back to "
-        "scripts/aws/h-dcn/members_config.json).",
+        "scripts/onboarding/members/h-dcn/members_config.json).",
     )
     parser.add_argument(
         "--db",

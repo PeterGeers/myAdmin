@@ -2,7 +2,8 @@
 members-modal-field-mapping-mismatch — Task 4.2 orphan-guard VERIFICATION tests.
 
 Task 4.1 added the config↔mapping orphan-field guard to
-``scripts/aws/h-dcn/members_mapping_loader.load_mapping_contract`` (R2.5): every overlay field
+``scripts/onboarding/members/h-dcn/members_mapping_loader.load_mapping_contract`` (R2.5): every
+overlay field
 DECLARED in ``members_config.json`` must have a mapping backing in the CSV, else the loader
 HARD-FAILS with a ``MappingContractError``. This file VERIFIES that guard from four angles:
 
@@ -42,7 +43,7 @@ if _BACKEND_SRC not in sys.path:
 
 # The h-dcn scripts dir carries the CSV + its two loaders; on sys.path so they import as
 # top-level modules (mirrors test_hdcn_backfill.py and the exploration test).
-_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "aws", "h-dcn")
+_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members", "h-dcn")
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 

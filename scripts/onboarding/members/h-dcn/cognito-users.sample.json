@@ -1,5 +1,5 @@
 {
-  "//": "EDITABLE INPUT FILE for scripts/aws/load-cognito-users.py (S5c task 6.4).",
+  "//": "EDITABLE INPUT FILE for scripts/onboarding/members/_generic/load-cognito-users.py (S5c task 6.4).",
   "//pool": "Target Cognito pool: myAdmin-test = eu-west-1_xyrlzfqbl (identity account 344561557829, profile 'personal'). Pass it explicitly via --pool-id (NEVER hardcoded in the script).",
   "//shape": "Derived from the h-dcn pool shape: ~10 region-scoped + ~10 general (all-region) + 3 extra users. HARD SEPARATION (R8.1/R8.2, C-PLAYBOOK): this file drives (a) Cognito user creation + custom attributes BY THE SCRIPT, and (b) the Members role assignment VIA THE GOVERNANCE ENDPOINT (POST /api/tenant-admin/users/<email>/groups) — the script NEVER writes user_tenant_roles / the projection directly.",
   "//fields": {

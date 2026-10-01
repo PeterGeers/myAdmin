@@ -5,7 +5,7 @@ Dry-run-first, non-destructive backfill of h-dcn's Ledenbestand into the NEW ten
 ``sam-members`` table (design "New tenant-scoped tables + backfill" / R5.2 / Property 7).
 Reproduces the purpose of h-dcn's historical ``migrationHDCNLedenbestand`` import (the
 Google-Sheet Ledenbestand import) against the new module's data model. Mirrors the structure
-of the task-4.0 provisioner (``scripts/aws/provision-members-tables.py``): argparse →
+of the task-4.0 provisioner (``scripts/onboarding/members/_generic/provision-members-tables.py``): argparse →
 resolve → **dry-run plan by default** → ``--apply`` to write → summary.
 
 What it does
@@ -44,18 +44,18 @@ Usage (from repo root, WSL)
   # Dry run (default — writes nothing), fidelity report from a Google-Sheet CSV export.
   # --tenant is REQUIRED (no hardcoded/default tenant):
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 \
-      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py \
       --source path/to/hdcn-ledenbestand.csv --tenant h-dcn
 
   # Actually write to real AWS (nonprofit data account) — only after a clean dry run:
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py \
       --source path/to/hdcn-ledenbestand.csv --tenant h-dcn --apply
 
   # Local emulator apply (endpoint set → local DynamoDB, no real AWS):
   MEMBERS_TABLE=sam-members-local AWS_REGION=eu-west-1 \
       AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
-      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py \
       --source sam/tests/fixtures/hdcn_ledenbestand_sample.csv --tenant h-dcn --apply
 
 Live direct-read from the Google Sheet (no export file) — operator notes (R6.5)
@@ -63,12 +63,16 @@ Live direct-read from the Google Sheet (no export file) — operator notes (R6.5
 The `--sheet-id` / `--sheet-name` path reads the Sheet DIRECTLY, READ-ONLY, via a service
 account (design D5/D6). Two prerequisites, both MANUAL and gated:
 
-  1. Service-account key ON DISK. Place the EXISTING h-dcn service-account JSON at the shared
-     default path (re-download it from Google Cloud if absent — the Sheet is already shared with
-     that SA as Viewer), or point at another file with `--credentials`:
-         /home/peter/projects/h-dcn/.googleCredentials.json   (DEFAULT_GOOGLE_CREDENTIALS_FILE)
-     Scopes requested are read-only: `spreadsheets.readonly` (+ `drive.readonly` ONLY when a
-     sheet is resolved by TITLE via `--sheet-name`). The SA never writes the source.
+  1. Service-account key ON DISK, CO-LOCATED in the tenant folder. Place the EXISTING
+     service-account JSON (re-download from Google Cloud if absent — the Sheet is already shared
+     with that SA as Viewer) in the tenant's secrets dir and name it in secrets.local.json:
+         scripts/tenants/<tenant>/secrets.local.json  →  credentials.google_sheets.file
+         scripts/tenants/<tenant>/<that-file>.json     (git-ignored, co-located)
+     `--sheet-id` + `--worksheet` likewise default from secrets.local.json (sheet_id /
+     worksheet). An explicit CLI flag ALWAYS wins; a missing required key fails LOUDLY with no
+     fallback (R3.1/R3.3). `--credentials <path>` can still point at a file elsewhere. Scopes are
+     read-only: `spreadsheets.readonly` (+ `drive.readonly` ONLY when a sheet is resolved by
+     TITLE via `--sheet-name`). The SA never writes the source.
   2. Run against the nonprofit DATA account with the repo `.env` static keys STRIPPED
      (steering 23-aws-accounts: `.env` exports `personal`-account keys + a local DynamoDB
      endpoint that OUTRANK `AWS_PROFILE`, so a plain run silently hits the WRONG account /
@@ -82,13 +86,13 @@ account (design D5/D6). Two prerequisites, both MANUAL and gated:
   # dry-run (default — writes nothing) directly from the live Sheet by ID (PREFERRED):
   env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
       MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py \
       --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn
 
   # insert-only backfill APPLY (after a clean dry-run):
   env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
       MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py \
       --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn --apply
 
   # RECONCILING sync (match by member_number, upsert, soft-flag absentees status='left'):
@@ -96,7 +100,7 @@ account (design D5/D6). Two prerequisites, both MANUAL and gated:
   #   refuses on mapping errors OR duplicate sheet member_number values (R7.7).
   env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
       MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py \
       --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn --apply --reconcile
 
 `--sheet-name '<title>'` is accepted instead of `--sheet-id` (resolved via a read-only Drive
@@ -107,7 +111,7 @@ automatically; a truly empty row is skipped; data with neither is reported UNMAT
 NOTE — config seed re-run (this spec changed `members_config.json`). The overlay fields
 `additional_info` / `deregistration_date` / `termination_date`, the `magazine_pref` /
 `payment_method` value changes, and the `member_number` regex (`^(M\d{5}|C_.+)$`) only take
-effect in MySQL once `scripts/aws/seed-hdcn-members-config.py` is RE-RUN (onboarding path).
+effect in MySQL once `scripts/onboarding/members/h-dcn/seed-hdcn-members-config.py` is RE-RUN (onboarding path).
 Live confirmation of the actual data read is a MANUAL gated step (needs the credentials file on
 disk); it is documented here, not automated in CI (R6.5).
 """
@@ -120,17 +124,35 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-# repo root + backend/src on sys.path so `sam.members...` and its `services.dynamodb_client`
-# dependency both import (mirrors provision-members-tables.py + sam/tests path setup).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-_BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
-if _BACKEND_SRC not in sys.path:
-    sys.path.insert(0, _BACKEND_SRC)
+# Bootstrap: find the repo root by walking up to a marker (NOT by counting dirname levels —
+# Tenant-Onboarding Tooling R4), put it on sys.path, then hand off to the shared onboarding
+# `_lib` for repo-root + backend/src setup. This tiny block is the one place that must locate
+# the root BEFORE `_lib` is importable; everything else goes through `_lib`.
+_r = os.path.abspath(__file__)
+while _r != os.path.dirname(_r):
+    _r = os.path.dirname(_r)
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+        break
+if _r not in sys.path:
+    sys.path.insert(0, _r)
+from scripts.onboarding._lib.paths import (  # noqa: E402
+    ensure_backend_src_on_path,
+    import_by_path,
+)
+from scripts.onboarding._lib.secrets import (  # noqa: E402
+    SecretsFileNotFoundError,
+    credential_file,
+    load_tenant_secrets,
+    require,
+)
+
+ensure_backend_src_on_path()
+
+#: The tenant's committed members config + its two loaders live in THIS SAME dir (this runner is
+#: itself an h-dcn tenant tool, co-located with members_config.json / the loaders / the CSV).
+_HDCN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 from sam.members.migration.hdcn_backfill import (
-    DEFAULT_GOOGLE_CREDENTIALS_FILE,
     HDCN_TENANT_ID,
     BackfillPlan,
     FileSourceAdapter,
@@ -150,26 +172,23 @@ _SAMPLE_COUNT = 3
 def _load_mapping_contract():
     """Load the authored mapping contract (the single-source CSV) via the h-dcn mapping loader.
 
-    Imports ``members_mapping_loader`` BY PATH (it lives under ``scripts/aws/h-dcn/``, not a
-    Python package) — mirroring how ``members_config_loader`` is loaded in :func:`backfill` — and
+    Imports ``members_mapping_loader`` BY PATH (it lives under the sibling tenant dir
+    ``scripts/onboarding/members/h-dcn/``, not a Python package) — mirroring how
+    ``members_config_loader`` is loaded in :func:`backfill` — and
     returns the parsed :class:`MappingContract`. Used to derive the "mapped" source-column set for
     :func:`_classify_source_columns` so the fidelity report classifies against the CSV, not a
     stale dict (s5m R0.1/R0.4).
     """
-    import importlib.util
-
-    hdcn_dir = os.path.join(_REPO_ROOT, "scripts", "aws", "h-dcn")
     # The mapping loader imports its sibling ``members_config_loader`` for the drift guard, so the
-    # onboarding scripts dir must be importable while we load it.
-    if hdcn_dir not in sys.path:
-        sys.path.insert(0, hdcn_dir)
+    # tenant config dir must be importable while we load it.
+    if _HDCN_DIR not in sys.path:
+        sys.path.insert(0, _HDCN_DIR)
     module = sys.modules.get("members_mapping_loader")
     if module is None:
-        loader_path = os.path.join(hdcn_dir, "members_mapping_loader.py")
-        spec = importlib.util.spec_from_file_location("members_mapping_loader", loader_path)
-        module = importlib.util.module_from_spec(spec)
+        module = import_by_path(
+            "members_mapping_loader", os.path.join(_HDCN_DIR, "members_mapping_loader.py")
+        )
         sys.modules["members_mapping_loader"] = module
-        spec.loader.exec_module(module)  # type: ignore[union-attr]
     return module.load_mapping_contract()
 
 
@@ -502,7 +521,7 @@ def _build_source_adapter(
     sheet_id: str | None = None,
     sheet_name: str | None = None,
     worksheet: str | None = None,
-    credentials_file: str = DEFAULT_GOOGLE_CREDENTIALS_FILE,
+    credentials_file: str | None = None,
 ) -> FileSourceAdapter | GoogleSheetsSourceAdapter:
     """Build the READ-ONLY source adapter selected by the CLI flags (design D6, R4.6).
 
@@ -540,7 +559,7 @@ def backfill(
     sheet_id: str | None = None,
     sheet_name: str | None = None,
     worksheet: str | None = None,
-    credentials_file: str = DEFAULT_GOOGLE_CREDENTIALS_FILE,
+    credentials_file: str | None = None,
     known_codes: list[str] | None = None,
     members_config_path: str | None = None,
     repo: DynamoDbMembersRepository | None = None,
@@ -574,14 +593,9 @@ def backfill(
     # for a real apply the caller SHOULD pass --members-config so importer + enforcement agree.
     region_canonicalizer = None
     if members_config_path:
-        import importlib.util
-
-        _loader_path = os.path.join(
-            _REPO_ROOT, "scripts", "aws", "h-dcn", "members_config_loader.py"
+        _loader = import_by_path(
+            "members_config_loader", os.path.join(_HDCN_DIR, "members_config_loader.py")
         )
-        _spec = importlib.util.spec_from_file_location("members_config_loader", _loader_path)
-        _loader = importlib.util.module_from_spec(_spec)
-        _spec.loader.exec_module(_loader)  # type: ignore[union-attr]
         cfg = _loader.load_members_config(members_config_path)
         region_canonicalizer = _loader.region_canonicalizer(cfg)
 
@@ -682,7 +696,10 @@ def build_parser() -> argparse.ArgumentParser:
     # Google Sheet (--sheet-id / --sheet-name). --worksheet + --credentials accompany the sheet
     # options. --sheet-id is preferred (unambiguous, no Drive lookup); --sheet-name resolves the
     # title via a read-only Drive files.list (needs the drive.readonly scope).
-    source_group = parser.add_mutually_exclusive_group(required=True)
+    # NOT required on the CLI: when none of --source/--sheet-id/--sheet-name is given, the live
+    # Sheet selection (sheet_id) is resolved from the tenant's secrets.local.json. If it's absent
+    # there too, main() fails LOUDLY (no silent fallback — R3.1).
+    source_group = parser.add_mutually_exclusive_group(required=False)
     source_group.add_argument(
         "--source",
         help="Path to the READ-ONLY h-dcn export (CSV or JSON — a Google-Sheet export). Mutually "
@@ -712,10 +729,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--credentials",
         dest="credentials",
-        default=DEFAULT_GOOGLE_CREDENTIALS_FILE,
-        help="Filesystem PATH to the service-account JSON key used to READ the Sheet (default: "
-        f"the shared h-dcn key {DEFAULT_GOOGLE_CREDENTIALS_FILE}). Only used with "
-        "--sheet-id/--sheet-name.",
+        default=None,
+        help="Filesystem PATH to the service-account JSON key used to READ the Sheet. If omitted, "
+        "it is resolved from the tenant's secrets.local.json "
+        "(credentials.google_sheets.file, co-located under scripts/tenants/<tenant>/). Only used "
+        "with --sheet-id/--sheet-name.",
+    )
+    parser.add_argument(
+        "--secrets",
+        dest="secrets",
+        default=None,
+        help="Override the tenant secrets file path (default: "
+        "scripts/tenants/<tenant>/secrets.local.json). Supplies sheet_id / worksheet / the "
+        "google_sheets credential when those are not given on the CLI.",
     )
     parser.add_argument(
         "--tenant",
@@ -747,7 +773,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--members-config",
         default=None,
-        help="Path to the tenant members-config JSON (e.g. scripts/aws/h-dcn/members_config.json) "
+        help="Path to the tenant members-config JSON "
+        "(e.g. scripts/onboarding/members/h-dcn/members_config.json) "
         "— the SAME file that fills members.scope_dimensions. Its region values are the canonical "
         "target the importer normalizes `region` onto (D17: tenant data, not a core constant). "
         "STRONGLY recommended for a real --apply so member regions match the scope grants; if "
@@ -784,6 +811,41 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        sheet_id = args.sheet_id
+        worksheet = args.worksheet
+        credentials_file = args.credentials
+
+        # LIVE-SHEET path = no --source. Resolve the gsheet keys (sheet_id, worksheet, the
+        # service-account credential) from the tenant's secrets.local.json, with an explicit CLI
+        # flag always winning. There is NO third fallback: a missing required key fails loudly
+        # (R3.1 / R3.3). The --source (file export) path needs none of this and is left untouched.
+        # Only the live-sheet path (no --source) consults secrets, and only for the keys the CLI
+        # did NOT already supply. We lazy-load the secrets file so a fully-specified CLI run (every
+        # key given) never requires a secrets file at all.
+        if not args.source:
+            need_sheet_id = not sheet_id and not args.sheet_name
+            need_worksheet = worksheet is None
+            need_credentials = credentials_file is None
+            if need_sheet_id or need_worksheet or need_credentials:
+                secrets = load_tenant_secrets(args.tenant, args.secrets)  # named error if absent
+                if need_sheet_id:
+                    sheet_id = require(secrets, "sheet_id")  # MissingSecretError, named
+                if need_worksheet:
+                    # worksheet is OPTIONAL (absent → default/first tab); take it from secrets if
+                    # present, but never error on its absence.
+                    worksheet = secrets.get("worksheet")
+                if need_credentials:
+                    # Resolve the google_sheets credential relative to the tenant dir, or — when
+                    # --secrets points elsewhere — relative to that file's own directory.
+                    base_dir = (
+                        os.path.dirname(os.path.abspath(os.path.expanduser(args.secrets)))
+                        if args.secrets
+                        else None
+                    )
+                    credentials_file = credential_file(
+                        secrets, "google_sheets", args.tenant, base_dir=base_dir
+                    )
+
         return backfill(
             args.source,
             region=args.region,
@@ -791,13 +853,16 @@ def main(argv: list[str] | None = None) -> int:
             reconcile=args.reconcile,
             tenant_id=args.tenant,
             fmt=args.format,
-            sheet_id=args.sheet_id,
+            sheet_id=sheet_id,
             sheet_name=args.sheet_name,
-            worksheet=args.worksheet,
-            credentials_file=args.credentials,
+            worksheet=worksheet,
+            credentials_file=credentials_file,
             known_codes=args.known_codes,
             members_config_path=args.members_config,
         )
+    except SecretsFileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     except Exception as exc:  # noqa: BLE001 — surface any failure to the CLI
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

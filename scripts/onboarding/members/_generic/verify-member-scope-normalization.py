@@ -9,7 +9,7 @@ value are drawn from ONE canonical vocabulary; a variant spelling (a trailing sp
 This check surfaces such a gap (R9.3) so it is VISIBLE rather than an unexplained empty
 result — the class of bug hit and fixed in s5c.
 
-Mirrors ``scripts/aws/backfill-hdcn-members.py``: argparse → resolve → read READ-ONLY →
+Mirrors ``scripts/onboarding/members/h-dcn/backfill-hdcn-members.py``: argparse → resolve → read READ-ONLY →
 run the PURE core (:func:`sam.members.migration.scope_normalization_verify.
 verify_scope_normalization`) → print a report → exit code. It only ever READS the members
 table (via the repository's ``list_members``) and the governance projection (for the
@@ -29,13 +29,13 @@ Usage (from repo root, WSL)
   # Verify h-dcn's region normalization against real AWS (nonprofit data account, read-only):
   MEMBERS_TABLE=sam-members GOVERNANCE_PROJECTION_TABLE=governance-projection \
       AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/verify-member-scope-normalization.py \
+      backend/.venv/bin/python scripts/onboarding/members/_generic/verify-member-scope-normalization.py \
       --tenant h-dcn
 
   # Against the local emulator (endpoint set → local DynamoDB, no real AWS):
   MEMBERS_TABLE=sam-members-local GOVERNANCE_PROJECTION_TABLE=governance-projection-local \
       AWS_REGION=eu-west-1 AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
-      backend/.venv/bin/python scripts/aws/verify-member-scope-normalization.py \
+      backend/.venv/bin/python scripts/onboarding/members/_generic/verify-member-scope-normalization.py \
       --tenant h-dcn --dimension region
 
 Exit code: 0 = clean (every distinct value is canonical), 1 = an internal error, 2 = the
@@ -50,14 +50,19 @@ import argparse
 import os
 import sys
 
-# repo root + backend/src on sys.path so `sam.members...` and its `services.*` dependency
-# both import (mirrors backfill-hdcn-members.py + sam/tests path setup).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-_BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
-if _BACKEND_SRC not in sys.path:
-    sys.path.insert(0, _BACKEND_SRC)
+# Bootstrap: find the repo root by walking up to a marker (NOT by counting dirname levels —
+# Tenant-Onboarding Tooling R4), put it on sys.path, then hand off to the shared onboarding
+# `_lib` for repo-root + backend/src setup. This tiny block is the one place that must locate
+# the root BEFORE `_lib` is importable; everything else goes through `_lib`.
+_r = os.path.abspath(__file__)
+while _r != os.path.dirname(_r):
+    _r = os.path.dirname(_r)
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+        break
+if _r not in sys.path:
+    sys.path.insert(0, _r)
+from scripts.onboarding._lib.paths import ensure_backend_src_on_path  # noqa: E402
+ensure_backend_src_on_path()
 
 from sam.members.domain.scope_dimensions import ScopeDimension
 from sam.members.migration.scope_normalization_verify import (

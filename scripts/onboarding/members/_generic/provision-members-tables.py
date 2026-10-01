@@ -54,16 +54,16 @@ Usage (from repo root, WSL)
 ---------------------------
   # Dry run (default — creates nothing), prod name:
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 \
-      backend/.venv/bin/python scripts/aws/provision-members-tables.py
+      backend/.venv/bin/python scripts/onboarding/members/_generic/provision-members-tables.py
 
   # Actually create against real AWS (nonprofit data account):
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/provision-members-tables.py --apply
+      backend/.venv/bin/python scripts/onboarding/members/_generic/provision-members-tables.py --apply
 
   # Local emulator create / reset (endpoint set → --reset allowed):
   MEMBERS_TABLE=sam-members-test AWS_REGION=eu-west-1 \
       AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
-      backend/.venv/bin/python scripts/aws/provision-members-tables.py --apply --reset
+      backend/.venv/bin/python scripts/onboarding/members/_generic/provision-members-tables.py --apply --reset
 """
 
 from __future__ import annotations
@@ -72,14 +72,19 @@ import argparse
 import os
 import sys
 
-# repo root + backend/src on sys.path so `sam.members...` and its `services.dynamodb_client`
-# dependency both import (mirrors sam/conftest.py + sam/tests path setup).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-_BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
-if _BACKEND_SRC not in sys.path:
-    sys.path.insert(0, _BACKEND_SRC)
+# Bootstrap: find the repo root by walking up to a marker (NOT by counting dirname levels —
+# Tenant-Onboarding Tooling R4), put it on sys.path, then hand off to the shared onboarding
+# `_lib` for repo-root + backend/src setup. This tiny block is the one place that must locate
+# the root BEFORE `_lib` is importable; everything else goes through `_lib`.
+_r = os.path.abspath(__file__)
+while _r != os.path.dirname(_r):
+    _r = os.path.dirname(_r)
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+        break
+if _r not in sys.path:
+    sys.path.insert(0, _r)
+from scripts.onboarding._lib.paths import ensure_backend_src_on_path  # noqa: E402
+ensure_backend_src_on_path()
 
 from botocore.exceptions import ClientError
 

@@ -2,7 +2,8 @@
 """members_mapping_loader.py — the SINGLE loader for h-dcn's authored source→target MAPPING.
 
 Companion to ``members_config_loader.py`` (which loads the field/scope CONFIG). Reads
-``scripts/aws/h-dcn/members_source_mapping.csv`` — the ONE authored, human- and Kiro-editable
+``scripts/onboarding/members/h-dcn/members_source_mapping.csv`` — the ONE authored, human- and
+Kiro-editable
 mapping contract (spec s5m R0.1, design D0) — and parses it into the in-memory structures the
 h-dcn backfill transform (:func:`sam.members.migration.hdcn_backfill.map_hdcn_row`) consumes:
 
