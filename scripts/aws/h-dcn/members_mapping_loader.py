@@ -310,6 +310,21 @@ def load_mapping_contract(
                 f"(personal.*/membership.*), an overlay.* key, or a disposition token"
             )
 
+    # --- orphan-field guard (R2.5): every DECLARED overlay field must have a mapping backing ---
+    # Mirror of the per-row drift guard above, in the OPPOSITE direction: that guard rejects a
+    # mapping target NOT declared in the config; this one rejects a config overlay field with NO
+    # mapping backing. ``additional_info`` is excluded because it is populated by the
+    # ``(additional_info)`` disposition, NOT a mapping TARGET, so it is legitimately absent from
+    # ``overlay`` targets (``region``/``iban``/``payment_method`` DO appear as overlay targets).
+    mapped_overlay_keys = {key for m in overlay.values() for key in m.targets}
+    orphans = declared_overlay - mapped_overlay_keys
+    orphans = orphans - {"additional_info"}
+    for key in sorted(orphans):
+        errors.append(
+            f"config overlay field {key!r} is declared in members_config.json but has NO "
+            f"mapping backing in the contract (orphan-field guard, R2.5)"
+        )
+
     if errors:
         raise MappingContractError(errors, path=path)
 
