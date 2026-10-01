@@ -10,6 +10,15 @@ from flasgger import Swagger
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
+# Route root logging to stdout BEFORE importing modules that call
+# logging.basicConfig() at import time (database, scalability_manager,
+# pattern_cache, scalability_routes). Those default to stderr and only the first
+# configuration wins, which makes Railway tag INFO lines as errors. This import
+# must stay first among the local imports; the `isort: split` below keeps it
+# pinned there instead of being alphabetically re-sorted after `database`.
+import logging_setup  # noqa: F401
+
+# isort: split
 from actuals_routes import actuals_bp
 from admin_routes import admin_bp
 from audit_routes import audit_bp
