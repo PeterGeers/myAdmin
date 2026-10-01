@@ -1,0 +1,252 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration tests (BEFORE any fix)": {
+      "status": "passed",
+      "failingExample": "Exploration tests correctly detected all four bug conditions (a failing exploration test = the bug is confirmed to exist). COUNTEREXAMPLES:\n\n[Problem 1 — newsletter transform] PASSED as expected: map_hdcn_row({\"SAM Code\":\"M01001\", ..., \"Digitale nieuwsbrieven\":\"Ja\"}) -> record[\"overlay\"][\"newsletter_pref\"] == \"Ja\". The transform is correct; the live \"Nieuwsbrief\" dash is downstream (stale data or live-sheet header mismatch), to be disambiguated by investigation task 6.1.\n\n[Problem 2 — signature_date orphan] FAILED as expected: \"signature_date\" IS declared in members_config.json field_overlay.fields, yet NO row in members_source_mapping.csv targets overlay.signature_date. isBugCondition_orphan(\"signature_date\")=true -> modal renders a permanently-empty \"Datum ondertekening\" row.\n\n[Problem 3 — privacy_consent orphan] FAILED as expected: \"privacy_consent\" (required: true) IS declared in the config, yet NO source column maps to overlay.privacy_consent. isBugCondition_orphan(\"privacy_consent\")=true -> modal renders a permanently-empty \"Privacy\" row.\n\n[R2.5 — loader guard gap] FAILED as expected (DID NOT RAISE): load_mapping_contract(mapping mapping only personal.first_name, config declaring overlay field \"orphan_field\") loaded SILENTLY instead of raising MappingContractError. The drift guard only checks mapping-target->config, not config->mapping-backing.\n\n[Problem 4 — referral_source gate] FAILED as expected (frontend, fieldForm.test.ts): evaluateShowWhen({\"field\":\"member_id\",\"op\":\"not_exists\"}, row) returns false for BOTH an existing-member flat row {member_id:\"abc-123\", referral_source:\"via een vriend\"} AND an empty create-form value map {}. The gate resolves false everywhere (hides in view AND on the create form), proving it is malformed, not create-form-only. Expected true in both post-fix; received false in both.\n\nBackend: 1 passed, 3 failed (as designed). Frontend: 25 pre-existing passed, 2 new gate tests failed (as designed).",
+      "lastRunTimestamp": 1790799025614
+    },
+    "4.2 Verify the orphan-guard unit tests: raises then passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1790801725793
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration tests (BEFORE any fix)": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798729822
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798743359
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790799100666
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798730142
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798749113
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790799106511
+      }
+    ],
+    "3.1 Remove orphan overlay fields and drop the referral_source show_when gate": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798730354
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790799128270
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790799207477
+      }
+    ],
+    "4.1 Implement the config↔mapping orphan-field guard": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798730576
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790799215735
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790801580196
+      }
+    ],
+    "4.2 Verify the orphan-guard unit tests: raises then passes": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798730789
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790801587086
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790805744210
+      }
+    ],
+    "5. Re-seed the config into MySQL and run the projection sync": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798731015
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790805817716
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790806252288
+      }
+    ],
+    "6.1 Investigate the newsletter data flow (decides the fix)": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798731235
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790806272086
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790806556872
+      }
+    ],
+    "6.2 Apply the conditional fix and re-backfill affected members": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798731423
+      },
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790806563281
+      },
+      {
+        "executionId": "5b7f8268-9497-4020-bd20-925d3602386b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790809249926
+      }
+    ],
+    "6.3 Verify bug condition exploration tests now pass": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798731630
+      }
+    ],
+    "6.4 Verify preservation tests still pass": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798731882
+      }
+    ],
+    "7. Integration tests — full flows end-to-end": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798732060
+      }
+    ],
+    "8. Verify in the modal (manual acceptance)": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798732249
+      }
+    ],
+    "9. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790798732439
+      },
+      {
+        "executionId": "c970a9e9-0e71-4a2c-bdf3-7a6a16a6060b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790853597486
+      }
+    ],
+    "3. Edit members_config.json — remove orphan fields and drop the malformed referral gate": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790799207770
+      }
+    ],
+    "4. Add the R2.5 orphan-field guard to the mapping loader": [
+      {
+        "executionId": "253482d6-3da6-404f-a36b-b49ad14e144b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790805744709
+      }
+    ],
+    "5.5 Project the config to PRODUCTION (5P) (Railway MySQL → nonprofit-deploy DynamoDB) — HIGH RISK, approval-gated": [
+      {
+        "executionId": "d323f8d2-679c-4dc5-95e9-c5420230beac",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790838306650
+      },
+      {
+        "executionId": "4077a44e-4912-46b7-81ed-b427d3f415a0",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790850060048
+      }
+    ],
+    "6.2 Re-backfill affected members against PRODUCTION — HIGH RISK, approval-gated": [
+      {
+        "executionId": "895c1539-afb4-4dac-ae76-9c1602fcca7f",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790850214366
+      }
+    ],
+    "6.4 Verify preservation tests still pass — LOCAL": [
+      {
+        "executionId": "c970a9e9-0e71-4a2c-bdf3-7a6a16a6060b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790853605098
+      }
+    ],
+    "6. Fix Problem 1 (newsletter) — investigate first, then fix conditionally": [
+      {
+        "executionId": "c970a9e9-0e71-4a2c-bdf3-7a6a16a6060b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790853605407
+      }
+    ],
+    "7. Integration tests — LOCAL flows + PROD end-to-end verification": [
+      {
+        "executionId": "c970a9e9-0e71-4a2c-bdf3-7a6a16a6060b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790853605774
+      }
+    ],
+    "8. Verify in the PRODUCTION modal (manual acceptance)": [
+      {
+        "executionId": "c970a9e9-0e71-4a2c-bdf3-7a6a16a6060b",
+        "chatSessionId": "sess_b06ccca3-84b0-4ddd-8062-9c784a40d9ef",
+        "timestamp": 1790853606687
+      }
+    ]
+  }
+}

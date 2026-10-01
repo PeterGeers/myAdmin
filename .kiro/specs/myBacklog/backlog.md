@@ -137,6 +137,8 @@ then run the projection sync for that tenant. (For h-dcn, the sync must READ Rai
 WRITE the real `governance_projection` in the `nonprofit-deploy` account — strip the `.env`
 personal-account AWS keys + local `AWS_ENDPOINT_URL_DYNAMODB`, force `AWS_PROFILE=nonprofit-deploy`.)
 
+**Now committed as a one-command runner:** `scripts/aws/project-config-to-prod.py --tenant <t> --apply` performs seed → `tenants.updated_at` bump → AWS re-strip + STS account guard → `ProjectionSync.sync_administration` → read-back verify, and REFUSES to report success on `written==0` (which signals the version bump did not take). Dry-run is the default. This removes the manual-dance footgun for the interim; the proper fix below still stands.
+
 **Proper fix (the deferred "task 6.x" the code comment references in `_scope_config_version`):**
 thread a per-parameter change revision through so a `members.*` param write bumps the relevant
 `config#*` projection version directly — no reliance on the coarse tenant-row timestamp. Options:
@@ -148,3 +150,23 @@ own to propagate to the projection. Add a test that a param change alone yields 
 **Scope:** `services/projection_sync.py` (`_scope_config_version` / the config#* builders),
 `services/parameter_service.py`, the members-config seed/route. Relates to the Tenant Administration
 registry spec (same params/projection plumbing).
+
+
+
+
+# Passkeys fails again. has been resolved more times
+Nog geen passkeys geregistreerd. Registreer er een voor sneller en veiliger inloggen.
+
+Aanmelden mislukt
+Passkey registreren mislukt. Probeer het opnieuw.
+
+# load_dotenv() in database.py clobbers AWS_PROFILE → ops scripts silently hit the WRONG AWS account
+**Problem (cost ~2 sessions during members-modal-field-mapping-mismatch, 2026-10-01):** `backend/src/database.py` calls `load_dotenv()` at IMPORT time. The repo-root `.env` exports STATIC personal-account `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` plus `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000`. boto3's credential chain ranks static ENV keys ABOVE `AWS_PROFILE`, so ANY script that (a) strips those keys in the shell to target `nonprofit-deploy`, then (b) imports `database` (or anything that transitively imports it), gets the keys SILENTLY RE-INJECTED by that import-time `load_dotenv()`. The DynamoDB client then resolves the WRONG account (personal `344561557829`) or the LOCAL emulator — surfacing as `ResourceNotFoundException: Cannot do operations on a non-existent table` on prod tables (e.g. `governance_projection`) that only exist in `nonprofit-deploy` `506221081911`. The failure is maximally confusing because a direct boto3 read of the SAME table name/region/account (in a process that never imported `database`) succeeds, so it looks like an intermittent "table doesn't exist" when it is really a credential/account swap.
+
+**Impact:** every local ops script that spans "strip env → import backend code → write real AWS" is a landmine: the strip is undone by the import. This is the root cause of the hours lost projecting the h-dcn members config to prod. It will recur for ANY future Railway-MySQL-read → nonprofit-deploy-DynamoDB-write script.
+
+**Interim workaround (now committed):** `scripts/aws/project-config-to-prod.py` bakes in a `_restrip_aws_env()` that re-pops `AWS_ENDPOINT_URL_DYNAMODB` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` and re-pins `AWS_PROFILE` + `AWS_REGION` AFTER the database-dependent imports run (so after their `load_dotenv`) and BEFORE building any boto3 client, plus a hard STS account guard. Any new ops script in this shape must do the same (import database-dependent modules → re-strip → account guard → write).
+
+**Proper fix (candidates):** (a) make `database.py` NOT call `load_dotenv()` at import time (load config explicitly at app startup instead), or at least have it NOT override an already-set `AWS_PROFILE` / already-exported AWS creds (`load_dotenv(override=False)` is already the default — the real issue is the `.env` exporting static AWS keys at all); (b) move the static personal-account AWS keys OUT of the repo `.env` so nothing re-injects them (use a profile for local DynamoDB too); (c) a shared `ops_env` helper that establishes the correct account/endpoint and is import-safe. Add a test that importing `database` does not mutate pre-set AWS_* env.
+
+**Scope:** `backend/src/database.py` (the import-time `load_dotenv()`), repo-root `.env` (static AWS keys), steering `41-shell-environment.md` (already warns about the `.env`-overrides-`AWS_PROFILE` hazard — this is the concrete code cause). Relates to the "Projection version gap" item above (both bite the same prod-projection path).
