@@ -99,9 +99,19 @@ frontend/playwright-report/
 .DS_Store
 Thumbs.db
 
-# External platforms/repositories (repo-root only — must NOT match scripts/aws/h-dcn/,
-# the tenant onboarding config which IS version-controlled)
+# External platforms/repositories (repo-root only — must NOT match
+# scripts/onboarding/members/h-dcn/, the tenant onboarding config which IS version-controlled)
 /h-dcn/
+
+# Tenant-wide ONBOARDING secrets (Tenant-Onboarding Tooling spec, R2.5/R6.2).
+# Ignore EVERYTHING inside each tenant dir by default (real secrets.local.json + any
+# co-located credential file, named or not), then explicitly keep the committed non-secret
+# template(s) + READMEs. Fail-closed: a new file under scripts/tenants/<tenant>/ is ignored
+# unless un-ignored here on purpose.
+scripts/tenants/*/*
+!scripts/tenants/*/secrets.example.json
+!scripts/tenants/README.md
+!scripts/tenants/*/README.md
 
 # Terraform
 .terraform/

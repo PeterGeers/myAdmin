@@ -43,7 +43,7 @@ if _BACKEND_SRC not in sys.path:
 # The h-dcn onboarding scripts dir carries the CSV + its two loaders (config + mapping). Put it
 # on sys.path so `members_mapping_loader` / `members_config_loader` import as top-level modules
 # (mirrors how test_hdcn_backfill.py loads them).
-_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "aws", "h-dcn")
+_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members", "h-dcn")
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
