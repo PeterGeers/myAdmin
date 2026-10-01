@@ -6,8 +6,8 @@ Sponsor / Gewoon lid) into the NEW tenant-scoped ``sam-members`` table as **tena
 (design C8 / R2.4 / R4.1 Rung 1). The generic Members core stays tenant-agnostic (Property 5):
 h-dcn's types live as seed DATA in ``sam.members.migration.hdcn_catalog_seed`` — there is NO
 ``if tenant == "h-dcn"`` in the module core. Mirrors the structure of the task-4.0 provisioner
-and the task-4.1 backfill (``scripts/aws/provision-members-tables.py`` /
-``scripts/aws/backfill-hdcn-members.py``): argparse → resolve → **dry-run plan by default** →
+and the task-4.1 backfill (``scripts/onboarding/members/_generic/provision-members-tables.py`` /
+``scripts/onboarding/members/h-dcn/backfill-hdcn-members.py``): argparse → resolve → **dry-run plan by default** →
 ``--apply`` to write → summary.
 
 What it does
@@ -43,16 +43,16 @@ Usage (from repo root, WSL)
   # Dry run (default — writes nothing): show what would be seeded. --tenant is REQUIRED
   # (no hardcoded/default tenant):
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 \
-      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py --tenant h-dcn
 
   # Actually write to real AWS (nonprofit data account) — only after a clean dry run:
   MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \
-      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn --apply
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py --tenant h-dcn --apply
 
   # Local emulator apply (endpoint set → local DynamoDB, no real AWS):
   MEMBERS_TABLE=sam-members-test AWS_REGION=eu-west-1 \
       AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
-      backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn --apply
+      backend/.venv/bin/python scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py --tenant h-dcn --apply
 """
 
 from __future__ import annotations
@@ -62,14 +62,19 @@ import json
 import os
 import sys
 
-# repo root + backend/src on sys.path so `sam.members...` and its `services.dynamodb_client`
-# dependency both import (mirrors provision-members-tables.py / backfill-hdcn-members.py).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-_BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
-if _BACKEND_SRC not in sys.path:
-    sys.path.insert(0, _BACKEND_SRC)
+# Bootstrap: find the repo root by walking up to a marker (NOT by counting dirname levels —
+# Tenant-Onboarding Tooling R4), put it on sys.path, then hand off to the shared onboarding
+# `_lib` for repo-root + backend/src setup. This tiny block is the one place that must locate
+# the root BEFORE `_lib` is importable; everything else goes through `_lib`.
+_r = os.path.abspath(__file__)
+while _r != os.path.dirname(_r):
+    _r = os.path.dirname(_r)
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+        break
+if _r not in sys.path:
+    sys.path.insert(0, _r)
+from scripts.onboarding._lib.paths import ensure_backend_src_on_path  # noqa: E402
+ensure_backend_src_on_path()
 
 from sam.members.migration.hdcn_catalog_seed import (
     BACKFILL_EMITTABLE_CODES,

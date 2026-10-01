@@ -8,7 +8,8 @@ Three layers, none of which touch Google or live DynamoDB (per the task constrai
   membership_type → catalog code mapping, and loud validation failure on a bad row. No I/O.
 - **The source adapters** (``FileSourceAdapter`` / ``IterableSourceAdapter``): read a CSV/JSON
   fixture READ-ONLY; the legacy-DynamoDB adapter is a deliberate stub.
-- **The runner** (``scripts/aws/backfill-hdcn-members.py``): dry-run writes NOTHING and emits a
+- **The runner** (``scripts/onboarding/members/h-dcn/backfill-hdcn-members.py``): dry-run
+  writes NOTHING and emits a
   fidelity report; ``--apply`` calls ``save_member`` on a fake repository; a member-number
   conflict is REPORTED, not overwritten.
 
@@ -38,7 +39,6 @@ if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
 from sam.members.migration.hdcn_backfill import (
-    DEFAULT_GOOGLE_CREDENTIALS_FILE,
     HDCN_TENANT_ID,
     _parse_source_date,
     ColumnShiftWarning,
@@ -920,7 +920,9 @@ class TestBackfillPlan:
 
 def _load_runner_module():
     """Import the hyphen-named runner script by path (not a valid module name)."""
-    path = os.path.join(_REPO_ROOT, "scripts", "aws", "backfill-hdcn-members.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "onboarding", "members", "h-dcn", "backfill-hdcn-members.py"
+    )
     spec = importlib.util.spec_from_file_location("backfill_hdcn_members", path)
     module = importlib.util.module_from_spec(spec)
     # Register BEFORE exec_module: the runner defines @dataclass classes (ReconcilePlan), and
@@ -1114,7 +1116,7 @@ class TestRunnerCliTenant:
 # ---------------------------------------------------------------------------
 # S5m Task 2 — the authored mapping CSV + loader (the declared contract, R0.1/R0.4/D0).
 #
-# The mapping lives in ONE authored CSV (scripts/aws/h-dcn/members_source_mapping.csv); the
+# The mapping lives in ONE authored CSV (scripts/onboarding/members/h-dcn/members_source_mapping.csv); the
 # loader parses it into the fixed/overlay maps + disposition sets the transform consumes, and
 # VALIDATES it on load (every target is a known fixed key / declared overlay key / disposition
 # token; every rule is known; every overlay.* target is a declared overlay field — drift guard).
@@ -1124,7 +1126,7 @@ class TestRunnerCliTenant:
 # The h-dcn onboarding scripts dir carries the CSV + its two loaders (config + mapping). Put it
 # on sys.path so `members_mapping_loader` / `members_config_loader` import as top-level modules
 # (mirrors how the runner is loaded by path above).
-_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "aws", "h-dcn")
+_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members", "h-dcn")
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
@@ -1561,9 +1563,13 @@ class TestRunnerAdapterSelection:
         adapter = runner._build_source_adapter(None, sheet_id="abc123", credentials_file=key)
         assert adapter._credentials_file == key
 
-    def test_default_credentials_path_is_the_shared_hdcn_key(self):
+    def test_no_credentials_default_leaves_resolution_to_the_caller(self):
+        # Tenant-Onboarding Tooling R2.3: the runner carries NO baked-in legacy credential path.
+        # When no credential is passed, _build_source_adapter threads None through (the real
+        # credential is resolved in main() from the tenant's secrets.local.json, NOT a hardcoded
+        # external file). So the adapter's stored path is None here.
         adapter = runner._build_source_adapter(None, sheet_id="abc123")
-        assert adapter._credentials_file == DEFAULT_GOOGLE_CREDENTIALS_FILE
+        assert adapter._credentials_file is None
 
     def test_no_source_at_all_raises(self):
         with pytest.raises(ValueError):
@@ -1611,11 +1617,17 @@ class TestRunnerSourceSelectionCli:
             runner.main(["--sheet-id", "abc123", "--sheet-name", "HDCN", "--tenant", "h-dcn"])
         assert exc.value.code == 2
 
-    def test_at_least_one_source_is_required(self, members_env, capsys):
-        # No --source and no sheet flags → argparse rejects the required group (SystemExit(2)).
-        with pytest.raises(SystemExit) as exc:
-            runner.main(["--tenant", "h-dcn"])
-        assert exc.value.code == 2
+    def test_no_cli_source_falls_through_to_secrets_then_fails_loudly(self, members_env, capsys):
+        # Tenant-Onboarding Tooling: the source group is NO LONGER argparse-required — when no
+        # --source/--sheet-id/--sheet-name is given, sheet_id is resolved from the tenant's
+        # secrets.local.json. With no secrets file present, main() must fail LOUDLY (rc=1,
+        # NOT a crash) naming the missing file + the --secrets escape hatch (R3.1). It must NOT
+        # fall back to any hardcoded source.
+        rc = runner.main(["--tenant", "h-dcn"])
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "secrets.local.json" in err
+        assert "--secrets" in err
 
     def test_tenant_is_still_required_with_a_sheet_source(self, members_env, capsys):
         # --tenant has no default even on the sheet path: a missing --tenant is rejected.
@@ -1649,6 +1661,96 @@ class TestRunnerSourceSelectionCli:
         assert captured["worksheet"] == "Ledenbestand"
         assert captured["credentials_file"] == "/tmp/key.json"
         assert captured["tenant_id"] == "h-dcn"
+
+    def test_fully_specified_cli_run_needs_no_secrets_file(self, members_env, monkeypatch):
+        # Every gsheet key on the CLI → main() must NOT require a secrets file at all (lazy load).
+        monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: 0)
+        rc = runner.main(
+            [
+                "--sheet-id", "abc123",
+                "--worksheet", "Ledenbestand",
+                "--credentials", "/tmp/key.json",
+                "--tenant", "tenant-with-no-secrets-file",
+            ]
+        )
+        assert rc == 0
+
+
+class TestRunnerSecretsResolution:
+    """gsheet keys resolve from the tenant secrets file; CLI wins; missing keys fail loudly.
+
+    Tenant-Onboarding Tooling R2/R3: two-level precedence (CLI flag > secrets.local.json),
+    then a loud NAMED error — never a silent fallback.
+    """
+
+    def _write_secrets(self, tmp_path, body):
+        import json as _json
+
+        p = tmp_path / "secrets.local.json"
+        p.write_text(_json.dumps(body), encoding="utf-8")
+        return str(p)
+
+    def test_sheet_id_credentials_resolve_from_secrets_when_absent_on_cli(
+        self, members_env, tmp_path, monkeypatch
+    ):
+        key = tmp_path / "sa.json"
+        key.write_text("{}", encoding="utf-8")
+        secrets_path = self._write_secrets(
+            tmp_path,
+            {
+                "sheet_id": "SHEET_FROM_SECRETS",
+                "worksheet": "Ledenbestand",
+                "credentials": {"google_sheets": {"type": "google_service_account", "file": str(key)}},
+            },
+        )
+        captured = {}
+
+        def _fake_backfill(source_path, **kw):
+            captured.update(kw)
+            return 0
+
+        monkeypatch.setattr(runner, "backfill", _fake_backfill)
+        rc = runner.main(["--tenant", "h-dcn", "--secrets", secrets_path])
+        assert rc == 0
+        assert captured["sheet_id"] == "SHEET_FROM_SECRETS"
+        assert captured["worksheet"] == "Ledenbestand"
+        # absolute file in the secrets map is honored as-is by credential_file()
+        assert captured["credentials_file"] == str(key)
+
+    def test_cli_sheet_id_overrides_the_secrets_value(self, members_env, tmp_path, monkeypatch):
+        secrets_path = self._write_secrets(
+            tmp_path,
+            {"sheet_id": "SHEET_FROM_SECRETS",
+             "credentials": {"google_sheets": {"file": str(tmp_path / "sa.json")}}},
+        )
+        captured = {}
+        monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: captured.update(kw) or 0)
+        rc = runner.main(
+            ["--sheet-id", "CLI_WINS", "--tenant", "h-dcn", "--secrets", secrets_path]
+        )
+        assert rc == 0
+        assert captured["sheet_id"] == "CLI_WINS"
+
+    def test_missing_sheet_id_in_secrets_fails_loudly_naming_the_key(
+        self, members_env, tmp_path, capsys
+    ):
+        secrets_path = self._write_secrets(
+            tmp_path,
+            {"credentials": {"google_sheets": {"file": str(tmp_path / "sa.json")}}},  # no sheet_id
+        )
+        rc = runner.main(["--tenant", "h-dcn", "--secrets", secrets_path])
+        assert rc == 1
+        assert "sheet_id" in capsys.readouterr().err
+
+    def test_source_path_run_never_consults_secrets(self, members_env, monkeypatch):
+        # The file-export path (--source) needs no gsheet keys → secrets must NOT be loaded even
+        # if absent. We assert load_tenant_secrets is never called.
+        called = {"n": 0}
+        monkeypatch.setattr(runner, "load_tenant_secrets", lambda *a, **k: called.__setitem__("n", called["n"] + 1) or {})
+        monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: 0)
+        rc = runner.main(["--source", FIXTURE, "--tenant", "h-dcn"])
+        assert rc == 0
+        assert called["n"] == 0
 
 
 # ---------------------------------------------------------------------------

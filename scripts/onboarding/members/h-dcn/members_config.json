@@ -1,5 +1,5 @@
 {
-  "_comment": "h-dcn members CONFIG — the SINGLE onboarding source of truth (Decision D17/D18). This file is authored ONCE and drives BOTH: (1) seed-hdcn-members-config.py, which upserts it into MySQL members.scope_dimensions + members.field_overlay via ParameterService.set_param (→ enqueue_sync → config#scope / config#fields); and (2) the member backfill's region-canonicalization target (--scope-dimensions), so importer and enforcement share ONE vocabulary. The generic SAM core (HDCN_SCOPE_CONFIG) carries only a placeholder and is NEVER the runtime source (D16: no fallback). See scripts/aws/h-dcn/ONBOARDING.md.",
+  "_comment": "h-dcn members CONFIG — the SINGLE onboarding source of truth (Decision D17/D18). This file is authored ONCE and drives BOTH: (1) seed-hdcn-members-config.py, which upserts it into MySQL members.scope_dimensions + members.field_overlay via ParameterService.set_param (→ enqueue_sync → config#scope / config#fields); and (2) the member backfill's region-canonicalization target (--scope-dimensions), so importer and enforcement share ONE vocabulary. The generic SAM core (HDCN_SCOPE_CONFIG) carries only a placeholder and is NEVER the runtime source (D16: no fallback). See scripts/onboarding/members/h-dcn/ONBOARDING.md.",
   "scope_dimensions": [
     {
       "key": "region",

@@ -38,7 +38,7 @@ secret:
     # false positive (incident 37743385). The companion test file
     # (sam/tests/test_hdcn_backfill.py) is already covered by **/tests/** above.
     # No real credential is present in either file.
-    - "scripts/aws/backfill-hdcn-members.py"
+    - "scripts/onboarding/members/_generic/backfill-hdcn-members.py"
 
   # Ignore known test/placeholder secrets
   ignored_matches:

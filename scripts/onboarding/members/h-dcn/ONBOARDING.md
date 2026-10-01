@@ -2,7 +2,7 @@
 
 > **Status:** DRAFT for review (2026-09-22). This is the ordered, runnable protocol for
 > onboarding h-dcn into the production `members` module (AWS `nonprofit-deploy`,
-> `eu-west-1`). It ties together the `scripts/aws/*` building blocks and the authoritative
+> `eu-west-1`). It ties together the `scripts/onboarding/members/_generic/*` building blocks and the authoritative
 > field model. It is a companion to — not a replacement for — the phased runbook in
 > `.kiro/specs/multi-tenant/s5d-member-scope-assignment/production-rollout-plan.md`.
 >
@@ -205,7 +205,7 @@ Tenant-authored fields; the option list lives inside the overlay field's `choice
 ### Bucket 3 — Managed **catalog** (`membershiptype#` rows in `sam-members`)
 
 `membership_type` (source `lidmaatschap`) references the Lidmaatschap Beheer catalog — module
-DATA, not a parameter. Seeded by `scripts/aws/seed-hdcn-catalog.py`. **Active-only** entries
+DATA, not a parameter. Seeded by `scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py`. **Active-only** entries
 render in the dropdown; validated server-side (R5.8). Codes (canonical `value`s):
 
 | `type_code` | `{nl,en}` label | roles gate (R4.12) |
@@ -480,19 +480,19 @@ Run each script WITHOUT `--apply` first (dry-run is the default) and review, the
 
 1. **Provision the table** — `sam-members` (PK `tenant_id`, SK `sk`, PAY_PER_REQUEST):
    `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
-   `  backend/.venv/bin/python scripts/aws/provision-members-tables.py --apply`
+   `  backend/.venv/bin/python scripts/onboarding/members/_generic/provision-members-tables.py --apply`
 2. **Author `members.scope_dimensions`** (the 10 regions, §6) in MySQL → `enqueue_sync`.
    Do this BEFORE the backfill apply so `region` canonicalizes to the right vocabulary.
 3. **Author `members.field_overlay`** (§5) in MySQL → `enqueue_sync`. Fields/dropdowns/format.
 4. **Seed the membership-type catalog** (§4 bucket 3), BEFORE the backfill so
    `membership_type` references resolve:
    `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
-   `  backend/.venv/bin/python scripts/aws/seed-hdcn-catalog.py --tenant h-dcn --apply`
+   `  backend/.venv/bin/python scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py --tenant h-dcn --apply`
 5. **Backfill the members** — dry-run, review the fidelity report, then apply. Requires the
    prod backfill changes: `member_id = uuid4()` (§2), `lidnummer → M00001` member_number (§3),
    `Drente`→`Drenthe` + `Overig`→`overig` aliases (§4/§6):
    `MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
-   `  backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py --source <export> --tenant h-dcn --apply`
+   `  backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py --source <export> --tenant h-dcn --apply`
 
    **5b. Live direct-read alternative + reconciling sync (s5m, R6.5).** Instead of a `--source`
    export you can read the live Google Sheet DIRECTLY (read-only, service account — design D5/D6).
@@ -517,7 +517,7 @@ Run each script WITHOUT `--apply` first (dry-run is the default) and review, the
    sheet `member_number` values (R7.7).
    `env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \`
    `  MEMBERS_TABLE=sam-members AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy \`
-   `  backend/.venv/bin/python scripts/aws/backfill-hdcn-members.py \`
+   `  backend/.venv/bin/python scripts/onboarding/members/h-dcn/backfill-hdcn-members.py \`
    `  --sheet-id <SPREADSHEET_ID> --worksheet Ledenbestand --tenant h-dcn --apply --reconcile`
 
    - **Numberless rows need NO sheet edit** — an empty `Lidnummer` + an `Achternaam` becomes a
@@ -526,7 +526,7 @@ Run each script WITHOUT `--apply` first (dry-run is the default) and review, the
    - **Re-run the config seed** — this spec changed `members_config.json` (new overlay fields
      `additional_info` / `deregistration_date` / `termination_date`, `magazine_pref` /
      `payment_method` value changes, `member_number` regex `^(M\d{5}|C_.+)$`). Those take effect in
-     MySQL only once `scripts/aws/seed-hdcn-members-config.py` is RE-RUN (onboarding path). Live
+     MySQL only once `scripts/onboarding/members/h-dcn/seed-hdcn-members-config.py` is RE-RUN (onboarding path). Live
      confirmation of the actual data read is a MANUAL gated step (needs the credentials file on
      disk) — documented here, not automated in CI.
 
@@ -537,7 +537,7 @@ Run each script WITHOUT `--apply` first (dry-run is the default) and review, the
 8. **Verify normalization (R9.5)** — read-only, expect PASS (every member region ∈ the 10):
    `MEMBERS_TABLE=sam-members GOVERNANCE_PROJECTION_TABLE=governance_projection AWS_REGION=eu-west-1 \`
    `  AWS_PROFILE=nonprofit-deploy backend/.venv/bin/python \`
-   `  scripts/aws/verify-member-scope-normalization.py --tenant h-dcn --dimension region`
+   `  scripts/onboarding/members/_generic/verify-member-scope-normalization.py --tenant h-dcn --dimension region`
 9. **Re-sync projection if stale** — `POST /api/tenant-admin/projection/resync` or
    `ProjectionSync.sync_administration("h-dcn")`.
 

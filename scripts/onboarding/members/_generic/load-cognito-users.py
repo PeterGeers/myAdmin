@@ -4,7 +4,7 @@
 Dry-run-first, idempotent bulk load of Cognito users derived from the h-dcn pool shape
 (~10 region-scoped + ~10 general + 3 extra) into a target pool (dev/test: ``myAdmin-test`` =
 ``eu-west-1_xyrlzfqbl``; prod: Pool A in task 7.3). Mirrors the structure of the task-6.2/6.3
-runners (``scripts/aws/backfill-hdcn-members.py`` / ``scripts/aws/seed-hdcn-catalog.py``):
+runners (``scripts/onboarding/members/h-dcn/backfill-hdcn-members.py`` / ``scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py``):
 argparse → resolve → **dry-run plan by default** → ``--apply`` to write → verify summary.
 
 HARD SEPARATION (R8.1/R8.2, C-PLAYBOOK) — the whole point of this task
@@ -45,19 +45,19 @@ Usage (from repo root, WSL)
   # Dry run (default — creates nothing, calls no endpoint): render the plan.
   # --pool-id + --source are REQUIRED (no hardcoded pool):
   AWS_PROFILE=personal AWS_REGION=eu-west-1 \
-      backend/.venv/bin/python scripts/aws/load-cognito-users.py \
-      --pool-id eu-west-1_xyrlzfqbl --source scripts/aws/cognito-users.sample.json
+      backend/.venv/bin/python scripts/onboarding/members/_generic/load-cognito-users.py \
+      --pool-id eu-west-1_xyrlzfqbl --source scripts/onboarding/members/h-dcn/cognito-users.sample.json
 
   # Apply into myAdmin-test (identity account) AND drive the governance endpoint for roles:
   AWS_PROFILE=personal AWS_REGION=eu-west-1 \
-      backend/.venv/bin/python scripts/aws/load-cognito-users.py \
-      --pool-id eu-west-1_xyrlzfqbl --source scripts/aws/cognito-users.sample.json \
+      backend/.venv/bin/python scripts/onboarding/members/_generic/load-cognito-users.py \
+      --pool-id eu-west-1_xyrlzfqbl --source scripts/onboarding/members/h-dcn/cognito-users.sample.json \
       --governance-url https://<tenant-admin-api> --governance-token "$ADMIN_JWT" --apply
 
   # Apply users only (create + attributes), leave role assignment for the SPA governance step:
   AWS_PROFILE=personal AWS_REGION=eu-west-1 \
-      backend/.venv/bin/python scripts/aws/load-cognito-users.py \
-      --pool-id eu-west-1_xyrlzfqbl --source scripts/aws/cognito-users.sample.json --apply
+      backend/.venv/bin/python scripts/onboarding/members/_generic/load-cognito-users.py \
+      --pool-id eu-west-1_xyrlzfqbl --source scripts/onboarding/members/h-dcn/cognito-users.sample.json --apply
 """
 
 from __future__ import annotations
@@ -71,14 +71,19 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
-# repo root + backend/src on sys.path so `auth...` / `services...` import if ever needed
-# (mirrors backfill-hdcn-members.py / seed-hdcn-catalog.py path setup).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-_BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
-if _BACKEND_SRC not in sys.path:
-    sys.path.insert(0, _BACKEND_SRC)
+# Bootstrap: find the repo root by walking up to a marker (NOT by counting dirname levels —
+# Tenant-Onboarding Tooling R4), put it on sys.path, then hand off to the shared onboarding
+# `_lib` for repo-root + backend/src setup. This tiny block is the one place that must locate
+# the root BEFORE `_lib` is importable; everything else goes through `_lib`.
+_r = os.path.abspath(__file__)
+while _r != os.path.dirname(_r):
+    _r = os.path.dirname(_r)
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+        break
+if _r not in sys.path:
+    sys.path.insert(0, _r)
+from scripts.onboarding._lib.paths import ensure_backend_src_on_path  # noqa: E402
+ensure_backend_src_on_path()
 
 DEFAULT_REGION = "eu-west-1"
 #: How many planned users to show as samples in the dry-run plan.
@@ -219,7 +224,7 @@ def build_load_plan(source_path: str, *, cli_default_tenant: str | None = None) 
     """Read the editable file READ-ONLY and build a validated :class:`LoadPlan`.
 
     The file is a JSON object with an optional ``default_tenant`` and a ``users`` array (see
-    ``scripts/aws/cognito-users.sample.json``). A ``--tenant`` on the CLI overrides the file's
+    ``scripts/onboarding/members/h-dcn/cognito-users.sample.json``). A ``--tenant`` on the CLI overrides the file's
     ``default_tenant``. Malformed rows are collected as errors (never silently dropped) so the
     dry-run surfaces them before any write.
     """
@@ -536,7 +541,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--source",
         required=True,
-        help="Path to the editable JSON user file (see scripts/aws/cognito-users.sample.json).",
+        help="Path to the editable JSON user file (see scripts/onboarding/members/h-dcn/cognito-users.sample.json).",
     )
     parser.add_argument(
         "--tenant",

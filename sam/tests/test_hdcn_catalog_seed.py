@@ -9,7 +9,8 @@ Three layers, none of which touch live AWS (per the task constraints):
   SAME mapper) — so a backfilled member can never reference an unseeded type (C8).
 - **The pure planner** (``build_seed_plan``): diffs the seed against a repository's current
   catalog into create / update / unchanged, non-destructively.
-- **The runner** (``scripts/aws/seed-hdcn-catalog.py``): dry-run writes NOTHING and emits a
+- **The runner** (``scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py``): dry-run writes
+  NOTHING and emits a
   plan; ``--apply`` upserts via ``save_membership_type`` on a fake repository; a re-seed is
   idempotent (all unchanged, nothing written).
 
@@ -190,7 +191,9 @@ class TestBuildSeedPlan:
 
 def _load_runner_module():
     """Import the hyphen-named runner script by path (not a valid module name)."""
-    path = os.path.join(_REPO_ROOT, "scripts", "aws", "seed-hdcn-catalog.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "onboarding", "members", "h-dcn", "seed-hdcn-catalog.py"
+    )
     spec = importlib.util.spec_from_file_location("seed_hdcn_catalog", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

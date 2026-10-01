@@ -1,7 +1,7 @@
 """
 S5d Task 2.4 — tests for the R9.5 **normalization verification**
 (``sam.members.migration.scope_normalization_verify`` + its CLI runner
-``scripts/aws/verify-member-scope-normalization.py``).
+``scripts/onboarding/members/_generic/verify-member-scope-normalization.py``).
 
 The R9.5 requirement has two clauses, both pinned here:
 
@@ -222,7 +222,9 @@ def test_exact_grant_no_match_returns_empty():
 _RUNNER_PATH = (
     Path(__file__).resolve().parents[2]
     / "scripts"
-    / "aws"
+    / "onboarding"
+    / "members"
+    / "_generic"
     / "verify-member-scope-normalization.py"
 )
 

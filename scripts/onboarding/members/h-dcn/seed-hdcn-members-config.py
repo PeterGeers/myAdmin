@@ -2,7 +2,8 @@
 """seed-hdcn-members-config.py — author h-dcn's members CONFIG in MySQL (onboarding, D18).
 
 Upserts the two tenant members-config parameters from the SINGLE onboarding source
-(``scripts/aws/h-dcn/members_config.json``) into the Flask/MySQL ``parameters`` table via
+(``scripts/onboarding/members/h-dcn/members_config.json``) into the Flask/MySQL ``parameters``
+table via
 ``ParameterService.set_param`` (an idempotent ``INSERT ... ON DUPLICATE KEY UPDATE``):
 
   - ``members.scope_dimensions`` — the tenant's region vocabulary (→ projected ``config#scope``)
@@ -16,10 +17,10 @@ this script only sets the params — run the projection sync (C.11) if needed af
 
 Dry-run-first + idempotent (mirrors the other onboarding scripts):
   # Dry run (DEFAULT — writes nothing): show current vs desired for each param.
-  cd backend && PYTHONPATH=src python ../scripts/aws/seed-hdcn-members-config.py --tenant h-dcn
+  cd backend && PYTHONPATH=src python ../scripts/onboarding/members/h-dcn/seed-hdcn-members-config.py --tenant h-dcn
 
   # Apply (upsert both params):
-  cd backend && PYTHONPATH=src python ../scripts/aws/seed-hdcn-members-config.py --tenant h-dcn --apply
+  cd backend && PYTHONPATH=src python ../scripts/onboarding/members/h-dcn/seed-hdcn-members-config.py --tenant h-dcn --apply
 
 PREREQUISITE (rollout C.1): the tenant must have the MEMBERS module ACTIVE — the ``members.*``
 parameter namespace is gated to it (``parameter_schema.py``). If ``set_param`` is rejected for
@@ -32,16 +33,28 @@ path so ``database`` / ``services`` import. It does NOT touch DynamoDB/AWS.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(os.path.dirname(_THIS_DIR))
-_BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
-if _BACKEND_SRC not in sys.path:
-    sys.path.insert(0, _BACKEND_SRC)
+
+# Bootstrap: find the repo root by walking up to a marker (NOT by counting dirname levels —
+# Tenant-Onboarding Tooling R4), put it on sys.path, then hand off to the shared onboarding
+# `_lib` for repo-root + backend/src setup.
+_r = os.path.abspath(__file__)
+while _r != os.path.dirname(_r):
+    _r = os.path.dirname(_r)
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+        break
+if _r not in sys.path:
+    sys.path.insert(0, _r)
+from scripts.onboarding._lib.paths import (  # noqa: E402
+    ensure_backend_src_on_path,
+    import_by_path,
+)
+
+ensure_backend_src_on_path()
 
 _MEMBERS_NAMESPACE = "members"
 _SCOPE_DIMENSIONS_KEY = "scope_dimensions"
@@ -49,12 +62,14 @@ _FIELD_OVERLAY_KEY = "field_overlay"
 
 
 def _load_config_loader():
-    """Import the sibling members_config_loader.py by path (dashed dir isn't a package)."""
-    path = os.path.join(_THIS_DIR, "h-dcn", "members_config_loader.py")
-    spec = importlib.util.spec_from_file_location("members_config_loader", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
-    return module
+    """Import the tenant config loader by path (the dashed `h-dcn` dir isn't a package).
+
+    The loader is CO-LOCATED in this same tenant dir (this seed runner is an h-dcn tool living
+    beside members_config.json and its loader). Resolved via the shared `_lib`
+    ``import_by_path`` (R4.2), not an ad-hoc ``spec_from_file_location``.
+    """
+    path = os.path.join(_THIS_DIR, "members_config_loader.py")
+    return import_by_path("members_config_loader", os.path.abspath(path))
 
 
 def _diff_line(key: str, current, desired) -> str:
@@ -118,7 +133,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         default=None,
-        help="Path to the members-config JSON (default: scripts/aws/h-dcn/members_config.json).",
+        help="Path to the members-config JSON (default: "
+        "scripts/onboarding/members/h-dcn/members_config.json).",
     )
     parser.add_argument(
         "--apply",
