@@ -1186,7 +1186,8 @@ class TestMappingContractLoader:
             "Voornaam,0,personal.first_name,single,x\n"
             "#(blank),1,(excluded),,dropped\n",
         )
-        c = load_mapping_contract(path)
+        # Minimal empty-overlay config: this test exercises comment-skipping, not the R2.5 orphan guard (which would otherwise flag the real config's overlay fields as unbacked by this 1-row mapping).
+        c = load_mapping_contract(path, config={"field_overlay": {"fields": {}}})
         assert "voornaam" in c.fixed
         # The '#(blank)' row is a COMMENT (starts with '#') so it never becomes an excluded entry.
         assert c.excluded == frozenset()
@@ -1244,7 +1245,8 @@ class TestMappingContractValidation:
 
     def test_blank_rule_on_a_real_target_defaults_to_single(self, tmp_path):
         path = _write_mapping(tmp_path, "Voornaam,0,personal.first_name,,x\n")
-        c = load_mapping_contract(path)
+        # Minimal empty-overlay config: this test exercises blank-rule defaulting, not the R2.5 orphan guard.
+        c = load_mapping_contract(path, config={"field_overlay": {"fields": {}}})
         assert c.fixed["voornaam"].rule == "single"
 
     def test_all_rules_used_in_the_authored_csv_are_known(self):

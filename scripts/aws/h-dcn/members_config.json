@@ -249,32 +249,6 @@
           }
         ]
       },
-      "privacy_consent": {
-        "functional_group": "membership",
-        "type": "enum",
-        "required": true,
-        "label": {
-          "nl": "Privacy",
-          "en": "Privacy consent"
-        },
-        "order": 40,
-        "choices": [
-          {
-            "value": "ja",
-            "label": {
-              "nl": "Akkoord",
-              "en": "Agreed"
-            }
-          },
-          {
-            "value": "nee",
-            "label": {
-              "nl": "Niet akkoord",
-              "en": "Not agreed"
-            }
-          }
-        ]
-      },
       "referral_source": {
         "functional_group": "membership",
         "type": "string",
@@ -284,10 +258,6 @@
           "en": "Referral source"
         },
         "order": 50,
-        "show_when": {
-          "field": "member_id",
-          "op": "not_exists"
-        },
         "_comment": "DECIDED free-text (D10) — messy historical values kept verbatim, no enum"
       },
       "motor_brand": {
@@ -402,16 +372,6 @@
         },
         "order": 15,
         "_comment": "s5m R2.7: the single catch-all overlay STRING field. On import the leftover Additional-info source columns (mapping CSV disposition (additional_info), e.g. Ondertekening / Naam voor akkoord) are concatenated into it as 'Label: value' pairs, ' | ' delimiter, stable source-column order, only non-empty cells; unset if nothing contributes. Keeps overlay free of raw Dutch header keys."
-      },
-      "signature_date": {
-        "functional_group": "administrative",
-        "type": "date",
-        "required": false,
-        "label": {
-          "nl": "Datum ondertekening",
-          "en": "Signature date"
-        },
-        "order": 20
       },
       "deregistration_date": {
         "functional_group": "membership",

@@ -250,3 +250,48 @@ describe('membership_type catalog dropdown (R5.8) — active-only, bilingual, do
     ).toEqual([{ value: 'ok', label: { nl: 'OK' } }]);
   });
 });
+
+/**
+ * members-modal-field-mapping-mismatch — Problem 4 (`referral_source` visibility gate) fix.
+ *
+ * The field was authored in members_config.json with a malformed
+ * `show_when: {"field": "member_id", "op": "not_exists"}`. `evaluateShowWhen` reads `show_when`
+ * as a map of `{controllingKey: expected}` ANDed, so that shape resolves to `false` for EVERY
+ * real row — hiding the field in the view modal AND on the create form.
+ *
+ * The chosen fix (Task 3) was to DROP the `show_when` gate from `referral_source` in the config,
+ * NOT to teach `evaluateShowWhen` the malformed `{field, op}` shape. So post-fix the field has no
+ * gate and renders everywhere, while the predicate is deliberately unchanged and still treats the
+ * old malformed shape as unsatisfied. These tests assert that actual fix.
+ *
+ * Validates: Requirements 1.6, 2.6
+ */
+describe('evaluateShowWhen — referral_source gate fix (gate dropped from config, Task 3)', () => {
+  // The fix for Problem 4 was NOT to teach evaluateShowWhen the malformed
+  // {field, op} shape — it was to DROP the show_when gate from referral_source in
+  // members_config.json. So post-fix the field has NO gate, and the predicate
+  // (correctly) still treats the old malformed shape as unsatisfied. These tests
+  // assert the ACTUAL fix: an ungated referral_source renders everywhere.
+  const noGate = undefined; // referral_source after the fix: no show_when
+
+  it('shows referral_source for an EXISTING member (no gate -> always visible)', () => {
+    const existingMemberRow = {
+      member_id: 'abc-123',
+      referral_source: 'via een vriend',
+    };
+    expect(evaluateShowWhen(noGate, existingMemberRow)).toBe(true);
+  });
+
+  it('shows referral_source on the CREATE form (no gate -> always visible)', () => {
+    const createFormValues: Record<string, unknown> = {};
+    expect(evaluateShowWhen(noGate, createFormValues)).toBe(true);
+  });
+
+  it('the OLD malformed gate shape stays unsatisfied (predicate unchanged — fix was config, not predicate)', () => {
+    // Regression guard: we deliberately did NOT change evaluateShowWhen to accept
+    // {field, op}. That nonsensical shape must still resolve false — proving the
+    // fix lived in the config (gate removed), not in a loosened predicate.
+    const malformedGate = { field: 'member_id', op: 'not_exists' };
+    expect(evaluateShowWhen(malformedGate, { member_id: 'abc-123' })).toBe(false);
+  });
+});
