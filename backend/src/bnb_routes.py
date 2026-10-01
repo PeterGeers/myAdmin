@@ -24,8 +24,6 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
         _period = request.args.get("period", "year")  # year, q, m
 
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
 
         # Build WHERE clause
         where_conditions = []
@@ -74,11 +72,9 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
         ORDER BY year, q, m, listing
         """
 
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, params)
+            results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
 
@@ -99,8 +95,6 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
         _period = request.args.get("period", "year")  # year, q, m
 
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
 
         # Build WHERE clause
         where_conditions = []
@@ -149,11 +143,9 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
         ORDER BY year, q, m, channel
         """
 
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, params)
+            results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
 
@@ -171,8 +163,6 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
         years = request.args.get("years", "").split(",")
 
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
 
         where_conditions = []
         params = []
@@ -199,11 +189,9 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
             ORDER BY year
         """
 
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, params)
+            results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
 
@@ -219,39 +207,35 @@ def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
     """Get available filter options for BNB data"""
     try:
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor()
 
         # Build tenant filter with placeholders for user_tenants
         placeholders = ", ".join(["%s"] * len(user_tenants))
 
-        # Get distinct years
-        years_query = f"SELECT DISTINCT year FROM bnb WHERE year IS NOT NULL AND administration IN ({placeholders}) ORDER BY year DESC"
-        cursor.execute(years_query, user_tenants)
-        years = [str(row[0]) for row in cursor.fetchall()]
+        with db.get_cursor(dictionary=False) as (cursor, conn):
+            # Get distinct years
+            years_query = f"SELECT DISTINCT year FROM bnb WHERE year IS NOT NULL AND administration IN ({placeholders}) ORDER BY year DESC"
+            cursor.execute(years_query, user_tenants)
+            years = [str(row[0]) for row in cursor.fetchall()]
 
-        # Get distinct listings
-        listings_query = f"SELECT DISTINCT listing FROM bnb WHERE listing IS NOT NULL AND administration IN ({placeholders}) ORDER BY listing"
-        cursor.execute(listings_query, user_tenants)
-        listings = [row[0] for row in cursor.fetchall()]
+            # Get distinct listings
+            listings_query = f"SELECT DISTINCT listing FROM bnb WHERE listing IS NOT NULL AND administration IN ({placeholders}) ORDER BY listing"
+            cursor.execute(listings_query, user_tenants)
+            listings = [row[0] for row in cursor.fetchall()]
 
-        # Get distinct channels with normalization
-        channels_query = f"""
-            SELECT DISTINCT 
-                CASE 
-                    WHEN LOWER(channel) = 'booking.com' THEN 'Booking.com'
-                    WHEN LOWER(channel) = 'airbnb' THEN 'Airbnb'
-                    ELSE channel 
-                END as channel 
-            FROM bnb 
-            WHERE channel IS NOT NULL AND administration IN ({placeholders})
-            ORDER BY channel
-        """
-        cursor.execute(channels_query, user_tenants)
-        channels = [row[0] for row in cursor.fetchall()]
-
-        cursor.close()
-        connection.close()
+            # Get distinct channels with normalization
+            channels_query = f"""
+                SELECT DISTINCT 
+                    CASE 
+                        WHEN LOWER(channel) = 'booking.com' THEN 'Booking.com'
+                        WHEN LOWER(channel) = 'airbnb' THEN 'Airbnb'
+                        ELSE channel 
+                    END as channel 
+                FROM bnb 
+                WHERE channel IS NOT NULL AND administration IN ({placeholders})
+                ORDER BY channel
+            """
+            cursor.execute(channels_query, user_tenants)
+            channels = [row[0] for row in cursor.fetchall()]
 
         return jsonify(
             {
@@ -281,8 +265,6 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
         )  # 'pricePerNight' or 'nightsPerStay'
 
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
 
         # Build WHERE clause
         where_conditions = []
@@ -345,11 +327,9 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
             ORDER BY listing, channel, year
             """
 
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, params)
+            results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
 
@@ -365,8 +345,6 @@ def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
     """Get returning guests summary"""
     try:
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
 
         # Build tenant filter with placeholders for user_tenants
         placeholders = ", ".join(["%s"] * len(user_tenants))
@@ -382,11 +360,9 @@ def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
             ORDER BY aantal DESC, guestName ASC
         """
 
-        cursor.execute(query, user_tenants)
-        results = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
+        with db.get_cursor() as (cursor, conn):
+            cursor.execute(query, user_tenants)
+            results = cursor.fetchall()
 
         return jsonify({"success": True, "data": results})
 
@@ -406,8 +382,6 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
             return jsonify({"success": False, "error": "Guest name required"}), 400
 
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
 
         # Build tenant filter with placeholders for user_tenants
         placeholders = ", ".join(["%s"] * len(user_tenants))
@@ -423,11 +397,9 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
         # Combine guest_name with user_tenants for query parameters
         params = [guest_name] + user_tenants
 
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
+        with db.get_cursor() as (cursor, connection):
+            cursor.execute(query, params)
+            results = cursor.fetchall()
 
         normalize_dates(results, ["checkinDate", "checkoutDate"])
         return jsonify({"success": True, "data": results})
@@ -446,8 +418,6 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
         from datetime import datetime
 
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
 
         date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
         date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
@@ -482,11 +452,9 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
             LIMIT 1000
         """
 
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
+        with db.get_cursor() as (cursor, connection):
+            cursor.execute(query, params)
+            results = cursor.fetchall()
 
         normalize_dates(results, ["checkinDate", "checkoutDate"])
         return jsonify({"success": True, "data": results})

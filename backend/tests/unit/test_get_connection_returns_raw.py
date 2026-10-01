@@ -1,11 +1,11 @@
-"""Regression tests for ``DatabaseManager.get_connection()`` returning a RAW connection.
+"""Regression tests for ``DatabaseManager._get_connection()`` returning a RAW connection.
 
 Regression: since commit ``8631168`` the scalability manager initializes
 successfully, and ``get_connection()`` routed the raw path through
 ``scalability_manager.get_database_connection()``. That method returns
 ``AdvancedConnectionPool.get_connection()``, which is a ``@contextmanager``.
 Returned WITHOUT entering a ``with`` block it is a ``_GeneratorContextManager``,
-so callers doing ``conn = db.get_connection(); conn.cursor(...)`` raised
+so callers doing ``conn = db._get_connection(); conn.cursor(...)`` raised
 ``AttributeError: '_GeneratorContextManager' object has no attribute 'cursor'``
 and the route ``except`` turned that into an HTTP 500.
 
@@ -95,7 +95,7 @@ def test_get_connection_returns_raw_conn_when_scalability_manager_active():
 
     raw_conn = MagicMock(name="direct_conn")
     with patch("mysql.connector.connect", return_value=raw_conn) as mock_connect:
-        conn = mgr.get_connection()
+        conn = mgr._get_connection()
 
     # The key regression assertions.
     assert type(conn).__name__ != "_GeneratorContextManager"
@@ -121,7 +121,7 @@ def test_get_connection_uses_legacy_pool_when_available():
     DatabaseManager._use_legacy_pool = True
 
     with patch("mysql.connector.connect") as mock_connect:
-        conn = mgr.get_connection()
+        conn = mgr._get_connection()
 
     assert conn is pooled_conn
     assert hasattr(conn, "cursor") and callable(conn.cursor)
@@ -144,7 +144,7 @@ def test_get_connection_legacy_pool_active_bypasses_scalability_manager():
     DatabaseManager._use_legacy_pool = True
 
     with patch("mysql.connector.connect") as mock_connect:
-        conn = mgr.get_connection()
+        conn = mgr._get_connection()
 
     assert conn is pooled_conn
     assert type(conn).__name__ != "_GeneratorContextManager"
@@ -164,7 +164,7 @@ def test_get_connection_direct_fallback_when_no_pools():
 
     raw_conn = MagicMock(name="direct_conn")
     with patch("mysql.connector.connect", return_value=raw_conn) as mock_connect:
-        conn = mgr.get_connection()
+        conn = mgr._get_connection()
 
     assert conn is raw_conn
     assert hasattr(conn, "cursor") and callable(conn.cursor)
@@ -186,7 +186,7 @@ def test_get_connection_legacy_pool_failure_falls_back_to_direct():
 
     raw_conn = MagicMock(name="direct_conn")
     with patch("mysql.connector.connect", return_value=raw_conn) as mock_connect:
-        conn = mgr.get_connection()
+        conn = mgr._get_connection()
 
     assert conn is raw_conn
     assert hasattr(conn, "cursor") and callable(conn.cursor)

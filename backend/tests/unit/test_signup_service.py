@@ -5,6 +5,7 @@ Tests for SignupService business logic: validation, Cognito calls, DB operations
 """
 
 import pytest
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 
@@ -36,10 +37,25 @@ def service():
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
 
-        # DatabaseManager() returns a mock instance whose get_connection() returns mock_conn
+        # DatabaseManager() returns a mock instance exposing the context-managed API.
+        # Both get_cursor() and transaction() yield (cursor, conn) as context managers.
         mock_db_instance = MockDBManager.return_value
-        mock_db_instance.get_connection.return_value = mock_conn
         mock_db_instance.config = {}
+
+        # MagicMock wrappers so tests can assert the CM was entered (call count,
+        # __enter__ called) in addition to the SQL executed through the cursor.
+        @contextmanager
+        def _get_cursor_cm(*args, **kwargs):
+            yield mock_cursor, mock_conn
+
+        @contextmanager
+        def _transaction_cm(*args, **kwargs):
+            # Mirror transaction() auto-commit so durability tests can assert commit.
+            yield mock_cursor, mock_conn
+            mock_conn.commit()
+
+        mock_db_instance.get_cursor = MagicMock(side_effect=_get_cursor_cm)
+        mock_db_instance.transaction = MagicMock(side_effect=_transaction_cm)
 
         from services.signup_service import SignupService
         svc = SignupService()
@@ -189,6 +205,23 @@ class TestCreateSignup:
         with pytest.raises(UsernameExistsError):
             service.create_signup(_valid_data())
 
+    def test_insert_runs_inside_transaction_and_commits(self, service):
+        """Commit-durability (Req 3.6): the INSERT must execute inside
+        transaction() (entered as a context manager) and the transaction must
+        auto-commit — not merely return success."""
+        service._mock_cognito.sign_up.return_value = {'UserSub': 'sub-123'}
+
+        service.create_signup(_valid_data(), ip_address='127.0.0.1')
+
+        # Write path uses transaction(), never get_cursor()
+        service._mock_db.transaction.assert_called_once()
+        service._mock_db.get_cursor.assert_not_called()
+        # The INSERT ran through the transaction's cursor
+        sql = service._mock_cursor.execute.call_args[0][0]
+        assert 'INSERT INTO pending_signups' in sql
+        # transaction() auto-committed (durability)
+        service._mock_conn.commit.assert_called_once()
+
 
 # ============================================================================
 # verify_signup Tests
@@ -221,6 +254,31 @@ class TestVerifySignup:
         calls = service._mock_cursor.execute.call_args_list
         update_call = [c for c in calls if 'UPDATE' in str(c)]
         assert len(update_call) > 0
+
+    def test_verify_update_runs_inside_transaction_and_commits(self, service):
+        """Commit-durability (Req 3.6): the status UPDATE must execute inside
+        transaction() and the transaction must auto-commit. The lookup read goes
+        through get_cursor(); the write goes through transaction()."""
+        service._mock_cursor.fetchone.return_value = {
+            'id': 1, 'email': 'test@example.com', 'status': 'pending',
+            'first_name': 'Test', 'last_name': 'User'
+        }
+        service._mock_cognito.confirm_sign_up.return_value = {}
+
+        service.verify_signup('test@example.com', '123456')
+
+        # Read (lookup) via get_cursor, write via transaction (exactly once)
+        service._mock_db.get_cursor.assert_called_once()
+        service._mock_db.transaction.assert_called_once()
+        # The UPDATE ran through the transaction's cursor
+        update_calls = [
+            c for c in service._mock_cursor.execute.call_args_list
+            if 'UPDATE pending_signups' in str(c[0][0])
+            and "status = 'verified'" in str(c[0][0])
+        ]
+        assert len(update_calls) == 1
+        # transaction() auto-committed once (durability, single commit granularity)
+        service._mock_conn.commit.assert_called_once()
 
     def test_not_found_raises(self, service):
         from services.signup_service import SignupNotFoundError
@@ -257,6 +315,29 @@ class TestResendVerification:
 
         service._mock_cognito.resend_confirmation_code.assert_called_once()
         assert result == {'message': 'Verification email resent'}
+
+    def test_resend_update_runs_inside_transaction_and_commits(self, service):
+        """Commit-durability (Req 3.6): the last_resend_at UPDATE must execute
+        inside transaction() and the transaction must auto-commit."""
+        service._mock_cursor.fetchone.return_value = {
+            'id': 1, 'email': 'test@example.com', 'status': 'pending',
+            'last_resend_at': None
+        }
+        service._mock_cognito.resend_confirmation_code.return_value = {}
+
+        service.resend_verification('test@example.com')
+
+        # Read (lookup) via get_cursor, write via transaction (exactly once)
+        service._mock_db.get_cursor.assert_called_once()
+        service._mock_db.transaction.assert_called_once()
+        # The UPDATE ran through the transaction's cursor
+        update_calls = [
+            c for c in service._mock_cursor.execute.call_args_list
+            if 'UPDATE pending_signups SET last_resend_at' in str(c[0][0])
+        ]
+        assert len(update_calls) == 1
+        # transaction() auto-committed (durability)
+        service._mock_conn.commit.assert_called_once()
 
     def test_rate_limit_raises(self, service):
         from services.signup_service import ResendRateLimitError

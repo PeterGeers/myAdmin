@@ -296,16 +296,19 @@ class TestGetMutaties:
     """Tests for mutation retrieval."""
 
     def _setup_cursor(self, service, rows, total=None):
-        """Helper to configure mock cursor for get_mutaties."""
+        """Helper to configure mock get_cursor() context manager for get_mutaties."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         # First call is COUNT, second is the SELECT
         if total is None:
             total = len(rows)
         mock_cursor.fetchone.return_value = {'total': total}
         mock_cursor.fetchall.return_value = rows
-        service._mock_db.get_connection.return_value = mock_conn
+        # get_mutaties reads via `with db.get_cursor(dictionary=True) as (cursor, conn)`
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        service._mock_db.get_cursor.return_value = cm
         return mock_cursor
 
     def test_returns_mutaties_for_tenant(self, service):
@@ -375,17 +378,20 @@ class TestUpdateMutatie:
     """Tests for mutation update."""
 
     def _setup_update_cursor(self, service, existing_record):
-        """Helper to configure mock cursor for update_mutatie."""
+        """Helper to configure mock transaction() context manager for update_mutatie."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = existing_record
-        service._mock_db.get_connection.return_value = mock_conn
-        return mock_cursor, mock_conn
+        # update_mutatie writes via `with db.transaction() as (cursor, conn)`
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        service._mock_db.transaction.return_value = cm
+        return mock_cursor, mock_conn, cm
 
     def test_update_success(self, service):
-        """Updates record that belongs to current tenant."""
-        cursor, conn = self._setup_update_cursor(
+        """Updates record that belongs to current tenant and commits via transaction()."""
+        cursor, conn, cm = self._setup_update_cursor(
             service, {'administration': 'T1'}
         )
 
@@ -405,7 +411,17 @@ class TestUpdateMutatie:
         result = service.update_mutatie(42, data, 'T1')
 
         assert result['success'] is True
-        conn.commit.assert_called_once()
+        # Commit-durability: the write MUST go through transaction() (which
+        # auto-commits on success), not an uncommitted get_cursor()/raw connection.
+        service._mock_db.transaction.assert_called_once()
+        cm.__enter__.assert_called_once()
+        # And the UPDATE statement must actually have been executed inside it.
+        update_calls = [
+            c for c in cursor.execute.call_args_list
+            if 'UPDATE' in c[0][0]
+        ]
+        assert len(update_calls) == 1
+        assert cursor.execute.call_args_list[-1][0][1][-1] == 42  # mutatie_id
 
     def test_update_record_not_found(self, service):
         """Returns error when record does not exist."""
@@ -427,7 +443,7 @@ class TestUpdateMutatie:
 
     def test_update_forces_tenant_in_query(self, service):
         """Administration field is always set to current tenant (defense in depth)."""
-        cursor, conn = self._setup_update_cursor(
+        cursor, conn, cm = self._setup_update_cursor(
             service, {'administration': 'T1'}
         )
 

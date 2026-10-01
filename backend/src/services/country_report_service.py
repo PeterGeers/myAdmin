@@ -25,61 +25,57 @@ def get_country_report_data(user_tenants):
     from database import DatabaseManager
 
     db = DatabaseManager(test_mode=False)
-    connection = db.get_connection()
-    cursor = connection.cursor()
 
     # Build tenant filter
     placeholders = ", ".join(["%s"] * len(user_tenants))
 
-    # Get country statistics with JOIN to countries table
-    cursor.execute(
-        f"""
-        SELECT 
-            v.country, 
-            c.name as countryName, 
-            c.name_nl as countryNameNL,
-            c.region as countryRegion,
-            COUNT(*) as bookings
-        FROM vw_bnb_total v
-        LEFT JOIN countries c ON v.country = c.code
-        WHERE v.country IS NOT NULL AND v.administration IN ({placeholders})
-        GROUP BY v.country, c.name, c.name_nl, c.region
-        ORDER BY COUNT(*) DESC
-    """,
-        user_tenants,
-    )
+    with db.get_cursor(dictionary=False) as (cursor, conn):
+        # Get country statistics with JOIN to countries table
+        cursor.execute(
+            f"""
+            SELECT 
+                v.country, 
+                c.name as countryName, 
+                c.name_nl as countryNameNL,
+                c.region as countryRegion,
+                COUNT(*) as bookings
+            FROM vw_bnb_total v
+            LEFT JOIN countries c ON v.country = c.code
+            WHERE v.country IS NOT NULL AND v.administration IN ({placeholders})
+            GROUP BY v.country, c.name, c.name_nl, c.region
+            ORDER BY COUNT(*) DESC
+        """,
+            user_tenants,
+        )
 
-    country_data = cursor.fetchall()
+        country_data = cursor.fetchall()
 
-    # Get total bookings
-    cursor.execute(
-        f"""
-        SELECT COUNT(*) FROM vw_bnb_total 
-        WHERE country IS NOT NULL AND administration IN ({placeholders})
-    """,
-        user_tenants,
-    )
-    total_bookings = cursor.fetchone()[0]
+        # Get total bookings
+        cursor.execute(
+            f"""
+            SELECT COUNT(*) FROM vw_bnb_total 
+            WHERE country IS NOT NULL AND administration IN ({placeholders})
+        """,
+            user_tenants,
+        )
+        total_bookings = cursor.fetchone()[0]
 
-    # Get bookings by region
-    cursor.execute(
-        f"""
-        SELECT 
-            c.region as countryRegion,
-            COUNT(*) as bookings
-        FROM vw_bnb_total v
-        LEFT JOIN countries c ON v.country = c.code
-        WHERE c.region IS NOT NULL AND v.administration IN ({placeholders})
-        GROUP BY c.region
-        ORDER BY bookings DESC
-    """,
-        user_tenants,
-    )
+        # Get bookings by region
+        cursor.execute(
+            f"""
+            SELECT 
+                c.region as countryRegion,
+                COUNT(*) as bookings
+            FROM vw_bnb_total v
+            LEFT JOIN countries c ON v.country = c.code
+            WHERE c.region IS NOT NULL AND v.administration IN ({placeholders})
+            GROUP BY c.region
+            ORDER BY bookings DESC
+        """,
+            user_tenants,
+        )
 
-    region_data = cursor.fetchall()
-
-    cursor.close()
-    connection.close()
+        region_data = cursor.fetchall()
 
     return country_data, region_data, total_bookings
 

@@ -463,3 +463,99 @@ class TestBankingApplyPatterns:
             json={'transactions': []}
         )
         assert response.status_code == 500
+
+
+# ============================================================================
+# Filter Options Tests (context-managed get_cursor migration)
+# ============================================================================
+
+
+@pytest.mark.api
+class TestBankingFilterOptions:
+    """Tests for GET /api/banking/filter-options.
+
+    This endpoint was migrated from the raw get_connection() pattern to the
+    context-managed `with db.get_cursor() as (cursor, conn):` API. These tests
+    assert the migrated read path is actually exercised (get_cursor entered as a
+    context manager) and that the response is Behavior_Preserving.
+    """
+
+    def _mock_db_with_cursor(self, mock_db_class, fetch_results):
+        """Wire a mocked DatabaseManager whose get_cursor() yields (cursor, conn).
+
+        fetch_results is the list of fetchall() return values, consumed in order
+        across the two SELECT executes (years, then administrations).
+        """
+        mock_instance = MagicMock()
+        mock_db_class.return_value = mock_instance
+
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor.fetchall.side_effect = fetch_results
+
+        cm = mock_instance.get_cursor.return_value
+        cm.__enter__ = MagicMock(return_value=(mock_cursor, mock_conn))
+        cm.__exit__ = MagicMock(return_value=False)
+
+        return mock_instance, mock_cursor
+
+    @patch('database.DatabaseManager')
+    @patch('routes.banking_routes.banking_service')
+    def test_filter_options_success(self, mock_service, mock_db_class, client, banking_auth):
+        """Returns distinct years and administrations via the context-managed cursor."""
+        mock_service.test_mode = True
+        mock_instance, mock_cursor = self._mock_db_with_cursor(
+            mock_db_class,
+            fetch_results=[
+                [{'year': 2024}, {'year': 2023}],
+                [{'administration': 'test-tenant'}],
+            ],
+        )
+
+        response = client.get('/api/banking/filter-options', headers=banking_auth)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['years'] == ['2024', '2023']
+        assert data['administrations'] == ['test-tenant']
+
+        # Prove the migrated path ran: get_cursor() was entered as a context manager
+        # (connection lifecycle is owned by DatabaseManager, not the route).
+        mock_instance.get_cursor.assert_called_once_with()
+        mock_instance.get_cursor.return_value.__enter__.assert_called_once()
+        mock_instance.get_cursor.return_value.__exit__.assert_called_once()
+        assert mock_cursor.execute.call_count == 2
+
+    @patch('database.DatabaseManager')
+    @patch('routes.banking_routes.banking_service')
+    def test_filter_options_single_tenant_filter(self, mock_service, mock_db_class, client, banking_auth):
+        """Single accessible tenant uses an equality administration filter with its value."""
+        mock_service.test_mode = True
+        mock_instance, mock_cursor = self._mock_db_with_cursor(
+            mock_db_class,
+            fetch_results=[[], []],
+        )
+
+        response = client.get('/api/banking/filter-options', headers=banking_auth)
+
+        assert response.status_code == 200
+        # banking_auth grants a single tenant ('test-tenant') -> equality filter.
+        first_sql, first_params = mock_cursor.execute.call_args_list[0][0]
+        assert 'administration = %s' in first_sql
+        assert first_params == ['test-tenant']
+
+    @patch('database.DatabaseManager')
+    @patch('routes.banking_routes.banking_service')
+    def test_filter_options_exception_returns_500(self, mock_service, mock_db_class, client, banking_auth):
+        """A failure during query returns 500 (observable error preserved)."""
+        mock_service.test_mode = True
+        mock_instance = MagicMock()
+        mock_db_class.return_value = mock_instance
+        mock_instance.get_cursor.side_effect = Exception('DB connection lost')
+
+        response = client.get('/api/banking/filter-options', headers=banking_auth)
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['success'] is False

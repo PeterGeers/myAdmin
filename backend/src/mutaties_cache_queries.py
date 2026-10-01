@@ -188,23 +188,22 @@ class MutatisCacheQueriesMixin:
         """
         if db_manager is not None:
             try:
-                conn = db_manager.get_connection()
-                if tenant:
-                    query = """
-                        SELECT DISTINCT YEAR(TransactionDate) as year
-                        FROM mutaties
-                        WHERE administration = %s
-                        ORDER BY year DESC
-                    """
-                    result = pd.read_sql(query, conn, params=[tenant])
-                else:
-                    query = """
-                        SELECT DISTINCT YEAR(TransactionDate) as year
-                        FROM mutaties
-                        ORDER BY year DESC
-                    """
-                    result = pd.read_sql(query, conn)
-                conn.close()
+                with db_manager.get_cursor() as (_cursor, conn):
+                    if tenant:
+                        query = """
+                            SELECT DISTINCT YEAR(TransactionDate) as year
+                            FROM mutaties
+                            WHERE administration = %s
+                            ORDER BY year DESC
+                        """
+                        result = pd.read_sql(query, conn, params=[tenant])
+                    else:
+                        query = """
+                            SELECT DISTINCT YEAR(TransactionDate) as year
+                            FROM mutaties
+                            ORDER BY year DESC
+                        """
+                        result = pd.read_sql(query, conn)
                 return [str(int(y)) for y in result["year"].dropna()]
             except Exception as e:
                 logger.warning(

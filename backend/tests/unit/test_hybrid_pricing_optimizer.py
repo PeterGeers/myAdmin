@@ -350,12 +350,31 @@ class TestGenerateAllListingsPricing:
                     opt = HybridPricingOptimizer(test_mode=True)
         return opt
 
+    @staticmethod
+    def _wire_cursor(optimizer):
+        """Wire db.get_cursor() to yield a fresh (cursor, conn) tuple."""
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        optimizer.db.get_cursor.return_value.__enter__ = MagicMock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        optimizer.db.get_cursor.return_value.__exit__ = MagicMock(return_value=False)
+        return mock_cursor, mock_conn
+
+    @staticmethod
+    def _wire_transaction(optimizer):
+        """Wire db.transaction() to yield a fresh (cursor, conn) tuple."""
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        optimizer.db.transaction.return_value.__enter__ = MagicMock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        optimizer.db.transaction.return_value.__exit__ = MagicMock(return_value=False)
+        return mock_cursor, mock_conn
+
     def test_generate_all_listings_no_active_listings(self, optimizer):
         """Test when no active listings are found."""
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        optimizer.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor, _ = self._wire_cursor(optimizer)
         mock_cursor.fetchall.return_value = []
 
         result = optimizer._generate_all_listings_pricing(months=1)
@@ -365,10 +384,8 @@ class TestGenerateAllListingsPricing:
 
     def test_generate_all_listings_with_listings(self, optimizer):
         """Test generating pricing for multiple listings."""
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        optimizer.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor, _ = self._wire_cursor(optimizer)
+        self._wire_transaction(optimizer)
         mock_cursor.fetchall.return_value = [
             {'listing_name': 'Listing A'},
             {'listing_name': 'Listing B'},
@@ -383,9 +400,32 @@ class TestGenerateAllListingsPricing:
         assert result['daily_prices_count'] == 2  # 1 price per listing
         assert 'All listings' in result['listing']
 
+    def test_generate_all_listings_clears_once_via_transaction(self, optimizer):
+        """Commit-durability: the initial DELETE goes through transaction() (which
+        commits once), entered exactly once for the single clear (Req 3.6)."""
+        mock_cursor, _ = self._wire_cursor(optimizer)
+        tx_cursor, _ = self._wire_transaction(optimizer)
+        mock_cursor.fetchall.return_value = [{'listing_name': 'Listing A'}]
+
+        with patch.object(optimizer, '_generate_ai_insights', return_value=None):
+            with patch.object(optimizer, '_generate_daily_pricing', return_value=[{'date': '2025-01-01', 'price': 100}]):
+                with patch.object(optimizer, '_save_pricing_to_database_no_clear', return_value=True):
+                    with patch.object(optimizer, '_save_ai_insights_to_file', return_value=False):
+                        optimizer._generate_all_listings_pricing(months=1)
+
+        # The durable clear path is transaction() — entered once (one commit) for the
+        # single DELETE. A plain get_cursor() here would NOT persist the clear.
+        optimizer.db.transaction.assert_called_once_with()
+        optimizer.db.transaction.return_value.__enter__.assert_called_once()
+        delete_calls = [
+            c for c in tx_cursor.execute.call_args_list
+            if 'DELETE FROM pricing_recommendations' in c.args[0]
+        ]
+        assert len(delete_calls) == 1
+
     def test_generate_all_listings_exception_returns_error(self, optimizer):
         """Test that exceptions return error result."""
-        optimizer.db.get_connection.side_effect = Exception("DB connection failed")
+        optimizer.db.get_cursor.side_effect = Exception("DB connection failed")
 
         result = optimizer._generate_all_listings_pricing(months=1)
 
@@ -408,8 +448,10 @@ class TestSavePricingToDatabase:
         """Test successful save of pricing data."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        optimizer.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        optimizer.db.transaction.return_value = cm
 
         daily_prices = [
             {'date': '2025-01-01', 'price': 100.0, 'is_weekend': False, 'event_uplift': 0,
@@ -422,14 +464,28 @@ class TestSavePricingToDatabase:
         result = optimizer._save_pricing_to_database(daily_prices, 'TestListing')
 
         assert result is True
-        mock_conn.commit.assert_called_once()
+        # Req 3.6 commit-durability: the clear-then-insert replace runs inside a single
+        # transaction() context (auto-commits once on clean exit — there is no explicit
+        # conn.commit() anymore). Assert the transaction was opened and entered, and that
+        # the atomic replace actually executed on the transaction cursor.
+        optimizer.db.transaction.assert_called_once()
+        cm.__enter__.assert_called_once()
+        executed_sql = [str(c) for c in mock_cursor.execute.call_args_list]
+        delete_calls = [s for s in executed_sql if 'DELETE FROM pricing_recommendations' in s]
+        insert_calls = [s for s in executed_sql if 'INSERT INTO pricing_recommendations' in s]
+        assert len(delete_calls) == 1  # clears existing recommendations
+        assert len(insert_calls) == 1  # single valid price inserted
+        # DELETE + 1 INSERT, all on the transaction cursor
+        assert mock_cursor.execute.call_count == 2
 
     def test_save_pricing_to_database_invalid_date_skipped(self, optimizer):
         """Test that invalid dates are skipped."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        optimizer.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        optimizer.db.transaction.return_value = cm
 
         daily_prices = [
             {'date': 'invalid-date', 'price': 100.0, 'is_weekend': False, 'event_uplift': 0,
@@ -447,15 +503,27 @@ class TestSavePricingToDatabase:
         result = optimizer._save_pricing_to_database(daily_prices, 'TestListing')
 
         assert result is True
-        # Only 1 valid price should be inserted
+        # The invalid-date row is skipped before the transaction, so only the valid row
+        # reaches the transaction cursor. Executes happen on the transaction cursor:
+        # 1 DELETE (clear) + 1 INSERT (the single valid price) == 2.
+        optimizer.db.transaction.assert_called_once()
+        cm.__enter__.assert_called_once()
+        executed_sql = [str(c) for c in mock_cursor.execute.call_args_list]
+        insert_calls = [s for s in executed_sql if 'INSERT INTO pricing_recommendations' in s]
+        assert len(insert_calls) == 1  # only the 1 valid price inserted
         assert mock_cursor.execute.call_count == 2  # 1 DELETE + 1 INSERT
 
     def test_save_pricing_to_database_error_rollback(self, optimizer):
-        """Test that errors trigger rollback."""
+        """Test that errors inside the transaction are handled (no partial commit)."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        optimizer.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        optimizer.db.transaction.return_value = cm
+        # A failure on the transaction cursor must abort the save. transaction() owns
+        # rollback on exception, so we drive the error through the cursor and assert the
+        # method's observable failure result rather than an explicit conn.rollback().
         mock_cursor.execute.side_effect = Exception("Insert failed")
 
         daily_prices = [
@@ -469,7 +537,10 @@ class TestSavePricingToDatabase:
         result = optimizer._save_pricing_to_database(daily_prices, 'TestListing')
 
         assert result is False
-        mock_conn.rollback.assert_called_once()
+        # The transaction was opened/entered and then failed on execute; no commit path.
+        optimizer.db.transaction.assert_called_once()
+        cm.__enter__.assert_called_once()
+        mock_cursor.execute.assert_called_once()  # failed on the first (DELETE) statement
 
 
 class TestSavePricingToDatabaseNoClear:
@@ -487,8 +558,10 @@ class TestSavePricingToDatabaseNoClear:
         """Test successful save without clearing existing data."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        optimizer.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        optimizer.db.transaction.return_value = cm
 
         daily_prices = [
             {'date': '2025-01-01', 'price': 100.0, 'is_weekend': False, 'event_uplift': 0,
@@ -501,17 +574,28 @@ class TestSavePricingToDatabaseNoClear:
         result = optimizer._save_pricing_to_database_no_clear(daily_prices, 'TestListing')
 
         assert result is True
-        mock_conn.commit.assert_called_once()
-        # Should NOT have a DELETE call (no clear)
-        delete_calls = [c for c in mock_cursor.execute.call_args_list if 'DELETE' in str(c)]
+        # Req 3.6 commit-durability: the insert batch runs inside a single transaction()
+        # context that auto-commits once on clean exit (no explicit conn.commit()).
+        optimizer.db.transaction.assert_called_once()
+        cm.__enter__.assert_called_once()
+        executed_sql = [str(c) for c in mock_cursor.execute.call_args_list]
+        insert_calls = [s for s in executed_sql if 'INSERT INTO pricing_recommendations' in s]
+        delete_calls = [s for s in executed_sql if 'DELETE' in s]
+        # Should NOT have a DELETE call (no clear), and the single price is inserted.
         assert len(delete_calls) == 0
+        assert len(insert_calls) == 1
+        assert mock_cursor.execute.call_count == 1  # INSERT only, no DELETE
 
     def test_save_pricing_no_clear_error(self, optimizer):
         """Test error handling in no-clear save."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        optimizer.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        optimizer.db.transaction.return_value = cm
+        # transaction() owns rollback on exception; drive the failure through the
+        # transaction cursor and assert the method's observable failure result.
         mock_cursor.execute.side_effect = Exception("DB error")
 
         daily_prices = [
@@ -525,7 +609,8 @@ class TestSavePricingToDatabaseNoClear:
         result = optimizer._save_pricing_to_database_no_clear(daily_prices, 'TestListing')
 
         assert result is False
-        mock_conn.rollback.assert_called_once()
+        optimizer.db.transaction.assert_called_once()
+        cm.__enter__.assert_called_once()
 
 
 class TestSaveAiInsightsToFile:

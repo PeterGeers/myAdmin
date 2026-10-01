@@ -137,35 +137,34 @@ class MutatisCacheLoaderMixin:
 
             logger.info(f"Loading vw_mutaties for tenant '{tenant}'...")
 
-            conn = db_manager.get_connection()
-
             years_to_load = self._get_years_to_load(db_manager, tenant)
 
-            if years_to_load:
-                year_filter = " OR ".join([f"jaar = {year}" for year in years_to_load])
-                query = f"""
-                    SELECT 
-                        Aangifte, TransactionNumber, TransactionDate,
-                        TransactionDescription, Amount, Reknum, AccountName,
-                        Parent, VW, jaar, kwartaal, maand, week,
-                        ReferenceNumber, administration, Ref3, Ref4
-                    FROM vw_mutaties
-                    WHERE administration = %s AND ({year_filter})
-                """
-                data = _read_sql_safe(query, conn, params=[tenant])
-            else:
-                query = """
-                    SELECT 
-                        Aangifte, TransactionNumber, TransactionDate,
-                        TransactionDescription, Amount, Reknum, AccountName,
-                        Parent, VW, jaar, kwartaal, maand, week,
-                        ReferenceNumber, administration, Ref3, Ref4
-                    FROM vw_mutaties
-                    WHERE administration = %s
-                """
-                data = _read_sql_safe(query, conn, params=[tenant])
-
-            conn.close()
+            with db_manager.get_cursor() as (_cursor, conn):
+                if years_to_load:
+                    year_filter = " OR ".join(
+                        [f"jaar = {year}" for year in years_to_load]
+                    )
+                    query = f"""
+                        SELECT 
+                            Aangifte, TransactionNumber, TransactionDate,
+                            TransactionDescription, Amount, Reknum, AccountName,
+                            Parent, VW, jaar, kwartaal, maand, week,
+                            ReferenceNumber, administration, Ref3, Ref4
+                        FROM vw_mutaties
+                        WHERE administration = %s AND ({year_filter})
+                    """
+                    data = _read_sql_safe(query, conn, params=[tenant])
+                else:
+                    query = """
+                        SELECT 
+                            Aangifte, TransactionNumber, TransactionDate,
+                            TransactionDescription, Amount, Reknum, AccountName,
+                            Parent, VW, jaar, kwartaal, maand, week,
+                            ReferenceNumber, administration, Ref3, Ref4
+                        FROM vw_mutaties
+                        WHERE administration = %s
+                    """
+                    data = _read_sql_safe(query, conn, params=[tenant])
 
             # Convert date column
             if "TransactionDate" in data.columns:
@@ -208,7 +207,6 @@ class MutatisCacheLoaderMixin:
             start_time = datetime.now()
             logger.info("Loading vw_mutaties into memory cache (legacy/all tenants)...")
 
-            conn = db_manager.get_connection()
             years_to_load = self._get_years_to_load(db_manager)
 
             if years_to_load:
@@ -232,8 +230,8 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                 """
 
-            data = _read_sql_safe(query, conn)
-            conn.close()
+            with db_manager.get_cursor() as (_cursor, conn):
+                data = _read_sql_safe(query, conn)
 
             if "TransactionDate" in data.columns:
                 data["TransactionDate"] = pd.to_datetime(data["TransactionDate"])
@@ -312,7 +310,6 @@ class MutatisCacheLoaderMixin:
                 return
 
             try:
-                conn = db_manager.get_connection()
                 year_filter = " OR ".join([f"jaar = {year}" for year in missing_years])
 
                 query = f"""
@@ -324,8 +321,8 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                     WHERE administration = %s AND ({year_filter})
                 """
-                new_data = _read_sql_safe(query, conn, params=[tenant])
-                conn.close()
+                with db_manager.get_cursor() as (_cursor, conn):
+                    new_data = _read_sql_safe(query, conn, params=[tenant])
 
                 if not new_data.empty:
                     if "TransactionDate" in new_data.columns:
@@ -383,7 +380,6 @@ class MutatisCacheLoaderMixin:
         # Load for all tenants
         with self.lock:
             try:
-                conn = db_manager.get_connection()
                 query = """
                     SELECT 
                         Aangifte, TransactionNumber, TransactionDate,
@@ -393,8 +389,8 @@ class MutatisCacheLoaderMixin:
                     FROM vw_mutaties
                     WHERE jaar = %s
                 """
-                year_data = _read_sql_safe(query, conn, params=[int(year)])
-                conn.close()
+                with db_manager.get_cursor() as (_cursor, conn):
+                    year_data = _read_sql_safe(query, conn, params=[int(year)])
 
                 if "TransactionDate" in year_data.columns:
                     year_data["TransactionDate"] = pd.to_datetime(

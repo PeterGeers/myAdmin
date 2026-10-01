@@ -752,12 +752,24 @@ class TestSaveBtwTransaction:
             proc = BTWProcessor(test_mode=True)
         return proc
 
-    def test_save_btw_transaction_success(self, processor):
-        """Test successful transaction save returns transaction_id."""
+    @staticmethod
+    def _wire_transaction(processor):
+        """Wire processor.db.transaction() as a context manager yielding (cursor, conn).
+
+        Returns the (mock_cursor, mock_conn) pair so tests can configure cursor
+        behaviour and assert on what was executed/committed.
+        """
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        processor.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        processor.db.transaction.return_value = cm
+        return mock_cursor, mock_conn
+
+    def test_save_btw_transaction_success(self, processor):
+        """Test successful transaction save returns transaction_id."""
+        mock_cursor, _mock_conn = self._wire_transaction(processor)
         mock_cursor.fetchone.return_value = None  # No duplicate
         mock_cursor.lastrowid = 42
 
@@ -780,14 +792,53 @@ class TestSaveBtwTransaction:
 
         assert result['success'] is True
         assert result['transaction_id'] == 42
-        mock_conn.commit.assert_called_once()
+
+    def test_save_btw_transaction_commits_insert_with_correct_params(self, processor):
+        """Commit-durability: the write goes through transaction() (which commits)
+        and the INSERT runs with the exact row values (Req 3.6)."""
+        mock_cursor, _mock_conn = self._wire_transaction(processor)
+        mock_cursor.fetchone.return_value = None  # No duplicate
+        mock_cursor.lastrowid = 7
+
+        transaction = {
+            'TransactionNumber': 'BTW',
+            'TransactionDate': '2024-04-01',
+            'TransactionDescription': 'BTW aangifte 2024 Q1',
+            'TransactionAmount': 500,
+            'Debet': '2010',
+            'Credit': '1300',
+            'ReferenceNumber': 'BTW',
+            'Ref1': 'BTW aangifte TestAdmin',
+            'Ref2': '2024-Q1',
+            'Ref3': '€500 te betalen',
+            'Ref4': 'Generated 2024-04-01',
+            'Administration': 'TestAdmin',
+        }
+
+        result = processor.save_btw_transaction(transaction)
+
+        assert result['success'] is True
+        # The durable write path is transaction() — entered as a context manager,
+        # which auto-commits on clean exit. A plain get_cursor() would NOT persist.
+        processor.db.transaction.assert_called_once_with()
+        processor.db.transaction.return_value.__enter__.assert_called_once()
+
+        # The INSERT must have executed with exactly the row's values.
+        insert_calls = [
+            c for c in mock_cursor.execute.call_args_list
+            if 'INSERT INTO' in c.args[0]
+        ]
+        assert len(insert_calls) == 1
+        insert_sql, insert_params = insert_calls[0].args
+        assert insert_params == (
+            'BTW', '2024-04-01', 'BTW aangifte 2024 Q1', 500,
+            '2010', '1300', 'BTW', 'BTW aangifte TestAdmin',
+            '2024-Q1', '€500 te betalen', 'Generated 2024-04-01', 'TestAdmin',
+        )
 
     def test_save_btw_transaction_duplicate_detected(self, processor):
-        """Test duplicate detection prevents double-save."""
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        processor.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        """Test duplicate detection prevents double-save (no INSERT executed)."""
+        mock_cursor, _mock_conn = self._wire_transaction(processor)
         # Duplicate found
         mock_cursor.fetchone.return_value = {'ID': 99}
 
@@ -810,14 +861,16 @@ class TestSaveBtwTransaction:
 
         assert result['success'] is False
         assert 'already exists' in result['error']
-        mock_conn.commit.assert_not_called()
+        # No INSERT may run when a duplicate is detected.
+        insert_calls = [
+            c for c in mock_cursor.execute.call_args_list
+            if 'INSERT INTO' in c.args[0]
+        ]
+        assert insert_calls == []
 
     def test_save_btw_transaction_db_error_returns_failure(self, processor):
         """Test database error returns failure with error message."""
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        processor.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor, _mock_conn = self._wire_transaction(processor)
         mock_cursor.fetchone.return_value = None
         mock_cursor.execute.side_effect = [None, Exception("Insert failed")]
 
@@ -840,7 +893,6 @@ class TestSaveBtwTransaction:
 
         assert result['success'] is False
         assert 'Insert failed' in result['error']
-        mock_conn.rollback.assert_called_once()
 
 
 class TestUploadReportToDrive:
@@ -967,12 +1019,20 @@ class TestGetLastBtwTransaction:
             proc = BTWProcessor(test_mode=True)
         return proc
 
-    def test_get_last_btw_transaction_returns_result(self, processor):
-        """Test successful retrieval of last BTW transaction."""
+    @staticmethod
+    def _wire_get_cursor(processor):
+        """Wire processor.db.get_cursor() as a context manager yielding (cursor, conn)."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        processor.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        cm = MagicMock()
+        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__exit__.return_value = False
+        processor.db.get_cursor.return_value = cm
+        return mock_cursor, mock_conn
+
+    def test_get_last_btw_transaction_returns_result(self, processor):
+        """Test successful retrieval of last BTW transaction."""
+        mock_cursor, _mock_conn = self._wire_get_cursor(processor)
         mock_cursor.fetchone.return_value = {
             'ID': 100,
             'TransactionNumber': 'BTW',
@@ -983,13 +1043,12 @@ class TestGetLastBtwTransaction:
 
         assert result is not None
         assert result['ID'] == 100
+        # Read path must go through the context-managed cursor with a dict cursor.
+        processor.db.get_cursor.assert_called_once_with(dictionary=True)
 
     def test_get_last_btw_transaction_no_result(self, processor):
         """Test when no BTW transaction exists."""
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        processor.db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor, _mock_conn = self._wire_get_cursor(processor)
         mock_cursor.fetchone.return_value = None
 
         result = processor._get_last_btw_transaction('TestAdmin')
@@ -998,7 +1057,7 @@ class TestGetLastBtwTransaction:
 
     def test_get_last_btw_transaction_exception_returns_none(self, processor):
         """Test that exceptions return None."""
-        processor.db.get_connection.side_effect = Exception("DB error")
+        processor.db.get_cursor.side_effect = Exception("DB error")
 
         result = processor._get_last_btw_transaction('TestAdmin')
 

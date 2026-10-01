@@ -325,9 +325,8 @@ class TestPricingRecommendations:
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
         mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         mock_cursor.fetchall.return_value = [
             {
                 'listing_name': 'Beach House',
@@ -365,9 +364,8 @@ class TestPricingRecommendations:
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
         mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         mock_cursor.fetchall.return_value = []
 
         response = client.get('/api/pricing/recommendations', headers=str_auth)
@@ -379,7 +377,7 @@ class TestPricingRecommendations:
     @patch('routes.str_routes.DatabaseManager')
     def test_recommendations_db_exception(self, mock_db_cls, client, str_auth):
         """Database exception returns 500."""
-        mock_db_cls.return_value.get_connection.side_effect = Exception('Connection refused')
+        mock_db_cls.return_value.get_cursor.side_effect = Exception('Connection refused')
 
         response = client.get('/api/pricing/recommendations', headers=str_auth)
         assert response.status_code == 500
@@ -402,9 +400,8 @@ class TestPricingHistorical:
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
         mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         # First call returns historical, second returns recommended
         mock_cursor.fetchall.side_effect = [
             [{'listing': 'Beach House', 'year': 2024, 'month': 6,
@@ -423,7 +420,7 @@ class TestPricingHistorical:
     @patch('routes.str_routes.DatabaseManager')
     def test_historical_db_exception(self, mock_db_cls, client, str_auth):
         """Database exception returns 500."""
-        mock_db_cls.return_value.get_connection.side_effect = Exception('Timeout')
+        mock_db_cls.return_value.get_cursor.side_effect = Exception('Timeout')
 
         response = client.get('/api/pricing/historical', headers=str_auth)
         assert response.status_code == 500
@@ -444,9 +441,8 @@ class TestPricingListings:
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
         mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         mock_cursor.fetchall.return_value = [
             {'listing_name': 'Beach House', 'active': True},
             {'listing_name': 'City Apartment', 'active': True},
@@ -462,7 +458,7 @@ class TestPricingListings:
     @patch('routes.str_routes.DatabaseManager')
     def test_listings_db_exception(self, mock_db_cls, client, str_auth):
         """Database exception returns 500."""
-        mock_db_cls.return_value.get_connection.side_effect = Exception('DB error')
+        mock_db_cls.return_value.get_cursor.side_effect = Exception('DB error')
 
         response = client.get('/api/pricing/listings', headers=str_auth)
         assert response.status_code == 500
@@ -483,9 +479,8 @@ class TestPricingMultipliers:
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
         mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         mock_cursor.fetchall.return_value = [
             {
                 'price_date': '2024-07-15',
@@ -522,7 +517,7 @@ class TestPricingMultipliers:
     @patch('routes.str_routes.DatabaseManager')
     def test_multipliers_db_exception(self, mock_db_cls, client, str_auth):
         """Database exception returns 500."""
-        mock_db_cls.return_value.get_connection.side_effect = Exception('DB error')
+        mock_db_cls.return_value.get_cursor.side_effect = Exception('DB error')
 
         response = client.get(
             '/api/pricing/multipliers?listing=Test', headers=str_auth
@@ -775,9 +770,8 @@ class TestSTRFutureTrend:
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
         mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         mock_cursor.fetchall.return_value = [
             {'date': '2024-07-01', 'channel': 'airbnb', 'listing': 'Beach House',
              'amount': 3000.0, 'items': 5}
@@ -793,7 +787,7 @@ class TestSTRFutureTrend:
     @patch('routes.str_routes.DatabaseManager')
     def test_future_trend_db_exception(self, mock_db_cls, client, str_auth):
         """Database exception returns 500."""
-        mock_db_cls.return_value.get_connection.side_effect = Exception('DB error')
+        mock_db_cls.return_value.get_cursor.side_effect = Exception('DB error')
 
         response = client.get('/api/str/future-trend', headers=str_auth)
         assert response.status_code == 500

@@ -1,18 +1,21 @@
-"""Create budget tables on Railway (production)."""
-import mysql.connector
-import os
+"""Create budget tables on Railway (production).
 
-conn = mysql.connector.connect(
-    host=os.environ.get('DB_HOST', 'shinkansen.proxy.rlwy.net'),
-    port=int(os.environ.get('DB_PORT', '42375')),
-    user=os.environ.get('DB_USER', 'root'),
-    password=os.environ.get('DB_PASSWORD', ''),
-    database=os.environ.get('DB_NAME', 'finance'),
-)
-cursor = conn.cursor()
+Database configuration comes entirely from env vars via DatabaseManager
+(DB_* locally, RAILWAY_DB_* mapped onto DB_* by scripts/railway-db.sh) — no
+hardcoded host/port/credentials.
+"""
+import os
+import sys
+
+# Add backend/src to path so we can import DatabaseManager
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+
+from database import DatabaseManager
+
+db = DatabaseManager()
 
 # Create budget_versions
-cursor.execute("""
+db.execute_ddl("""
 CREATE TABLE IF NOT EXISTS budget_versions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     administration VARCHAR(50) NOT NULL,
@@ -28,11 +31,10 @@ CREATE TABLE IF NOT EXISTS budget_versions (
     UNIQUE INDEX idx_admin_year_name (administration, fiscal_year, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """)
-conn.commit()
 print("budget_versions created")
 
 # Create budget_lines with notes column
-cursor.execute("""
+db.execute_ddl("""
 CREATE TABLE IF NOT EXISTS budget_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     version_id INT NOT NULL,
@@ -63,16 +65,11 @@ CREATE TABLE IF NOT EXISTS budget_lines (
     FOREIGN KEY (version_id) REFERENCES budget_versions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """)
-conn.commit()
 print("budget_lines created")
 
 # Drop template tables if they exist
-cursor.execute("DROP TABLE IF EXISTS budget_template_lines")
-conn.commit()
-cursor.execute("DROP TABLE IF EXISTS budget_templates")
-conn.commit()
+db.execute_ddl("DROP TABLE IF EXISTS budget_template_lines")
+db.execute_ddl("DROP TABLE IF EXISTS budget_templates")
 print("Template tables dropped (if existed)")
 
-cursor.close()
-conn.close()
 print("Railway DB migration complete")

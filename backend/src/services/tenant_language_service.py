@@ -18,25 +18,21 @@ def get_tenant_language(administration: str) -> str:
     Returns:
         str: Language code ('nl' or 'en'), defaults to 'nl' if not set
     """
-    conn = None
-    cursor = None
-
     try:
         db_manager = DatabaseManager()
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
+        # READ: plain (tuple-row) cursor — preserve index access via dictionary=False
+        with db_manager.get_cursor(dictionary=False) as (cursor, conn):
+            # Get tenant's default language
+            cursor.execute(
+                """
+                SELECT default_language
+                FROM tenants
+                WHERE administration = %s
+            """,
+                (administration,),
+            )
 
-        # Get tenant's default language
-        cursor.execute(
-            """
-            SELECT default_language
-            FROM tenants
-            WHERE administration = %s
-        """,
-            (administration,),
-        )
-
-        result = cursor.fetchone()
+            result = cursor.fetchone()
 
         if result and result[0]:
             language = result[0]
@@ -54,11 +50,6 @@ def get_tenant_language(administration: str) -> str:
     except Exception as e:
         print(f"❌ Error getting tenant language: {e}")
         return "nl"
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def update_tenant_language(administration: str, language: str) -> bool:
@@ -77,28 +68,26 @@ def update_tenant_language(administration: str, language: str) -> bool:
         print(f"❌ Invalid language code: {language}. Must be 'nl' or 'en'")
         return False
 
-    conn = None
-    cursor = None
-
     try:
         db_manager = DatabaseManager()
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
+        # WRITE: transaction() auto-commits on success, rolls back on exception.
+        # Only cursor.rowcount is consumed here (identical for tuple/dict cursors),
+        # so the cursor flavor is irrelevant and the standard transaction() form applies.
+        with db_manager.transaction() as (cursor, conn):
+            # Update tenant's default language
+            cursor.execute(
+                """
+                UPDATE tenants
+                SET default_language = %s,
+                    updated_at = NOW()
+                WHERE administration = %s
+            """,
+                (language, administration),
+            )
 
-        # Update tenant's default language
-        cursor.execute(
-            """
-            UPDATE tenants
-            SET default_language = %s,
-                updated_at = NOW()
-            WHERE administration = %s
-        """,
-            (language, administration),
-        )
+            rowcount = cursor.rowcount
 
-        conn.commit()
-
-        if cursor.rowcount > 0:
+        if rowcount > 0:
             print(
                 f"✅ Updated default language for tenant {administration}: {language}"
             )
@@ -109,14 +98,7 @@ def update_tenant_language(administration: str, language: str) -> bool:
 
     except Exception as e:
         print(f"❌ Error updating tenant language: {e}")
-        if conn:
-            conn.rollback()
         return False
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def validate_language_code(language: str) -> bool:
