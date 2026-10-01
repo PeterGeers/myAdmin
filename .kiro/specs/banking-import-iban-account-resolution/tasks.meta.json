@@ -1,0 +1,168 @@
+{
+  "pbtResults": {
+    "2. Write BACKEND bug condition exploration test (defense-in-depth)": {
+      "status": "passed",
+      "failingExample": "Bug confirmed (exploration test FAILS on unfixed gate, as expected). Counterexamples:\n- test_cross_account_collision_saved: saved_count == 0 (expected 5). Captured stdout: \"Skipping duplicate (Ref2 match): 1\"..\"5\" — all 5 NL60 (NL60RABO1101699949, Ref2=1..5) rows skipped because the account-blind gate `WHERE Ref2 = %s AND administration = %s` matched NL98RABO0174003390's existing Ref2 1..5 under the same tenant.\n- test_property_cross_account_rows_saved_as_new: Falsifying example seqs=[1] — single NL60 row Ref2=1 skipped (saved_count=0, expected 1), stdout \"Skipping duplicate (Ref2 match): 1\".\nProves the gate is account-blind (omits Ref1). Will pass unchanged after Task 5.1 scopes the gate by Ref1.",
+      "lastRunTimestamp": 1790872478064
+    }
+  },
+  "executionHistory": {
+    "1. Write FRONTEND bug condition exploration tests": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871644844
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871655061
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872502751
+      }
+    ],
+    "2. Write BACKEND bug condition exploration test (defense-in-depth)": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871645115
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871656513
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872504113
+      }
+    ],
+    "3. Write preservation property tests (BEFORE implementing either fix)": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871645363
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871657712
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872505032
+      }
+    ],
+    "4.1 Group parsed rows by `Ref1` and dedupe per account": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871645571
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872512275
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872727480
+      }
+    ],
+    "4.2 Verify FRONTEND bug condition exploration tests now pass": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871645803
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872732476
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872892656
+      }
+    ],
+    "4.3 Verify preservation tests still pass (frontend)": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871646003
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872733590
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872893461
+      }
+    ],
+    "5.1 Add `Ref1` to the primary `Ref2` duplicate check in `save_approved_transactions`": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871646203
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872898271
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872968087
+      }
+    ],
+    "5.2 Verify BACKEND bug condition exploration test now passes": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871646384
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872973706
+      }
+    ],
+    "5.3 Verify preservation tests still pass (backend)": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871646571
+      },
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872972474
+      }
+    ],
+    "6. Checkpoint - Ensure all tests pass (both layers)": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790871646780
+      }
+    ],
+    "4. PRIMARY FIX - Per-account grouping in frontend `processFiles`": [
+      {
+        "executionId": "6059681d-cb76-4f95-8395-ba6b50076517",
+        "chatSessionId": "sess_dbef28e5-487b-4848-aa57-f107145c5e96",
+        "timestamp": 1790872893704
+      }
+    ]
+  }
+}
