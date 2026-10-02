@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "DB Access Guard on Save",
+      "trigger": "PostFileSave",
+      "description": "When a backend Python file is saved, runs both database-access guards (check_db_imports.py + check_raw_connection.py) against ONLY that single saved file and surfaces any violation in-editor. Advisory only — it does not block the save. Passing the single saved path keeps it instant (no tree scan).",
+      "matcher": "backend/.*\\.py$",
+      "action": {
+        "type": "agent",
+        "prompt": "A backend Python file was just saved. Run BOTH database-access guards against ONLY that single saved file (NOT a full tree scan) so the check is instant, and surface any violation. This is ADVISORY — the save already happened and must not be blocked; just report findings.\n\nLet <saved> be the repo-root-relative POSIX path of the file that was just saved (e.g. `backend/src/services/foo.py`). Run, from the repo root `/home/peter/projects/myAdmin`, both single-file guard invocations against that one path using the backend venv interpreter:\n\n  cd /home/peter/projects/myAdmin && backend/.venv/bin/python backend/scripts/check_db_imports.py <saved>\n  cd /home/peter/projects/myAdmin && backend/.venv/bin/python backend/scripts/check_raw_connection.py <saved>\n\nEach script exits 0 (clean) or 1 (violation) and prints `file:line` plus the recommended fix. If EITHER reports a violation, surface it clearly to the user: the offending file:line and the suggested replacement — `import mysql.connector` must go through `from database import DatabaseManager`; a raw `get_connection()` assignment must become `with db.get_cursor() as (cursor, conn):` (reads) or `with db.transaction() as (cursor, conn):` (writes). If both print `[OK]`, say so briefly. Do NOT modify any files, do NOT re-run against the whole tree, and do NOT treat this as blocking — it is fast local feedback only (the authoritative gate is CI)."
+      }
+    }
+  ]
+}

@@ -30,10 +30,7 @@ class PDFValidator:
 
     def validate_pdf_urls(self):
         """Validate all Google Drive URLs in mutaties table"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        try:
+        with self.db.get_cursor() as (cursor, _conn):
             # Get distinct records with Google Drive URLs
             query = """
                 SELECT DISTINCT ReferenceNumber, Ref3, Ref4, 
@@ -68,16 +65,15 @@ class PDFValidator:
                 "failed_count": failed_count,
             }
 
-        finally:
-            cursor.close()
-            conn.close()
-
     def validate_pdf_urls_with_progress(self, year=None, administration=None):
-        """Generator that yields progress updates during validation"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        """Generator that yields progress updates during validation.
 
-        try:
+        The connection is held open for the full duration of the generator's
+        iteration (every ``yield``) and released when iteration completes, the
+        consumer closes the generator early (``GeneratorExit``), or an error
+        propagates — ``get_cursor()``'s ``finally`` handles all three cases.
+        """
+        with self.db.get_cursor() as (cursor, _conn):
             # Build WHERE clause with filters
             where_clause = "WHERE Ref3 REGEXP 'google'"
             params = []
@@ -151,16 +147,9 @@ class PDFValidator:
                         else None,
                     }
 
-        finally:
-            cursor.close()
-            conn.close()
-
     def get_administrations_for_year(self, year=None):
         """Get distinct administrations for a specific year"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        try:
+        with self.db.get_cursor() as (cursor, _conn):
             where_clause = "WHERE Ref3 REGEXP 'google'"
             params = []
 
@@ -181,10 +170,6 @@ class PDFValidator:
             results = cursor.fetchall()
 
             return [row["Administration"] for row in results if row["Administration"]]
-
-        finally:
-            cursor.close()
-            conn.close()
 
     def _validate_single_record(self, record):
         """Validate a single record's Google Drive URL"""
@@ -358,17 +343,10 @@ class PDFValidator:
 
     def _update_ref3(self, record_id, new_url):
         """Update Ref3 field in database"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-
-        try:
+        with self.db.transaction() as (cursor, _conn):
             cursor.execute(
                 "UPDATE mutaties SET Ref3 = %s WHERE ID = %s", [new_url, record_id]
             )
-            conn.commit()
-        finally:
-            cursor.close()
-            conn.close()
 
     def update_record(
         self, old_ref3, reference_number=None, ref3=None, ref4=None, administration=None
@@ -382,45 +360,41 @@ class PDFValidator:
             ref4: New Ref4 value (optional)
             administration: Tenant administration to scope the update (required for security)
         """
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
+        updates = []
+        params = []
+
+        if reference_number is not None and reference_number.strip():
+            updates.append("ReferenceNumber = %s")
+            params.append(reference_number.strip())
+
+        if ref3 is not None and ref3.strip():
+            updates.append("Ref3 = %s")
+            params.append(ref3.strip())
+
+        if ref4 is not None and ref4.strip():
+            updates.append("Ref4 = %s")
+            params.append(ref4.strip())
+
+        if not updates:
+            print(f"No updates for Ref3={old_ref3}")
+            return False
 
         try:
-            updates = []
-            params = []
-
-            if reference_number is not None and reference_number.strip():
-                updates.append("ReferenceNumber = %s")
-                params.append(reference_number.strip())
-
-            if ref3 is not None and ref3.strip():
-                updates.append("Ref3 = %s")
-                params.append(ref3.strip())
-
-            if ref4 is not None and ref4.strip():
-                updates.append("Ref4 = %s")
-                params.append(ref4.strip())
-
-            if updates:
+            # transaction() commits once on success and rolls back on error —
+            # same single-commit granularity and rollback-on-failure behavior as
+            # the original explicit commit()/rollback().
+            with self.db.transaction() as (cursor, _conn):
                 query = f"UPDATE mutaties SET {', '.join(updates)} WHERE Ref3 = %s AND administration = %s"
                 all_params = params + [old_ref3, administration]
                 print(f"Executing query: {query}")
                 print(f"With params: {all_params}")
                 cursor.execute(query, all_params)
                 affected_rows = cursor.rowcount
-                conn.commit()
                 print(
                     f"Updated {affected_rows} records with Ref3={old_ref3}, administration={administration}"
                 )
-                return affected_rows > 0
-
-            print(f"No updates for Ref3={old_ref3}")
-            return False
+            return affected_rows > 0
 
         except Exception as e:
             print(f"Error updating records with Ref3={old_ref3}: {e}")
-            conn.rollback()
             return False
-        finally:
-            cursor.close()
-            conn.close()

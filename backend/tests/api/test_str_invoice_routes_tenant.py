@@ -77,14 +77,15 @@ class TestStrInvoiceRoutesTenantFiltering:
             roles=["STR_Read"]
         )
         
-        # Mock database operations
+        # Mock database operations via the context-managed get_cursor() API.
+        # get_cursor() is a context manager yielding (cursor, conn); the route
+        # does NOT auto-commit a read, so no commit is asserted here.
         mock_db = MagicMock()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         
         mock_db_manager.return_value = mock_db
-        mock_db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         
         # Mock successful query result
         mock_cursor.fetchall.return_value = [
@@ -114,6 +115,14 @@ class TestStrInvoiceRoutesTenantFiltering:
             data = json.loads(response.data)
             assert data.get('success') is True
             assert 'bookings' in data
+            # Read was performed through the context-managed get_cursor() API
+            # (NOT the raw get_connection() pattern), scoped to the tenant.
+            mock_db.get_cursor.assert_called_once()
+            mock_db.get_connection.assert_not_called()
+            assert mock_cursor.execute.called
+            exec_sql, exec_params = mock_cursor.execute.call_args[0]
+            assert 'vw_bnb_total' in exec_sql
+            assert 'PeterPrive' in exec_params
     
     @patch('str_invoice_routes.DatabaseManager')
     def test_search_booking_requires_query_parameter(self, mock_db_manager, client):
@@ -172,14 +181,15 @@ class TestStrInvoiceRoutesTenantFiltering:
             roles=["STR_Create"]
         )
         
-        # Mock database operations
+        # Mock database operations via the context-managed get_cursor() API.
+        # get_cursor() is a context manager yielding (cursor, conn); the booking
+        # lookup is a pure read, so no commit is asserted here.
         mock_db = MagicMock()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         
         mock_db_manager.return_value = mock_db
-        mock_db.get_connection.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         
         # Mock booking data
         mock_cursor.fetchone.return_value = {
@@ -218,6 +228,15 @@ class TestStrInvoiceRoutesTenantFiltering:
             data = json.loads(response.data)
             assert data.get('success') is True
             assert 'html' in data
+            # Booking lookup went through the context-managed get_cursor() API
+            # (NOT the raw get_connection() pattern), scoped to the user's tenants.
+            mock_db.get_cursor.assert_called_once()
+            mock_db.get_connection.assert_not_called()
+            assert mock_cursor.execute.called
+            exec_sql, exec_params = mock_cursor.execute.call_args[0]
+            assert 'vw_bnb_total' in exec_sql
+            assert 'TEST123' in exec_params
+            assert 'PeterPrive' in exec_params
         elif response.status_code == 403:
             # Tenant filtering is working correctly
             data = json.loads(response.data)

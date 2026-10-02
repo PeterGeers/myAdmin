@@ -626,11 +626,13 @@ class TestCloseYear:
             [{'net_result': -10000}],  # Net P&L result (called again in _create_closure_transaction)
         ]
         mock_config_service.validate_configuration.return_value = {'valid': True, 'errors': []}
-        
-        # Setup mocks for transaction creation
+
+        # Setup mocks for transaction creation. The service now writes via
+        # `with self.db.transaction() as (cursor, conn):`, which auto-commits on a
+        # clean exit — so we assert the write COMMITS by driving a real context
+        # manager and checking it was entered + exited without exception.
         mock_conn = Mock()
         mock_cursor = Mock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.side_effect = [
             {'count': 0},  # _get_ending_balances: check if OpeningBalance 2024 exists
             {'vat_netting': None},  # _is_vat_netting_account: VAT netting check for account 1000
@@ -638,8 +640,10 @@ class TestCloseYear:
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00}
         ]
-        mock_db.get_connection.return_value = mock_conn
-        
+        txn_cm = MagicMock()
+        txn_cm.__enter__.return_value = (mock_cursor, mock_conn)
+        mock_db.transaction.return_value = txn_cm
+
         mock_config_service.get_account_by_purpose.side_effect = [
             {'Account': '3080'},  # equity_result (for closure)
             {'Account': '8999'},  # pl_closing (for closure)
@@ -654,10 +658,26 @@ class TestCloseYear:
         assert result['year'] == 2023
         assert result['closure_transaction_number'] == 'YearClose 2023'
         assert result['opening_transaction_number'] == 'OpeningBalance 2024'
-        
-        # Verify commit called
-        mock_conn.commit.assert_called_once()
-    
+
+        # Commit-durability: the closure must run inside ONE transaction() that is
+        # entered and cleanly exited (no exception) — this is what makes the writes
+        # durable (transaction() commits on clean __exit__). A single atomic
+        # transaction preserves the original one-commit granularity.
+        mock_db.transaction.assert_called_once()
+        txn_cm.__enter__.assert_called_once()
+        txn_cm.__exit__.assert_called_once()
+        assert txn_cm.__exit__.call_args[0][0] is None  # no exception type -> commit path
+
+        # The actual INSERTs ran against the transaction's cursor (closure entry,
+        # opening balance, status record) — proving the writes were issued inside
+        # the committing transaction, not merely that a success dict was returned.
+        insert_sql = [
+            call.args[0] for call in mock_cursor.execute.call_args_list
+            if 'INSERT INTO' in call.args[0]
+        ]
+        assert any('year_closure_status' in sql for sql in insert_sql)
+        assert any('INTO mutaties' in sql for sql in insert_sql)
+
     def test_close_year_rollback_on_error(self, service, mock_db, mock_config_service, test_administration):
         """Test rollback when error occurs during closure"""
         # Setup mocks for validation
@@ -668,22 +688,102 @@ class TestCloseYear:
             [{'count': 1}],  # Balance sheet accounts count
         ]
         mock_config_service.validate_configuration.return_value = {'valid': True, 'errors': []}
-        
-        # Setup mocks to cause error
+
+        # Setup transaction() so entering it raises inside the body (first cursor
+        # write fails). transaction() itself owns rollback; the service must NOT
+        # swallow the error — it re-raises wrapped in RuntimeError.
         mock_conn = Mock()
         mock_cursor = Mock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.execute.side_effect = Exception("Database error")
-        mock_db.get_connection.return_value = mock_conn
-        
+        txn_cm = MagicMock()
+        txn_cm.__enter__.return_value = (mock_cursor, mock_conn)
+        mock_db.transaction.return_value = txn_cm
+
         mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}
         
         # Execute and expect error
         with pytest.raises(Exception, match="Failed to close year"):
             service.close_year(test_administration, 2023, 'user@example.com')
-        
-        # Verify rollback called
-        mock_conn.rollback.assert_called_once()
+
+        # The failure propagated through the transaction context manager's __exit__
+        # with the exception (transaction() rolls back on a non-None exc) — the
+        # service did not commit a partial close.
+        txn_cm.__exit__.assert_called_once()
+        assert txn_cm.__exit__.call_args[0][0] is not None  # exception propagated
+
+
+class TestReopenYear:
+    """Test full year reopen process (atomic multi-delete write)."""
+
+    def test_reopen_year_success_commits_atomically(self, service, mock_db, test_administration):
+        """Reopen must delete opening balances, closure entry and status record
+        inside ONE committing transaction (preserves original one-commit granularity)."""
+        # _is_year_closed(year) -> True, _is_year_closed(year+1) -> False,
+        # then get_year_status returns the closure info row.
+        mock_db.execute_query.side_effect = [
+            [{'count': 1}],  # year is closed
+            [{'count': 0}],  # next year not closed
+            [{  # get_year_status
+                'year': 2022,
+                'closed_date': datetime(2023, 1, 15),
+                'closed_by': 'user@example.com',
+                'closure_transaction_number': 'YearClose 2022',
+                'opening_balance_transaction_number': 'OpeningBalance 2023',
+                'notes': 'Test closure',
+            }],
+        ]
+
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        txn_cm = MagicMock()
+        txn_cm.__enter__.return_value = (mock_cursor, mock_conn)
+        mock_db.transaction.return_value = txn_cm
+
+        result = service.reopen_year(test_administration, 2022, 'user@example.com')
+
+        assert result['success'] is True
+        assert result['year'] == 2022
+
+        # Commit-durability: single transaction, entered and cleanly exited -> commit.
+        mock_db.transaction.assert_called_once()
+        txn_cm.__enter__.assert_called_once()
+        txn_cm.__exit__.assert_called_once()
+        assert txn_cm.__exit__.call_args[0][0] is None  # no exception -> commit path
+
+        # All three deletes ran against the transaction cursor.
+        executed_sql = [call.args[0] for call in mock_cursor.execute.call_args_list]
+        # Two helper deletes (opening + closure) go through delete_transactions ->
+        # "DELETE FROM mutaties"; the status delete is "DELETE FROM year_closure_status".
+        assert sum('DELETE FROM mutaties' in sql for sql in executed_sql) == 2
+        assert any('year_closure_status' in sql for sql in executed_sql)
+
+    def test_reopen_year_rollback_on_error(self, service, mock_db, test_administration):
+        """A failure mid-reopen propagates through transaction() (which rolls back)."""
+        mock_db.execute_query.side_effect = [
+            [{'count': 1}],  # year is closed
+            [{'count': 0}],  # next year not closed
+            [{  # get_year_status
+                'year': 2022,
+                'closed_date': datetime(2023, 1, 15),
+                'closed_by': 'user@example.com',
+                'closure_transaction_number': 'YearClose 2022',
+                'opening_balance_transaction_number': 'OpeningBalance 2023',
+                'notes': 'Test closure',
+            }],
+        ]
+
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.execute.side_effect = Exception("Database error")
+        txn_cm = MagicMock()
+        txn_cm.__enter__.return_value = (mock_cursor, mock_conn)
+        mock_db.transaction.return_value = txn_cm
+
+        with pytest.raises(Exception, match="Failed to reopen year"):
+            service.reopen_year(test_administration, 2022, 'user@example.com')
+
+        txn_cm.__exit__.assert_called_once()
+        assert txn_cm.__exit__.call_args[0][0] is not None  # exception propagated
 
 
 if __name__ == '__main__':

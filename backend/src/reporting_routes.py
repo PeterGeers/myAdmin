@@ -24,14 +24,13 @@ class ReportingService:
 
     @contextmanager
     def get_cursor(self):
-        """Context manager for database operations"""
-        connection = self.db.get_connection()
-        cursor = connection.cursor(dictionary=True)
-        try:
+        """Context manager for database operations.
+
+        Delegates to the manager's context-managed cursor and re-yields only the
+        cursor, preserving the single-value yield this class's callers expect.
+        """
+        with self.db.get_cursor() as (cursor, _conn):
             yield cursor
-        finally:
-            cursor.close()
-            connection.close()
 
     def build_where_clause(self, conditions):
         """Build WHERE clause from conditions dict"""
@@ -78,9 +77,6 @@ class ReportingService:
     def get_str_revenue_summary(self, date_from, date_to, user_tenants=None):
         """Get STR revenue summary from bnb table with tenant filtering"""
         try:
-            connection = self.db.get_connection()
-            cursor = connection.cursor(dictionary=True)
-
             # Build WHERE clause with tenant filtering
             where_conditions = ["checkinDate BETWEEN %s AND %s"]
             params = [date_from, date_to]
@@ -107,11 +103,9 @@ class ReportingService:
                 ORDER BY gross_revenue DESC
             """
 
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-
-            cursor.close()
-            connection.close()
+            with self.db.get_cursor() as (cursor, _conn):
+                cursor.execute(query, params)
+                results = cursor.fetchall()
 
             return {"success": True, "data": results}
 

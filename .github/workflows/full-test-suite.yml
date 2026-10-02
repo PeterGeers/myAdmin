@@ -50,6 +50,16 @@ jobs:
         working-directory: backend
         run: mkdir -p reports/lint
 
+      # DB abstraction guards (AST static analysis, stdlib-only). Run from the repo
+      # root because both scripts resolve their scan paths relative to '.'
+      # (they scan backend/src etc.). Authoritative, non-bypassable gate: a stray
+      # mysql.connector import or a new raw get_connection() assignment fails the job.
+      - name: DB abstraction guards
+        working-directory: .
+        run: |
+          python backend/scripts/check_db_imports.py
+          python backend/scripts/check_raw_connection.py
+
       - name: Ruff lint
         working-directory: backend
         run: |

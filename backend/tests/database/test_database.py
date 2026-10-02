@@ -76,7 +76,7 @@ class TestDatabaseManager:
         db = _create_isolated_db(test_mode=True)
         mock_conn = MagicMock()
         with patch('mysql.connector.connect', return_value=mock_conn):
-            connection = db.get_connection()
+            connection = db._get_connection()
         assert connection == mock_conn
 
     def test_get_connection_failure(self):
@@ -84,14 +84,14 @@ class TestDatabaseManager:
         db = _create_isolated_db(test_mode=True)
         with patch('mysql.connector.connect', side_effect=DatabaseError("Connection failed")):
             with pytest.raises(Exception):
-                db.get_connection()
+                db._get_connection()
 
     def test_connection_error_handling(self):
         """Test connection error handling"""
         db = _create_isolated_db(test_mode=True)
         with patch('mysql.connector.connect', side_effect=DatabaseError("Database unavailable")):
             with pytest.raises(Exception, match="Database unavailable"):
-                db.get_connection()
+                db._get_connection()
 
     # --- Method tests using execute_query mock ---
 
@@ -200,7 +200,7 @@ class TestDatabaseManager:
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
 
-        with patch.object(db, 'get_connection', return_value=mock_conn):
+        with patch.object(db, '_get_connection', return_value=mock_conn):
             db.get_existing_sequences('NL123456789', 'mutaties')
 
         # Verify cleanup was called
@@ -217,7 +217,7 @@ class TestDatabaseManager:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, 'get_connection', return_value=mock_conn):
+        with patch.object(db, '_get_connection', return_value=mock_conn):
             db.get_existing_sequences('NL123456789', 'mutaties')
 
         # Verify parameterized query was used
@@ -268,7 +268,7 @@ class TestDatabaseManager:
 
         mock_cursor.fetchall.return_value = expected_duplicates
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, '_get_connection', return_value=mock_conn):
             result = db_manager.check_duplicate_transactions(
                 reference_number,
                 transaction_date.strftime('%Y-%m-%d'),
@@ -311,7 +311,7 @@ class TestDatabaseManager:
 
         db_manager = _create_isolated_db(test_mode=True)
 
-        with patch.object(db_manager, 'get_connection', side_effect=DatabaseError("Connection failed")):
+        with patch.object(db_manager, '_get_connection', side_effect=DatabaseError("Connection failed")):
             with pytest.raises(Exception) as exc_info:
                 db_manager.check_duplicate_transactions(
                     reference_number,
@@ -341,7 +341,7 @@ class TestDatabaseManager:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, '_get_connection', return_value=mock_conn):
             result = db_manager.check_duplicate_transactions(
                 reference_number,
                 transaction_date.strftime('%Y-%m-%d'),
@@ -378,7 +378,7 @@ class TestDatabaseManager:
 
         mock_cursor.fetchall.return_value = [expected_duplicate]
 
-        with patch.object(db, 'get_connection', return_value=mock_conn):
+        with patch.object(db, '_get_connection', return_value=mock_conn):
             result = db.check_duplicate_transactions(
                 'TestVendor',
                 '2024-01-15',
@@ -394,7 +394,7 @@ class TestDatabaseManager:
         """Unit test for database error handling"""
         db = _create_isolated_db(test_mode=True)
 
-        with patch.object(db, 'get_connection', side_effect=DatabaseError("Database unavailable")):
+        with patch.object(db, '_get_connection', side_effect=DatabaseError("Database unavailable")):
             with pytest.raises(Exception) as exc_info:
                 db.check_duplicate_transactions('TestVendor', '2024-01-15', 150.00)
 
@@ -408,7 +408,7 @@ class TestDatabaseManager:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, 'get_connection', return_value=mock_conn):
+        with patch.object(db, '_get_connection', return_value=mock_conn):
             db.check_duplicate_transactions('TestVendor', '2024-01-15', 150.00)
 
             # Verify the query uses ABS function for amount comparison

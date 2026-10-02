@@ -106,11 +106,18 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         """Get database configuration for SQLAlchemy"""
         return self.config
 
-    def get_connection(self, pool_type="primary"):
-        """Get a RAW, caller-owned database connection.
+    def _get_connection(self, pool_type="primary"):
+        """Get a RAW, caller-owned database connection. PRIVATE/INTERNAL.
+
+        This accessor is private (Req 6.1): external modules MUST NOT call it.
+        The only in-tree callers are internal to the DatabaseManager hierarchy
+        (``get_cursor()``'s legacy fallback here, and the ``STRDatabase`` subclass
+        constructor). Every other site uses the context-managed public API
+        (``get_cursor`` / ``transaction`` / ``execute_query`` /
+        ``execute_batch_queries`` / ``execute_ddl``).
 
         Callers of this accessor use the raw pattern
-        ``conn = db.get_connection(); conn.cursor(...); ...; conn.close()`` and
+        ``conn = self._get_connection(); conn.cursor(...); ...; conn.close()`` and
         therefore own the connection's lifecycle.
 
         The scalability manager is DELIBERATELY bypassed here. Its
@@ -226,7 +233,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 )
 
         # Fallback to legacy approach
-        conn = self.get_connection()
+        conn = self._get_connection()
         cursor = conn.cursor(dictionary=dictionary)
         try:
             yield cursor, conn

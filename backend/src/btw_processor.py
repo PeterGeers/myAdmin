@@ -458,12 +458,7 @@ class BTWProcessor:
 
     def _get_last_btw_transaction(self, administration):
         """Get last BTW transaction for reference"""
-        conn = None
-        cursor = None
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor(dictionary=True)
-
             table_name = "mutaties_test" if self.test_mode else "mutaties"
 
             query = f"""
@@ -474,18 +469,14 @@ class BTWProcessor:
                 LIMIT 1
             """
 
-            cursor.execute(query, (administration,))
-            result = cursor.fetchone()
+            with self.db.get_cursor(dictionary=True) as (cursor, _conn):
+                cursor.execute(query, (administration,))
+                result = cursor.fetchone()
 
             return result
         except Exception as e:
             print(f"Error getting last BTW transaction: {e}", flush=True)
             return None
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
 
     def save_btw_transaction(self, transaction):
         """Save BTW transaction to database.
@@ -493,74 +484,62 @@ class BTWProcessor:
         Checks for existing BTW transaction for the same administration,
         year and quarter to prevent duplicates from double-clicks.
         """
-        conn = None
-        cursor = None
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor(dictionary=True)
-
             table_name = "mutaties_test" if self.test_mode else "mutaties"
 
             # Check for existing BTW transaction for same administration + year-quarter
             ref2 = transaction.get("Ref2", "")  # Format: "2026-Q1"
             administration = transaction.get("Administration", "")
 
-            if ref2 and administration:
-                dup_query = f"""
-                    SELECT ID FROM {table_name}
-                    WHERE TransactionNumber = 'BTW'
-                      AND Administration = %s
-                      AND Ref2 = %s
-                    LIMIT 1
+            with self.db.transaction() as (cursor, _conn):
+                if ref2 and administration:
+                    dup_query = f"""
+                        SELECT ID FROM {table_name}
+                        WHERE TransactionNumber = 'BTW'
+                          AND Administration = %s
+                          AND Ref2 = %s
+                        LIMIT 1
+                    """
+                    cursor.execute(dup_query, (administration, ref2))
+                    existing = cursor.fetchone()
+                    if existing:
+                        return {
+                            "success": False,
+                            "error": f"BTW transaction for {administration} {ref2} already exists (ID: {existing['ID']}). Delete the existing transaction first if you want to re-save.",
+                        }
+
+                insert_query = f"""
+                    INSERT INTO {table_name} (
+                        TransactionNumber, TransactionDate, TransactionDescription,
+                        TransactionAmount, Debet, Credit, ReferenceNumber,
+                        Ref1, Ref2, Ref3, Ref4, Administration
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(dup_query, (administration, ref2))
-                existing = cursor.fetchone()
-                if existing:
-                    return {
-                        "success": False,
-                        "error": f"BTW transaction for {administration} {ref2} already exists (ID: {existing['ID']}). Delete the existing transaction first if you want to re-save.",
-                    }
 
-            insert_query = f"""
-                INSERT INTO {table_name} (
-                    TransactionNumber, TransactionDate, TransactionDescription,
-                    TransactionAmount, Debet, Credit, ReferenceNumber,
-                    Ref1, Ref2, Ref3, Ref4, Administration
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
+                cursor.execute(
+                    insert_query,
+                    (
+                        transaction["TransactionNumber"],
+                        transaction["TransactionDate"],
+                        transaction["TransactionDescription"],
+                        transaction["TransactionAmount"],
+                        transaction["Debet"],
+                        transaction["Credit"],
+                        transaction["ReferenceNumber"],
+                        transaction["Ref1"],
+                        transaction["Ref2"],
+                        transaction["Ref3"],
+                        transaction["Ref4"],
+                        transaction["Administration"],
+                    ),
+                )
 
-            cursor.execute(
-                insert_query,
-                (
-                    transaction["TransactionNumber"],
-                    transaction["TransactionDate"],
-                    transaction["TransactionDescription"],
-                    transaction["TransactionAmount"],
-                    transaction["Debet"],
-                    transaction["Credit"],
-                    transaction["ReferenceNumber"],
-                    transaction["Ref1"],
-                    transaction["Ref2"],
-                    transaction["Ref3"],
-                    transaction["Ref4"],
-                    transaction["Administration"],
-                ),
-            )
-
-            conn.commit()
-            transaction_id = cursor.lastrowid
+                transaction_id = cursor.lastrowid
 
             return {"success": True, "transaction_id": transaction_id}
 
         except Exception as e:
-            if conn:
-                conn.rollback()
             return {"success": False, "error": str(e)}
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
 
     def upload_report_to_drive(self, html_content, filename, administration):
         """Upload HTML report to Google Drive BTW folder

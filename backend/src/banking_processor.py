@@ -238,81 +238,77 @@ class BankingProcessor:
 
         # --- Save logic with duplicate detection ---
         table_name = "mutaties"
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
         saved_count = 0
-        for transaction in transactions:
-            try:
-                if "row_id" in transaction:
-                    del transaction["row_id"]
+        with self.db.get_cursor() as (cursor, conn):
+            for transaction in transactions:
+                try:
+                    if "row_id" in transaction:
+                        del transaction["row_id"]
 
-                if float(transaction.get("TransactionAmount", 0)) == 0:
-                    continue
+                    if float(transaction.get("TransactionAmount", 0)) == 0:
+                        continue
 
-                # Ref2-based duplicate detection (exact match, takes priority)
-                ref2 = transaction.get("Ref2", "").strip()
-                if ref2:
+                    # Ref2-based duplicate detection (exact match, takes priority)
+                    ref2 = transaction.get("Ref2", "").strip()
+                    if ref2:
+                        cursor.execute(
+                            f"""
+                            SELECT ID FROM {table_name}
+                            WHERE Ref2 = %s
+                            AND Ref1 = %s
+                            AND administration = %s
+                            LIMIT 1
+                        """,
+                            (
+                                ref2,
+                                transaction.get("Ref1"),
+                                transaction.get("administration"),
+                            ),
+                        )
+
+                        if cursor.fetchone():
+                            print(f"Skipping duplicate (Ref2 match): {ref2}")
+                            continue
+
+                    # Check for duplicate using normalized text
+                    desc_normalized = self.normalize_text(
+                        transaction.get("TransactionDescription", "")
+                    )
                     cursor.execute(
                         f"""
                         SELECT ID FROM {table_name}
-                        WHERE Ref2 = %s
-                        AND Ref1 = %s
+                        WHERE TransactionAmount = %s
+                        AND TransactionDate = %s
                         AND administration = %s
                         LIMIT 1
                     """,
                         (
-                            ref2,
-                            transaction.get("Ref1"),
+                            transaction.get("TransactionAmount"),
+                            transaction.get("TransactionDate"),
                             transaction.get("administration"),
                         ),
                     )
 
-                    if cursor.fetchone():
-                        print(f"Skipping duplicate (Ref2 match): {ref2}")
-                        continue
-
-                # Check for duplicate using normalized text
-                desc_normalized = self.normalize_text(
-                    transaction.get("TransactionDescription", "")
-                )
-                cursor.execute(
-                    f"""
-                    SELECT ID FROM {table_name}
-                    WHERE TransactionAmount = %s
-                    AND TransactionDate = %s
-                    AND administration = %s
-                    LIMIT 1
-                """,
-                    (
-                        transaction.get("TransactionAmount"),
-                        transaction.get("TransactionDate"),
-                        transaction.get("administration"),
-                    ),
-                )
-
-                existing = cursor.fetchall()
-                if existing:
-                    for row in existing:
-                        cursor.execute(
-                            f"SELECT TransactionDescription FROM {table_name} WHERE ID = %s",
-                            (row["ID"],),
-                        )
-                        existing_desc = cursor.fetchone()["TransactionDescription"]
-                        if self.normalize_text(existing_desc) == desc_normalized:
-                            print(
-                                f"Skipping duplicate: {transaction.get('TransactionDescription')}"
+                    existing = cursor.fetchall()
+                    if existing:
+                        for row in existing:
+                            cursor.execute(
+                                f"SELECT TransactionDescription FROM {table_name} WHERE ID = %s",
+                                (row["ID"],),
                             )
-                            continue
+                            existing_desc = cursor.fetchone()["TransactionDescription"]
+                            if self.normalize_text(existing_desc) == desc_normalized:
+                                print(
+                                    f"Skipping duplicate: {transaction.get('TransactionDescription')}"
+                                )
+                                continue
 
-                self.db.insert_transaction(transaction, table_name)
-                saved_count += 1
+                    self.db.insert_transaction(transaction, table_name)
+                    saved_count += 1
 
-            except Exception as e:
-                print(f"Error saving transaction: {e}")
+                except Exception as e:
+                    print(f"Error saving transaction: {e}")
 
-        cursor.close()
-        conn.close()
         return saved_count
 
     # ──────────────────────────────────────────────────────────────────────────

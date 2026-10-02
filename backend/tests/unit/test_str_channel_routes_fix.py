@@ -81,6 +81,21 @@ def client(app):
     return app.test_client()
 
 
+def _wire_get_cursor(mock_db):
+    """Wire mock_db.get_cursor() as a context manager yielding (cursor, conn).
+
+    Mirrors the context-managed read API (`with db.get_cursor() as (cursor, conn):`).
+    Returns the mock cursor so tests can set fetchall side effects / inspect calls.
+    """
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    cm = MagicMock()
+    cm.__enter__.return_value = (mock_cursor, mock_conn)
+    cm.__exit__.return_value = False
+    mock_db.get_cursor.return_value = cm
+    return mock_cursor
+
+
 def _mock_channel_data(administration='TestTenant'):
     """Return sample channel data rows as returned by the DB cursor."""
     return [
@@ -105,10 +120,7 @@ class TestRevenueAccountFromFlag:
         not hardcoded '8003'."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         # Cursor returns: 1) channel data, 2) str_revenue_account rows
         channel_data = _mock_channel_data()
@@ -158,10 +170,7 @@ class TestRevenueAccountFromFlag:
         """Returns 400 when no account has $.str_revenue_account flag."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = _mock_channel_data()
         str_revenue_rows = []  # No account with the flag
@@ -189,10 +198,7 @@ class TestRevenueAccountFromFlag:
         """The rekeningschema query uses JSON_EXTRACT for $.str_revenue_account."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = _mock_channel_data()
         str_revenue_rows = [{'Account': '8003'}]
@@ -238,10 +244,7 @@ class TestTaxRateServiceIntegration:
         (administration, 'btw', 'accommodation', transaction_date)."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = _mock_channel_data()
         str_revenue_rows = [{'Account': '8003'}]
@@ -283,10 +286,7 @@ class TestTaxRateServiceIntegration:
         """Returns 400 when TaxRateService has no accommodation rate."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = _mock_channel_data()
         str_revenue_rows = [{'Account': '8003'}]
@@ -319,10 +319,7 @@ class TestTaxRateServiceIntegration:
         not hardcoded '2020' or '2021'."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = _mock_channel_data()
         str_revenue_rows = [{'Account': '8003'}]
@@ -372,10 +369,7 @@ class TestJournalEntryAccounts:
         """All journal entries use resolved revenue and VAT accounts."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = [
             {
@@ -447,10 +441,7 @@ class TestPreservation:
         (8003 + 9%/2021 pre-2026), results are identical."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = _mock_channel_data()
         str_revenue_rows = [{'Account': '8003'}]
@@ -496,10 +487,7 @@ class TestPreservation:
         (8003 + 21%/2020 post-2026), results are identical."""
         mock_db = MagicMock()
         mock_db_cls.return_value = mock_db
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor = _wire_get_cursor(mock_db)
 
         channel_data = _mock_channel_data()
         str_revenue_rows = [{'Account': '8003'}]
@@ -535,6 +523,112 @@ class TestPreservation:
         assert vat['Credit'] == '2020'
         expected_vat = round((1090.0 / 121.0) * 21.0, 2)
         assert vat['TransactionAmount'] == expected_vat
+
+
+def _wire_transaction(mock_db):
+    """Wire mock_db.transaction() as a context manager yielding (cursor, conn).
+
+    Mirrors the context-managed write API (`with db.transaction() as (cursor, conn):`),
+    which auto-commits once on clean exit. Returns (mock_cursor, mock_conn, cm).
+    """
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    cm = MagicMock()
+    cm.__enter__.return_value = (mock_cursor, mock_conn)
+    cm.__exit__.return_value = False
+    mock_db.transaction.return_value = cm
+    return mock_cursor, mock_conn, cm
+
+
+class TestSaveCommitDurability:
+    """Req 3.6 — /save must COMMIT the batch insert, via transaction() (not get_cursor()).
+
+    The decorators are bypassed at module import, so these requests reach the DB code
+    path and let us assert the write is durable, not just that the route returns 200.
+    """
+
+    def _transactions(self, administration='TestTenant'):
+        return [
+            {
+                'TransactionDate': '2025-01-31',
+                'TransactionNumber': 'AirBnB 2025-01-31',
+                'TransactionDescription': 'AirBnB omzet 2025-01-31',
+                'TransactionAmount': 1090.0,
+                'Debet': '1600', 'Credit': '8003',
+                'ReferenceNumber': 'AirBnB',
+                'Ref1': 'BnB 202501', 'Ref2': '', 'Ref3': '', 'Ref4': '',
+                'Administration': administration,
+            },
+            {
+                'TransactionDate': '2025-01-31',
+                'TransactionNumber': 'AirBnB 2025-01-31',
+                'TransactionDescription': 'AirBnB Btw 2025-01-31',
+                'TransactionAmount': 90.0,
+                'Debet': '8003', 'Credit': '2021',
+                'ReferenceNumber': 'AirBnB',
+                'Ref1': 'BnB 202501', 'Ref2': '', 'Ref3': '', 'Ref4': '',
+                'Administration': administration,
+            },
+        ]
+
+    @patch('str_channel_routes.DatabaseManager')
+    def test_save_commits_via_transaction(self, mock_db_cls, client):
+        """The batch insert runs inside transaction() (auto-commit), never get_cursor()."""
+        mock_db = MagicMock()
+        mock_db_cls.return_value = mock_db
+        mock_cursor, mock_conn, mock_cm = _wire_transaction(mock_db)
+
+        response = client.post(
+            '/api/str-channel/save',
+            content_type='application/json',
+            data=json.dumps({
+                'transactions': self._transactions('TestTenant'),
+                'test_mode': True,
+            }),
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['saved_count'] == 2
+
+        # Durability: committed via transaction() (one transaction, commit-at-end),
+        # NOT get_cursor() which would silently lose the writes.
+        mock_db.transaction.assert_called_once()
+        mock_cm.__enter__.assert_called_once()
+        mock_db.get_cursor.assert_not_called()
+
+        # Correct INSERTs executed inside the transaction, one per row.
+        assert mock_cursor.execute.call_count == 2
+        for call in mock_cursor.execute.call_args_list:
+            sql = call[0][0]
+            assert 'INSERT INTO' in sql
+            assert 'mutaties' in sql
+        # The administration value is carried through into the row params.
+        first_params = mock_cursor.execute.call_args_list[0][0][1]
+        assert 'TestTenant' in first_params
+
+    @patch('str_channel_routes.DatabaseManager')
+    def test_save_single_transaction_boundary_commit(self, mock_db_cls, client):
+        """A single-row save still goes through exactly one transaction()."""
+        mock_db = MagicMock()
+        mock_db_cls.return_value = mock_db
+        mock_cursor, mock_conn, mock_cm = _wire_transaction(mock_db)
+
+        response = client.post(
+            '/api/str-channel/save',
+            content_type='application/json',
+            data=json.dumps({
+                'transactions': self._transactions('TestTenant')[:1],
+                'test_mode': True,
+            }),
+        )
+
+        assert response.status_code == 200
+        assert json.loads(response.data)['saved_count'] == 1
+        mock_db.transaction.assert_called_once()
+        assert mock_cursor.execute.call_count == 1
+        mock_db.get_cursor.assert_not_called()
 
 
 if __name__ == '__main__':
