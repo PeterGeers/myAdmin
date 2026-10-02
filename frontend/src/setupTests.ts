@@ -6,6 +6,13 @@ import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
+// Provide a default APP_ENV for the whole test run. The Environment_Resolver
+// (src/config/appEnv.ts) and its consumers (e.g. src/aws-exports.ts) fail fast at
+// module load when VITE_APP_ENV is unset, so a default keeps unrelated component
+// tests that transitively import those modules loadable. Tests that need a specific
+// environment override this with vi.stubEnv + vi.resetModules + a dynamic import.
+vi.stubEnv('VITE_APP_ENV', 'test');
+
 // Suppress React 19 "not wrapped in act(...)" warnings.
 // React 19 aggressively warns about state updates outside act() even when
 // React Testing Library's waitFor/findBy* queries handle them correctly.
@@ -39,10 +46,10 @@ if (typeof global.BroadcastChannel === 'undefined') {
       this.name = name;
     }
 
-    postMessage(message: any): void {}
-    close(): void {}
-    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void {}
-    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void {}
+    postMessage(message: any): void { }
+    close(): void { }
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void { }
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void { }
     dispatchEvent(event: Event): boolean { return true; }
   }
 

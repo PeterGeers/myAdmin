@@ -8,7 +8,7 @@ using property-based testing with hypothesis to generate test cases.
 import sys
 import os
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 from datetime import datetime, timedelta
 from hypothesis import given, strategies as st, settings, assume
 from decimal import Decimal
@@ -462,6 +462,16 @@ class TestDuplicateCheckerProperties:
             mock_db_class.return_value = mock_db
             mock_checker_class.return_value = mock_checker
             mock_cleanup_class.return_value = mock_cleanup
+
+            # Configure the mocked DatabaseManager's get_cursor() to behave as a
+            # proper context manager yielding (cursor, conn) so the connectivity
+            # probe (`with db.get_cursor() as (cursor, _conn): cursor.execute("SELECT 1")`)
+            # in initialize_duplicate_components() succeeds.
+            mock_cursor = MagicMock()
+            cursor_cm = MagicMock()
+            cursor_cm.__enter__.return_value = (mock_cursor, MagicMock())
+            cursor_cm.__exit__.return_value = False
+            mock_db.get_cursor.return_value = cursor_cm
             
             # Configure mock behavior
             mock_checker.log_duplicate_decision.return_value = True

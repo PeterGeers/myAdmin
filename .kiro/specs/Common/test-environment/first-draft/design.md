@@ -14,13 +14,15 @@ The design is deliberately shaped by three invariants carried from the requireme
 
 **What this design guarantees** is the **Environment_Boundary** (the always-TEST structural wiring), enforced by the **Consistency_Guard**. It does **not** fix the **Environment_Contents** (accounts, attributes, MySQL/DynamoDB data), which may be prod-identical, partial, or deliberately different per test. Content parity is an opt-in capability provided by the explicit **Copy_Utility**, never a default.
 
+**New aspects incorporated:** The design now explicitly models environment selection via distinct URLs (`TEST_URL` and `PROD_URL`) with pool-based access control, and a branch-based promotion flow from TEST to PRODUCTION via CI/CD branch mapping.
+
 ### Requirements coverage map
 
 | Design section | Requirements |
 | --- | --- |
 | Architecture, `APP_ENV` selector | 1, 2, 7 |
 | Environment_Resolver (3 runtimes) | 1, 2, 8, 21 |
-| Environment_Definition (source of truth) | 3, 10.5, 10.6, 15 |
+| Environment_Definition (source of truth) | 3, 10.5, 10.6, 15, 22, 23 |
 | Consistency_Guard | 4, 7.5, 9.5, 14.4, 14.5, 19.4, 20.2, 21.5, 21.6 |
 | Cognito plane + `test_mode` migration | 2.6, 8 |
 | MySQL plane | 9 |
@@ -298,6 +300,16 @@ All steering edits use placeholders, no real secrets (Req 18.4).
 
 Woven across the planes: no real secrets in committed artifacts (19.1) — the Environment_Definition uses placeholders for the client secret, DB passwords, etc.; PROD never depends on a test resource (19.2); under `APP_ENV=test` planes operate against test resources only (19.3), and a plane resolving to a production resource makes the guard refuse to proceed (19.4). The boundary — test pool, resolved TEST DB target, resolved TEST backend host + Flask API base URL, `test_` DynamoDB tables, SAM_Test_Stack — is fixed and guard-enforced (20.1, 20.2); contents may be identical/partial/different (20.3), with prod-parity as an opt-in Copy_Utility capability (20.4). The guardrails constrain the boundary, not the contents (19.6, 20.5).
 
+### 15. Environment selection via URL and promotion via branches (Req 22, 23)
+
+**URL-based environment selection (Req 22).** The Test_Environment and Production_Environment each have a distinct URL recorded in the Environment_Definition: `TEST_URL` (e.g., `localhost:3000` or a hosted URL) and `PROD_URL` (e.g., `app.myadmin.jabaki.nl`). Authentication is pool-based: the TEST URL authenticates users against the test Cognito pool (`eu-west-1_xyrlzfqbl`), while the PROD URL authenticates against production Pool A (`eu-west-1_Hdp40eWmu`). Access to an environment is determined solely by account membership in that environment's pool — there is no separate allow-list or in-app environment switch.
+
+**`APP_ENV` is fixed per deployment, not inferred from hostname.** A deployment built for TEST has `VITE_APP_ENV=test` (frontend) and `APP_ENV=test` (backend) baked at build/start time; a PROD deployment has `VITE_APP_ENV=production`/`APP_ENV=production`. The Environment_Indicator derives its displayed environment from this explicit `APP_ENV`, not from detecting `localhost` in the hostname. The frontend contains no UI control to switch environments within a single running unit; environment selection occurs by navigating to the other environment's URL.
+
+**Branch-based promotion flow (Req 23).** The CI/CD pipeline maps Git branches to environments: the TEST branch (e.g., `test`, `develop`, or `staging`) deploys to the Test_Environment, and the PRODUCTION branch (e.g., `main`) deploys to the Production_Environment. The pipeline sets `APP_ENV` based on the branch (`test` for TEST branch, `production` for PRODUCTION branch). A pull request merging into the TEST branch deploys to the Test_Environment for validation; after validation, a pull request merging the validated changes from TEST to PRODUCTION branch deploys to the Production_Environment. This branch-to-environment mapping is a CI/CD configuration separate from the application source, allowing the mapping to evolve without changing the spec.
+
+**Separation of concerns.** The URL and branch mapping are operational concerns recorded in the Environment_Definition. The application code remains focused on consuming the resolved `APP_ENV`, not on detecting hostnames or managing branch mappings. This maintains the "one decision, many consumers" principle: `APP_ENV` is the single authoritative selector, and URL/branch are operational signals that set it.
+
 ## Data Models
 
 ### EnvironmentDefinition (committed source of truth — Req 3)
@@ -338,6 +350,11 @@ class PlaneDef:
 class EnvironmentDefinition:
     test: PlaneDef
     production: PlaneDef
+    # URL and branch mapping for operational deployment (Req 22, 23)
+    test_url: str                     # e.g., "localhost:3000" or a hosted URL
+    production_url: str               # e.g., "app.myadmin.jabaki.nl"
+    test_branch: str | None           # e.g., "test", "develop", or None if not recorded
+    production_branch: str | None     # e.g., "main", or None if not recorded
     # Non-normative current-mapping notes + SAM current-state delta live as docstring/comments.
 ```
 
@@ -355,6 +372,8 @@ class EnvironmentDefinition:
 | SAM API base URL | TEST invoke URL | PROD invoke URL |
 | SAM exec-role scope | `table/test_*` | unprefixed tables |
 | SAM authorizer pool | `eu-west-1_xyrlzfqbl` | `eu-west-1_Hdp40eWmu` |
+| **Deployment URL (Req 22)** | `TEST_URL` (e.g., `localhost:3000`) | `PROD_URL` (e.g., `app.myadmin.jabaki.nl`) |
+| **Branch mapping (Req 23)** | `test_branch` (e.g., `test`) | `production_branch` (e.g., `main`) |
 
 ### ConsistencyReport
 
@@ -481,6 +500,7 @@ Dual approach: property-based tests for the pure-logic core; unit/integration/sn
 **Smoke / scan tests.**
 - Secret scan over the Environment_Definition, steering edits, and committed artifacts — no real secret-shaped values (Req 3.6, 18.4, 19.1). The repo already runs GitGuardian (`.gitguardian.yaml`).
 - Account-boundary assertions: definition records Infra_Account `506221081911` and Identity_Account `344561557829` (Req 10.4, 17.5); documentation-content checks for the out-of-scope notes and the SAM current-state delta (Req 10.5, 10.6, 15, 19.5).
+- **URL-based auth boundary (Req 22)**: Smoke test that a TEST deployment rejects production-pool tokens and vice versa — verifies the pool-based access control enforced by distinct URLs.
 
 ## Rollout / Phased Delivery
 
@@ -497,5 +517,7 @@ The design is one blueprint; delivery is incremental so the app works at every s
 **Phase 4 — SAM test stack (the heavy build).** Add `test`/`prod` `samconfig` config-envs and the `Environment` parameter flowing into every resource; deploy `myAdmin-test` distinct from `myAdmin-prod`; add per-environment execution roles (`test_*` IAM boundary), the separate TEST API Gateway, and the per-environment `COGNITO_USER_POOLS` authorizer. Extend the guard to the SAM authorizer pool and SAM API base URL. Integration tests (synth snapshot, IAM denial, authorizer accept/reject) gate the phase. (Req 10, 11, 12, 13, 14, 15)
 
 **Phase 5 — Operational tooling + steering.** Copy_Utility (PROD→TEST only), repeatable Test_Account provisioning, and the steering realignments. (Req 16, 17, 18)
+
+**Operational steps for URL-based selection and branch promotion (Req 22, 23).** Establishing the hosted TEST_URL (if moving beyond `localhost:3000`) and configuring the CI/CD branch-to-environment mapping are separate operational steps that can occur in any phase once the Environment_Definition includes the URL and branch fields. The application code remains unchanged — it consumes the resolved `APP_ENV` regardless of which URL serves it or which branch triggered the deployment. The Environment_Definition records these as placeholders until the operational mapping is established.
 
 Multi-account isolation (Org account-per-environment) is recorded as a documented further escalation beyond this spec. (Req 10.6)
