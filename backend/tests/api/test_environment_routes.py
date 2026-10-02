@@ -83,3 +83,6 @@ class TestEnvironmentReportRoute:
         assert response.status_code == 503
         data = json.loads(response.data)
         assert data["error"] == "environment_unresolved"
+        # The raw exception text must NOT be exposed to the (unauthenticated) client
+        # (CodeQL: information exposure through an exception).
+        assert "detail" not in data

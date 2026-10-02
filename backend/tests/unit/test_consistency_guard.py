@@ -489,10 +489,11 @@ class TestFlaskApiBaseUrl:
 
     def test_identical_test_and_prod_flask_url_fails(self) -> None:
         # If both envs resolve to the SAME Flask URL the frontend cannot be isolated.
-        definition = _definition_with_flask_urls(
-            "https://same.example.com",
-            "https://same.example.com",
-        )
+        # Use a non-URL-shaped sentinel for both envs: it still exercises the
+        # identical-URL detection branch, and the asserted token is not URL-shaped
+        # (avoids CodeQL's URL-substring-sanitization false positive on a test message).
+        sentinel = "flask-url-sentinel-SAME"
+        definition = _definition_with_flask_urls(sentinel, sentinel)
         report = build_consistency_report(
             AppEnv.TEST,
             definition=definition,
@@ -503,7 +504,7 @@ class TestFlaskApiBaseUrl:
         assert check.ok is False
         assert report.is_consistent is False
         assert "identical" in check.message
-        assert "https://same.example.com" in check.message
+        assert sentinel in check.message
 
     def test_pass_case_names_both_sides(self) -> None:
         # The passing message names the active URL and the other-env URL (both sides).
