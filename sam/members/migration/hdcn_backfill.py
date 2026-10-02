@@ -61,9 +61,6 @@ __all__ = [
     "DuplicateHeaderConflict",
     "FileSourceAdapter",
     "GoogleSheetsSourceAdapter",
-    "build_position_tracked_row",
-    "contract_source_columns",
-    "detect_column_shift",
     "HdcnSourceAdapter",
     "IterableSourceAdapter",
     "LegacyDynamoSourceAdapter",
@@ -73,6 +70,9 @@ __all__ = [
     "RowTransformError",
     "TransformedRow",
     "build_backfill_plan",
+    "build_position_tracked_row",
+    "contract_source_columns",
+    "detect_column_shift",
     "map_hdcn_row",
 ]
 
@@ -727,7 +727,7 @@ _LOOKS_LIKE_YEAR_RE = re.compile(r"^(19|20)\d{2}$")
 _GENDER_TOKENS: frozenset[str] = frozenset({"m", "v", "man", "vrouw", "male", "female", "x"})
 
 
-def detect_column_shift(raw_row: Mapping[str, Any]) -> list["ColumnShiftWarning"]:
+def detect_column_shift(raw_row: Mapping[str, Any]) -> list[ColumnShiftWarning]:
     """Detect column-shift signals on a source row (data-quality safeguard, R8.1 port).
 
     Returns a list of :class:`ColumnShiftWarning` (empty when the row looks well-aligned). Two
@@ -861,8 +861,8 @@ def map_hdcn_row(
     type_mapper: MembershipTypeMapper | None = None,
     tenant_id: str = HDCN_TENANT_ID,
     region_canonicalizer: RegionCanonicalizer | None = None,
-    conflicts: list["DuplicateHeaderConflict"] | None = None,
-    shift_warnings: list["ColumnShiftWarning"] | None = None,
+    conflicts: list[DuplicateHeaderConflict] | None = None,
+    shift_warnings: list[ColumnShiftWarning] | None = None,
     contract: Any = None,
 ) -> dict[str, Any]:
     """Map ONE raw h-dcn member row to a member record for the new model (pure, no I/O).

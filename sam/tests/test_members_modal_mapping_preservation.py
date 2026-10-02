@@ -41,7 +41,7 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.migration.hdcn_backfill import (  # noqa: E402
+from sam.members.migration.hdcn_backfill import (
     RegionCanonicalizer,
     build_position_tracked_row,
     map_hdcn_row,
@@ -151,14 +151,7 @@ def test_property_mapped_overlay_fields_render_their_stored_value(
     Validates: Requirements 3.1, 3.5
     """
     rec = _map(
-        **{
-            "Clubblad": magazine,
-            "Motormerk": motor_brand,
-            "Afmelding": dereg,
-            "Beeindiging": term,
-            "Opmerkingen": notes,
-            "WieWatWaar": referral,
-        }
+        Clubblad=magazine, Motormerk=motor_brand, Afmelding=dereg, Beeindiging=term, Opmerkingen=notes, WieWatWaar=referral
     )
     overlay = rec["overlay"]
     # single-rule string fields are stored verbatim (trimmed); magazine maps as-is for the enum
