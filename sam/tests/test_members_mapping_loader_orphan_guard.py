@@ -47,7 +47,7 @@ _HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members",
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
-from members_mapping_loader import (  # noqa: E402
+from members_mapping_loader import (
     MappingContractError,
     load_mapping_contract,
 )

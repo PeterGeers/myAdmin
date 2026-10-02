@@ -59,10 +59,11 @@ invocations reuse it and never fetch JWKS per request).
 ```python
 from sam.shared.auth_utils import get_verified_identity
 
+
 def handler(event, context):
-    identity = get_verified_identity(event)   # one correct, header-free entry point
-    identity.sub                              # verified subject
-    identity.groups                           # roles from verified cognito:groups only
+    identity = get_verified_identity(event)  # one correct, header-free entry point
+    identity.sub  # verified subject
+    identity.groups  # roles from verified cognito:groups only
     ...
 ```
 
@@ -71,9 +72,12 @@ Lower-level building blocks are still available if a handler needs the raw claim
 ```python
 from sam.shared.auth_utils import get_verified_claims, get_groups
 
+
 def handler(event, context):
-    claims = get_verified_claims(event)   # API-GW-authorizer preferred; else verify bearer
-    groups = get_groups(claims)           # roles from verified cognito:groups
+    claims = get_verified_claims(
+        event
+    )  # API-GW-authorizer preferred; else verify bearer
+    groups = get_groups(claims)  # roles from verified cognito:groups
     ...
 ```
 

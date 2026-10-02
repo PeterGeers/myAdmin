@@ -58,7 +58,7 @@ tenant dir:
 ```
 
 A runner asks for a credential **by purpose** (e.g. `google_sheets`); the resolver
-(`scripts/onboarding/_lib/secrets.py`) turns `credentials.<purpose>.file` into the absolute
+(`scripts/onboarding/_lib/tenant_resolver.py`) turns `credentials.<purpose>.file` into the absolute
 path of the co-located file. An explicit `--credentials <path>` CLI flag overrides it. A
 missing purpose/key fails loudly — there is no silent default.
 
