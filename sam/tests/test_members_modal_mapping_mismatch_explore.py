@@ -25,7 +25,6 @@ Validates: Requirements 1.1, 1.2, 1.4, 1.5, 2.1, 2.2, 2.4, 2.5
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import sys
@@ -47,12 +46,12 @@ _HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members",
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
-from sam.members.migration.hdcn_backfill import map_hdcn_row  # noqa: E402
-
-from members_mapping_loader import (  # noqa: E402
+from members_mapping_loader import (
     MappingContractError,
     load_mapping_contract,
 )
+
+from sam.members.migration.hdcn_backfill import map_hdcn_row
 
 _MAPPING_CSV = os.path.join(_HDCN_SCRIPTS_DIR, "members_source_mapping.csv")
 _CONFIG_JSON = os.path.join(_HDCN_SCRIPTS_DIR, "members_config.json")

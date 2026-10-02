@@ -1,0 +1,100 @@
+{
+  "specId": "c0f3a7d2-4b19-4e55-9a3c-7d2e1f6b0a84",
+  "spec": "full-test-suite-fixes-2026-10-02",
+  "ciRun": 36978727343,
+  "ciConclusion": "failure",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (2026-10-02)",
+  "priorities": {
+    "critical": [
+      "C1"
+    ],
+    "high": [],
+    "medium": [
+      "M1",
+      "M2"
+    ],
+    "low": [
+      "L1",
+      "L2"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "C1",
+      "title": "Rename scripts/onboarding/_lib/secrets.py -> tenant_resolver.py so a clean checkout (CI) can import scripts.onboarding._lib (CI-blocking)",
+      "priority": "critical",
+      "effort": "S",
+      "plane": "sam",
+      "type": "fix",
+      "rootCause": "secrets.py exists locally but is untracked; .gitignore '**/*secret*' false-positives the filename, so CI's clean checkout lacks it and _lib/__init__.py line 20 'from .secrets import (...)' raises ModuleNotFoundError, interrupting collection of test_hdcn_backfill.py and test_onboarding_lib_resolver.py. Fix: rename to tenant_resolver.py (glob-safe, matches the repo *_resolver.py convention, accurately names the tenant-scoped resolver) and update 4 code refs + 2 doc comments; the file then git-adds normally with no .gitignore change"
+    },
+    {
+      "id": "M1",
+      "title": "Add a clean-checkout import/collect smoke check before push so an untracked-but-required module is caught locally",
+      "priority": "medium",
+      "effort": "M",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "recurring meta-pattern — breakage lands on main and only surfaces on the next scheduled run (09-26 format, 09-28 lint, 09-30 format, 10-02 untracked module); the 09-30 ruff format --check guard cannot catch a locally-present-but-untracked file, only a clean-checkout collect can"
+    },
+    {
+      "id": "M2",
+      "title": "Fix frontend tsc TS2322 type error in product code MembersFieldFormBody.tsx:187",
+      "priority": "medium",
+      "effort": "M",
+      "plane": "frontend",
+      "type": "fix",
+      "rootCause": "EnumOptionConfig[] passed where LazyOption<string>[] expected; label LocalizedLabel is wider than string | Record<string, string>. Report-only (non-blocking) but a latent product-code type-safety hole"
+    },
+    {
+      "id": "L1",
+      "title": "Clear the auto-fixable SAM ruff findings (report-only)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "lint",
+      "type": "cleanup",
+      "rootCause": "41 report-only SAM ruff findings; ~27 are [*] auto-fixable (I001, PIE804, UP037, RUF100, F401, some RUF022). Non-blocking; clearing auto-fixables surfaces the ~14 manual ones (SIM102, B017, TRY004, PYI034, PLW1510, PIE810) for deliberate review"
+    },
+    {
+      "id": "L2",
+      "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "standing reproducibility guard carried forward from 09-30 L1; local 0.16.5 already matches CI 0.16.5 this cycle"
+    }
+  ],
+  "edges": [
+    {
+      "from": "C1",
+      "to": "M1",
+      "type": "recommended-after",
+      "reason": "land the collection fix and get CI green first, then add the clean-checkout smoke check that prevents the recurrence it exposed"
+    },
+    {
+      "from": "C1",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "restore SAM collection before touching SAM lint, so the ruff auto-fix can be verified against a collectable plane"
+    }
+  ],
+  "recommendedOrder": [
+    "C1",
+    "M1",
+    "M2",
+    "L1",
+    "L2"
+  ],
+  "notes": [
+    "CI run #36978727343 is RED, but the only failing job is the SAM module-plane, interrupted during collection by 2 import errors with a single root cause (untracked scripts/onboarding/_lib/secrets.py). Backend (6633 passed / 12 skipped), frontend (2744 passed / 12 skipped), and backend lint/format/vulture are all green.",
+    "C1 is a rename with no logic change: mv scripts/onboarding/_lib/secrets.py -> tenant_resolver.py (currently untracked, so a plain filesystem move, not git mv), then update 4 code refs (_lib/__init__.py, backfill-hdcn-members.py, sam/tests/test_onboarding_lib_resolver.py) + 2 doc comments (scripts/tenants/README.md, scripts/tenants/h-dcn/secrets.example.json). tenant_resolver.py is glob-safe (no 'secret' substring), matches the repo *_resolver.py convention, and names the tenant-scoped resolver accurately. git check-ignore -v must then report NOT ignored and git ls-files must list it. Effort S. (Fallback if a rename is undesirable: a narrow .gitignore negation mirroring the existing !**/credential_service.py precedent.)",
+    "SECRET-SAFETY: the module contains NO credential — it is resolver code (path build, JSON load, require() that raises on missing keys); real credentials live in scripts/tenants/<tenant>/secrets.local.json which the fail-closed tenant fence keeps ignored and C1 does not touch. The tenant *secret-material* files (secrets.local.json / secrets.example.json) keep their names — only the resolver MODULE is renamed. Secret-prevention has 3 layers and the rename steps out of the weakest (filename glob) entirely: (1) ggshield content scan runs first in scripts/hooks/pre-commit with .gitguardian.yaml exit_zero:false — inspects bytes regardless of filename; (2) tenant fail-closed .gitignore fence (unchanged); (3) the **/*secret* filename glob, which no longer matches the renamed module.",
+    "The 09-30 ruff format regression (5 files, commit c829580) is RESOLVED this cycle — ruff format is clean. No backend lint work required.",
+    "This SAM break is a NEW failure mode, distinct from the 09-26 flask import-coupling collapse; the import-boundary guard from 09-26 is unrelated and still holds. The cause is a packaging / version-control gap (a secret-ignore glob swallowing legitimate source whose filename contains 'secret').",
+    "secrets.py is dated 2026-10-01 (added by onboarding-tooling work after the 09-30 run), so this is new debt from a separate feature commit, not a regression from the 09-30 fix sprint — but it is the same meta-pattern (change lands on main, breaks the next scheduled run).",
+    "A plain 'git add' on an ignored path is a silent no-op — which is why the rename is preferred: after renaming to a glob-safe name, 'git add tenant_resolver.py' just works with no -f and no .gitignore edit. (The fallback negation path would instead need the .gitignore exception, or 'git add -f', to track the original name.)",
+    "M1 is deliberately broader than the 09-30 M1 (ruff format --check): a formatter/linter gate cannot catch a locally-present-but-untracked file. Only a clean-checkout import/collect smoke test can. Recommended after C1.",
+    "M2 (TS2322) and the SAM ruff findings (L1) are REPORT-ONLY / non-blocking per the artifacts and did NOT contribute to the red run; they are tracked as hygiene. M2 is prioritised above L1/L2 because it is product code, not test/lint drift."
+  ]
+}

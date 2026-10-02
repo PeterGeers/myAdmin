@@ -40,7 +40,6 @@ if _BACKEND_SRC not in sys.path:
 
 from sam.members.migration.hdcn_backfill import (
     HDCN_TENANT_ID,
-    _parse_source_date,
     ColumnShiftWarning,
     DuplicateHeaderConflict,
     FileSourceAdapter,
@@ -51,6 +50,7 @@ from sam.members.migration.hdcn_backfill import (
     RegionCanonicalizer,
     RowSkipped,
     RowTransformError,
+    _parse_source_date,
     build_backfill_plan,
     build_position_tracked_row,
     contract_source_columns,
@@ -455,7 +455,7 @@ class TestContractDrivenTransform:
 
     def test_calculated_column_is_not_stored(self):
         # `Geboortejaar` is a (calculated) disposition → NOT stored anywhere (R2.2/R2.6).
-        rec = _map(**{"Geboortejaar": "1975"})
+        rec = _map(Geboortejaar="1975")
         assert "Geboortejaar" not in rec["overlay"]
         assert "additional_info" not in rec["overlay"] or "Geboortejaar" not in rec["overlay"].get(
             "additional_info", ""
@@ -463,13 +463,13 @@ class TestContractDrivenTransform:
 
     def test_excluded_column_is_dropped(self):
         # `Bestuursfunctie` is an (excluded) disposition → dropped, not in overlay/additional_info.
-        rec = _map(**{"Bestuursfunctie": "Voorzitter"})
+        rec = _map(Bestuursfunctie="Voorzitter")
         assert "Bestuursfunctie" not in rec["overlay"]
         assert "Voorzitter" not in rec["overlay"].get("additional_info", "")
 
     def test_additional_info_disposition_is_concatenated(self):
         # `Ondertekening` is an (additional_info) disposition → concatenated as `Label: value`.
-        rec = _map(**{"Ondertekening": "yes"})
+        rec = _map(Ondertekening="yes")
         assert rec["overlay"]["additional_info"] == "Ondertekening: yes"
 
     def test_unmapped_kept_column_goes_to_additional_info(self):
@@ -648,7 +648,7 @@ class TestTijdstempelIsMapped:
 
     def test_tijdstempel_value_does_not_leak_into_additional_info(self):
         # A mapped joined_date source must not also be folded into overlay.additional_info.
-        rec = _map(**{"Tijdstempel": "4-5-2026 10:59:37"})
+        rec = _map(Tijdstempel="4-5-2026 10:59:37")
         assert "Tijdstempel" not in rec["overlay"].get("additional_info", "")
 
 
@@ -1130,11 +1130,8 @@ _HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members",
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
-from members_config_loader import load_members_config  # noqa: E402
-from members_mapping_loader import (  # noqa: E402
-    DISPOSITION_ADDITIONAL_INFO,
-    DISPOSITION_CALCULATED,
-    DISPOSITION_EXCLUDED,
+from members_config_loader import load_members_config
+from members_mapping_loader import (
     KNOWN_RULES,
     MappingContractError,
     load_mapping_contract,
@@ -1281,8 +1278,10 @@ class TestMappingContractTargetPopulation:
 # The region canonicalizer built from the REAL tenant config + the ported REGION_ALIASES — this
 # is the exact canonicalizer the onboarding/runner uses, so the tests exercise the ported region
 # variant table against the SAM canonical value set (Noord Holland w/ space, Geen not Overig).
-from members_config_loader import (  # noqa: E402
+from members_config_loader import (
     REGION_ALIASES,
+)
+from members_config_loader import (
     region_canonicalizer as _build_region_canonicalizer,
 )
 
