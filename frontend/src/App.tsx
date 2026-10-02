@@ -18,6 +18,7 @@ import { HelpButton } from './components/help';
 import { MenuGroup } from './components/MenuGroup';
 import { buildApiUrl } from './config';
 import { MainMenu } from './components/MainMenu';
+import EnvironmentIndicator from './components/EnvironmentIndicator';
 import {
   PDFUploadForm,
   BankingProcessor,
@@ -143,6 +144,8 @@ function AppContent() {
           <Heading color="orange.400" size={{ base: 'sm', md: 'lg' }} noOfLines={2}>{title}</Heading>
         </HStack>
         <HStack spacing={2} flexShrink={0}>
+          {/* Env 5.2/5.4 — active environment + pool/identity + SAM endpoint while authenticated. */}
+          <EnvironmentIndicator variant="detailed" />
           {options?.showLanguage && <LanguageSelector />}
           <TenantSelector size="sm" hide={options?.hideTenant} />
           <HelpButton page={currentPage} />

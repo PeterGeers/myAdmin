@@ -165,6 +165,11 @@ def build_mock_db_for_banking_processor(closed_years_for_admin=None,
 
     mock_db.get_connection.return_value = mock_conn
 
+    @contextmanager
+    def _get_cursor_cm(*args, **kwargs):
+        yield (mock_bp_cursor, mock_conn)
+    mock_db.get_cursor = _get_cursor_cm
+
     # insert_transaction: track calls
     mock_db.insert_transaction = MagicMock()
 

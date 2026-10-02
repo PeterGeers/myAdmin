@@ -37,6 +37,7 @@ import {
 } from '../services/authService';
 import { confirmSignIn } from 'aws-amplify/auth';
 import { buildApiUrl } from '../config';
+import EnvironmentIndicator from '../components/EnvironmentIndicator';
 
 interface LoginProps {
   onLoginSuccess?: () => void;
@@ -256,6 +257,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       <Container maxW="md">
         <VStack spacing={8} bg="gray.800" p={8} borderRadius="lg" boxShadow="2xl">
           <Image src={`${import.meta.env.BASE_URL}/jabaki-logo.png`} alt="myAdmin Logo" maxW="200px" mb={4} />
+          {/* Env 5.1 — show the active environment (TEST/PROD) on the login screen. */}
+          <EnvironmentIndicator variant="compact" />
           {children}
           <Text color="gray.500" fontSize="xs" textAlign="center">{t('auth:login.protectedBy')}</Text>
         </VStack>

@@ -55,7 +55,8 @@ class TestEnvironmentModeSwitching:
         mock_makedirs.assert_called_once_with('/test/folder', exist_ok=True)
     
     def test_database_manager_test_mode_basic(self):
-        # Test basic mode setting without database connection
+        # The test_mode PARAMETER + attribute are preserved for backward
+        # compatibility (test-environment spec, task 12 — removal is Phase 3).
         with patch('database.mysql.connector.connect'):
             db = DatabaseManager(test_mode=True)
             assert db.test_mode is True
@@ -65,6 +66,25 @@ class TestEnvironmentModeSwitching:
         with patch('database.mysql.connector.connect'):
             db = DatabaseManager(test_mode=False)
             assert db.test_mode is False
+
+    def test_database_manager_schema_always_finance_regardless_of_test_mode(self):
+        # Task 12 (Req 9.2, 9.3): the TEST_DB_NAME/testfinance switch is GONE.
+        # The schema is ALWAYS `finance` for both test_mode=True and False and
+        # regardless of the legacy TEST_MODE / TEST_DB_NAME env vars — TEST vs
+        # PROD is distinguished by the resolved connection target, not the schema.
+        with patch('database.mysql.connector.connect'):
+            with patch.dict(os.environ,
+                            {'TEST_MODE': 'true', 'TEST_DB_NAME': 'testfinance'},
+                            clear=False):
+                db_test = DatabaseManager(test_mode=True)
+                db_env = DatabaseManager(test_mode=False)
+            db_prod = DatabaseManager(test_mode=False)
+
+        assert db_test.config['database'] == 'finance'
+        assert db_env.config['database'] == 'finance'
+        assert db_prod.config['database'] == 'finance'
+        # `testfinance` must never be selected anymore.
+        assert db_test.config['database'] != 'testfinance'
     
     @patch('database.DatabaseManager')
     @patch('services.credential_service.CredentialService')
@@ -226,13 +246,17 @@ class TestEnvironmentVariables:
         
         assert test_mode is False
     
-    @patch.dict(os.environ, {'DB_NAME': 'finance', 'TEST_DB_NAME': 'testfinance'})
-    def test_database_name_environment_variables(self):
-        prod_db = os.getenv('DB_NAME', 'finance')
-        test_db = os.getenv('TEST_DB_NAME', 'testfinance')
-        
-        assert prod_db == 'finance'
-        assert test_db == 'testfinance'
+    def test_database_schema_is_always_finance(self):
+        # Task 12 (Req 9.2): the old DB_NAME/TEST_DB_NAME -> finance/testfinance
+        # switch is removed. The DatabaseManager schema is now ALWAYS `finance`;
+        # TEST and PROD are told apart by the resolved connection target, not by
+        # the schema name. Even with the legacy TEST_DB_NAME var set, the manager
+        # must not select `testfinance`.
+        with patch('database.mysql.connector.connect'):
+            with patch.dict(os.environ, {'TEST_DB_NAME': 'testfinance'}, clear=False):
+                db = DatabaseManager(test_mode=True)
+        assert db.config['database'] == 'finance'
+        assert db.config['database'] != 'testfinance'
     
     @patch.dict(os.environ, {'FACTUREN_FOLDER_ID': 'prod_folder', 'TEST_FACTUREN_FOLDER_ID': 'test_folder'})
     def test_folder_id_environment_variables(self):

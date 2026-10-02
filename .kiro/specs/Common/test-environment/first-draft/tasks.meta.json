@@ -1,0 +1,1266 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create `backend/src/environment/` directory with `__init__.py`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952380989
+      },
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952412757
+      },
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952720505
+      },
+      {
+        "executionId": "ace69cec-70b9-4fd0-b2fe-d36d08c5cfbd",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790953395006
+      }
+    ],
+    "1.2 Implement `AppEnv` enum and `parse_app_env` function in `app_env.py`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381161
+      },
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952441345
+      },
+      {
+        "executionId": "f9aee747-8bf2-4646-95c9-ec0e32dbd805",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790953498850
+      },
+      {
+        "executionId": "f9aee747-8bf2-4646-95c9-ec0e32dbd805",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790953779939
+      }
+    ],
+    "1.3 Create `EnvironmentDefinition` dataclass in `environment_definition.py` with placeholders for all planes": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381267
+      },
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952464139
+      },
+      {
+        "executionId": "f9aee747-8bf2-4646-95c9-ec0e32dbd805",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790953822052
+      }
+    ],
+    "1.4 Implement `ResolvedConfig` dataclass and `resolve()` function in `resolver.py`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381361
+      },
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952479433
+      }
+    ],
+    "1.5 Create frontend `src/config/appEnv.ts` and `environmentDefinition.ts` with TypeScript equivalents": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381456
+      },
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952489119
+      }
+    ],
+    "1.6 Write property tests for APP_ENV parsing and resolution (Properties 1-4)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381559
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790956854063
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790956858340
+      }
+    ],
+    "2.1 Create `consistency_guard.py` with `ConsistencyReport` and `PlaneCheck` dataclasses": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381648
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790956865312
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957196986
+      }
+    ],
+    "2.2 Implement guard logic to check Cognito identity, pool registry, identity block": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381743
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790956870985
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957201548
+      }
+    ],
+    "2.3 Add guard startup hook that logs inconsistencies but doesn't block (report-only)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381849
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790956874998
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957205368
+      }
+    ],
+    "2.4 Create `check` CLI command in `backend/src/environment/check.py`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952381951
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790956879475
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957210589
+      }
+    ],
+    "2.5 Write property tests for guard consistency logic (Properties 7-8)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382048
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957215026
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957436367
+      }
+    ],
+    "3.1 Update backend app bootstrap to read `APP_ENV` and call resolver": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382206
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957242927
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957956074
+      }
+    ],
+    "3.2 Add `VITE_APP_ENV` to frontend `.env.example` and TypeScript declarations": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382307
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957437766
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957957383
+      }
+    ],
+    "3.3 Configure Vite to inject `VITE_APP_ENV` at build time": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382414
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957439925
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957958731
+      }
+    ],
+    "3.4 Add fail-fast validation in frontend `appEnv.ts` module load": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382516
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957440588
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957960160
+      }
+    ],
+    "3.5 Update any existing startup checks to include environment validation": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382614
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957442926
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957961088
+      }
+    ],
+    "4. Checkpoint - Core infrastructure deployed": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382709
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957974405
+      }
+    ],
+    "5.1 Modify `frontend/src/aws-exports.ts` to select pool from resolved `APP_ENV` instead of hostname": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382865
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958090155
+      },
+      {
+        "executionId": "d0df065c-f965-43b3-959c-78bd95679b1c",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958831772
+      }
+    ],
+    "5.2 Remove `isLocal = window.location.hostname === 'localhost'` switch logic": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952382959
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958091533
+      },
+      {
+        "executionId": "d0df065c-f965-43b3-959c-78bd95679b1c",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958837405
+      }
+    ],
+    "5.3 Update frontend tests to mock resolved environment config": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383051
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958092478
+      },
+      {
+        "executionId": "d0df065c-f965-43b3-959c-78bd95679b1c",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958841453
+      }
+    ],
+    "5.4 Write property test for resolution ignoring incidental signals (Property 3)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383144
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958094020
+      },
+      {
+        "executionId": "d0df065c-f965-43b3-959c-78bd95679b1c",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958846038
+      }
+    ],
+    "6.1 Modify `backend/src/auth/pool_registry.py` to accept resolved identity from resolver": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383241
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958098607
+      }
+    ],
+    "6.2 Update `COGNITO_POOL_KEYS` loading to work with resolved config": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383431
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958099988
+      }
+    ],
+    "6.3 Ensure identity block (`COGNITO_USER_POOL_ID`, `CLIENT_ID`) resolves from `APP_ENV`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383527
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958101433
+      }
+    ],
+    "6.4 Handle empty client secret for test pool (Req 7.3, 8.4)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383616
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958102837
+      }
+    ],
+    "6.5 Write property test for test environment consequences (Property 5)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383768
+      },
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958105190
+      }
+    ],
+    "7.1 Create frontend component showing \"TEST\"/\"PROD\" badge based on resolved `APP_ENV`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952383901
+      }
+    ],
+    "7.2 Add indicator to login screen and authenticated layout": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384006
+      }
+    ],
+    "7.3 Show active pool/identity label and SAM API endpoint where observable": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384100
+      }
+    ],
+    "7.4 Make TEST label visually distinct (different color/style)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384192
+      }
+    ],
+    "8.1 Create `GET /api/environment` endpoint returning active environment config": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384354
+      }
+    ],
+    "8.2 Include `APP_ENV`, pool labels, MySQL target label, DynamoDB prefix, SAM API URL": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384456
+      }
+    ],
+    "8.3 Omit secret values, return only non-secret labels/identifiers": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384543
+      }
+    ],
+    "8.4 Ensure health report derives values from resolver (cannot drift)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384640
+      }
+    ],
+    "8.5 Write property test for health report non-drift and secret omission (Property 9)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384789
+      }
+    ],
+    "9.1 Update guard startup hook to raise `EnvironmentConfigError` on inconsistencies": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384880
+      }
+    ],
+    "9.2 Verify all existing inconsistencies are resolved (using report-only mode)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952384973
+      }
+    ],
+    "9.3 Update `check` command to exit non-zero on inconsistencies": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385068
+      }
+    ],
+    "9.4 Add guard checks for frontend-selected pool vs backend registry": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385239
+      }
+    ],
+    "10. Checkpoint - Identity plane complete": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385365
+      }
+    ],
+    "11.1 Audit all `localhost:5000` literals in `frontend/src/services/*.ts`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385480
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966142650
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966475979
+      }
+    ],
+    "11.2 Create `RESOLVED.flaskApiBaseUrl` in frontend config": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385573
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966147998
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966481534
+      }
+    ],
+    "11.3 Update `authService`, `verificationApi`, `chartOfAccountsService`, `tenantAdminApi`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385661
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966153335
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966486188
+      }
+    ],
+    "11.4 Update components like `ProfitLoss.tsx`, `PDFValidation.tsx`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385828
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966157906
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966490623
+      }
+    ],
+    "11.5 Update `frontend/src/config.ts` to use resolved URL": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952385929
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966162483
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966495288
+      }
+    ],
+    "12.1 Modify `DatabaseManager` to accept `ResolvedConfig.mysql` instead of `TEST_MODE`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386028
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966501433
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966876547
+      }
+    ],
+    "12.2 Remove `TEST_DB_NAME`/`testfinance` switching logic": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386128
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966523465
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966881748
+      }
+    ],
+    "12.3 Ensure both environments use schema `finance` on their resolved target": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386281
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966528785
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966886714
+      }
+    ],
+    "12.4 Add guard check for MySQL target consistency": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386396
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966533149
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966891126
+      }
+    ],
+    "12.5 Write property test for TEST/PROD database target isolation (Property 11)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386502
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966537356
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966898042
+      }
+    ],
+    "13.1 Add guard check for Flask API base URL matching `APP_ENV`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386612
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966904659
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790967179831
+      }
+    ],
+    "13.2 Add guard check for MySQL resolved target consistency": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386798
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966909097
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790967184620
+      }
+    ],
+    "13.3 Verify TEST target ≠ PRODUCTION target in identity and credentials": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386895
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966913749
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790967191578
+      }
+    ],
+    "14. Checkpoint - Backend runtime plane complete": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952386994
+      },
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790967200293
+      }
+    ],
+    "15.1 Update `DatabaseManager.__init__` to ignore `test_mode` for environment selection": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387094
+      }
+    ],
+    "15.2 Add deprecation warning when `test_mode` is passed but ignored": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387188
+      }
+    ],
+    "15.3 Keep `test_mode` parameter signature for backward compatibility": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387291
+      }
+    ],
+    "15.4 Write property test for `test_mode` no longer selecting environment (Property 6)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387491
+      }
+    ],
+    "16.1 Update `reporting_routes` to stop reading `testMode` from request args": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387609
+      }
+    ],
+    "16.2 Update `str_channel_routes` to stop defaulting `test_mode=True`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387714
+      }
+    ],
+    "16.3 Update all other services reading `test_mode` from request or kwargs": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387822
+      }
+    ],
+    "16.4 Remove `mutaties_test`/`testfinance` table/schema switches": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952387935
+      }
+    ],
+    "16.5 Update paired tests for each touched route (change-with-tests)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388084
+      }
+    ],
+    "17.1 Drop `test_mode` kwarg from `DatabaseManager` and all service constructors": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388189
+      }
+    ],
+    "17.2 Refactor test fixtures `test_environment`/`production_environment` to set `APP_ENV`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388350
+      }
+    ],
+    "17.3 Update migration scripts to use `APP_ENV` instead of `TEST_MODE`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388485
+      }
+    ],
+    "17.4 Clean up remaining `test_mode` references across codebase": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388592
+      }
+    ],
+    "18. Checkpoint - `test_mode` migration complete": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388690
+      }
+    ],
+    "19.1 Add `Environment` parameter to SAM templates with allowed values `[test, production]`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388794
+      }
+    ],
+    "19.2 Update template to flow `Environment` into all resources": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952388917
+      }
+    ],
+    "19.3 Add `APP_ENV` environment variable to each Lambda deriving from `Environment`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389022
+      }
+    ],
+    "19.4 Update table name references to use prefix based on `Environment`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389127
+      }
+    ],
+    "20.1 Add `[test.deploy.parameters]` section to `samconfig.toml` with `Environment=test`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389322
+      }
+    ],
+    "20.2 Add `[prod.deploy.parameters]` section with `Environment=production`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389435
+      }
+    ],
+    "20.3 Set distinct stack names: `myAdmin-test` and `myAdmin-prod`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389555
+      }
+    ],
+    "20.4 Configure parameter overrides for each environment": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389670
+      }
+    ],
+    "21.1 Update IAM role policies to scope DynamoDB by prefix: `test_*` for TEST, unprefixed for PROD": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389785
+      }
+    ],
+    "21.2 Ensure TEST role denies access to unprefixed tables at IAM layer": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389892
+      }
+    ],
+    "21.3 Verify PROD role scoped to unprefixed tables only": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952389993
+      }
+    ],
+    "21.4 Write integration test for IAM cross-prefix denial": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390098
+      }
+    ],
+    "22.1 Configure separate `AWS::Serverless::Api` for TEST stack": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390206
+      }
+    ],
+    "22.2 Ensure TEST and PROD stacks have distinct invoke URLs": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390315
+      }
+    ],
+    "22.3 Update frontend SAM API base URL resolution to use environment-specific URL": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390437
+      }
+    ],
+    "22.4 Update backend health report to include active SAM API URL": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390561
+      }
+    ],
+    "23.1 Update authorizer configuration to reference pool based on `Environment`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390675
+      }
+    ],
+    "23.2 TEST authorizer references test pool `eu-west-1_xyrlzfqbl`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390793
+      }
+    ],
+    "23.3 PROD authorizer references production pool `eu-west-1_Hdp40eWmu`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952390899
+      }
+    ],
+    "23.4 Write integration test for authorizer accept/reject behavior": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952391079
+      }
+    ],
+    "24.1 Add guard check for SAM authorizer pool matching `APP_ENV`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952391180
+      }
+    ],
+    "24.2 Add guard check for SAM API base URL matching `APP_ENV`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952391284
+      }
+    ],
+    "24.3 Add guard check for DynamoDB prefix matching `APP_ENV`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952391438
+      }
+    ],
+    "25.1 Record current-state delta: no separate TEST stack today": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952391564
+      }
+    ],
+    "25.2 Document target state: stack-per-environment with separate API Gateway": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952391676
+      }
+    ],
+    "25.3 Update definition with TEST and PROD SAM configuration": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952391795
+      }
+    ],
+    "26. Checkpoint - SAM plane ready for deployment": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392015
+      }
+    ],
+    "27.1 Create `scripts/copy-prod-to-test.py` utility": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392142
+      }
+    ],
+    "27.2 Implement Cognito account-attribute copying from PROD to TEST": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392250
+      }
+    ],
+    "27.3 Implement DynamoDB table copying from PROD to `test_` tables": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392361
+      }
+    ],
+    "27.4 Ensure utility only writes TEST targets, never writes TEST→PROD": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392490
+      }
+    ],
+    "27.5 Make utility require explicit human invocation (no automation)": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392609
+      }
+    ],
+    "27.6 Write integration test verifying PROD→TEST only behavior": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392739
+      }
+    ],
+    "28.1 Create `scripts/provision-test-account.py` targeting Identity_Account": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392849
+      }
+    ],
+    "28.2 Create user in test pool if absent with `admin-set-user-password --permanent`": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952392962
+      }
+    ],
+    "28.3 Clear `FORCE_CHANGE_PASSWORD` flag": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393074
+      }
+    ],
+    "28.4 Set `custom:tenants`/`custom:role` to specified realistic shape": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393189
+      }
+    ],
+    "28.5 Support optional mode to mirror production reference account attributes": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393305
+      }
+    ],
+    "28.6 Use placeholders only, no real credentials in committed files": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393415
+      }
+    ],
+    "29.1 Update `31-backend-database-flask-mysql.md` with `APP_ENV` + resolved target model": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393583
+      }
+    ],
+    "29.2 Update `41-shell-environment.md` with DB connection notes for resolved targets": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393698
+      }
+    ],
+    "29.3 Update `#database` skill with environment distinction by resolved target": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393810
+      }
+    ],
+    "29.4 Update `35-sam-module-architecture-sam.md` with stack-per-environment model": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952393940
+      }
+    ],
+    "29.5 Update `42-local-dynamodb-testing.md` marking local emulator as dev-only": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394054
+      }
+    ],
+    "30.1 Add `TEST_URL` and `PROD_URL` fields to Environment_Definition": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394241
+      }
+    ],
+    "30.2 Document pool-based access control: TEST URL authenticates against test pool": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394384
+      }
+    ],
+    "30.3 Ensure frontend contains no UI control to switch environments within a unit": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394508
+      }
+    ],
+    "30.4 Add smoke test for URL-based auth boundary": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394626
+      }
+    ],
+    "31.1 Add `test_branch` and `production_branch` fields to Environment_Definition": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394748
+      }
+    ],
+    "31.2 Document CI/CD pipeline mapping: TEST branch → Test_Environment, main → Production": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394863
+      }
+    ],
+    "31.3 Configure pipeline to set `APP_ENV` based on branch": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952394988
+      }
+    ],
+    "31.4 Ensure branch mapping is separate from application source": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952395118
+      }
+    ],
+    "32. Final checkpoint - All planes complete": [
+      {
+        "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790952395297
+      }
+    ],
+    "1. Set up environment module structure and core types": [
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790956858618
+      }
+    ],
+    "2. Implement consistency guard (report-only mode)": [
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957436742
+      }
+    ],
+    "3. Wire `APP_ENV`/`VITE_APP_ENV` with fail-fast": [
+      {
+        "executionId": "89adeda3-6f5d-4f94-8d14-c78fae357abb",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790957961322
+      }
+    ],
+    "5. Update frontend Cognito pool selection": [
+      {
+        "executionId": "d0df065c-f965-43b3-959c-78bd95679b1c",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790958846305
+      }
+    ],
+    "11. Replace hardcoded Flask API URLs": [
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966495477
+      }
+    ],
+    "12. Update MySQL plane with resolved targets": [
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790966898207
+      }
+    ],
+    "13. Extend guard to Flask URL and MySQL target": [
+      {
+        "executionId": "89737a1b-4c9d-442f-9d0c-eef3cf3d9d3d",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1790967191775
+      }
+    ]
+  }
+}

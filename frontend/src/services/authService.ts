@@ -9,6 +9,7 @@
  */
 
 import { fetchAuthSession, getCurrentUser, signIn, confirmSignIn, associateWebAuthnCredential, listWebAuthnCredentials, deleteWebAuthnCredential } from 'aws-amplify/auth';
+import { RESOLVED } from '../config/appEnv';
 
 /**
  * JWT Payload structure from Cognito tokens
@@ -195,7 +196,9 @@ export async function getCurrentUserRoles(tenant?: string): Promise<string[]> {
     try {
       const idToken = tokens.idToken;
       if (idToken) {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        // Flask API base URL resolved from APP_ENV (Req 21.2-21.4) — never a
+        // hardcoded literal nor hostname-inferred.
+        const apiUrl = RESOLVED.flaskApiBaseUrl;
         const selectedTenant = tenant || localStorage.getItem('selectedTenant') || '';
         const headers: Record<string, string> = {
           'Authorization': `Bearer ${idToken}`,
