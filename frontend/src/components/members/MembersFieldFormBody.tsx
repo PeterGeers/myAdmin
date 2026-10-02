@@ -42,6 +42,7 @@ import {
   resolveLabel,
   evaluateShowWhen,
   richEnumOptions,
+  enumOptionToLazyOption,
   optionsForCaller,
   memberNumberError,
   isEditableField,
@@ -188,7 +189,7 @@ const FieldRow: React.FC<FieldRowProps> = ({
             : isScope
               ? regionValues.map((v): LazyOption => ({ value: v }))
               : rich
-                ? (rich as LazyOption[])
+                ? rich.map(enumOptionToLazyOption)
                 : (field.options ?? [])
                   .filter((o): o is string => typeof o === 'string')
                   .map((v): LazyOption => ({ value: v }));

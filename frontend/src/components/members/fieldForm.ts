@@ -34,6 +34,7 @@ import type {
   LocalizedLabel,
   MembershipType,
 } from '../../types/members';
+import type { LazyOption } from '../common/lazySelect.types';
 
 /** The key of the synthesized default section for fields with no (or a dangling) group. */
 export const DEFAULT_SECTION_KEY = '__default__';
@@ -150,6 +151,42 @@ export function richEnumOptions(field: FieldConfigField): EnumOptionConfig[] | n
     (o): o is EnumOptionConfig => typeof o === 'object' && o !== null && 'value' in o,
   );
   return rich.length > 0 ? rich : null;
+}
+
+/**
+ * Adapt a rich-enum `EnumOptionConfig` to the `LazySelect` `LazyOption` shape. These are two
+ * distinct option models that overlap but are not assignable: `EnumOptionConfig.label` is a
+ * `LocalizedLabel` (an `{ [locale]: string | undefined }` map) whereas `LazyOption.label` is a
+ * `string | Record<string, string>`, and `EnumOptionConfig.roles` is `string[] | null` whereas
+ * `LazyOption.roles` is `string[] | undefined`. We therefore MAP rather than cast: the localized
+ * label is narrowed to a `Record<string, string>` (dropping `undefined` locale entries so the
+ * value type matches), and a `null` roles list becomes `undefined`. `LazySelect`'s own
+ * `resolveOptionLabel` then handles locale selection at render time, matching the Members
+ * `resolveLabel` convention.
+ */
+export function enumOptionToLazyOption(opt: EnumOptionConfig): LazyOption {
+  const label = normalizeLocalizedLabel(opt.label);
+  return {
+    value: opt.value,
+    ...(label !== undefined ? { label } : {}),
+    ...(opt.roles ? { roles: opt.roles } : {}),
+  };
+}
+
+/**
+ * Narrow a `LocalizedLabel` (whose index signature permits `undefined` values) to a plain
+ * `Record<string, string>` keeping only the defined locale entries, so it satisfies
+ * `LazyOption.label`. Returns `undefined` when the input is absent or has no usable entries.
+ */
+function normalizeLocalizedLabel(
+  label: LocalizedLabel | undefined,
+): Record<string, string> | undefined {
+  if (!label) return undefined;
+  const out: Record<string, string> = {};
+  for (const [locale, value] of Object.entries(label)) {
+    if (typeof value === 'string') out[locale] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /**

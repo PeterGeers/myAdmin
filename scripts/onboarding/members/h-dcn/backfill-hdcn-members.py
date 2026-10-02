@@ -139,7 +139,7 @@ from scripts.onboarding._lib.paths import (  # noqa: E402
     ensure_backend_src_on_path,
     import_by_path,
 )
-from scripts.onboarding._lib.secrets import (  # noqa: E402
+from scripts.onboarding._lib.tenant_resolver import (  # noqa: E402
     SecretsFileNotFoundError,
     credential_file,
     load_tenant_secrets,

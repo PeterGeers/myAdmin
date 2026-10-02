@@ -1,0 +1,81 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# myAdmin pre-push guard (committed, version-controlled).
+#
+# Install with: sh scripts/hooks/install-hooks.sh
+#
+# Clean-checkout import/collect smoke test (spec full-test-suite-fixes-2026-10-02,
+# task M1). This catches the failure class that reddened CI on 2026-10-02: a
+# source module that is present in the working tree but NOT tracked by git
+# (e.g. swallowed by an over-broad .gitignore pattern). A formatter/linter gate
+# cannot see that — the file is on disk locally — so only a collect against the
+# *tracked* file set exposes it, the same way CI's fresh checkout does.
+#
+# How: temporarily stash untracked + ignored files (so the tree matches a clean
+# checkout of tracked files only), run `pytest --collect-only` on the SAM plane,
+# then ALWAYS restore the stash. A collection error fails the push (exit 1).
+#
+# Opt out for a single push with:  SKIP_PREPUSH_COLLECT=1 git push ...
+# ---------------------------------------------------------------------------
+set -u
+
+if [ "${SKIP_PREPUSH_COLLECT:-0}" = "1" ]; then
+    echo "pre-push: SKIP_PREPUSH_COLLECT=1 set — skipping clean-checkout collect smoke test." >&2
+    exit 0
+fi
+
+REPO_ROOT="$(pwd)"
+
+# Resolve a python interpreter: prefer the backend venv, else PATH python3/python.
+PY=""
+if [ -x "$REPO_ROOT/backend/.venv/bin/python" ]; then
+    PY="$REPO_ROOT/backend/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+elif command -v python >/dev/null 2>&1; then
+    PY="python"
+fi
+
+if [ -z "$PY" ]; then
+    echo "pre-push: WARNING no python interpreter found; skipping collect smoke test." >&2
+    exit 0
+fi
+
+# Only stash if there is something to stash (untracked/ignored or dirty tree),
+# so a clean tree pushes with no side effects.
+STASHED=0
+if ! git diff --quiet || ! git diff --cached --quiet || \
+   [ -n "$(git ls-files --others --exclude-standard)" ] || \
+   [ -n "$(git ls-files --others --ignored --exclude-standard)" ]; then
+    echo "pre-push: stashing working-tree + untracked/ignored files to mimic a clean checkout ..."
+    if git stash push --include-untracked --all --quiet --message "pre-push-clean-collect" ; then
+        STASHED=1
+    else
+        echo "pre-push: WARNING could not stash; skipping collect smoke test to avoid touching your tree." >&2
+        exit 0
+    fi
+fi
+
+# Always restore the stash, whatever happens next.
+restore() {
+    if [ "$STASHED" = "1" ]; then
+        echo "pre-push: restoring stashed changes ..."
+        git stash pop --quiet || echo "pre-push: WARNING 'git stash pop' failed — recover with 'git stash list' / 'git stash pop'." >&2
+    fi
+}
+trap restore EXIT INT TERM
+
+echo "pre-push: collecting SAM plane against the tracked file set ..."
+PYTHONPATH="$REPO_ROOT" "$PY" -m pytest sam/tests --collect-only -q >/tmp/myadmin-prepush-collect.log 2>&1
+RC=$?
+
+if [ "$RC" -ne 0 ]; then
+    echo "pre-push: ERROR SAM collection FAILED against the tracked file set (exit $RC)." >&2
+    echo "pre-push: this usually means a required source file is present locally but NOT committed" >&2
+    echo "pre-push: (e.g. ignored by .gitignore). CI will fail the same way. Details:" >&2
+    tail -n 25 /tmp/myadmin-prepush-collect.log >&2
+    exit 1
+fi
+
+echo "pre-push: SAM collect OK — no untracked-but-required modules detected."
+exit 0
