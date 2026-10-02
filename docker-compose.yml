@@ -65,6 +65,17 @@ services:
       # env_file) swaps the LOCAL container to the test pool so SPA logins against
       # myAdmin-test (eu-west-1_xyrlzfqbl) verify and resolve roles.
       - COGNITO_POOL_KEYS=TEST
+      # These four complete the TEST override begun above by COGNITO_POOL_KEYS=TEST:
+      # APP_ENV=test makes the single authoritative selector resolve the test pool,
+      # and the identity block agrees with it so PR #60's fail-fast guard passes
+      # (backend/.env still carries the prod identity, which env_file loads first;
+      # these environment: entries take precedence and swap the LOCAL container to
+      # the standing test pool myAdmin-test eu-west-1_xyrlzfqbl). These are PUBLIC,
+      # non-secret identifiers (the test app-client has no secret) — safe to commit.
+      - APP_ENV=test
+      - COGNITO_USER_POOL_ID=eu-west-1_xyrlzfqbl
+      - COGNITO_CLIENT_ID=43s15cm8qcgg8an85udt0e087u
+      - COGNITO_CLIENT_SECRET=
       # Point the S3 projection's DynamoDB client at the local container. This
       # var is the SOLE switch for local DynamoDB (S3 R4.1) — when it is unset,
       # boto3 resolves real AWS. In-network hostname, not localhost.
