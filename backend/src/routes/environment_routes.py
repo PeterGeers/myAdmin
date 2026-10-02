@@ -80,11 +80,12 @@ def get_environment_report() -> ResponseReturnValue:
     try:
         resolved = _resolved_config()
     except EnvironmentConfigError as exc:
-        # No active environment could be determined. Report a non-secret error label
-        # with 503 Service Unavailable rather than guessing a default.
+        # Log the detail server-side only; do NOT expose the exception text to the
+        # (unauthenticated) client — return a stable, non-sensitive error label.
+        # (CodeQL: information exposure through an exception.)
         logger.warning("Environment report requested but APP_ENV is unresolved: %s", exc)
         return (
-            jsonify({"error": "environment_unresolved", "detail": str(exc)}),
+            jsonify({"error": "environment_unresolved"}),
             503,
         )
 
