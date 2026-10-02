@@ -131,11 +131,13 @@ def initialize_duplicate_components() -> dict:
 
             db = DatabaseManager()
 
-            test_connection = db.get_connection()
-            if test_connection:
-                test_connection.close()
-            else:
-                raise RuntimeError("Could not establish database connection")
+            # Connectivity probe: open and release a connection via the
+            # context-managed API without leaking it. On failure get_cursor()
+            # raises an agnostic DatabaseError/ConnectionError, caught by the
+            # except Exception handler below (same observable error contract as
+            # the previous raw get_connection() probe).
+            with db.get_cursor() as (cursor, _conn):
+                cursor.execute("SELECT 1")
 
         except ImportError as e:
             return {

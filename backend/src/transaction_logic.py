@@ -15,9 +15,6 @@ class TransactionLogic:
         self.table_name = "mutaties"  # Use same table name in both databases
         self.db = DatabaseManager(test_mode=test_mode)
 
-    def get_connection(self):
-        return self.db.get_connection()
-
     def get_last_transactions(self, transaction_number, administration=None):
         """Get last transactions based on TransactionNumber and max date
 

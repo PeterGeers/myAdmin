@@ -291,7 +291,7 @@ class TestConnectionPoolResourceManagement:
         }
 
         with patch.object(type(db), '_scalability_manager', new_callable=PropertyMock, return_value=None), \
-             patch.object(db, 'get_connection', return_value=mock_conn):
+             patch.object(db, '_get_connection', return_value=mock_conn):
 
             if should_fail:
                 with pytest.raises(RuntimeError):
@@ -418,11 +418,11 @@ class TestBackwardCompatibility:
         assert 'commit' in params
 
     def test_get_connection_signature(self):
-        """get_connection accepts (pool_type)."""
+        """_get_connection (now private) accepts (pool_type)."""
         import database
         import inspect
 
-        sig = inspect.signature(database.DatabaseManager.get_connection)
+        sig = inspect.signature(database.DatabaseManager._get_connection)
         params = list(sig.parameters.keys())
         assert 'self' in params
         assert 'pool_type' in params

@@ -35,10 +35,7 @@ def make_ledgers(db, year: int, administration: str) -> list[dict[str, Any]]:
     # Determine closure-aware start year for balance cumulation
     start_year = get_closure_aware_start_year(db, administration)
 
-    conn = db.get_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    try:
+    with db.get_cursor() as (cursor, conn):
         # Get balance accounts (VW = N) for years before target year
         if start_year:
             # Closures exist: only include years from start_year (last_closed_year + 1)
@@ -109,10 +106,6 @@ def make_ledgers(db, year: int, administration: str) -> list[dict[str, Any]]:
         )
 
         return all_data
-
-    finally:
-        cursor.close()
-        conn.close()
 
 
 def prepare_financial_report_data(db, administration: str, year: int) -> dict[str, Any]:

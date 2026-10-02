@@ -42,14 +42,14 @@ class FinancialReportingService:
 
     @contextmanager
     def get_cursor(self):
-        """Context manager for database operations"""
-        connection = self.db.get_connection()
-        cursor = connection.cursor(dictionary=True)
-        try:
+        """Context manager for database operations.
+
+        Delegates to the abstraction layer's ``DatabaseManager.get_cursor()`` (which
+        yields ``(cursor, conn)`` with a dictionary cursor by default), while preserving
+        this wrapper's single-value ``yield cursor`` contract for existing callers.
+        """
+        with self.db.get_cursor() as (cursor, _conn):
             yield cursor
-        finally:
-            cursor.close()
-            connection.close()
 
     def build_where_clause(self, conditions) -> tuple:
         """Build WHERE clause from conditions dict"""

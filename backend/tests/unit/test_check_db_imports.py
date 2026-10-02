@@ -308,7 +308,7 @@ class TestMainExitCodes:
 
         from check_db_imports import main
         with pytest.raises(SystemExit) as exc_info:
-            main()
+            main([])  # explicit empty argv -> full-scan mode (don't leak pytest's argv)
         assert exc_info.value.code == 1
 
     def test_main_exits_0_on_clean(self, tmp_path, monkeypatch):
@@ -322,7 +322,7 @@ class TestMainExitCodes:
 
         from check_db_imports import main
         with pytest.raises(SystemExit) as exc_info:
-            main()
+            main([])  # explicit empty argv -> full-scan mode (don't leak pytest's argv)
         assert exc_info.value.code == 0
 
     def test_main_exits_0_when_no_scan_dirs_exist(self, tmp_path, monkeypatch):
@@ -331,5 +331,5 @@ class TestMainExitCodes:
 
         from check_db_imports import main
         with pytest.raises(SystemExit) as exc_info:
-            main()
+            main([])  # explicit empty argv -> full-scan mode (don't leak pytest's argv)
         assert exc_info.value.code == 0

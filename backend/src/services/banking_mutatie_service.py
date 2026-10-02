@@ -48,9 +48,6 @@ class BankingMutatieService:
             # Cap limit at 100000 to prevent abuse
             limit = min(limit, 100000)
 
-            conn = db.get_connection()
-            cursor = conn.cursor(dictionary=True)
-
             # Build WHERE clause
             where_conditions = []
             params = []
@@ -92,8 +89,6 @@ class BankingMutatieService:
                 FROM {table_name}
                 {where_clause}
             """
-            cursor.execute(count_query, params)
-            total_count = cursor.fetchone()["total"]
 
             # Get paginated results
             query = f"""
@@ -105,12 +100,17 @@ class BankingMutatieService:
                 ORDER BY TransactionDate DESC, ID DESC
                 LIMIT %s OFFSET %s
             """
-            params.extend([limit, offset])
-            cursor.execute(query, params)
 
-            results = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            # Read-only: use context-managed cursor (no commit needed)
+            with db.get_cursor(dictionary=True) as (cursor, conn):
+                # Count uses the WHERE-clause params only (no LIMIT/OFFSET)
+                cursor.execute(count_query, params)
+                total_count = cursor.fetchone()["total"]
+
+                # Paginated SELECT adds LIMIT/OFFSET params
+                params.extend([limit, offset])
+                cursor.execute(query, params)
+                results = cursor.fetchall()
 
             # Convert date objects to ISO strings
             for row in results:
@@ -152,28 +152,6 @@ class BankingMutatieService:
             db = DatabaseManager(test_mode=self.test_mode)
             table_name = "mutaties_test" if self.test_mode else "mutaties"
 
-            conn = db.get_connection()
-            cursor = conn.cursor(dictionary=True)
-
-            # Verify the record belongs to the current tenant
-            cursor.execute(
-                f"SELECT administration FROM {table_name} WHERE ID = %s", (mutatie_id,)
-            )
-            existing_record = cursor.fetchone()
-
-            if not existing_record:
-                cursor.close()
-                conn.close()
-                return {"success": False, "error": "Record not found"}
-
-            if existing_record["administration"] != tenant:
-                cursor.close()
-                conn.close()
-                return {
-                    "success": False,
-                    "error": "Access denied: Record belongs to different tenant",
-                }
-
             # Update the record - FORCE Administration to current tenant
             update_query = f"""
                 UPDATE {table_name} SET
@@ -199,28 +177,45 @@ class BankingMutatieService:
                     transaction_date, "%a, %d %b %Y %H:%M:%S %Z"
                 ).strftime("%Y-%m-%d")
 
-            cursor.execute(
-                update_query,
-                (
-                    data.get("TransactionNumber"),
-                    transaction_date,
-                    data.get("TransactionDescription"),
-                    data.get("TransactionAmount"),
-                    data.get("Debet"),
-                    data.get("Credit"),
-                    data.get("ReferenceNumber"),
-                    data.get("Ref1"),
-                    data.get("Ref2"),
-                    data.get("Ref3"),
-                    data.get("Ref4"),
-                    tenant,  # FORCE to current tenant
-                    mutatie_id,
-                ),
-            )
+            # Write: use a transaction so the UPDATE commits once at the end.
+            # The tenant-check SELECT shares the same connection/cursor as the
+            # UPDATE; on an access/not-found guard we return before any write, so
+            # transaction() exits without having mutated any row.
+            with db.transaction() as (cursor, conn):
+                # Verify the record belongs to the current tenant
+                cursor.execute(
+                    f"SELECT administration FROM {table_name} WHERE ID = %s",
+                    (mutatie_id,),
+                )
+                existing_record = cursor.fetchone()
 
-            conn.commit()
-            cursor.close()
-            conn.close()
+                if not existing_record:
+                    return {"success": False, "error": "Record not found"}
+
+                if existing_record["administration"] != tenant:
+                    return {
+                        "success": False,
+                        "error": "Access denied: Record belongs to different tenant",
+                    }
+
+                cursor.execute(
+                    update_query,
+                    (
+                        data.get("TransactionNumber"),
+                        transaction_date,
+                        data.get("TransactionDescription"),
+                        data.get("TransactionAmount"),
+                        data.get("Debet"),
+                        data.get("Credit"),
+                        data.get("ReferenceNumber"),
+                        data.get("Ref1"),
+                        data.get("Ref2"),
+                        data.get("Ref3"),
+                        data.get("Ref4"),
+                        tenant,  # FORCE to current tenant
+                        mutatie_id,
+                    ),
+                )
 
             print(
                 f"Record {mutatie_id} updated successfully with administration={tenant}",

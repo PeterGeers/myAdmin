@@ -39,7 +39,10 @@ class TestXLSXExportProcessor:
               'DocUrl': 'https://drive.google.com/file/d/123', 'Document': 'receipt.pdf'}]
         ]
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_connection.return_value = mock_conn
+        mock_db.return_value.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.return_value.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         processor = XLSXExportProcessor()
         result = processor.make_ledgers(2023, 'Test')
@@ -50,8 +53,6 @@ class TestXLSXExportProcessor:
         assert result[1]['TransactionNumber'] == 'T001'
         assert result[1]['Amount'] == 500.0
         mock_cursor.execute.assert_called()
-        mock_cursor.close.assert_called_once()
-        mock_conn.close.assert_called_once()
     
     @patch('xlsx_export.DatabaseManager')
     def test_make_ledgers_no_data(self, mock_db):
@@ -59,7 +60,10 @@ class TestXLSXExportProcessor:
         mock_cursor = Mock()
         mock_cursor.fetchall.side_effect = [[], []]
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_connection.return_value = mock_conn
+        mock_db.return_value.get_cursor.return_value.__enter__ = Mock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_db.return_value.get_cursor.return_value.__exit__ = Mock(return_value=False)
         
         processor = XLSXExportProcessor()
         result = processor.make_ledgers(2023, 'Test')

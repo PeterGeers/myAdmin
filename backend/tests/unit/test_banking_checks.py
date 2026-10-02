@@ -131,11 +131,10 @@ class TestCheckSequenceNumbers:
     def test_no_iban_found_returns_error(self, checks, mock_db):
         # _get_opening_balance_date
         mock_db.execute_query.return_value = [{'last_closed_year': None}]
-        # Setup cursor mock
+        # Setup cursor mock — get_cursor is a context manager yielding (cursor, conn)
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.get_connection.return_value = mock_conn
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
         mock_cursor.fetchone.return_value = None
 
         result = checks.check_sequence_numbers(
@@ -148,8 +147,7 @@ class TestCheckSequenceNumbers:
         mock_db.execute_query.return_value = [{'last_closed_year': None}]
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.get_connection.return_value = mock_conn
+        mock_db.get_cursor.return_value.__enter__.return_value = (mock_cursor, mock_conn)
 
         # IBAN lookup succeeds
         mock_db.get_bank_account_lookups.return_value = [

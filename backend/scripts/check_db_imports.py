@@ -4,7 +4,8 @@ Scans all .py files using AST parsing and reports any `import mysql.connector`
 or `from mysql.connector ...` statement found outside the allowed files.
 
 Usage:
-    python backend/scripts/check_db_imports.py
+    python backend/scripts/check_db_imports.py            # scan SCAN_DIRS (CI)
+    python backend/scripts/check_db_imports.py [path ...] # check only given files
 
 Exit code 0 = clean, 1 = violations found.
 """
@@ -19,6 +20,10 @@ ALLOWED_FILES = {
     'backend/src/scalability_manager.py',
     # Property test that creates real mysql.connector exceptions to verify error wrapping
     'backend/tests/unit/test_database_abstraction.py',
+    # Tests that exercise real mysql.connector pooling internals against the driver
+    'backend/tests/unit/test_database_pool_config.py',
+    'backend/tests/unit/test_maintenance/test_isolation_layer_props.py',
+    'backend/tests/unit/test_scalability_pool_config.py',
 }
 
 # Directories to skip during scanning (virtual envs, dependencies, caches, etc.)
@@ -132,22 +137,47 @@ def scan_directory(root: Path, allowed_files: set[str] | None = None,
     return all_violations
 
 
-def main():
-    """CLI entry point. Scans project directories and exits with appropriate code."""
-    root = Path('.')
+def main(argv=None):
+    """CLI entry point.
+
+    With no arguments, scans SCAN_DIRS (unchanged CI behavior). With one or more
+    path arguments, checks only those files. Exits with appropriate code.
+
+    Args:
+        argv: Optional explicit argument list. When None (the default, used by the
+            ``__main__`` CLI call), falls back to ``sys.argv[1:]``. Tests pass an
+            explicit list (``main([])`` for full-scan, ``main(['path.py'])`` for
+            single-file) so pytest's own argv never leaks in.
+    """
+    paths = sys.argv[1:] if argv is None else argv
     all_violations = []
 
-    for scan_dir in SCAN_DIRS:
-        dir_path = root / scan_dir
-        if not dir_path.is_dir():
-            continue
-        for py_file in _iter_py_files(dir_path):
-            # Normalize to POSIX path and strip leading './' for consistent
-            # comparison against ALLOWED_FILES on all platforms (including Windows CI)
+    if paths:
+        # Single-file (or explicit-file-list) mode: check only the given paths.
+        for arg in paths:
+            py_file = Path(arg)
+            if not py_file.is_file() or py_file.suffix != '.py':
+                continue
+            # Normalize (strip leading './') so allow-list matching behaves the
+            # same as full-scan mode regardless of how the path was supplied.
             rel = py_file.as_posix().replace('\\', '/').lstrip('./')
             if rel in ALLOWED_FILES:
                 continue
             all_violations.extend(check_file(py_file))
+    else:
+        # Full-scan mode (CI): walk SCAN_DIRS.
+        root = Path('.')
+        for scan_dir in SCAN_DIRS:
+            dir_path = root / scan_dir
+            if not dir_path.is_dir():
+                continue
+            for py_file in _iter_py_files(dir_path):
+                # Normalize to POSIX path and strip leading './' for consistent
+                # comparison against ALLOWED_FILES on all platforms (including Windows CI)
+                rel = py_file.as_posix().replace('\\', '/').lstrip('./')
+                if rel in ALLOWED_FILES:
+                    continue
+                all_violations.extend(check_file(py_file))
 
     if all_violations:
         print(f"Found {len(all_violations)} mysql.connector import violation(s):\n")

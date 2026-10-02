@@ -217,9 +217,6 @@ class BankingChecks:
         self, account_code=None, administration=None, start_date="2025-01-01"
     ):
         """Check if Ref2 sequence numbers are consecutive for specific accounts since start_date"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
         # Override start_date with closure-derived opening balance date if available
         opening_balance_date = _get_opening_balance_date(self.db, administration)
         if opening_balance_date is not None:
@@ -234,8 +231,6 @@ class BankingChecks:
                 (ba for ba in bank_accounts if ba["Account"] == account_code), None
             )
             if not lookup_result:
-                cursor.close()
-                conn.close()
                 return {
                     "success": False,
                     "message": f"No IBAN found for account {account_code} in {administration}",
@@ -245,24 +240,23 @@ class BankingChecks:
             iban = "NL80RABO0107936917"  # Default
 
         # Get all transactions for the IBAN since start_date, ordered by Ref2
-        cursor.execute(
-            """
-            SELECT TransactionDate, TransactionDescription, Ref2, TransactionAmount
-            FROM mutaties
-            WHERE Ref1 = %s
-            AND TransactionDate >= %s
-            AND Ref2 IS NOT NULL
-            AND Ref2 != ''
-            ORDER BY CAST(Ref2 AS UNSIGNED)
-        """,
-            (iban, start_date),
-        )
+        with self.db.get_cursor() as (cursor, conn):
+            cursor.execute(
+                """
+                SELECT TransactionDate, TransactionDescription, Ref2, TransactionAmount
+                FROM mutaties
+                WHERE Ref1 = %s
+                AND TransactionDate >= %s
+                AND Ref2 IS NOT NULL
+                AND Ref2 != ''
+                ORDER BY CAST(Ref2 AS UNSIGNED)
+            """,
+                (iban, start_date),
+            )
 
-        transactions = cursor.fetchall()
+            transactions = cursor.fetchall()
 
         if not transactions:
-            cursor.close()
-            conn.close()
             return {"success": False, "message": "No transactions found"}
 
         # Check if Ref2 values are numeric (sequence check only applies to accounts with numeric Ref2)
@@ -279,8 +273,6 @@ class BankingChecks:
             result = self._check_balance_progression(
                 transactions, iban, account_code, administration, start_date
             )
-            cursor.close()
-            conn.close()
             return result
 
         # Check for sequence gaps
@@ -315,9 +307,6 @@ class BankingChecks:
                         "description": tx["TransactionDescription"],
                     }
                 )
-
-        cursor.close()
-        conn.close()
 
         # Handle first and last sequence safely
         first_sequence = None
@@ -446,31 +435,29 @@ class BankingChecks:
         Returns:
             Dictionary with balance analysis including gaps and discrepancies
         """
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
         try:
-            cursor.execute(
-                """
-                SELECT
-                    ID,
-                    TransactionDate,
-                    TransactionDescription,
-                    TransactionAmount,
-                    Debet,
-                    Credit,
-                    Ref1,
-                    Ref2,
-                    Ref3,
-                    Administration
-                FROM mutaties
-                WHERE Ref1 = %s
-                AND TransactionDate >= %s
-            """,
-                (iban, start_date),
-            )
+            with self.db.get_cursor() as (cursor, conn):
+                cursor.execute(
+                    """
+                    SELECT
+                        ID,
+                        TransactionDate,
+                        TransactionDescription,
+                        TransactionAmount,
+                        Debet,
+                        Credit,
+                        Ref1,
+                        Ref2,
+                        Ref3,
+                        Administration
+                    FROM mutaties
+                    WHERE Ref1 = %s
+                    AND TransactionDate >= %s
+                """,
+                    (iban, start_date),
+                )
 
-            transactions = cursor.fetchall()
+                transactions = cursor.fetchall()
 
             if not transactions:
                 return {
@@ -601,9 +588,6 @@ class BankingChecks:
             final_calculated = round(calculated_balance, 2)
             final_discrepancy = round(expected_final_balance - final_calculated, 2)
 
-            cursor.close()
-            conn.close()
-
             return {
                 "success": True,
                 "iban": iban,
@@ -633,6 +617,4 @@ class BankingChecks:
             }
 
         except Exception as e:
-            cursor.close()
-            conn.close()
             return {"success": False, "error": str(e)}

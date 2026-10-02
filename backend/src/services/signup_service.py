@@ -56,10 +56,6 @@ class SignupService:
         self.db = DatabaseManager()
         self.db.config["database"] = os.getenv("PROMO_DB_NAME", "myadmin_promo")
 
-    def _get_connection(self):
-        """Get a connection to the promo database via DatabaseManager"""
-        return self.db.get_connection()
-
     def _resolve_user_pool_id(self, email: str) -> str | None:
         """Resolve the signup target user pool id for ``email``.
 
@@ -214,35 +210,30 @@ class SignupService:
 
         # 2. Insert into pending_signups
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                """INSERT INTO pending_signups 
-                   (cognito_user_id, email, first_name, last_name, company_name, 
-                    property_range, referral_source, locale, ip_address, user_agent)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (
-                    cognito_user_id,
-                    email,
-                    first_name,
-                    last_name,
-                    company_name,
-                    property_range,
-                    referral_source,
-                    locale,
-                    ip_address,
-                    user_agent,
-                ),
-            )
-            conn.commit()
+            with self.db.transaction() as (cursor, conn):
+                cursor.execute(
+                    """INSERT INTO pending_signups 
+                       (cognito_user_id, email, first_name, last_name, company_name, 
+                        property_range, referral_source, locale, ip_address, user_agent)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        cognito_user_id,
+                        email,
+                        first_name,
+                        last_name,
+                        company_name,
+                        property_range,
+                        referral_source,
+                        locale,
+                        ip_address,
+                        user_agent,
+                    ),
+                )
             logger.info(f"Pending signup inserted for {email}")
         except Exception as e:
             logger.error(f"DB insert failed for {email}: {e}")
             # Cognito user was created but DB failed — log for manual cleanup
             raise
-        finally:
-            cursor.close()
-            conn.close()
 
         # 3. Send admin notification (non-blocking)
         try:
@@ -294,22 +285,17 @@ class SignupService:
 
         # Update DB
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                """UPDATE pending_signups 
-                   SET status = 'verified', verified_at = NOW() 
-                   WHERE email = %s""",
-                (email,),
-            )
-            conn.commit()
+            with self.db.transaction() as (cursor, conn):
+                cursor.execute(
+                    """UPDATE pending_signups 
+                       SET status = 'verified', verified_at = NOW() 
+                       WHERE email = %s""",
+                    (email,),
+                )
             logger.info(f"Signup verified in DB: {email}")
         except Exception as e:
             logger.error(f"DB update failed for verification of {email}: {e}")
             raise
-        finally:
-            cursor.close()
-            conn.close()
 
         # Admin notification
         try:
@@ -361,18 +347,13 @@ class SignupService:
 
         # Update last_resend_at
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE pending_signups SET last_resend_at = NOW() WHERE email = %s",
-                (email,),
-            )
-            conn.commit()
+            with self.db.transaction() as (cursor, conn):
+                cursor.execute(
+                    "UPDATE pending_signups SET last_resend_at = NOW() WHERE email = %s",
+                    (email,),
+                )
         except Exception as e:
             logger.warning(f"DB update for last_resend_at failed: {e}")
-        finally:
-            cursor.close()
-            conn.close()
 
         return {"message": "Verification email resent"}
 
@@ -383,17 +364,14 @@ class SignupService:
     def _get_pending_signup(self, email: str) -> dict[str, Any] | None:
         """Look up a pending signup by email"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM pending_signups WHERE email = %s", (email,))
-            result = cursor.fetchone()
-            return result
+            with self.db.get_cursor() as (cursor, conn):
+                cursor.execute(
+                    "SELECT * FROM pending_signups WHERE email = %s", (email,)
+                )
+                return cursor.fetchone()
         except Exception as e:
             logger.error(f"DB lookup failed for {email}: {e}")
             raise
-        finally:
-            cursor.close()
-            conn.close()
 
     def _send_admin_notification(
         self, title: str, message: str, data: dict[str, Any] | None = None

@@ -14,6 +14,23 @@ import time
 from mutaties_cache import MutatiesCache, TenantCacheEntry, get_cache, invalidate_cache
 
 
+def _mock_cursor_cm(mock_db, mock_conn=None):
+    """Configure mock_db.get_cursor() as a context manager yielding (cursor, conn).
+
+    Mirrors the real DatabaseManager.get_cursor() contract used by the migrated
+    cache loader (`with db_manager.get_cursor() as (_cursor, conn):`). read_sql is
+    patched separately in each test, so the yielded conn only needs to unpack.
+    """
+    if mock_conn is None:
+        mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    cm = MagicMock()
+    cm.__enter__.return_value = (mock_cursor, mock_conn)
+    cm.__exit__.return_value = False
+    mock_db.get_cursor.return_value = cm
+    return mock_conn
+
+
 def _make_df(tenant="TenantA", year=2025, rows=10):
     """Helper: create a sample DataFrame for a tenant."""
     return pd.DataFrame({
@@ -67,8 +84,7 @@ class TestPerTenantGetData:
         """get_data with tenant loads only that tenant's data."""
         cache = MutatiesCache(ttl_minutes=30)
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []
 
         tenant_df = _make_df("TenantA", 2025, 5)
@@ -84,8 +100,7 @@ class TestPerTenantGetData:
         """get_data without tenant uses legacy behavior loading all tenants."""
         cache = MutatiesCache(ttl_minutes=30)
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []
 
         df_all = pd.concat([_make_df("A", 2025, 3), _make_df("B", 2025, 4)])
@@ -116,7 +131,7 @@ class TestPerTenantGetData:
 
         assert len(result) == 8
         # No DB call should have been made
-        mock_db.get_connection.assert_not_called()
+        mock_db.get_cursor.assert_not_called()
 
     def test_get_data_refreshes_after_ttl_expires(self):
         """Cache refreshes after TTL expires."""
@@ -132,8 +147,7 @@ class TestPerTenantGetData:
         )
 
         mock_db = MagicMock()
-        mock_conn = MagicMock()
-        mock_db.get_connection.return_value = mock_conn
+        _mock_cursor_cm(mock_db)
         mock_db.execute_query.return_value = []
 
         new_df = _make_df("TenantA", 2025, 12)

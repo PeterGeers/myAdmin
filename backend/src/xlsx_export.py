@@ -111,10 +111,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
         # Determine closure-aware start year for balance cumulation
         start_year = get_closure_aware_start_year(self.db, administration)
 
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        try:
+        with self.db.get_cursor() as (cursor, conn):
             # Get balance accounts (VW = N) for years before target year
             if start_year:
                 # Closures exist: only include years from start_year (last_closed_year + 1)
@@ -178,10 +175,6 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
             # Combine beginning balance and transactions
             all_data = beginning_balance + transactions_data
             return all_data
-
-        finally:
-            cursor.close()
-            conn.close()
 
     def write_workbook(self, data, filename, sheet_name="data", administration=None):
         """Write data to Excel workbook using template."""

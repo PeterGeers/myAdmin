@@ -27,10 +27,12 @@ class ZZPInvoiceNumberingHelper:
         Uses SELECT ... FOR UPDATE on invoice_number_sequences to prevent
         concurrent duplicate numbers for the same tenant/prefix/year.
         """
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute("START TRANSACTION")
+        # One atomic read-modify-write: the SELECT ... FOR UPDATE row lock and the
+        # UPDATE/INSERT share a single connection and a single commit (transaction()
+        # commits once on clean exit, rolls back on exception). Splitting these into
+        # separate get_cursor()/transaction() blocks would release the lock between
+        # read and write and allow concurrent requests to allocate duplicate numbers.
+        with self.db.transaction() as (cursor, conn):
             cursor.execute(
                 """SELECT last_sequence FROM invoice_number_sequences
                    WHERE administration = %s AND prefix = %s AND year = %s
@@ -54,24 +56,17 @@ class ZZPInvoiceNumberingHelper:
                        VALUES (%s, %s, %s, %s)""",
                     (tenant, prefix, year, next_seq),
                 )
+        # Transaction committed here (single commit, same granularity as the original).
 
-            conn.commit()
+        padding = 4
+        if self.parameter_service:
+            p = self.parameter_service.get_param(
+                "zzp", "invoice_number_padding", tenant=tenant
+            )
+            if p is not None:
+                padding = int(p)
 
-            padding = 4
-            if self.parameter_service:
-                p = self.parameter_service.get_param(
-                    "zzp", "invoice_number_padding", tenant=tenant
-                )
-                if p is not None:
-                    padding = int(p)
-
-            return f"{prefix}-{year}-{str(next_seq).zfill(padding)}"
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            cursor.close()
-            conn.close()
+        return f"{prefix}-{year}-{str(next_seq).zfill(padding)}"
 
     def get_invoice_prefix(self, tenant: str) -> str:
         """Read invoice prefix from parameters, default 'INV'."""

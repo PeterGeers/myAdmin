@@ -295,8 +295,11 @@ class TestAangifteIbXlsxExportEndpoint:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [{'administration': 'TestTenant'}]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db_cls.return_value.get_connection.return_value = mock_conn
+        # get_cursor() is a context manager yielding (cursor, conn)
+        mock_db_cls.return_value.get_cursor.return_value.__enter__.return_value = (
+            mock_cursor,
+            mock_conn,
+        )
 
         with patch('xlsx_export.XLSXExportProcessor') as mock_xlsx:
             mock_xlsx.return_value.generate_xlsx_export.return_value = [
