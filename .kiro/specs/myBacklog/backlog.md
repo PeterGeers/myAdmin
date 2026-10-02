@@ -174,3 +174,8 @@ Passkey registreren mislukt. Probeer het opnieuw.
 
 # Your main branch isn't protected
 Protect this branch from force pushing or deletion, or require status checks before merging. View documentation. See https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
+
+# Optional follow-ups I can do, just say which:
+
+Fix scalability_manager.py (pool_recycle + pool_size=50→≤32) so the startup error disappears and the multi-pool path is safe if ever re-enabled.
+Route logging to stdout so Railway stops labeling INFO lines as errors.
