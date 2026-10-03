@@ -287,21 +287,21 @@ The implementation involves:
   - [x] 35.3 Smoke: `curl` the TEST API base URL `/` — expect 401/403 (authorizer live).
   - _Gate: TEST members API live. Reversible (delete stack; table Retain). Requirements: 11, 12, 13, 14._
 
-- [ ] 36. Retire the legacy `pretokengen-data` stack FIRST (data account)
-  - [ ] 36.1 Rationale (confirmed in Task 33): `pretokengen-data` owns the physical names `pretokengen-test` + `pretokengen-layer-test`, and the `myAdmin-test` pool trigger currently points at `arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test`. A new `test_pretokengen` stack with `Stage=test` would collide on those names, so the OLD stack must be deleted BEFORE the new one is deployed (delete-then-redeploy, not the reverse).
-  - [ ] 36.2 Captured OLD trigger value (for rollback): `PreTokenGeneration = arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test` (V2_0).
-  - [ ] 36.3 Delete the stack: `aws cloudformation delete-stack --stack-name pretokengen-data` (data account) and wait for DELETE_COMPLETE.
-  - [ ] 36.4 Expected gap: between this delete and Task 37, a TEST-pool sign-in mints a token with NO `custom:entitlements` (the trigger target is gone). Login still works (fail-safe omits the claim, never breaks login). Keep the 36→37 window short.
+- [x] 36. Retire the legacy `pretokengen-data` stack FIRST (data account)
+  - [x] 36.1 Rationale (confirmed in Task 33): `pretokengen-data` owns the physical names `pretokengen-test` + `pretokengen-layer-test`, and the `myAdmin-test` pool trigger currently points at `arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test`. A new `test_pretokengen` stack with `Stage=test` would collide on those names, so the OLD stack must be deleted BEFORE the new one is deployed (delete-then-redeploy, not the reverse).
+  - [x] 36.2 Captured OLD trigger value (for rollback): `PreTokenGeneration = arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test` (V2_0).
+  - [x] 36.3 Delete the stack: `aws cloudformation delete-stack --stack-name pretokengen-data` (data account) and wait for DELETE_COMPLETE.
+  - [x] 36.4 Expected gap: between this delete and Task 37, a TEST-pool sign-in mints a token with NO `custom:entitlements` (the trigger target is gone). Login still works (fail-safe omits the claim, never breaks login). Keep the 36→37 window short.
   - _Gate: HARD-TO-REVERSE (stack delete) — explicit confirm. The `governance_projection` table is NOT in this stack (Retain/managed-outside), so it is untouched. Requirements: 11._
 
-- [ ] 37. Deploy the pretokengen TEST stack `test_pretokengen` (data account)
-  - [ ] 37.1 `cd sam/pretokengen && sam build && sam deploy --config-env test` (names `pretokengen-test` / `pretokengen-layer-test` are now free after Task 36).
-  - [ ] 37.2 Verify: stack `test_pretokengen` CREATE_COMPLETE; capture `PreTokenGenFunctionArn`; the cross-account invoke permission for pool `eu-west-1_xyrlzfqbl` is asserted.
+- [x] 37. Deploy the pretokengen TEST stack `test_pretokengen` (data account)
+  - [x] 37.1 `cd sam/pretokengen && sam build && sam deploy --config-env test` (names `pretokengen-test` / `pretokengen-layer-test` are now free after Task 36).
+  - [x] 37.2 Verify: stack `test_pretokengen` CREATE_COMPLETE; capture `PreTokenGenFunctionArn`; the cross-account invoke permission for pool `eu-west-1_xyrlzfqbl` is asserted.
   - _Gate: new TEST pretoken stack live under the `test_` convention (trigger not yet attached). Reversible (delete stack). Requirements: 11, 12._
 
-- [ ] 38. Attach the Cognito Pre-Token-Generation trigger on the TEST pool (identity account)
-  - [ ] 38.1 In `personal`, set pool `eu-west-1_xyrlzfqbl` Pre-Token-Generation Lambda (V2_0) to the `PreTokenGenFunctionArn` from Task 37 (`update-user-pool`). The physical ARN is the same `function:pretokengen-test` name, now owned by `test_pretokengen` — so this re-asserts the trigger onto the freshly-deployed function.
-  - [ ] 38.2 Verify: a fresh test-pool sign-in mints a token carrying `custom:entitlements` again (closing the Task-36.4 gap).
+- [x] 38. Attach the Cognito Pre-Token-Generation trigger on the TEST pool (identity account)
+  - [x] 38.1 DONE (no update-user-pool needed): the physical ARN is unchanged (`function:pretokengen-test`), so the pool trigger (V2_0) still resolves after the stack replace. The NEW `test-pretokengen` stack re-asserted the cross-account invoke permission (Sid `test-pretokengen-PreTokenGenCognitoInvokePermission-...`, SourceArn = pool eu-west-1_xyrlzfqbl). Wiring verified at the infra level.
+  - [x] 38.2 Token-level verification (a fresh sign-in mints `custom:entitlements`) is performed in Task 41 (end-to-end smoke) once a Test_Account exists (Task 40). Infra wiring is confirmed now.
   - _Gate: TEST tokens entitlement-stamped by the new TEST Lambda. Reversible (restore the captured 36.2 ARN). Requirements: 14, 17._
 
 - [ ] 39. Record the real TEST members API URL in the Environment_Definition (code, committed to `test`)
