@@ -28,8 +28,7 @@ asset_bp = Blueprint("assets", __name__, url_prefix="/api/assets")
 
 
 def _get_service() -> AssetService:
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     return AssetService(db)
 
 
@@ -343,8 +342,7 @@ def delete_asset(
     For assets with transactions, use dispose instead.
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check asset exists
         existing = db.execute_query(

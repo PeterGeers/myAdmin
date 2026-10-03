@@ -56,8 +56,7 @@ def has_fin_module(tenant: str) -> bool:
         bool: True if tenant has FIN module and it's active
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT is_active 
@@ -107,8 +106,7 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
         int: Count of transactions using this account
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT COUNT(*) as count
@@ -142,8 +140,7 @@ def lookup_accounts(
     No pagination — typically < 200 rows per tenant.
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         accounts = db.execute_query(
             "SELECT Account, AccountName FROM rekeningschema "
@@ -218,8 +215,7 @@ def list_accounts(user_email, user_roles) -> ResponseReturnValue:
             limit = 50
 
         # Initialize database
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Build query
         query = f"""
@@ -343,8 +339,7 @@ def get_account(user_email, user_roles, account) -> ResponseReturnValue:
             return jsonify({"error": "FIN module not enabled"}), 403
 
         # Initialize database
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Query account
         query = f"""
@@ -445,8 +440,7 @@ def create_account(user_email, user_roles) -> ResponseReturnValue:
         parameters_json = json_lib.dumps(params_dict) if params_dict else None
 
         # Initialize database
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check if account already exists
         check_query = """
@@ -563,8 +557,7 @@ def update_account(user_email, user_roles, account) -> ResponseReturnValue:
             return jsonify({"error": "Request body required"}), 400
 
         # Initialize database
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check if account exists and get old values
         check_query = """
@@ -741,8 +734,7 @@ def delete_account(user_email, user_roles, account) -> ResponseReturnValue:
             return jsonify({"error": "FIN module not enabled"}), 403
 
         # Initialize database
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check if account exists
         check_query = """

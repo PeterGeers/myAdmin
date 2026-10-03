@@ -24,7 +24,7 @@ def get_country_report_data(user_tenants):
     """
     from database import DatabaseManager
 
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
 
     # Build tenant filter
     placeholders = ", ".join(["%s"] * len(user_tenants))

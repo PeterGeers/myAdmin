@@ -81,16 +81,14 @@ def _clean_rows(rows) -> list:
 
 def _get_service() -> PivotService:
     """Create a PivotService instance with current test mode setting."""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     ps = ParameterService(db)
     return PivotService(db, ps)
 
 
 def _get_store() -> PivotModelStore:
     """Create a PivotModelStore instance with current test mode setting."""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     return PivotModelStore(db)
 
 

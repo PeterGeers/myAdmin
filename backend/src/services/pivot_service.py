@@ -212,8 +212,7 @@ def ensure_registry(db=None, parameter_service=None) -> None:
     from services.parameter_service import ParameterService
 
     if db is None:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
     if parameter_service is None:
         parameter_service = ParameterService(db)
 

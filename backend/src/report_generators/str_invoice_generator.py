@@ -194,7 +194,7 @@ def prepare_invoice_data(
             from services.logo_resolver import resolve_tenant_logo
             from services.parameter_service import ParameterService
 
-            db = DatabaseManager(test_mode=False)
+            db = DatabaseManager()
             ps = ParameterService(db)
             tenant = booking_data.get("administration", "")
 

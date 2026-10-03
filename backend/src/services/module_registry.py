@@ -404,8 +404,7 @@ def module_required(module_name: str):
 
             from database import DatabaseManager
 
-            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-            db = DatabaseManager(test_mode=test_mode)
+            db = DatabaseManager()
 
             if not has_module(db, tenant, module_name):
                 return jsonify(

@@ -54,8 +54,7 @@ def function_guard(function_name: str, module_name: str):
             # Create DatabaseManager instance
             from database import DatabaseManager
 
-            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-            db = DatabaseManager(test_mode=test_mode)
+            db = DatabaseManager()
 
             # Step 2: Check parent module is active
             from services.module_registry import has_module

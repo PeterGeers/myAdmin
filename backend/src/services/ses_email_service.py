@@ -29,8 +29,7 @@ def _get_email_log():
     if _email_log_service is None:
         from services.email_log_service import EmailLogService
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        _email_log_service = EmailLogService(test_mode=test_mode)
+        _email_log_service = EmailLogService()
     return _email_log_service
 
 

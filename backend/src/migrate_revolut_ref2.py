@@ -8,7 +8,7 @@ from database import DatabaseManager
 
 
 def migrate_revolut_ref2(test_mode=False):
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     db_name = db.config["database"]
 
     with db.get_cursor() as (cursor, conn):

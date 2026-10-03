@@ -35,8 +35,7 @@ def run_domain_verification_check(db=None, cf_service=None):
         Dict with counts of processed, activated, failed, and still-pending domains.
     """
     if db is None:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
     if cf_service is None:
         cf_service = CloudFrontDomainService()

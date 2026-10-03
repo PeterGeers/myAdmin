@@ -27,8 +27,7 @@ tenant_function_bp = Blueprint("tenant_functions", __name__)
 
 
 def _get_service() -> "TenantFunctionService":
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     return TenantFunctionService(db)
 
 
@@ -111,9 +110,7 @@ def toggle_tenant_function(
 
         # Step 5: Check parent module is active
         parent_module = FUNCTION_REGISTRY[function_name]["parent_module"]
-        db = DatabaseManager(
-            test_mode=os.getenv("TEST_MODE", "false").lower() == "true"
-        )
+        db = DatabaseManager()
         if not has_module(db, tenant, parent_module):
             return jsonify(
                 {

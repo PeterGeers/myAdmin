@@ -124,8 +124,7 @@ def get_storage_config(user_email, user_roles) -> ResponseReturnValue:
         tenant = get_current_tenant(request)
 
         # Get configuration from tenant_config table
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT config_key, config_value, is_secret
@@ -225,8 +224,7 @@ def update_storage_config(user_email, user_roles) -> ResponseReturnValue:
                     return jsonify({"error": f"Folder validation failed: {e!s}"}), 400
 
         # Update configuration in tenant_config table
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Insert or update each config key
         for key, value in data.items():
@@ -502,8 +500,7 @@ def get_storage_usage(user_email, user_roles) -> ResponseReturnValue:
 
         # Google Drive path: unchanged
         # Get storage configuration from tenant_config
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT config_key, config_value

@@ -840,8 +840,7 @@ def cognito_required(
             ]
             tenant = get_current_tenant(request)
             if tenant:
-                test_mode = os.environ.get("TEST_MODE", "false").lower() == "true"
-                db = DatabaseManager(test_mode=test_mode)
+                db = DatabaseManager()
                 tenant_roles = get_tenant_roles(user_email, tenant, db)
             else:
                 tenant_roles = []
