@@ -81,12 +81,35 @@ def handler(event, context=None):
 5. **The repository is the only DynamoDB touch-point**, and it is where **tenant scoping is
    enforced** (`tenant_id` partition key + IAM `dynamodb:LeadingKeys`) — so the layers
    above cannot cross tenants even by mistake.
-6. **SAM-plane tables are named `sam-<module>`** (e.g. `sam-members`), with the environment
-   as a suffix (`sam-members-test`), resolved from a per-module env var (fail-fast, e.g.
-   `MEMBERS_TABLE`) — **never hardcoded/synthesized**. Each module owns its own table(s)
-   under this prefix, so module-plane IAM scopes to `sam-*` (defense in depth over the
-   `tenant_id` LeadingKeys). The env token is a suffix, never a prefix, so the `sam-*` match
-   holds. See `23-aws-accounts.md`.
+6. **SAM-plane tables are per-ENVIRONMENT, with the environment as a `test_` PREFIX.**
+   Each module owns its own table(s), resolved from a per-module env var (fail-fast, e.g.
+   `MEMBERS_TABLE`) — **never hardcoded/synthesized**. PRODUCTION tables are unprefixed
+   (`sam-members`, `governance_projection`); the TEST environment uses the `test_` prefix
+   (`test_sam-members`, `test_governance_projection`). No DynamoDB table is shared across
+   environments — a projection can legitimately deviate over time, so TEST owns its own.
+   The hard isolation boundary is **IAM** (not the Lambda's resolved name): a stack's
+   execution role is scoped to the EXACT table ARNs its parameters resolve to, so a TEST
+   stack can only reach `test_*` tables and a PROD stack only the unprefixed ones (defense
+   in depth over the `tenant_id` LeadingKeys). See `23-aws-accounts.md` and the
+   test-environment spec (`.kiro/specs/Common/test-environment/`).
+
+## Stack-per-environment (the SAM compute plane's TEST/PROD split)
+
+The TEST environment on the SAM plane is a **separately deployed stack**, not a mode of one
+stack. Each module ships TEST and PROD as DISTINCT CloudFormation stacks — e.g. members =
+`test_sam-members` / `sam-members`, pretokengen = `test_pretokengen` / `pretokengen-prod` —
+so a deploy of one can never rename/replace the other, and each gets its own API Gateway
+(distinct invoke URL) and its own Cognito authorizer pool (test pool `eu-west-1_xyrlzfqbl`
+vs Pool A `eu-west-1_Hdp40eWmu`).
+
+The single environment knob is the existing per-module `Stage` SAM parameter
+(`local` | `test` | `prod`), from which `APP_ENV` is DERIVED via a `StageToAppEnv` mapping
+(`local`/`test` → `test`, `prod` → `production`) and threaded into each Lambda as the
+`APP_ENV` env var — so stage, pool, tables, and `APP_ENV` cannot drift. Deploy per
+environment with `sam deploy --config-env <test|prod>` (the per-env `samconfig.toml` block
+pins the stack name, pool ARN, and `test_`/unprefixed table names). `sam local` + the local
+DynamoDB emulator are **dev-only** and out of scope for the TEST environment (see
+`42-local-dynamodb-testing.md`).
 
 ## How this composes with the rest of the platform
 
