@@ -35,8 +35,7 @@ VALID_MODULES = {"FIN", "STR", "ZZP"}
 
 def _get_db() -> DatabaseManager:
     """Create a DatabaseManager instance with current test mode setting."""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    return DatabaseManager(test_mode=test_mode)
+    return DatabaseManager()
 
 
 def _get_param_service(db=None) -> "ParameterService":

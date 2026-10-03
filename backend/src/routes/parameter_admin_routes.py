@@ -23,11 +23,10 @@ logger = logging.getLogger(__name__)
 
 parameter_admin_bp = Blueprint("parameter_admin", __name__)
 
-flag = os.getenv("TEST_MODE", "false").lower() == "true"
 
 
 def _get_service() -> "ParameterService":
-    db = DatabaseManager(test_mode=flag)
+    db = DatabaseManager()
     from services.credential_service import CredentialService
 
     credential_service = CredentialService(db)
@@ -79,7 +78,7 @@ def list_parameters(
         is_admin = _is_sysadmin(user_roles)
 
         # Get tenant's active modules for filtering
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         module_rows = db.execute_query(
             "SELECT module_name FROM tenant_modules "
             "WHERE administration = %s AND is_active = TRUE",
@@ -228,7 +227,7 @@ def update_parameter(
         value = data.get("value")
         value_type = data.get("value_type")
 
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         rows = db.execute_query(
             "SELECT scope, scope_id, namespace, `key`, value_type, is_secret "
             "FROM parameters WHERE id = %s",
@@ -296,7 +295,7 @@ def delete_parameter(
 ) -> ResponseReturnValue:
     """Delete a parameter override at specified scope."""
     try:
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         rows = db.execute_query(
             "SELECT scope, scope_id, namespace, `key` FROM parameters WHERE id = %s",
             (param_id,),
@@ -384,7 +383,7 @@ def get_parameter_default(
             )
 
         # 2. Check system-scope DB row
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         rows = db.execute_query(
             "SELECT value, value_type, is_secret FROM parameters "
             "WHERE scope = 'system' AND namespace = %s AND `key` = %s LIMIT 1",
@@ -425,7 +424,7 @@ def get_parameter_schema(
 
         from services.parameter_schema import get_schema_for_tenant
 
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         module_rows = db.execute_query(
             "SELECT module_name FROM tenant_modules "

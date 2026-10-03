@@ -43,8 +43,7 @@ def map_key_to_namespace(config_key: str) -> tuple:
 
 def migrate(dry_run: bool = False):
     """Migrate all tenant_config rows to parameters table."""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     param_service = ParameterService(db)
 
     # Read all tenant_config rows

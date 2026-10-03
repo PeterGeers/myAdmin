@@ -68,8 +68,7 @@ def create_tenant(user_email, user_roles) -> ResponseReturnValue:
         # Provision tenant via shared service
         from services.tenant_provisioning_service import TenantProvisioningService
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         service = TenantProvisioningService(db)
 
         enabled_modules = data.get("enabled_modules", [])
@@ -153,8 +152,7 @@ def list_tenants(user_email, user_roles) -> ResponseReturnValue:
             sort_order = "DESC"
 
         # Get database connection
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Build query
         where_clauses = []
@@ -253,8 +251,7 @@ def get_tenant(user_email, user_roles, administration) -> ResponseReturnValue:
     """
     try:
         # Get database connection
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Get tenant
         query = """
@@ -337,8 +334,7 @@ def update_tenant(user_email, user_roles, administration) -> ResponseReturnValue
         data = request.get_json()
 
         # Get database connection
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check if tenant exists
         existing = db.execute_query(
@@ -431,8 +427,7 @@ def delete_tenant(user_email, user_roles, administration) -> ResponseReturnValue
     """
     try:
         # Get database connection
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check if tenant exists
         existing = db.execute_query(
@@ -504,8 +499,7 @@ def get_tenant_modules(user_email, user_roles, administration) -> ResponseReturn
         from services.module_registry import MODULE_REGISTRY
 
         # Get database connection
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check if tenant exists
         existing = db.execute_query(
@@ -590,8 +584,7 @@ def update_tenant_modules(
             return jsonify({"error": "Missing required field: modules"}), 400
 
         # Get database connection
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Check if tenant exists
         existing = db.execute_query(

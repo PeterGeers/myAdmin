@@ -43,8 +43,7 @@ def list_configs(user_email, user_roles) -> ResponseReturnValue:
     try:
         tenant = get_current_tenant(request)
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT id, config_key, config_value, is_secret, created_at, updated_at, created_by
@@ -117,8 +116,7 @@ def create_config(user_email, user_roles) -> ResponseReturnValue:
         if not config_key:
             return jsonify({"error": "config_key is required"}), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             INSERT INTO tenant_config (administration, config_key, config_value, is_secret, created_by)
@@ -184,8 +182,7 @@ def update_config(user_email, user_roles, config_id) -> ResponseReturnValue:
         config_value = data.get("config_value", "")
         is_secret = data.get("is_secret", False)
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Verify config belongs to tenant
         verify_query = """
@@ -256,8 +253,7 @@ def delete_config(user_email, user_roles, config_id) -> ResponseReturnValue:
     try:
         tenant = get_current_tenant(request)
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Verify config belongs to tenant
         verify_query = """
@@ -338,8 +334,7 @@ def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
         if not check_tenant_admin(user_roles, tenant, user_tenants):
             return jsonify({"error": "Tenant admin access required"}), 403
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT config_key, config_value, created_at, updated_at, created_by
@@ -410,8 +405,7 @@ def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
         if not config_key or config_value is None:
             return jsonify({"error": "config_key and config_value required"}), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         success = set_tenant_config(
             db, tenant, config_key, config_value, is_secret, user_email
@@ -470,8 +464,7 @@ def delete_tenant_config_legacy(
         if not check_tenant_admin(user_roles, tenant, user_tenants):
             return jsonify({"error": "Tenant admin access required"}), 403
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             DELETE FROM tenant_config

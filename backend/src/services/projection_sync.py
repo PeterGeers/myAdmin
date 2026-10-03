@@ -791,7 +791,7 @@ class ProjectionSync:
             from database import DatabaseManager
             from services.parameter_service import ParameterService
 
-            self._parameter_service = ParameterService(DatabaseManager(test_mode=False))
+            self._parameter_service = ParameterService(DatabaseManager())
         return self._parameter_service
 
     def sync_all(self) -> SyncResult:

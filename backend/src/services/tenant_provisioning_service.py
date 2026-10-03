@@ -291,9 +291,8 @@ class TenantProvisioningService:
             from services.ses_email_service import SESEmailService
             from utils.frontend_url import get_frontend_url
 
-            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
             cognito = CognitoService()
-            invitation_service = InvitationService(test_mode=test_mode)
+            invitation_service = InvitationService()
             email_template = EmailTemplateService(administration=administration)
             ses = SESEmailService()
             login_url = get_frontend_url()

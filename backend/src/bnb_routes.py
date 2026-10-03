@@ -23,7 +23,7 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
         channels = request.args.get("channels", "all")
         _period = request.args.get("period", "year")  # year, q, m
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         # Build WHERE clause
         where_conditions = []
@@ -94,7 +94,7 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
         channels = request.args.get("channels", "all")
         _period = request.args.get("period", "year")  # year, q, m
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         # Build WHERE clause
         where_conditions = []
@@ -162,7 +162,7 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
     try:
         years = request.args.get("years", "").split(",")
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         where_conditions = []
         params = []
@@ -206,7 +206,7 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
 def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
     """Get available filter options for BNB data"""
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         # Build tenant filter with placeholders for user_tenants
         placeholders = ", ".join(["%s"] * len(user_tenants))
@@ -264,7 +264,7 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
             "metric", "pricePerNight"
         )  # 'pricePerNight' or 'nightsPerStay'
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         # Build WHERE clause
         where_conditions = []
@@ -344,7 +344,7 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
 def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
     """Get returning guests summary"""
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         # Build tenant filter with placeholders for user_tenants
         placeholders = ", ".join(["%s"] * len(user_tenants))
@@ -381,7 +381,7 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
         if not guest_name:
             return jsonify({"success": False, "error": "Guest name required"}), 400
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         # Build tenant filter with placeholders for user_tenants
         placeholders = ", ".join(["%s"] * len(user_tenants))
@@ -417,7 +417,7 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
     try:
         from datetime import datetime
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
         date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))

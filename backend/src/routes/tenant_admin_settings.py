@@ -47,8 +47,7 @@ def get_settings(user_email, user_roles) -> ResponseReturnValue:
         tenant = get_current_tenant(request)
 
         # Initialize service
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         settings_service = TenantSettingsService(db)
 
         # Get settings
@@ -100,8 +99,7 @@ def update_settings(user_email, user_roles) -> ResponseReturnValue:
             return jsonify({"error": "No settings data provided"}), 400
 
         # Initialize service
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         settings_service = TenantSettingsService(db)
 
         # Update settings
@@ -161,8 +159,7 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
                 date_range["end_date"] = end_date
 
         # Initialize service
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         settings_service = TenantSettingsService(db)
 
         # Get activity

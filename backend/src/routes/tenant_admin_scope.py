@@ -119,13 +119,12 @@ def _resolve_pool_id() -> str:
 
 
 def _build_scope_service() -> UserTenantScopeService:
-    """Construct the scope service with a test-aware DB + ParameterService.
+    """Construct the scope service with a DB + ParameterService.
 
-    Mirrors how peer routes build ``DatabaseManager(test_mode=...)``; the
+    Mirrors how peer routes build ``DatabaseManager()``; the
     ParameterService is read-only (used for dimension validation + the picker).
     """
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     parameter_service = ParameterService(db)
     return UserTenantScopeService(db, parameter_service)
 
@@ -362,8 +361,7 @@ def get_scope_dimensions(module, user_email, user_roles) -> ResponseReturnValue:
 
     # Read the dimensions param directly (namespace = module token lower-cased,
     # matching the service's _load_dimension_meta / the projection builder).
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     parameter_service = ParameterService(db)
     raw_dimensions = parameter_service.get_param(
         canonical_module.lower(),

@@ -31,13 +31,11 @@ class InvoiceTestService:
     """
 
     def __init__(self):
-        """Initialize with pipeline components in test mode.
+        """Initialize with pipeline components.
 
-        PDFProcessor is initialized with test_mode=True to avoid any
-        production side effects. CsvRuleEngine is stateless and needs
-        no special configuration.
+        CsvRuleEngine is stateless and needs no special configuration.
         """
-        self.processor = PDFProcessor(test_mode=True)
+        self.processor = PDFProcessor()
         self.csv_rule_engine = CsvRuleEngine()
 
     # Maximum characters for raw text output
@@ -383,9 +381,7 @@ class InvoiceTestService:
         """
         from transaction_logic import TransactionLogic
 
-        tl = TransactionLogic(
-            test_mode=False
-        )  # Read-only access to production DB for vendor history
+        tl = TransactionLogic()  # Read-only access to production DB for vendor history
         previous_transactions = tl.get_last_transactions(folder_name, administration)
 
         # Handle error result from get_last_transactions

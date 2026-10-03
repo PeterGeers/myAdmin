@@ -282,8 +282,7 @@ def submit_contact(slug: str) -> ResponseReturnValue:
 
         # Rate limiting
         client_ip = _get_client_ip()
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = pkg.DatabaseManager(test_mode=test_mode)
+        db = pkg.DatabaseManager()
 
         rate_limit_msg = _check_rate_limit(db, email, client_ip)
         if rate_limit_msg:

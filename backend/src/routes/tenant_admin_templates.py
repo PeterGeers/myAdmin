@@ -81,8 +81,7 @@ def get_current_template_endpoint(
                 {"error": "Invalid template type", "valid_types": VALID_TEMPLATE_TYPES}
             ), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT template_file_id, field_mappings, version, approved_by,
@@ -210,8 +209,7 @@ def get_default_template_endpoint(
                 }
             ), 404
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         from services.template_service import TemplateService
 
         template_service = TemplateService(db)
@@ -287,8 +285,7 @@ def preview_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
         if not template_content:
             return jsonify({"error": "template_content is required"}), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         from services.template_preview_service import TemplatePreviewService
 
@@ -346,8 +343,7 @@ def validate_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
         if not template_content:
             return jsonify({"error": "template_content is required"}), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         from services.template_preview_service import TemplatePreviewService
 
@@ -405,8 +401,7 @@ def approve_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
         if not template_content:
             return jsonify({"error": "template_content is required"}), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         from services.template_preview_service import TemplatePreviewService
 
