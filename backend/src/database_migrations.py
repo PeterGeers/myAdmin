@@ -9,8 +9,8 @@ from dialect_helpers import dialect
 class DatabaseMigration:
     """Database migration system for schema changes and data updates"""
 
-    def __init__(self, test_mode=False):
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
         self.migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
         self.migrations_table = "database_migrations"
         os.makedirs(self.migrations_dir, exist_ok=True)
@@ -363,8 +363,8 @@ class DatabaseMigration:
 class QueryOptimizer:
     """Query optimization and caching utilities"""
 
-    def __init__(self, test_mode=False):
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
         self.query_cache = {}
         self.cache_ttl = 300  # 5 minutes
 

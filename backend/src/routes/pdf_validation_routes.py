@@ -15,16 +15,6 @@ from pdf_validation import PDFValidator
 # Create blueprint
 pdf_validation_bp = Blueprint("pdf_validation", __name__)
 
-# Global variables set by app.py
-flag = False  # Test mode flag
-
-
-def set_test_mode(test_mode) -> None:
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
-
-
 @pdf_validation_bp.route("/api/pdf/validate-urls-stream", methods=["GET"])
 @cognito_required(required_permissions=["invoices_read"])
 @tenant_required()
@@ -32,7 +22,7 @@ def pdf_validate_urls_stream(
     user_email, user_roles, tenant, user_tenants
 ) -> ResponseReturnValue:
     """Stream PDF validation progress with Server-Sent Events"""
-    validator = PDFValidator(test_mode=flag)
+    validator = PDFValidator()
     year = request.args.get("year", "2025")
     administration = request.args.get("administration", "").strip() or tenant
 
@@ -94,7 +84,7 @@ def pdf_validate_urls(
 ) -> ResponseReturnValue:
     """Validate all Google Drive URLs in mutaties table"""
     try:
-        validator = PDFValidator(test_mode=flag)
+        validator = PDFValidator()
 
         # Parse year and administration parameters
         year = request.args.get("year", "2025")
@@ -179,7 +169,7 @@ def pdf_update_record(
                 {"success": False, "error": "Original Ref3 is required"}
             ), 400
 
-        validator = PDFValidator(test_mode=flag)
+        validator = PDFValidator()
         success = validator.update_record(
             old_ref3, reference_number, ref3, ref4, tenant
         )
@@ -211,7 +201,7 @@ def pdf_get_administrations(
     """Get available administrations for a specific year, filtered by tenant access"""
     try:
         year = request.args.get("year", "2025")
-        validator = PDFValidator(test_mode=flag)
+        validator = PDFValidator()
         administrations = validator.get_administrations_for_year(year)
 
         # Filter to only administrations the user has access to
@@ -234,7 +224,7 @@ def pdf_validate_single_url(user_email, user_roles) -> ResponseReturnValue:
                 {"success": False, "error": "URL parameter is required"}
             ), 400
 
-        validator = PDFValidator(test_mode=flag)
+        validator = PDFValidator()
 
         # Create a mock record for validation
         mock_record = {

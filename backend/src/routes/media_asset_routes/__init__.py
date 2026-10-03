@@ -53,19 +53,9 @@ logger = logging.getLogger(__name__)
 # Create blueprint
 media_asset_bp = Blueprint("media_assets", __name__, url_prefix="/api/media-assets")
 
-# Global variables set by app.py
-flag = False  # Test mode flag
-
-
-def set_test_mode(test_mode) -> None:
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
-
-
 def _get_service() -> MediaAssetService:
-    """Create a MediaAssetService instance with current test mode setting."""
-    db = DatabaseManager(test_mode=flag)
+    """Create a MediaAssetService instance."""
+    db = DatabaseManager()
     ps = ParameterService(db)
     return MediaAssetService(db, ps)
 
@@ -82,4 +72,4 @@ from routes.media_asset_routes import (
     user_endpoints,  # noqa: F401
 )
 
-__all__ = ["media_asset_bp", "set_test_mode"]
+__all__ = ["media_asset_bp"]

@@ -17,14 +17,7 @@ from database import DatabaseManager
 financial_reporting_bp = Blueprint("financial_reporting", __name__)
 
 # Global variables set by app.py
-flag = False
 logger = None
-
-
-def set_test_mode(test_mode) -> None:
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
 
 
 def set_logger(log_instance) -> None:

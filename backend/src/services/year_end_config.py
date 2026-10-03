@@ -33,8 +33,8 @@ class YearEndConfigService:
         },
     }
 
-    def __init__(self, test_mode: bool = False) -> None:
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self) -> None:
+        self.db = DatabaseManager()
 
     def get_account_by_purpose(self, administration: str, purpose: str) -> str | None:
         """

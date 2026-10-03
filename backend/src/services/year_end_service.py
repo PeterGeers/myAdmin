@@ -27,15 +27,12 @@ from services.year_end_journal_entries import YearEndJournalEntryHelper
 class YearEndClosureService:
     """Service for closing fiscal years"""
 
-    def __init__(self, test_mode: bool = False) -> None:
+    def __init__(self) -> None:
         """
         Initialize year-end closure service
-
-        Args:
-            test_mode: Use test database if True
         """
-        self.db = DatabaseManager(test_mode=test_mode)
-        self.config_service = YearEndConfigService(test_mode=test_mode)
+        self.db = DatabaseManager()
+        self.config_service = YearEndConfigService()
         self.journal_helper = YearEndJournalEntryHelper(self.config_service)
 
     def get_available_years(self, administration: str) -> dict[str, Any]:
