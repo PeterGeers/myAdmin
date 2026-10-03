@@ -55,7 +55,8 @@ class TestEnvironmentModeSwitching:
         mock_makedirs.assert_called_once_with('/test/folder', exist_ok=True)
     
     def test_database_manager_test_mode_basic(self):
-        # Test basic mode setting without database connection
+        # The test_mode PARAMETER + attribute are preserved for backward
+        # compatibility (test-environment spec, task 12 — removal is Phase 3).
         with patch('database.mysql.connector.connect'):
             db = DatabaseManager(test_mode=True)
             assert db.test_mode is True
@@ -65,6 +66,25 @@ class TestEnvironmentModeSwitching:
         with patch('database.mysql.connector.connect'):
             db = DatabaseManager(test_mode=False)
             assert db.test_mode is False
+
+    def test_database_manager_schema_always_finance_regardless_of_test_mode(self):
+        # Task 12 (Req 9.2, 9.3): the TEST_DB_NAME/testfinance switch is GONE.
+        # The schema is ALWAYS `finance` for both test_mode=True and False and
+        # regardless of the legacy TEST_MODE / TEST_DB_NAME env vars — TEST vs
+        # PROD is distinguished by the resolved connection target, not the schema.
+        with patch('database.mysql.connector.connect'):
+            with patch.dict(os.environ,
+                            {'TEST_MODE': 'true', 'TEST_DB_NAME': 'testfinance'},
+                            clear=False):
+                db_test = DatabaseManager(test_mode=True)
+                db_env = DatabaseManager(test_mode=False)
+            db_prod = DatabaseManager(test_mode=False)
+
+        assert db_test.config['database'] == 'finance'
+        assert db_env.config['database'] == 'finance'
+        assert db_prod.config['database'] == 'finance'
+        # `testfinance` must never be selected anymore.
+        assert db_test.config['database'] != 'testfinance'
     
     @patch('database.DatabaseManager')
     @patch('services.credential_service.CredentialService')
@@ -226,13 +246,17 @@ class TestEnvironmentVariables:
         
         assert test_mode is False
     
-    @patch.dict(os.environ, {'DB_NAME': 'finance', 'TEST_DB_NAME': 'testfinance'})
-    def test_database_name_environment_variables(self):
-        prod_db = os.getenv('DB_NAME', 'finance')
-        test_db = os.getenv('TEST_DB_NAME', 'testfinance')
-        
-        assert prod_db == 'finance'
-        assert test_db == 'testfinance'
+    def test_database_schema_is_always_finance(self):
+        # Task 12 (Req 9.2): the old DB_NAME/TEST_DB_NAME -> finance/testfinance
+        # switch is removed. The DatabaseManager schema is now ALWAYS `finance`;
+        # TEST and PROD are told apart by the resolved connection target, not by
+        # the schema name. Even with the legacy TEST_DB_NAME var set, the manager
+        # must not select `testfinance`.
+        with patch('database.mysql.connector.connect'):
+            with patch.dict(os.environ, {'TEST_DB_NAME': 'testfinance'}, clear=False):
+                db = DatabaseManager(test_mode=True)
+        assert db.config['database'] == 'finance'
+        assert db.config['database'] != 'testfinance'
     
     @patch.dict(os.environ, {'FACTUREN_FOLDER_ID': 'prod_folder', 'TEST_FACTUREN_FOLDER_ID': 'test_folder'})
     def test_folder_id_environment_variables(self):
@@ -285,3 +309,73 @@ class TestModeConsistency:
         
         # Verify they don't interfere with each other
         assert config_test.test_mode != config_prod.test_mode
+
+
+class TestDotenvLoaderHygiene:
+    """Guard the .env configuration-hygiene fix.
+
+    Every import-time ``load_dotenv()`` under ``backend/src`` must PIN
+    ``backend/.env`` via ``Path(__file__).parent.parent / ".env"`` rather than
+    call the BARE ``load_dotenv()``. A bare call searches the CWD upward, so
+    which .env loads becomes context-dependent: a script run from the repo root
+    makes the backend import the ROOT .env, whose static personal-account AWS
+    keys then clobber boto3's AWS_PROFILE (documented in
+    scripts/onboarding/members/_generic/project-config-to-prod.py). Pinning makes
+    the load deterministic and CWD-independent regardless of where Python starts.
+
+    These tests parse module SOURCE (they do NOT call load_dotenv — forbidden in
+    test files per steering 34 — and never open a DB connection), so they assert
+    the property directly without mutating process env.
+    """
+
+    # Files whose loaders were pinned (app.py is the reference and already pinned).
+    SRC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "src")
+    PINNED_MODULES = [
+        "database.py",
+        "transaction_logic.py",
+        "actuals_routes.py",
+        "google_drive_service.py",
+        "ai_extractor.py",
+        "hybrid_pricing_optimizer.py",
+        "image_ai_processor.py",
+        "app.py",  # the pattern these mirror
+    ]
+
+    def _read_src(self, filename):
+        with open(os.path.join(self.SRC_DIR, filename), "r", encoding="utf-8") as fh:
+            return fh.read()
+
+    @pytest.mark.parametrize("filename", PINNED_MODULES)
+    def test_loader_has_no_bare_load_dotenv(self, filename):
+        source = self._read_src(filename)
+        # A bare call is load_dotenv with an empty arg list. The pinned form
+        # always passes dotenv_path=..., so no "load_dotenv()" literal may remain.
+        assert "load_dotenv()" not in source, (
+            f"{filename} still calls bare load_dotenv() — it must pin backend/.env "
+            "so the import-time load is CWD-independent."
+        )
+
+    @pytest.mark.parametrize("filename", PINNED_MODULES)
+    def test_loader_pins_backend_env(self, filename):
+        source = self._read_src(filename)
+        # Accept either literal path layout used across the modules/app.py.
+        pins_inline = 'dotenv_path=Path(__file__).parent.parent / ".env"' in source
+        pins_via_var = (
+            'Path(__file__).parent.parent / ".env"' in source
+            and "load_dotenv(dotenv_path=" in source
+        )
+        assert pins_inline or pins_via_var, (
+            f"{filename} must load backend/.env via "
+            'load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env").'
+        )
+
+    def test_backend_env_resolves_to_backend_dir(self):
+        # Sanity-check the relative depth the modules rely on: for a file directly
+        # in backend/src, parent.parent is the backend/ dir, so the pinned path is
+        # backend/.env — the single file the backend app is meant to read.
+        from pathlib import Path
+
+        fake_src_file = Path(self.SRC_DIR).resolve() / "database.py"
+        resolved = (fake_src_file.parent.parent / ".env").resolve()
+        assert resolved.name == ".env"
+        assert resolved.parent.name == "backend"

@@ -95,6 +95,51 @@ def make_flask_request(token=None, headers=None):
     return mock_request
 
 
+# Cognito env vars that select the AUTH VERIFICATION PATH in
+# `cognito_utils._get_jwt_verifier()`. The multi-pool issuer->pool registry
+# (`COGNITO_POOL_KEYS` + the per-pool `{KEY}_COGNITO_*` vars) takes priority over
+# the legacy single-pool vars. These tests target the legacy single-pool and
+# base64-fallback paths specifically, so they MUST strip the registry vars to
+# avoid being hijacked by a registry declaration that leaks in from the ambient
+# environment / `.env` (test-isolation defect that otherwise makes these tests
+# order-dependent). Keep this list in sync with pool_registry's declared vars.
+_AUTH_PATH_SELECTING_ENV_VARS = (
+    "COGNITO_USER_POOL_ID",
+    "COGNITO_REGION",
+    "COGNITO_APP_CLIENT_ID",
+    "COGNITO_POOL_KEYS",
+    "TEST_COGNITO_ISSUER",
+    "TEST_COGNITO_JWKS_URI",
+    "TEST_COGNITO_CLIENT_ID",
+    "TEST_COGNITO_POOL_LABEL",
+)
+
+
+def _env_without_auth_path_vars() -> dict:
+    """os.environ copy with every auth-path-selecting var removed (force base64 fallback)."""
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k not in _AUTH_PATH_SELECTING_ENV_VARS
+    }
+
+
+def _legacy_single_pool_env() -> dict:
+    """Env that forces the LEGACY single-pool verifier path.
+
+    Sets the three legacy vars and explicitly BLANKS COGNITO_POOL_KEYS so a leaked
+    registry declaration is treated as unset (the loader treats blank as "no
+    registry" and falls through to the legacy path — see
+    test_cognito_verifier_wiring.test_blank_pool_keys_falls_through_to_legacy).
+    """
+    return {
+        "COGNITO_USER_POOL_ID": TEST_USER_POOL_ID,
+        "COGNITO_REGION": TEST_REGION,
+        "COGNITO_APP_CLIENT_ID": TEST_APP_CLIENT_ID,
+        "COGNITO_POOL_KEYS": "",
+    }
+
+
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Reset the JWT verifier singleton before each test."""
@@ -126,12 +171,7 @@ class TestJWTVerifierSingleton:
 
     def test_returns_verifier_when_env_vars_set(self):
         """When all Cognito env vars are set, returns JWTVerifier instance."""
-        env_vars = {
-            'COGNITO_USER_POOL_ID': TEST_USER_POOL_ID,
-            'COGNITO_REGION': TEST_REGION,
-            'COGNITO_APP_CLIENT_ID': TEST_APP_CLIENT_ID,
-        }
-        with patch.dict(os.environ, env_vars):
+        with patch.dict(os.environ, _legacy_single_pool_env(), clear=True):
             result = _get_jwt_verifier()
             assert result is not None
             assert isinstance(result, JWTVerifier)
@@ -452,12 +492,6 @@ class TestExtractWithVerifierActive:
 
     def test_uses_verifier_when_env_vars_set(self):
         """When env vars are configured, uses JWTVerifier path."""
-        env_vars = {
-            'COGNITO_USER_POOL_ID': TEST_USER_POOL_ID,
-            'COGNITO_REGION': TEST_REGION,
-            'COGNITO_APP_CLIENT_ID': TEST_APP_CLIENT_ID,
-        }
-
         private_key = generate_rsa_keypair()
         public_key = private_key.public_key()
 
@@ -476,7 +510,7 @@ class TestExtractWithVerifierActive:
 
         request = make_flask_request(token=token)
 
-        with patch.dict(os.environ, env_vars):
+        with patch.dict(os.environ, _legacy_single_pool_env(), clear=True):
             # JWKS network I/O now lives in the shared T4 cache module.
             with patch("auth.jwks_cache.requests.get") as mock_get:
                 mock_response = MagicMock()
@@ -508,8 +542,7 @@ class TestExtractWithVerifierActive:
         request = make_flask_request(token=token)
 
         # Clear env vars to force fallback
-        clean_env = {k: v for k, v in os.environ.items()
-                     if k not in ('COGNITO_USER_POOL_ID', 'COGNITO_REGION', 'COGNITO_APP_CLIENT_ID')}
+        clean_env = _env_without_auth_path_vars()
         with patch.dict(os.environ, clean_env, clear=True):
             email, roles, error = extract_user_credentials(request)
 
@@ -537,8 +570,7 @@ class TestExtractWithVerifierActive:
             }
         }
 
-        clean_env = {k: v for k, v in os.environ.items()
-                     if k not in ('COGNITO_USER_POOL_ID', 'COGNITO_REGION', 'COGNITO_APP_CLIENT_ID')}
+        clean_env = _env_without_auth_path_vars()
         with patch.dict(os.environ, clean_env, clear=True):
             email, roles, error = extract_user_credentials(event)
 

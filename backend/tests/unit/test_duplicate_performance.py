@@ -13,6 +13,16 @@ from hypothesis import given, strategies as st, settings, assume, Phase
 from database import DatabaseManager
 from duplicate_checker import DuplicateChecker
 
+from contextlib import contextmanager
+
+
+def _cursor_cm(mock_cursor, mock_conn):
+    """A get_cursor() replacement yielding (cursor, conn) like the real context manager."""
+    @contextmanager
+    def _cm(*args, **kwargs):
+        yield (mock_cursor, mock_conn)
+    return _cm
+
 
 @pytest.fixture
 def patched_db_manager():
@@ -55,7 +65,7 @@ class TestDuplicateDetectionPerformance:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             start_time = time.time()
             result = db_manager.check_duplicate_transactions(
                 'TestVendor',
@@ -77,7 +87,7 @@ class TestDuplicateDetectionPerformance:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             start_time = time.time()
             result = db_manager.check_duplicate_transactions(
                 'TestVendor',
@@ -99,7 +109,7 @@ class TestDuplicateDetectionPerformance:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             start_time = time.time()
             result = db_manager.check_duplicate_transactions(
                 'TestVendor',
@@ -140,7 +150,7 @@ class TestDuplicateDetectionPerformance:
 
         mock_cursor.fetchall.return_value = mock_duplicates
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             start_time = time.time()
             result = db_manager.check_duplicate_transactions(
                 'TestVendor',
@@ -163,7 +173,7 @@ class TestDuplicateDetectionPerformance:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             db_manager.check_duplicate_transactions(
                 'TestVendor',
                 '2024-06-15',
@@ -189,7 +199,7 @@ class TestDuplicateDetectionPerformance:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             start_time = time.time()
             db_manager.check_duplicate_transactions(
                 'TestVendor',
@@ -232,7 +242,7 @@ class TestDuplicateDetectionPerformance:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, 'get_connection', return_value=mock_conn):
+        with patch.object(db, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             start_time = time.time()
             result = db.check_duplicate_transactions(
                 reference_number,
@@ -254,7 +264,7 @@ class TestDuplicateDetectionPerformance:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+        with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
             db_manager.check_duplicate_transactions(
                 'TestVendor',
                 '2024-06-15',
@@ -283,7 +293,7 @@ class TestDuplicateDetectionPerformance:
         mock_cursor.fetchall.return_value = []
 
         def run_duplicate_check(vendor_id):
-            with patch.object(db_manager, 'get_connection', return_value=mock_conn):
+            with patch.object(db_manager, 'get_cursor', _cursor_cm(mock_cursor, mock_conn)):
                 return db_manager.check_duplicate_transactions(
                     f'Vendor{vendor_id}',
                     '2024-06-15',
