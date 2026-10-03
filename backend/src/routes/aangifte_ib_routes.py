@@ -427,7 +427,7 @@ def aangifte_ib_xlsx_export(
         # Build query with tenant filtering — query base mutaties table directly
         placeholders = ", ".join(["%s"] * len(user_tenants))
         query = f"SELECT DISTINCT administration FROM mutaties WHERE administration IN ({placeholders}) ORDER BY administration"
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, user_tenants)
             available_admins = [row["administration"] for row in cursor.fetchall()]
 

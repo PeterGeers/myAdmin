@@ -97,7 +97,7 @@ def get_tenant_modules(user_email, user_roles):
             return jsonify({"error": "Access denied to tenant"}), 403
 
         # Get tenant's enabled modules from database
-        with db_manager.get_cursor() as (cursor, _conn):
+        with db_manager.get_cursor_only() as cursor:
             cursor.execute(
                 """
                 SELECT module_name
@@ -159,7 +159,7 @@ def get_all_tenant_modules(user_email, user_roles):
         # Get modules for each tenant
         tenant_modules_map = {}
 
-        with db_manager.get_cursor() as (cursor, _conn):
+        with db_manager.get_cursor_only() as cursor:
             for tenant in user_tenants:
                 cursor.execute(
                     """

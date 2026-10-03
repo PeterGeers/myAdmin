@@ -39,10 +39,10 @@ class TestXLSXExportProcessor:
               'DocUrl': 'https://drive.google.com/file/d/123', 'Document': 'receipt.pdf'}]
         ]
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_cursor.return_value.__enter__ = Mock(
-            return_value=(mock_cursor, mock_conn)
+        mock_db.return_value.get_cursor_only.return_value.__enter__ = Mock(
+            return_value=mock_cursor
         )
-        mock_db.return_value.get_cursor.return_value.__exit__ = Mock(return_value=False)
+        mock_db.return_value.get_cursor_only.return_value.__exit__ = Mock(return_value=False)
         
         processor = XLSXExportProcessor()
         result = processor.make_ledgers(2023, 'Test')
@@ -60,10 +60,10 @@ class TestXLSXExportProcessor:
         mock_cursor = Mock()
         mock_cursor.fetchall.side_effect = [[], []]
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_cursor.return_value.__enter__ = Mock(
-            return_value=(mock_cursor, mock_conn)
+        mock_db.return_value.get_cursor_only.return_value.__enter__ = Mock(
+            return_value=mock_cursor
         )
-        mock_db.return_value.get_cursor.return_value.__exit__ = Mock(return_value=False)
+        mock_db.return_value.get_cursor_only.return_value.__exit__ = Mock(return_value=False)
         
         processor = XLSXExportProcessor()
         result = processor.make_ledgers(2023, 'Test')

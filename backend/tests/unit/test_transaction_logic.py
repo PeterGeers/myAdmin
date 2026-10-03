@@ -100,15 +100,15 @@ class TestTransactionLogic:
     
     def test_get_last_transactions_existing(self, transaction_logic, mock_connection, sample_template_transactions):
         """Test getting existing transactions"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         mock_cursor.fetchall.return_value = sample_template_transactions
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         transactions = transaction_logic.get_last_transactions('Kuwait')
         
@@ -118,15 +118,15 @@ class TestTransactionLogic:
 
     def test_get_last_transactions_zero_results_returns_error(self, transaction_logic, mock_connection):
         """Test that 0 results returns error dict instead of Gamma fallback"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         mock_cursor.fetchall.return_value = []
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         result = transaction_logic.get_last_transactions('NewVendor')
         
@@ -141,7 +141,7 @@ class TestTransactionLogic:
     
     def test_get_last_transactions_single_resolves_vat_from_tax_service(self, transaction_logic, mock_connection):
         """Test single transaction resolves VAT account from TaxRateService, not hardcoded '2010'"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
             'TransactionNumber': 'TestVendor',
@@ -164,11 +164,11 @@ class TestTransactionLogic:
         }
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('TestVendor')
@@ -182,7 +182,7 @@ class TestTransactionLogic:
     
     def test_get_last_transactions_single_vat_fallback_when_no_rate(self, transaction_logic, mock_connection):
         """Test graceful fallback to '2010' when TaxRateService returns None"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
             'TransactionNumber': 'TestVendor',
@@ -201,11 +201,11 @@ class TestTransactionLogic:
         mock_tax_svc.get_tax_rate.return_value = None
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('TestVendor')
@@ -216,7 +216,7 @@ class TestTransactionLogic:
     
     def test_no_coursera_vendor_overrides(self, transaction_logic, mock_connection):
         """Test that Coursera vendor-specific overrides no longer exist — DB accounts used as-is"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
             'TransactionNumber': 'coursera',
@@ -234,11 +234,11 @@ class TestTransactionLogic:
         mock_tax_svc.get_tax_rate.return_value = {'rate': 21.0, 'ledger_account': '2010', 'description': 'BTW hoog'}
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('coursera')
@@ -250,7 +250,7 @@ class TestTransactionLogic:
     
     def test_no_netflix_vendor_overrides(self, transaction_logic, mock_connection):
         """Test that Netflix vendor-specific overrides no longer exist — DB accounts used as-is"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
             'TransactionNumber': 'netflix',
@@ -268,11 +268,11 @@ class TestTransactionLogic:
         mock_tax_svc.get_tax_rate.return_value = {'rate': 21.0, 'ledger_account': '2010', 'description': 'BTW hoog'}
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('netflix')
@@ -284,7 +284,7 @@ class TestTransactionLogic:
     
     def test_single_transaction_vendors_no_duplication(self, transaction_logic, mock_connection):
         """Test vendors in single_transaction_vendors list return 1 result (no duplication)"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
             'TransactionNumber': 'SomeVendor',
@@ -299,11 +299,11 @@ class TestTransactionLogic:
         mock_cursor.fetchall.return_value = single_transaction
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         transactions = transaction_logic.get_last_transactions('SomeVendor')
         
@@ -388,12 +388,12 @@ class TestTransactionLogic:
     
     def test_save_approved_transactions_success(self, transaction_logic, mock_connection):
         """Test successful transaction saving"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         mock_cursor.lastrowid = 123
         
         @contextmanager
         def mock_transaction():
-            yield mock_cursor, mock_conn
+            yield mock_cursor, _mock_conn
         
         transaction_logic.db = MagicMock()
         transaction_logic.db.transaction = mock_transaction
@@ -423,11 +423,11 @@ class TestTransactionLogic:
     
     def test_save_approved_transactions_skip_zero_amount(self, transaction_logic, mock_connection):
         """Test skipping transactions with zero amount"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         
         @contextmanager
         def mock_transaction():
-            yield mock_cursor, mock_conn
+            yield mock_cursor, _mock_conn
         
         transaction_logic.db = MagicMock()
         transaction_logic.db.transaction = mock_transaction
@@ -456,7 +456,7 @@ class TestTransactionLogic:
     
     def test_multiple_ref3_groups_handling(self, transaction_logic, mock_connection):
         """Test handling multiple transactions with different Ref3 values"""
-        mock_conn, mock_cursor = mock_connection
+        _mock_conn, mock_cursor = mock_connection
         multiple_transactions = [
             {'ID': 1, 'Ref3': 'url1', 'TransactionNumber': 'Kuwait', 'Debet': '4000'},
             {'ID': 2, 'Ref3': 'url1', 'TransactionNumber': 'Kuwait', 'Debet': '2010'},
@@ -466,11 +466,11 @@ class TestTransactionLogic:
         mock_cursor.fetchall.return_value = multiple_transactions
         
         @contextmanager
-        def mock_get_cursor():
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only():
+            yield mock_cursor
         
         transaction_logic.db = MagicMock()
-        transaction_logic.db.get_cursor = mock_get_cursor
+        transaction_logic.db.get_cursor_only = mock_get_cursor_only
         
         transactions = transaction_logic.get_last_transactions('Kuwait')
         

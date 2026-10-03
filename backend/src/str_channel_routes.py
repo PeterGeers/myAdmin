@@ -77,7 +77,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         HAVING ABS(SUM(Amount)) > 0.01
         """
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, (end_date, administration, pattern))
             channel_data = cursor.fetchall()
 
@@ -253,7 +253,7 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
         saved_count = 0
         # transaction() commits once on clean exit, preserving the original
         # single commit-at-end granularity for the batch insert.
-        with db.transaction() as (cursor, conn):
+        with db.transaction() as (cursor, _conn):
             for transaction in transactions:
                 cursor.execute(
                     insert_query,
@@ -334,7 +334,7 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
         ORDER BY administration, ReferenceNumber
         """
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, (end_date, administration, pattern))
             preview_data = cursor.fetchall()
 

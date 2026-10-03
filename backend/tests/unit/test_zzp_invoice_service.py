@@ -6,6 +6,7 @@ from unittest.mock import Mock, MagicMock, call
 from datetime import date
 from io import BytesIO
 from services.zzp_invoice_service import ZZPInvoiceService
+from _db_contract import wire_cursor_contract
 
 
 def _make_service(db=None, tax_svc=None, param_svc=None):
@@ -30,7 +31,9 @@ def _mock_db_for_numbering(existing_sequence=None):
         cursor.fetchone.return_value = None
 
     db = Mock()
-    db.get_connection.return_value = conn
+    # New database.py contract: numbering runs inside `with db.transaction() as
+    # (cursor, conn):`. Wire the context-managed APIs to yield the 2-tuple.
+    wire_cursor_contract(db, cursor, conn)
     return db, conn, cursor
 
 
@@ -42,7 +45,11 @@ def test_generate_invoice_number_first_invoice_returns_0001():
     svc = _make_service(db=db)
     result = svc._generate_invoice_number('T1', 'INV', 2026)
     assert result == 'INV-2026-0001'
-    conn.commit.assert_called_once()
+    # Commit is owned by db.transaction() under the new contract (not called on the
+    # mock, which stands in for the CM). Assert the write happened instead: SELECT
+    # then INSERT for a brand-new sequence.
+    assert 'FOR UPDATE' in cursor.execute.call_args_list[0][0][0]
+    assert 'INSERT' in cursor.execute.call_args_list[1][0][0]
 
 
 def test_generate_invoice_number_existing_sequence_increments():
@@ -56,8 +63,9 @@ def test_generate_invoice_number_uses_for_update_locking():
     db, conn, cursor = _mock_db_for_numbering(existing_sequence=1)
     svc = _make_service(db=db)
     svc._generate_invoice_number('T1', 'INV', 2026)
-    # Verify FOR UPDATE was in the SELECT query
-    select_call = cursor.execute.call_args_list[1]  # [0]=START TRANSACTION, [1]=SELECT
+    # Verify FOR UPDATE was in the SELECT query (now the first execute — the
+    # transaction/BEGIN is owned by db.transaction(), not an explicit statement).
+    select_call = cursor.execute.call_args_list[0]
     assert 'FOR UPDATE' in select_call[0][0]
 
 
@@ -66,8 +74,8 @@ def test_generate_invoice_number_new_year_starts_at_0001():
     svc = _make_service(db=db)
     result = svc._generate_invoice_number('T1', 'INV', 2027)
     assert result == 'INV-2027-0001'
-    # Verify INSERT was called (not UPDATE)
-    insert_call = cursor.execute.call_args_list[2]  # [0]=START, [1]=SELECT, [2]=INSERT
+    # Verify INSERT was called (not UPDATE). [0]=SELECT ... FOR UPDATE, [1]=INSERT.
+    insert_call = cursor.execute.call_args_list[1]
     assert 'INSERT' in insert_call[0][0]
 
 
@@ -89,21 +97,24 @@ def test_generate_invoice_number_credit_note_prefix():
 
 
 def test_generate_invoice_number_rollback_on_error():
+    """Errors raised inside the transaction block propagate to the caller.
+
+    Under the new database.py contract the numbering helper runs inside
+    `with db.transaction() as (cursor, conn):`; rollback/close is owned by
+    `transaction()` itself (verified in database.py's own tests), so here we only
+    assert the error surfaces unchanged when the first query fails.
+    """
     cursor = MagicMock()
     conn = MagicMock()
     conn.cursor.return_value = cursor
-    cursor.execute.side_effect = [None, Exception("DB error")]  # START ok, SELECT fails
+    cursor.execute.side_effect = Exception("DB error")  # SELECT ... FOR UPDATE fails
 
     db = Mock()
-    db.get_connection.return_value = conn
+    wire_cursor_contract(db, cursor, conn)
     svc = _make_service(db=db)
 
     with pytest.raises(Exception, match="DB error"):
         svc._generate_invoice_number('T1', 'INV', 2026)
-
-    conn.rollback.assert_called_once()
-    cursor.close.assert_called_once()
-    conn.close.assert_called_once()
 
 
 def test_generate_invoice_number_concurrent_same_tenant_uses_row_lock():
@@ -121,9 +132,9 @@ def test_generate_invoice_number_concurrent_same_tenant_uses_row_lock():
     assert r1 == 'INV-2026-0004'
     assert r2 == 'INV-2026-0005'
 
-    # Both used FOR UPDATE
+    # Both used FOR UPDATE (SELECT is the first execute under the new contract).
     for c in [cursor1, cursor2]:
-        select_call = c.execute.call_args_list[1]
+        select_call = c.execute.call_args_list[0]
         assert 'FOR UPDATE' in select_call[0][0]
 
 
@@ -668,8 +679,14 @@ def test_create_credit_note_sent_invoice_returns_credit_note():
     )
     result = svc.create_credit_note('T1', 1, created_by='test')
     assert result is not None
-    # Verify CN number was generated (via the numbering mock)
-    conn.commit.assert_called()
+    # Verify CN number was generated (via the numbering mock): the numbering helper
+    # runs its SELECT ... FOR UPDATE through the transaction cursor. Commit itself is
+    # owned by db.transaction() under the new contract, so assert the query ran.
+    assert any(
+        'FOR UPDATE' in call.args[0]
+        for call in cursor.execute.call_args_list
+        if call.args
+    )
 
 
 def test_create_credit_note_draft_invoice_raises_valueerror():

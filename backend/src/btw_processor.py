@@ -469,7 +469,7 @@ class BTWProcessor:
                 LIMIT 1
             """
 
-            with self.db.get_cursor(dictionary=True) as (cursor, _conn):
+            with self.db.get_cursor_only(dictionary=True) as cursor:
                 cursor.execute(query, (administration,))
                 result = cursor.fetchone()
 

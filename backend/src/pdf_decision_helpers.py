@@ -136,7 +136,7 @@ def initialize_duplicate_components() -> dict:
             # raises an agnostic DatabaseError/ConnectionError, caught by the
             # except Exception handler below (same observable error contract as
             # the previous raw get_connection() probe).
-            with db.get_cursor() as (cursor, _conn):
+            with db.get_cursor_only() as cursor:
                 cursor.execute("SELECT 1")
 
         except ImportError as e:

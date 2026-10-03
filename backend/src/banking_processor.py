@@ -239,7 +239,7 @@ class BankingProcessor:
         # --- Save logic with duplicate detection ---
         table_name = "mutaties"
         saved_count = 0
-        with self.db.get_cursor() as (cursor, conn):
+        with self.db.get_cursor_only() as cursor:
             for transaction in transactions:
                 try:
                     if "row_id" in transaction:

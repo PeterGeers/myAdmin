@@ -30,7 +30,7 @@ class PDFValidator:
 
     def validate_pdf_urls(self):
         """Validate all Google Drive URLs in mutaties table"""
-        with self.db.get_cursor() as (cursor, _conn):
+        with self.db.get_cursor_only() as cursor:
             # Get distinct records with Google Drive URLs
             query = """
                 SELECT DISTINCT ReferenceNumber, Ref3, Ref4, 
@@ -73,7 +73,7 @@ class PDFValidator:
         consumer closes the generator early (``GeneratorExit``), or an error
         propagates — ``get_cursor()``'s ``finally`` handles all three cases.
         """
-        with self.db.get_cursor() as (cursor, _conn):
+        with self.db.get_cursor_only() as cursor:
             # Build WHERE clause with filters
             where_clause = "WHERE Ref3 REGEXP 'google'"
             params = []
@@ -149,7 +149,7 @@ class PDFValidator:
 
     def get_administrations_for_year(self, year=None):
         """Get distinct administrations for a specific year"""
-        with self.db.get_cursor() as (cursor, _conn):
+        with self.db.get_cursor_only() as cursor:
             where_clause = "WHERE Ref3 REGEXP 'google'"
             params = []
 

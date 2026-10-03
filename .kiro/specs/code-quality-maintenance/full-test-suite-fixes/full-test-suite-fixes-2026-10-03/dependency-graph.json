@@ -1,0 +1,129 @@
+{
+  "specId": "b55b2cfd-40a8-4ed1-b4ff-e0197bc1db08",
+  "spec": "full-test-suite-fixes-2026-10-03",
+  "ciRun": 37104991318,
+  "ciConclusion": "failure",
+  "ciHeadSha": "c8eb675a7dd7fcbc0fa8250298298e0a9202c846",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (2026-10-03)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1",
+      "H2",
+      "H3"
+    ],
+    "medium": [
+      "M1"
+    ],
+    "low": [
+      "L1",
+      "L2",
+      "L3"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Update backend test mocks to the new database.py cursor/connection contract (46 failing tests)",
+      "priority": "high",
+      "effort": "L",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "database.py refactored: get_connection -> private _get_connection (line 196), and the cursor context manager now yields a 2-tuple (cursor, conn) (yield cursor, conn at 249/270/326), consumed as 'with get_cursor() as (cursor, conn):'. 46 unit tests encode the OLD contract and fail at runtime: 19 TypeError 'Mock not a context manager', 13 ValueError unpack-expected-2-got-0, 11 AttributeError no 'get_connection', 2 pytest.raises match= regex no longer matches, 1 property-test continue-decision. Production + SAM run on the new contract — the fix is in the test mocks, not database.py. Prefer a shared mock_cursor_cm fixture (MagicMock __enter__ -> (cursor, conn)) to fix the 43 CM/unpack/attribute cases at once."
+    },
+    {
+      "id": "H2",
+      "title": "Clear the 40 RUF059 'unpacked variable conn is never used' backend lint errors",
+      "priority": "high",
+      "effort": "M",
+      "plane": "lint",
+      "type": "fix",
+      "rootCause": "Production side of the same database.py refactor: 40 call sites across 24 files do 'with get_cursor() as (cursor, conn):' but never use conn. RUF059 flags each; ruff reports NO safe fixes (40 hidden/unsafe fixes only) so each is a manual edit (rename to _conn/_ , or switch to a cursor-only helper). Concentrations: bnb_routes.py x8, routes/str_routes.py x5, services/signup_service.py x4, str_channel_routes.py x3, hybrid_pricing_optimizer.py x3. Do NOT blanket --unsafe-fixes (can mask a forgotten conn.commit())."
+    },
+    {
+      "id": "H3",
+      "title": "Reformat src/str_invoice_routes.py (1 ruff-format violation)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "lint",
+      "type": "fix",
+      "rootCause": "str_invoice_routes.py:63 has a logger.info(f'...') manually split over 3 lines that fits on one; ruff format collapses it. '1 file would be reformatted, 308 already formatted'. Auto-fixable via 'ruff format'. CI-blocking (Ruff format check step red)."
+    },
+    {
+      "id": "M1",
+      "title": "Re-fix frontend tsc TS2322 in MembersFieldFormBody.tsx:188 (regressed since 10-02)",
+      "priority": "medium",
+      "effort": "M",
+      "plane": "frontend",
+      "type": "fix",
+      "rootCause": "EnumOptionConfig[] passed where LazyOption<string>[] expected; label LocalizedLabel wider than string|Record<string,string>. Marked fixed as 10-02 M2 (map via enumOptionToLazyOption in fieldForm.ts) but PRESENT AGAIN in the 10-03 tsc artifact (line moved 187->188) — reverted/incomplete or masked by stale tsconfig.tsbuildinfo. Report-only (non-blocking) so nothing enforced the fix; re-apply the explicit map (not a cast) and clear the tsbuildinfo cache before re-checking."
+    },
+    {
+      "id": "L1",
+      "title": "Broaden the 10-02 pre-push guard from collect-only to also run affected tests + ruff",
+      "priority": "low",
+      "effort": "M",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "The 10-02 M1 pre-push hook runs 'pytest sam/tests --collect-only' — catches import/collection breaks but NOT runtime test failures or RUF059/format lint, which is exactly what regressed this cycle. 4+ consecutive cycles (09-28 lint, 09-30 format, 10-02 untracked module, 10-03 DB refactor) broke via post-suite commits. Add 'ruff check src/' + 'ruff format --check src/' + a changed-path pytest subset to the pre-push hook."
+    },
+    {
+      "id": "L2",
+      "title": "Adopt a cursor-only context manager / _conn convention to stop RUF059 recurring (3rd appearance)",
+      "priority": "low",
+      "effort": "M",
+      "plane": "backend",
+      "type": "prevention",
+      "rootCause": "RUF059 on unpacked-unused conn recurred on 08-12 and 08-18 and is back at scale (40) on 10-03. Durable fix: add get_cursor_only() (yields just cursor) or codify the as (cursor, _conn): convention in DB-abstraction docs/steering, and migrate the H2 unused-conn sites to it so the rule can't fire there again."
+    },
+    {
+      "id": "L3",
+      "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "Standing reproducibility guard carried forward from 10-02 L2. The 40 RUF059 are real code issues, not a version artifact; keep local 0.16.5 == CI 0.16.5 so counts stay trustworthy."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "land the test-contract fix and get the backend test job green first, then broaden the pre-push guard that would have caught it"
+    },
+    {
+      "from": "H2",
+      "to": "L2",
+      "type": "recommended-after",
+      "reason": "clear the 40 RUF059 sites first, then introduce the cursor-only helper/convention so the rule stops recurring"
+    },
+    {
+      "from": "H2",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "once ruff lint is green, wire ruff check/format into the pre-push guard to keep it green"
+    }
+  ],
+  "recommendedOrder": [
+    "H1",
+    "H2",
+    "H3",
+    "M1",
+    "L1",
+    "L2",
+    "L3"
+  ],
+  "notes": [
+    "CI run #37104991318 is RED with TWO failing jobs (Backend Full Test Suite: 46 failed; Backend Lint & Static Analysis: Ruff lint + Ruff format) that share ONE root cause: the backend/src/database.py connection/cursor refactor (get_connection -> _get_connection; cursor CM now yields (cursor, conn)). SAM Module-Plane ✅ and Frontend ✅.",
+    "H1 is the primary red and the largest effort (L). The 46 failures are stale TEST mocks, not a product bug — production + SAM run on the new (cursor, conn) contract. A shared cursor-mock fixture (MagicMock __enter__ -> (cursor, conn)) fixes the 43 CM/unpack/attribute cases together; the 2 pytest.raises match= and 1 property-test (continue-decision) cases need individual attention.",
+    "H2 (40 RUF059) and H3 (1 ruff format) are the production-side footprint of the SAME refactor as H1 — group them. H2 is NOT safely auto-fixable (ruff: 40 hidden fixes, --unsafe-fixes only); each site is a manual _conn/_ rename or a switch to a cursor-only helper. H3 is a trivial 'ruff format' auto-fix.",
+    "RECURRENCE: SAM 10-02 Critical collection error (untracked secrets.py) is RESOLVED — the tenant_resolver.py rename held and SAM passes this cycle.",
+    "RECURRENCE: RUF059 appeared on 08-12 and 08-18 and is back (40) on 10-03 — L2 proposes a cursor-only context manager / _conn convention as the durable fix.",
+    "RECURRENCE: 10-02 M2 (MembersFieldFormBody.tsx TS2322) was marked fixed but reappears in the 10-03 tsc artifact (now line 188). It is report-only so it drifted back silently; re-tracked as M1 with a prevention follow-up (blocking gate or regression test).",
+    "META-PATTERN (4th+ cycle): post-suite commits land on main and only surface on the next scheduled run (09-28 lint, 09-30 format, 10-02 untracked module, 10-03 DB refactor). The 10-02 collect-only pre-push guard cannot catch runtime test or lint regressions — L1 broadens it to ruff + a changed-path test subset.",
+    "Report-only / non-blocking signals this cycle (did NOT redden CI): SAM ruff 18 findings (down from 41 on 10-02 — the 10-02 L1 sweep held), frontend ESLint ~1,100 warnings, frontend tsc 2 errors (the MembersFieldFormBody one is M1).",
+    "Ruff version: CI 0.16.5 == local 0.16.5 (per 10-02 L2). The lint failures are real code, not a version mismatch."
+  ]
+}

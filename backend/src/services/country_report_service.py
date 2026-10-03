@@ -29,7 +29,7 @@ def get_country_report_data(user_tenants):
     # Build tenant filter
     placeholders = ", ".join(["%s"] * len(user_tenants))
 
-    with db.get_cursor(dictionary=False) as (cursor, conn):
+    with db.get_cursor_only(dictionary=False) as cursor:
         # Get country statistics with JOIN to countries table
         cursor.execute(
             f"""

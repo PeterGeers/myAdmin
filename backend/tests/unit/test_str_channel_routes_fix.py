@@ -93,6 +93,11 @@ def _wire_get_cursor(mock_db):
     cm.__enter__.return_value = (mock_cursor, mock_conn)
     cm.__exit__.return_value = False
     mock_db.get_cursor.return_value = cm
+    # Read paths use get_cursor_only() (yields just the cursor).
+    cm_only = MagicMock()
+    cm_only.__enter__.return_value = mock_cursor
+    cm_only.__exit__.return_value = False
+    mock_db.get_cursor_only.return_value = cm_only
     return mock_cursor
 
 
