@@ -32,14 +32,29 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
     _use_legacy_pool = True
 
     def __init__(self, test_mode=False):
-        # NOTE (test-environment spec, task 12): the `test_mode` parameter is
+        # NOTE (test-environment spec, tasks 12 & 15): the `test_mode` parameter is
         # PRESERVED for backward compatibility — many call sites across the
-        # codebase still pass `test_mode=...`. As of task 12 it NO LONGER selects
-        # a `testfinance` schema: the schema is always `finance`, and TEST vs PROD
-        # is distinguished by the RESOLVED connection target (host/credentials),
-        # not by the schema name (Req 9.2, 9.3). The full "ignore + warn" shim and
-        # the eventual removal of this parameter are later Phase-3 tasks (15/16/17).
+        # codebase still pass `test_mode=...` (their removal is Phase-3 tasks
+        # 16/17). As of task 12 it NO LONGER selects a `testfinance` schema: the
+        # schema is always `finance`, and TEST vs PROD is distinguished by the
+        # RESOLVED connection target (host/credentials), not by the schema name
+        # (Req 9.2, 9.3). Task 15 (Step 1 shim, Req 2.6) completes the neutralization:
+        # `test_mode` has NO effect on environment/target selection — the active
+        # environment is selected solely by `APP_ENV`. The attribute is still stored
+        # because other code/tests read `db.test_mode`.
         self.test_mode = test_mode
+
+        # Task 15.2 (Req 2.6): emit a ONE-TIME deprecation warning only when a caller
+        # explicitly relies on the old selector (passes a TRUTHY `test_mode`). The
+        # default `test_mode=False` must stay silent — otherwise every plain
+        # `DatabaseManager()` would spam the log. The environment is now selected by
+        # `APP_ENV` (schema is always `finance`); `test_mode` is ignored.
+        if test_mode:
+            logger.warning(
+                "`test_mode` is deprecated and ignored for environment selection; "
+                "the environment is selected by `APP_ENV` (schema is always "
+                "'finance'). This parameter will be removed in a later release."
+            )
 
         self.config = self._resolve_mysql_config()
 
