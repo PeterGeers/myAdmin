@@ -160,7 +160,7 @@ def test_invoke_permission_pool_is_a_parameter(template):
 
 
 def test_test_and_prod_are_distinct_stacks(samconfig):
-    assert samconfig["test"]["deploy"]["parameters"]["stack_name"] == "test_pretokengen"
+    assert samconfig["test"]["deploy"]["parameters"]["stack_name"] == "test-pretokengen"
     assert samconfig["prod"]["deploy"]["parameters"]["stack_name"] == "pretokengen-prod"
 
 

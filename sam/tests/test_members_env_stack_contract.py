@@ -257,7 +257,7 @@ def test_authorizer_pool_is_a_parameter(template):
 
 def test_test_and_prod_are_distinct_stacks(samconfig):
     """TEST and PROD deploy to different CloudFormation stacks (distinct APIs)."""
-    assert _deploy_params(samconfig, "test")["stack_name"] == "test_sam-members"
+    assert _deploy_params(samconfig, "test")["stack_name"] == "test-sam-members"
     assert _deploy_params(samconfig, "prod")["stack_name"] == "sam-members"
 
 
