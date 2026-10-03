@@ -317,9 +317,9 @@ The implementation involves:
   - [x] 40.2 Optionally mirror a prod reference account via the Copy_Utility (explicit).
   - _Gate: a usable TEST login exists. Requirements: 17._
 
-- [ ] 41. End-to-end TEST smoke (the "can I test TEST" check)
-  - [ ] 41.1 Backend `APP_ENV=test`: `GET /api/environment` shows TEST pool/mysql/dynamodb + stack `test_sam-members` + the real (non-placeholder) SAM API URL; Consistency_Guard CONSISTENT.
-  - [ ] 41.2 Frontend `npm start` (`VITE_APP_ENV=test`): sign in with the Test_Account; EnvironmentIndicator shows TEST + the live SAM endpoint; Members page loads data from `test_sam-members`.
+- [x] 41. End-to-end TEST smoke (the "can I test TEST" check)
+  - [x] 41.1 VERIFIED: `GET /api/environment` -> app_env test, pool eu-west-1_xyrlzfqbl (myAdmin-test), mysql TEST/finance, dynamodb_prefix test_, sam_stack_label test-sam-members, sam_api_base_url https://28jun82vl3.execute-api.eu-west-1.amazonaws.com/test (real, non-placeholder). Backend boots clean => strict Consistency_Guard PASSED.
+  - [x] 41.2 VERIFIED by user: signed in as webmaster@h-dcn.nl (test pool); the Members data table loads from test_sam-members AND modal edits persist (write path works). This also proves 38.2 — the TEST pretokengen Lambda stamped custom:entitlements from test_governance_projection (Members_CRUD granted => editable).
   - _Gate: TEST environment operational end-to-end. Requirements: 19.3, 20, 22._
 
 > **CI alternative (Task 31 path).** Tasks 35/37 can run via the `test`-branch CI once
