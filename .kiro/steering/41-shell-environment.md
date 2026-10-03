@@ -56,9 +56,10 @@ cd backend && source .venv/bin/activate && python src/some_script.py
 ## Database connections (local Docker vs Railway) — see `#database` skill
 
 Connection details are NOT in this file — the single source is the **`#database`
-skill** (`.kiro/skills/database.md`: hosts, ports, the `finance`/`testfinance`
-schemas, the migration runner). Load it whenever a task touches a DB connection,
-migration, or a query against real data. Just enough to know when to reach for it:
+skill** (`.kiro/skills/database.md`: hosts, ports, the APP_ENV + resolved-DB-target
+model on schema `finance`, the migration runner). Load it whenever a task touches a
+DB connection, migration, or a query against real data. Just enough to know when to
+reach for it:
 
 - **Local dev** targets Docker MySQL via the `DB_*` vars in `.env` — never edit
   those to point elsewhere.
@@ -70,7 +71,10 @@ migration, or a query against real data. Just enough to know when to reach for i
   ```bash
   PYTHONPATH=backend/src backend/scripts/railway-db.sh python <script.py>
   ```
-  Defaults to production `finance`; pass `TEST_MODE=true` for `testfinance`.
+  Targets the `finance` schema (the only schema the app uses — TEST vs PRODUCTION
+  is a resolved DB target, local Docker vs Railway, not a schema switch). The
+  wrapper's legacy `TEST_MODE=true`/`testfinance` flag is an ad-hoc escape hatch,
+  NOT the environment model — see the `#database` skill.
 
 ## AWS CLI & exit codes on this WSL setup (important)
 

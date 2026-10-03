@@ -79,7 +79,7 @@ real data.
 
 - Parameterized queries: always `%s` placeholders, never f-string interpolation
 - Tables: `snake_case`, views: `vw_` prefix, FKs: `{table}_id`
-- Environments: local Docker (dev), Railway (production) — database config comes from env vars, never hardcode
+- Environments: selected by `APP_ENV` (`test` | `production`) → one resolved DB **target**, both on schema `finance` (no `test_mode`, no `finance`/`testfinance` split). Current operational mapping: TEST → local Docker MySQL, PRODUCTION → Railway. Config comes from env vars (TEST via `DB_*_TEST`, PRODUCTION via `DB_*`), never hardcode. See the `#database` skill.
 
 ## Tenant Isolation (REQ13 — Defense in Depth)
 

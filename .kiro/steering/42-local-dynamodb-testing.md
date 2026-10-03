@@ -8,6 +8,16 @@ Scope: the tenant-governance projection (`s3-claims-and-projection`, design D3) 
 later phase that touches it (including the S5 module plane). Two rules that every phase
 must follow.
 
+> **DEV-ONLY — not the TEST environment.** The local DynamoDB emulator
+> (`amazon/dynamodb-local`) and `sam local` described here are a **developer** offline
+> loop. They are explicitly OUT OF SCOPE for the `test` environment (`APP_ENV=test`) as
+> defined by the test-environment spec (`.kiro/specs/Common/test-environment/`, Req
+> 10.5 / 11.4 / 19.5). The real TEST environment is a **separately deployed SAM stack**
+> (`test_sam-members` / `test_pretokengen`) backed by real AWS `test_`-prefixed DynamoDB
+> tables and the test Cognito pool — never the local emulator. "local" (`Stage=local`,
+> this emulator) and "test" (`APP_ENV=test`, deployed) are distinct: do not conflate the
+> dev emulator with the Test_Environment.
+
 ## 1. Long-running processes go through `control_bash_process` (never foreground)
 
 Any process that does not terminate quickly — `docker compose up`, `sam local
@@ -28,8 +38,9 @@ Rule of thumb: if it "stays up until you stop it", it goes through
 
 `docker-compose.yml` includes a `dynamodb-local` service (`amazon/dynamodb-local`,
 `-sharedDb`) that comes up alongside MySQL + backend in one stack. This lets the
-projection and its property/integration tests run fully offline. The cloud `test_` /
-`-Test` tables are a fallback, not the primary local path.
+projection and its property/integration tests run fully offline. The cloud `test_`-prefixed
+tables (the real TEST environment) are a separate, deployed datastore — NOT this local
+offline path; do not point local dev tooling at them.
 
 Networking (mirrors the h-dcn `scripts/local/` reference):
 - Named Docker network `myadmin-local`; the container has the network alias
