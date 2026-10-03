@@ -15,11 +15,7 @@ import { useFilterableTable } from '../hooks/useFilterableTable';
 import { FilterableHeader } from './filters/FilterableHeader';
 import { MutatiesFilterPanel, BnbFilterPanel, BalanceFilterPanel } from './ProfitLossFilterPanel';
 import { ProfitLossChartPanel, BalanceRecord } from './ProfitLossChartPanel';
-import { RESOLVED } from '../config/appEnv';
-
-// Flask API base URL resolved from APP_ENV (Req 21.2-21.4) — never a hardcoded
-// literal nor hostname-inferred.
-const API_BASE_URL = RESOLVED.flaskApiBaseUrl;
+import { authenticatedGet, buildEndpoint } from '../services/apiService';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -104,7 +100,7 @@ const ProfitLoss: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams(mutatiesFilters);
-      const response = await fetch(`${API_BASE_URL}/api/reports/mutaties-table?${params}`);
+      const response = await authenticatedGet(buildEndpoint('/api/reports/mutaties-table', params));
       const data = await response.json();
       if (data.success) setMutatiesData(data.data);
     } catch (err) {
@@ -118,7 +114,7 @@ const ProfitLoss: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams(balanceFilters);
-      const response = await fetch(`${API_BASE_URL}/api/reports/balance-data?${params}`);
+      const response = await authenticatedGet(buildEndpoint('/api/reports/balance-data', params));
       const data = await response.json();
       if (data.success) {
         setBalanceData(data.data.filter((row: BalanceRecord) => Math.abs(Number(row.total_amount || 0)) > 0.01));
@@ -134,7 +130,7 @@ const ProfitLoss: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams(bnbFilters);
-      const response = await fetch(`${API_BASE_URL}/api/bnb/bnb-table?${params}`);
+      const response = await authenticatedGet(buildEndpoint('/api/bnb/bnb-table', params));
       const data = await response.json();
       if (data.success) setBnbData(data.data);
     } catch (err) {
