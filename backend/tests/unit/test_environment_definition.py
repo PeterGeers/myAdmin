@@ -445,7 +445,7 @@ class TestEnvironmentDefinitionInstance:
         assert test_config.flask_api_base_url == "http://localhost:5000"
         
         # SAM — members module TEST stack (per-module stacks, test_ boundary)
-        assert test_config.sam.stack_name == "test_sam-members"
+        assert test_config.sam.stack_name == "test-sam-members"
         assert "PLACEHOLDER_TEST_API" in test_config.sam.api_base_url
         assert test_config.sam.table_prefix == "test_"
         assert test_config.sam.exec_role_scope == "arn:aws:dynamodb:*:*:table/test_*"

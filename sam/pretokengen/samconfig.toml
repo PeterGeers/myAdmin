@@ -34,7 +34,7 @@ version = 0.1
 
 # --- TEST (data account 506221081911, eu-west-1; triggered from personal-acct myAdmin-test) ---
 [test.deploy.parameters]
-stack_name = "test_pretokengen"      # TEST stack (test_ convention); DISTINCT from prod (footgun guard)
+stack_name = "test-pretokengen"      # CFN stack names forbid underscores (TABLES/prefix keep test_); DISTINCT from prod
 region = "eu-west-1"
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 resolve_s3 = true

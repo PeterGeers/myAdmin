@@ -60,7 +60,7 @@ class TestBuildEnvironmentReportExamples:
         assert report["mysql_target_label"] == "TEST"
         assert report["mysql_schema"] == "finance"
         assert report["dynamodb_prefix"] == "test_"
-        assert report["sam_stack_label"] == "test_sam-members"
+        assert report["sam_stack_label"] == "test-sam-members"
 
     def test_report_production_env_names_production_boundary(self) -> None:
         """For APP_ENV=production the report names PRODUCTION boundary values."""

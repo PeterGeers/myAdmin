@@ -98,7 +98,7 @@ export const TEST_FRONTEND_CONFIG: FrontendPlaneDef = {
   // HTTP API). stackName is the members TEST stack; the TEST API base URL is a
   // PLACEHOLDER until the `test_sam-members` stack is first deployed.
   sam: {
-    stackName: 'test_sam-members',
+    stackName: 'test-sam-members',
     apiBaseUrl: 'https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test',
     tablePrefix: 'test_',
     authorizerPoolId: TEST_POOL_ID,

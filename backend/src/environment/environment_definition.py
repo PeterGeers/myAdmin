@@ -188,7 +188,7 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
         # base URL is a PLACEHOLDER until the `test_sam-members` stack is first
         # deployed (its MembersApiBaseUrl output is then recorded here).
         sam=SamDef(
-            stack_name="test_sam-members",
+            stack_name="test-sam-members",
             api_base_url="https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test",
             table_prefix="test_",
             exec_role_scope="arn:aws:dynamodb:*:*:table/test_*",

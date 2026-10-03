@@ -65,7 +65,7 @@ parameter_overrides = [
 # own table, populated operationally (local-Docker seed or a one-way PROD->TEST copy),
 # because a projection can legitimately deviate over time (user decision).
 [test.deploy.parameters]
-stack_name = "test_sam-members"
+stack_name = "test-sam-members"  # CFN stack names forbid underscores; the TABLE stays test_sam-members
 region = "eu-west-1"
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 resolve_s3 = true
