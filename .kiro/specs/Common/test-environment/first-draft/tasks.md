@@ -140,129 +140,227 @@ The implementation involves:
 
 ### Phase 4: SAM test stack (heavy build)
 
-- [ ] 19. Prepare SAM template for environment parameterization
-  - [ ] 19.1 Add `Environment` parameter to SAM templates with allowed values `[test, production]`
-  - [ ] 19.2 Update template to flow `Environment` into all resources
-  - [ ] 19.3 Add `APP_ENV` environment variable to each Lambda deriving from `Environment`
-  - [ ] 19.4 Update table name references to use prefix based on `Environment`
-  - _Requirements: 11.1-11.3_
+> **Phase 4 reconciliation (agreed with user).** The SAM plane uses the existing
+> per-module `Stage` parameter as the SINGLE environment knob (reused, not a parallel
+> `Environment` param) and DERIVES `APP_ENV` from it via a `StageToAppEnv` mapping
+> (`local`/`test` → `test`, `prod` → `production`). Stacks are PER-MODULE, not one
+> monolith: members = `test_sam-members`/`sam-members`, pretokengen =
+> `test_pretokengen`/`pretokengen-prod` (the design's `myAdmin-test`/`myAdmin-prod` were
+> illustrative). TEST tables carry the `test_` prefix; NO DynamoDB table is shared across
+> environments (TEST owns `test_governance_projection`). Live cross-prefix-DENY and
+> authorizer accept/reject exercises require a real deploy (gated), so they are covered
+> deploy-free by static template-contract tests; the live assertion happens at deploy time.
 
-- [ ] 20. Create test/prod SAM config environments
-  - [ ] 20.1 Add `[test.deploy.parameters]` section to `samconfig.toml` with `Environment=test`
-  - [ ] 20.2 Add `[prod.deploy.parameters]` section with `Environment=production`
-  - [ ] 20.3 Set distinct stack names: `myAdmin-test` and `myAdmin-prod`
-  - [ ] 20.4 Configure parameter overrides for each environment
+- [x] 19. Prepare SAM template for environment parameterization
+  - [x] 19.1 `Stage` (the single env knob) AllowedValues extended to `[local, test, prod]`
+  - [x] 19.2 `Stage` already flows into all resources (names, API stage, output URL)
+  - [x] 19.3 Added `APP_ENV` env var to each Lambda via `!FindInMap [StageToAppEnv, Stage]`
+  - [x] 19.4 Table names are per-env params; members pattern widened to accept `test_` prefix
+  - _Requirements: 11.1-11.3_
+  - _Done: sam/members/template.yaml + sam/pretokengen/template.yaml; sam validate --lint passes._
+
+- [x] 20. Create test/prod SAM config environments
+  - [x] 20.1 Added `[test.deploy.parameters]` with `Stage=test` (members; pretokengen already had it)
+  - [x] 20.2 `[prod.deploy.parameters]` with `Stage=prod` (both modules)
+  - [x] 20.3 Distinct per-module stack names: `test_sam-members`/`sam-members`, `test_pretokengen`/`pretokengen-prod`
+  - [x] 20.4 Per-env parameter overrides (tables, pool ARN, projection) configured
   - _Requirements: 11.2_
 
-- [ ] 21. Implement environment-scoped execution roles
-  - [ ] 21.1 Update IAM role policies to scope DynamoDB by prefix: `test_*` for TEST, unprefixed for PROD
-  - [ ] 21.2 Ensure TEST role denies access to unprefixed tables at IAM layer
-  - [ ] 21.3 Verify PROD role scoped to unprefixed tables only
-  - [ ] 21.4 Write integration test for IAM cross-prefix denial
+- [x] 21. Implement environment-scoped execution roles
+  - [x] 21.1 Inline IAM scopes DynamoDB to the EXACT table-name params (resolve to `test_*` for TEST, unprefixed for PROD)
+  - [x] 21.2 TEST role cannot reach unprefixed tables — no `table/*` wildcard, same-account only
+  - [x] 21.3 PROD role scoped to unprefixed table ARNs only
+  - [x] 21.4 Static contract test asserts the no-wildcard / exact-ARN scoping (live cross-prefix DENY exercised at deploy)
   - _Requirements: 10.3, 12.1-12.4_
+  - _Done: sam/tests/test_members_env_stack_contract.py, test_pretokengen_env_stack_contract.py._
 
-- [ ] 22. Deploy separate TEST API Gateway
-  - [ ] 22.1 Configure separate `AWS::Serverless::Api` for TEST stack
-  - [ ] 22.2 Ensure TEST and PROD stacks have distinct invoke URLs
-  - [ ] 22.3 Update frontend SAM API base URL resolution to use environment-specific URL
-  - [ ] 22.4 Update backend health report to include active SAM API URL
+- [x] 22. Deploy separate TEST API Gateway
+  - [x] 22.1 Each stack declares its own `AWS::Serverless::Api` (members); a distinct stack ⇒ distinct API
+  - [x] 22.2 TEST/PROD are distinct stacks ⇒ distinct invoke URLs (URL output is `Stage`-scoped)
+  - [x] 22.3 Frontend SAM API base URL resolves per-env from the Environment_Definition (TEST placeholder until first deploy)
+  - [x] 22.4 Backend health report already surfaces the active resolved SAM API URL
   - _Requirements: 13.1-13.4_
 
-- [ ] 23. Implement per-environment Cognito authorizer
-  - [ ] 23.1 Update authorizer configuration to reference pool based on `Environment`
-  - [ ] 23.2 TEST authorizer references test pool `eu-west-1_xyrlzfqbl`
-  - [ ] 23.3 PROD authorizer references production pool `eu-west-1_Hdp40eWmu`
-  - [ ] 23.4 Write integration test for authorizer accept/reject behavior
+- [x] 23. Implement per-environment Cognito authorizer
+  - [x] 23.1 Authorizer `UserPoolArn` is the per-env `CognitoUserPoolArn` parameter
+  - [x] 23.2 TEST `[test]` config sets the test pool `eu-west-1_xyrlzfqbl`
+  - [x] 23.3 PROD `[prod]` config sets the production pool `eu-west-1_Hdp40eWmu`
+  - [x] 23.4 Contract test asserts the per-env authorizer/invoke pool wiring (live accept/reject exercised at deploy)
   - _Requirements: 14.1-14.3_
 
-- [ ] 24. Extend guard to SAM plane
-  - [ ] 24.1 Add guard check for SAM authorizer pool matching `APP_ENV`
-  - [ ] 24.2 Add guard check for SAM API base URL matching `APP_ENV`
-  - [ ] 24.3 Add guard check for DynamoDB prefix matching `APP_ENV`
+- [x] 24. Extend guard to SAM plane
+  - [x] 24.1 `_check_sam_authorizer_pool` — SAM authorizer pool matches `APP_ENV`
+  - [x] 24.2 `_check_sam_api_base_url` — SAM API base URL matches `APP_ENV` (placeholder-tolerant pre-deploy)
+  - [x] 24.3 `_check_dynamodb_prefix` — DynamoDB prefix matches `APP_ENV`
   - _Requirements: 4.4, 14.4-14.5, 19.4_
+  - _Done: backend/src/environment/consistency_guard.py + paired tests; verified live `environment.check` → CONSISTENT._
 
-- [ ] 25. Update Environment_Definition with SAM delta
-  - [ ] 25.1 Record current-state delta: no separate TEST stack today
-  - [ ] 25.2 Document target state: stack-per-environment with separate API Gateway
-  - [ ] 25.3 Update definition with TEST and PROD SAM configuration
+- [x] 25. Update Environment_Definition with SAM delta
+  - [x] 25.1 Current-state delta recorded (comments: only the `test_` prefix isolates SAM today)
+  - [x] 25.2 Target state documented in design.md §9/§10 (per-module stack-per-environment)
+  - [x] 25.3 Definition updated with TEST (`test_sam-members`) and PROD (`sam-members`) SAM config; frontend mirrored
   - _Requirements: 15.1-15.3_
 
-- [ ] 26. Checkpoint - SAM plane ready for deployment
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 26. Checkpoint - SAM plane ready for deployment
+  - All tests pass: SAM suite 1207, backend env/guard suite 96, frontend 21. `sam validate --lint` passes both templates.
+  - REMAINING (needs user — LIVE AWS): deploy `test_sam-members` + `test_pretokengen` to the data account via `sam deploy --config-env test`, re-attach the Cognito pre-token-generation trigger on the `myAdmin-test` pool to the new `test_pretokengen` function, retire the old `pretokengen-data` stack, and seed `test_governance_projection` (local seed or Phase-5 Copy_Utility). Record the real TEST API invoke URL in the Environment_Definition after first deploy.
 
 ### Phase 5: Operational tooling + steering
 
-- [ ] 27. Implement Copy_Utility (PROD→TEST only)
-  - [ ] 27.1 Create `scripts/copy-prod-to-test.py` utility
-  - [ ] 27.2 Implement Cognito account-attribute copying from PROD to TEST
-  - [ ] 27.3 Implement DynamoDB table copying from PROD to `test_` tables
-  - [ ] 27.4 Ensure utility only writes TEST targets, never writes TEST→PROD
-  - [ ] 27.5 Make utility require explicit human invocation (no automation)
-  - [ ] 27.6 Write integration test verifying PROD→TEST only behavior
+> **Phase 5 note (scripts folder standard).** The example paths `scripts/copy-prod-to-test.py`
+> / `scripts/provision-test-account.py` are illustrative; the repo convention (see
+> `scripts/onboarding/README.md`) is a purpose-named subfolder with a README and the shared
+> `_lib` marker-walk bootstrap. Both runners therefore live under
+> `scripts/test-environment/`. Paired tests for the hyphen-named runners live in `sam/tests/`.
+
+- [x] 27. Implement Copy_Utility (PROD→TEST only)
+  - [x] 27.1 Create `scripts/test-environment/copy-prod-to-test.py` utility (+ folder README)
+  - [x] 27.2 Cognito account-attribute copying from PROD Pool A → test pool (non-secret allow-list)
+  - [x] 27.3 DynamoDB table copying from a PROD table → its `test_`-prefixed table
+  - [x] 27.4 One-directional: source clients read PROD, dest clients write TEST only; asserts dest is `test_`/test pool and source≠dest before any write
+  - [x] 27.5 Explicit human invocation: dry-run default; a real write needs BOTH `--apply` and `--i-understand-this-writes-test` (no automation/schedule/startup hook)
+  - [x] 27.6 Integration test (`sam/tests/test_copy_prod_to_test.py`, 15) with fakes that FAIL on any PROD write
   - _Requirements: 16.1-16.6, 20.4_
 
-- [ ] 28. Create Test_Account provisioning script
-  - [ ] 28.1 Create `scripts/provision-test-account.py` targeting Identity_Account
-  - [ ] 28.2 Create user in test pool if absent with `admin-set-user-password --permanent`
-  - [ ] 28.3 Clear `FORCE_CHANGE_PASSWORD` flag
-  - [ ] 28.4 Set `custom:tenants`/`custom:role` to specified realistic shape
-  - [ ] 28.5 Support optional mode to mirror production reference account attributes
-  - [ ] 28.6 Use placeholders only, no real credentials in committed files
+- [x] 28. Create Test_Account provisioning script
+  - [x] 28.1 Create `scripts/test-environment/provision-test-account.py` (TEST pool, identity account)
+  - [x] 28.2 Create user if absent; set a PERMANENT password (`admin_set_user_password Permanent=True`)
+  - [x] 28.3 Permanent password clears `FORCE_CHANGE_PASSWORD` (no forced-change trap)
+  - [x] 28.4 Seed `custom:tenants`/`custom:role` to a specified realistic shape (any valid config)
+  - [x] 28.5 Prod-mirror is a SEPARATE explicit Copy_Utility step (`--mirror-prod` prints the command; never reads prod here)
+  - [x] 28.6 Placeholders only; defense-in-depth guard refuses any non-test pool
   - _Requirements: 17.1-17.6_
+  - _Paired test: `sam/tests/test_provision_test_account.py` (17)._
 
-- [ ] 29. Update steering documentation
-  - [ ] 29.1 Update `31-backend-database-flask-mysql.md` with `APP_ENV` + resolved target model
-  - [ ] 29.2 Update `41-shell-environment.md` with DB connection notes for resolved targets
-  - [ ] 29.3 Update `#database` skill with environment distinction by resolved target
-  - [ ] 29.4 Update `35-sam-module-architecture-sam.md` with stack-per-environment model
-  - [ ] 29.5 Update `42-local-dynamodb-testing.md` marking local emulator as dev-only
+- [x] 29. Update steering documentation
+  - [x] 29.1 `31-backend-database-flask-mysql.md` — Environments bullet → `APP_ENV` + resolved target
+  - [x] 29.2 `41-shell-environment.md` — `#database` xref + wrapper note to resolved-target model
+  - [x] 29.3 `#database` skill (`.kiro/skills/database.md`) — Environments section rewritten (schema `finance` both; `DB_*_TEST` vs `DB_*`)
+  - [x] 29.4 `35-sam-module-architecture-sam.md` — rule 6 → per-env `test_` prefix + IAM boundary; new Stack-per-environment section
+  - [x] 29.5 `42-local-dynamodb-testing.md` — DEV-ONLY banner (local emulator/`sam local` out of scope for `APP_ENV=test`)
   - _Requirements: 18.1-18.4_
 
-- [ ] 30. Implement URL-based environment selection (Req 22)
-  - [ ] 30.1 Add `TEST_URL` and `PROD_URL` fields to Environment_Definition
-  - [ ] 30.2 Document pool-based access control: TEST URL authenticates against test pool
-  - [ ] 30.3 Ensure frontend contains no UI control to switch environments within a unit
-  - [ ] 30.4 Add smoke test for URL-based auth boundary
+- [x] 30. Implement URL-based environment selection (Req 22)
+  - [x] 30.1 `TEST_URL`/`PROD_URL` fields in the Environment_Definition (added in Phase 1)
+  - [x] 30.2 Pool-based access boundary pinned: TEST URL → test pool, PROD URL → Pool A
+  - [x] 30.3 No in-app env-switch UI (resolver reads `APP_ENV` only; `aws-exports` hostname switch removed)
+  - [x] 30.4 Smoke test (`frontend/src/config/urlPoolBoundary.test.ts`, 4) for the URL→pool boundary; indicator-from-`APP_ENV` already covered by `EnvironmentIndicator.test.tsx` / `aws-exports.test.ts`
   - _Requirements: 22.1-22.4_
 
-- [ ] 31. Implement branch-based promotion flow (Req 23)
-  - [ ] 31.1 Add `test_branch` and `production_branch` fields to Environment_Definition
-  - [ ] 31.2 Document CI/CD pipeline mapping: TEST branch → Test_Environment, main → Production
-  - [ ] 31.3 Configure pipeline to set `APP_ENV` based on branch
-  - [ ] 31.4 Ensure branch mapping is separate from application source
+- [x] 31. Implement branch-based promotion flow (Req 23)
+  - [x] 31.1 `test_branch`/`production_branch` fields in the definition (added in Phase 1: `test`/`main`)
+  - [x] 31.2 CI mapping documented: `test` branch → Test_Environment, `main` → Production (in all three deploy workflows)
+  - [x] 31.3 Pipeline sets the env per branch: `deploy-sam-{members,pretokengen}.yml` trigger on `[main, test]` + `workflow_dispatch` `config_env`; a Resolve step → `sam deploy --config-env <test|prod>`
+  - [x] 31.4 Mapping is CI config separate from source (the test/prod split lives in `samconfig.toml`)
   - _Requirements: 23.1-23.4_
+  - _LIVE-IAM prerequisite (out of band): widen `NonprofitDeployRole`'s OIDC trust to allow `refs/heads/test` before the first `test`-branch deploy._
 
-- [ ] 32. Final checkpoint - All planes complete
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 32. Final checkpoint - All planes complete
+  - All Phase 5 tests pass: SAM suite (incl. Copy_Utility 15 + provisioning 17), backend env/guard suite, frontend Req-22 suite. `sam validate --lint` unaffected.
+  - REMAINING (needs user — LIVE AWS, carried from Phase 4): deploy the TEST stacks, re-attach the Cognito pretoken trigger, retire `pretokengen-data`, seed `test_governance_projection`, record the real TEST API URL; widen the OIDC trust to the `test` ref (Task 31 prerequisite).
+
+### Phase 5a: Activate the TEST environment (LIVE AWS — gated, step-by-step)
+
+> **This phase creates/changes real cloud resources.** Everything before Phase 5a is code +
+> config; the TEST SAM plane is NOT operational until these steps run. Each step is small,
+> ordered, and independently verifiable. **Dependency order matters** — do them top to bottom.
+> Accounts: Cognito/identity = `personal` / `344561557829`; data (DynamoDB/API GW/Lambda) =
+> `nonprofit-deploy` / `506221081911`, `eu-west-1`. Use the `.env`-strip + identity sanity-check
+> from `41-shell-environment.md` for every `nonprofit-deploy` call. Each step is a STOP/GO gate.
+
+- [x] 33. Pre-flight identity + inventory (read-only, no changes)
+  - [x] 33.1 Verify data-account identity resolves to `506221081911` (NonprofitDeployRole) with the env-strip invocation — abort if it prints `344561557829`.
+  - [x] 33.2 List existing stacks/tables (before-state): `sam-members`, `governance_projection`, `pretokengen-data`, `pretokengen-prod` present; `test_sam-members` / `test_pretokengen` / `test_governance_projection` ABSENT.
+  - [x] 33.3 Confirm the test Cognito pool `eu-west-1_xyrlzfqbl` exists (personal account) and note its current Pre-Token-Generation trigger (if any).
+  - _Gate: identities + inventory confirmed before any write. Requirements: 23-aws-accounts guardrails._
+
+- [x] 34. Create + seed the TEST projection table `test_governance_projection` (data account)
+  - [x] 34.1 Create the real DynamoDB table (PK `tenant_id`, SK `sk`, PAY_PER_REQUEST) against real AWS (NOT the local emulator).
+  - [x] 34.2 Seed via `scripts/test-environment/copy-prod-to-test.py dynamodb --source-table governance_projection --apply --i-understand-this-writes-test` (prod-parity) OR a synthetic seed.
+  - [x] 34.3 Verify: `describe-table` ACTIVE; item count as expected.
+  - [x] 34.4 Provision the TEST members table `test_sam-members` (managed-outside-CFN / Retain — the members template grants IAM access but does NOT create it, like prod `sam-members`). `MEMBERS_TABLE=test_sam-members ... provision-members-tables.py --apply`. PK tenant_id, SK sk, PAY_PER_REQUEST.
+  - [x] 34.5 Seed prod-parity member records: Copy_Utility `sam-members -> test_sam-members`, 1222 items (one-directional). Verified scan count 1222. (Decided during Task 41 prep: the Members page needs real member rows; this is a DynamoDB->DynamoDB copy, NOT a MySQL load — the SAM plane never reads MySQL.)
+  - _Gate: TEST projection exists + populated. Reversible (drop table). Requirements: 10.2, 16._
+
+- [x] 35. Deploy the members TEST stack `test_sam-members` (data account)
+  - [x] 35.1 `cd sam/members && sam build && sam deploy --config-env test`.
+  - [x] 35.2 Verify: stack CREATE_COMPLETE; `test_sam-members` table created; capture `MembersApiBaseUrl`.
+  - [x] 35.3 Smoke: `curl` the TEST API base URL `/` — expect 401/403 (authorizer live).
+  - _Gate: TEST members API live. Reversible (delete stack; table Retain). Requirements: 11, 12, 13, 14._
+
+- [x] 36. Retire the legacy `pretokengen-data` stack FIRST (data account)
+  - [x] 36.1 Rationale (confirmed in Task 33): `pretokengen-data` owns the physical names `pretokengen-test` + `pretokengen-layer-test`, and the `myAdmin-test` pool trigger currently points at `arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test`. A new `test_pretokengen` stack with `Stage=test` would collide on those names, so the OLD stack must be deleted BEFORE the new one is deployed (delete-then-redeploy, not the reverse).
+  - [x] 36.2 Captured OLD trigger value (for rollback): `PreTokenGeneration = arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test` (V2_0).
+  - [x] 36.3 Delete the stack: `aws cloudformation delete-stack --stack-name pretokengen-data` (data account) and wait for DELETE_COMPLETE.
+  - [x] 36.4 Expected gap: between this delete and Task 37, a TEST-pool sign-in mints a token with NO `custom:entitlements` (the trigger target is gone). Login still works (fail-safe omits the claim, never breaks login). Keep the 36→37 window short.
+  - _Gate: HARD-TO-REVERSE (stack delete) — explicit confirm. The `governance_projection` table is NOT in this stack (Retain/managed-outside), so it is untouched. Requirements: 11._
+
+- [x] 37. Deploy the pretokengen TEST stack `test_pretokengen` (data account)
+  - [x] 37.1 `cd sam/pretokengen && sam build && sam deploy --config-env test` (names `pretokengen-test` / `pretokengen-layer-test` are now free after Task 36).
+  - [x] 37.2 Verify: stack `test_pretokengen` CREATE_COMPLETE; capture `PreTokenGenFunctionArn`; the cross-account invoke permission for pool `eu-west-1_xyrlzfqbl` is asserted.
+  - _Gate: new TEST pretoken stack live under the `test_` convention (trigger not yet attached). Reversible (delete stack). Requirements: 11, 12._
+
+- [x] 38. Attach the Cognito Pre-Token-Generation trigger on the TEST pool (identity account)
+  - [x] 38.1 DONE (no update-user-pool needed): the physical ARN is unchanged (`function:pretokengen-test`), so the pool trigger (V2_0) still resolves after the stack replace. The NEW `test-pretokengen` stack re-asserted the cross-account invoke permission (Sid `test-pretokengen-PreTokenGenCognitoInvokePermission-...`, SourceArn = pool eu-west-1_xyrlzfqbl). Wiring verified at the infra level.
+  - [x] 38.2 Token-level verification (a fresh sign-in mints `custom:entitlements`) is performed in Task 41 (end-to-end smoke) once a Test_Account exists (Task 40). Infra wiring is confirmed now.
+  - _Gate: TEST tokens entitlement-stamped by the new TEST Lambda. Reversible (restore the captured 36.2 ARN). Requirements: 14, 17._
+
+- [x] 39. Record the real TEST members API URL in the Environment_Definition (code, committed to `test`)
+  - [x] 39.1 Replace `PLACEHOLDER_TEST_API` with the captured `MembersApiBaseUrl` (Task 35) in `backend/src/environment/environment_definition.py` AND `frontend/src/config/environmentDefinition.ts` (mirrored).
+  - [x] 39.2 Update paired assertions (`test_environment_definition.py`, health-report example); the `sam_api_base_url` guard flips placeholder-tolerant to a concrete match.
+  - [x] 39.3 Set `VITE_MEMBERS_API_BASE_URL` for TEST runs to the new URL.
+  - [x] 39.4 Change-with-tests; run backend env/guard + frontend Req-22 suites.
+  - _Gate: definition reflects the live TEST endpoint. Requirements: 15, 21.5-21.6._
+
+- [x] 40. Provision a Test_Account for sign-in (identity account)
+  - [x] 40.1 ALREADY SATISFIED: peter@pgeers.nl exists in the test pool (CONFIRMED, enabled), custom:tenants includes `h-dcn` (the tenant our seeded test_governance_projection data is under), and the projection already holds role#peter@pgeers.nl#Members_CRUD + scopegrant#peter@pgeers.nl#region. No provisioning needed — the provision-test-account.py script is for CREATING a new account; this one is ready for sign-in.
+  - [x] 40.2 Optionally mirror a prod reference account via the Copy_Utility (explicit).
+  - _Gate: a usable TEST login exists. Requirements: 17._
+
+- [x] 41. End-to-end TEST smoke (the "can I test TEST" check)
+  - [x] 41.1 VERIFIED: `GET /api/environment` -> app_env test, pool eu-west-1_xyrlzfqbl (myAdmin-test), mysql TEST/finance, dynamodb_prefix test_, sam_stack_label test-sam-members, sam_api_base_url https://28jun82vl3.execute-api.eu-west-1.amazonaws.com/test (real, non-placeholder). Backend boots clean => strict Consistency_Guard PASSED.
+  - [x] 41.2 VERIFIED by user: signed in as webmaster@h-dcn.nl (test pool); the Members data table loads from test_sam-members AND modal edits persist (write path works). This also proves 38.2 — the TEST pretokengen Lambda stamped custom:entitlements from test_governance_projection (Members_CRUD granted => editable).
+  - _Gate: TEST environment operational end-to-end. Requirements: 19.3, 20, 22._
+
+> **CI alternative (Task 31 path).** Tasks 35/37 can run via the `test`-branch CI once
+> `NonprofitDeployRole`'s OIDC trust is widened to allow `refs/heads/test`. Tasks 34/36/38/40
+> stay manual (outside the data-account deploy workflow scope). NOTE: Task 36 (delete the old
+> stack) must still run before Task 37 regardless of local-vs-CI.
 
 ### Phase 6: Production config wiring + environment-variable consolidation
 
-- [ ] 33. Fill real non-secret config values in Environment_Definition
-  - [ ] 33.1 Replace remaining PLACEHOLDER values with real non-secret identifiers where the plane is live (done for PROD_CLIENT_ID=66tp0087h9tfbstggonnu5aghp; audit the rest)
-  - [ ] 33.2 Set the real production Flask API base URL (replace `https://PLACEHOLDER_PRODUCTION_FLASK_API`) once known
-  - [ ] 33.3 Keep every SECRET as an env-var reference only — never commit a secret value (client secret, DB password, AWS keys stay env-sourced)
-  - [ ] 33.4 Mirror each committed public identifier change in the frontend `environmentDefinition.ts` so backend/frontend cannot drift
-  - [ ] 33.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
+- [x] 42. Fill real non-secret config values in Environment_Definition
+  - [x] 42.1 Replace remaining PLACEHOLDER values with real non-secret identifiers where the plane is live (done for PROD_CLIENT_ID=66tp0087h9tfbstggonnu5aghp; audit the rest)
+  - [x] 42.2 REFRAMED (Option A): the PROD Flask API base URL is a Railway-managed RUNTIME value, not a committed literal (the SPA calls it via the VITE_API_URL build secret; only the Consistency_Guard reads this field, for TEST!=PROD distinctness). Recorded as an explicit `railway-managed://VITE_API_URL` reference marker (no PLACEHOLDER_ token), keeping runtime config in Railway per Req 3.6/19.1 — rather than inlining a hostname.
+  - [x] 42.3 Keep every SECRET as an env-var reference only — never commit a secret value (client secret, DB password, AWS keys stay env-sourced)
+  - [x] 42.4 Mirror each committed public identifier change in the frontend `environmentDefinition.ts` so backend/frontend cannot drift
+  - [x] 42.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
   - _Requirements: 3.1-3.6, 8.5_
 
-- [ ] 34. Retire duplicated identity env vars once resolver supplies identity
-  - [ ] 34.1 Make the backend derive the active identity block (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID) from the resolver's ResolvedConfig, not from raw env vars
-  - [ ] 34.2 Confirm the Pool_Registry (COGNITO_POOL_KEYS + {KEY}_COGNITO_* ) remains the SOLE source for token verification (multi-pool), independent of the identity block
-  - [ ] 34.3 Remove the now-redundant raw identity-block env vars from the deploy config (Railway) once 34.1 lands, keeping only the registry vars + secrets + APP_ENV
-  - [ ] 34.4 Keep COGNITO_CLIENT_SECRET as an env var (the resolver supplies the public identity; the secret stays operational)
-  - [ ] 34.5 Update the Consistency_Guard identity-block check to tolerate an unset identity block when the resolver is authoritative (no false fail-fast)
-  - [ ] 34.6 Change-with-tests: update guard + resolver tests for the resolver-authoritative identity
+- [x] 43. Retire duplicated identity env vars once resolver supplies identity
+  - [x] 43.1 ALREADY SATISFIED (verified): no live path reads the identity block to DRIVE behavior. The resolver (ResolvedConfig.cognito) is the identity source (health_report reads resolved.cognito); token verification uses the Pool_Registry; admin Cognito ops resolve registry-first (bugfix cognito-admin-pool-resolution removed the legacy COGNITO_USER_POOL_ID read). COGNITO_USER_POOL_ID survives ONLY as a registry-absent single-pool fallback in cognito_utils/admin_pool_resolver.
+  - [x] 43.2 Confirm the Pool_Registry (COGNITO_POOL_KEYS + {KEY}_COGNITO_* ) remains the SOLE source for token verification (multi-pool), independent of the identity block
+  - [x] 43.3 OPS NOTE (Railway, no code): the raw identity-block vars (COGNITO_USER_POOL_ID/COGNITO_CLIENT_ID) are redundant for the live paths and MAY be dropped from Railway, keeping COGNITO_POOL_KEYS + {KEY}_COGNITO_* registry vars + COGNITO_CLIENT_SECRET + APP_ENV. (Keep COGNITO_USER_POOL_ID only if you still rely on the registry-absent single-pool fallback; with the registry configured it is unused.)
+  - [x] 43.4 Keep COGNITO_CLIENT_SECRET as an env var (the resolver supplies the public identity; the secret stays operational)
+  - [x] 43.5 ALREADY SATISFIED (verified + test added): _check_identity_block fails only on a CONFLICT (set-but-mismatched); an UNSET identity block returns ok with 'identity block ... is unset' and contributes resolved_env. Added test_identity_block_unset_is_tolerated_resolver_is_authoritative.
+  - [x] 43.6 Added the guard unset-tolerance test; existing mismatch tests already cover the conflict path. Guard suite 53 passed.
   - _Requirements: 2.3, 2.4, 4.3, 8.3_
 
-- [ ] 35. Audit and consolidate deploy environment variables (Railway)
-  - [ ] 35.1 Produce a mapping of every deploy env var -> the code that consumes it (name-only; never record secret values)
-  - [ ] 35.2 Flag overlaps/duplicates (e.g. identity-block vs PROD_A_* registry; multiple frontend-URL/CloudFront vars) and record which are intentional vs redundant
-  - [ ] 35.3 Document the target per-plane variable set per environment in the Environment_Definition doc (which vars are required where)
-  - [ ] 35.4 Recommend rotation for any secret that has leaked into a non-gitignored/plaintext file, and verify no secret is committed
+- [x] 44. Audit and consolidate deploy environment variables (Railway)
+  - [x] 44.1 Produce a mapping of every deploy env var -> the code that consumes it (name-only; never record secret values)
+  - [x] 44.2 Flag overlaps/duplicates (e.g. identity-block vs PROD_A_* registry; multiple frontend-URL/CloudFront vars) and record which are intentional vs redundant
+  - [x] 44.3 Document the target per-plane variable set per environment in the Environment_Definition doc (which vars are required where)
+  - [x] 44.4 Recommend rotation for any secret that has leaked into a non-gitignored/plaintext file, and verify no secret is committed
   - _Requirements: 3.5, 18.1-18.4_
+  - _Artifact: `env-var-audit.md` (same spec folder) — the full var->consumer map, overlaps (intentional vs redundant), target per-plane set, leaked-secret check, and 3 follow-up findings (stale TEST_MODE/TEST_DB_NAME in system_health_routes; Google-Drive TEST_MODE toggle; legacy Cognito vars retirable from Railway)._
 
-- [ ] 36. Checkpoint - Production config wiring complete
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 45. Checkpoint - Production config wiring complete
+  - All suites green: backend env/guard/resolver/health/properties/routes 124 passed;
+    frontend config/indicator/aws-exports 34 passed; SAM suite full run no failures.
+  - Phase 6 outcome: Environment_Definition has no stray placeholders (secrets +
+    the Railway-managed Flask URL are explicit references, Task 42); the duplicated
+    identity block is confirmed retired from the live paths (Task 43); and the deploy
+    env vars are audited in `env-var-audit.md` (Task 44). No secret values committed.
 
 ## Notes
 

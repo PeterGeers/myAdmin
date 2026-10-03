@@ -270,6 +270,24 @@ class TestInconsistencyTypes:
         assert "some-other-client" in check.message
         assert TEST_CLIENT_ID in check.message
 
+    def test_identity_block_unset_is_tolerated_resolver_is_authoritative(self) -> None:
+        # Task 43: the resolver (ResolvedConfig.cognito) is the authoritative identity
+        # source; the raw COGNITO_USER_POOL_ID/CLIENT_ID identity block is retired from
+        # the live paths (verification uses the Pool_Registry; admin ops resolve
+        # registry-first). So an UNSET identity block must NOT fail the guard — it is
+        # tolerated as consistent (fail only on a CONFLICT, never on absence), and it
+        # still contributes resolved_env so half-cutover detection is unaffected.
+        env = {"COGNITO_CLIENT_SECRET": ""}  # no identity block at all
+        report = build_consistency_report(
+            AppEnv.TEST,
+            environ=env,
+            registered_issuers=[TEST_ISSUER],
+        )
+        check = _find(report, "identity_block")
+        assert check.ok is True
+        assert "unset" in check.message.lower()
+        assert check.resolved_env == AppEnv.TEST
+
     def test_test_pool_nonempty_secret_fails_without_echoing_secret(self) -> None:
         env = _test_env_block()
         secret_value = "super-secret-value-should-not-leak"
@@ -552,6 +570,208 @@ class TestFlaskApiBaseUrl:
         )
         flask_check = _find(report, "flask_api_base_url")
         assert flask_check.resolved_env == AppEnv.TEST
+
+
+# ---------------------------------------------------------------------------
+# SAM plane checks (task 24, Req 4.4, 10.2, 14.4, 14.5, 19.4)
+# ---------------------------------------------------------------------------
+
+def _definition_with_sam(test_sam, prod_sam):
+    """Clone the committed definition, swapping in the given SAM plane configs."""
+    base = ENVIRONMENT_DEFINITION
+    return dataclasses.replace(
+        base,
+        test=dataclasses.replace(base.test, sam=test_sam),
+        production=dataclasses.replace(base.production, sam=prod_sam),
+    )
+
+
+class TestSamAuthorizerPool:
+    """The resolved SAM authorizer pool must match the active APP_ENV (Req 14.4/14.5)."""
+
+    def test_committed_definition_passes_for_both_envs(self) -> None:
+        for app_env, env_block, issuer in (
+            (AppEnv.TEST, _test_env_block(), TEST_ISSUER),
+            (AppEnv.PRODUCTION, _prod_env_block(), PROD_ISSUER),
+        ):
+            report = build_consistency_report(
+                app_env,
+                definition=ENVIRONMENT_DEFINITION,
+                environ=env_block,
+                registered_issuers=[issuer],
+            )
+            check = _find(report, "sam_authorizer_pool")
+            assert check.ok is True, check.message
+            assert check.resolved_env == app_env
+
+    def test_identical_pools_fail(self) -> None:
+        same = dataclasses.replace(
+            ENVIRONMENT_DEFINITION.test.sam, authorizer_pool_id="same-pool"
+        )
+        prod_same = dataclasses.replace(
+            ENVIRONMENT_DEFINITION.production.sam, authorizer_pool_id="same-pool"
+        )
+        definition = _definition_with_sam(same, prod_same)
+        report = build_consistency_report(
+            AppEnv.TEST,
+            definition=definition,
+            environ=_test_env_block(),
+            registered_issuers=[TEST_ISSUER],
+        )
+        check = _find(report, "sam_authorizer_pool")
+        assert check.ok is False
+        assert report.is_consistent is False
+        assert "identical" in check.message
+
+    def test_active_pool_naming_other_env_fails_and_names_both_sides(self) -> None:
+        from environment.consistency_guard import _check_sam_authorizer_pool
+
+        resolved_test = resolve(AppEnv.TEST, ENVIRONMENT_DEFINITION)
+        prod_pool = ENVIRONMENT_DEFINITION.production.sam.authorizer_pool_id
+        test_pool = ENVIRONMENT_DEFINITION.test.sam.authorizer_pool_id
+        bugged_sam = dataclasses.replace(resolved_test.sam, authorizer_pool_id=prod_pool)
+        bugged = dataclasses.replace(resolved_test, sam=bugged_sam)
+
+        check = _check_sam_authorizer_pool(bugged, ENVIRONMENT_DEFINITION)
+        assert check.ok is False
+        assert check.resolved_env is None  # does not pollute the cutover set
+        assert prod_pool in check.message
+        assert test_pool in check.message
+        assert "the PRODUCTION pool" in check.message
+
+
+class TestSamApiBaseUrl:
+    """The resolved SAM API base URL must match APP_ENV, placeholder-tolerant (Req 4.4)."""
+
+    def test_committed_definition_passes_for_both_envs(self) -> None:
+        # TEST api_base_url is a placeholder (stack not yet deployed) -> tolerated;
+        # PROD is the real invoke URL -> concrete match. Both pass.
+        for app_env, env_block, issuer in (
+            (AppEnv.TEST, _test_env_block(), TEST_ISSUER),
+            (AppEnv.PRODUCTION, _prod_env_block(), PROD_ISSUER),
+        ):
+            report = build_consistency_report(
+                app_env,
+                definition=ENVIRONMENT_DEFINITION,
+                environ=env_block,
+                registered_issuers=[issuer],
+            )
+            check = _find(report, "sam_api_base_url")
+            assert check.ok is True, check.message
+            assert check.resolved_env == app_env
+
+    def test_test_placeholder_is_tolerated(self) -> None:
+        # A not-yet-deployed TEST stack records a PLACEHOLDER SAM URL; the guard must
+        # tolerate it (wired-but-not-observable) and pass on distinctness only. The
+        # committed definition now carries the REAL deployed TEST URL (Phase 5a), so
+        # inject a placeholder definition to exercise the tolerance branch directly.
+        placeholder_sam = dataclasses.replace(
+            ENVIRONMENT_DEFINITION.test.sam,
+            api_base_url="https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test",
+        )
+        definition = _definition_with_sam(placeholder_sam, ENVIRONMENT_DEFINITION.production.sam)
+        report = build_consistency_report(
+            AppEnv.TEST,
+            definition=definition,
+            environ=_test_env_block(),
+            registered_issuers=[TEST_ISSUER],
+        )
+        check = _find(report, "sam_api_base_url")
+        assert check.ok is True
+        assert "placeholder" in check.message.lower()
+
+    def test_committed_test_url_is_concrete_not_placeholder(self) -> None:
+        # Phase 5a Task 39: once the TEST stack is deployed, the committed TEST SAM
+        # URL is a real endpoint (no PLACEHOLDER) and the guard does a concrete match.
+        report = build_consistency_report(
+            AppEnv.TEST,
+            definition=ENVIRONMENT_DEFINITION,
+            environ=_test_env_block(),
+            registered_issuers=[TEST_ISSUER],
+        )
+        check = _find(report, "sam_api_base_url")
+        assert check.ok is True
+        assert "PLACEHOLDER" not in ENVIRONMENT_DEFINITION.test.sam.api_base_url
+        assert "placeholder" not in check.message.lower()
+
+    def test_identical_urls_fail(self) -> None:
+        sentinel = "sam-url-sentinel-SAME"
+        same = dataclasses.replace(ENVIRONMENT_DEFINITION.test.sam, api_base_url=sentinel)
+        prod_same = dataclasses.replace(
+            ENVIRONMENT_DEFINITION.production.sam, api_base_url=sentinel
+        )
+        definition = _definition_with_sam(same, prod_same)
+        report = build_consistency_report(
+            AppEnv.PRODUCTION,
+            definition=definition,
+            environ=_prod_env_block(),
+            registered_issuers=[PROD_ISSUER],
+        )
+        check = _find(report, "sam_api_base_url")
+        assert check.ok is False
+        assert "identical" in check.message
+
+    def test_concrete_active_url_naming_other_env_fails(self) -> None:
+        from environment.consistency_guard import _check_sam_api_base_url
+
+        # Give TEST a concrete (non-placeholder) URL that is actually PROD's URL.
+        prod_url = ENVIRONMENT_DEFINITION.production.sam.api_base_url
+        resolved_test = resolve(AppEnv.TEST, ENVIRONMENT_DEFINITION)
+        bugged_sam = dataclasses.replace(resolved_test.sam, api_base_url=prod_url)
+        bugged = dataclasses.replace(resolved_test, sam=bugged_sam)
+
+        check = _check_sam_api_base_url(bugged, ENVIRONMENT_DEFINITION)
+        assert check.ok is False
+        assert check.resolved_env is None
+        assert prod_url in check.message
+
+
+class TestDynamoDbPrefix:
+    """The resolved DynamoDB table prefix must match APP_ENV (Req 10.2/19.4)."""
+
+    def test_committed_definition_passes_for_both_envs(self) -> None:
+        for app_env, env_block, issuer, expected_prefix in (
+            (AppEnv.TEST, _test_env_block(), TEST_ISSUER, "test_"),
+            (AppEnv.PRODUCTION, _prod_env_block(), PROD_ISSUER, ""),
+        ):
+            report = build_consistency_report(
+                app_env,
+                definition=ENVIRONMENT_DEFINITION,
+                environ=env_block,
+                registered_issuers=[issuer],
+            )
+            check = _find(report, "dynamodb_prefix")
+            assert check.ok is True, check.message
+            assert check.resolved_env == app_env
+
+    def test_identical_prefixes_fail(self) -> None:
+        same = dataclasses.replace(ENVIRONMENT_DEFINITION.test.sam, table_prefix="x_")
+        prod_same = dataclasses.replace(
+            ENVIRONMENT_DEFINITION.production.sam, table_prefix="x_"
+        )
+        definition = _definition_with_sam(same, prod_same)
+        report = build_consistency_report(
+            AppEnv.TEST,
+            definition=definition,
+            environ=_test_env_block(),
+            registered_issuers=[TEST_ISSUER],
+        )
+        check = _find(report, "dynamodb_prefix")
+        assert check.ok is False
+        assert "identical" in check.message
+
+    def test_active_prefix_naming_other_env_fails(self) -> None:
+        from environment.consistency_guard import _check_dynamodb_prefix
+
+        # TEST runtime carrying PROD's empty prefix.
+        resolved_test = resolve(AppEnv.TEST, ENVIRONMENT_DEFINITION)
+        bugged_sam = dataclasses.replace(resolved_test.sam, table_prefix="")
+        bugged = dataclasses.replace(resolved_test, sam=bugged_sam)
+
+        check = _check_dynamodb_prefix(bugged, ENVIRONMENT_DEFINITION)
+        assert check.ok is False
+        assert check.resolved_env is None
+        assert "test_" in check.message
 
 
 # ---------------------------------------------------------------------------

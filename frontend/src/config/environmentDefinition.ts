@@ -94,9 +94,12 @@ export const TEST_FRONTEND_CONFIG: FrontendPlaneDef = {
     poolLabel: 'myAdmin-test',
   },
   flaskApiBaseUrl: 'http://localhost:5000', // current TEST Flask API URL (non-normative mapping)
+  // SAM plane is per MODULE; this records the members module (the one with an
+  // HTTP API). stackName is the members TEST CFN stack (`test-sam-members`); the
+  // apiBaseUrl is the live MembersApiBaseUrl output of the first deploy (Phase 5a).
   sam: {
-    stackName: 'myAdmin-test',
-    apiBaseUrl: 'https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/Prod',
+    stackName: 'test-sam-members',
+    apiBaseUrl: 'https://28jun82vl3.execute-api.eu-west-1.amazonaws.com/test',
     tablePrefix: 'test_',
     authorizerPoolId: TEST_POOL_ID,
   },
@@ -107,13 +110,21 @@ export const PROD_FRONTEND_CONFIG: FrontendPlaneDef = {
   cognito: {
     poolId: PROD_POOL_ID,
     clientId: PROD_CLIENT_ID,
-    clientSecretRef: 'PLACEHOLDER_CLIENT_SECRET', // placeholder — frontend holds no secret
+    clientSecretRef: 'PLACEHOLDER_CLIENT_SECRET', // SECRET reference only; the frontend
+  // holds NO secret. MUST stay a placeholder in committed source (Req 3.6 / 19.1).
     poolLabel: 'myAdmin',
   },
-  flaskApiBaseUrl: 'https://PLACEHOLDER_PRODUCTION_FLASK_API', // PROD Flask API URL
+  // PROD Flask API base URL — a Railway-managed RUNTIME value, NOT a committed literal.
+  // The SPA calls the backend via the VITE_API_URL build secret; this field is only a
+  // reference marker mirroring the backend definition (Phase 6 Task 42, Option A).
+  flaskApiBaseUrl: 'railway-managed://VITE_API_URL',
+  // SAM plane is per MODULE; this records the members module (the one with an
+  // HTTP API). stackName is the live members PROD stack; apiBaseUrl is the
+  // deployed sam-members API Gateway invoke URL (see deploy-frontend.yml
+  // VITE_MEMBERS_API_BASE_URL).
   sam: {
-    stackName: 'myAdmin-prod',
-    apiBaseUrl: 'https://PLACEHOLDER_PROD_API.execute-api.eu-west-1.amazonaws.com/Prod',
+    stackName: 'sam-members',
+    apiBaseUrl: 'https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod',
     tablePrefix: '',
     authorizerPoolId: PROD_POOL_ID,
   },

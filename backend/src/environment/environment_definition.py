@@ -183,9 +183,14 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
         ),
         backend_host_ref="BACKEND_HOST_TEST",  # env var for TEST backend host
         flask_api_base_url="http://localhost:5000",  # current TEST Flask API URL
+        # SAM plane is per MODULE; this SamDef records the members module (the one
+        # with an HTTP API). stack_name is the members TEST stack (CFN stack name
+        # `test-sam-members`; the DynamoDB table is `test_sam-members`). The TEST API
+        # base URL below is the live MembersApiBaseUrl output of the first
+        # `test-sam-members` deploy (Phase 5a Task 35).
         sam=SamDef(
-            stack_name="myAdmin-test",
-            api_base_url="https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/Prod",
+            stack_name="test-sam-members",
+            api_base_url="https://28jun82vl3.execute-api.eu-west-1.amazonaws.com/test",
             table_prefix="test_",
             exec_role_scope="arn:aws:dynamodb:*:*:table/test_*",
             authorizer_pool_id=TEST_POOL_ID,
@@ -195,7 +200,9 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
         cognito=CognitoDef(
             pool_id=PROD_POOL_ID,
             client_id=PROD_CLIENT_ID,
-            client_secret_ref="PLACEHOLDER_CLIENT_SECRET",  # placeholder secret ref
+            client_secret_ref="PLACEHOLDER_CLIENT_SECRET",  # SECRET reference only —
+            # the real value lives in the COGNITO_CLIENT_SECRET env var; it MUST stay a
+            # placeholder in committed source (Req 3.6 / 19.1). Never fill this in.
             pool_label="myAdmin",
         ),
         mysql=MysqlDef(
@@ -207,10 +214,19 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
             password_ref="DB_PASSWORD",  # env var for PRODUCTION database password
         ),
         backend_host_ref="BACKEND_HOST_PROD",  # env var for PRODUCTION backend host
-        flask_api_base_url="https://PLACEHOLDER_PRODUCTION_FLASK_API",  # PROD Flask API URL
+        # PROD Flask API base URL — a Railway-managed RUNTIME value, NOT a committed
+        # literal (the frontend calls the backend via the VITE_API_URL GitHub/Railway
+        # secret, and nothing reads THIS field as a live endpoint — only the
+        # Consistency_Guard uses it, for TEST!=PROD distinctness). So this is an
+        # explicit REFERENCE marker, deliberately not a real hostname (Phase 6 Task 42,
+        # Option A; keeps runtime config in Railway, per Req 3.6 / 19.1).
+        flask_api_base_url="railway-managed://VITE_API_URL",
+        # SAM plane is per MODULE; this SamDef records the members module (the one
+        # with an HTTP API). stack_name is the members PROD stack; pretokengen's
+        # stacks are recorded in the current-mapping notes below.
         sam=SamDef(
-            stack_name="myAdmin-prod",
-            api_base_url="https://PLACEHOLDER_PROD_API.execute-api.eu-west-1.amazonaws.com/Prod",
+            stack_name="sam-members",
+            api_base_url="https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod",
             table_prefix="",
             exec_role_scope="arn:aws:dynamodb:*:*:table/*",  # unprefixed tables
             authorizer_pool_id=PROD_POOL_ID,

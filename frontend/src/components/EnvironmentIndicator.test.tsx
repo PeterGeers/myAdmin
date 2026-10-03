@@ -103,14 +103,39 @@ describe('EnvironmentIndicator — detailed variant (Req 5.2, 5.4)', () => {
     );
   });
 
-  it('falls back to the SAM stack label when the API URL is a placeholder (Req 5.4)', async () => {
-    // Both configs currently carry PLACEHOLDER SAM API URLs, so the indicator shows the
-    // observable stack-environment label instead of a fake endpoint.
+  it('shows the observable SAM API URL for TEST when the stack is deployed (Req 5.4)', async () => {
+    // Phase 5a: the TEST stack is deployed, so its SAM API URL is a real (observable)
+    // endpoint — the indicator shows the URL, not the stack-label fallback.
     const Indicator = await loadIndicatorWith('test');
     render(<Indicator variant="detailed" />);
+    expect(TEST_FRONTEND_CONFIG.sam.apiBaseUrl).not.toContain('PLACEHOLDER');
     expect(screen.getByTestId('environment-indicator-sam')).toHaveTextContent(
-      TEST_FRONTEND_CONFIG.sam.stackName,
+      TEST_FRONTEND_CONFIG.sam.apiBaseUrl,
     );
+  });
+
+  it('falls back to the SAM stack label when the API URL IS a placeholder (Req 5.4)', async () => {
+    // Pre-deploy a stack records a PLACEHOLDER SAM URL; the indicator must suppress the
+    // fake endpoint and show the observable stack-environment label instead. Drive this
+    // branch by mocking the config module with a placeholder URL (the committed TEST URL
+    // is now real, so we inject the pre-deploy state explicitly).
+    vi.resetModules();
+    vi.stubEnv('VITE_APP_ENV', 'test');
+    vi.doMock('../config/appEnv', () => ({
+      APP_ENV: 'test',
+      RESOLVED: {
+        cognito: { poolLabel: 'myAdmin-test' },
+        sam: {
+          stackName: 'test-sam-members',
+          apiBaseUrl: 'https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test',
+        },
+      },
+    }));
+    const mod = await import('./EnvironmentIndicator');
+    const Indicator = mod.EnvironmentIndicator;
+    render(<Indicator variant="detailed" />);
+    expect(screen.getByTestId('environment-indicator-sam')).toHaveTextContent('test-sam-members');
+    vi.doUnmock('../config/appEnv');
   });
 
   it('compact variant omits the pool/SAM detail (login-screen use, Req 5.1)', async () => {
