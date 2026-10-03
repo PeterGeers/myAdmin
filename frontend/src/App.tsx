@@ -19,6 +19,7 @@ import { MenuGroup } from './components/MenuGroup';
 import { buildApiUrl } from './config';
 import { MainMenu } from './components/MainMenu';
 import EnvironmentIndicator from './components/EnvironmentIndicator';
+import { APP_ENV } from './config/appEnv';
 import {
   PDFUploadForm,
   BankingProcessor,
@@ -144,12 +145,15 @@ function AppContent() {
           <Heading color="orange.400" size={{ base: 'sm', md: 'lg' }} noOfLines={2}>{title}</Heading>
         </HStack>
         <HStack spacing={2} flexShrink={0}>
-          {/* Env 5.2/5.4 — active environment + pool/identity + SAM endpoint while authenticated. */}
-          <EnvironmentIndicator variant="detailed" />
+          {/* Env 5.1/5.5 — header environment indicator is TEST-ONLY: production shows
+              nothing here; the authoritative, resolver-derived status is always in the
+              user-info modal (UserMenu) and via GET /api/environment. In TEST we show a
+              compact TEST badge as a warning. */}
+          {APP_ENV === 'test' && <EnvironmentIndicator variant="compact" />}
           {options?.showLanguage && <LanguageSelector />}
           <TenantSelector size="sm" hide={options?.hideTenant} />
           <HelpButton page={currentPage} />
-          <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
+          <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} />
         </HStack>
       </Flex>
     </Box>
