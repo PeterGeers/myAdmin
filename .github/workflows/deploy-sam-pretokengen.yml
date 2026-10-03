@@ -1,12 +1,18 @@
 name: Deploy SAM PreTokenGen
-# Deploys the PreTokenGen Lambda (stack `pretokengen-prod`) to the nonprofit/data account
-# (506221081911, eu-west-1) via GitHub OIDC — mirrors deploy-sam-members.yml (s5e).
+# Deploys the PreTokenGen Lambda to the nonprofit/data account (506221081911, eu-west-1)
+# via GitHub OIDC — mirrors deploy-sam-members.yml.
 #
-# The prod stack name, region, capabilities, and parameter_overrides live in
-# `sam/pretokengen/samconfig.toml` [prod]; this workflow just runs
-# `sam deploy --config-env prod`, so CI and a manual `sam deploy --config-env prod`
-# produce the SAME stack. NO stored secrets: auth is short-lived STS via
-# NonprofitDeployRole's OIDC trust. The Cognito identifiers in samconfig are PUBLIC.
+# BRANCH -> ENVIRONMENT MAPPING (test-environment spec, Req 23 — Branch_Environment_Mapping):
+#   * push to `test` branch  -> `sam deploy --config-env test` -> stack `test_pretokengen`
+#   * push to `main` branch  -> `sam deploy --config-env prod` -> stack `pretokengen-prod`
+# This CI mapping is separate from the application source, so it can evolve without changing
+# the spec (Req 23.5). The per-env stack name, region, capabilities, and parameter_overrides
+# live in `sam/pretokengen/samconfig.toml` ([test] / [prod]); this workflow only picks the
+# config-env. NO stored secrets: auth is short-lived STS via NonprofitDeployRole's OIDC
+# trust. The Cognito identifiers in samconfig are PUBLIC.
+#
+# OIDC PREREQUISITE: NonprofitDeployRole's trust must allow BOTH the main AND test branch
+# refs (shared with deploy-sam-members.yml) — a one-time live-IAM step done out of band.
 #
 # SCOPE — DATA ACCOUNT ONLY (s5e R2/R5): this workflow deploys the Lambda + layer + the
 # same-account IAM AND (re)asserts the cross-account invoke PERMISSION (the template's
@@ -18,13 +24,23 @@ name: Deploy SAM PreTokenGen
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
     paths:
       - "sam/pretokengen/**"
       - "sam/shared/**"
       - ".github/workflows/deploy-sam-pretokengen.yml"
   workflow_dispatch:
-    # Allow manual trigger (e.g. first deploy, or a re-deploy without a code change).
+    # Manual trigger (first deploy, or a re-deploy without a code change). Pick the
+    # environment explicitly; defaults to test so a mis-click never hits production.
+    inputs:
+      config_env:
+        description: "Which environment to deploy (test | prod)"
+        required: true
+        default: test
+        type: choice
+        options:
+          - test
+          - prod
 
 permissions:
   id-token: write
@@ -54,11 +70,26 @@ jobs:
         with:
           use-installer: true
 
+      # Resolve the samconfig env from the branch (push) or the dispatch input:
+      #   refs/heads/test -> test ; refs/heads/main -> prod ; workflow_dispatch -> input.
+      - name: Resolve config-env
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CONFIG_ENV="${{ github.event.inputs.config_env }}"
+          elif [ "${{ github.ref }}" = "refs/heads/test" ]; then
+            CONFIG_ENV="test"
+          else
+            CONFIG_ENV="prod"
+          fi
+          echo "config_env=$CONFIG_ENV" >> "$GITHUB_OUTPUT"
+          echo "Deploying pretokengen with --config-env $CONFIG_ENV"
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # One-time prerequisite: NonprofitDeployRole's OIDC trust must allow
-          # repo:PeterGeers/myAdmin:ref:refs/heads/main (shared with deploy-sam-members.yml).
+          # One-time prerequisite: NonprofitDeployRole's OIDC trust must allow the main
+          # AND test branch refs (shared with deploy-sam-members.yml).
           role-to-assume: arn:aws:iam::506221081911:role/NonprofitDeployRole
           aws-region: eu-west-1
 
@@ -69,10 +100,11 @@ jobs:
         working-directory: sam/pretokengen
         run: sam build
 
-      # All deploy parameters come from samconfig.toml [prod]: stack_name pretokengen-prod,
-      # region eu-west-1, capabilities, and the parameter_overrides (Stage=prod,
-      # GovernanceProjectionTableName=governance_projection, and the PUBLIC Cognito
-      # CognitoAccountId/CognitoUserPoolId that scope the invoke permission — all public).
+      # All deploy parameters come from samconfig.toml [<config-env>]: stack_name
+      # (test_pretokengen / pretokengen-prod), region, capabilities, and the
+      # parameter_overrides (Stage, GovernanceProjectionTableName, and the PUBLIC Cognito
+      # CognitoAccountId/CognitoUserPoolId that scope the invoke permission). The test/prod
+      # split lives entirely in samconfig, not here.
       - name: SAM Deploy
         working-directory: sam/pretokengen
-        run: sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset
+        run: sam deploy --config-env ${{ steps.env.outputs.config_env }} --no-confirm-changeset --no-fail-on-empty-changeset
