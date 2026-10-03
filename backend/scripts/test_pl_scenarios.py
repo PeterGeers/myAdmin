@@ -27,7 +27,7 @@ def main():
     print(f"\nTesting with tenant: {tenant}\n")
     
     # Initialize service
-    service = YearEndClosureService(test_mode=False)
+    service = YearEndClosureService()
     
     # Get all available years
     years = service.get_available_years(tenant)

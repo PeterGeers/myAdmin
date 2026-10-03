@@ -14,7 +14,7 @@ def main():
     print("=" * 70)
     
     # Create migration manager
-    migrator = DatabaseMigration(test_mode=False)
+    migrator = DatabaseMigration()
     
     # Get migration status before
     print("\nChecking migration status...")

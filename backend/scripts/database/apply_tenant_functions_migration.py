@@ -8,10 +8,9 @@ absence of a row means the FUNCTION_REGISTRY default applies.
 Requirements: 2.1, 2.2
 
 Usage:
-    python apply_tenant_functions_migration.py [--test]
+    python apply_tenant_functions_migration.py
 
-Flags:
-    --test  Run against the test database instead of production.
+The target database is selected by APP_ENV / the DB_* env vars.
 """
 
 import sys
@@ -39,16 +38,12 @@ CREATE TABLE IF NOT EXISTS tenant_functions (
 
 
 def main():
-    test_mode = '--test' in sys.argv
-    mode_label = 'TEST' if test_mode else 'PRODUCTION'
-
     print("=" * 60)
     print("Tenant Functions Migration Script")
-    print(f"Running against {mode_label} database...")
     print("=" * 60)
     print()
 
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
 
     # Check if table already exists
     try:

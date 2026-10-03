@@ -270,8 +270,8 @@ def main():
     print("\nThis script investigates why is_bank_account('1022', 'PeterPrive') returns False")
     
     # Initialize database and analyzer
-    db = DatabaseManager(test_mode=False)
-    analyzer = PatternAnalyzer(test_mode=False)
+    db = DatabaseManager()
+    analyzer = PatternAnalyzer()
     
     administration = 'PeterPrive'
     

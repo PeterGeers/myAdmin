@@ -11,7 +11,7 @@ def identify_june_transactions():
     """List all June Revolut transaction IDs"""
     print("\n=== IDENTIFYING JUNE 2025 REVOLUT TRANSACTIONS ===")
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor(dictionary=True)
     

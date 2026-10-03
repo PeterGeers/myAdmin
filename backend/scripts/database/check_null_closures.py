@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 # Summary by tenant
 query = """

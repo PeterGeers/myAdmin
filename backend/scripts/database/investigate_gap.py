@@ -18,7 +18,7 @@ def get_transactions_around_gap():
     sys.path.insert(0, os.path.dirname(__file__))
     from src.database import DatabaseManager
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor(dictionary=True)
     

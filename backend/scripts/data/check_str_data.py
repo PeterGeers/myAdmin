@@ -7,7 +7,7 @@ from database import DatabaseManager
 
 def check_data():
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
         

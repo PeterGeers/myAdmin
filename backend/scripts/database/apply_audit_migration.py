@@ -27,7 +27,7 @@ def apply_audit_migration():
     try:
         # Initialize migration manager
         print("Initializing database migration manager...")
-        migrator = DatabaseMigration(test_mode=False)
+        migrator = DatabaseMigration()
         
         # Get migration status
         print("\nChecking migration status...")
@@ -57,7 +57,7 @@ def apply_audit_migration():
             
             # Verify table exists
             print("Verifying audit log table...")
-            db = DatabaseManager(test_mode=False)
+            db = DatabaseManager()
             try:
                 result = db.execute_query("""
                     SELECT COUNT(*) as count 
@@ -145,7 +145,7 @@ def apply_audit_migration():
             
             # Verify table was created
             print("Verifying table creation...")
-            db = DatabaseManager(test_mode=False)
+            db = DatabaseManager()
             result = db.execute_query("""
                 SELECT COUNT(*) as count 
                 FROM information_schema.tables 

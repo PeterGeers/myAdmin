@@ -128,7 +128,7 @@ def main():
     print("Requirements: 2.1, 2.2")
     print("=" * 70)
 
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
 
     # Show current indexes
     show_existing_indexes(db)

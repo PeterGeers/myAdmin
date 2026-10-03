@@ -403,7 +403,7 @@ def main():
     # Step 1: Connect to database
     print("Step 1: Connecting to database...")
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         print("  ✅ Connected to database")
     except Exception as e:
         print(f"  ❌ Failed to connect: {e}")
@@ -419,7 +419,7 @@ def main():
 
     # Step 3: Initialize PatternAnalyzer
     print("\nStep 3: Initializing PatternAnalyzer...")
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     print("  ✅ PatternAnalyzer initialized")
 
     # Step 4: Load patterns (triggers analysis or cache load)

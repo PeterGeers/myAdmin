@@ -12,7 +12,7 @@ load_dotenv(Path(__file__).parent / '.env')
 
 from database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 year = 2025
 administration = 'GoodwinSolutions'

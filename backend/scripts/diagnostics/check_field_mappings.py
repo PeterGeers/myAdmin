@@ -12,7 +12,7 @@ from services.template_service import TemplateService
 def check_field_mappings():
     """Check field_mappings for both languages"""
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     template_service = TemplateService(db)
     
     administration = 'GoodwinSolutions'

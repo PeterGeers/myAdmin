@@ -12,7 +12,7 @@ def check_templates():
     """Check what templates are stored on Google Drive"""
     
     # Initialize
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     template_service = TemplateService(db)
     
     administration = 'GoodwinSolutions'
