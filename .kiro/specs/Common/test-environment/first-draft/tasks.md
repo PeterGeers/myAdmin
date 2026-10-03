@@ -135,7 +135,7 @@ The implementation involves:
   - [x] 17.4 Clean up remaining `test_mode` references across codebase
   - _Requirements: 2.6_
 
-- [ ] 18. Checkpoint - `test_mode` migration complete
+- [x] 18. Checkpoint - `test_mode` migration complete
   - Ensure all tests pass, ask the user if questions arise.
 
 ### Phase 4: SAM test stack (heavy build)
