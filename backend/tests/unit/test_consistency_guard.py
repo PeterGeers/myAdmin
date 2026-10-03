@@ -270,6 +270,24 @@ class TestInconsistencyTypes:
         assert "some-other-client" in check.message
         assert TEST_CLIENT_ID in check.message
 
+    def test_identity_block_unset_is_tolerated_resolver_is_authoritative(self) -> None:
+        # Task 43: the resolver (ResolvedConfig.cognito) is the authoritative identity
+        # source; the raw COGNITO_USER_POOL_ID/CLIENT_ID identity block is retired from
+        # the live paths (verification uses the Pool_Registry; admin ops resolve
+        # registry-first). So an UNSET identity block must NOT fail the guard — it is
+        # tolerated as consistent (fail only on a CONFLICT, never on absence), and it
+        # still contributes resolved_env so half-cutover detection is unaffected.
+        env = {"COGNITO_CLIENT_SECRET": ""}  # no identity block at all
+        report = build_consistency_report(
+            AppEnv.TEST,
+            environ=env,
+            registered_issuers=[TEST_ISSUER],
+        )
+        check = _find(report, "identity_block")
+        assert check.ok is True
+        assert "unset" in check.message.lower()
+        assert check.resolved_env == AppEnv.TEST
+
     def test_test_pool_nonempty_secret_fails_without_echoing_secret(self) -> None:
         env = _test_env_block()
         secret_value = "super-secret-value-should-not-leak"
