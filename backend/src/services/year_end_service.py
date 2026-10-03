@@ -323,7 +323,7 @@ class YearEndClosureService:
         # granularity). transaction() auto-commits on success and auto-rolls-back
         # on error.
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 # Step 2: Create year-end closure transaction
                 net_result = self._calculate_net_pl_result(administration, year)
                 closure_transaction_number = (
@@ -474,7 +474,7 @@ class YearEndClosureService:
         # one-commit granularity). transaction() auto-commits on success and
         # auto-rolls-back on error.
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 # Step 2: Delete opening balance transactions for next year
                 if opening_txn:
                     self.journal_helper.delete_transactions(

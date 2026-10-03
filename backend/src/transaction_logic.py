@@ -55,7 +55,7 @@ class TransactionLogic:
         else:
             params = (f"{transaction_number}%", f"{transaction_number}%")
 
-        with self.db.get_cursor() as (cursor, _conn):
+        with self.db.get_cursor_only() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
 

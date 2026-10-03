@@ -34,11 +34,14 @@ class TestBankingProcessor:
 
     @staticmethod
     def _get_cursor_ctx(mock_cursor, mock_conn):
-        """Build a context-manager mock mimicking db.get_cursor(), which yields
-        (cursor, conn). Used by save_approved_transactions tests after the
-        get_cursor() migration."""
+        """Build a context-manager mock mimicking db.get_cursor_only(), which yields
+        just the cursor. Used by the read paths (check_sequence_numbers,
+        save_approved_transactions) after the get_cursor_only() migration.
+
+        mock_conn is accepted for signature compatibility (callers still pass it)
+        but is not part of the cursor-only yield."""
         ctx = MagicMock()
-        ctx.__enter__.return_value = (mock_cursor, mock_conn)
+        ctx.__enter__.return_value = mock_cursor
         ctx.__exit__.return_value = False
         return ctx
 
@@ -236,7 +239,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         # No duplicates found
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             saved_count = banking_processor.save_approved_transactions(transactions)
 
@@ -261,7 +264,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         # insert_transaction raises an error
         banking_processor.db.insert_transaction.side_effect = Exception("Database error")
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             saved_count = banking_processor.save_approved_transactions(transactions)
 
@@ -333,7 +336,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
             {'TransactionDate': '2025-01-17', 'TransactionDescription': 'Test 3', 'Ref2': '4', 'TransactionAmount': 200.00}  # Gap at 3
         ]
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             result = banking_processor.check_sequence_numbers('1600', 'GoodwinSolutions')
 
@@ -352,7 +355,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         mock_conn, mock_cursor = mock_connection
         mock_cursor.fetchone.return_value = None
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             result = banking_processor.check_sequence_numbers('9999', 'NonExistent')
 
@@ -368,7 +371,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         ]
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             result = banking_processor.check_sequence_numbers('1600', 'GoodwinSolutions')
 
@@ -392,7 +395,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
             {'TransactionDate': '2025-01-15', 'TransactionDescription': 'Test', 'Ref2': 'INVALID', 'TransactionAmount': 100.00}
         ]
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             result = banking_processor.check_sequence_numbers('1600', 'GoodwinSolutions')
 
@@ -410,7 +413,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
             {'TransactionDate': '2025-01-15', 'TransactionDescription': 'Test', 'Ref2': '1', 'TransactionAmount': 100.00}
         ]
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             result = banking_processor.check_sequence_numbers()
 
@@ -449,7 +452,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         # Ref2 check returns a match → duplicate
         mock_cursor.fetchone.return_value = {'ID': 999}
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             saved_count = banking_processor.save_approved_transactions(transactions)
 
@@ -475,7 +478,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         mock_cursor.fetchone.return_value = None
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             saved_count = banking_processor.save_approved_transactions(transactions)
 
@@ -500,7 +503,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         # Fuzzy check returns no match
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             saved_count = banking_processor.save_approved_transactions(transactions)
 
@@ -576,7 +579,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         # Ref2 check returns a match → duplicate (the _FX transaction was already imported)
         mock_cursor.fetchone.return_value = {'ID': 1000}
 
-        with patch.object(banking_processor.db, 'get_cursor',
+        with patch.object(banking_processor.db, 'get_cursor_only',
                           return_value=self._get_cursor_ctx(mock_cursor, mock_conn)):
             saved_count = banking_processor.save_approved_transactions(transactions)
 

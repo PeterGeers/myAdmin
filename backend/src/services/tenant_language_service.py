@@ -21,7 +21,7 @@ def get_tenant_language(administration: str) -> str:
     try:
         db_manager = DatabaseManager()
         # READ: plain (tuple-row) cursor — preserve index access via dictionary=False
-        with db_manager.get_cursor(dictionary=False) as (cursor, conn):
+        with db_manager.get_cursor_only(dictionary=False) as cursor:
             # Get tenant's default language
             cursor.execute(
                 """
@@ -73,7 +73,7 @@ def update_tenant_language(administration: str, language: str) -> bool:
         # WRITE: transaction() auto-commits on success, rolls back on exception.
         # Only cursor.rowcount is consumed here (identical for tuple/dict cursors),
         # so the cursor flavor is irrelevant and the standard transaction() form applies.
-        with db_manager.transaction() as (cursor, conn):
+        with db_manager.transaction() as (cursor, _conn):
             # Update tenant's default language
             cursor.execute(
                 """

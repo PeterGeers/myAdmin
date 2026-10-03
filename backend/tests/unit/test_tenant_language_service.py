@@ -20,12 +20,20 @@ from services.tenant_language_service import (
 
 
 def _wire_get_cursor(mock_db, mock_cursor):
-    """Configure a mocked DatabaseManager so get_cursor() yields (cursor, conn)."""
+    """Configure a mocked DatabaseManager read path.
+
+    The read path uses get_cursor_only() (yields just the cursor). Also wire
+    get_cursor() for completeness so either API returns the same mock cursor.
+    """
     mock_conn = MagicMock()
     cm = MagicMock()
     cm.__enter__.return_value = (mock_cursor, mock_conn)
     cm.__exit__.return_value = False
     mock_db.get_cursor.return_value = cm
+    cm_only = MagicMock()
+    cm_only.__enter__.return_value = mock_cursor
+    cm_only.__exit__.return_value = False
+    mock_db.get_cursor_only.return_value = cm_only
     return mock_conn
 
 
@@ -58,8 +66,8 @@ class TestGetTenantLanguage:
             result = get_tenant_language('test-tenant')
 
         assert result == 'en'
-        # READ must use the context-managed get_cursor, not raw get_connection
-        mock_db.get_cursor.assert_called_once_with(dictionary=False)
+        # READ must use the cursor-only context manager, not raw get_connection
+        mock_db.get_cursor_only.assert_called_once_with(dictionary=False)
         mock_cursor.execute.assert_called_once()
         query = mock_cursor.execute.call_args[0][0]
         params = mock_cursor.execute.call_args[0][1]
@@ -91,7 +99,9 @@ class TestGetTenantLanguage:
     def test_returns_nl_on_exception(self):
         """get_tenant_language returns 'nl' on database exception."""
         with patch('services.tenant_language_service.DatabaseManager') as MockDB:
-            MockDB.return_value.get_cursor.side_effect = Exception("Connection failed")
+            MockDB.return_value.get_cursor_only.side_effect = Exception(
+                "Connection failed"
+            )
             result = get_tenant_language('error-tenant')
 
         assert result == 'nl'

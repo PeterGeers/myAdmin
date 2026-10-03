@@ -111,7 +111,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
         # Determine closure-aware start year for balance cumulation
         start_year = get_closure_aware_start_year(self.db, administration)
 
-        with self.db.get_cursor() as (cursor, conn):
+        with self.db.get_cursor_only() as cursor:
             # Get balance accounts (VW = N) for years before target year
             if start_year:
                 # Closures exist: only include years from start_year (last_closed_year + 1)

@@ -1,0 +1,109 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**H1. Update backend test mocks to the new `database.py` cursor/connection contract (46 failing tests).** [L] — the primary cause of the red backend job; fix is in test mocks, not production.": [
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019148633
+      },
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019157730
+      },
+      {
+        "executionId": "e9f8cee2-492d-47f5-b8be-07363dc89a17",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791020204607
+      },
+      {
+        "executionId": "e9f8cee2-492d-47f5-b8be-07363dc89a17",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791020525206
+      }
+    ],
+    "**H2. Clear the 40 `RUF059` \"unpacked variable `conn` is never used\" backend lint errors.** [M] — CI-blocking (Backend Lint job red); same refactor as H1. **Not** safely auto-fixable (ruff reports 40 *hidden/unsafe* fixes only).": [
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019149026
+      },
+      {
+        "executionId": "e9f8cee2-492d-47f5-b8be-07363dc89a17",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791020532193
+      },
+      {
+        "executionId": "e9f8cee2-492d-47f5-b8be-07363dc89a17",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791020943270
+      }
+    ],
+    "**H3. Reformat `src/str_invoice_routes.py` (1 ruff-format violation).** [S] — CI-blocking (Ruff format check red); auto-fixable.": [
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019149279
+      },
+      {
+        "executionId": "e9f8cee2-492d-47f5-b8be-07363dc89a17",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791020951321
+      },
+      {
+        "executionId": "e9f8cee2-492d-47f5-b8be-07363dc89a17",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791021118242
+      }
+    ],
+    "**M1. Re-fix the frontend `tsc` `TS2322` type error in `MembersFieldFormBody.tsx` — it regressed since 10-02.** [M] — report-only (non-blocking), but it was marked fixed on 10-02 and is back.": [
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019149530
+      },
+      {
+        "executionId": "e9f8cee2-492d-47f5-b8be-07363dc89a17",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791021129452
+      }
+    ],
+    "**L1. Broaden the 10-02 pre-push guard from collect-only to also run affected tests + ruff.** [M] — prevention; this cycle's regression (runtime test + lint) is invisible to a `--collect-only` guard.": [
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019149866
+      },
+      {
+        "executionId": "88f9b694-7948-498b-91cc-147f40ee6e18",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791021876454
+      },
+      {
+        "executionId": "88f9b694-7948-498b-91cc-147f40ee6e18",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791022149497
+      }
+    ],
+    "**L2. Adopt a cursor-only context manager / `_conn` convention to stop `RUF059` recurring (3rd appearance: 08-12, 08-18, 10-03).** [M] — durable prevention for the recurring rule.": [
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019150079
+      },
+      {
+        "executionId": "88f9b694-7948-498b-91cc-147f40ee6e18",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791022156993
+      }
+    ],
+    "**L3. Confirm ruff stays pinned to 0.16.5 (reproducibility guard).** [S] — standing guard, no change expected. Carried forward from 10-02 L2.": [
+      {
+        "executionId": "9de1aacd-0a0d-4df9-be6b-4bd5c6fce9ac",
+        "chatSessionId": "sess_27b20188-15e3-4c7f-9461-de15108df47c",
+        "timestamp": 1791019150296
+      }
+    ]
+  }
+}

@@ -229,7 +229,7 @@ def banking_filter_options(
             admin_filter = f"AND administration IN ({placeholders})"
             admin_params = user_tenants
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             # Get distinct years (filtered by tenant)
             # Uses YEAR() on base table — acceptable since administration index
             # filters rows first. Not on vw_mutaties so no view materialization.

@@ -32,7 +32,7 @@ class ZZPInvoiceNumberingHelper:
         # commits once on clean exit, rolls back on exception). Splitting these into
         # separate get_cursor()/transaction() blocks would release the lock between
         # read and write and allow concurrent requests to allocate duplicate numbers.
-        with self.db.transaction() as (cursor, conn):
+        with self.db.transaction() as (cursor, _conn):
             cursor.execute(
                 """SELECT last_sequence FROM invoice_number_sequences
                    WHERE administration = %s AND prefix = %s AND year = %s
