@@ -32,7 +32,6 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         year = data.get("year", datetime.now().year)
         month = data.get("month", datetime.now().month)
         administration = data.get("administration", tenant)  # Default to current tenant
-        test_mode = data.get("test_mode", True)
 
         # Validate user has access to requested administration
         if administration not in user_tenants:
@@ -50,8 +49,8 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         # Pattern for STR channels
         pattern = "AirBnB|Booking.com|dfDirect|Stripe|VRBO"
 
-        # Get database connection
-        db = DatabaseManager(test_mode=test_mode)
+        # Get database connection (environment selected by APP_ENV)
+        db = DatabaseManager()
 
         # Query to get channel revenue data - EXACT match on administration
         query = """
@@ -209,7 +208,6 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
     try:
         data = request.get_json()
         transactions = data.get("transactions", [])
-        test_mode = data.get("test_mode", True)
 
         if not transactions:
             return jsonify({"success": False, "error": "No transactions to save"}), 400
@@ -235,11 +233,10 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
                     }
                 ), 403
 
-        # Get database connection and determine correct table
-        db = DatabaseManager(test_mode=test_mode)
+        # Get database connection (environment selected by APP_ENV)
+        db = DatabaseManager()
 
-        # Use mutaties table in both test and production databases
-        # Test mode uses testfinance.mutaties, production uses finance.mutaties
+        # Schema is always `finance` on the resolved target — fixed table name.
         table_name = "mutaties"
 
         # Insert transactions
@@ -296,7 +293,6 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
         administration = request.args.get(
             "administration", tenant
         )  # Default to current tenant
-        test_mode = request.args.get("test_mode", "true").lower() == "true"
 
         # Validate user has access to requested administration
         if administration not in user_tenants:
@@ -311,8 +307,8 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
         # Pattern for STR channels
         pattern = "AirBnB|Booking.com|dfDirect|Stripe|VRBO"
 
-        # Get database connection
-        db = DatabaseManager(test_mode=test_mode)
+        # Get database connection (environment selected by APP_ENV)
+        db = DatabaseManager()
 
         # Query to get raw channel data - EXACT match on administration
         query = """

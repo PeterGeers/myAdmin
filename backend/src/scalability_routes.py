@@ -36,9 +36,8 @@ def scalability_dashboard(user_email, user_roles):
     for monitoring 10x concurrent user capacity.
     """
     try:
-        # Get database manager
-        test_mode = request.args.get("test_mode", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        # Get database manager (environment selected by APP_ENV)
+        db = DatabaseManager()
 
         # Get scalability manager
         scalability_manager = None
@@ -381,9 +380,8 @@ def optimize_scalability(user_email, user_roles):
     try:
         data = request.get_json() or {}
         optimization_type = data.get("type", "all")
-        test_mode = data.get("test_mode", False)
 
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         optimizations_applied = []
 
         # Database optimizations

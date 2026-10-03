@@ -62,9 +62,8 @@ def banking_process_files(
     try:
         data = request.get_json()
         file_paths = data.get("files", [])
-        test_mode = data.get("test_mode", True)
 
-        result = banking_service.process_banking_files(file_paths, tenant, test_mode)
+        result = banking_service.process_banking_files(file_paths, tenant)
 
         if result["success"]:
             return jsonify(result)
@@ -88,9 +87,10 @@ def banking_check_sequences(
         data = request.get_json()
         iban = data.get("iban")
         sequences = data.get("sequences", [])
-        test_mode = data.get("test_mode", True)
 
-        result = banking_service.check_sequences(iban, sequences, test_mode, tenant)
+        result = banking_service.check_sequences(
+            iban, sequences, administration=tenant
+        )
         return jsonify(result)
 
     except Exception as e:
@@ -107,12 +107,9 @@ def banking_apply_patterns(
     try:
         data = request.get_json()
         transactions = data.get("transactions", [])
-        test_mode = data.get("test_mode", True)
         use_enhanced = data.get("use_enhanced", True)
 
-        result = banking_service.apply_patterns(
-            transactions, tenant, use_enhanced, test_mode
-        )
+        result = banking_service.apply_patterns(transactions, tenant, use_enhanced)
         return jsonify(result)
 
     except Exception as e:
@@ -133,9 +130,8 @@ def banking_save_transactions(
     try:
         data = request.get_json()
         transactions = data.get("transactions", [])
-        test_mode = data.get("test_mode", True)
 
-        result = banking_service.save_transactions(transactions, tenant, test_mode)
+        result = banking_service.save_transactions(transactions, tenant)
         return jsonify(result)
 
     except ClosedPeriodError as e:
@@ -217,8 +213,10 @@ def banking_filter_options(
     try:
         from database import DatabaseManager
 
-        db = DatabaseManager(test_mode=banking_service.test_mode)
-        table_name = "mutaties_test" if banking_service.test_mode else "mutaties"
+        # Schema is always `finance` (environment selected by APP_ENV) — fixed
+        # mutaties table name, no `mutaties_test` switch.
+        db = DatabaseManager()
+        table_name = "mutaties"
 
         # Build administration filter based on user's accessible tenants
         if len(user_tenants) == 1:

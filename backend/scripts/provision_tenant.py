@@ -225,8 +225,10 @@ def send_notification(email: str, admin_name: str, first_name: str):
 
 def provision(email: str, dry_run=False, test_mode=False, admin_name_override=None, modules_override=None, force=False):
     """Run the full provisioning flow"""
-    db_label = 'testfinance' if test_mode else 'finance'
-    logger.info(f"Provisioning tenant for: {email} (DB: {db_label})")
+    # Schema is always `finance`; TEST vs PROD is the resolved connection target
+    # (APP_ENV), not a separate `testfinance` schema. `test_mode` is retained only
+    # for backward-compatible signatures and no longer selects a schema.
+    logger.info(f"Provisioning tenant for: {email} (schema: finance)")
 
     # Step 1: Look up signup
     signup = lookup_signup(email)
@@ -328,7 +330,7 @@ if __name__ == '__main__':
     parser.add_argument('--modules', help='Comma-separated module list, e.g. "FIN,STR,TENADMIN" (default: FIN,STR,TENADMIN)')
     parser.add_argument('--dry-run', action='store_true', help='Show what would happen without making changes')
     parser.add_argument('--force', action='store_true', help='Rerun provisioning even if already provisioned (for partial failures)')
-    parser.add_argument('--test-mode', action='store_true', help='Use testfinance DB instead of finance')
+    parser.add_argument('--test-mode', action='store_true', help='Deprecated/no-op: schema is always `finance`; TEST vs PROD is selected by APP_ENV')
     args = parser.parse_args()
 
     provision(args.email, dry_run=args.dry_run, test_mode=args.test_mode,
