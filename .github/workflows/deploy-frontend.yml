@@ -1,5 +1,17 @@
 name: Deploy Frontend to GitHub Pages
 
+# BRANCH -> ENVIRONMENT MAPPING (test-environment spec, Req 23 — Branch_Environment_Mapping):
+#   * `main` builds the PRODUCTION SPA (VITE_APP_ENV=production) and publishes it to
+#     GitHub Pages (the PROD_URL deployment).
+#   * The TEST frontend's current mapping is the local dev server (TEST_URL = localhost:3000,
+#     started with VITE_APP_ENV=test) — there is NO hosted TEST Pages target today, so this
+#     workflow intentionally does NOT publish a `test`-branch build to Pages (publishing a
+#     second env to the single Pages site would collide with production). When a hosted TEST
+#     frontend target is introduced, add a `test`-branch job here that builds with
+#     VITE_APP_ENV=test and deploys to that target; the SAM backends already deploy per
+#     environment from the `test`/`main` branches (deploy-sam-members.yml / -pretokengen.yml).
+#   This mapping is CI configuration, separate from the application source (Req 23.5).
+
 on:
   push:
     branches:
