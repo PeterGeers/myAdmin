@@ -63,11 +63,12 @@ export function MainMenu({
             {/* Env 5.2/5.4 — header environment indicator is TEST-ONLY: in production the
                 header shows nothing here, since the authoritative, resolver-derived
                 environment status is ALWAYS available in the user-info modal (UserMenu's
-                compact EnvironmentIndicator) and via GET /api/environment. In TEST we keep
-                the full detailed pool/SAM indicator as a strong, informative warning.
+                compact EnvironmentIndicator) and via GET /api/environment. In TEST we show
+                only a COMPACT TEST badge here; the detailed pool/SAM info remains available
+                in the user-info modal and via GET /api/environment.
                 Moving the always-on pool/SAM detail off the production header is a
                 deliberate product decision, not a silent regression of Req 5.2/5.4. */}
-            {APP_ENV === 'test' && <EnvironmentIndicator variant="detailed" />}
+            {APP_ENV === 'test' && <EnvironmentIndicator variant="compact" />}
             <LanguageSelector />
             <TenantSelector size="sm" />
             <HelpButton page={currentPage} />
