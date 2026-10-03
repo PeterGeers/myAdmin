@@ -95,11 +95,11 @@ export const TEST_FRONTEND_CONFIG: FrontendPlaneDef = {
   },
   flaskApiBaseUrl: 'http://localhost:5000', // current TEST Flask API URL (non-normative mapping)
   // SAM plane is per MODULE; this records the members module (the one with an
-  // HTTP API). stackName is the members TEST stack; the TEST API base URL is a
-  // PLACEHOLDER until the `test_sam-members` stack is first deployed.
+  // HTTP API). stackName is the members TEST CFN stack (`test-sam-members`); the
+  // apiBaseUrl is the live MembersApiBaseUrl output of the first deploy (Phase 5a).
   sam: {
     stackName: 'test-sam-members',
-    apiBaseUrl: 'https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test',
+    apiBaseUrl: 'https://28jun82vl3.execute-api.eu-west-1.amazonaws.com/test',
     tablePrefix: 'test_',
     authorizerPoolId: TEST_POOL_ID,
   },

@@ -304,11 +304,11 @@ The implementation involves:
   - [x] 38.2 Token-level verification (a fresh sign-in mints `custom:entitlements`) is performed in Task 41 (end-to-end smoke) once a Test_Account exists (Task 40). Infra wiring is confirmed now.
   - _Gate: TEST tokens entitlement-stamped by the new TEST Lambda. Reversible (restore the captured 36.2 ARN). Requirements: 14, 17._
 
-- [ ] 39. Record the real TEST members API URL in the Environment_Definition (code, committed to `test`)
-  - [ ] 39.1 Replace `PLACEHOLDER_TEST_API` with the captured `MembersApiBaseUrl` (Task 35) in `backend/src/environment/environment_definition.py` AND `frontend/src/config/environmentDefinition.ts` (mirrored).
-  - [ ] 39.2 Update paired assertions (`test_environment_definition.py`, health-report example); the `sam_api_base_url` guard flips placeholder-tolerant to a concrete match.
-  - [ ] 39.3 Set `VITE_MEMBERS_API_BASE_URL` for TEST runs to the new URL.
-  - [ ] 39.4 Change-with-tests; run backend env/guard + frontend Req-22 suites.
+- [x] 39. Record the real TEST members API URL in the Environment_Definition (code, committed to `test`)
+  - [x] 39.1 Replace `PLACEHOLDER_TEST_API` with the captured `MembersApiBaseUrl` (Task 35) in `backend/src/environment/environment_definition.py` AND `frontend/src/config/environmentDefinition.ts` (mirrored).
+  - [x] 39.2 Update paired assertions (`test_environment_definition.py`, health-report example); the `sam_api_base_url` guard flips placeholder-tolerant to a concrete match.
+  - [x] 39.3 Set `VITE_MEMBERS_API_BASE_URL` for TEST runs to the new URL.
+  - [x] 39.4 Change-with-tests; run backend env/guard + frontend Req-22 suites.
   - _Gate: definition reflects the live TEST endpoint. Requirements: 15, 21.5-21.6._
 
 - [ ] 40. Provision a Test_Account for sign-in (identity account)

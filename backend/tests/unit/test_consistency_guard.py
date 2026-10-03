@@ -643,6 +643,28 @@ class TestSamApiBaseUrl:
             assert check.resolved_env == app_env
 
     def test_test_placeholder_is_tolerated(self) -> None:
+        # A not-yet-deployed TEST stack records a PLACEHOLDER SAM URL; the guard must
+        # tolerate it (wired-but-not-observable) and pass on distinctness only. The
+        # committed definition now carries the REAL deployed TEST URL (Phase 5a), so
+        # inject a placeholder definition to exercise the tolerance branch directly.
+        placeholder_sam = dataclasses.replace(
+            ENVIRONMENT_DEFINITION.test.sam,
+            api_base_url="https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test",
+        )
+        definition = _definition_with_sam(placeholder_sam, ENVIRONMENT_DEFINITION.production.sam)
+        report = build_consistency_report(
+            AppEnv.TEST,
+            definition=definition,
+            environ=_test_env_block(),
+            registered_issuers=[TEST_ISSUER],
+        )
+        check = _find(report, "sam_api_base_url")
+        assert check.ok is True
+        assert "placeholder" in check.message.lower()
+
+    def test_committed_test_url_is_concrete_not_placeholder(self) -> None:
+        # Phase 5a Task 39: once the TEST stack is deployed, the committed TEST SAM
+        # URL is a real endpoint (no PLACEHOLDER) and the guard does a concrete match.
         report = build_consistency_report(
             AppEnv.TEST,
             definition=ENVIRONMENT_DEFINITION,
@@ -651,7 +673,8 @@ class TestSamApiBaseUrl:
         )
         check = _find(report, "sam_api_base_url")
         assert check.ok is True
-        assert "placeholder" in check.message.lower()
+        assert "PLACEHOLDER" not in ENVIRONMENT_DEFINITION.test.sam.api_base_url
+        assert "placeholder" not in check.message.lower()
 
     def test_identical_urls_fail(self) -> None:
         sentinel = "sam-url-sentinel-SAME"
