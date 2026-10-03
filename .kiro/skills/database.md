@@ -39,8 +39,12 @@ PYTHONPATH=backend/src backend/scripts/railway-db.sh python backend/scripts/veri
 PYTHONPATH=backend/src backend/scripts/railway-db.sh python -c "from database import DatabaseManager; print(DatabaseManager().execute_query('SELECT COUNT(*) c FROM mutaties', None, fetch=True))"
 ```
 
-Targets production `finance` by default. For test data pass `TEST_MODE=true`
-(uses `testfinance`) or `RAILWAY_DB_NAME=testfinance`.
+Targets the `finance` schema (the only schema the app uses — see
+"Environments" below). The wrapper still accepts a legacy `TEST_MODE=true` /
+`RAILWAY_DB_NAME=testfinance` escape hatch for ad-hoc access to an old
+`testfinance` schema if one still exists on Railway, but that is NOT the
+environment model: the app selects TEST vs PRODUCTION by resolved DB *target*
+(local Docker vs Railway), both on schema `finance`, never by a schema switch.
 
 ### Connect via bash (WSL)
 
@@ -73,7 +77,9 @@ Migrations are JSON files in `backend/src/migrations/`, applied by `DatabaseMigr
 
 ```bash
 cd backend && source .venv/bin/activate
-PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration(test_mode=False).run_all_migrations()"
+# The target DB is selected by APP_ENV / the DB_* env vars — there is NO
+# test_mode argument (removed in the test-environment Phase 3 refactor).
+PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration().run_all_migrations()"
 ```
 
 ### Key facts
@@ -118,16 +124,24 @@ mysql -h 127.0.0.1 -P 3306 -u <LOCAL_DB_USER> -p
 docker-compose exec mysql mysql -u <LOCAL_DB_USER> -p
 ```
 
-## Environment Variables
+## Environments (APP_ENV + resolved target)
 
-| Variable | Local (Docker) | Production (Railway) |
-|----------|---------------|---------------------|
-| DB_HOST | 127.0.0.1 | <RAILWAY_DB_HOST> |
-| DB_PORT | 3306 | <RAILWAY_DB_PORT> |
-| DB_USER | <LOCAL_DB_USER> | <RAILWAY_DB_USER> |
-| DB_NAME | finance | finance |
-| TEST_MODE | true/false | true/false |
+The app has ONE environment selector, `APP_ENV` (`test` | `production`), from
+which the Environment_Resolver derives a single resolved DB **target**. There is
+no `test_mode` flag and no `finance`/`testfinance` schema split — the schema is
+`finance` for BOTH environments. TEST and PRODUCTION are distinguished by their
+resolved target and credentials, not by physical hosting location or schema name.
 
-`TEST_MODE=true` uses `testfinance` database, `false` uses `finance`. (Railway
-provisions a default empty `railway` database — the app's data lives in
-`finance`, so `DB_NAME=finance` in both environments.)
+Current operational mapping (non-normative — the targets can be relocated without
+changing the model, by changing the resolver mapping/config):
+
+| Variable | TEST target (APP_ENV=test) | PRODUCTION target (APP_ENV=production) |
+|----------|----------------------------|----------------------------------------|
+| resolved via | `DB_HOST_TEST` / `DB_PORT_TEST` / `DB_USER_TEST` / `DB_PASSWORD_TEST` | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` |
+| current host | local Docker MySQL (127.0.0.1:3306) | Railway proxy (`<RAILWAY_DB_HOST>:<RAILWAY_DB_PORT>`) |
+| schema | `finance` | `finance` |
+
+(Railway provisions a default empty `railway` database — the app's data lives in
+`finance`, so the schema is `finance` in both environments.) The legacy
+`TEST_MODE` / `testfinance` escape hatch on `railway-db.sh` is NOT this model; see
+the wrapper note above.

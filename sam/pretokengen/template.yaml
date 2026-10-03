@@ -111,7 +111,7 @@ Parameters:
       Deployment stage — names the function (`pretokengen-<stage>`) and layer
       (`pretokengen-<stage>` / `pretokengen-layer-<stage>`). NOTE (s5e / footgun):
       `Stage` names the RESOURCES only, NOT the CloudFormation STACK. The stack is
-      pinned per environment in `samconfig.toml` (`[test]` -> stack `pretokengen-data`,
+      pinned per environment in `samconfig.toml` (`[test]` -> stack `test_pretokengen`,
       `[prod]` -> stack `pretokengen-prod`). Because those are DISTINCT stacks, a
       `--config-env prod` deploy can never rename/replace the test function/layer.
       Never deploy two stages into one stack.
@@ -147,6 +147,19 @@ Parameters:
       PUBLIC. No default — fail-fast.
     AllowedPattern: "^eu-west-1_[A-Za-z0-9]+$"
     ConstraintDescription: Must be a eu-west-1 Cognito user pool id.
+
+# Stage -> APP_ENV: the deploy stage is the single environment knob; APP_ENV is
+# DERIVED from it so the two cannot drift (same contract as the members module and
+# the Flask backend/frontend Environment_Resolver — APP_ENV in {test, production}).
+# `local` and `test` both resolve to the TEST environment; only `prod` is production.
+Mappings:
+  StageToAppEnv:
+    local:
+      AppEnv: test
+    test:
+      AppEnv: test
+    prod:
+      AppEnv: production
 
 Globals:
   Function:
@@ -191,6 +204,11 @@ Resources:
         - !Ref PreTokenGenLayer
       Environment:
         Variables:
+          # APP_ENV — the environment selector, DERIVED from the Stage parameter via
+          # the StageToAppEnv mapping (local/test -> test, prod -> production), so the
+          # Lambda carries the SAME authoritative selector as the members Lambda and
+          # the Flask backend. Stage, pool, projection table, and APP_ENV cannot drift.
+          APP_ENV: !FindInMap [StageToAppEnv, !Ref Stage, AppEnv]
           # Fail-fast projection table (no dangerous default) — resolved from the
           # stack parameter, which itself has no default. The reader resolves the
           # table fail-fast on first use (DynamoDBConfigError if missing/blank).

@@ -60,7 +60,7 @@ class TestBuildEnvironmentReportExamples:
         assert report["mysql_target_label"] == "TEST"
         assert report["mysql_schema"] == "finance"
         assert report["dynamodb_prefix"] == "test_"
-        assert report["sam_stack_label"] == "myAdmin-test"
+        assert report["sam_stack_label"] == "test-sam-members"
 
     def test_report_production_env_names_production_boundary(self) -> None:
         """For APP_ENV=production the report names PRODUCTION boundary values."""
@@ -70,7 +70,7 @@ class TestBuildEnvironmentReportExamples:
         assert report["mysql_target_label"] == "PRODUCTION"
         assert report["mysql_schema"] == "finance"
         assert report["dynamodb_prefix"] == ""
-        assert report["sam_stack_label"] == "myAdmin-prod"
+        assert report["sam_stack_label"] == "sam-members"
 
     def test_report_omits_secret_fields(self) -> None:
         """The report never carries secret values or secret-shaped references (Req 6.6).

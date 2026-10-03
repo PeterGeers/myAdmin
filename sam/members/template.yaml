@@ -53,11 +53,15 @@ Parameters:
   MembersTableName:
     Type: String
     Description: >-
-      Name of the module-plane Members DynamoDB table (e.g. `sam-members` in prod,
-      `sam-members-local` locally). Managed outside this template. No default —
-      fail-fast (23-aws-accounts.md).
-    AllowedPattern: "^sam-members.*$"
-    ConstraintDescription: Must start with `sam-members` (SAM-plane `sam-` prefix, env as a suffix).
+      Name of the module-plane Members DynamoDB table. Per environment:
+        * prod  — `sam-members` (unprefixed)
+        * test  — `test_sam-members` (the `test_` environment boundary)
+        * local — `sam-members-local`
+      Managed outside this template. No default — fail-fast (23-aws-accounts.md).
+    AllowedPattern: "^(test_)?sam-members.*$"
+    ConstraintDescription: >-
+      Must be `sam-members*` (prod/local) or `test_sam-members*` (TEST) — the SAM-plane
+      `sam-members` core, optionally under the `test_` environment prefix.
 
   GovernanceProjectionTableName:
     Type: String
@@ -79,11 +83,19 @@ Parameters:
     Type: String
     Description: >-
       Deployment stage — names the API stage + resources (`members-<stage>`) and the
-      output URL. The runnable phase is `local` (`sam local start-api`); `prod` is the
-      later gated deploy.
+      output URL, AND carries the environment selector APP_ENV into the Lambda (see
+      the StageToAppEnv mapping). Values:
+        * `local` — `sam local start-api` (dev loop); APP_ENV=test.
+        * `test`  — the TEST stack (`test_sam-members`), test Cognito pool,
+                    `test_`-prefixed tables; APP_ENV=test.
+        * `prod`  — the PRODUCTION stack (`sam-members`), prod pool, unprefixed
+                    tables; APP_ENV=production.
+      This is the single environment knob (reused rather than a parallel param) so
+      the stage, pool, tables, and APP_ENV cannot disagree.
     Default: local
     AllowedValues:
       - local
+      - test
       - prod
 
   CognitoUserPoolArn:
@@ -133,6 +145,19 @@ Parameters:
     Type: String
     Description: Human-readable label for the myAdmin pool (diagnostics).
     Default: ""
+
+# Stage -> APP_ENV: the deploy stage is the single environment knob; APP_ENV is
+# DERIVED from it so the two cannot drift. `local` and `test` both resolve to the
+# TEST environment (APP_ENV=test); only `prod` is production. This mirrors the
+# backend/frontend Environment_Resolver contract (APP_ENV in {test, production}).
+Mappings:
+  StageToAppEnv:
+    local:
+      AppEnv: test
+    test:
+      AppEnv: test
+    prod:
+      AppEnv: production
 
 Globals:
   Function:
@@ -222,6 +247,12 @@ Resources:
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
       Environment:
         Variables:
+          # APP_ENV — the environment selector, DERIVED from the Stage parameter via
+          # the StageToAppEnv mapping (local/test -> test, prod -> production). The
+          # Lambda therefore carries the SAME authoritative selector as the Flask
+          # backend/frontend, and it is impossible for the stage, pool, tables, and
+          # APP_ENV to disagree within a single deployed stack.
+          APP_ENV: !FindInMap [StageToAppEnv, !Ref Stage, AppEnv]
           # Fail-fast table/region config (no dangerous defaults) — resolved from
           # the stack parameters, which themselves have no defaults.
           MEMBERS_TABLE: !Ref MembersTableName

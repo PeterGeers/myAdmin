@@ -444,9 +444,9 @@ class TestEnvironmentDefinitionInstance:
         assert test_config.backend_host_ref == "BACKEND_HOST_TEST"
         assert test_config.flask_api_base_url == "http://localhost:5000"
         
-        # SAM
-        assert test_config.sam.stack_name == "myAdmin-test"
-        assert "PLACEHOLDER_TEST_API" in test_config.sam.api_base_url
+        # SAM — members module TEST stack (per-module stacks, test_ boundary)
+        assert test_config.sam.stack_name == "test-sam-members"
+        assert test_config.sam.api_base_url == "https://28jun82vl3.execute-api.eu-west-1.amazonaws.com/test"
         assert test_config.sam.table_prefix == "test_"
         assert test_config.sam.exec_role_scope == "arn:aws:dynamodb:*:*:table/test_*"
         assert test_config.sam.authorizer_pool_id == TEST_POOL_ID
@@ -471,11 +471,16 @@ class TestEnvironmentDefinitionInstance:
         
         # Backend Runtime
         assert prod_config.backend_host_ref == "BACKEND_HOST_PROD"
-        assert "PLACEHOLDER_PRODUCTION_FLASK_API" in prod_config.flask_api_base_url
+        # Phase 6 Task 42 (Option A): PROD Flask URL is a Railway-managed REFERENCE
+        # marker, not a committed literal and not a PLACEHOLDER_ TODO.
+        assert prod_config.flask_api_base_url == "railway-managed://VITE_API_URL"
+        assert "PLACEHOLDER" not in prod_config.flask_api_base_url
         
-        # SAM
-        assert prod_config.sam.stack_name == "myAdmin-prod"
-        assert "PLACEHOLDER_PROD_API" in prod_config.sam.api_base_url
+        # SAM — members module PROD stack (per-module stacks, unprefixed)
+        assert prod_config.sam.stack_name == "sam-members"
+        assert prod_config.sam.api_base_url == (
+            "https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod"
+        )
         assert prod_config.sam.table_prefix == ""
         assert prod_config.sam.exec_role_scope == "arn:aws:dynamodb:*:*:table/*"
         assert prod_config.sam.authorizer_pool_id == PROD_POOL_ID
@@ -499,6 +504,52 @@ class TestEnvironmentDefinitionInstance:
         secret_ref = ENVIRONMENT_DEFINITION.production.cognito.client_secret_ref
         assert secret_ref == "PLACEHOLDER_CLIENT_SECRET"
         assert secret_ref != ""  # Should not be empty
+
+    def test_no_placeholder_remains_for_non_secret_live_fields(self) -> None:
+        """Task 42.5: NO `PLACEHOLDER_` value remains for any NON-SECRET field of a live plane.
+
+        Two values are deliberately NOT real literals and are the only allowed exceptions:
+          * `cognito.client_secret_ref` — a SECRET reference; it stays `PLACEHOLDER_CLIENT_SECRET`
+            in committed source by design (Req 3.6 / 19.1). The real secret is the
+            COGNITO_CLIENT_SECRET env var.
+          * `flask_api_base_url` — a Railway-managed RUNTIME value, recorded as an explicit
+            `railway-managed://` reference marker (Phase 6 Task 42 Option A), NOT a committed
+            hostname. It intentionally carries no `PLACEHOLDER_` token.
+        Every OTHER committed identifier (pool ids, client ids, SAM stack names + API URLs,
+        DynamoDB prefix/role scope, URLs, branches) must be a concrete, non-placeholder value.
+        """
+        for env_name, plane in (
+            ("test", ENVIRONMENT_DEFINITION.test),
+            ("production", ENVIRONMENT_DEFINITION.production),
+        ):
+            # Non-secret committed identifiers that MUST be concrete (no PLACEHOLDER_).
+            concrete = [
+                plane.cognito.pool_id,
+                plane.cognito.client_id,
+                plane.cognito.pool_label,
+                plane.sam.stack_name,
+                plane.sam.api_base_url,
+                plane.sam.table_prefix,
+                plane.sam.exec_role_scope,
+                plane.sam.authorizer_pool_id,
+            ]
+            for value in concrete:
+                assert "PLACEHOLDER" not in value, (
+                    f"{env_name}: unexpected PLACEHOLDER_ in a non-secret live field: {value!r}"
+                )
+            # The client secret ref is the ONE allowed placeholder (a secret reference).
+            assert "PLACEHOLDER" in plane.cognito.client_secret_ref or plane.cognito.client_secret_ref == ""
+            # The Flask URL is a reference marker, never a PLACEHOLDER_ TODO.
+            assert "PLACEHOLDER" not in plane.flask_api_base_url
+
+        # Top-level URL / branch fields are concrete too.
+        for value in (
+            ENVIRONMENT_DEFINITION.test_url,
+            ENVIRONMENT_DEFINITION.production_url,
+            ENVIRONMENT_DEFINITION.test_branch,
+            ENVIRONMENT_DEFINITION.production_branch,
+        ):
+            assert value is None or "PLACEHOLDER" not in value
 
     def test_test_table_prefix(self) -> None:
         """TEST should have 'test_' table prefix."""
