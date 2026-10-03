@@ -354,8 +354,13 @@ The implementation involves:
   - _Requirements: 3.5, 18.1-18.4_
   - _Artifact: `env-var-audit.md` (same spec folder) — the full var->consumer map, overlaps (intentional vs redundant), target per-plane set, leaked-secret check, and 3 follow-up findings (stale TEST_MODE/TEST_DB_NAME in system_health_routes; Google-Drive TEST_MODE toggle; legacy Cognito vars retirable from Railway)._
 
-- [ ] 45. Checkpoint - Production config wiring complete
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 45. Checkpoint - Production config wiring complete
+  - All suites green: backend env/guard/resolver/health/properties/routes 124 passed;
+    frontend config/indicator/aws-exports 34 passed; SAM suite full run no failures.
+  - Phase 6 outcome: Environment_Definition has no stray placeholders (secrets +
+    the Railway-managed Flask URL are explicit references, Task 42); the duplicated
+    identity block is confirmed retired from the live paths (Task 43); and the deploy
+    env vars are audited in `env-var-audit.md` (Task 44). No secret values committed.
 
 ## Notes
 
