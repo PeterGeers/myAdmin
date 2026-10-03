@@ -444,8 +444,8 @@ class TestEnvironmentDefinitionInstance:
         assert test_config.backend_host_ref == "BACKEND_HOST_TEST"
         assert test_config.flask_api_base_url == "http://localhost:5000"
         
-        # SAM
-        assert test_config.sam.stack_name == "myAdmin-test"
+        # SAM — members module TEST stack (per-module stacks, test_ boundary)
+        assert test_config.sam.stack_name == "test_sam-members"
         assert "PLACEHOLDER_TEST_API" in test_config.sam.api_base_url
         assert test_config.sam.table_prefix == "test_"
         assert test_config.sam.exec_role_scope == "arn:aws:dynamodb:*:*:table/test_*"
@@ -473,9 +473,11 @@ class TestEnvironmentDefinitionInstance:
         assert prod_config.backend_host_ref == "BACKEND_HOST_PROD"
         assert "PLACEHOLDER_PRODUCTION_FLASK_API" in prod_config.flask_api_base_url
         
-        # SAM
-        assert prod_config.sam.stack_name == "myAdmin-prod"
-        assert "PLACEHOLDER_PROD_API" in prod_config.sam.api_base_url
+        # SAM — members module PROD stack (per-module stacks, unprefixed)
+        assert prod_config.sam.stack_name == "sam-members"
+        assert prod_config.sam.api_base_url == (
+            "https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod"
+        )
         assert prod_config.sam.table_prefix == ""
         assert prod_config.sam.exec_role_scope == "arn:aws:dynamodb:*:*:table/*"
         assert prod_config.sam.authorizer_pool_id == PROD_POOL_ID

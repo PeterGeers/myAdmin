@@ -230,21 +230,25 @@ The Flask backend host is a resolved target (Req 21.1). The **Flask API base URL
 
 TEST data target = `test_`-prefixed DynamoDB tables in the Infra_Account (`506221081911`); PRODUCTION = unprefixed tables in the same account (Req 10.1). A TEST unit targets `test_*` and never the unprefixed tables (Req 10.2). The hard boundary is an IAM policy on the execution role scoping DynamoDB to `arn:aws:dynamodb:*:*:table/test_*` (Req 10.3), independent of the Lambda's resolved prefix. The project already carries this prefix convention (`GOVERNANCE_PROJECTION_TABLE=test_governance_projection` in dev; unprefixed `governance_projection` promoted to prod). The local DynamoDB emulator is recorded as dev-only, out of scope (Req 10.5). AWS Organizations account-per-environment is recorded as a documented further escalation not built here (Req 10.6) — consistent with AWS's own guidance that separate accounts are the best-practice blast-radius control. ([AWS: separating environments / account separation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/iam-policy-separate-environments.html))
 
+**Per-module tables under the `test_*` boundary (reconciliation with the current SAM plane).** The two SAM modules name their real tables `sam-members` and `governance_projection` today. Under `APP_ENV=test` each resolves to a `test_`-prefixed name — `test_sam-members` and `test_governance_projection` — so both fall under the single IAM boundary `arn:aws:dynamodb:*:*:table/test_*`; PRODUCTION keeps the unprefixed `sam-members` / `governance_projection`. **No DynamoDB table is shared across environments** (Req 10.2). A projection may legitimately diverge between TEST and PROD over time (it is a derived view of each environment's own MySQL system-of-record, ADR 0005), so TEST must own `test_governance_projection`; the current `sam/pretokengen/samconfig.toml` `[test]` config, which points `GovernanceProjectionTableName` at the unprefixed `governance_projection`, is a **defect this spec corrects**. TEST projection/data is populated operationally — a local-Docker seed, or a one-way PROD→TEST copy via the Copy_Utility (Req 16) — never by sharing the PRODUCTION table.
+
 ### 10. SAM compute plane — stack-per-environment (Req 11–15)
 
 This is the heavy build. The members template today is a single stack parameterized by `Stage` with one Cognito authorizer (the myAdmin prod pool) and IAM scoped to exact table ARNs. Target state:
 
-**Stack-per-environment (Req 11).** A separately deployed `myAdmin-test` stack distinct from `myAdmin-prod`, both in the Infra_Account (Req 11.1, 11.5). A template parameter `Environment` (value `test`|`production`) is supplied per environment by a named `samconfig` environment selected with `sam deploy --config-env <name>` and flows into every resource (Req 11.2). This is exactly the SAM config-environment mechanism: named `[test.deploy.parameters]` / `[prod.deploy.parameters]` sections carry `parameter_overrides`, and `--config-env` picks one. ([AWS SAM CLI configuration file](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html)) Each Lambda receives `APP_ENV` as a deploy-time env var and resolves prefix/identity from it (Req 11.3). `sam local` stays dev-only, out of scope (Req 11.4).
+**Stack-per-environment (Req 11).** A separately deployed TEST stack distinct from the PRODUCTION stack, both in the Infra_Account (Req 11.1, 11.5), supplied per environment by a named `samconfig` environment selected with `sam deploy --config-env <name>` (Req 11.2). This is exactly the SAM config-environment mechanism: named `[test.deploy.parameters]` / `[prod.deploy.parameters]` sections carry `parameter_overrides`, and `--config-env` picks one. ([AWS SAM CLI configuration file](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html)) Each Lambda receives `APP_ENV` as a deploy-time env var and resolves prefix/identity from it (Req 11.3). `sam local` stays dev-only, out of scope (Req 11.4).
+
+**Per-module stacks, and `Stage` carries `APP_ENV` (reconciliation with the current SAM plane).** The SAM plane is organized **per module**, not as one monolithic `myAdmin-*` stack. The TEST/PROD stack pairs are therefore `test_sam-members` / `sam-members` and `test_pretokengen` / `pretokengen-prod` (the single `myAdmin-test`/`myAdmin-prod` names elsewhere in this spec are illustrative of the *principle* — one stack per environment — not literal stack names). The design reuses the module templates' existing `Stage` parameter as the single `APP_ENV`-bearing knob (`Stage=test` ⇒ `APP_ENV=test`), rather than adding a parallel `Environment` parameter: a second environment selector would reintroduce exactly the "independent switches disagree" failure this resolver exists to prevent. `Stage` flows into resource names, the per-Lambda `APP_ENV` env var, the `test_` table prefix, the authorizer pool ARN, and the API stage.
 
 ```toml
-# sam/<module>/samconfig.toml (target shape)
+# sam/<module>/samconfig.toml (target shape — per module; members shown)
 [test.deploy.parameters]
-stack_name = "myAdmin-test"
-parameter_overrides = [ "Environment=test", "TablePrefix=test_", ... ]
+stack_name = "test_sam-members"
+parameter_overrides = [ "Stage=test", "MembersTableName=test_sam-members", "GovernanceProjectionTableName=test_governance_projection", "CognitoUserPoolArn=arn:aws:cognito-idp:eu-west-1:344561557829:userpool/eu-west-1_xyrlzfqbl", ... ]
 
 [prod.deploy.parameters]
-stack_name = "myAdmin-prod"
-parameter_overrides = [ "Environment=production", "TablePrefix=", ... ]
+stack_name = "sam-members"
+parameter_overrides = [ "Stage=prod", "MembersTableName=sam-members", "GovernanceProjectionTableName=governance_projection", "CognitoUserPoolArn=arn:aws:cognito-idp:eu-west-1:344561557829:userpool/eu-west-1_Hdp40eWmu", ... ]
 ```
 
 **Environment-scoped execution roles (Req 12).** Each stack provisions the execution role matching its `APP_ENV` (Req 12.4). The TEST role's DynamoDB policy is scoped to `arn:aws:dynamodb:*:*:table/test_*`; the PROD role to the unprefixed tables (Req 12.1, 12.2). A TEST Lambda hitting an unprefixed table is denied at the IAM layer regardless of its resolved prefix (Req 12.3) — the design's "IAM is the real boundary" principle, matching AWS's prefix-scoping pattern. ([DynamoDB IAM environment separation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/iam-policy-separate-environments.html))
@@ -254,23 +258,23 @@ parameter_overrides = [ "Environment=production", "TablePrefix=", ... ]
 **Authorizer pool consistency (Req 14).** The API's `COGNITO_USER_POOLS` authorizer validates tokens against the Cognito pool resolved from the stack's `APP_ENV` (Req 14.1). The CloudFormation shape is a per-stack `AWS::ApiGateway::Authorizer` of type `COGNITO_USER_POOLS` whose `ProviderARNs` point at the environment's pool (the SAM `AWS::Serverless::Api` `CognitoAuthorizer` the members template already uses, with the pool ARN supplied per environment). ([API Gateway Cognito authorizer via CloudFormation](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-cognito-authorizer-cfn.html)) So the TEST stack's authorizer references `eu-west-1_xyrlzfqbl` and accepts test-pool tokens / rejects Pool A tokens; the PROD stack references `eu-west-1_Hdp40eWmu` and does the reverse (Req 14.2, 14.3). The guard verifies the active authorizer pool and the client-called SAM API base URL both match `APP_ENV` (Req 14.4, 14.5).
 
 ```yaml
-# per-stack authorizer (parameterized by Environment -> pool ARN)
+# per-stack authorizer (Stage carries APP_ENV; pool ARN supplied per config-env)
 Parameters:
-  Environment: { Type: String, AllowedValues: [test, production] }
-  AuthorizerPoolArn: { Type: String }   # test pool ARN for test cfg-env; Pool A ARN for prod
+  Stage: { Type: String, AllowedValues: [local, test, prod] }   # carries APP_ENV
+  CognitoUserPoolArn: { Type: String }   # test pool ARN for [test] cfg-env; Pool A ARN for [prod]
 Resources:
-  Api:
+  MembersApi:
     Type: AWS::Serverless::Api
     Properties:
-      StageName: !Ref Environment
+      StageName: !Ref Stage
       Auth:
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
-            UserPoolArn: !Ref AuthorizerPoolArn
+            UserPoolArn: !Ref CognitoUserPoolArn
 ```
 
-**Current-state delta (Req 15).** Recorded honestly in the Environment_Definition: today the SAM plane's *only* TEST isolation is the `test_` table prefix — there is no separate TEST stack, no separate TEST API Gateway, and no per-environment execution role (Req 15.1). Reaching target state requires building the `myAdmin-test` stack, its API Gateway, and the per-environment roles (Req 15.2). This delta is framed as the implementation this spec drives, not a permanent limitation or a deferral (Req 15.3).
+**Current-state delta (Req 15).** Recorded honestly in the Environment_Definition: today the SAM plane's *only* TEST isolation is the `test_` table prefix — there is no separate TEST stack, no separate TEST API Gateway, and no per-environment execution role (Req 15.1). Reaching target state requires building the per-module TEST stacks (`test_sam-members`, `test_pretokengen`), their API Gateway(s), and the per-environment roles (Req 15.2). This delta is framed as the implementation this spec drives, not a permanent limitation or a deferral (Req 15.3). (Pretokengen already deploys a TEST stack via its `[test]` samconfig, but against the shared `governance_projection` — correcting it to its own `test_governance_projection` is part of this delta.)
 
 ### 11. Environment_Indicator (Req 5) and backend health report (Req 6)
 

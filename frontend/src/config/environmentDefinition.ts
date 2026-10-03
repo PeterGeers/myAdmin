@@ -94,9 +94,12 @@ export const TEST_FRONTEND_CONFIG: FrontendPlaneDef = {
     poolLabel: 'myAdmin-test',
   },
   flaskApiBaseUrl: 'http://localhost:5000', // current TEST Flask API URL (non-normative mapping)
+  // SAM plane is per MODULE; this records the members module (the one with an
+  // HTTP API). stackName is the members TEST stack; the TEST API base URL is a
+  // PLACEHOLDER until the `test_sam-members` stack is first deployed.
   sam: {
-    stackName: 'myAdmin-test',
-    apiBaseUrl: 'https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/Prod',
+    stackName: 'test_sam-members',
+    apiBaseUrl: 'https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test',
     tablePrefix: 'test_',
     authorizerPoolId: TEST_POOL_ID,
   },
@@ -111,9 +114,13 @@ export const PROD_FRONTEND_CONFIG: FrontendPlaneDef = {
     poolLabel: 'myAdmin',
   },
   flaskApiBaseUrl: 'https://PLACEHOLDER_PRODUCTION_FLASK_API', // PROD Flask API URL
+  // SAM plane is per MODULE; this records the members module (the one with an
+  // HTTP API). stackName is the live members PROD stack; apiBaseUrl is the
+  // deployed sam-members API Gateway invoke URL (see deploy-frontend.yml
+  // VITE_MEMBERS_API_BASE_URL).
   sam: {
-    stackName: 'myAdmin-prod',
-    apiBaseUrl: 'https://PLACEHOLDER_PROD_API.execute-api.eu-west-1.amazonaws.com/Prod',
+    stackName: 'sam-members',
+    apiBaseUrl: 'https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod',
     tablePrefix: '',
     authorizerPoolId: PROD_POOL_ID,
   },
