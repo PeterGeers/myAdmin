@@ -207,48 +207,57 @@ The implementation involves:
 
 ### Phase 5: Operational tooling + steering
 
-- [ ] 27. Implement Copy_Utility (PROD→TEST only)
-  - [ ] 27.1 Create `scripts/copy-prod-to-test.py` utility
-  - [ ] 27.2 Implement Cognito account-attribute copying from PROD to TEST
-  - [ ] 27.3 Implement DynamoDB table copying from PROD to `test_` tables
-  - [ ] 27.4 Ensure utility only writes TEST targets, never writes TEST→PROD
-  - [ ] 27.5 Make utility require explicit human invocation (no automation)
-  - [ ] 27.6 Write integration test verifying PROD→TEST only behavior
+> **Phase 5 note (scripts folder standard).** The example paths `scripts/copy-prod-to-test.py`
+> / `scripts/provision-test-account.py` are illustrative; the repo convention (see
+> `scripts/onboarding/README.md`) is a purpose-named subfolder with a README and the shared
+> `_lib` marker-walk bootstrap. Both runners therefore live under
+> `scripts/test-environment/`. Paired tests for the hyphen-named runners live in `sam/tests/`.
+
+- [x] 27. Implement Copy_Utility (PROD→TEST only)
+  - [x] 27.1 Create `scripts/test-environment/copy-prod-to-test.py` utility (+ folder README)
+  - [x] 27.2 Cognito account-attribute copying from PROD Pool A → test pool (non-secret allow-list)
+  - [x] 27.3 DynamoDB table copying from a PROD table → its `test_`-prefixed table
+  - [x] 27.4 One-directional: source clients read PROD, dest clients write TEST only; asserts dest is `test_`/test pool and source≠dest before any write
+  - [x] 27.5 Explicit human invocation: dry-run default; a real write needs BOTH `--apply` and `--i-understand-this-writes-test` (no automation/schedule/startup hook)
+  - [x] 27.6 Integration test (`sam/tests/test_copy_prod_to_test.py`, 15) with fakes that FAIL on any PROD write
   - _Requirements: 16.1-16.6, 20.4_
 
-- [ ] 28. Create Test_Account provisioning script
-  - [ ] 28.1 Create `scripts/provision-test-account.py` targeting Identity_Account
-  - [ ] 28.2 Create user in test pool if absent with `admin-set-user-password --permanent`
-  - [ ] 28.3 Clear `FORCE_CHANGE_PASSWORD` flag
-  - [ ] 28.4 Set `custom:tenants`/`custom:role` to specified realistic shape
-  - [ ] 28.5 Support optional mode to mirror production reference account attributes
-  - [ ] 28.6 Use placeholders only, no real credentials in committed files
+- [x] 28. Create Test_Account provisioning script
+  - [x] 28.1 Create `scripts/test-environment/provision-test-account.py` (TEST pool, identity account)
+  - [x] 28.2 Create user if absent; set a PERMANENT password (`admin_set_user_password Permanent=True`)
+  - [x] 28.3 Permanent password clears `FORCE_CHANGE_PASSWORD` (no forced-change trap)
+  - [x] 28.4 Seed `custom:tenants`/`custom:role` to a specified realistic shape (any valid config)
+  - [x] 28.5 Prod-mirror is a SEPARATE explicit Copy_Utility step (`--mirror-prod` prints the command; never reads prod here)
+  - [x] 28.6 Placeholders only; defense-in-depth guard refuses any non-test pool
   - _Requirements: 17.1-17.6_
+  - _Paired test: `sam/tests/test_provision_test_account.py` (17)._
 
-- [ ] 29. Update steering documentation
-  - [ ] 29.1 Update `31-backend-database-flask-mysql.md` with `APP_ENV` + resolved target model
-  - [ ] 29.2 Update `41-shell-environment.md` with DB connection notes for resolved targets
-  - [ ] 29.3 Update `#database` skill with environment distinction by resolved target
-  - [ ] 29.4 Update `35-sam-module-architecture-sam.md` with stack-per-environment model
-  - [ ] 29.5 Update `42-local-dynamodb-testing.md` marking local emulator as dev-only
+- [x] 29. Update steering documentation
+  - [x] 29.1 `31-backend-database-flask-mysql.md` — Environments bullet → `APP_ENV` + resolved target
+  - [x] 29.2 `41-shell-environment.md` — `#database` xref + wrapper note to resolved-target model
+  - [x] 29.3 `#database` skill (`.kiro/skills/database.md`) — Environments section rewritten (schema `finance` both; `DB_*_TEST` vs `DB_*`)
+  - [x] 29.4 `35-sam-module-architecture-sam.md` — rule 6 → per-env `test_` prefix + IAM boundary; new Stack-per-environment section
+  - [x] 29.5 `42-local-dynamodb-testing.md` — DEV-ONLY banner (local emulator/`sam local` out of scope for `APP_ENV=test`)
   - _Requirements: 18.1-18.4_
 
-- [ ] 30. Implement URL-based environment selection (Req 22)
-  - [ ] 30.1 Add `TEST_URL` and `PROD_URL` fields to Environment_Definition
-  - [ ] 30.2 Document pool-based access control: TEST URL authenticates against test pool
-  - [ ] 30.3 Ensure frontend contains no UI control to switch environments within a unit
-  - [ ] 30.4 Add smoke test for URL-based auth boundary
+- [x] 30. Implement URL-based environment selection (Req 22)
+  - [x] 30.1 `TEST_URL`/`PROD_URL` fields in the Environment_Definition (added in Phase 1)
+  - [x] 30.2 Pool-based access boundary pinned: TEST URL → test pool, PROD URL → Pool A
+  - [x] 30.3 No in-app env-switch UI (resolver reads `APP_ENV` only; `aws-exports` hostname switch removed)
+  - [x] 30.4 Smoke test (`frontend/src/config/urlPoolBoundary.test.ts`, 4) for the URL→pool boundary; indicator-from-`APP_ENV` already covered by `EnvironmentIndicator.test.tsx` / `aws-exports.test.ts`
   - _Requirements: 22.1-22.4_
 
-- [ ] 31. Implement branch-based promotion flow (Req 23)
-  - [ ] 31.1 Add `test_branch` and `production_branch` fields to Environment_Definition
-  - [ ] 31.2 Document CI/CD pipeline mapping: TEST branch → Test_Environment, main → Production
-  - [ ] 31.3 Configure pipeline to set `APP_ENV` based on branch
-  - [ ] 31.4 Ensure branch mapping is separate from application source
+- [x] 31. Implement branch-based promotion flow (Req 23)
+  - [x] 31.1 `test_branch`/`production_branch` fields in the definition (added in Phase 1: `test`/`main`)
+  - [x] 31.2 CI mapping documented: `test` branch → Test_Environment, `main` → Production (in all three deploy workflows)
+  - [x] 31.3 Pipeline sets the env per branch: `deploy-sam-{members,pretokengen}.yml` trigger on `[main, test]` + `workflow_dispatch` `config_env`; a Resolve step → `sam deploy --config-env <test|prod>`
+  - [x] 31.4 Mapping is CI config separate from source (the test/prod split lives in `samconfig.toml`)
   - _Requirements: 23.1-23.4_
+  - _LIVE-IAM prerequisite (out of band): widen `NonprofitDeployRole`'s OIDC trust to allow `refs/heads/test` before the first `test`-branch deploy._
 
-- [ ] 32. Final checkpoint - All planes complete
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 32. Final checkpoint - All planes complete
+  - All Phase 5 tests pass: SAM suite (incl. Copy_Utility 15 + provisioning 17), backend env/guard suite, frontend Req-22 suite. `sam validate --lint` unaffected.
+  - REMAINING (needs user — LIVE AWS, carried from Phase 4): deploy the TEST stacks, re-attach the Cognito pretoken trigger, retire `pretokengen-data`, seed `test_governance_projection`, record the real TEST API URL; widen the OIDC trust to the `test` ref (Task 31 prerequisite).
 
 ### Phase 6: Production config wiring + environment-variable consolidation
 
