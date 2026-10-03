@@ -170,14 +170,17 @@ class TestProvision:
         assert fake.users["ex@example.org"]["custom:role"] == "NewRole"
         assert fake.password_calls == [("ex@example.org", True)]
 
-    def test_generated_password_when_none_supplied(self):
+    def test_apply_without_password_is_refused(self):
+        # No password generation: the script NEVER creates/prints/stores a secret.
+        # --apply requires an explicit --password; omitting it is refused and NOTHING
+        # is written (no create/update, no password call).
         client, fake = _client()
         shape = prov.build_account_shape("gen@example.org", ["A"], "Admin")
-        result = prov.provision_test_account(
-            shape, region="eu-west-1", apply=True, password=None, client=client
-        )
-        assert result.generated_password is not None
-        assert fake.password_calls == [("gen@example.org", True)]
+        with pytest.raises(prov.ProvisioningError):
+            prov.provision_test_account(
+                shape, region="eu-west-1", apply=True, password=None, client=client
+            )
+        assert fake.created == [] and fake.updated == [] and fake.password_calls == []
 
 
 # ---------------------------------------------------------------------------

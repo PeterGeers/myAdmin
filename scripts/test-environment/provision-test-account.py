@@ -26,8 +26,8 @@ bootstraps via the shared `_lib.paths` marker walk, is dry-run-first, and is
 documented in the folder README.
 
 Safety (Req 17.6 / 19.1): PUBLIC pool id only; NO real credentials or secrets in
-the repo. A password supplied on the CLI is for a throwaway TEST user; if omitted,
-a random permanent password is generated and printed once (TEST users only).
+the repo. The `--password` supplied on `--apply` is a throwaway TEST password; the
+script NEVER generates, prints, or stores a password (no clear-text secret handling).
 
 Usage (from repo root, WSL) — dry-run is the default, prints the plan only:
 
@@ -50,7 +50,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import secrets
 import sys
 from dataclasses import dataclass, field
 
@@ -208,13 +207,7 @@ class ProvisionResult:
     shape: AccountShape
     created: bool = False
     applied: bool = False
-    generated_password: str | None = None
     notes: list[str] = field(default_factory=list)
-
-
-def _generate_password() -> str:
-    """A random PERMANENT password satisfying a typical Cognito policy (TEST users only)."""
-    return "Aa1!" + secrets.token_urlsafe(16)
 
 
 def provision_test_account(
@@ -241,15 +234,22 @@ def provision_test_account(
     if not apply:
         return result
 
+    # A password is REQUIRED on apply. We deliberately do NOT generate one: a
+    # generated secret would be useless unless surfaced, and surfacing it (stdout,
+    # a file) is clear-text secret handling. The operator supplies a known throwaway
+    # TEST password via --password; this script NEVER logs, prints, or stores it.
+    if not password:
+        raise ProvisioningError(
+            "--password is required with --apply. Supply a known throwaway TEST password "
+            "(this script never generates, prints, or stores a password)."
+        )
+
     if result.created:
         cognito.create_user(shape)
     else:
         cognito.update_attributes(shape)
 
-    pw = password or _generate_password()
-    cognito.set_permanent_password(shape.email, pw)
-    if password is None:
-        result.generated_password = pw
+    cognito.set_permanent_password(shape.email, password)
     result.applied = True
 
     print("\n" + "=" * 64)
@@ -257,9 +257,7 @@ def provision_test_account(
     print("=" * 64)
     print(f"  pool    : {pool_id}")
     print(f"  user    : {shape.email} ({'created' if result.created else 'updated'})")
-    print("  password: PERMANENT set (no forced-change trap)")
-    if result.generated_password:
-        print(f"  generated (TEST user only): {result.generated_password}")
+    print("  password: PERMANENT set from --password (no forced-change trap; not echoed)")
     print("=" * 64)
     return result
 
@@ -330,8 +328,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--password",
         default=None,
-        help="Permanent password for the TEST user (TEST only). If omitted, a random permanent "
-        "password is generated and printed once.",
+        help="Permanent password for the TEST user (a throwaway TEST value). REQUIRED with "
+        "--apply. The script never generates/prints/stores it.",
     )
     parser.add_argument(
         "--mirror-prod",
