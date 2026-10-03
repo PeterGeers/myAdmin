@@ -446,7 +446,7 @@ class TestEnvironmentDefinitionInstance:
         
         # SAM — members module TEST stack (per-module stacks, test_ boundary)
         assert test_config.sam.stack_name == "test-sam-members"
-        assert "PLACEHOLDER_TEST_API" in test_config.sam.api_base_url
+        assert test_config.sam.api_base_url == "https://28jun82vl3.execute-api.eu-west-1.amazonaws.com/test"
         assert test_config.sam.table_prefix == "test_"
         assert test_config.sam.exec_role_scope == "arn:aws:dynamodb:*:*:table/test_*"
         assert test_config.sam.authorizer_pool_id == TEST_POOL_ID
