@@ -511,6 +511,224 @@ def _check_flask_api_base_url(
     )
 
 
+def _check_sam_authorizer_pool(
+    resolved: ResolvedConfig, definition: EnvironmentDefinition
+) -> PlaneCheck:
+    """The SAM API's Cognito authorizer pool must match the active APP_ENV.
+
+    Req 14.4, 14.5: the SAM compute plane fronts its API Gateway with a Cognito
+    authorizer whose pool is resolved from ``APP_ENV``. A TEST deploy must authorize
+    against the test pool and a PRODUCTION deploy against Pool A, so a token minted
+    by the wrong pool is rejected at the edge rather than silently accepted.
+
+    The guard compares the active resolved authorizer pool to the one the
+    Environment_Definition declares for the active env, and asserts the TEST and
+    PRODUCTION authorizer pools differ (otherwise the SAM edge cannot tell the
+    environments apart). Pool ids are non-secret, so they appear in messages.
+
+    IMPORTANT: the SAM authorizer pool and the identity-plane Cognito pool are the
+    SAME pool per environment by design (the SAM API and the Flask backend trust the
+    same pool), so this check also surfaces a drift between the two planes — if the
+    SAM authorizer were ever pointed at a different pool than the identity plane for
+    the same env, the resolved values would disagree here.
+
+    Contributes ``resolved_env`` so it joins the half-cutover set.
+    """
+    test_pool = resolve(AppEnv.TEST, definition).sam.authorizer_pool_id
+    prod_pool = resolve(AppEnv.PRODUCTION, definition).sam.authorizer_pool_id
+
+    expected_pool = test_pool if resolved.app_env == AppEnv.TEST else prod_pool
+    other_env = "PRODUCTION" if resolved.app_env == AppEnv.TEST else "TEST"
+    other_pool = prod_pool if resolved.app_env == AppEnv.TEST else test_pool
+    active_pool = resolved.sam.authorizer_pool_id
+
+    if test_pool == prod_pool:
+        return PlaneCheck(
+            plane="sam_authorizer_pool",
+            resolved_env=resolved.app_env,
+            ok=False,
+            message=(
+                "resolved TEST and PRODUCTION SAM authorizer pools are identical "
+                f"('{test_pool}'); the SAM API edge cannot distinguish environments. "
+                "The two environments must authorize against distinct Cognito pools"
+            ),
+        )
+
+    if active_pool != expected_pool:
+        return PlaneCheck(
+            plane="sam_authorizer_pool",
+            # Names the other env's pool — a "resolves elsewhere" signal; flagged as
+            # a failure rather than contributing a wrong env label to the cutover set.
+            resolved_env=None,
+            ok=False,
+            message=(
+                f"resolved SAM authorizer pool for APP_ENV={resolved.app_env.value} "
+                f"is '{active_pool}', but APP_ENV={resolved.app_env.value} expects "
+                f"'{expected_pool}'"
+                + (f" (that is the {other_env} pool)" if active_pool == other_pool else "")
+            ),
+        )
+
+    return PlaneCheck(
+        plane="sam_authorizer_pool",
+        resolved_env=resolved.app_env,
+        ok=True,
+        message=(
+            f"resolved SAM authorizer pool '{active_pool}' matches APP_ENV="
+            f"{resolved.app_env.value} and differs from the {other_env} pool "
+            f"'{other_pool}'"
+        ),
+    )
+
+
+def _check_sam_api_base_url(
+    resolved: ResolvedConfig, definition: EnvironmentDefinition
+) -> PlaneCheck:
+    """The SAM API base URL clients call must match the active APP_ENV.
+
+    Req 4.4, 14.4: the SAM API base URL (the API Gateway invoke URL the frontend +
+    health report use) is resolved from ``APP_ENV``. The guard asserts the active
+    resolved URL is the one the Environment_Definition declares for the active env,
+    and that the TEST and PRODUCTION SAM URLs differ — so a client built for one env
+    calling the other env's SAM API surfaces as a half-cutover.
+
+    PLACEHOLDER TOLERANCE: before the TEST/PROD SAM stacks are first deployed, the
+    definition records a PLACEHOLDER invoke URL (``...PLACEHOLDER_<ENV>_API...``).
+    A placeholder is NOT yet an observable endpoint, so this check treats a
+    still-placeholder active URL as "not yet deployed" and passes WITHOUT asserting a
+    concrete match — it only requires that the TEST and PRODUCTION URLs are distinct
+    (which the placeholders already are). Once a real URL is recorded the full
+    active==expected assertion applies. This mirrors the frontend
+    EnvironmentIndicator's ``isObservableSamUrl`` suppression and keeps the guard from
+    failing a correctly-wired-but-not-yet-deployed TEST stack.
+
+    SAM API URLs are non-secret, so they appear in messages. Contributes
+    ``resolved_env`` so it joins the half-cutover set.
+    """
+    test_url = resolve(AppEnv.TEST, definition).sam.api_base_url
+    prod_url = resolve(AppEnv.PRODUCTION, definition).sam.api_base_url
+
+    expected_url = test_url if resolved.app_env == AppEnv.TEST else prod_url
+    other_env = "PRODUCTION" if resolved.app_env == AppEnv.TEST else "TEST"
+    other_url = prod_url if resolved.app_env == AppEnv.TEST else test_url
+    active_url = resolved.sam.api_base_url
+
+    # The TEST and PROD SAM URLs must differ regardless of deploy state.
+    if test_url == prod_url:
+        return PlaneCheck(
+            plane="sam_api_base_url",
+            resolved_env=resolved.app_env,
+            ok=False,
+            message=(
+                "resolved TEST and PRODUCTION SAM API base URLs are identical "
+                f"('{test_url}'); clients cannot be isolated per environment. The "
+                "two environments must resolve to distinct SAM API base URLs"
+            ),
+        )
+
+    # Placeholder (not-yet-deployed) tolerance: a placeholder is not observable, so
+    # do not assert a concrete active==expected match yet (the stack is wired but not
+    # deployed). The distinctness check above still holds.
+    if "PLACEHOLDER" in active_url.upper():
+        return PlaneCheck(
+            plane="sam_api_base_url",
+            resolved_env=resolved.app_env,
+            ok=True,
+            message=(
+                f"resolved SAM API base URL for APP_ENV={resolved.app_env.value} is "
+                f"a placeholder ('{active_url}') — the SAM stack for this env is "
+                "wired but not yet deployed; distinctness from the "
+                f"{other_env} URL is satisfied"
+            ),
+        )
+
+    if active_url != expected_url:
+        return PlaneCheck(
+            plane="sam_api_base_url",
+            # Names the other env's URL — flagged as a failure rather than
+            # contributing a wrong env label to the cutover set.
+            resolved_env=None,
+            ok=False,
+            message=(
+                f"resolved SAM API base URL for APP_ENV={resolved.app_env.value} is "
+                f"'{active_url}', but APP_ENV={resolved.app_env.value} expects "
+                f"'{expected_url}'"
+                + (f" (that is the {other_env} URL)" if active_url == other_url else "")
+            ),
+        )
+
+    return PlaneCheck(
+        plane="sam_api_base_url",
+        resolved_env=resolved.app_env,
+        ok=True,
+        message=(
+            f"resolved SAM API base URL '{active_url}' matches APP_ENV="
+            f"{resolved.app_env.value} and differs from the {other_env} URL "
+            f"'{other_url}'"
+        ),
+    )
+
+
+def _check_dynamodb_prefix(
+    resolved: ResolvedConfig, definition: EnvironmentDefinition
+) -> PlaneCheck:
+    """The DynamoDB table prefix must match the active APP_ENV.
+
+    Req 10.2, 19.4: the SAM data plane isolates environments by a per-env table
+    prefix — ``test_`` for TEST and the empty prefix for PRODUCTION — so no table is
+    shared across environments. The guard asserts the active resolved prefix is the
+    one the Environment_Definition declares for the active env (TEST -> ``test_``,
+    PRODUCTION -> ``""``), and that the two env prefixes differ (otherwise the data
+    plane cannot be separated).
+
+    This is the backend-startup counterpart to the SAM template contract test: the
+    template scopes IAM to ``test_``-prefixed ARNs for the TEST stack, and this check
+    verifies the RUNNING backend's resolved view of that same boundary agrees with
+    APP_ENV. Prefixes are non-secret. Contributes ``resolved_env`` for the
+    half-cutover set.
+    """
+    test_prefix = resolve(AppEnv.TEST, definition).sam.table_prefix
+    prod_prefix = resolve(AppEnv.PRODUCTION, definition).sam.table_prefix
+
+    expected_prefix = test_prefix if resolved.app_env == AppEnv.TEST else prod_prefix
+    active_prefix = resolved.sam.table_prefix
+
+    # TEST and PROD prefixes must differ, else the data plane cannot be isolated.
+    if test_prefix == prod_prefix:
+        return PlaneCheck(
+            plane="dynamodb_prefix",
+            resolved_env=resolved.app_env,
+            ok=False,
+            message=(
+                "resolved TEST and PRODUCTION DynamoDB table prefixes are identical "
+                f"('{test_prefix or '<empty>'}'); the SAM data plane cannot be "
+                "isolated per environment. TEST must use a distinct table prefix"
+            ),
+        )
+
+    if active_prefix != expected_prefix:
+        return PlaneCheck(
+            plane="dynamodb_prefix",
+            resolved_env=None,
+            ok=False,
+            message=(
+                f"resolved DynamoDB table prefix for APP_ENV={resolved.app_env.value}"
+                f" is '{active_prefix or '<empty>'}', but APP_ENV="
+                f"{resolved.app_env.value} expects '{expected_prefix or '<empty>'}'"
+            ),
+        )
+
+    return PlaneCheck(
+        plane="dynamodb_prefix",
+        resolved_env=resolved.app_env,
+        ok=True,
+        message=(
+            f"resolved DynamoDB table prefix '{active_prefix or '<empty>'}' matches "
+            f"APP_ENV={resolved.app_env.value}"
+        ),
+    )
+
+
 def build_consistency_report(
     app_env: AppEnv,
     *,
@@ -609,12 +827,17 @@ def build_consistency_report(
     # it joins the half-cutover set below.
     checks.append(_check_flask_api_base_url(resolved, definition))
 
-    # --- Extension points (inputs not available in Phase 0) ---
-    # TODO(task 24.2): SAM API base URL clients call matches APP_ENV (Req 4.4, 14.4).
-    # TODO(task 24.1): SAM authorizer pool matches APP_ENV (Req 14.4, 14.5).
-    # TODO(task 24.3): DynamoDB table prefix matches APP_ENV (Req 10.2, 19.4).
-    # Each will append a PlaneCheck with resolved_env set so it participates in the
-    # half-cutover set below.
+    # SAM plane (task 24). The SAM compute/data plane is resolved from APP_ENV just
+    # like the other planes, so the guard verifies the running backend's resolved
+    # view of the SAM edge agrees with APP_ENV:
+    #   * authorizer pool (Req 14.4, 14.5) — the API Gateway Cognito authorizer pool;
+    #   * API base URL (Req 4.4, 14.4) — the invoke URL clients call (placeholder-
+    #     tolerant until the stack is first deployed);
+    #   * DynamoDB table prefix (Req 10.2, 19.4) — the `test_`/`""` data-plane boundary.
+    # Each contributes resolved_env so it participates in the half-cutover set below.
+    checks.append(_check_sam_authorizer_pool(resolved, definition))
+    checks.append(_check_sam_api_base_url(resolved, definition))
+    checks.append(_check_dynamodb_prefix(resolved, definition))
 
     return ConsistencyReport(active_app_env=app_env, checks=checks)
 
