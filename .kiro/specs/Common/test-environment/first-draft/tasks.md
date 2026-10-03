@@ -278,12 +278,13 @@ The implementation involves:
   - [x] 34.1 Create the real DynamoDB table (PK `tenant_id`, SK `sk`, PAY_PER_REQUEST) against real AWS (NOT the local emulator).
   - [x] 34.2 Seed via `scripts/test-environment/copy-prod-to-test.py dynamodb --source-table governance_projection --apply --i-understand-this-writes-test` (prod-parity) OR a synthetic seed.
   - [x] 34.3 Verify: `describe-table` ACTIVE; item count as expected.
+  - [x] 34.4 Provision the TEST members table `test_sam-members` (managed-outside-CFN / Retain — the members template grants IAM access but does NOT create it, like prod `sam-members`). `MEMBERS_TABLE=test_sam-members ... provision-members-tables.py --apply`. PK tenant_id, SK sk, PAY_PER_REQUEST.
   - _Gate: TEST projection exists + populated. Reversible (drop table). Requirements: 10.2, 16._
 
-- [ ] 35. Deploy the members TEST stack `test_sam-members` (data account)
-  - [ ] 35.1 `cd sam/members && sam build && sam deploy --config-env test`.
-  - [ ] 35.2 Verify: stack CREATE_COMPLETE; `test_sam-members` table created; capture `MembersApiBaseUrl`.
-  - [ ] 35.3 Smoke: `curl` the TEST API base URL `/` — expect 401/403 (authorizer live).
+- [x] 35. Deploy the members TEST stack `test_sam-members` (data account)
+  - [x] 35.1 `cd sam/members && sam build && sam deploy --config-env test`.
+  - [x] 35.2 Verify: stack CREATE_COMPLETE; `test_sam-members` table created; capture `MembersApiBaseUrl`.
+  - [x] 35.3 Smoke: `curl` the TEST API base URL `/` — expect 401/403 (authorizer live).
   - _Gate: TEST members API live. Reversible (delete stack; table Retain). Requirements: 11, 12, 13, 14._
 
 - [ ] 36. Retire the legacy `pretokengen-data` stack FIRST (data account)
