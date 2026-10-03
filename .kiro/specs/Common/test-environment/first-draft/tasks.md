@@ -279,6 +279,7 @@ The implementation involves:
   - [x] 34.2 Seed via `scripts/test-environment/copy-prod-to-test.py dynamodb --source-table governance_projection --apply --i-understand-this-writes-test` (prod-parity) OR a synthetic seed.
   - [x] 34.3 Verify: `describe-table` ACTIVE; item count as expected.
   - [x] 34.4 Provision the TEST members table `test_sam-members` (managed-outside-CFN / Retain — the members template grants IAM access but does NOT create it, like prod `sam-members`). `MEMBERS_TABLE=test_sam-members ... provision-members-tables.py --apply`. PK tenant_id, SK sk, PAY_PER_REQUEST.
+  - [x] 34.5 Seed prod-parity member records: Copy_Utility `sam-members -> test_sam-members`, 1222 items (one-directional). Verified scan count 1222. (Decided during Task 41 prep: the Members page needs real member rows; this is a DynamoDB->DynamoDB copy, NOT a MySQL load — the SAM plane never reads MySQL.)
   - _Gate: TEST projection exists + populated. Reversible (drop table). Requirements: 10.2, 16._
 
 - [x] 35. Deploy the members TEST stack `test_sam-members` (data account)
@@ -311,9 +312,9 @@ The implementation involves:
   - [x] 39.4 Change-with-tests; run backend env/guard + frontend Req-22 suites.
   - _Gate: definition reflects the live TEST endpoint. Requirements: 15, 21.5-21.6._
 
-- [ ] 40. Provision a Test_Account for sign-in (identity account)
-  - [ ] 40.1 `scripts/test-environment/provision-test-account.py --email <tester> --tenants <T> --role <R> --apply`.
-  - [ ] 40.2 Optionally mirror a prod reference account via the Copy_Utility (explicit).
+- [x] 40. Provision a Test_Account for sign-in (identity account)
+  - [x] 40.1 ALREADY SATISFIED: peter@pgeers.nl exists in the test pool (CONFIRMED, enabled), custom:tenants includes `h-dcn` (the tenant our seeded test_governance_projection data is under), and the projection already holds role#peter@pgeers.nl#Members_CRUD + scopegrant#peter@pgeers.nl#region. No provisioning needed — the provision-test-account.py script is for CREATING a new account; this one is ready for sign-in.
+  - [x] 40.2 Optionally mirror a prod reference account via the Copy_Utility (explicit).
   - _Gate: a usable TEST login exists. Requirements: 17._
 
 - [ ] 41. End-to-end TEST smoke (the "can I test TEST" check)
