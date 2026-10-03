@@ -27,7 +27,7 @@ def invoice_service():
          patch('services.invoice_service.PDFProcessor'), \
          patch('services.invoice_service.TransactionLogic'):
         from services.invoice_service import InvoiceService
-        service = InvoiceService(test_mode=False)
+        service = InvoiceService()
         # Replace the db with a mock for use in tests
         service.db = MagicMock()
         return service
@@ -191,27 +191,6 @@ class TestUploadToDriveS3Path:
         )
 
         mock_asset_svc_cls.assert_called_once_with(invoice_service.db)
-
-
-class TestUploadToDriveTestMode:
-    """Tests for test mode bypass."""
-
-    def test_test_mode_returns_local_url(self):
-        """Test mode skips all storage providers and returns local URL."""
-        with patch('services.invoice_service.DatabaseManager'), \
-             patch('services.invoice_service.PDFProcessor'), \
-             patch('services.invoice_service.TransactionLogic'):
-            from services.invoice_service import InvoiceService
-            service = InvoiceService(test_mode=True)
-
-        result = service.upload_to_drive(
-            '/tmp/test.pdf', 'test.pdf', 'Vendor', 'tenant1'
-        )
-
-        assert result == {
-            "id": "test.pdf",
-            "url": "http://localhost:5000/uploads/test.pdf",
-        }
 
 
 class TestUploadToDriveGoogleDriveUnchanged:

@@ -32,14 +32,14 @@ def test_database_pattern_storage():
     print("=" * 60)
     
     # Initialize analyzer
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     print(f"\n1. Testing Pattern Storage to Database")
     print("-" * 40)
     
     # Clear any existing patterns for clean test
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     try:
         db.execute_query("DELETE FROM pattern_analysis_metadata WHERE administration = %s", (administration,), fetch=False, commit=True)
         db.execute_query("DELETE FROM pattern_debet_predictions WHERE administration = %s", (administration,), fetch=False, commit=True)

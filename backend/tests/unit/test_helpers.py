@@ -181,10 +181,9 @@ class DatabaseTestHelper:
     """Helper for database testing"""
     
     @staticmethod
-    def create_mock_database_manager(test_mode=True):
+    def create_mock_database_manager():
         """Create a mock DatabaseManager for testing"""
         mock_db = Mock()
-        mock_db.test_mode = test_mode
         mock_conn, mock_cursor = MockServices.mock_mysql_connection()
         mock_db.get_connection.return_value = mock_conn
         return mock_db, mock_conn, mock_cursor

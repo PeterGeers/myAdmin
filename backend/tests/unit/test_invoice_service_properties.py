@@ -121,7 +121,7 @@ def _create_invoice_service():
         mock_db_class.return_value = MagicMock()
         mock_proc_class.return_value = MagicMock()
         mock_tl_class.return_value = MagicMock()
-        service = InvoiceService(test_mode=True)
+        service = InvoiceService()
     return service
 
 

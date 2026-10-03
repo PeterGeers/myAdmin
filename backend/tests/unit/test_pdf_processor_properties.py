@@ -126,7 +126,7 @@ class TestValidAIResultPassthrough:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert isinstance(result, list), "Result should be a list of transactions"
@@ -186,7 +186,7 @@ class TestValidAIResultPassthrough:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert isinstance(result, list), "Result should be a list of transactions"
@@ -247,7 +247,7 @@ class TestValidAIResultPassthrough:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert isinstance(result, list), "Result should be a list of transactions"
@@ -309,7 +309,7 @@ class TestValidAIResultPassthrough:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert isinstance(result, list), "Result should be a list of transactions"
@@ -368,7 +368,7 @@ class TestValidAIResultPassthrough:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert isinstance(result, list), "Result should be a list of transactions"
@@ -428,7 +428,7 @@ class TestValidAIResultPassthrough:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert isinstance(result, list), "Result should be a list of transactions"
@@ -540,7 +540,7 @@ class TestAIOnlyExtractionPath:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
             # Verify AIExtractor.extract_invoice_data was called
@@ -606,7 +606,7 @@ class TestAIOnlyExtractionPath:
 
             # Verify VendorParsers is not importable from pdf_processor context
             # and that no vendor_parsers attribute exists on the processor
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
 
             # Verify no vendor_parsers attribute on the processor
             assert not hasattr(processor, 'vendor_parsers'), (
@@ -690,7 +690,7 @@ class TestAIFailureFallbackStructure:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         # Verify fallback structure
@@ -746,7 +746,7 @@ class TestAIFailureFallbackStructure:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert len(result) >= 1, "Should have at least one transaction"
@@ -792,7 +792,7 @@ class TestAIFailureFallbackStructure:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         # Verify fallback structure
@@ -838,7 +838,7 @@ class TestAIFailureFallbackStructure:
             mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
             mock_tl_class.return_value = mock_tl_instance
 
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
         assert len(result) >= 1, "Should have at least one transaction"
@@ -892,7 +892,7 @@ class TestAIFailureFallbackStructure:
                 mock_tl_instance.get_last_transactions.return_value = {'error': True, 'message': 'no history'}
                 mock_tl_class.return_value = mock_tl_instance
 
-                processor = PDFProcessor(test_mode=True)
+                processor = PDFProcessor()
                 result = processor.extract_transactions(file_data)
 
         stdout_output = stdout_capture.getvalue()

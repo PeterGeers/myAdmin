@@ -29,8 +29,8 @@ def test_reference_number_prediction_requirement():
     print("REQUIREMENT VALIDATION: Missing ReferenceNumber values are predicted based on patterns")
     print("=" * 90)
     
-    analyzer = PatternAnalyzer(test_mode=False)
-    processor = BankingProcessor(test_mode=False)
+    analyzer = PatternAnalyzer()
+    processor = BankingProcessor()
     administration = 'GoodwinSolutions'
     
     # Step 1: Verify pattern discovery from historical data

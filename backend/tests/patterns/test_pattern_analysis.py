@@ -15,7 +15,7 @@ def test_pattern_analysis():
     print("TESTING PATTERN ANALYSIS FUNCTIONALITY")
     print("=" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Test 1: Basic get_patterns functionality
     print("\n1. Testing get_patterns() method...")

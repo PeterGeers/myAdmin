@@ -44,7 +44,7 @@ from database import DatabaseManager
 @pytest.fixture(scope="module")
 def db():
     """Create a DatabaseManager connected to the Docker MySQL finance database."""
-    return DatabaseManager(test_mode=False)
+    return DatabaseManager()
 
 
 @pytest.fixture(scope="module")

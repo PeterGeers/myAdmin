@@ -13,10 +13,9 @@ class TestXLSXExportProcessor:
     
     @patch('xlsx_export.DatabaseManager')
     def test_init(self, mock_db):
-        processor = XLSXExportProcessor(test_mode=True)
-        
-        assert processor.test_mode is True
-        mock_db.assert_called_once_with(test_mode=True)
+        processor = XLSXExportProcessor()
+
+        mock_db.assert_called_once_with()
         # Should use Docker path if in container, otherwise cwd-based path
         if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
             expected_path = '/app/reports'

@@ -21,7 +21,7 @@ class TestInvitationServiceSimple:
     @pytest.fixture
     def invitation_service(self):
         """Create InvitationService instance"""
-        return InvitationService(test_mode=True)
+        return InvitationService()
     
     # Test 1: Service initialization
     def test_service_initialization(self, invitation_service):

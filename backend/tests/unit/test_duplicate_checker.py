@@ -482,7 +482,7 @@ class TestDuplicateCheckerProperties:
             mock_cleanup.cleanup_uploaded_file.return_value = True
             
             # Create PDF processor and test decision handling
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             
             result = processor.handle_duplicate_decision(
                 decision, duplicate_info, transactions, file_data, 'test_user', 'test_session'

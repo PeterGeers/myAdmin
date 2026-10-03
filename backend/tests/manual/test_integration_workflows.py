@@ -76,8 +76,7 @@ def test_workflow_2_credentials_management():
     print("=" * 80)
     
     # Initialize database
-    test_mode = True
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     print("\n1. Upload Credentials Flow")
     print("   ✓ Credentials uploaded via POST /api/tenant-admin/credentials")
@@ -142,8 +141,7 @@ def test_workflow_3_storage_configuration():
     print("=" * 80)
     
     # Initialize database
-    test_mode = True
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     print("\n1. Configure Folders Flow")
     print("   ✓ Folders configured via PUT /api/tenant-admin/storage")
@@ -218,8 +216,7 @@ def test_workflow_4_settings_management():
     print("=" * 80)
     
     # Initialize database
-    test_mode = True
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     print("\n1. Update Module Settings Flow")
     print("   ✓ Modules configured via PUT /api/tenant-admin/modules")
@@ -321,8 +318,7 @@ def test_workflow_5_tenant_isolation():
     print("=" * 80)
     
     # Initialize database
-    test_mode = True
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     print("\n1. Test Cross-Tenant User Access")
     print("   Scenario: User from GoodwinSolutions tries to access PeterPrive")

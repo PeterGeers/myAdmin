@@ -230,7 +230,7 @@ class TestTransactionLogicPreservation:
             closed_years_for_admin={}
         )
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
         tl.db = mock_db
 
         result = tl.save_approved_transactions([transaction])
@@ -286,7 +286,7 @@ class TestTransactionLogicPreservation:
             closed_years_for_admin={}
         )
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
         tl.db = mock_db
 
         result = tl.save_approved_transactions(transactions)
@@ -332,7 +332,7 @@ class TestTransactionLogicPreservation:
             closed_years_for_admin={}
         )
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
         tl.db = mock_db
 
         result = tl.save_approved_transactions([zero_transaction])
@@ -381,7 +381,7 @@ class TestTransactionLogicPreservation:
             closed_years_for_admin={}
         )
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
         tl.db = mock_db
 
         result = tl.save_approved_transactions(transactions)
@@ -423,7 +423,7 @@ class TestTransactionLogicPreservation:
             closed_years_for_admin={other_admin: {other_closed_year}}
         )
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
         tl.db = mock_db
 
         result = tl.save_approved_transactions([transaction])
@@ -477,7 +477,7 @@ class TestBankingProcessorPreservation:
         )
 
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            bp = BankingProcessor(test_mode=True)
+            bp = BankingProcessor()
         bp.db = mock_db
 
         saved_count = bp.save_approved_transactions([transaction])
@@ -527,7 +527,7 @@ class TestBankingProcessorPreservation:
         )
 
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            bp = BankingProcessor(test_mode=True)
+            bp = BankingProcessor()
         bp.db = mock_db
 
         saved_count = bp.save_approved_transactions(transactions)
@@ -563,7 +563,7 @@ class TestBankingProcessorPreservation:
         )
 
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            bp = BankingProcessor(test_mode=True)
+            bp = BankingProcessor()
         bp.db = mock_db
 
         saved_count = bp.save_approved_transactions([transaction])
@@ -613,7 +613,7 @@ class TestBankingProcessorPreservation:
         )
 
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            bp = BankingProcessor(test_mode=True)
+            bp = BankingProcessor()
         bp.db = mock_db
 
         saved_count = bp.save_approved_transactions([transaction])
@@ -666,7 +666,7 @@ class TestBankingProcessorPreservation:
         )
 
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            bp = BankingProcessor(test_mode=True)
+            bp = BankingProcessor()
         bp.db = mock_db
 
         saved_count = bp.save_approved_transactions([transaction])

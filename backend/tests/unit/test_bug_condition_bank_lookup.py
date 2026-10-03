@@ -103,7 +103,6 @@ class TestCheckBankingAccountsWrongDataSource:
 
             from banking_processor import BankingProcessor
             processor = BankingProcessor.__new__(BankingProcessor)
-            processor.test_mode = False
             processor.db = mock_db
             processor.download_folder = '/tmp'
 
@@ -164,7 +163,6 @@ class TestValidateIbanTenantWrongDataSource:
 
             from services.banking_service import BankingService
             service = BankingService.__new__(BankingService)
-            service.test_mode = False
             service.db = mock_db
 
             result = service.validate_iban_tenant('NL99TEST1234567890', 'TestTenant')
@@ -237,7 +235,6 @@ class TestBankAccountResolutionProperty:
 
             from banking_processor import BankingProcessor
             processor = BankingProcessor.__new__(BankingProcessor)
-            processor.test_mode = False
             processor.db = mock_db
             processor.download_folder = '/tmp'
 
@@ -285,7 +282,6 @@ class TestBankAccountResolutionProperty:
 
             from services.banking_service import BankingService
             service = BankingService.__new__(BankingService)
-            service.test_mode = False
             service.db = mock_db
 
             result = service.validate_iban_tenant(iban, tenant)

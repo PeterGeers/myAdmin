@@ -61,7 +61,7 @@ class TestPricingMultiplierBounds:
     def setup_model(self, mock_db):
         """Create BusinessPricingModel instance with mocked DatabaseManager."""
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            self.model = BusinessPricingModel(test_mode=True)
+            self.model = BusinessPricingModel()
         self.mock_db = mock_db
 
     @settings(max_examples=100, deadline=None)

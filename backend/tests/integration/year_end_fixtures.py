@@ -124,7 +124,7 @@ def setup_year_end_test_data(db):
     Insert test chart of accounts and transactions into test database.
 
     Args:
-        db: DatabaseManager instance (test_mode=True)
+        db: DatabaseManager instance
 
     Returns:
         dict with summary of created data
@@ -178,7 +178,7 @@ def teardown_year_end_test_data(db):
     Remove test data created by setup_year_end_test_data.
 
     Args:
-        db: DatabaseManager instance (test_mode=True)
+        db: DatabaseManager instance
     """
     # Remove transactions
     db.execute_query(

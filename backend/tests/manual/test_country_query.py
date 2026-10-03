@@ -6,7 +6,7 @@ Run: python test_country_query.py
 from database import DatabaseManager
 
 def test_country_query():
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     connection = db.get_connection()
     cursor = connection.cursor()
     

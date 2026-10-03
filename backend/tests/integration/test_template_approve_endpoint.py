@@ -16,8 +16,7 @@ class TestTemplateApproveServiceIntegration:
     @pytest.fixture
     def db(self):
         """Create database connection"""
-        test_mode = os.getenv('TEST_MODE', 'true').lower() == 'true'
-        return DatabaseManager(test_mode=test_mode)
+        return DatabaseManager()
     
     @pytest.fixture
     def preview_service(self, db):

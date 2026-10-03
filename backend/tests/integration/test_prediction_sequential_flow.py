@@ -145,7 +145,7 @@ class TestSequentialPredictionFlow:
             mock_db_cls.return_value = mock_db
             mock_cache_fn.return_value = MagicMock()
 
-            analyzer = PatternAnalyzer(test_mode=True)
+            analyzer = PatternAnalyzer()
 
             # Mock get_filtered_patterns to return our test data
             def mock_get_filtered_patterns(administration, **kwargs):

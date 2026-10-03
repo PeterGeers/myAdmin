@@ -62,7 +62,6 @@ def client():
         app = Flask(__name__)
         app.config['TESTING'] = True
         app.register_blueprint(aib.aangifte_ib_bp)
-        aib.set_test_mode(True)
 
         with app.test_client() as c:
             with app.app_context():

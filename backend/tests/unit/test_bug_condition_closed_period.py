@@ -198,7 +198,7 @@ class TestTransactionLogicClosedPeriodBugCondition:
         closed_years_for_admin = {admin: {closed_year}}
         mock_db, mock_cursor = build_mock_db_for_transaction_logic(closed_years_for_admin)
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
         tl.db = mock_db
 
         # Import ClosedPeriodError — it won't exist yet on unfixed code,
@@ -268,7 +268,7 @@ class TestTransactionLogicClosedPeriodBugCondition:
         closed_years_for_admin = {admin: {closed_year}}
         mock_db, mock_cursor = build_mock_db_for_transaction_logic(closed_years_for_admin)
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
         tl.db = mock_db
 
         try:
@@ -339,7 +339,7 @@ class TestBankingProcessorClosedPeriodBugCondition:
         mock_db, mock_bp_cursor = build_mock_db_for_banking_processor(closed_years_for_admin)
 
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            bp = BankingProcessor(test_mode=True)
+            bp = BankingProcessor()
         bp.db = mock_db
 
         try:
@@ -396,7 +396,7 @@ class TestBankingProcessorClosedPeriodBugCondition:
         mock_db, mock_bp_cursor = build_mock_db_for_banking_processor(closed_years_for_admin)
 
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            bp = BankingProcessor(test_mode=True)
+            bp = BankingProcessor()
         bp.db = mock_db
 
         try:

@@ -234,7 +234,7 @@ class TestPatternValidationPreservation:
         """
         from database import DatabaseManager as PatternDB
 
-        db = PatternDB(test_mode=True)
+        db = PatternDB()
 
         captured_queries = []
 

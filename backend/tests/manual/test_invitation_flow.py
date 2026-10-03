@@ -27,7 +27,7 @@ def test_invitation_flow():
     print("=" * 80)
     
     # Initialize service (use test mode)
-    service = InvitationService(test_mode=True)
+    service = InvitationService()
     
     # Test data
     tenant = "TestTenant"

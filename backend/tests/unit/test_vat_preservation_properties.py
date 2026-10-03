@@ -31,7 +31,7 @@ class TestVatPreservationProperties:
     @pytest.fixture
     def transaction_logic(self):
         """Create TransactionLogic instance for testing."""
-        return TransactionLogic(test_mode=True)
+        return TransactionLogic()
 
     @pytest.fixture
     def base_template_transactions(self):

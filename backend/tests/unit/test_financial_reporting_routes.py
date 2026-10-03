@@ -55,7 +55,6 @@ def client():
         import importlib
         import routes.financial_reporting_routes as frr
         importlib.reload(frr)
-        frr.set_test_mode(True)
 
         from flask import Flask
         app = Flask(__name__)

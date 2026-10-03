@@ -21,7 +21,7 @@ def test_verb_extraction():
     print("1. Testing Verb Extraction")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     
     test_cases = [
         ("PICNIC ONLINE SUPERMARKT BETALING", "Picnic", "PICNIC"),
@@ -43,11 +43,11 @@ def test_verb_pattern_storage():
     print("2. Testing Verb Pattern Storage")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Clear existing patterns
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     db.execute_query("DELETE FROM pattern_verb_patterns WHERE administration = %s", (administration,), fetch=False, commit=True)
     db.execute_query("DELETE FROM pattern_analysis_metadata WHERE administration = %s", (administration,), fetch=False, commit=True)
     print("✅ Cleared existing patterns")
@@ -83,7 +83,7 @@ def test_pattern_prediction():
     print("3. Testing Pattern Predictions")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Load patterns from database
@@ -149,7 +149,7 @@ def test_administration_bank_verb_logic():
     print("4. Testing Administration + BankAccount + Verb Logic")
     print("-" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Query patterns grouped by administration and bank account
     patterns = db.execute_query("""

@@ -226,7 +226,7 @@ def main():
     
     # Initialize database and cache
     print("\n[Setup] Initializing database and cache...")
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     cache = get_cache()
     cache.get_data(db)  # Load cache
     print(f"  ✓ Database connected")
