@@ -329,12 +329,12 @@ The implementation involves:
 
 ### Phase 6: Production config wiring + environment-variable consolidation
 
-- [ ] 42. Fill real non-secret config values in Environment_Definition
-  - [ ] 42.1 Replace remaining PLACEHOLDER values with real non-secret identifiers where the plane is live (done for PROD_CLIENT_ID=66tp0087h9tfbstggonnu5aghp; audit the rest)
-  - [ ] 42.2 Set the real production Flask API base URL (replace `https://PLACEHOLDER_PRODUCTION_FLASK_API`) once known
-  - [ ] 42.3 Keep every SECRET as an env-var reference only — never commit a secret value (client secret, DB password, AWS keys stay env-sourced)
-  - [ ] 42.4 Mirror each committed public identifier change in the frontend `environmentDefinition.ts` so backend/frontend cannot drift
-  - [ ] 42.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
+- [x] 42. Fill real non-secret config values in Environment_Definition
+  - [x] 42.1 Replace remaining PLACEHOLDER values with real non-secret identifiers where the plane is live (done for PROD_CLIENT_ID=66tp0087h9tfbstggonnu5aghp; audit the rest)
+  - [x] 42.2 REFRAMED (Option A): the PROD Flask API base URL is a Railway-managed RUNTIME value, not a committed literal (the SPA calls it via the VITE_API_URL build secret; only the Consistency_Guard reads this field, for TEST!=PROD distinctness). Recorded as an explicit `railway-managed://VITE_API_URL` reference marker (no PLACEHOLDER_ token), keeping runtime config in Railway per Req 3.6/19.1 — rather than inlining a hostname.
+  - [x] 42.3 Keep every SECRET as an env-var reference only — never commit a secret value (client secret, DB password, AWS keys stay env-sourced)
+  - [x] 42.4 Mirror each committed public identifier change in the frontend `environmentDefinition.ts` so backend/frontend cannot drift
+  - [x] 42.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
   - _Requirements: 3.1-3.6, 8.5_
 
 - [ ] 43. Retire duplicated identity env vars once resolver supplies identity

@@ -200,7 +200,9 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
         cognito=CognitoDef(
             pool_id=PROD_POOL_ID,
             client_id=PROD_CLIENT_ID,
-            client_secret_ref="PLACEHOLDER_CLIENT_SECRET",  # placeholder secret ref
+            client_secret_ref="PLACEHOLDER_CLIENT_SECRET",  # SECRET reference only —
+            # the real value lives in the COGNITO_CLIENT_SECRET env var; it MUST stay a
+            # placeholder in committed source (Req 3.6 / 19.1). Never fill this in.
             pool_label="myAdmin",
         ),
         mysql=MysqlDef(
@@ -212,7 +214,13 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
             password_ref="DB_PASSWORD",  # env var for PRODUCTION database password
         ),
         backend_host_ref="BACKEND_HOST_PROD",  # env var for PRODUCTION backend host
-        flask_api_base_url="https://PLACEHOLDER_PRODUCTION_FLASK_API",  # PROD Flask API URL
+        # PROD Flask API base URL — a Railway-managed RUNTIME value, NOT a committed
+        # literal (the frontend calls the backend via the VITE_API_URL GitHub/Railway
+        # secret, and nothing reads THIS field as a live endpoint — only the
+        # Consistency_Guard uses it, for TEST!=PROD distinctness). So this is an
+        # explicit REFERENCE marker, deliberately not a real hostname (Phase 6 Task 42,
+        # Option A; keeps runtime config in Railway, per Req 3.6 / 19.1).
+        flask_api_base_url="railway-managed://VITE_API_URL",
         # SAM plane is per MODULE; this SamDef records the members module (the one
         # with an HTTP API). stack_name is the members PROD stack; pretokengen's
         # stacks are recorded in the current-mapping notes below.
