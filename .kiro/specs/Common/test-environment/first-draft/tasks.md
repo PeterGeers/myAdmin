@@ -274,10 +274,10 @@ The implementation involves:
   - [x] 33.3 Confirm the test Cognito pool `eu-west-1_xyrlzfqbl` exists (personal account) and note its current Pre-Token-Generation trigger (if any).
   - _Gate: identities + inventory confirmed before any write. Requirements: 23-aws-accounts guardrails._
 
-- [ ] 34. Create + seed the TEST projection table `test_governance_projection` (data account)
-  - [ ] 34.1 Create the real DynamoDB table (PK `tenant_id`, SK `sk`, PAY_PER_REQUEST) against real AWS (NOT the local emulator).
-  - [ ] 34.2 Seed via `scripts/test-environment/copy-prod-to-test.py dynamodb --source-table governance_projection --apply --i-understand-this-writes-test` (prod-parity) OR a synthetic seed.
-  - [ ] 34.3 Verify: `describe-table` ACTIVE; item count as expected.
+- [x] 34. Create + seed the TEST projection table `test_governance_projection` (data account)
+  - [x] 34.1 Create the real DynamoDB table (PK `tenant_id`, SK `sk`, PAY_PER_REQUEST) against real AWS (NOT the local emulator).
+  - [x] 34.2 Seed via `scripts/test-environment/copy-prod-to-test.py dynamodb --source-table governance_projection --apply --i-understand-this-writes-test` (prod-parity) OR a synthetic seed.
+  - [x] 34.3 Verify: `describe-table` ACTIVE; item count as expected.
   - _Gate: TEST projection exists + populated. Reversible (drop table). Requirements: 10.2, 16._
 
 - [ ] 35. Deploy the members TEST stack `test_sam-members` (data account)
