@@ -235,6 +235,35 @@ The implementation involves:
 - [ ] 32. Final checkpoint - All planes complete
   - Ensure all tests pass, ask the user if questions arise.
 
+### Phase 6: Production config wiring + environment-variable consolidation
+
+- [ ] 33. Fill real non-secret config values in Environment_Definition
+  - [ ] 33.1 Replace remaining PLACEHOLDER values with real non-secret identifiers where the plane is live (done for PROD_CLIENT_ID=66tp0087h9tfbstggonnu5aghp; audit the rest)
+  - [ ] 33.2 Set the real production Flask API base URL (replace `https://PLACEHOLDER_PRODUCTION_FLASK_API`) once known
+  - [ ] 33.3 Keep every SECRET as an env-var reference only — never commit a secret value (client secret, DB password, AWS keys stay env-sourced)
+  - [ ] 33.4 Mirror each committed public identifier change in the frontend `environmentDefinition.ts` so backend/frontend cannot drift
+  - [ ] 33.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
+  - _Requirements: 3.1-3.6, 8.5_
+
+- [ ] 34. Retire duplicated identity env vars once resolver supplies identity
+  - [ ] 34.1 Make the backend derive the active identity block (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID) from the resolver's ResolvedConfig, not from raw env vars
+  - [ ] 34.2 Confirm the Pool_Registry (COGNITO_POOL_KEYS + {KEY}_COGNITO_* ) remains the SOLE source for token verification (multi-pool), independent of the identity block
+  - [ ] 34.3 Remove the now-redundant raw identity-block env vars from the deploy config (Railway) once 34.1 lands, keeping only the registry vars + secrets + APP_ENV
+  - [ ] 34.4 Keep COGNITO_CLIENT_SECRET as an env var (the resolver supplies the public identity; the secret stays operational)
+  - [ ] 34.5 Update the Consistency_Guard identity-block check to tolerate an unset identity block when the resolver is authoritative (no false fail-fast)
+  - [ ] 34.6 Change-with-tests: update guard + resolver tests for the resolver-authoritative identity
+  - _Requirements: 2.3, 2.4, 4.3, 8.3_
+
+- [ ] 35. Audit and consolidate deploy environment variables (Railway)
+  - [ ] 35.1 Produce a mapping of every deploy env var -> the code that consumes it (name-only; never record secret values)
+  - [ ] 35.2 Flag overlaps/duplicates (e.g. identity-block vs PROD_A_* registry; multiple frontend-URL/CloudFront vars) and record which are intentional vs redundant
+  - [ ] 35.3 Document the target per-plane variable set per environment in the Environment_Definition doc (which vars are required where)
+  - [ ] 35.4 Recommend rotation for any secret that has leaked into a non-gitignored/plaintext file, and verify no secret is committed
+  - _Requirements: 3.5, 18.1-18.4_
+
+- [ ] 36. Checkpoint - Production config wiring complete
+  - Ensure all tests pass, ask the user if questions arise.
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP
@@ -259,7 +288,8 @@ The implementation involves:
     { "id": 4, "tasks": ["15.4", "17.1", "17.2", "17.3", "17.4", "19.1", "19.2", "19.3", "19.4", "20.1", "20.2", "20.3", "20.4"] },
     { "id": 5, "tasks": ["21.1", "21.2", "21.3", "22.1", "22.2", "22.3", "22.4", "23.1", "23.2", "23.3", "24.1", "24.2", "24.3"] },
     { "id": 6, "tasks": ["21.4", "23.4", "25.1", "25.2", "25.3", "27.1", "27.2", "27.3", "27.4", "27.5", "28.1", "28.2", "28.3", "28.4"] },
-    { "id": 7, "tasks": ["27.6", "28.5", "28.6", "29.1", "29.2", "29.3", "29.4", "29.5", "30.1", "30.2", "30.3", "30.4", "31.1", "31.2", "31.3", "31.4"] }
+    { "id": 7, "tasks": ["27.6", "28.5", "28.6", "29.1", "29.2", "29.3", "29.4", "29.5", "30.1", "30.2", "30.3", "30.4", "31.1", "31.2", "31.3", "31.4"] },
+    { "id": 8, "tasks": ["33.1", "33.2", "33.3", "33.4", "33.5", "34.1", "34.2", "34.3", "34.4", "34.5", "34.6", "35.1", "35.2", "35.3", "35.4"] }
   ]
 }
 ```
