@@ -22,7 +22,7 @@ def check_setup():
     
     # Check database table
     print("\n1. Checking database table...")
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     try:
         result = db.execute_query("SHOW TABLES LIKE 'year_closure_status'")
@@ -44,7 +44,7 @@ def check_setup():
     # Check configuration service
     print("\n2. Checking configuration service...")
     try:
-        config_service = YearEndConfigService(test_mode=False)
+        config_service = YearEndConfigService()
         print("   ✅ YearEndConfigService initialized")
         print(f"   ✅ Required purposes: {list(config_service.REQUIRED_PURPOSES.keys())}")
     except Exception as e:
@@ -54,7 +54,7 @@ def check_setup():
     # Check year-end service
     print("\n3. Checking year-end service...")
     try:
-        service = YearEndClosureService(test_mode=False)
+        service = YearEndClosureService()
         print("   ✅ YearEndClosureService initialized")
     except Exception as e:
         print(f"   ❌ Error initializing service: {e}")

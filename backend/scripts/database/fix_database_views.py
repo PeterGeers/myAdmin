@@ -22,7 +22,7 @@ def fix_database_views():
     print("Phase 1: Database View Fix Implementation")
     print("=" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Step 1: Analyze view usage and data quality
     print("\n1. Analyzing view data quality...")

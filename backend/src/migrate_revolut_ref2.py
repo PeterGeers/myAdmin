@@ -7,7 +7,7 @@ New format: Beschrijving_Saldo_Startdatum (3 fields with 2 decimal saldo)
 from database import DatabaseManager
 
 
-def migrate_revolut_ref2(test_mode=False):
+def migrate_revolut_ref2():
     db = DatabaseManager()
     db_name = db.config["database"]
 
@@ -66,9 +66,8 @@ def migrate_revolut_ref2(test_mode=False):
 
 
 if __name__ == "__main__":
-    import sys
+    import os
 
-    test_mode = "--test" in sys.argv
-
-    print(f"Running in {'TEST' if test_mode else 'PRODUCTION'} mode")
-    migrate_revolut_ref2(test_mode)
+    # Environment (TEST vs PRODUCTION) is selected by APP_ENV, not a --test flag.
+    print(f"Running against APP_ENV={os.getenv('APP_ENV', '<unset: DB_* fallback>')}")
+    migrate_revolut_ref2()

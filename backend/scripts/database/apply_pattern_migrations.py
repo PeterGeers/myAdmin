@@ -22,14 +22,14 @@ from database import DatabaseManager
 from dialect_helpers import dialect
 
 
-def apply_pattern_migrations(test_mode=False):
+def apply_pattern_migrations():
     """Apply all pattern-related database migrations"""
     print("🔧 Applying Pattern Storage Database Migrations")
     print("=" * 60)
     
     try:
         # Initialize migration manager
-        migration_manager = DatabaseMigration(test_mode=test_mode)
+        migration_manager = DatabaseMigration()
         
         # Get migration status
         status = migration_manager.get_migration_status()
@@ -54,7 +54,7 @@ def apply_pattern_migrations(test_mode=False):
             
             # Verify pattern tables exist
             print(f"\n🔍 Verifying Pattern Tables...")
-            db = DatabaseManager(test_mode=test_mode)
+            db = DatabaseManager()
             
             # Check pattern_analysis_metadata table
             try:
@@ -94,13 +94,13 @@ def apply_pattern_migrations(test_mode=False):
         return False
 
 
-def test_pattern_tables(test_mode=False):
+def test_pattern_tables():
     """Test that pattern tables are working correctly"""
     print(f"\n🧪 Testing Pattern Tables")
     print("-" * 40)
     
     try:
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         
         # Test pattern_analysis_metadata table
         print("Testing pattern_analysis_metadata table...")
@@ -185,28 +185,20 @@ if __name__ == "__main__":
     print("🚀 Pattern Storage Database Migration Script")
     print("=" * 60)
     
-    # Apply migrations for both production and test databases
-    print("\n1. Applying migrations to PRODUCTION database...")
-    prod_success = apply_pattern_migrations(test_mode=False)
+    # Apply migrations to the database selected by APP_ENV / DB_* env vars
+    print("\n1. Applying migrations...")
+    success = apply_pattern_migrations()
     
-    print("\n2. Applying migrations to TEST database...")
-    test_success = apply_pattern_migrations(test_mode=True)
-    
-    if prod_success and test_success:
-        print("\n3. Testing pattern tables...")
-        test_table_success = test_pattern_tables(test_mode=True)
+    if success:
+        print("\n2. Testing pattern tables...")
+        test_table_success = test_pattern_tables()
         
         if test_table_success:
             print(f"\n🎉 SUCCESS: Pattern storage database setup complete!")
-            print(f"   ✅ Production database migrated")
-            print(f"   ✅ Test database migrated")
+            print(f"   ✅ Database migrated")
             print(f"   ✅ Pattern tables tested and working")
             print(f"\n📋 Ready for REQ-PAT-006: Persistent Pattern Cache implementation")
         else:
             print(f"\n❌ PARTIAL SUCCESS: Migrations applied but table tests failed")
     else:
         print(f"\n❌ FAILED: Migration errors occurred")
-        if not prod_success:
-            print(f"   ❌ Production database migration failed")
-        if not test_success:
-            print(f"   ❌ Test database migration failed")

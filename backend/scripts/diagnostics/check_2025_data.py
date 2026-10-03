@@ -12,7 +12,7 @@ load_dotenv(Path(__file__).parent / '.env')
 
 from database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 # Check what years we have data for
 query = """

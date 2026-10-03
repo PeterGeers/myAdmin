@@ -25,8 +25,8 @@ def test_closure_transaction():
     print()
     
     # Initialize service
-    service = YearEndClosureService(test_mode=False)
-    db = DatabaseManager(test_mode=False)
+    service = YearEndClosureService()
+    db = DatabaseManager()
     
     # Test with GoodwinSolutions tenant
     administration = 'GoodwinSolutions'
@@ -63,7 +63,7 @@ def test_closure_transaction():
         
         # Get configured accounts
         from services.year_end_config import YearEndConfigService
-        config_service = YearEndConfigService(test_mode=False)
+        config_service = YearEndConfigService()
         
         equity_account_info = config_service.get_account_by_purpose(administration, 'equity_result')
         pl_closing_account_info = config_service.get_account_by_purpose(administration, 'pl_closing')

@@ -15,8 +15,8 @@ sys.path.insert(0, 'src')
 from database import DatabaseManager
 from pattern_analyzer import PatternAnalyzer
 
-db = DatabaseManager(test_mode=False)
-analyzer = PatternAnalyzer(test_mode=False)
+db = DatabaseManager()
+analyzer = PatternAnalyzer()
 
 print("=" * 80)
 print("CLEANUP: Removing Corrupted Patterns and Regenerating from Real Data")

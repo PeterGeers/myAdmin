@@ -18,7 +18,7 @@ def investigate_database_views():
     
     try:
         # Initialize database manager
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         
         print("\n1. Checking for reference-related views...")
         

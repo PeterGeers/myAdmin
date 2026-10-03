@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from database import DatabaseManager
 
 
-def configure_xlsx_paths(administration, template_path, output_path, test_mode=False):
+def configure_xlsx_paths(administration, template_path, output_path):
     """
     Configure XLSX template and output paths for an administration.
     
@@ -29,9 +29,8 @@ def configure_xlsx_paths(administration, template_path, output_path, test_mode=F
         administration: Administration/tenant name
         template_path: Full path to XLSX template file
         output_path: Full path to output base directory
-        test_mode: Whether to use test database
     """
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     # Validate paths
     if not os.path.exists(template_path):
@@ -109,7 +108,6 @@ def main():
     parser.add_argument('--administration', required=True, help='Administration/tenant name')
     parser.add_argument('--template-path', required=True, help='Full path to XLSX template file')
     parser.add_argument('--output-path', required=True, help='Full path to output base directory')
-    parser.add_argument('--test-mode', action='store_true', help='Use test database')
     
     args = parser.parse_args()
     
@@ -119,8 +117,7 @@ def main():
     success = configure_xlsx_paths(
         administration=args.administration,
         template_path=args.template_path,
-        output_path=args.output_path,
-        test_mode=args.test_mode
+        output_path=args.output_path
     )
     
     if success:

@@ -22,7 +22,7 @@ from dialect_helpers import dialect
 import argparse
 
 
-def configure_vat_netting(administration, vat_accounts, primary_account, test_mode=False):
+def configure_vat_netting(administration, vat_accounts, primary_account):
     """
     Configure VAT accounts for netting.
     
@@ -30,9 +30,8 @@ def configure_vat_netting(administration, vat_accounts, primary_account, test_mo
         administration: Tenant identifier
         vat_accounts: List of VAT account codes to net together
         primary_account: Primary account that receives the net balance
-        test_mode: Use test database if True
     """
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     print(f"\n{'='*60}")
     print(f"Configuring VAT Netting for {administration}")
@@ -129,11 +128,6 @@ def main():
         help='Administration/tenant name (default: GoodwinSolutions)'
     )
     parser.add_argument(
-        '--test-mode',
-        action='store_true',
-        help='Use test database'
-    )
-    parser.add_argument(
         '--vat-accounts',
         nargs='+',
         default=['2010', '2020', '2021'],
@@ -151,7 +145,6 @@ def main():
     print(f"Administration: {args.administration}")
     print(f"VAT Accounts: {', '.join(args.vat_accounts)}")
     print(f"Primary Account: {args.primary_account}")
-    print(f"Test Mode: {args.test_mode}")
     
     # Confirm before proceeding
     response = input("\nProceed with configuration? (yes/no): ")
@@ -162,8 +155,7 @@ def main():
     configure_vat_netting(
         args.administration,
         args.vat_accounts,
-        args.primary_account,
-        args.test_mode
+        args.primary_account
     )
 
 

@@ -20,7 +20,7 @@ def test_service_initialization():
     """Test: Service initialization"""
     print("\n1. Testing YearEndClosureService initialization...")
     try:
-        service = YearEndClosureService(test_mode=False)
+        service = YearEndClosureService()
         print("   ✅ Service initialized successfully")
         return service
     except Exception as e:

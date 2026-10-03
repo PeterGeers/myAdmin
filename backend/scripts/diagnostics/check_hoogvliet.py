@@ -4,7 +4,7 @@ import sys, json
 sys.path.insert(0, 'src')
 from database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 print("=" * 80)
 print("Checking HOOGVLIET transactions")

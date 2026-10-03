@@ -15,10 +15,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from database import DatabaseManager
 
 
-def update_reference_numbers(test_mode=False):
+def update_reference_numbers():
     """Update ReferenceNumber for year-end closure transactions"""
     
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     print("=" * 80)
     print("UPDATE YEAR-END CLOSURE REFERENCE NUMBERS")
@@ -161,4 +161,4 @@ if __name__ == '__main__':
             sys.exit(0)
     
     print()
-    update_reference_numbers(test_mode=args.test)
+    update_reference_numbers()

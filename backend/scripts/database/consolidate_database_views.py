@@ -28,7 +28,7 @@ def consolidate_database_views():
     print("Implementing REQ-DB-001 to REQ-DB-005")
     print("=" * 70)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Step 1: Final analysis of both views
     print("\n1. ANALYZING EXISTING VIEWS")
@@ -219,7 +219,7 @@ def consolidate_database_views():
         import database
         importlib.reload(database)
         
-        db_new = database.DatabaseManager(test_mode=False)
+        db_new = database.DatabaseManager()
         test_patterns = db_new.get_patterns('GoodwinSolutions')
         
         print(f"✓ Updated get_patterns() method works: {len(test_patterns)} patterns found")

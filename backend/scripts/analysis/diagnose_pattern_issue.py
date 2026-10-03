@@ -20,8 +20,8 @@ def main():
     print()
     
     # Initialize database and pattern analyzer
-    db = DatabaseManager(test_mode=False)
-    analyzer = PatternAnalyzer(test_mode=False)
+    db = DatabaseManager()
+    analyzer = PatternAnalyzer()
     
     # 1. Check what bank accounts exist
     print("1. BANK ACCOUNTS")

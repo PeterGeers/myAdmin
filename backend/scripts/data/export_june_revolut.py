@@ -13,7 +13,7 @@ def export_june_revolut():
     """Export June Revolut transactions to CSV"""
     print("\n=== EXPORTING JUNE 2025 REVOLUT TRANSACTIONS ===")
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor(dictionary=True)
     
