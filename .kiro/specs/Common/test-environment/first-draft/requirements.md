@@ -37,6 +37,9 @@ The move toward this target state was prompted by recurring, silent environment 
 - **Test_Account**: ANY Cognito user in the test pool, carrying the standard `custom:tenants` and `custom:role` attributes that drive the application's user→tenant→role authorization. The attribute shape of a Test_Account is arbitrary and chosen per test: it MAY mirror a production reference account or be deliberately different (for example a tenant/role combination that does not yet exist in production). A Test_Account is not defined as a single, production-mirrored account.
 - **Identity_Account**: The AWS account that holds the Cognito pools — the `personal` profile, account `344561557829`, region `eu-west-1`. The test pool is `eu-west-1_xyrlzfqbl` (`myAdmin-test`, app client `43s15cm8qcgg8an85udt0e087u`, no client secret); production Pool A is `eu-west-1_Hdp40eWmu` (`myAdmin`).
 - **Infra_Account**: The AWS account that holds infra/data/compute resources (DynamoDB, API Gateway, Lambda) — the `nonprofit-deploy` profile, account `506221081911`. Both the TEST SAM stack and the production SAM stack, and both the `test_`-prefixed TEST tables and the unprefixed PRODUCTION tables, live in this one account.
+- **TEST_URL**: The distinct URL (for example `localhost:3000` or a hosted URL) where the Test_Environment deployment is served. This URL authenticates users against the test Cognito pool (`eu-west-1_xyrlzfqbl`) and determines access solely by account membership in that pool.
+- **PROD_URL**: The distinct URL where the Production_Environment deployment is served. This URL authenticates users against production Pool A (`eu-west-1_Hdp40eWmu`).
+- **Branch_Environment_Mapping**: The CI/CD pipeline configuration that maps Git branches to environments — for example, the `test` branch deploys to the Test_Environment, and the `main` branch deploys to the Production_Environment. This mapping is separate from the application source and can evolve without changing the spec.
 
 ## Requirements
 
@@ -303,3 +306,28 @@ The move toward this target state was prompted by recurring, silent environment 
 6. IF the Flask API base URL the Frontend_Plane calls does not match the active `APP_ENV`, THEN THE Consistency_Guard SHALL report the inconsistency and SHALL NOT report a consistent state.
 
 > **Non-normative current mapping:** the resolved TEST backend host currently runs locally and the resolved PRODUCTION backend host currently runs on Railway. This records the present operational mapping only and is not the definition of either target. A future relocation — for example a hosted TEST backend host — is accommodated by changing the resolver mapping and configuration, not by changing this requirement; this requirement does not commit to any specific hosting provider.
+
+### Requirement 22: Environment selection and access via URL and Cognito pool
+
+**User Story:** As a developer or user, I want to reach the TEST environment by opening its distinct URL (currently `localhost:3000`) and authenticating against the test Cognito pool, so that environment choice is a deployment/entry-point decision, not an in-app toggle, and access to TEST is controlled by membership in the test pool.
+
+#### Acceptance Criteria
+
+1. THE Environment_Definition SHALL declare the distinct URL for the Test_Environment (for example `localhost:3000` or a hosted URL) and the distinct URL for the Production_Environment, and SHALL NOT infer `APP_ENV` from the hostname or request origin.
+2. WHEN a deployment is built for the Test_Environment, THE Frontend_Plane SHALL be built with `VITE_APP_ENV=test`, and the Backend_Plane SHALL be started with `APP_ENV=test`, regardless of the hostname where that deployment is served.
+3. THE Test_Environment URL SHALL authenticate users against the test Cognito pool (`eu-west-1_xyrlzfqbl`), and the Production_Environment URL SHALL authenticate against production Pool A (`eu-west-1_Hdp40eWmu`).
+4. ACCESS to the Test_Environment SHALL be determined solely by account membership in the test Cognito pool; there SHALL NOT be a separate allow-list or in-app environment switch.
+5. THE Environment_Indicator SHALL derive its displayed environment from the deployment's explicit `APP_ENV` (which is fixed by the build/start) and SHALL NOT infer "TEST" from the hostname being `localhost`.
+6. THE Frontend_Plane SHALL NOT contain any UI control that switches the active environment within a single running unit; environment selection SHALL occur by navigating to the other environment's URL.
+
+### Requirement 23: Branch-based promotion from TEST to PRODUCTION
+
+**User Story:** As a developer, I want changes to land in TEST first (via a TEST-targeted branch), be validated there, and then be promoted to PRODUCTION (via a PRODUCTION-targeted branch), so that the environment selection maps directly to the Git branch and deployment pipeline.
+
+#### Acceptance Criteria
+
+1. THE Environment_Definition SHALL record that the Test_Environment deployment is sourced from a Git branch designated for TEST (for example `test`, `develop`, or `staging`), and the Production_Environment deployment is sourced from a branch designated for PRODUCTION (for example `main`).
+2. THE CI/CD pipeline SHALL set `APP_ENV` to `test` when deploying the TEST branch and to `production` when deploying the PRODUCTION branch.
+3. A pull request merging into the TEST branch SHALL cause a deployment to the Test_Environment (where the change can be validated against the TEST Cognito pool, TEST database target, and TEST SAM stack).
+4. AFTER validation in the Test_Environment, a pull request merging the validated changes from the TEST branch into the PRODUCTION branch SHALL cause a deployment to the Production_Environment.
+5. THE Environment_Definition SHALL record that the branch-to-environment mapping is a CI/CD pipeline configuration separate from the application source, so that the mapping can evolve without changing the spec.

@@ -6,6 +6,7 @@ import UserMenu from './UserMenu';
 import { LanguageSelector } from './LanguageSelector';
 import { HelpButton } from './help';
 import { MenuGroup } from './MenuGroup';
+import EnvironmentIndicator from './EnvironmentIndicator';
 import type { User } from '../context/AuthContext';
 import type { PageType } from '../appPages';
 
@@ -58,6 +59,8 @@ export function MainMenu({
         <Flex wrap="wrap" justify="space-between" align="center" gap={2}>
           <Heading color="orange.400" size={{ base: 'sm', md: 'lg' }} noOfLines={2}>{t('common:navigation.myAdminDashboard')}</Heading>
           <HStack spacing={2} flexShrink={0}>
+            {/* Env 5.2/5.4 — active environment + pool/identity + SAM endpoint while authenticated. */}
+            <EnvironmentIndicator variant="detailed" />
             <LanguageSelector />
             <TenantSelector size="sm" />
             <HelpButton page={currentPage} />

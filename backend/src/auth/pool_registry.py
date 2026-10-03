@@ -43,6 +43,7 @@ to ``.env`` / ``.env.example``; the app-clients have no secret):
 
 import os
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 
 # Reuse the T2 registry-entry type rather than duplicating it.
 from auth.test_pool_config import PoolConfig
@@ -241,3 +242,192 @@ def load_pool_registry(environ: Mapping[str, str] | None = None) -> PoolRegistry
     pool_keys = _parse_pool_keys(env.get(_POOL_KEYS_ENV_VAR))
     entries = [_load_pool_entry(key, env) for key in pool_keys]
     return PoolRegistry(entries)
+
+
+# ===========================================================================
+# Active resolved identity (test-environment spec — Common/test-environment, T6)
+# ===========================================================================
+#
+# Design contract (`.kiro/specs/Common/test-environment/first-draft/design.md` §6):
+#
+#     "`backend/src/auth/pool_registry.py` keeps its `COGNITO_POOL_KEYS` loader,
+#      but the ACTIVE identity (which pool this unit *is*) comes from
+#      `ResolvedConfig.cognito`; the guard checks that identity is registered."
+#
+# The multi-pool verification registry above (`load_pool_registry` / `PoolRegistry`)
+# is UNCHANGED — the verifier (`JWTVerifier`) must still validate tokens from several
+# pools (the test pool AND the production pools) regardless of which environment this
+# unit *is*. What this section adds is ORTHOGONAL and ADDITIVE: a way to obtain the
+# unit's OWN active identity — the single pool/client that `APP_ENV` selects via the
+# Environment_Resolver (Req 8.3) — plus a coherence check that the active pool is
+# among the registered verification pools (Req 4.1).
+#
+# Fail-fast / no-default discipline is preserved: deriving the active identity never
+# invents a pool, and `active_pool_from_registry` raises `UnknownIssuerError` (not a
+# silent fallback) when the resolved pool is absent from the registry.
+
+# The env var naming the Cognito region, consulted (with AWS_REGION) only to build the
+# issuer URL from a resolved pool id. Mirrors `cognito_utils` / `jwt_verifier`.
+_REGION_ENV_VARS = ("COGNITO_REGION", "AWS_REGION")
+_DEFAULT_REGION = "eu-west-1"
+
+
+def _resolve_region(environ: Mapping[str, str]) -> str:
+    """Return the Cognito region for building issuer URLs.
+
+    Reads ``COGNITO_REGION`` then ``AWS_REGION``; falls back to ``eu-west-1`` — the
+    only account/region the pools live in (see ``23-aws-accounts.md``). The region is
+    a non-secret public identifier, so a default here is a convenience, not a
+    dangerous environment fallback (the environment selection itself is already pinned
+    by ``APP_ENV`` upstream).
+    """
+    for name in _REGION_ENV_VARS:
+        value = environ.get(name)
+        if value and value.strip():
+            return value.strip()
+    return _DEFAULT_REGION
+
+
+def issuer_for_pool_id(pool_id: str, region: str) -> str:
+    """Build the Cognito issuer URL (`iss` claim value) for a user pool id.
+
+    The issuer URL embeds the pool id as its trailing path segment:
+    ``https://cognito-idp.{region}.amazonaws.com/{pool_id}`` — the same shape
+    :class:`~auth.jwt_verifier.JWTVerifier` constructs. This is the inverse of
+    :func:`auth.admin_pool_resolver.pool_id_from_issuer`.
+
+    Args:
+        pool_id: The Cognito User Pool id (e.g. ``eu-west-1_xyrlzfqbl``).
+        region: The AWS region the pool lives in.
+
+    Returns:
+        The full issuer URL.
+    """
+    return f"https://cognito-idp.{region}.amazonaws.com/{pool_id}"
+
+
+@dataclass(frozen=True)
+class ResolvedIdentity:
+    """The running unit's OWN active Cognito identity, resolved from ``APP_ENV``.
+
+    This is distinct from the verification :class:`PoolRegistry` (which may hold
+    several pools): it names the single pool/client that the active environment
+    selects (Req 8.3). It is derived from ``ResolvedConfig.cognito`` produced by the
+    Environment_Resolver, never from a hostname or an incidental signal.
+
+    Attributes:
+        iss: The issuer URL for the active pool (the registry key for a cross-check).
+        pool_id: The active Cognito User Pool id (public identifier).
+        client_id: The active Cognito App Client id (public identifier).
+        client_secret: The active client secret value, or ``""`` when the pool has
+            no secret (the test pool — Req 7.3, 8.4). Resolved from the env var the
+            definition references, so no secret value is hardcoded.
+        pool_label: Human-readable pool label (e.g. ``myAdmin-test``, ``myAdmin``).
+    """
+
+    iss: str
+    pool_id: str
+    client_id: str
+    client_secret: str
+    pool_label: str
+
+    @property
+    def has_client_secret(self) -> bool:
+        """``True`` iff a non-empty client secret is set for the active pool."""
+        return bool(self.client_secret and self.client_secret.strip())
+
+
+def resolved_identity(
+    resolved_cognito, environ: Mapping[str, str] | None = None
+) -> ResolvedIdentity:
+    """Derive the active identity from the resolver's ``ResolvedConfig.cognito``.
+
+    This is the single way to obtain which pool/client THIS unit *is* for the active
+    ``APP_ENV`` (Req 6.1, 6.3, 8.3). The resolver hands us public identifiers plus a
+    *reference* to the client secret (an env var name, or ``""`` for the test pool);
+    this function dereferences that secret ref against the environment so the caller
+    gets the concrete-but-possibly-empty secret without the definition ever embedding
+    a real value (Req 8.5).
+
+    Empty-secret handling (Req 7.3, 8.4): the test pool's ``client_secret_ref`` is the
+    empty string in the Environment_Definition, which yields an empty ``client_secret``
+    here — the test app-client has no secret, and no code path requires one. A
+    non-empty ``client_secret_ref`` is treated as the NAME of an env var holding the
+    secret; if that var is unset/blank the resolved secret is empty (fail-safe for the
+    secret value specifically — the environment selection is already pinned by
+    ``APP_ENV``, so an empty secret here never silently flips the environment).
+
+    Args:
+        resolved_cognito: The ``ResolvedConfig.cognito`` object from the
+            Environment_Resolver (duck-typed: must expose ``pool_id``, ``client_id``,
+            ``client_secret_ref`` and ``pool_label``). Not imported as a type to keep
+            :mod:`auth.pool_registry` free of a hard dependency on the environment
+            package.
+        environ: Optional environment mapping (defaults to :data:`os.environ`).
+            Injectable for tests.
+
+    Returns:
+        The :class:`ResolvedIdentity` for the active environment.
+    """
+    env = os.environ if environ is None else environ
+    region = _resolve_region(env)
+    pool_id = resolved_cognito.pool_id
+    iss = issuer_for_pool_id(pool_id, region)
+
+    # Dereference the client-secret ref. The test pool uses "" (no secret, Req 7.3/8.4);
+    # a non-empty ref names an env var holding the secret value.
+    secret_ref = (resolved_cognito.client_secret_ref or "").strip()
+    if secret_ref == "":
+        client_secret = ""
+    else:
+        client_secret = (env.get(secret_ref) or "").strip()
+
+    return ResolvedIdentity(
+        iss=iss,
+        pool_id=pool_id,
+        client_id=resolved_cognito.client_id,
+        client_secret=client_secret,
+        pool_label=resolved_cognito.pool_label,
+    )
+
+
+def active_pool_from_registry(
+    resolved_cognito,
+    registry: PoolRegistry,
+    environ: Mapping[str, str] | None = None,
+) -> PoolConfig:
+    """Return the registered :class:`PoolConfig` for the active resolved pool.
+
+    Coherence check (Req 4.1, 8.3): the pool that ``APP_ENV`` selects as this unit's
+    OWN identity MUST be one of the pools the verification registry knows about. This
+    resolves the active identity (via :func:`resolved_identity`), looks its issuer up
+    in the (multi-pool, unchanged) registry, and returns that entry.
+
+    This does NOT reduce the registry to a single pool — the registry keeps every
+    pool for verification. It only asserts the active identity is represented there,
+    and hands back the registry's own entry for that pool so callers reuse one source
+    of truth for the active pool's JWKS/audience.
+
+    Args:
+        resolved_cognito: The ``ResolvedConfig.cognito`` from the resolver.
+        registry: The loaded multi-pool verification :class:`PoolRegistry`.
+        environ: Optional environment mapping (defaults to :data:`os.environ`).
+
+    Returns:
+        The registry's :class:`PoolConfig` for the active resolved pool.
+
+    Raises:
+        UnknownIssuerError: The active resolved pool's issuer is not registered —
+            an explicit, loggable failure, never a silent wrong-pool fallback.
+    """
+    identity = resolved_identity(resolved_cognito, environ=environ)
+    # Prefer an exact issuer match (the registry key). Fall back to a pool-id-substring
+    # match so the check is robust whether the resolver's region matches the registry's
+    # issuer region exactly (the issuer URL embeds the pool id either way).
+    entry = registry.get(identity.iss)
+    if entry is not None:
+        return entry
+    for candidate_iss in registry.issuers():
+        if identity.pool_id in candidate_iss:
+            return registry.require(candidate_iss)
+    raise UnknownIssuerError(identity.iss)

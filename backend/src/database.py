@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from contextlib import contextmanager
+from pathlib import Path
 
 import mysql.connector
 from dotenv import load_dotenv
@@ -15,7 +16,9 @@ from db_exceptions import (
     OperationalError,
 )
 
-load_dotenv()
+# Pin backend/.env so this import-time load never picks up the repo-root .env
+# (prevents the documented AWS-credential clobber + non-deterministic config).
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,27 +32,16 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
     _use_legacy_pool = True
 
     def __init__(self, test_mode=False):
+        # NOTE (test-environment spec, task 12): the `test_mode` parameter is
+        # PRESERVED for backward compatibility — many call sites across the
+        # codebase still pass `test_mode=...`. As of task 12 it NO LONGER selects
+        # a `testfinance` schema: the schema is always `finance`, and TEST vs PROD
+        # is distinguished by the RESOLVED connection target (host/credentials),
+        # not by the schema name (Req 9.2, 9.3). The full "ignore + warn" shim and
+        # the eventual removal of this parameter are later Phase-3 tasks (15/16/17).
         self.test_mode = test_mode
 
-        # Use test database if test_mode is True or TEST_MODE env var is set
-        use_test = test_mode or os.getenv("TEST_MODE", "false").lower() == "true"
-        db_name = (
-            os.getenv("TEST_DB_NAME", "testfinance")
-            if use_test
-            else os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "finance"))
-        )
-
-        self.config = {
-            "host": os.getenv(
-                "DB_HOST", os.getenv("RAILWAY_PRIVATE_DOMAIN", "localhost")
-            ),
-            "user": os.getenv("DB_USER", os.getenv("MYSQL_USER", "root")),
-            "password": os.getenv("DB_PASSWORD", os.getenv("MYSQL_PASSWORD", "")),
-            "database": db_name,
-            "port": int(
-                os.getenv("DB_PORT", "3306")
-            ),  # Always use 3306 for internal Railway connections
-        }
+        self.config = self._resolve_mysql_config()
 
         # Try to initialize scalability manager
         self._initialize_scalability_manager()
@@ -79,6 +71,101 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                     f"⚠️ Legacy connection pool failed, using direct connections: {e}"
                 )
                 DatabaseManager._use_legacy_pool = False
+
+    # Schema is ALWAYS "finance" for both TEST and PRODUCTION (Req 9.2). The two
+    # environments are told apart by their RESOLVED connection target
+    # (host/port/user/password), never by the schema name. The legacy
+    # `TEST_DB_NAME`/`testfinance` switch has been removed (task 12).
+    _SCHEMA = "finance"
+
+    def _resolve_mysql_config(self):
+        """Build the MySQL connection config from the resolved environment target.
+
+        Task 12 (test-environment spec, Req 9.1-9.6): the database is no longer
+        chosen by a `TEST_DB_NAME`/`testfinance` switch. The schema is ALWAYS
+        ``finance`` for both TEST and PRODUCTION; the two are distinguished by the
+        resolved connection TARGET (host/port/user/password), not the schema name.
+
+        Target resolution:
+        - When ``APP_ENV`` is set, the Environment_Resolver maps it to a
+          ``ResolvedConfig.mysql`` (:class:`ResolvedDbTarget`) that names the env
+          vars holding this environment's connection values (``host_ref`` etc.).
+          Those referenced vars are dereferenced from the environment here — the
+          concrete credentials always come from env vars (Req 9.4), never source.
+        - A referenced var that is absent falls back to the legacy ``DB_*`` chain,
+          so local dev (Docker) and Railway both keep connecting unchanged.
+        - When ``APP_ENV`` is unset (e.g. unit tests whose conftest seeds ``DB_*``
+          but not ``APP_ENV``), resolution is skipped and the legacy ``DB_*`` chain
+          is used directly. ``__init__`` must stay deployable, so a missing
+          ``APP_ENV`` is NOT fail-fast here (the fail-fast selector lives in the
+          app bootstrap / Consistency_Guard, not in every DatabaseManager).
+
+        In all paths the schema is forced to ``finance`` and ``testfinance`` is
+        never selected.
+        """
+        resolved_mysql = self._resolve_mysql_target()
+
+        def _ref(ref_name, *fallback_names, default=""):
+            """Dereference an env-var reference, else the legacy fallback chain."""
+            if ref_name:
+                value = os.getenv(ref_name)
+                if value is not None:
+                    return value
+            for name in fallback_names:
+                value = os.getenv(name)
+                if value is not None:
+                    return value
+            return default
+
+        host_ref = resolved_mysql.host_ref if resolved_mysql else None
+        port_ref = resolved_mysql.port_ref if resolved_mysql else None
+        user_ref = resolved_mysql.user_ref if resolved_mysql else None
+        password_ref = resolved_mysql.password_ref if resolved_mysql else None
+
+        host = _ref(
+            host_ref, "DB_HOST", "RAILWAY_PRIVATE_DOMAIN", default="localhost"
+        )
+        user = _ref(user_ref, "DB_USER", "MYSQL_USER", default="root")
+        password = _ref(password_ref, "DB_PASSWORD", "MYSQL_PASSWORD", default="")
+        port = _ref(port_ref, "DB_PORT", default="3306")
+
+        return {
+            "host": host,
+            "user": user,
+            "password": password,
+            # Schema is ALWAYS the resolved schema `finance` (Req 9.2) — never
+            # `testfinance`; the TEST/PROD distinction is the target, not the name.
+            "database": self._SCHEMA,
+            "port": int(port),
+        }
+
+    def _resolve_mysql_target(self):
+        """Return the resolved ``ResolvedDbTarget`` for the active APP_ENV, or None.
+
+        Returns ``None`` (so the legacy ``DB_*`` chain is used) when ``APP_ENV`` is
+        unset or the environment package cannot be resolved — keeping the
+        constructor deployable in every context (including the unit-test suite,
+        whose conftest seeds ``DB_*`` but not necessarily ``APP_ENV``). This method
+        performs NO database I/O and never raises for a missing ``APP_ENV``.
+        """
+        raw_app_env = os.getenv("APP_ENV")
+        if not raw_app_env or raw_app_env.strip() == "":
+            return None
+        try:
+            from environment.app_env import parse_app_env
+            from environment.environment_definition import ENVIRONMENT_DEFINITION
+            from environment.resolver import resolve
+
+            app_env = parse_app_env(raw_app_env)
+            return resolve(app_env, ENVIRONMENT_DEFINITION).mysql
+        except Exception as e:  # pragma: no cover - defensive, stays deployable
+            logger.warning(
+                "⚠️ Could not resolve MySQL target from APP_ENV=%r; "
+                "falling back to DB_* env vars (schema still 'finance'): %s",
+                raw_app_env,
+                e,
+            )
+            return None
 
     def _initialize_scalability_manager(self):
         """Initialize scalability manager for advanced connection pooling"""

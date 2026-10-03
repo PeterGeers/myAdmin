@@ -1,12 +1,15 @@
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 
-load_dotenv()
+# Pin backend/.env so this import-time load never picks up the repo-root .env
+# (prevents the documented AWS-credential clobber + non-deterministic config).
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 
 class TransactionLogic:

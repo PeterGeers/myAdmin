@@ -45,6 +45,7 @@ from routes.config_routes import config_bp
 from routes.contact_routes import contact_bp
 from routes.duplicate_detection_routes import duplicate_detection_bp
 from routes.email_log_routes import email_log_bp
+from routes.environment_routes import environment_bp
 from routes.financial_reporting_routes import financial_reporting_bp
 from routes.folder_routes import folder_bp
 from routes.invoice_routes import invoice_bp
@@ -211,6 +212,7 @@ app.register_blueprint(budget_ai_bp)  # Budget AI & copy endpoints
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(signup_bp)  # Public trial signup endpoints
 app.register_blueprint(config_bp)  # Public configuration endpoints
+app.register_blueprint(environment_bp)  # Backend environment/health report (Req 6)
 app.register_blueprint(landing_page_bp)  # Landing page CMS + public endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
@@ -682,6 +684,18 @@ def handle_500(e):
 if __name__ == "__main__":
     print("Starting Flask development server...")
     print("For production, use: waitress-serve --host=127.0.0.1 --port=5000 wsgi:app")
+
+    # Wire the single authoritative environment selector (APP_ENV) alongside the
+    # existing startup checks. This runs on the REAL startup path only (not at module
+    # import), so the test suite can still import `app` without APP_ENV set. It parses
+    # APP_ENV (fail-fast on unset/unknown — Req 1.3), resolves the per-plane config
+    # into app.config["RESOLVED_ENV"] (Req 2.1, 2.3), and runs the fail-fast
+    # Consistency_Guard (Phase 1, task 9.1 — an inconsistent environment raises and
+    # refuses to start). validate_function_registry() already ran at import; this
+    # adds environment validation to the startup-check sequence.
+    from environment.bootstrap import bootstrap_environment
+
+    bootstrap_environment(app)
 
     # Validate routes before starting
     if not check_route_conflicts(app):

@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
@@ -8,8 +9,10 @@ from dotenv import load_dotenv
 from services.ai_model_registry import RegistryError, resolver
 from services.ai_sanitizer import AISanitizer
 
-# Load environment variables
-load_dotenv()
+# Load environment variables. Pin backend/.env so this import-time load never
+# picks up the repo-root .env (prevents the documented AWS-credential clobber +
+# non-deterministic config).
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 
 class AIExtractor:

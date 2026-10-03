@@ -11,8 +11,11 @@ import type {
   ResendVerificationResponse,
   UpdateEmailResponse,
 } from '@/types/VerificationTypes';
+import { RESOLVED } from '../config/appEnv';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Flask API base URL resolved from APP_ENV (Req 21.2-21.4) — never a hardcoded
+// literal nor hostname-inferred.
+const API_BASE_URL = RESOLVED.flaskApiBaseUrl;
 
 // ============================================================================
 // Helper Functions

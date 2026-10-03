@@ -7,6 +7,11 @@ import {
 } from '@chakra-ui/react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
+import { RESOLVED } from '../config/appEnv';
+
+// Flask API base URL resolved from APP_ENV (Req 21.2-21.4) — never a hardcoded
+// literal nor hostname-inferred.
+const API_BASE_URL = RESOLVED.flaskApiBaseUrl;
 
 interface ValidationRecord {
   status: string;
@@ -47,30 +52,30 @@ const PDFValidation: React.FC = () => {
       console.error('No tenant selected');
       return;
     }
-    
+
     setLoading(true);
     setProgress({ total: 0, ok: 0, failed: 0 });
     setValidationResults([]);
-    
+
     try {
       // Get the auth token
       const { getCurrentAuthTokens } = await import('../services/authService');
       const tokens = await getCurrentAuthTokens();
-      
+
       if (!tokens?.idToken) {
         console.error('No authentication token available');
         setLoading(false);
         return;
       }
-      
+
       // EventSource with auth token and tenant in URL
       const eventSource = new EventSource(
-        `http://localhost:5000/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${currentTenant}&token=${encodeURIComponent(tokens.idToken)}`
+        `${API_BASE_URL}/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${currentTenant}&token=${encodeURIComponent(tokens.idToken)}`
       );
-      
+
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        
+
         if (data.type === 'progress') {
           setProgress({
             total: data.total,
@@ -92,12 +97,12 @@ const PDFValidation: React.FC = () => {
           setLoading(false);
         }
       };
-      
+
       eventSource.onerror = () => {
         eventSource.close();
         setLoading(false);
       };
-      
+
     } catch (error) {
       console.error('Error validating URLs:', error);
       setLoading(false);
@@ -119,18 +124,18 @@ const PDFValidation: React.FC = () => {
     try {
       const response = await authenticatedGet(`/api/pdf/validate-single-url?url=${encodeURIComponent(newUrl)}`, { tenant: currentTenant || undefined });
       const data = await response.json();
-      
+
       if (data.success) {
         if (data.status === 'ok') {
           // Remove all records with the old URL (now fixed)
-          setValidationResults(prev => 
+          setValidationResults(prev =>
             prev.filter(result => result.record.Ref3 !== oldUrl)
           );
         } else {
           // Update status to show new validation result
-          setValidationResults(prev => 
-            prev.map(result => 
-              result.record.Ref3 === oldUrl 
+          setValidationResults(prev =>
+            prev.map(result =>
+              result.record.Ref3 === oldUrl
                 ? { ...result, status: data.status, record: { ...result.record, Ref3: newUrl } }
                 : result
             )
@@ -146,7 +151,7 @@ const PDFValidation: React.FC = () => {
     try {
       const response = await authenticatedPost('/api/pdf/update-record', updateForm, { tenant: currentTenant || undefined });
       const data = await response.json();
-      
+
       if (data.success) {
         onClose();
         // Re-validate the new URL to check if it works
@@ -193,8 +198,8 @@ const PDFValidation: React.FC = () => {
     <Box p={6} bg="gray.900" minH="100vh" color="white">
       <VStack spacing={6} align="stretch">
         <HStack>
-          <Select 
-            value={selectedYear} 
+          <Select
+            value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
             width="120px"
             bg="gray.700"
@@ -216,18 +221,18 @@ const PDFValidation: React.FC = () => {
           <Text color="gray.300" minW="150px">
             Tenant: {currentTenant || 'No tenant selected'}
           </Text>
-          <Button 
-            colorScheme="orange" 
-            onClick={validateUrls} 
+          <Button
+            colorScheme="orange"
+            onClick={validateUrls}
             isLoading={loading}
             isDisabled={!currentTenant}
           >
             Validate PDF URLs
           </Button>
           {validationResults.length > 0 && (
-            <Button 
-              colorScheme="blue" 
-              onClick={validateUrls} 
+            <Button
+              colorScheme="blue"
+              onClick={validateUrls}
               isLoading={loading}
               isDisabled={!currentTenant}
             >
@@ -248,10 +253,10 @@ const PDFValidation: React.FC = () => {
               Validating URLs... {progress.total > 0 ? `${progress.ok + progress.failed}/${progress.total}` : ''}
             </Text>
             {progress.total > 0 && (
-              <Progress 
-                value={(progress.ok + progress.failed) / progress.total * 100} 
-                colorScheme="orange" 
-                size="lg" 
+              <Progress
+                value={(progress.ok + progress.failed) / progress.total * 100}
+                colorScheme="orange"
+                size="lg"
                 mt={2}
                 width="300px"
                 mx="auto"
@@ -276,10 +281,10 @@ const PDFValidation: React.FC = () => {
                 <StatNumber color="red.400">{progress.failed}</StatNumber>
               </Stat>
             </StatGroup>
-            <Progress 
-              value={progress.total > 0 ? ((progress.ok + progress.failed) / progress.total) * 100 : 0} 
-              colorScheme="orange" 
-              size="lg" 
+            <Progress
+              value={progress.total > 0 ? ((progress.ok + progress.failed) / progress.total) * 100 : 0}
+              colorScheme="orange"
+              size="lg"
               mt={2}
             />
           </Box>
@@ -350,7 +355,7 @@ const PDFValidation: React.FC = () => {
                 <FormLabel>Reference Number</FormLabel>
                 <Input
                   value={updateForm.reference_number}
-                  onChange={(e) => setUpdateForm({...updateForm, reference_number: e.target.value})}
+                  onChange={(e) => setUpdateForm({ ...updateForm, reference_number: e.target.value })}
                   bg="gray.700"
                   color="white"
                 />
@@ -359,7 +364,7 @@ const PDFValidation: React.FC = () => {
                 <FormLabel>Document URL (Ref3)</FormLabel>
                 <Input
                   value={updateForm.ref3}
-                  onChange={(e) => setUpdateForm({...updateForm, ref3: e.target.value})}
+                  onChange={(e) => setUpdateForm({ ...updateForm, ref3: e.target.value })}
                   bg="gray.700"
                   color="white"
                 />
@@ -368,7 +373,7 @@ const PDFValidation: React.FC = () => {
                 <FormLabel>Document Name (Ref4)</FormLabel>
                 <Input
                   value={updateForm.ref4}
-                  onChange={(e) => setUpdateForm({...updateForm, ref4: e.target.value})}
+                  onChange={(e) => setUpdateForm({ ...updateForm, ref4: e.target.value })}
                   bg="gray.700"
                   color="white"
                 />

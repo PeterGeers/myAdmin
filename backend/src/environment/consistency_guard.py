@@ -1,0 +1,742 @@
+"""
+Consistency_Guard — verify every plane's resolved wiring matches the active APP_ENV.
+
+S3 / T2 — Implement the cross-plane consistency guard (fail-fast as of Phase 1 /
+task 9.1; report-only in Phase 0).
+
+The Consistency_Guard is the verification component described in design.md §5. It
+compares every observable plane's resolved wiring against the single active
+``APP_ENV`` and reports an inconsistency whenever any surface disagrees — rather than
+letting a mismatch surface later as a silent 401 or a cross-environment call.
+
+Design contract (see `.kiro/specs/Common/test-environment/first-draft/design.md` §5):
+
+- Two dataclasses: :class:`PlaneCheck` (one surface's verdict) and
+  :class:`ConsistencyReport` (the aggregate, with derived ``is_consistent``).
+- Two entry points: a **startup hook** called from app bootstrap, and a **check CLI**
+  (``python -m environment.check`` — see ``check.py``).
+- Half-cutover detection (Req 4.7, 7.5): collect each plane's resolved env label and
+  fail if the set has more than one member.
+
+Error-handling style mirrors ``auth/pool_registry.py`` (fail-fast, no silent
+fallback). Messages name the mismatched surface AND both sides of a mismatch.
+
+**Modes.** :func:`run_consistency_guard` with ``strict=False`` (report-only) LOGS
+inconsistencies via the standard logger but does NOT raise or block.
+:func:`consistency_guard_startup_hook` now uses ``strict=True`` (Phase 1 / task 9.1):
+an inconsistency raises :class:`EnvironmentConfigError` and the Flask unit refuses to
+start. Report-only mode (``strict=False``) remains available for the ``check`` CLI
+and diagnostics.
+
+**Security (Req 6.6).** The guard never prints secret VALUES. The client-secret check
+asserts emptiness without echoing any secret; only non-secret labels/identifiers
+(pool ids, pool labels, URLs) appear in messages.
+
+**Extension points.** Only the checks whose inputs exist in Phase 0 are implemented
+here (Cognito identity, pool-registry membership, identity block, client-secret,
+half-cutover) plus the MySQL target-isolation check (task 12.4) and the Flask API
+base URL check (task 13.1). The SAM API base URL, SAM authorizer pool and DynamoDB
+prefix checks are added by later tasks — clearly-marked TODOs below reference those
+task numbers so they slot in cleanly.
+"""
+
+import logging
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Optional
+
+from .app_env import AppEnv, EnvironmentConfigError
+from .environment_definition import ENVIRONMENT_DEFINITION, EnvironmentDefinition
+from .resolver import ResolvedConfig, resolve
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class PlaneCheck:
+    """One plane's consistency verdict against the active APP_ENV.
+
+    Attributes:
+        plane: The plane/surface name (e.g., ``"cognito_identity"``,
+            ``"pool_registry"``, ``"identity_block"``, ``"client_secret"``,
+            ``"half_cutover"``).
+        resolved_env: The AppEnv this plane's wiring names, or ``None`` when the
+            plane does not resolve to a single environment (e.g., an unregistered
+            pool, or a check that is not env-specific). Used for half-cutover
+            detection — a plane that names a concrete environment contributes its
+            label to the "all planes agree" set.
+        ok: Whether this plane's wiring is consistent with the active APP_ENV.
+        message: Human-readable description. On a mismatch it names BOTH sides
+            (the resolved/expected value and the actual value). Never contains a
+            secret value.
+    """
+
+    plane: str
+    resolved_env: Optional[AppEnv]
+    ok: bool
+    message: str
+
+
+@dataclass(frozen=True)
+class ConsistencyReport:
+    """Aggregate consistency verdict across every checked plane.
+
+    Attributes:
+        active_app_env: The active AppEnv the planes are compared against.
+        checks: The per-plane verdicts, in check order.
+        is_consistent: Derived — ``True`` iff every check is ``ok`` AND every plane
+            that names a concrete environment resolves to the SAME environment
+            (half-cutover detection). A single disagreeing surface makes the whole
+            report inconsistent.
+    """
+
+    active_app_env: AppEnv
+    checks: list[PlaneCheck]
+
+    @property
+    def is_consistent(self) -> bool:
+        """``True`` iff all checks pass and all resolved envs agree.
+
+        Two independent conditions must hold:
+
+        1. Every :class:`PlaneCheck` is ``ok``.
+        2. Every plane that names a concrete environment (``resolved_env is not
+           None``) names the SAME environment — i.e. the set of resolved env labels
+           has at most one member (half-cutover detection, Req 4.7 / 7.5).
+        """
+        if not all(check.ok for check in self.checks):
+            return False
+        resolved_envs = {
+            check.resolved_env
+            for check in self.checks
+            if check.resolved_env is not None
+        }
+        return len(resolved_envs) <= 1
+
+    def format_report(self) -> str:
+        """Render a per-plane, human-readable report (no secret values)."""
+        status = "CONSISTENT" if self.is_consistent else "INCONSISTENT"
+        lines = [
+            f"Environment consistency report (APP_ENV={self.active_app_env.value}): "
+            f"{status}",
+        ]
+        for check in self.checks:
+            mark = "OK  " if check.ok else "FAIL"
+            lines.append(f"  [{mark}] {check.plane}: {check.message}")
+        return "\n".join(lines)
+
+    def failing_checks(self) -> list[PlaneCheck]:
+        """Return only the checks that did not pass (for diagnostics/logging)."""
+        return [check for check in self.checks if not check.ok]
+
+
+def _check_cognito_pool_registered(
+    resolved: ResolvedConfig, registered_issuers: list[str]
+) -> PlaneCheck:
+    """The active resolved Cognito pool must be present in the Pool_Registry.
+
+    Req 4.1, 4.2: the pool required by the active environment must be registered;
+    on a mismatch the message names BOTH the resolved pool and the registered
+    pools (all non-secret identifiers).
+
+    The pool is matched by its id appearing in any registered issuer string (the
+    Cognito issuer URL embeds the pool id, e.g.
+    ``https://cognito-idp.<region>.amazonaws.com/<pool_id>``). This keeps the check
+    robust whether the registry exposes raw pool ids or full issuer URLs.
+    """
+    pool_id = resolved.cognito.pool_id
+    is_registered = any(pool_id in issuer for issuer in registered_issuers)
+    if is_registered:
+        return PlaneCheck(
+            plane="pool_registry",
+            resolved_env=resolved.app_env,
+            ok=True,
+            message=(
+                f"resolved pool '{pool_id}' ({resolved.cognito.pool_label}) is "
+                f"registered in the Pool_Registry"
+            ),
+        )
+    registered = ", ".join(registered_issuers) if registered_issuers else "<none>"
+    return PlaneCheck(
+        plane="pool_registry",
+        # resolved_env left None: an unregistered pool is a membership failure,
+        # not evidence that this plane names a *different* environment, so it must
+        # not be counted as a half-cutover signal.
+        resolved_env=None,
+        ok=False,
+        message=(
+            f"resolved Cognito pool '{pool_id}' ({resolved.cognito.pool_label}) is "
+            f"NOT registered in the Pool_Registry. Registered issuers: {registered}"
+        ),
+    )
+
+
+def _check_frontend_pool_vs_registry(
+    resolved: ResolvedConfig, registered_issuers: list[str]
+) -> PlaneCheck:
+    """The frontend-selected Cognito pool must be present in the backend registry.
+
+    Req 4.2: the pool the FRONTEND build selects for this APP_ENV must be one the
+    backend accepts. The frontend and backend read the SAME committed
+    Environment_Definition, so the backend can compute exactly which pool the
+    frontend build for the active APP_ENV would select — it is the same
+    ``cognito.pool_id`` the resolver already produces (the frontend
+    ``aws-exports`` selects its pool from the resolved APP_ENV, not from hostname,
+    per task 5). This check frames the comparison from the frontend-selected side:
+    it asserts that frontend-selected pool is registered among the backend's
+    issuers, and on a mismatch names BOTH the frontend-selected pool and the
+    registered pools.
+
+    This is intentionally a DISTINCT check from ``pool_registry`` even though both
+    resolve to the same pool id today: the two checks guard different seams. The
+    ``pool_registry`` check (Req 4.1) answers "does the backend's own resolved pool
+    live in its registry"; this check (Req 4.2) answers "does the pool the frontend
+    build hands the backend live in that registry" — framed from the frontend's
+    perspective so a future divergence between the two selection paths (e.g. a
+    frontend pinned to a stale definition) surfaces as its own named failure rather
+    than hiding behind the backend-side check.
+
+    The pool is matched by its id appearing in any registered issuer string (the
+    Cognito issuer URL embeds the pool id), mirroring
+    :func:`_check_cognito_pool_registered`.
+    """
+    frontend_pool_id = resolved.cognito.pool_id  # same definition the frontend reads
+    is_registered = any(frontend_pool_id in issuer for issuer in registered_issuers)
+    if is_registered:
+        return PlaneCheck(
+            plane="frontend_pool_vs_registry",
+            resolved_env=resolved.app_env,
+            ok=True,
+            message=(
+                f"frontend-selected pool '{frontend_pool_id}' "
+                f"({resolved.cognito.pool_label}) for APP_ENV="
+                f"{resolved.app_env.value} is registered in the backend "
+                f"Pool_Registry"
+            ),
+        )
+    registered = ", ".join(registered_issuers) if registered_issuers else "<none>"
+    return PlaneCheck(
+        plane="frontend_pool_vs_registry",
+        # resolved_env left None: an unregistered pool is a membership failure, not
+        # evidence this plane names a *different* environment, so it must not be
+        # counted as a half-cutover signal (mirrors _check_cognito_pool_registered).
+        resolved_env=None,
+        ok=False,
+        message=(
+            f"frontend-selected Cognito pool '{frontend_pool_id}' "
+            f"({resolved.cognito.pool_label}) for APP_ENV="
+            f"{resolved.app_env.value} is NOT registered in the backend "
+            f"Pool_Registry. Registered issuers: {registered}"
+        ),
+    )
+
+
+def _check_identity_block(
+    resolved: ResolvedConfig, environ: Mapping[str, str]
+) -> PlaneCheck:
+    """The identity block env vars must name the resolved pool/client.
+
+    Req 4.3, 7.2: ``COGNITO_USER_POOL_ID`` / ``COGNITO_CLIENT_ID`` must match the
+    pool/client that the active APP_ENV resolves to. On a mismatch the message names
+    both the resolved and the actual (env) values (all non-secret identifiers).
+    """
+    expected_pool = resolved.cognito.pool_id
+    expected_client = resolved.cognito.client_id
+    actual_pool = (environ.get("COGNITO_USER_POOL_ID") or "").strip()
+    actual_client = (environ.get("COGNITO_CLIENT_ID") or "").strip()
+
+    mismatches = []
+    if actual_pool and actual_pool != expected_pool:
+        mismatches.append(
+            f"COGNITO_USER_POOL_ID='{actual_pool}' but APP_ENV resolves to "
+            f"'{expected_pool}'"
+        )
+    if actual_client and actual_client != expected_client:
+        mismatches.append(
+            f"COGNITO_CLIENT_ID='{actual_client}' but APP_ENV resolves to "
+            f"'{expected_client}'"
+        )
+
+    if mismatches:
+        return PlaneCheck(
+            plane="identity_block",
+            # A set identity block that names a different pool is a genuine
+            # "this plane resolves elsewhere" signal, but we cannot map an
+            # arbitrary pool id back to an AppEnv here, so flag the failure
+            # without contributing a (possibly wrong) env label.
+            resolved_env=None,
+            ok=False,
+            message="; ".join(mismatches),
+        )
+
+    # When the identity block is unset we treat it as consistent (nothing to
+    # contradict) — fail-fast on *conflict*, not on absence, in report-only phase.
+    if not actual_pool and not actual_client:
+        detail = "identity block (COGNITO_USER_POOL_ID/CLIENT_ID) is unset"
+    else:
+        detail = (
+            f"identity block names pool '{expected_pool}' / client "
+            f"'{expected_client}', matching APP_ENV"
+        )
+    return PlaneCheck(
+        plane="identity_block",
+        resolved_env=resolved.app_env,
+        ok=True,
+        message=detail,
+    )
+
+
+def _check_client_secret(
+    resolved: ResolvedConfig, environ: Mapping[str, str]
+) -> PlaneCheck:
+    """The test pool must have an empty client secret.
+
+    Req 7.3, 8.4: when the resolved pool is the test pool, ``COGNITO_CLIENT_SECRET``
+    must be empty (the test app-client has no secret).
+
+    Security (Req 6.6): this asserts emptiness only — it NEVER echoes the secret
+    value. On failure it reports that a non-empty secret is set, not what it is.
+    """
+    if resolved.app_env != AppEnv.TEST:
+        return PlaneCheck(
+            plane="client_secret",
+            resolved_env=resolved.app_env,
+            ok=True,
+            message=(
+                "client-secret emptiness check applies to the test pool only; "
+                "APP_ENV is production"
+            ),
+        )
+
+    secret = environ.get("COGNITO_CLIENT_SECRET")
+    secret_is_empty = secret is None or secret.strip() == ""
+    if secret_is_empty:
+        return PlaneCheck(
+            plane="client_secret",
+            resolved_env=resolved.app_env,
+            ok=True,
+            message="test pool has an empty COGNITO_CLIENT_SECRET as required",
+        )
+    return PlaneCheck(
+        plane="client_secret",
+        resolved_env=resolved.app_env,
+        ok=False,
+        # Non-secret message: assert the violation without revealing the value.
+        message=(
+            "resolved pool is the test pool but COGNITO_CLIENT_SECRET is non-empty; "
+            "the test app-client has no secret, so it must be empty"
+        ),
+    )
+
+
+def _check_mysql_target(
+    resolved: ResolvedConfig, definition: EnvironmentDefinition
+) -> PlaneCheck:
+    """The resolved TEST MySQL target must differ from the resolved PRODUCTION one.
+
+    Req 9.3, 9.5, 9.6: the MySQL plane isolates TEST from PRODUCTION by being
+    SEPARATE resolved targets with SEPARATE credentials — the boundary is enforced
+    by distinct targets, not assumed from physical hosting. So even if the two
+    targets were later co-hosted, they must still name different connection
+    identities/credentials. This check compares the TWO resolved targets from the
+    definition and fails if the active (TEST) connection would resolve to the
+    SAME target+credentials as PRODUCTION (Req 9.5), or if either schema is not
+    ``finance`` (Req 9.2).
+
+    The comparison is over the resolved connection REFERENCES (``host_ref``,
+    ``port_ref``, ``user_ref``, ``password_ref``) plus ``target_label`` — the
+    non-secret identity of each target. Secret VALUES are never read or echoed
+    (Req 6.6): two targets that merely share a password_ref ENV-VAR NAME are
+    treated as sharing credentials, which is the stricter, safe reading.
+
+    The check contributes ``resolved_env`` so it participates in half-cutover
+    detection like the other plane checks.
+    """
+    test_target = resolve(AppEnv.TEST, definition).mysql
+    prod_target = resolve(AppEnv.PRODUCTION, definition).mysql
+
+    def _identity(t) -> tuple:
+        return (t.host_ref, t.port_ref, t.user_ref, t.password_ref)
+
+    # Req 9.2: schema must be `finance` for both environments.
+    bad_schema = [
+        f"{label} schema is '{schema}', expected 'finance'"
+        for label, schema in (
+            ("TEST", test_target.schema),
+            ("PRODUCTION", prod_target.schema),
+        )
+        if schema != "finance"
+    ]
+    if bad_schema:
+        return PlaneCheck(
+            plane="mysql_target",
+            resolved_env=resolved.app_env,
+            ok=False,
+            message="; ".join(bad_schema),
+        )
+
+    # Req 9.5/9.6: the two resolved targets must be distinct in identity+credentials.
+    if _identity(test_target) == _identity(prod_target):
+        return PlaneCheck(
+            plane="mysql_target",
+            resolved_env=resolved.app_env,
+            ok=False,
+            message=(
+                "resolved TEST MySQL target is NOT isolated from the resolved "
+                "PRODUCTION target: both resolve to the same connection identity "
+                f"(host_ref='{test_target.host_ref}', port_ref="
+                f"'{test_target.port_ref}', user_ref='{test_target.user_ref}', "
+                f"password_ref='{test_target.password_ref}'). The TEST and "
+                "PRODUCTION targets must be separate targets with separate "
+                "credentials (schema 'finance' for both)"
+            ),
+        )
+
+    # Req 9.3: the ACTIVE resolved target must be the one the active APP_ENV
+    # declares — i.e. APP_ENV=test resolves to the TEST target (not PROD) and
+    # vice-versa. Since TEST≠PROD is already asserted above, comparing the active
+    # resolved identity to the expected-env target catches a resolver that handed
+    # back the wrong environment's connection for the active APP_ENV.
+    active_target = resolved.mysql
+    expected_target = test_target if resolved.app_env == AppEnv.TEST else prod_target
+    other_target = prod_target if resolved.app_env == AppEnv.TEST else test_target
+    if _identity(active_target) != _identity(expected_target):
+        return PlaneCheck(
+            plane="mysql_target",
+            # The active target names the other environment's connection — a genuine
+            # "this plane resolves elsewhere" signal, but we flag it as a failure
+            # rather than contributing a (wrong) env label to the half-cutover set.
+            resolved_env=None,
+            ok=False,
+            message=(
+                f"resolved MySQL target for APP_ENV={resolved.app_env.value} does "
+                f"not match the {expected_target.target_label} target declared in "
+                f"the Environment_Definition: active resolves to host_ref="
+                f"'{active_target.host_ref}', user_ref='{active_target.user_ref}' "
+                f"but APP_ENV={resolved.app_env.value} expects host_ref="
+                f"'{expected_target.host_ref}', user_ref='{expected_target.user_ref}'"
+            ),
+        )
+
+    return PlaneCheck(
+        plane="mysql_target",
+        resolved_env=resolved.app_env,
+        ok=True,
+        message=(
+            f"resolved MySQL target '{active_target.target_label}' (schema "
+            f"'{active_target.schema}', host_ref='{active_target.host_ref}') for "
+            f"APP_ENV={resolved.app_env.value} matches the active env and is "
+            f"isolated from the {other_target.target_label} target by a distinct "
+            "connection identity and credentials"
+        ),
+    )
+
+
+def _check_flask_api_base_url(
+    resolved: ResolvedConfig, definition: EnvironmentDefinition
+) -> PlaneCheck:
+    """The resolved Flask API base URL the frontend calls must match APP_ENV.
+
+    Req 21.5, 21.6: the Flask API base URL the Frontend_Plane calls is resolved
+    from ``APP_ENV`` (parallel to the SAM API base URL). The guard verifies the
+    active resolved URL is the one the Environment_Definition declares for the
+    active env, and that the TEST and PRODUCTION Flask URLs differ — so a frontend
+    built for one env calling a backend started for the other surfaces as a
+    half-cutover (their resolved URLs disagree).
+
+    Both the frontend and backend read the SAME committed Environment_Definition,
+    so the backend can compute the expected Flask URL for the active APP_ENV and
+    assert the resolved value equals the definition's value for that env (and
+    differs from the other env's). On a mismatch the message names BOTH sides —
+    the resolved/active URL and the expected (or other-env) URL. Flask API base
+    URLs are non-secret, so they appear in messages (Req 6.6 is satisfied: no
+    secret VALUE is read or echoed).
+
+    Contributes ``resolved_env`` so it participates in half-cutover detection like
+    the other plane checks.
+    """
+    test_url = resolve(AppEnv.TEST, definition).flask_api_base_url
+    prod_url = resolve(AppEnv.PRODUCTION, definition).flask_api_base_url
+
+    expected_url = test_url if resolved.app_env == AppEnv.TEST else prod_url
+    other_env = "PRODUCTION" if resolved.app_env == AppEnv.TEST else "TEST"
+    other_url = prod_url if resolved.app_env == AppEnv.TEST else test_url
+    active_url = resolved.flask_api_base_url
+
+    # Req 21.5/21.6: the TEST and PROD resolved Flask URLs must differ, otherwise
+    # the frontend cannot be told apart per-environment and the boundary collapses.
+    if test_url == prod_url:
+        return PlaneCheck(
+            plane="flask_api_base_url",
+            resolved_env=resolved.app_env,
+            ok=False,
+            message=(
+                "resolved TEST and PRODUCTION Flask API base URLs are identical "
+                f"('{test_url}'); the Frontend_Plane cannot be isolated per "
+                "environment. The two environments must resolve to distinct Flask "
+                "API base URLs"
+            ),
+        )
+
+    # The active resolved URL must be the one declared for the active APP_ENV.
+    if active_url != expected_url:
+        return PlaneCheck(
+            plane="flask_api_base_url",
+            # Names the other env's URL — a "resolves elsewhere" signal, flagged as
+            # a failure rather than contributing a wrong env label to the cutover set.
+            resolved_env=None,
+            ok=False,
+            message=(
+                f"resolved Flask API base URL for APP_ENV={resolved.app_env.value} "
+                f"is '{active_url}', but APP_ENV={resolved.app_env.value} expects "
+                f"'{expected_url}'"
+                + (
+                    f" (that is the {other_env} URL)"
+                    if active_url == other_url
+                    else ""
+                )
+            ),
+        )
+
+    return PlaneCheck(
+        plane="flask_api_base_url",
+        resolved_env=resolved.app_env,
+        ok=True,
+        message=(
+            f"resolved Flask API base URL '{active_url}' matches APP_ENV="
+            f"{resolved.app_env.value} and differs from the {other_env} URL "
+            f"'{other_url}'"
+        ),
+    )
+
+
+def build_consistency_report(
+    app_env: AppEnv,
+    *,
+    definition: EnvironmentDefinition = ENVIRONMENT_DEFINITION,
+    environ: Optional[Mapping[str, str]] = None,
+    registered_issuers: Optional[list[str]] = None,
+) -> ConsistencyReport:
+    """Build a :class:`ConsistencyReport` for the active APP_ENV.
+
+    This is the pure-logic core of the guard: it resolves the configuration for
+    ``app_env`` and runs each Phase-0 plane check, returning the aggregate report.
+    It performs NO I/O beyond reading the injected ``environ`` mapping — it does not
+    touch AWS, the database, or raise on inconsistency (the startup hook / CLI decide
+    what to do with the verdict).
+
+    Args:
+        app_env: The active environment selector.
+        definition: The Environment_Definition source of truth (injectable for tests;
+            defaults to the committed :data:`ENVIRONMENT_DEFINITION`).
+        environ: Environment mapping for the identity-block and client-secret checks
+            (defaults to :data:`os.environ`). Injectable for tests.
+        registered_issuers: The Pool_Registry's registered issuers. When ``None``,
+            the registry is loaded from the environment via
+            :func:`auth.pool_registry.load_pool_registry`; a registry-load failure is
+            captured as a failing ``pool_registry`` check rather than propagated, so
+            the guard can still report the other planes in report-only mode.
+
+    Returns:
+        A :class:`ConsistencyReport` with one :class:`PlaneCheck` per surface.
+    """
+    env = os.environ if environ is None else environ
+    resolved = resolve(app_env, definition)
+
+    checks: list[PlaneCheck] = []
+
+    # Cognito identity resolves from APP_ENV by construction (resolver guarantees it);
+    # record it so the report explicitly states the resolved pool for this env.
+    checks.append(
+        PlaneCheck(
+            plane="cognito_identity",
+            resolved_env=resolved.app_env,
+            ok=True,
+            message=(
+                f"resolved Cognito pool '{resolved.cognito.pool_id}' "
+                f"({resolved.cognito.pool_label}) for APP_ENV="
+                f"{resolved.app_env.value}"
+            ),
+        )
+    )
+
+    # Pool-registry membership (Req 4.1, 4.2).
+    if registered_issuers is None:
+        registered_issuers = _load_registered_issuers()
+        if registered_issuers is None:
+            checks.append(
+                PlaneCheck(
+                    plane="pool_registry",
+                    resolved_env=None,
+                    ok=False,
+                    message=(
+                        "could not load the Pool_Registry (COGNITO_POOL_KEYS "
+                        "unconfigured or incomplete); cannot verify that the "
+                        f"resolved pool '{resolved.cognito.pool_id}' is registered"
+                    ),
+                )
+            )
+            registered_issuers = []
+        else:
+            checks.append(
+                _check_cognito_pool_registered(resolved, registered_issuers)
+            )
+    else:
+        checks.append(_check_cognito_pool_registered(resolved, registered_issuers))
+
+    # Frontend-selected pool vs backend registry (Req 4.2). Framed from the
+    # frontend-selected side: the pool the frontend build for this APP_ENV selects
+    # (the same resolved pool id, since both read the committed definition) must be
+    # registered among the backend's issuers. `registered_issuers` is now resolved
+    # (either injected, loaded, or [] when the registry could not be loaded).
+    checks.append(_check_frontend_pool_vs_registry(resolved, registered_issuers))
+
+    # Identity block (Req 4.3, 7.2).
+    checks.append(_check_identity_block(resolved, env))
+
+    # Test pool => empty client secret (Req 7.3, 8.4).
+    checks.append(_check_client_secret(resolved, env))
+
+    # MySQL plane: resolved TEST target must differ from PRODUCTION target in
+    # identity + credentials (task 12.4; Req 9.3, 9.5, 9.6). Contributes
+    # resolved_env so it joins the half-cutover set below.
+    checks.append(_check_mysql_target(resolved, definition))
+
+    # Flask API base URL the frontend calls matches APP_ENV (task 13.1; Req 21.5,
+    # 21.6). The active resolved Flask URL must equal the definition's URL for the
+    # active env, and the TEST/PROD URLs must differ. Contributes resolved_env so
+    # it joins the half-cutover set below.
+    checks.append(_check_flask_api_base_url(resolved, definition))
+
+    # --- Extension points (inputs not available in Phase 0) ---
+    # TODO(task 24.2): SAM API base URL clients call matches APP_ENV (Req 4.4, 14.4).
+    # TODO(task 24.1): SAM authorizer pool matches APP_ENV (Req 14.4, 14.5).
+    # TODO(task 24.3): DynamoDB table prefix matches APP_ENV (Req 10.2, 19.4).
+    # Each will append a PlaneCheck with resolved_env set so it participates in the
+    # half-cutover set below.
+
+    return ConsistencyReport(active_app_env=app_env, checks=checks)
+
+
+def _load_registered_issuers() -> Optional[list[str]]:
+    """Load the Pool_Registry's registered issuers, or ``None`` on failure.
+
+    Isolated so the guard degrades gracefully in report-only mode: a
+    misconfigured/absent registry becomes a reportable finding, not a crash. The
+    import is local to avoid a hard import-time dependency on the auth package for
+    callers that inject ``registered_issuers`` directly (e.g. unit tests).
+    """
+    try:
+        from auth.pool_registry import PoolRegistryError, load_pool_registry
+    except ImportError:  # pragma: no cover - defensive, auth pkg should be importable
+        return None
+    try:
+        registry = load_pool_registry()
+    except PoolRegistryError:
+        return None
+    return registry.issuers()
+
+
+def run_consistency_guard(
+    app_env: AppEnv,
+    *,
+    strict: bool = False,
+    definition: EnvironmentDefinition = ENVIRONMENT_DEFINITION,
+    environ: Optional[Mapping[str, str]] = None,
+    registered_issuers: Optional[list[str]] = None,
+) -> ConsistencyReport:
+    """Run the guard and act on the verdict according to ``strict``.
+
+    This is the single behavioural entry point shared by the startup hook and the
+    ``check`` CLI. The ``strict`` flag is the one-line Phase-0→Phase-1 switch:
+
+    - ``strict=False`` (Phase 0, report-only): on an inconsistency it LOGS the full
+      report at ``WARNING`` and the failing checks, but returns normally and does
+      NOT raise. The app still starts (no behaviour change).
+    - ``strict=True`` (Phase 1 / task 9.1): on an inconsistency it raises
+      :class:`EnvironmentConfigError` naming the mismatched surface(s) and both
+      sides, so the running unit refuses to start.
+
+    Args:
+        app_env: The active environment selector.
+        strict: Whether to raise on inconsistency (``True``) or only log (``False``).
+        definition: Environment_Definition source of truth (injectable for tests).
+        environ: Environment mapping (defaults to :data:`os.environ`).
+        registered_issuers: Injectable Pool_Registry issuers (loaded if ``None``).
+
+    Returns:
+        The :class:`ConsistencyReport`.
+
+    Raises:
+        EnvironmentConfigError: Only when ``strict=True`` and the report is
+            inconsistent.
+    """
+    report = build_consistency_report(
+        app_env,
+        definition=definition,
+        environ=environ,
+        registered_issuers=registered_issuers,
+    )
+
+    if report.is_consistent:
+        logger.info(
+            "Environment consistency guard: all planes agree (APP_ENV=%s)",
+            app_env.value,
+        )
+        return report
+
+    # Inconsistent.
+    failing = report.failing_checks()
+    failing_summary = "; ".join(
+        f"{check.plane}: {check.message}" for check in failing
+    ) or "half-cutover: planes resolve to more than one environment"
+
+    if strict:
+        raise EnvironmentConfigError(
+            f"Environment consistency check failed for APP_ENV="
+            f"{app_env.value}. {failing_summary}"
+        )
+
+    # Report-only: log loudly but do not block.
+    logger.warning(
+        "Environment consistency guard found inconsistencies (report-only; "
+        "APP_ENV=%s):\n%s",
+        app_env.value,
+        report.format_report(),
+    )
+    return report
+
+
+def consistency_guard_startup_hook(
+    app_env: AppEnv,
+    *,
+    environ: Optional[Mapping[str, str]] = None,
+) -> ConsistencyReport:
+    """App-bootstrap hook — runs the guard in FAIL-FAST mode (Phase 1, task 9.1).
+
+    Call this from the Flask app bootstrap after the active ``APP_ENV`` is parsed.
+    On an inconsistency it raises :class:`EnvironmentConfigError` naming the
+    mismatched surface(s) and both sides, so the running unit refuses to start
+    rather than letting the drift surface later as a silent 401 or a
+    cross-environment call. A CONSISTENT environment returns normally.
+
+    This is the Phase-0→Phase-1 flip (task 9.1): the hook now passes
+    ``strict=True`` to :func:`run_consistency_guard`. It only runs on the real
+    startup paths (``wsgi.py`` / ``app.py`` ``__main__``), never at import time, so
+    importing the app for tests still never triggers the parse or the guard (see
+    ``bootstrap.py`` module docstring).
+
+    Args:
+        app_env: The active environment selector (already parsed from ``APP_ENV``).
+        environ: Environment mapping (defaults to :data:`os.environ`).
+
+    Returns:
+        The :class:`ConsistencyReport` (also logged) when the environment is
+        consistent.
+
+    Raises:
+        EnvironmentConfigError: When the report is inconsistent — the unit refuses
+            to start.
+    """
+    return run_consistency_guard(app_env, strict=True, environ=environ)
