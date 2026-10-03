@@ -110,10 +110,14 @@ export const PROD_FRONTEND_CONFIG: FrontendPlaneDef = {
   cognito: {
     poolId: PROD_POOL_ID,
     clientId: PROD_CLIENT_ID,
-    clientSecretRef: 'PLACEHOLDER_CLIENT_SECRET', // placeholder — frontend holds no secret
+    clientSecretRef: 'PLACEHOLDER_CLIENT_SECRET', // SECRET reference only; the frontend
+  // holds NO secret. MUST stay a placeholder in committed source (Req 3.6 / 19.1).
     poolLabel: 'myAdmin',
   },
-  flaskApiBaseUrl: 'https://PLACEHOLDER_PRODUCTION_FLASK_API', // PROD Flask API URL
+  // PROD Flask API base URL — a Railway-managed RUNTIME value, NOT a committed literal.
+  // The SPA calls the backend via the VITE_API_URL build secret; this field is only a
+  // reference marker mirroring the backend definition (Phase 6 Task 42, Option A).
+  flaskApiBaseUrl: 'railway-managed://VITE_API_URL',
   // SAM plane is per MODULE; this records the members module (the one with an
   // HTTP API). stackName is the live members PROD stack; apiBaseUrl is the
   // deployed sam-members API Gateway invoke URL (see deploy-frontend.yml
