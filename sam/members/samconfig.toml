@@ -46,3 +46,43 @@ parameter_overrides = [
   # SAM CLI parameter_overrides parser. Omitting it => the template's empty default => the
   # DynamoDB client talks to real AWS (no endpoint override). Do NOT re-add an empty entry.
 ]
+
+# --- TEST (data account 506221081911, eu-west-1) --------------------------------------
+# The TEST stack is a FULL sibling of prod — its own CloudFormation stack
+# (`test_sam-members`), its own TEST API Gateway (distinct invoke URL), its own
+# `test_`-prefixed DynamoDB tables, and the TEST Cognito pool as the authorizer. It
+# deploys to the SAME data account as prod (506221081911) via the same OIDC role; the
+# environment boundary is the `test_` table prefix + the test pool, NOT a separate
+# account. `Stage=test` makes the Lambda carry APP_ENV=test (StageToAppEnv mapping) and
+# names every resource `members-test`, so TEST and PROD cannot collide or drift.
+#
+# COGNITO (TEST): the authorizer + verified-auth edge use the **myAdmin-test** pool
+# `eu-west-1_xyrlzfqbl` in the PERSONAL account (344561557829) — the test app-client
+# `43s15cm8qcgg8an85udt0e087u` (no client secret, Req 8.4). PUBLIC identifiers only.
+#
+# TABLES (TEST): `test_sam-members` (member CRUD) + `test_governance_projection` (scope
+# config/grants). There is NO shared projection with prod — the TEST projection is its
+# own table, populated operationally (local-Docker seed or a one-way PROD->TEST copy),
+# because a projection can legitimately deviate over time (user decision).
+[test.deploy.parameters]
+stack_name = "test_sam-members"
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3 = true
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = [
+  "Stage=test",
+  "MembersTableName=test_sam-members",
+  "GovernanceProjectionTableName=test_governance_projection",
+  "Region=eu-west-1",
+  "CognitoUserPoolArn=arn:aws:cognito-idp:eu-west-1:344561557829:userpool/eu-west-1_xyrlzfqbl",
+  # Verified-auth edge pool registry (key MYADMIN) — the myAdmin-TEST pool, PUBLIC identifiers.
+  "CognitoPoolKeys=MYADMIN",
+  "MyAdminCognitoIssuer=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_xyrlzfqbl",
+  "MyAdminCognitoJwksUri=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_xyrlzfqbl/.well-known/jwks.json",
+  "MyAdminCognitoClientId=43s15cm8qcgg8an85udt0e087u",
+  "MyAdminCognitoPoolLabel=myAdmin-test",
+  # NOTE: DynamoDbEndpointUrl is LOCAL-ONLY — omitted here (same as prod) so the TEST
+  # Lambda talks to real AWS DynamoDB (the `test_`-prefixed tables), not a local emulator.
+]
