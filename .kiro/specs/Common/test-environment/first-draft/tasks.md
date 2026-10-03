@@ -128,11 +128,11 @@ The implementation involves:
   - [x] 16.5 Update paired tests for each touched route (change-with-tests)
   - _Requirements: 1.6, 2.6_
 
-- [ ] 17. Remove `test_mode` parameter (Step 3)
-  - [ ] 17.1 Drop `test_mode` kwarg from `DatabaseManager` and all service constructors
-  - [ ] 17.2 Refactor test fixtures `test_environment`/`production_environment` to set `APP_ENV`
-  - [ ] 17.3 Update migration scripts to use `APP_ENV` instead of `TEST_MODE`
-  - [ ] 17.4 Clean up remaining `test_mode` references across codebase
+- [x] 17. Remove `test_mode` parameter (Step 3)
+  - [x] 17.1 Drop `test_mode` kwarg from `DatabaseManager` and all service constructors
+  - [x] 17.2 Refactor test fixtures `test_environment`/`production_environment` to set `APP_ENV`
+  - [x] 17.3 Update migration scripts to use `APP_ENV` instead of `TEST_MODE`
+  - [x] 17.4 Clean up remaining `test_mode` references across codebase
   - _Requirements: 2.6_
 
 - [ ] 18. Checkpoint - `test_mode` migration complete
