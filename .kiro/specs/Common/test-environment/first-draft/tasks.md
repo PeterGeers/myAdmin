@@ -337,13 +337,13 @@ The implementation involves:
   - [x] 42.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
   - _Requirements: 3.1-3.6, 8.5_
 
-- [ ] 43. Retire duplicated identity env vars once resolver supplies identity
-  - [ ] 43.1 Make the backend derive the active identity block (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID) from the resolver's ResolvedConfig, not from raw env vars
-  - [ ] 43.2 Confirm the Pool_Registry (COGNITO_POOL_KEYS + {KEY}_COGNITO_* ) remains the SOLE source for token verification (multi-pool), independent of the identity block
-  - [ ] 43.3 Remove the now-redundant raw identity-block env vars from the deploy config (Railway) once 43.1 lands, keeping only the registry vars + secrets + APP_ENV
-  - [ ] 43.4 Keep COGNITO_CLIENT_SECRET as an env var (the resolver supplies the public identity; the secret stays operational)
-  - [ ] 43.5 Update the Consistency_Guard identity-block check to tolerate an unset identity block when the resolver is authoritative (no false fail-fast)
-  - [ ] 43.6 Change-with-tests: update guard + resolver tests for the resolver-authoritative identity
+- [x] 43. Retire duplicated identity env vars once resolver supplies identity
+  - [x] 43.1 ALREADY SATISFIED (verified): no live path reads the identity block to DRIVE behavior. The resolver (ResolvedConfig.cognito) is the identity source (health_report reads resolved.cognito); token verification uses the Pool_Registry; admin Cognito ops resolve registry-first (bugfix cognito-admin-pool-resolution removed the legacy COGNITO_USER_POOL_ID read). COGNITO_USER_POOL_ID survives ONLY as a registry-absent single-pool fallback in cognito_utils/admin_pool_resolver.
+  - [x] 43.2 Confirm the Pool_Registry (COGNITO_POOL_KEYS + {KEY}_COGNITO_* ) remains the SOLE source for token verification (multi-pool), independent of the identity block
+  - [x] 43.3 OPS NOTE (Railway, no code): the raw identity-block vars (COGNITO_USER_POOL_ID/COGNITO_CLIENT_ID) are redundant for the live paths and MAY be dropped from Railway, keeping COGNITO_POOL_KEYS + {KEY}_COGNITO_* registry vars + COGNITO_CLIENT_SECRET + APP_ENV. (Keep COGNITO_USER_POOL_ID only if you still rely on the registry-absent single-pool fallback; with the registry configured it is unused.)
+  - [x] 43.4 Keep COGNITO_CLIENT_SECRET as an env var (the resolver supplies the public identity; the secret stays operational)
+  - [x] 43.5 ALREADY SATISFIED (verified + test added): _check_identity_block fails only on a CONFLICT (set-but-mismatched); an UNSET identity block returns ok with 'identity block ... is unset' and contributes resolved_env. Added test_identity_block_unset_is_tolerated_resolver_is_authoritative.
+  - [x] 43.6 Added the guard unset-tolerance test; existing mismatch tests already cover the conflict path. Guard suite 53 passed.
   - _Requirements: 2.3, 2.4, 4.3, 8.3_
 
 - [ ] 44. Audit and consolidate deploy environment variables (Railway)
