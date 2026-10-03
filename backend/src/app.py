@@ -128,8 +128,10 @@ from shared_limiter import init_limiter
 init_limiter(app)
 
 # MODE CONFIGURATION
-# Set flag = True for TEST mode (uses mutaties_test table, local storage)
-# Set flag = False for PRODUCTION mode (uses mutaties table, Google Drive)
+# DEPRECATED: `flag` no longer selects a TEST vs PROD environment or a
+# `mutaties_test` table. The environment is selected by APP_ENV (schema is always
+# `finance`); this flag is retained only for the legacy set_test_mode(...) wiring
+# below and is removed with the rest of the `test_mode` plumbing in Phase-3 task 17.
 flag = False
 
 # Initialize scalability manager early

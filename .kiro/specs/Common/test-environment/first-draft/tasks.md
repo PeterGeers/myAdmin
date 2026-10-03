@@ -113,19 +113,19 @@ The implementation involves:
 
 ### Phase 3: `test_mode` removal (staged refactor)
 
-- [ ] 15. Neutralize `test_mode` selector (Step 1: shim)
-  - [ ] 15.1 Update `DatabaseManager.__init__` to ignore `test_mode` for environment selection
-  - [ ] 15.2 Add deprecation warning when `test_mode` is passed but ignored
-  - [ ] 15.3 Keep `test_mode` parameter signature for backward compatibility
-  - [ ] 15.4 Write property test for `test_mode` no longer selecting environment (Property 6)
+- [x] 15. Neutralize `test_mode` selector (Step 1: shim)
+  - [x] 15.1 Update `DatabaseManager.__init__` to ignore `test_mode` for environment selection
+  - [x] 15.2 Add deprecation warning when `test_mode` is passed but ignored
+  - [x] 15.3 Keep `test_mode` parameter signature for backward compatibility
+  - [x] 15.4 Write property test for `test_mode` no longer selecting environment (Property 6)
   - _Requirements: 2.6_
 
-- [ ] 16. Collapse request-driven `test_mode` (Step 2)
-  - [ ] 16.1 Update `reporting_routes` to stop reading `testMode` from request args
-  - [ ] 16.2 Update `str_channel_routes` to stop defaulting `test_mode=True`
-  - [ ] 16.3 Update all other services reading `test_mode` from request or kwargs
-  - [ ] 16.4 Remove `mutaties_test`/`testfinance` table/schema switches
-  - [ ] 16.5 Update paired tests for each touched route (change-with-tests)
+- [x] 16. Collapse request-driven `test_mode` (Step 2)
+  - [x] 16.1 Update `reporting_routes` to stop reading `testMode` from request args
+  - [x] 16.2 Update `str_channel_routes` to stop defaulting `test_mode=True`
+  - [x] 16.3 Update all other services reading `test_mode` from request or kwargs
+  - [x] 16.4 Remove `mutaties_test`/`testfinance` table/schema switches
+  - [x] 16.5 Update paired tests for each touched route (change-with-tests)
   - _Requirements: 1.6, 2.6_
 
 - [ ] 17. Remove `test_mode` parameter (Step 3)

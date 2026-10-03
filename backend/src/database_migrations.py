@@ -214,11 +214,9 @@ class DatabaseMigration:
         """Run database optimization queries"""
         optimizations = [
             "OPTIMIZE TABLE mutaties",
-            "OPTIMIZE TABLE mutaties_test",
             "OPTIMIZE TABLE bnb",
             "OPTIMIZE TABLE bnbplanned",
             "ANALYZE TABLE mutaties",
-            "ANALYZE TABLE mutaties_test",
             "ANALYZE TABLE bnb",
             "ANALYZE TABLE bnbplanned",
         ]
@@ -235,7 +233,7 @@ class DatabaseMigration:
 
     def check_indexes(self):
         """Check and report on database indexes"""
-        tables = ["mutaties", "mutaties_test", "bnb", "bnbplanned"]
+        tables = ["mutaties", "bnb", "bnbplanned"]
 
         index_report = []
         for table in tables:
@@ -268,13 +266,10 @@ class DatabaseMigration:
     def create_recommended_indexes(self):
         """Create recommended indexes for performance"""
         recommended_indexes = [
-            # For mutaties tables
+            # For mutaties table
             ("mutaties", "idx_transaction_date", "TransactionDate"),
             ("mutaties", "idx_ref1_ref2", "Ref1, Ref2"),
             ("mutaties", "idx_administration", "Administration"),
-            ("mutaties_test", "idx_transaction_date", "TransactionDate"),
-            ("mutaties_test", "idx_ref1_ref2", "Ref1, Ref2"),
-            ("mutaties_test", "idx_administration", "Administration"),
             # For bnb tables
             ("bnb", "idx_checkin_date", "checkinDate"),
             ("bnb", "idx_listing", "listing"),

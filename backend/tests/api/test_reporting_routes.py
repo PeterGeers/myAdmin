@@ -40,18 +40,14 @@ from flask import Flask
 class TestReportingService:
     
     @patch('reporting_routes.DatabaseManager')
-    def test_init_production_mode(self, mock_db):
-        service = ReportingService(test_mode=False)
-        
+    def test_init_uses_fixed_mutaties_table(self, mock_db):
+        # Phase-3 task 16: `test_mode` is removed from ReportingService. The schema
+        # is always `finance` (environment selected by APP_ENV), so the table name
+        # is fixed to `mutaties` — there is no `mutaties_test` switch anymore.
+        service = ReportingService()
+
         assert service.table_name == 'mutaties'
-        mock_db.assert_called_once_with(test_mode=False)
-    
-    @patch('reporting_routes.DatabaseManager')
-    def test_init_test_mode(self, mock_db):
-        service = ReportingService(test_mode=True)
-        
-        assert service.table_name == 'mutaties_test'
-        mock_db.assert_called_once_with(test_mode=True)
+        mock_db.assert_called_once_with()
     
     @patch('reporting_routes.DatabaseManager')
     def test_get_cursor_context_manager(self, mock_db):
