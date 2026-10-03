@@ -628,3 +628,117 @@ class TestProperty11DatabaseTargetIsolation:
         """
         check = _mysql_target_check(definition, app_env)
         assert "testfinance" not in check.message
+
+
+# ---------------------------------------------------------------------------
+# Property 6: test_mode no longer selects the environment
+# Feature: test-environment, Property 6: test_mode no longer selects the
+#   environment
+# Validates: Requirements 2.6
+# ---------------------------------------------------------------------------
+#
+# Design (§ Testing Strategy, Property 6):
+#   "For any AppEnv value and for any legacy test_mode argument value, the
+#    resolved MySQL target is a function of APP_ENV alone — the resolved target is
+#    unchanged when only test_mode changes."
+#
+# Task 15 (Step 1 shim): DatabaseManager keeps the `test_mode` parameter for
+# backward compatibility but IGNORES it for environment/target selection. The
+# schema is always `finance` and the resolved target comes from APP_ENV (or the
+# legacy DB_* fallback when APP_ENV is unset) — never from `test_mode`. A truthy
+# `test_mode` additionally emits a one-time deprecation warning; the default
+# (False) stays silent.
+#
+# The autouse connection guard in tests/unit/conftest.py forbids a real DB, so
+# mysql.connector.connect / pooling are mocked exactly as the other
+# DatabaseManager unit tests do.
+
+import logging
+from unittest.mock import patch as _patch
+
+from database import DatabaseManager
+
+
+# A DB_* environment that pins a deterministic legacy connection target, so the
+# resolved `config` depends only on this env + APP_ENV — never on `test_mode`.
+_DB_ENV = {
+    "DB_HOST": "db.example.test",
+    "DB_PORT": "3307",
+    "DB_USER": "finance_user",
+    "DB_PASSWORD": "pw-placeholder",
+}
+
+
+class TestProperty6TestModeDoesNotSelectEnvironment:
+    """`test_mode` is a no-op for environment/target selection (Req 2.6).
+
+    The resolved MySQL target (`db.config`) is a function of APP_ENV (and the
+    referenced env vars) ALONE — flipping only `test_mode` never changes it, and
+    the schema is always `finance`.
+    """
+
+    @given(test_mode=st.booleans())
+    @settings(max_examples=50)
+    def test_schema_always_finance_regardless_of_test_mode(
+        self, test_mode: bool
+    ) -> None:
+        """For ANY `test_mode`, the resolved schema is `finance`, never testfinance."""
+        with _patch("database.mysql.connector.connect"), _patch(
+            "database.pooling.MySQLConnectionPool"
+        ), _patch.dict(os.environ, _DB_ENV, clear=False):
+            db = DatabaseManager(test_mode=test_mode)
+        assert db.config["database"] == "finance"
+        assert db.config["database"] != "testfinance"
+
+    @given(app_env=app_env_st)
+    @settings(max_examples=50)
+    def test_resolved_target_unchanged_when_only_test_mode_changes(
+        self, app_env: AppEnv
+    ) -> None:
+        """Under a FIXED APP_ENV, test_mode=True and test_mode=False resolve the
+        IDENTICAL MySQL target — the target is a function of APP_ENV alone.
+
+        This is the core of Property 6: `test_mode` is not a selector. We hold the
+        environment fixed (APP_ENV plus the referenced DB_* vars) and vary only
+        `test_mode`; the two resolved configs must be equal field-for-field.
+        """
+        env = dict(_DB_ENV)
+        env["APP_ENV"] = app_env.value
+        with _patch("database.mysql.connector.connect"), _patch(
+            "database.pooling.MySQLConnectionPool"
+        ), _patch.dict(os.environ, env, clear=False):
+            db_mode_on = DatabaseManager(test_mode=True)
+            db_mode_off = DatabaseManager(test_mode=False)
+        assert db_mode_on.config == db_mode_off.config
+        assert db_mode_on.config["database"] == "finance"
+
+    def test_truthy_test_mode_emits_deprecation_warning(self, caplog) -> None:
+        """A truthy `test_mode` logs a ONE deprecation warning naming APP_ENV."""
+        with _patch("database.mysql.connector.connect"), _patch(
+            "database.pooling.MySQLConnectionPool"
+        ), _patch.dict(os.environ, _DB_ENV, clear=False):
+            with caplog.at_level(logging.WARNING, logger="database"):
+                DatabaseManager(test_mode=True)
+        deprecation_records = [
+            r
+            for r in caplog.records
+            if "test_mode" in r.getMessage()
+            and "deprecated" in r.getMessage()
+            and r.levelno == logging.WARNING
+        ]
+        assert len(deprecation_records) == 1
+        assert "APP_ENV" in deprecation_records[0].getMessage()
+
+    def test_default_test_mode_emits_no_deprecation_warning(self, caplog) -> None:
+        """The default `test_mode=False` must NOT warn (would spam every manager)."""
+        with _patch("database.mysql.connector.connect"), _patch(
+            "database.pooling.MySQLConnectionPool"
+        ), _patch.dict(os.environ, _DB_ENV, clear=False):
+            with caplog.at_level(logging.WARNING, logger="database"):
+                DatabaseManager(test_mode=False)
+        deprecation_records = [
+            r
+            for r in caplog.records
+            if "test_mode" in r.getMessage() and "deprecated" in r.getMessage()
+        ]
+        assert deprecation_records == []
