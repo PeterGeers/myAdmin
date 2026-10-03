@@ -183,9 +183,13 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
         ),
         backend_host_ref="BACKEND_HOST_TEST",  # env var for TEST backend host
         flask_api_base_url="http://localhost:5000",  # current TEST Flask API URL
+        # SAM plane is per MODULE; this SamDef records the members module (the one
+        # with an HTTP API). stack_name is the members TEST stack. The TEST API
+        # base URL is a PLACEHOLDER until the `test_sam-members` stack is first
+        # deployed (its MembersApiBaseUrl output is then recorded here).
         sam=SamDef(
-            stack_name="myAdmin-test",
-            api_base_url="https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/Prod",
+            stack_name="test_sam-members",
+            api_base_url="https://PLACEHOLDER_TEST_API.execute-api.eu-west-1.amazonaws.com/test",
             table_prefix="test_",
             exec_role_scope="arn:aws:dynamodb:*:*:table/test_*",
             authorizer_pool_id=TEST_POOL_ID,
@@ -208,9 +212,12 @@ ENVIRONMENT_DEFINITION = EnvironmentDefinition(
         ),
         backend_host_ref="BACKEND_HOST_PROD",  # env var for PRODUCTION backend host
         flask_api_base_url="https://PLACEHOLDER_PRODUCTION_FLASK_API",  # PROD Flask API URL
+        # SAM plane is per MODULE; this SamDef records the members module (the one
+        # with an HTTP API). stack_name is the members PROD stack; pretokengen's
+        # stacks are recorded in the current-mapping notes below.
         sam=SamDef(
-            stack_name="myAdmin-prod",
-            api_base_url="https://PLACEHOLDER_PROD_API.execute-api.eu-west-1.amazonaws.com/Prod",
+            stack_name="sam-members",
+            api_base_url="https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod",
             table_prefix="",
             exec_role_scope="arn:aws:dynamodb:*:*:table/*",  # unprefixed tables
             authorizer_pool_id=PROD_POOL_ID,
