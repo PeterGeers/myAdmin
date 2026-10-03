@@ -29,7 +29,7 @@ class ReportingService:
         Delegates to the manager's context-managed cursor and re-yields only the
         cursor, preserving the single-value yield this class's callers expect.
         """
-        with self.db.get_cursor() as (cursor, _conn):
+        with self.db.get_cursor_only() as cursor:
             yield cursor
 
     def build_where_clause(self, conditions):
@@ -103,7 +103,7 @@ class ReportingService:
                 ORDER BY gross_revenue DESC
             """
 
-            with self.db.get_cursor() as (cursor, _conn):
+            with self.db.get_cursor_only() as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
 

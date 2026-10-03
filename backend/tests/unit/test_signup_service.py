@@ -49,12 +49,18 @@ def service():
             yield mock_cursor, mock_conn
 
         @contextmanager
+        def _get_cursor_only_cm(*args, **kwargs):
+            # Read paths use get_cursor_only() — yields just the cursor.
+            yield mock_cursor
+
+        @contextmanager
         def _transaction_cm(*args, **kwargs):
             # Mirror transaction() auto-commit so durability tests can assert commit.
             yield mock_cursor, mock_conn
             mock_conn.commit()
 
         mock_db_instance.get_cursor = MagicMock(side_effect=_get_cursor_cm)
+        mock_db_instance.get_cursor_only = MagicMock(side_effect=_get_cursor_only_cm)
         mock_db_instance.transaction = MagicMock(side_effect=_transaction_cm)
 
         from services.signup_service import SignupService
@@ -267,8 +273,8 @@ class TestVerifySignup:
 
         service.verify_signup('test@example.com', '123456')
 
-        # Read (lookup) via get_cursor, write via transaction (exactly once)
-        service._mock_db.get_cursor.assert_called_once()
+        # Read (lookup) via get_cursor_only, write via transaction (exactly once)
+        service._mock_db.get_cursor_only.assert_called_once()
         service._mock_db.transaction.assert_called_once()
         # The UPDATE ran through the transaction's cursor
         update_calls = [
@@ -327,8 +333,8 @@ class TestResendVerification:
 
         service.resend_verification('test@example.com')
 
-        # Read (lookup) via get_cursor, write via transaction (exactly once)
-        service._mock_db.get_cursor.assert_called_once()
+        # Read (lookup) via get_cursor_only, write via transaction (exactly once)
+        service._mock_db.get_cursor_only.assert_called_once()
         service._mock_db.transaction.assert_called_once()
         # The UPDATE ran through the transaction's cursor
         update_calls = [

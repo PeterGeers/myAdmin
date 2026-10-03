@@ -210,7 +210,7 @@ class SignupService:
 
         # 2. Insert into pending_signups
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 cursor.execute(
                     """INSERT INTO pending_signups 
                        (cognito_user_id, email, first_name, last_name, company_name, 
@@ -285,7 +285,7 @@ class SignupService:
 
         # Update DB
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 cursor.execute(
                     """UPDATE pending_signups 
                        SET status = 'verified', verified_at = NOW() 
@@ -347,7 +347,7 @@ class SignupService:
 
         # Update last_resend_at
         try:
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 cursor.execute(
                     "UPDATE pending_signups SET last_resend_at = NOW() WHERE email = %s",
                     (email,),
@@ -364,7 +364,7 @@ class SignupService:
     def _get_pending_signup(self, email: str) -> dict[str, Any] | None:
         """Look up a pending signup by email"""
         try:
-            with self.db.get_cursor() as (cursor, conn):
+            with self.db.get_cursor_only() as cursor:
                 cursor.execute(
                     "SELECT * FROM pending_signups WHERE email = %s", (email,)
                 )

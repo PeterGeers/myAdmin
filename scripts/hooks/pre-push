@@ -4,29 +4,106 @@
 #
 # Install with: sh scripts/hooks/install-hooks.sh
 #
-# Clean-checkout import/collect smoke test (spec full-test-suite-fixes-2026-10-02,
-# task M1). This catches the failure class that reddened CI on 2026-10-02: a
-# source module that is present in the working tree but NOT tracked by git
-# (e.g. swallowed by an over-broad .gitignore pattern). A formatter/linter gate
-# cannot see that — the file is on disk locally — so only a collect against the
-# *tracked* file set exposes it, the same way CI's fresh checkout does.
+# ORIGINAL BEHAVIOUR (spec full-test-suite-fixes-2026-10-02, task M1):
+#   Clean-checkout import/collect smoke test. Catches the failure class that
+#   reddened CI on 2026-10-02: a source module present in the working tree but
+#   NOT tracked by git (e.g. swallowed by an over-broad .gitignore pattern). A
+#   formatter/linter gate cannot see that — the file is on disk locally — so
+#   only a `pytest --collect-only` against the *tracked* file set exposes it,
+#   the same way CI's fresh checkout does.
 #
-# How: temporarily stash untracked + ignored files (so the tree matches a clean
-# checkout of tracked files only), run `pytest --collect-only` on the SAM plane,
-# then ALWAYS restore the stash. A collection error fails the push (exit 1).
+# BROADENED BEHAVIOUR (spec full-test-suite-fixes-2026-10-03, task L1):
+#   The 2026-10-03 regression (46 runtime test failures + 40 RUF059 + 1
+#   ruff-format) was INVISIBLE to a collect-only guard — collection succeeded,
+#   the tests ran-and-failed and lint reddened only in CI. So after the SAM
+#   collect succeeds we now also run, within the SAME clean-checkout stash
+#   window (so they see the tracked file set):
+#     - ruff check     on the changed backend/src *.py files being pushed
+#     - ruff format --check on the same changed file list
+#     - a pytest subset mapped from the changed backend modules
+#   Each gate fails the push (exit 1) on error.
 #
-# Opt out for a single push with:  SKIP_PREPUSH_COLLECT=1 git push ...
+#   Scoping to the CHANGED files (not the whole tree) is deliberate: HEAD
+#   carries pre-existing out-of-scope debt (~24 non-RUF059 lint errors under
+#   backend/src/environment/** and 7 ruff-format violations) that a blanket
+#   `ruff check src/` / `ruff format --check src/` would trip on, blocking every
+#   push. The guard enforces cleanliness on what you are ACTUALLY pushing.
+#
+# TOLERANCE: if no python / no ruff is available the relevant gate WARNs and is
+#   skipped (matching the original "no python → skip" behaviour) rather than
+#   hard-failing — the guard is a safety net, not a hard dependency.
+#
+# How the clean checkout works: temporarily stash untracked + ignored files (so
+# the tree matches a clean checkout of tracked files only), run the gates, then
+# ALWAYS restore the stash via an EXIT/INT/TERM trap.
+#
+# Opt out:
+#   SKIP_PREPUSH=1          git push ...   # master switch — skip the WHOLE guard
+#   SKIP_PREPUSH_COLLECT=1  git push ...   # legacy switch — same effect, kept for
+#                                          # backwards compatibility
 # ---------------------------------------------------------------------------
 set -u
 
+if [ "${SKIP_PREPUSH:-0}" = "1" ]; then
+    echo "pre-push: SKIP_PREPUSH=1 set — skipping the entire pre-push guard." >&2
+    exit 0
+fi
+
 if [ "${SKIP_PREPUSH_COLLECT:-0}" = "1" ]; then
-    echo "pre-push: SKIP_PREPUSH_COLLECT=1 set — skipping clean-checkout collect smoke test." >&2
+    echo "pre-push: SKIP_PREPUSH_COLLECT=1 set — skipping the entire pre-push guard." >&2
     exit 0
 fi
 
 REPO_ROOT="$(pwd)"
 
+# ---------------------------------------------------------------------------
+# Capture the pushed commit range from stdin BEFORE we stash (stdin is only
+# available to the hook, and the stash must not interfere with reading it).
+# Git feeds one line per ref:  <local_ref> <local_sha> <remote_ref> <remote_sha>
+# We union the changed-file sets across all pushed refs. New-branch pushes have
+# an all-zero remote_sha; resolve a base via merge-base against origin/main,
+# mirroring .githooks/pre-push's range logic.
+# ---------------------------------------------------------------------------
+ZERO="0000000000000000000000000000000000000000"
+CHANGED_FILES=""
+RANGE_SEEN=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -z "${local_sha:-}" ] && continue
+    # Skip branch deletions (nothing to push).
+    [ "$local_sha" = "$ZERO" ] && continue
+
+    base="$remote_sha"
+    if [ "$remote_sha" = "$ZERO" ]; then
+        # New branch: diff the pushed commits against their merge-base with main.
+        base="$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")"
+        if [ -z "$base" ]; then
+            # No common ancestor — use the empty tree so everything shows as added.
+            base="$(git hash-object -t tree /dev/null)"
+        fi
+    fi
+
+    files="$(git diff --name-only --diff-filter=ACM "$base" "$local_sha" 2>/dev/null)"
+    if [ -n "$files" ]; then
+        CHANGED_FILES="$CHANGED_FILES
+$files"
+    fi
+    RANGE_SEEN=1
+done
+
+# De-duplicate the accumulated changed-file list.
+if [ -n "$CHANGED_FILES" ]; then
+    CHANGED_FILES="$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | sort -u)"
+fi
+
+# Changed backend python files (relative to REPO_ROOT), used by the ruff + pytest
+# gates. These are the ONLY files the lint/format gates look at, which is how we
+# avoid tripping on pre-existing out-of-scope environment/** debt.
+CHANGED_BACKEND_PY="$(printf '%s\n' "$CHANGED_FILES" | grep -E '^backend/.*\.py$' || true)"
+
+# ---------------------------------------------------------------------------
 # Resolve a python interpreter: prefer the backend venv, else PATH python3/python.
+# ---------------------------------------------------------------------------
 PY=""
 if [ -x "$REPO_ROOT/backend/.venv/bin/python" ]; then
     PY="$REPO_ROOT/backend/.venv/bin/python"
@@ -37,12 +114,22 @@ elif command -v python >/dev/null 2>&1; then
 fi
 
 if [ -z "$PY" ]; then
-    echo "pre-push: WARNING no python interpreter found; skipping collect smoke test." >&2
+    echo "pre-push: WARNING no python interpreter found; skipping all gates." >&2
     exit 0
 fi
 
-# Only stash if there is something to stash (untracked/ignored or dirty tree),
-# so a clean tree pushes with no side effects.
+# Resolve ruff: prefer the backend venv, else PATH. Empty if unavailable.
+RUFF=""
+if [ -x "$REPO_ROOT/backend/.venv/bin/ruff" ]; then
+    RUFF="$REPO_ROOT/backend/.venv/bin/ruff"
+elif command -v ruff >/dev/null 2>&1; then
+    RUFF="ruff"
+fi
+
+# ---------------------------------------------------------------------------
+# Clean-checkout stash. Only stash if there is something to stash, so a clean
+# tree pushes with no side effects. ALL gates below run inside this window.
+# ---------------------------------------------------------------------------
 STASHED=0
 if ! git diff --quiet || ! git diff --cached --quiet || \
    [ -n "$(git ls-files --others --exclude-standard)" ] || \
@@ -51,7 +138,7 @@ if ! git diff --quiet || ! git diff --cached --quiet || \
     if git stash push --include-untracked --all --quiet --message "pre-push-clean-collect" ; then
         STASHED=1
     else
-        echo "pre-push: WARNING could not stash; skipping collect smoke test to avoid touching your tree." >&2
+        echo "pre-push: WARNING could not stash; skipping gates to avoid touching your tree." >&2
         exit 0
     fi
 fi
@@ -65,7 +152,10 @@ restore() {
 }
 trap restore EXIT INT TERM
 
-echo "pre-push: collecting SAM plane against the tracked file set ..."
+# ---------------------------------------------------------------------------
+# Gate 1 (original): SAM collect against the tracked file set.
+# ---------------------------------------------------------------------------
+echo "pre-push: [1/4] collecting SAM plane against the tracked file set ..."
 PYTHONPATH="$REPO_ROOT" "$PY" -m pytest sam/tests --collect-only -q >/tmp/myadmin-prepush-collect.log 2>&1
 RC=$?
 
@@ -76,6 +166,100 @@ if [ "$RC" -ne 0 ]; then
     tail -n 25 /tmp/myadmin-prepush-collect.log >&2
     exit 1
 fi
-
 echo "pre-push: SAM collect OK — no untracked-but-required modules detected."
+
+# ---------------------------------------------------------------------------
+# Gate 2: ruff lint on the changed backend/src python files being pushed.
+# Scoped to the pushed files so pre-existing out-of-scope debt doesn't block.
+# ---------------------------------------------------------------------------
+echo "pre-push: [2/4] ruff check (changed backend python files) ..."
+if [ -z "$RUFF" ]; then
+    echo "pre-push: WARNING ruff not found; skipping lint + format gates." >&2
+elif [ -z "$CHANGED_BACKEND_PY" ]; then
+    if [ "$RANGE_SEEN" = "1" ]; then
+        echo "pre-push: no changed backend python files — nothing to lint."
+    else
+        echo "pre-push: WARNING no push range on stdin — skipping changed-file lint/format gates." >&2
+    fi
+else
+    # ruff is invoked from backend/ so src/ paths resolve the way CI runs it;
+    # strip the leading 'backend/' from each path.
+    RUFF_TARGETS="$(printf '%s\n' "$CHANGED_BACKEND_PY" | sed 's#^backend/##')"
+    echo "pre-push: linting:"
+    printf '  %s\n' $RUFF_TARGETS >&2
+    ( cd "$REPO_ROOT/backend" && "$RUFF" check $RUFF_TARGETS )
+    RC=$?
+    if [ "$RC" -ne 0 ]; then
+        echo "pre-push: ERROR ruff check reported lint errors on the files you are pushing (exit $RC)." >&2
+        echo "pre-push: fix them (or 'ruff check --fix' where safe) before pushing. CI will fail the same way." >&2
+        exit 1
+    fi
+    echo "pre-push: ruff check OK on changed files."
+
+    # -----------------------------------------------------------------------
+    # Gate 3: ruff format --check on the same changed file list.
+    # -----------------------------------------------------------------------
+    echo "pre-push: [3/4] ruff format --check (same changed files) ..."
+    ( cd "$REPO_ROOT/backend" && "$RUFF" format --check $RUFF_TARGETS )
+    RC=$?
+    if [ "$RC" -ne 0 ]; then
+        echo "pre-push: ERROR ruff format --check found unformatted files among those you are pushing (exit $RC)." >&2
+        echo "pre-push: run 'ruff format <files>' and re-stage before pushing. CI will fail the same way." >&2
+        exit 1
+    fi
+    echo "pre-push: ruff format --check OK on changed files."
+fi
+
+# ---------------------------------------------------------------------------
+# Gate 4: changed-path pytest subset. Map each changed backend module to its
+# unit test file(s) and run only those — fast and non-flaky. Modules without a
+# matching test file are skipped with a note (we never run the whole slow suite).
+# ---------------------------------------------------------------------------
+echo "pre-push: [4/4] pytest subset for changed backend modules ..."
+if [ -z "$CHANGED_BACKEND_PY" ]; then
+    echo "pre-push: no changed backend python files — nothing to test."
+else
+    TEST_TARGETS=""
+    for f in $CHANGED_BACKEND_PY; do
+        # Skip test files that changed — they'll be picked up directly below.
+        case "$f" in
+            backend/tests/*)
+                if [ -f "$REPO_ROOT/$f" ]; then
+                    TEST_TARGETS="$TEST_TARGETS $f"
+                fi
+                continue
+                ;;
+        esac
+
+        # Map backend/src/.../foo.py -> its basename, then look for a matching
+        # tests/unit/test_foo*.py. Simplest robust mapping; skip if none exists.
+        base="$(basename "$f" .py)"
+        for cand in "backend/tests/unit/test_${base}.py" "backend/tests/unit/test_${base}_"*.py; do
+            if [ -f "$REPO_ROOT/$cand" ]; then
+                TEST_TARGETS="$TEST_TARGETS $cand"
+            fi
+        done
+    done
+
+    # De-duplicate.
+    if [ -n "$TEST_TARGETS" ]; then
+        TEST_TARGETS="$(printf '%s\n' $TEST_TARGETS | sort -u | xargs)"
+    fi
+
+    if [ -z "$TEST_TARGETS" ]; then
+        echo "pre-push: no mapped unit tests for the changed backend modules — skipping pytest subset."
+    else
+        echo "pre-push: running affected tests:"
+        printf '  %s\n' $TEST_TARGETS >&2
+        ( cd "$REPO_ROOT/backend" && PYTHONPATH="$REPO_ROOT/backend/src" "$PY" -m pytest $TEST_TARGETS -q -x )
+        RC=$?
+        if [ "$RC" -ne 0 ]; then
+            echo "pre-push: ERROR affected unit tests FAILED (exit $RC). CI will fail the same way." >&2
+            exit 1
+        fi
+        echo "pre-push: affected unit tests passed."
+    fi
+fi
+
+echo "pre-push: all gates passed."
 exit 0

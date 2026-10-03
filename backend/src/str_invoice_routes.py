@@ -48,7 +48,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             f"STR Invoice Search - Query: '{query}', Tenant: '{tenant}', Date range: {start_date} to {end_date}"
         )
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             # If query is empty, return all bookings in date range
             if not query:
                 if limit > 0:
@@ -60,9 +60,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
                     ORDER BY checkinDate DESC
                     LIMIT %s
                     """
-                    logger.info(
-                        f"Executing query for all bookings with limit: {limit}"
-                    )
+                    logger.info(f"Executing query for all bookings with limit: {limit}")
                     cursor.execute(search_query, [tenant, start_date, end_date, limit])
                 else:
                     search_query = """
@@ -175,7 +173,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
         LIMIT 1
         """.format(", ".join(["%s"] * len(user_tenants)))
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(booking_query, [reservation_code] + user_tenants)
             booking = cursor.fetchone()
 

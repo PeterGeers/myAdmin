@@ -31,10 +31,23 @@ db.execute_batch_queries([(q1, p1), (q2, p2)], commit=True)         # batch
 db.execute_ddl("ALTER TABLE ...")                                     # DDL
 with db.transaction() as (cursor, conn):                              # multi-statement
     cursor.execute(...)
-with db.get_cursor() as (cursor, conn):                               # raw cursor
+with db.get_cursor() as (cursor, conn):                               # raw cursor (need conn)
     cursor.executemany(...)
     conn.commit()
+with db.get_cursor_only() as cursor:                                  # READ path (no conn)
+    cursor.execute(...)
+    rows = cursor.fetchall()
 ```
+
+**Read-path convention (prevents recurring `RUF059` on unused `conn`):**
+
+- Use `with db.get_cursor_only() as cursor:` for read paths that never touch the
+  connection — it delegates to `get_cursor()` (identical lifecycle/exception
+  semantics) but yields only the cursor, so there is no `conn` to leave unused.
+- Use `get_cursor()` / `transaction()` only when you need `conn` (commit/rollback).
+- If you must unpack `conn` but don't use it, name it `_conn` to silence `RUF059`.
+- Never migrate a `transaction()` block to `get_cursor_only()` — that silently
+  drops the auto-commit.
 
 ## Dialect Helpers
 

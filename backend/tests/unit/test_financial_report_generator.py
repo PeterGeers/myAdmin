@@ -20,7 +20,6 @@ class TestMakeLedgers:
         """Test make_ledgers with both balance and transaction data"""
         # Mock database
         mock_db = Mock()
-        mock_conn = Mock()
         mock_cursor = Mock()
         
         # Mock balance data
@@ -58,10 +57,10 @@ class TestMakeLedgers:
         
         # Setup mock cursor to return data
         mock_cursor.fetchall.side_effect = [balance_data, transaction_data]
-        mock_db.get_cursor.return_value.__enter__ = Mock(
-            return_value=(mock_cursor, mock_conn)
+        mock_db.get_cursor_only.return_value.__enter__ = Mock(
+            return_value=mock_cursor
         )
-        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
+        mock_db.get_cursor_only.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')
@@ -84,13 +83,12 @@ class TestMakeLedgers:
         
         # Verify database calls
         assert mock_cursor.execute.call_count == 2
-        mock_db.get_cursor.assert_called_once()
+        mock_db.get_cursor_only.assert_called_once()
     
     def test_make_ledgers_no_balance_data(self):
         """Test make_ledgers with no balance data"""
         # Mock database
         mock_db = Mock()
-        mock_conn = Mock()
         mock_cursor = Mock()
         
         # Mock empty balance data
@@ -120,10 +118,10 @@ class TestMakeLedgers:
         
         # Setup mock cursor
         mock_cursor.fetchall.side_effect = [balance_data, transaction_data]
-        mock_db.get_cursor.return_value.__enter__ = Mock(
-            return_value=(mock_cursor, mock_conn)
+        mock_db.get_cursor_only.return_value.__enter__ = Mock(
+            return_value=mock_cursor
         )
-        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
+        mock_db.get_cursor_only.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')
@@ -136,7 +134,6 @@ class TestMakeLedgers:
         """Test make_ledgers with no transaction data"""
         # Mock database
         mock_db = Mock()
-        mock_conn = Mock()
         mock_cursor = Mock()
         
         # Mock balance data
@@ -155,10 +152,10 @@ class TestMakeLedgers:
         
         # Setup mock cursor
         mock_cursor.fetchall.side_effect = [balance_data, transaction_data]
-        mock_db.get_cursor.return_value.__enter__ = Mock(
-            return_value=(mock_cursor, mock_conn)
+        mock_db.get_cursor_only.return_value.__enter__ = Mock(
+            return_value=mock_cursor
         )
-        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
+        mock_db.get_cursor_only.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')
@@ -171,15 +168,14 @@ class TestMakeLedgers:
         """Test make_ledgers with no data at all"""
         # Mock database
         mock_db = Mock()
-        mock_conn = Mock()
         mock_cursor = Mock()
         
         # Mock empty data
         mock_cursor.fetchall.side_effect = [[], []]
-        mock_db.get_cursor.return_value.__enter__ = Mock(
-            return_value=(mock_cursor, mock_conn)
+        mock_db.get_cursor_only.return_value.__enter__ = Mock(
+            return_value=mock_cursor
         )
-        mock_db.get_cursor.return_value.__exit__ = Mock(return_value=False)
+        mock_db.get_cursor_only.return_value.__exit__ = Mock(return_value=False)
         
         # Call function
         result = financial_report_generator.make_ledgers(mock_db, 2024, 'TestAdmin')

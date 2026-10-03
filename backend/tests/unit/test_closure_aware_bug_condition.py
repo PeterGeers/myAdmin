@@ -38,6 +38,8 @@ from hypothesis import given, strategies as st, settings, assume
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from _db_contract import wire_cursor_contract
+
 
 # ---------------------------------------------------------------------------
 # Test Data Builders
@@ -239,7 +241,9 @@ def build_mock_db_for_make_ledgers(closed_year_amount=10000.0, opening_balance_a
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
-    mock_db.get_connection.return_value = mock_conn
+    # make_ledgers reads via `with db.get_cursor() as (cursor, conn):` under the new
+    # database.py contract — wire the CM to yield the (cursor, conn) 2-tuple.
+    wire_cursor_contract(mock_db, mock_cursor, mock_conn)
 
     # Track which query is being executed
     call_count = [0]
@@ -542,7 +546,8 @@ class TestMakeLedgersDoubleCount:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.get_connection.return_value = mock_conn
+        # make_ledgers reads via `with db.get_cursor() as (cursor, conn):`.
+        wire_cursor_contract(mock_db, mock_cursor, mock_conn)
 
         # Mock execute_query for get_closure_aware_start_year helper
         # Returns max_year=2023 (year 2023 is closed), so start_year = 2024

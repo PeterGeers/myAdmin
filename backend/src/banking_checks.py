@@ -240,7 +240,7 @@ class BankingChecks:
             iban = "NL80RABO0107936917"  # Default
 
         # Get all transactions for the IBAN since start_date, ordered by Ref2
-        with self.db.get_cursor() as (cursor, conn):
+        with self.db.get_cursor_only() as cursor:
             cursor.execute(
                 """
                 SELECT TransactionDate, TransactionDescription, Ref2, TransactionAmount
@@ -436,7 +436,7 @@ class BankingChecks:
             Dictionary with balance analysis including gaps and discrepancies
         """
         try:
-            with self.db.get_cursor() as (cursor, conn):
+            with self.db.get_cursor_only() as cursor:
                 cursor.execute(
                     """
                     SELECT

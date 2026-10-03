@@ -184,8 +184,14 @@ const FieldRow: React.FC<FieldRowProps> = ({
           //  - rich enum       → EAGER array from the rich `{ value, label, roles }` options;
           //  - bare string[]   → EAGER array mapped to `{ value }` (matches the old else-branch).
           const optionsSource = isMembershipType
-            ? async (): Promise<LazyOption[]> =>
-              membershipTypeOptions(await listMembershipTypes<MembershipType[]>(true))
+            ? async (): Promise<LazyOption[]> => {
+              // `membershipTypeOptions` yields `EnumOptionConfig[]` (its `label` is a
+              // `LocalizedLabel`, wider than `LazyOption.label`); MAP each through
+              // `enumOptionToLazyOption` rather than returning it raw, so the async feed
+              // satisfies `LazyOption[]` the same way the eager rich-enum branch does.
+              const types = await listMembershipTypes<MembershipType[]>(true);
+              return membershipTypeOptions(types).map(enumOptionToLazyOption);
+            }
             : isScope
               ? regionValues.map((v): LazyOption => ({ value: v }))
               : rich

@@ -102,7 +102,7 @@ class BankingMutatieService:
             """
 
             # Read-only: use context-managed cursor (no commit needed)
-            with db.get_cursor(dictionary=True) as (cursor, conn):
+            with db.get_cursor_only(dictionary=True) as cursor:
                 # Count uses the WHERE-clause params only (no LIMIT/OFFSET)
                 cursor.execute(count_query, params)
                 total_count = cursor.fetchone()["total"]
@@ -181,7 +181,7 @@ class BankingMutatieService:
             # The tenant-check SELECT shares the same connection/cursor as the
             # UPDATE; on an access/not-found guard we return before any write, so
             # transaction() exits without having mutated any row.
-            with db.transaction() as (cursor, conn):
+            with db.transaction() as (cursor, _conn):
                 # Verify the record belongs to the current tenant
                 cursor.execute(
                     f"SELECT administration FROM {table_name} WHERE ID = %s",

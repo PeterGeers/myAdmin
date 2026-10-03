@@ -10,15 +10,15 @@ from pdf_validation import PDFValidator
 
 
 def _cursor_context(mock_db, mock_cursor, mock_conn=None):
-    """Wire ``mock_db.return_value.get_cursor()`` as a context manager yielding
-    ``(cursor, conn)`` and return the context-manager mock so a test can assert
-    it was entered/exited exactly once (connection-lifetime safety)."""
-    if mock_conn is None:
-        mock_conn = Mock()
+    """Wire ``mock_db.return_value.get_cursor_only()`` as a context manager yielding
+    just the cursor, and return the context-manager mock so a test can assert it was
+    entered/exited exactly once (connection-lifetime safety). The read paths use
+    get_cursor_only() after the migration. ``mock_conn`` is accepted for signature
+    compatibility but is not part of the cursor-only yield."""
     cursor_cm = MagicMock()
-    cursor_cm.__enter__.return_value = (mock_cursor, mock_conn)
+    cursor_cm.__enter__.return_value = mock_cursor
     cursor_cm.__exit__.return_value = False
-    mock_db.return_value.get_cursor.return_value = cursor_cm
+    mock_db.return_value.get_cursor_only.return_value = cursor_cm
     return cursor_cm
 
 
@@ -149,7 +149,7 @@ class TestPDFValidator:
         with patch.object(validator, '_validate_single_record', return_value={'status': 'ok'}):
             list(validator.validate_pdf_urls_with_progress())  # fully consume
 
-        mock_db.return_value.get_cursor.assert_called_once()
+        mock_db.return_value.get_cursor_only.assert_called_once()
         cursor_cm.__enter__.assert_called_once()
         cursor_cm.__exit__.assert_called_once()
 

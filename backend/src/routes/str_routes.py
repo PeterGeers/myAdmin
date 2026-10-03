@@ -349,7 +349,7 @@ def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
     """Get pricing recommendations with historical comparison"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             # Get all recommendations with historical data and multipliers
             query = f"""
             SELECT listing_name, price_date, recommended_price, ai_recommended_adr, 
@@ -403,7 +403,7 @@ def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
     """Get historical ADR data for trend analysis"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             # Get monthly historical ADR data with guest fee adjustment for Child Friendly
             query = f"""
             SELECT 
@@ -471,7 +471,7 @@ def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
     """Get available listings for pricing"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             query = "SELECT listing_name, active FROM listings WHERE active = TRUE ORDER BY listing_name"
             cursor.execute(query)
             listings = cursor.fetchall()
@@ -500,7 +500,7 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
             ), 400
 
         db = DatabaseManager(test_mode=test_mode)
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             query = f"""
             SELECT price_date, listing_name, recommended_price,
                    base_rate, historical_mult, occupancy_mult, pace_mult,
@@ -692,7 +692,7 @@ def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
     """Get BNB future revenue trend data"""
     try:
         db = DatabaseManager(test_mode=test_mode)
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             query = """
             SELECT date, channel, listing, amount, items
             FROM bnbfuture

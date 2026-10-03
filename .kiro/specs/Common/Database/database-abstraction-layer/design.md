@@ -319,6 +319,23 @@ class DatabaseManager:
                 conn.rollback()
                 raise
 
+    @contextmanager
+    def get_cursor_only(self, dictionary=True, pool_type='primary'):
+        """Cursor-only context manager for READ paths that never touch the connection.
+
+        Identical lifecycle/exception semantics to get_cursor() (it delegates), but
+        yields just the cursor so call sites don't unpack an unused conn (prevents
+        the recurring RUF059 'unpacked variable conn is never used'). Use get_cursor()
+        / transaction() when you DO need conn (commit/rollback).
+
+        Usage:
+            with db.get_cursor_only() as cursor:
+                cursor.execute("SELECT ...", params)
+                rows = cursor.fetchall()
+        """
+        with self.get_cursor(dictionary=dictionary, pool_type=pool_type) as (cursor, _conn):
+            yield cursor
+
     def execute_ddl(self, statement: str):
         """Execute a DDL statement (CREATE, ALTER, DROP) with auto-commit.
 
@@ -353,6 +370,7 @@ class DatabaseManager:
 **Design decisions:**
 
 - **`transaction()` is separate from `get_cursor()`** — `get_cursor()` remains for single-query operations (backward compatible). `transaction()` adds explicit commit/rollback semantics for multi-statement use.
+- **`get_cursor_only()` is the preferred read-path context manager** — it delegates to `get_cursor()` (so lifecycle and exception translation are identical) but yields only the `cursor`, so read-only call sites don't unpack a `conn` they never use. This removes the unpack that keeps triggering `RUF059` ("unpacked variable `conn` is never used") whenever the `(cursor, conn)` idiom spreads to read paths. **Convention: use `get_cursor_only()` for read paths; use `get_cursor()` / `transaction()` only when you need `conn` (commit/rollback); if you must unpack `conn` but don't use it, name it `_conn`.** Never migrate a `transaction()` block to `get_cursor_only()` — that would silently drop its auto-commit.
 - **Exception wrapping in `execute_query()`** — the existing FK-violation handling for `IntegrityError` (errno 1452) is preserved inside the new `IntegrityError` wrapper. Application code catching `IntegrityError` still gets the same `ValueError` for FK violations.
 - **`execute_ddl()`** is a thin wrapper — it calls `execute_query(fetch=False, commit=True)`. This makes the intent clear in migration scripts.
 - **Re-exports** — `from database import DatabaseError, IntegrityError` works so application code doesn't need to know about `db_exceptions.py`.
