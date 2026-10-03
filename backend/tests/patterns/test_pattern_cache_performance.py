@@ -298,7 +298,7 @@ def main():
     print("=" * 60)
     
     # Initialize analyzer
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     try:

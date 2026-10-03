@@ -81,7 +81,7 @@ def booking_dataframe_strategy(min_rows=1, max_rows=10):
 @pytest.fixture
 def processor():
     """Create STRProcessor instance for testing."""
-    return STRProcessor(test_mode=True)
+    return STRProcessor()
 
 
 @pytest.fixture
@@ -194,7 +194,7 @@ class TestProperty2PartialFailureResilience:
     @settings(max_examples=20, deadline=2000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
     def test_valid_files_processed_despite_invalid_files(self, valid_dfs, n_invalid):
         """Valid files are processed even when some files are invalid."""
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             # Write valid files
@@ -227,7 +227,7 @@ class TestProperty2PartialFailureResilience:
     @settings(max_examples=20, deadline=2000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
     def test_all_invalid_files_raises_value_error(self, n_invalid):
         """When all files fail to parse, a ValueError is raised."""
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             invalid_paths = []
@@ -252,7 +252,7 @@ class TestProperty2PartialFailureResilience:
     @settings(max_examples=20, deadline=2000, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
     def test_all_valid_files_no_error(self, valid_dfs):
         """When all files are valid, processing succeeds without error."""
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             paths = []
@@ -373,7 +373,7 @@ class TestProperty4MultiFileAlgorithmEquivalence:
         df = df.drop_duplicates(subset='Book number', keep='last').reset_index(drop=True)
         assume(len(df) > 0)
 
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             # Write the DataFrame to a single CSV file
@@ -441,7 +441,7 @@ class TestProperty5SourceFileFormatReflectsFileCount:
         df = df[df['Status'] != 'cancelled_by_guest'].reset_index(drop=True)
         assume(len(df) > 0)
 
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             csv_path = write_df_to_csv(df, tmp_dir, 'test_bookings.csv')
@@ -486,7 +486,7 @@ class TestProperty5SourceFileFormatReflectsFileCount:
         total_rows = sum(len(df) for df in filtered_dfs)
         assume(total_rows > 0)
 
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             paths = []
@@ -597,10 +597,9 @@ class TestProperty6ScopedOverwriteInvariant:
         for i, (channel, listing) in enumerate(imported_pairs):
             bookings.append(self._make_booking(channel, listing, code=str(1000000 + i)))
 
-        # Create STRDatabase with test_mode and mock the connection
+        # Create STRDatabase (no test_mode) and mock the connection
         with patch.object(STRDatabase, '__init__', lambda self, **kwargs: None):
             db = STRDatabase.__new__(STRDatabase)
-            db.test_mode = True
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn.cursor.return_value = mock_cursor
@@ -663,7 +662,6 @@ class TestProperty6ScopedOverwriteInvariant:
 
         with patch.object(STRDatabase, '__init__', lambda self, **kwargs: None):
             db = STRDatabase.__new__(STRDatabase)
-            db.test_mode = True
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn.cursor.return_value = mock_cursor
@@ -701,7 +699,6 @@ class TestProperty6ScopedOverwriteInvariant:
 
         with patch.object(STRDatabase, '__init__', lambda self, **kwargs: None):
             db = STRDatabase.__new__(STRDatabase)
-            db.test_mode = True
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn.cursor.return_value = mock_cursor
@@ -776,7 +773,7 @@ class TestExampleBasedMultiFileImport:
 
         Validates: Requirements 2.5
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         bad_paths = []
         for name in ['alpha.csv', 'beta.xlsx', 'gamma.tsv']:
@@ -814,7 +811,6 @@ class TestExampleBasedMultiFileImport:
 
         with patch.object(STRDatabase, '__init__', lambda self, **kwargs: None):
             db = STRDatabase.__new__(STRDatabase)
-            db.test_mode = True
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn.cursor.return_value = mock_cursor
@@ -845,7 +841,7 @@ class TestExampleBasedMultiFileImport:
 
         Validates: Requirements 5.2
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         df = self._make_booking_df(['Green Studio'])
         csv_path = write_df_to_csv(df, temp_dir, 'structure_test.csv')
@@ -880,7 +876,7 @@ class TestExampleBasedMultiFileImport:
 
         Validates: Requirements 7.2
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         df = self._make_booking_df(['Red Studio', 'Green Studio'])
         csv_path = write_df_to_csv(df, temp_dir, 'single_booking.csv')
@@ -915,7 +911,6 @@ class TestExampleBasedMultiFileImport:
 
         with patch.object(STRDatabase, '__init__', lambda self, **kwargs: None):
             db = STRDatabase.__new__(STRDatabase)
-            db.test_mode = True
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn.cursor.return_value = mock_cursor

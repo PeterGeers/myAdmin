@@ -10,12 +10,12 @@ from db_exceptions import DatabaseError
 
 
 # Shared patch context to prevent real connections and scalability manager initialization
-def _create_isolated_db(test_mode=True):
+def _create_isolated_db():
     """Create a DatabaseManager instance fully isolated from real connections."""
     with patch.object(DatabaseManager, '_initialize_scalability_manager'), \
          patch('mysql.connector.pooling.MySQLConnectionPool'), \
          patch('mysql.connector.connect'):
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
     # Ensure class-level state is clean for this instance
     DatabaseManager._scalability_manager = None
     DatabaseManager._use_legacy_pool = False
@@ -41,7 +41,7 @@ class TestDatabaseManager:
     @pytest.fixture
     def db_manager(self):
         """Create a real DatabaseManager instance isolated from real connections."""
-        return _create_isolated_db(test_mode=True)
+        return _create_isolated_db()
 
     @pytest.fixture
     def mock_connection(self):
@@ -53,27 +53,32 @@ class TestDatabaseManager:
 
     # --- Initialization tests ---
 
-    def test_init_test_mode(self):
-        """Test initialization in test mode"""
-        db = _create_isolated_db(test_mode=True)
-        assert db.test_mode is True
-
-    def test_init_production_mode(self):
-        """Test initialization in production mode"""
-        db = _create_isolated_db(test_mode=False)
-        assert db.test_mode is False
-
-    @patch.dict(os.environ, {'TEST_MODE': 'true', 'TEST_DB_NAME': 'testfinance'})
-    def test_environment_detection(self):
-        """Test automatic test mode detection from environment"""
+    def test_init_uses_finance_schema(self):
+        """DatabaseManager constructs (no test_mode) and targets the `finance` schema."""
         db = _create_isolated_db()
-        assert hasattr(db, 'test_mode')
+        assert db.config['database'] == 'finance'
+
+    def test_init_schema_never_testfinance(self):
+        """The legacy `testfinance` schema is never selected anymore."""
+        db = _create_isolated_db()
+        assert db.config['database'] != 'testfinance'
+
+    @patch.dict(os.environ, {'TEST_DB_NAME': 'testfinance'})
+    def test_schema_is_finance_regardless_of_legacy_env(self):
+        """The removed TEST_MODE/TEST_DB_NAME switch no longer affects the schema.
+
+        Even with the legacy `TEST_DB_NAME=testfinance` env var set, the manager
+        must still resolve to `finance` (environment is selected by APP_ENV via the
+        connection target, not the schema name).
+        """
+        db = _create_isolated_db()
+        assert db.config['database'] == 'finance'
 
     # --- Connection tests ---
 
     def test_get_connection_success(self):
         """Test successful database connection via direct connect fallback"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         mock_conn = MagicMock()
         with patch('mysql.connector.connect', return_value=mock_conn):
             connection = db._get_connection()
@@ -81,14 +86,14 @@ class TestDatabaseManager:
 
     def test_get_connection_failure(self):
         """Test database connection failure"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         with patch('mysql.connector.connect', side_effect=DatabaseError("Connection failed")):
             with pytest.raises(Exception):
                 db._get_connection()
 
     def test_connection_error_handling(self):
         """Test connection error handling"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         with patch('mysql.connector.connect', side_effect=DatabaseError("Database unavailable")):
             with pytest.raises(Exception, match="Database unavailable"):
                 db._get_connection()
@@ -97,7 +102,7 @@ class TestDatabaseManager:
 
     def test_get_existing_sequences(self):
         """Test getting existing sequence numbers"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         mock_results = [{'existing': 'SEQ001'}, {'existing': 'SEQ002'}]
 
         with patch.object(db, 'execute_query', return_value=mock_results) as mock_exec:
@@ -126,7 +131,7 @@ class TestDatabaseManager:
 
     def test_get_bank_account_lookups_query_sql(self):
         """Test that get_bank_account_lookups queries rekeningschema with $.bank_account flag"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         mock_results = [
             {'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'TestAdmin'}
         ]
@@ -144,7 +149,7 @@ class TestDatabaseManager:
 
     def test_get_bank_account_lookups_no_admin_filter(self):
         """Test that get_bank_account_lookups without administration returns all bank accounts"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
 
         with patch.object(db, 'execute_query', return_value=[]) as mock_exec:
             db.get_bank_account_lookups()
@@ -181,21 +186,20 @@ class TestDatabaseManager:
 
     # --- Table selection tests ---
 
-    def test_table_selection_test_mode(self):
-        """Test correct table selection in test mode"""
-        db = _create_isolated_db(test_mode=True)
-        assert db.test_mode is True
+    def test_table_selection_is_mode_independent(self):
+        """Table/schema selection no longer depends on a (removed) test_mode flag.
 
-    def test_table_selection_production_mode(self):
-        """Test correct table selection in production mode"""
-        db = _create_isolated_db(test_mode=False)
-        assert db.test_mode is False
+        The manager always targets the single `finance` schema; there is no
+        test-vs-production table switch to exercise anymore.
+        """
+        db = _create_isolated_db()
+        assert db.config['database'] == 'finance'
 
     # --- Connection cleanup test ---
 
     def test_connection_cleanup(self):
         """Test proper connection cleanup via get_cursor context manager"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
@@ -211,7 +215,7 @@ class TestDatabaseManager:
 
     def test_query_parameter_binding(self):
         """Test SQL parameter binding"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
@@ -243,7 +247,7 @@ class TestDatabaseManager:
         assume(abs(transaction_amount) < 999999.99)
         assume(len(reference_number.strip()) > 0)
 
-        db_manager = _create_isolated_db(test_mode=True)
+        db_manager = _create_isolated_db()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
@@ -309,7 +313,7 @@ class TestDatabaseManager:
         assume(abs(transaction_amount) < 999999.99)
         assume(len(reference_number.strip()) > 0)
 
-        db_manager = _create_isolated_db(test_mode=True)
+        db_manager = _create_isolated_db()
 
         with patch.object(db_manager, '_get_connection', side_effect=DatabaseError("Connection failed")):
             with pytest.raises(Exception) as exc_info:
@@ -335,7 +339,7 @@ class TestDatabaseManager:
         assume(abs(transaction_amount) < 999999.99)
         assume(len(reference_number.strip()) > 0)
 
-        db_manager = _create_isolated_db(test_mode=True)
+        db_manager = _create_isolated_db()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
@@ -355,7 +359,7 @@ class TestDatabaseManager:
 
     def test_check_duplicate_transactions_unit_basic_functionality(self):
         """Unit test for basic duplicate check functionality"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
@@ -392,7 +396,7 @@ class TestDatabaseManager:
 
     def test_check_duplicate_transactions_unit_database_error(self):
         """Unit test for database error handling"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
 
         with patch.object(db, '_get_connection', side_effect=DatabaseError("Database unavailable")):
             with pytest.raises(Exception) as exc_info:
@@ -402,7 +406,7 @@ class TestDatabaseManager:
 
     def test_check_duplicate_transactions_unit_amount_tolerance(self):
         """Unit test for amount tolerance (0.01 difference)"""
-        db = _create_isolated_db(test_mode=True)
+        db = _create_isolated_db()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor

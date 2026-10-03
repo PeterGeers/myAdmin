@@ -19,7 +19,6 @@ class TestInsertTransactionTenantGuard:
     def _create_db_instance(self):
         """Create a DatabaseManager instance without connecting to a real DB."""
         db = database.DatabaseManager.__new__(database.DatabaseManager)
-        db.test_mode = True
         db.config = {
             "host": "localhost",
             "user": "test",

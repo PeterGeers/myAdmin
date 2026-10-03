@@ -181,7 +181,7 @@ class TestTransactionLogicGammaFallback:
         from transaction_logic import TransactionLogic
         from contextlib import contextmanager
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
 
         # Mock the database cursor to return 0 results for vendor
         mock_conn = Mock()
@@ -242,7 +242,7 @@ class TestTransactionLogicSingleResultVAT:
         from transaction_logic import TransactionLogic
         from contextlib import contextmanager
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic()
 
         mock_conn = Mock()
         mock_cursor = Mock()
@@ -401,7 +401,7 @@ class TestPatternValidationBankAccountFlag:
         """
         from database import DatabaseManager as PatternDB
 
-        db = PatternDB(test_mode=True)
+        db = PatternDB()
 
         # Mock execute_query to capture the SQL
         captured_queries = []

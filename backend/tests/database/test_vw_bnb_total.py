@@ -15,7 +15,7 @@ def test_view_exists():
     print("="*60)
     
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         
         # Test 1: Check if view exists using dialect helper
         print("\n1. Checking if view exists...")

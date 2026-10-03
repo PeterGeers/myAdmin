@@ -50,7 +50,7 @@ class TestTenantFilteringPerformance:
     @pytest.fixture
     def db(self):
         """Create database manager for performance testing"""
-        return DatabaseManager(test_mode=False)  # Use real database for performance tests
+        return DatabaseManager()  # Use real database for performance tests
     
     def create_jwt_token(self, email, tenants, roles=None):
         """Helper to create a mock JWT token"""

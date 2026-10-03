@@ -40,11 +40,10 @@ class TestPDFValidator:
     
     @patch('pdf_validation.DatabaseManager')
     def test_init_success(self, mock_db):
-        validator = PDFValidator(test_mode=True)
-        
-        assert validator.test_mode is True
+        validator = PDFValidator()
+
         assert validator.drive_service is None
-        mock_db.assert_called_once_with(test_mode=True)
+        mock_db.assert_called_once_with()
     
     @patch('google_drive_service.GoogleDriveService', side_effect=Exception("Auth error"))
     @patch('pdf_validation.DatabaseManager')
@@ -52,7 +51,7 @@ class TestPDFValidator:
         validator = PDFValidator()
         
         assert validator.drive_service is None
-        mock_db.assert_called_once_with(test_mode=False)
+        mock_db.assert_called_once_with()
     
     @patch('pdf_validation.DatabaseManager')
     def test_validate_pdf_urls_success(self, mock_db):

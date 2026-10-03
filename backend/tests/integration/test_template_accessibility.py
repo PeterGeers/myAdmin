@@ -33,7 +33,7 @@ class TestTemplateAccessibility:
     
     @pytest.fixture(autouse=True)
     def set_test_mode(self):
-        """Ensure TEST_MODE is true so all DatabaseManager instances use testfinance"""
+        """Legacy TEST_MODE toggle (now a no-op: DatabaseManager always uses the finance schema)."""
         import os
         old_val = os.environ.get('TEST_MODE')
         os.environ['TEST_MODE'] = 'true'
@@ -46,7 +46,7 @@ class TestTemplateAccessibility:
     @pytest.fixture
     def db(self):
         """Create database connection to test database"""
-        db = DatabaseManager(test_mode=True)
+        db = DatabaseManager()
         yield db
     
     @pytest.fixture
@@ -502,7 +502,7 @@ class TestTemplateAccessibilityPerTenant:
     
     @pytest.fixture(autouse=True)
     def set_test_mode(self):
-        """Ensure TEST_MODE is true so all DatabaseManager instances use testfinance"""
+        """Legacy TEST_MODE toggle (now a no-op: DatabaseManager always uses the finance schema)."""
         import os
         old_val = os.environ.get('TEST_MODE')
         os.environ['TEST_MODE'] = 'true'
@@ -515,7 +515,7 @@ class TestTemplateAccessibilityPerTenant:
     @pytest.fixture
     def db(self):
         """Create database connection"""
-        db = DatabaseManager(test_mode=True)
+        db = DatabaseManager()
         yield db
     
     @pytest.fixture

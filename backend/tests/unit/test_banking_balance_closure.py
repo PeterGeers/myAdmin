@@ -92,7 +92,7 @@ class TestCheckBankingAccountsClosure:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            proc = BankingProcessor(test_mode=True)
+            proc = BankingProcessor()
         return proc
 
     def test_with_closure_query_includes_date_lower_bound(self, processor):
@@ -170,7 +170,7 @@ class TestCheckSequenceNumbersClosure:
 
     @pytest.fixture
     def processor(self):
-        return BankingProcessor(test_mode=True)
+        return BankingProcessor()
 
     @pytest.fixture
     def mock_connection(self):
@@ -270,7 +270,6 @@ class TestOpeningBalanceDateEndpoint:
             importlib.reload(br)
             # Set up the banking_service so the route module doesn't fail
             br.banking_service = MagicMock()
-            br.banking_service.test_mode = True
 
             app = Flask(__name__)
             app.config['TESTING'] = True

@@ -27,7 +27,7 @@ class TestBusinessPricingModel:
     def pricing_model(self, mock_db):
         """Create BusinessPricingModel instance with mocked DatabaseManager."""
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            model = BusinessPricingModel(test_mode=True)
+            model = BusinessPricingModel()
         return model
 
     # -----------------------------------------------------------------------
@@ -133,7 +133,7 @@ class TestGetBaseRate:
     @pytest.fixture
     def pricing_model(self, mock_db):
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            model = BusinessPricingModel(test_mode=True)
+            model = BusinessPricingModel()
         return model
 
     def test_get_base_rate_weekday_no_listing(self, pricing_model):
@@ -225,7 +225,7 @@ class TestGetHistoricalMultiplier:
     @pytest.fixture
     def pricing_model(self, mock_db):
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            model = BusinessPricingModel(test_mode=True)
+            model = BusinessPricingModel()
         return model
 
     @patch('business_pricing_model.pd.read_sql')
@@ -317,7 +317,7 @@ class TestGetOccupancyMultiplier:
     @pytest.fixture
     def pricing_model(self, mock_db):
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            model = BusinessPricingModel(test_mode=True)
+            model = BusinessPricingModel()
         return model
 
     @patch('business_pricing_model.pd.read_sql')
@@ -401,7 +401,7 @@ class TestGetBookingPaceMultiplier:
     @pytest.fixture
     def pricing_model(self, mock_db):
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            model = BusinessPricingModel(test_mode=True)
+            model = BusinessPricingModel()
         return model
 
     @patch('business_pricing_model.pd.read_sql')
@@ -515,7 +515,7 @@ class TestGetEventMultiplier:
     @pytest.fixture
     def pricing_model(self, mock_db):
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            model = BusinessPricingModel(test_mode=True)
+            model = BusinessPricingModel()
         return model
 
     @patch('business_pricing_model.pd.read_sql')
@@ -578,7 +578,7 @@ class TestGetBtwAdjustment:
     @pytest.fixture
     def pricing_model(self, mock_db):
         with patch('business_pricing_model.DatabaseManager', return_value=mock_db):
-            model = BusinessPricingModel(test_mode=True)
+            model = BusinessPricingModel()
         return model
 
     def test_get_btw_adjustment_returns_one(self, pricing_model):

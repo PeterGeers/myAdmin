@@ -181,7 +181,7 @@ class TestStatusTransitionValidity:
         """Create a BudgetService with a mocked DB returning a version in given status."""
         with patch('database.DatabaseManager') as MockDB:
             mock_db = MockDB.return_value
-            service = BudgetService(test_mode=True)
+            service = BudgetService()
             service.db = mock_db
 
             # Mock the SELECT to return a version with the given status
@@ -338,7 +338,7 @@ class TestActiveVersionUniqueness:
         # Create a service that simulates the DB state
         with patch('database.DatabaseManager') as MockDB:
             mock_db = MockDB.return_value
-            service = BudgetService(test_mode=True)
+            service = BudgetService()
             service.db = mock_db
 
             for version_id in activation_sequence:
@@ -401,7 +401,7 @@ class TestActiveVersionUniqueness:
 
         with patch('database.DatabaseManager') as MockDB:
             mock_db = MockDB.return_value
-            service = BudgetService(test_mode=True)
+            service = BudgetService()
             service.db = mock_db
 
             # Activate first version
@@ -501,7 +501,7 @@ class TestAnnualizationPreservesProportionalCorrectness:
         )
 
         # Use _compute_monthly_amounts which does the annualization internally
-        service = BudgetService(test_mode=True)
+        service = BudgetService()
         monthly_amounts = service._compute_monthly_amounts(actuals)
 
         # The sum of the distributed amounts should equal the annualized total
@@ -550,7 +550,7 @@ class TestAnnualizationPreservesProportionalCorrectness:
         n_months = len(actuals)
         assume(1 <= n_months <= 11)
 
-        service = BudgetService(test_mode=True)
+        service = BudgetService()
         monthly_amounts = service._compute_monthly_amounts(actuals)
 
         for i, amount in enumerate(monthly_amounts):
@@ -643,7 +643,7 @@ class TestBudgetCopyPreservesLineData:
 
         with patch('database.DatabaseManager') as MockDB:
             mock_db = MockDB.return_value
-            service = BudgetService(test_mode=True)
+            service = BudgetService()
             service.db = mock_db
 
             # Track what gets inserted
@@ -734,7 +734,7 @@ class TestBudgetCopyPreservesLineData:
 
         with patch('database.DatabaseManager') as MockDB:
             mock_db = MockDB.return_value
-            service = BudgetService(test_mode=True)
+            service = BudgetService()
             service.db = mock_db
 
             inserted_lines = []
@@ -1287,7 +1287,7 @@ class TestTenantIsolation:
         """
         with patch('database.DatabaseManager') as MockDB:
             mock_db = MockDB.return_value
-            service = BudgetService(test_mode=True)
+            service = BudgetService()
             service.db = mock_db
 
             def tenant_aware_execute(query, params, fetch=True, commit=False):

@@ -14,7 +14,7 @@ class TestSTRProcessor:
     @pytest.fixture
     def str_processor(self):
         """Create STRProcessor instance for testing"""
-        return STRProcessor(test_mode=True)
+        return STRProcessor()
     
     @pytest.fixture
     def sample_airbnb_data(self):
@@ -79,20 +79,18 @@ class TestSTRProcessor:
             'cleaningFee': 25.00
         }
     
-    def test_init_test_mode(self):
-        """Test initialization in test mode"""
-        processor = STRProcessor(test_mode=True)
-        assert processor.test_mode == True
+    def test_init_platforms_and_tax_rates(self):
+        """STRProcessor constructs (no test_mode) with the expected platforms/tax rates."""
+        processor = STRProcessor()
         assert processor.platforms == ['airbnb', 'booking', 'direct']
         # Tax rates are calculated dynamically via get_tax_rates(), not stored as attributes
         tax_rates_2024 = processor.get_tax_rates('2024-01-01')
         assert tax_rates_2024['vat_rate'] == 9
         assert tax_rates_2024['tourist_tax_rate'] == 6.02  # Actual rate is 6.02%
     
-    def test_init_production_mode(self):
-        """Test initialization in production mode"""
-        processor = STRProcessor(test_mode=False)
-        assert processor.test_mode == False
+    def test_init_has_property_mappings(self):
+        """STRProcessor constructs (no test_mode) and exposes property_mappings."""
+        processor = STRProcessor()
         assert hasattr(processor, 'property_mappings')
     
     def test_normalize_listing_name_green(self, str_processor):

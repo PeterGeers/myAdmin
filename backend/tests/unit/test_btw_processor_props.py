@@ -69,7 +69,7 @@ class TestBtwBalanceInvariant:
     def setup_processor(self, mock_db):
         """Create BTWProcessor with mocked DatabaseManager."""
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            self.processor = BTWProcessor(test_mode=True)
+            self.processor = BTWProcessor()
         self.mock_db = mock_db
 
     @settings(

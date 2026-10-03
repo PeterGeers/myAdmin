@@ -45,7 +45,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            result = migrate_revolut_ref2(test_mode=True)
+            result = migrate_revolut_ref2()
 
         assert result == 2
         # Verify UPDATE calls with formatted saldo
@@ -70,7 +70,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            result = migrate_revolut_ref2(test_mode=True)
+            result = migrate_revolut_ref2()
 
         assert result == 0
         # Only the SELECT should have been called, no UPDATEs
@@ -91,7 +91,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            result = migrate_revolut_ref2(test_mode=True)
+            result = migrate_revolut_ref2()
 
         # Only the second record should be updated
         assert result == 1
@@ -108,7 +108,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            result = migrate_revolut_ref2(test_mode=True)
+            result = migrate_revolut_ref2()
 
         assert result == 0
         update_calls = [
@@ -128,7 +128,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            result = migrate_revolut_ref2(test_mode=True)
+            result = migrate_revolut_ref2()
 
         assert result == 0
         update_calls = [
@@ -145,7 +145,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            result = migrate_revolut_ref2(test_mode=True)
+            result = migrate_revolut_ref2()
 
         assert result == 0
 
@@ -159,7 +159,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            migrate_revolut_ref2(test_mode=True)
+            migrate_revolut_ref2()
 
         mock_conn.commit.assert_called_once()
 
@@ -178,7 +178,7 @@ class TestMigrateRevolutRef2:
 
         with patch('migrate_revolut_ref2.DatabaseManager', return_value=setup_mock_db):
             from migrate_revolut_ref2 import migrate_revolut_ref2
-            result = migrate_revolut_ref2(test_mode=True)
+            result = migrate_revolut_ref2()
 
         # Only ID 1 and ID 4 need updates
         assert result == 2

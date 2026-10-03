@@ -40,7 +40,7 @@ def mock_config_service():
 @pytest.fixture
 def service(mock_db, mock_config_service):
     """Create year-end service with mocked dependencies"""
-    return YearEndClosureService(test_mode=True)
+    return YearEndClosureService()
 
 
 @pytest.fixture
@@ -54,12 +54,12 @@ class TestServiceInitialization:
     
     def test_init_creates_database_manager(self, mock_db):
         """Test that initialization creates database manager"""
-        service = YearEndClosureService(test_mode=True)
+        service = YearEndClosureService()
         assert service.db is not None
     
     def test_init_creates_config_service(self, mock_config_service):
         """Test that initialization creates config service"""
-        service = YearEndClosureService(test_mode=True)
+        service = YearEndClosureService()
         assert service.config_service is not None
 
 

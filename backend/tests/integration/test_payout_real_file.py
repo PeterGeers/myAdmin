@@ -7,7 +7,7 @@ from src.str_processor import STRProcessor
 payout_file = "../.kiro/specs/BDC-Algoritm-import-str_processor.py/Payout_from_2025-01-01_until_2025-12-31.csv"
 
 # Create processor
-processor = STRProcessor(test_mode=True)
+processor = STRProcessor()
 
 # Process the file
 print("=" * 80)

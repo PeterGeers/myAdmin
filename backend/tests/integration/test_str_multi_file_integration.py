@@ -99,7 +99,7 @@ def _write_xls(df, directory, filename):
 
 @pytest.fixture
 def processor():
-    return STRProcessor(test_mode=True)
+    return STRProcessor()
 
 
 @pytest.fixture
@@ -276,7 +276,7 @@ class TestRoutePassesAllFilePaths:
 
         # Simpler approach: verify at the processor level that
         # process_str_files receives the correct number of paths
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         paths = [csv1, csv2]
         result = processor.process_str_files(paths, 'booking')
 
@@ -291,7 +291,7 @@ class TestRoutePassesAllFilePaths:
 
         Validates: Requirements 5.1
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         df = _make_booking_df()
         csv_path = _write_csv(df, temp_dir, 'bookings.csv')
@@ -306,7 +306,7 @@ class TestRoutePassesAllFilePaths:
 
         Validates: Requirements 5.1
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         df = _make_booking_df()
         csv_path = _write_csv(df, temp_dir, 'bookings.csv')
@@ -356,7 +356,7 @@ class TestTempFileCleanup:
         assert os.path.exists(path2)
 
         # Simulate the route's processing + cleanup logic
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         processor.process_str_files(temp_paths, 'booking')
 
         # Simulate route cleanup
@@ -394,7 +394,7 @@ class TestTempFileCleanup:
         temp_paths = [path1, path2]
 
         # Simulate route: process then cleanup (cleanup always runs)
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         try:
             processor.process_str_files(temp_paths, 'booking')
         except Exception:

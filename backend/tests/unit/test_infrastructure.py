@@ -202,8 +202,8 @@ class TestDatabaseHelper:
     def test_database_helper_mock_setup(self):
         """Test database helper mock setup"""
         mock_db, mock_conn, mock_cursor = DatabaseTestHelper.create_mock_database_manager()
-        
-        assert mock_db.test_mode is True
+
+        assert mock_db is not None
         assert mock_conn is not None
         assert mock_cursor is not None
         

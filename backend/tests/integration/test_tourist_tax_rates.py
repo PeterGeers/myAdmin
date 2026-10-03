@@ -4,7 +4,7 @@ Test script to verify tourist tax rates for different dates
 from src.str_processor import STRProcessor
 from datetime import date
 
-processor = STRProcessor(test_mode=True)
+processor = STRProcessor()
 
 print("=" * 80)
 print("TOURIST TAX RATE VERIFICATION")

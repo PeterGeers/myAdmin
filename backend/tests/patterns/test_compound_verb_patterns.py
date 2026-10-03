@@ -26,7 +26,7 @@ def test_compound_verb_extraction():
     print("1. Testing Compound Verb Extraction")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     
     test_cases = [
         {
@@ -88,11 +88,11 @@ def test_compound_pattern_storage():
     print("\n2. Testing Compound Pattern Storage")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "CompoundTest"
     
     # Clear existing test patterns
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     db.execute_query("DELETE FROM pattern_verb_patterns WHERE administration = %s", (administration,), fetch=False, commit=True)
     db.execute_query("DELETE FROM pattern_analysis_metadata WHERE administration = %s", (administration,), fetch=False, commit=True)
     
@@ -186,7 +186,7 @@ def test_compound_pattern_matching():
     print("\n3. Testing Compound Pattern Matching")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "CompoundTest"
     
     # Test scenarios
@@ -264,7 +264,7 @@ def test_compound_vs_simple_patterns():
     print("\n4. Testing Compound vs Simple Pattern Interaction")
     print("-" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     administration = "CompoundTest"
     
     # Query patterns to show the variety
@@ -296,7 +296,7 @@ def cleanup_test_data():
     print("\n5. Cleaning Up Test Data")
     print("-" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     administration = "CompoundTest"
     
     # Remove test patterns
