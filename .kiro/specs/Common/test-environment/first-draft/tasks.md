@@ -268,10 +268,10 @@ The implementation involves:
 > `nonprofit-deploy` / `506221081911`, `eu-west-1`. Use the `.env`-strip + identity sanity-check
 > from `41-shell-environment.md` for every `nonprofit-deploy` call. Each step is a STOP/GO gate.
 
-- [ ] 33. Pre-flight identity + inventory (read-only, no changes)
-  - [ ] 33.1 Verify data-account identity resolves to `506221081911` (NonprofitDeployRole) with the env-strip invocation — abort if it prints `344561557829`.
-  - [ ] 33.2 List existing stacks/tables (before-state): `sam-members`, `governance_projection`, `pretokengen-data`, `pretokengen-prod` present; `test_sam-members` / `test_pretokengen` / `test_governance_projection` ABSENT.
-  - [ ] 33.3 Confirm the test Cognito pool `eu-west-1_xyrlzfqbl` exists (personal account) and note its current Pre-Token-Generation trigger (if any).
+- [x] 33. Pre-flight identity + inventory (read-only, no changes)
+  - [x] 33.1 Verify data-account identity resolves to `506221081911` (NonprofitDeployRole) with the env-strip invocation — abort if it prints `344561557829`.
+  - [x] 33.2 List existing stacks/tables (before-state): `sam-members`, `governance_projection`, `pretokengen-data`, `pretokengen-prod` present; `test_sam-members` / `test_pretokengen` / `test_governance_projection` ABSENT.
+  - [x] 33.3 Confirm the test Cognito pool `eu-west-1_xyrlzfqbl` exists (personal account) and note its current Pre-Token-Generation trigger (if any).
   - _Gate: identities + inventory confirmed before any write. Requirements: 23-aws-accounts guardrails._
 
 - [ ] 34. Create + seed the TEST projection table `test_governance_projection` (data account)
@@ -286,40 +286,44 @@ The implementation involves:
   - [ ] 35.3 Smoke: `curl` the TEST API base URL `/` — expect 401/403 (authorizer live).
   - _Gate: TEST members API live. Reversible (delete stack; table Retain). Requirements: 11, 12, 13, 14._
 
-- [ ] 36. Deploy the pretokengen TEST stack `test_pretokengen` (data account)
-  - [ ] 36.1 `cd sam/pretokengen && sam build && sam deploy --config-env test`.
-  - [ ] 36.2 Verify: stack CREATE_COMPLETE; capture `PreTokenGenFunctionArn`; invoke permission for pool `eu-west-1_xyrlzfqbl` asserted.
-  - _Gate: TEST pretoken Lambda deployed (trigger not yet attached). Reversible. Requirements: 11, 12._
+- [ ] 36. Retire the legacy `pretokengen-data` stack FIRST (data account)
+  - [ ] 36.1 Rationale (confirmed in Task 33): `pretokengen-data` owns the physical names `pretokengen-test` + `pretokengen-layer-test`, and the `myAdmin-test` pool trigger currently points at `arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test`. A new `test_pretokengen` stack with `Stage=test` would collide on those names, so the OLD stack must be deleted BEFORE the new one is deployed (delete-then-redeploy, not the reverse).
+  - [ ] 36.2 Captured OLD trigger value (for rollback): `PreTokenGeneration = arn:aws:lambda:eu-west-1:506221081911:function:pretokengen-test` (V2_0).
+  - [ ] 36.3 Delete the stack: `aws cloudformation delete-stack --stack-name pretokengen-data` (data account) and wait for DELETE_COMPLETE.
+  - [ ] 36.4 Expected gap: between this delete and Task 37, a TEST-pool sign-in mints a token with NO `custom:entitlements` (the trigger target is gone). Login still works (fail-safe omits the claim, never breaks login). Keep the 36→37 window short.
+  - _Gate: HARD-TO-REVERSE (stack delete) — explicit confirm. The `governance_projection` table is NOT in this stack (Retain/managed-outside), so it is untouched. Requirements: 11._
 
-- [ ] 37. Attach the Cognito Pre-Token-Generation trigger on the TEST pool (identity account)
-  - [ ] 37.1 In `personal`, set pool `eu-west-1_xyrlzfqbl` Pre-Token-Generation Lambda to the `test_pretokengen` ARN (capture the OLD value first — reversible).
-  - [ ] 37.2 Verify: a fresh test-pool sign-in mints a token carrying `custom:entitlements`.
-  - _Gate: TEST tokens entitlement-stamped by the TEST Lambda. Reversible. Requirements: 14, 17._
+- [ ] 37. Deploy the pretokengen TEST stack `test_pretokengen` (data account)
+  - [ ] 37.1 `cd sam/pretokengen && sam build && sam deploy --config-env test` (names `pretokengen-test` / `pretokengen-layer-test` are now free after Task 36).
+  - [ ] 37.2 Verify: stack `test_pretokengen` CREATE_COMPLETE; capture `PreTokenGenFunctionArn`; the cross-account invoke permission for pool `eu-west-1_xyrlzfqbl` is asserted.
+  - _Gate: new TEST pretoken stack live under the `test_` convention (trigger not yet attached). Reversible (delete stack). Requirements: 11, 12._
 
-- [ ] 38. Record the real TEST members API URL in the Environment_Definition (code, committed to `test`)
-  - [ ] 38.1 Replace `PLACEHOLDER_TEST_API` with the captured `MembersApiBaseUrl` in `backend/src/environment/environment_definition.py` AND `frontend/src/config/environmentDefinition.ts` (mirrored).
-  - [ ] 38.2 Update paired assertions (`test_environment_definition.py`, health-report example); the `sam_api_base_url` guard flips placeholder-tolerant to a concrete match.
-  - [ ] 38.3 Set `VITE_MEMBERS_API_BASE_URL` for TEST runs to the new URL.
-  - [ ] 38.4 Change-with-tests; run backend env/guard + frontend Req-22 suites.
+- [ ] 38. Attach the Cognito Pre-Token-Generation trigger on the TEST pool (identity account)
+  - [ ] 38.1 In `personal`, set pool `eu-west-1_xyrlzfqbl` Pre-Token-Generation Lambda (V2_0) to the `PreTokenGenFunctionArn` from Task 37 (`update-user-pool`). The physical ARN is the same `function:pretokengen-test` name, now owned by `test_pretokengen` — so this re-asserts the trigger onto the freshly-deployed function.
+  - [ ] 38.2 Verify: a fresh test-pool sign-in mints a token carrying `custom:entitlements` again (closing the Task-36.4 gap).
+  - _Gate: TEST tokens entitlement-stamped by the new TEST Lambda. Reversible (restore the captured 36.2 ARN). Requirements: 14, 17._
+
+- [ ] 39. Record the real TEST members API URL in the Environment_Definition (code, committed to `test`)
+  - [ ] 39.1 Replace `PLACEHOLDER_TEST_API` with the captured `MembersApiBaseUrl` (Task 35) in `backend/src/environment/environment_definition.py` AND `frontend/src/config/environmentDefinition.ts` (mirrored).
+  - [ ] 39.2 Update paired assertions (`test_environment_definition.py`, health-report example); the `sam_api_base_url` guard flips placeholder-tolerant to a concrete match.
+  - [ ] 39.3 Set `VITE_MEMBERS_API_BASE_URL` for TEST runs to the new URL.
+  - [ ] 39.4 Change-with-tests; run backend env/guard + frontend Req-22 suites.
   - _Gate: definition reflects the live TEST endpoint. Requirements: 15, 21.5-21.6._
 
-- [ ] 39. Provision a Test_Account for sign-in (identity account)
-  - [ ] 39.1 `scripts/test-environment/provision-test-account.py --email <tester> --tenants <T> --role <R> --apply`.
-  - [ ] 39.2 Optionally mirror a prod reference account via the Copy_Utility (explicit).
+- [ ] 40. Provision a Test_Account for sign-in (identity account)
+  - [ ] 40.1 `scripts/test-environment/provision-test-account.py --email <tester> --tenants <T> --role <R> --apply`.
+  - [ ] 40.2 Optionally mirror a prod reference account via the Copy_Utility (explicit).
   - _Gate: a usable TEST login exists. Requirements: 17._
 
-- [ ] 40. End-to-end TEST smoke (the "can I test TEST" check)
-  - [ ] 40.1 Backend `APP_ENV=test`: `GET /api/environment` shows TEST pool/mysql/dynamodb + stack `test_sam-members` + the real (non-placeholder) SAM API URL; Consistency_Guard CONSISTENT.
-  - [ ] 40.2 Frontend `npm start` (`VITE_APP_ENV=test`): sign in with the Test_Account; EnvironmentIndicator shows TEST + the live SAM endpoint; Members page loads data from `test_sam-members`.
+- [ ] 41. End-to-end TEST smoke (the "can I test TEST" check)
+  - [ ] 41.1 Backend `APP_ENV=test`: `GET /api/environment` shows TEST pool/mysql/dynamodb + stack `test_sam-members` + the real (non-placeholder) SAM API URL; Consistency_Guard CONSISTENT.
+  - [ ] 41.2 Frontend `npm start` (`VITE_APP_ENV=test`): sign in with the Test_Account; EnvironmentIndicator shows TEST + the live SAM endpoint; Members page loads data from `test_sam-members`.
   - _Gate: TEST environment operational end-to-end. Requirements: 19.3, 20, 22._
 
-- [ ] 41. (Optional) Retire the legacy `pretokengen-data` stack (data account)
-  - [ ] 41.1 ONLY after 37 + 40 pass — delete the old `pretokengen-data` stack; verify no pool still references its function first.
-  - _Gate: HARD-TO-REVERSE (stack delete). Explicit confirm required. Do last. Requirements: 11._
-
-> **CI alternative (Task 31 path).** Tasks 35/36 can run via the `test`-branch CI once
-> `NonprofitDeployRole`'s OIDC trust is widened to allow `refs/heads/test`. Tasks 34/37/39/41
-> stay manual (outside the data-account deploy workflow scope).
+> **CI alternative (Task 31 path).** Tasks 35/37 can run via the `test`-branch CI once
+> `NonprofitDeployRole`'s OIDC trust is widened to allow `refs/heads/test`. Tasks 34/36/38/40
+> stay manual (outside the data-account deploy workflow scope). NOTE: Task 36 (delete the old
+> stack) must still run before Task 37 regardless of local-vs-CI.
 
 ### Phase 6: Production config wiring + environment-variable consolidation
 
