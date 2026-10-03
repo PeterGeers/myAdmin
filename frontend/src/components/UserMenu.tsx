@@ -25,6 +25,7 @@ import {
 import { ChevronDownIcon } from '@chakra-ui/icons';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
+import EnvironmentIndicator from './EnvironmentIndicator';
 
 /**
  * Props for UserMenu
@@ -32,7 +33,6 @@ import { useTenant } from '../context/TenantContext';
 interface UserMenuProps {
   onLogout: () => void;
   onSettings?: () => void;
-  mode?: string;
 }
 
 /**
@@ -40,7 +40,7 @@ interface UserMenuProps {
  * 
  * Displays a button with user name/email that opens a popover with detailed info.
  */
-export default function UserMenu({ onLogout, onSettings, mode }: UserMenuProps) {
+export default function UserMenu({ onLogout, onSettings }: UserMenuProps) {
   const { user } = useAuth();
   const { currentTenant, availableTenants } = useTenant();
 
@@ -72,17 +72,13 @@ export default function UserMenu({ onLogout, onSettings, mode }: UserMenuProps) 
         </PopoverHeader>
         <PopoverBody>
           <VStack align="stretch" spacing={3}>
-            {/* Environment Mode */}
-            {mode && (
-              <Box>
-                <Text fontSize="xs" color="gray.500" mb={1}>Environment</Text>
-                <Badge colorScheme={mode === 'Test' ? 'red' : 'green'} fontSize="sm">
-                  {mode} Mode
-                </Badge>
-              </Box>
-            )}
+            {/* Environment — resolver-derived (always rendered, never a stale prop). */}
+            <Box>
+              <Text fontSize="xs" color="gray.500" mb={1}>Environment</Text>
+              <EnvironmentIndicator variant="compact" />
+            </Box>
 
-            {mode && <Divider borderColor="gray.700" />}
+            <Divider borderColor="gray.700" />
 
             {/* Name */}
             {user.name && (
