@@ -50,6 +50,11 @@ jobs:
         run: npm run build:ci
         env:
           CI: false
+          # Single authoritative environment selector (Environment_Resolver). The
+          # GitHub Pages build IS the production SPA, so VITE_APP_ENV=production.
+          # PUBLIC, non-secret selector; without it appEnv.ts fails fast at module
+          # load ("VITE_APP_ENV must be one of ...") and the entire SPA is dead.
+          VITE_APP_ENV: production
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
