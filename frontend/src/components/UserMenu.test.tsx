@@ -1,9 +1,18 @@
 import React from 'react';
 import { render, screen, fireEvent, within } from '@/test-utils';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import UserMenu from './UserMenu';
 
 // Mock AuthContext
+//
+// NOTE on the resolver-derived Environment section: UserMenu now renders
+// <EnvironmentIndicator variant="compact" />, which reads APP_ENV from
+// src/config/appEnv.ts. That module resolves APP_ENV at module load from
+// VITE_APP_ENV. Under vitest, VITE_APP_ENV='test' (see the test env setup), so
+// the default static import of UserMenu below resolves to the TEST badge. The
+// dedicated "Environment (resolver-derived)" describe block re-stubs VITE_APP_ENV
+// with vi.resetModules() + dynamic import (mirroring EnvironmentIndicator.test.tsx)
+// to prove the badge follows the resolver for BOTH test and production.
 const mockUseAuth = vi.fn();
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
@@ -152,23 +161,47 @@ describe('UserMenu Component', () => {
     });
   });
 
-  describe('Mode Display', () => {
-    it('shows Test mode badge when mode is Test', () => {
-      render(<UserMenu onLogout={mockOnLogout} mode="Test" />);
-      expect(screen.getByText('Environment')).toBeInTheDocument();
-      expect(screen.getByText(/Test/)).toBeInTheDocument();
-      expect(screen.getByText(/Mode/)).toBeInTheDocument();
+  describe('Environment (resolver-derived)', () => {
+    // The modal's environment is now ALWAYS rendered and derived from the
+    // Environment_Resolver (APP_ENV in src/config/appEnv.ts) via a compact
+    // <EnvironmentIndicator /> — never from a stale /api/status `mode` prop. This is
+    // the regression guard for the bug: in TEST the badge MUST read TEST, not
+    // "Production". APP_ENV resolves at module load, so each case stubs VITE_APP_ENV,
+    // resets modules, and dynamically re-imports a fresh UserMenu (mirroring
+    // EnvironmentIndicator.test.tsx / appEnv.test.ts).
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.resetModules();
     });
 
-    it('shows Production mode badge when mode is Production', () => {
-      render(<UserMenu onLogout={mockOnLogout} mode="Production" />);
+    /** Load a fresh UserMenu built under a specific VITE_APP_ENV value. */
+    async function loadUserMenuWith(raw: string) {
+      vi.resetModules();
+      vi.stubEnv('VITE_APP_ENV', raw);
+      const mod = await import('./UserMenu');
+      return mod.default;
+    }
+
+    it('always renders the Environment section (not gated on a prop)', async () => {
+      const FreshUserMenu = await loadUserMenuWith('test');
+      render(<FreshUserMenu onLogout={mockOnLogout} />);
       expect(screen.getByText('Environment')).toBeInTheDocument();
-      expect(screen.getByText(/Production/)).toBeInTheDocument();
     });
 
-    it('does not show environment section when mode is not provided', () => {
-      render(<UserMenu onLogout={mockOnLogout} />);
-      expect(screen.queryByText('Environment')).not.toBeInTheDocument();
+    it("shows the resolver-derived TEST badge when VITE_APP_ENV='test'", async () => {
+      const FreshUserMenu = await loadUserMenuWith('test');
+      render(<FreshUserMenu onLogout={mockOnLogout} />);
+      const badge = screen.getByTestId('environment-indicator-badge');
+      expect(badge).toHaveTextContent('TEST');
+      // Regression guard: the test environment must NEVER surface as Production.
+      expect(badge).not.toHaveTextContent('PROD');
+    });
+
+    it("shows the resolver-derived PROD badge when VITE_APP_ENV='production'", async () => {
+      const FreshUserMenu = await loadUserMenuWith('production');
+      render(<FreshUserMenu onLogout={mockOnLogout} />);
+      const badge = screen.getByTestId('environment-indicator-badge');
+      expect(badge).toHaveTextContent('PROD');
     });
   });
 
