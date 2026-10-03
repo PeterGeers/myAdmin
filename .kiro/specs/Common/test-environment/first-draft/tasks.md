@@ -140,55 +140,70 @@ The implementation involves:
 
 ### Phase 4: SAM test stack (heavy build)
 
-- [ ] 19. Prepare SAM template for environment parameterization
-  - [ ] 19.1 Add `Environment` parameter to SAM templates with allowed values `[test, production]`
-  - [ ] 19.2 Update template to flow `Environment` into all resources
-  - [ ] 19.3 Add `APP_ENV` environment variable to each Lambda deriving from `Environment`
-  - [ ] 19.4 Update table name references to use prefix based on `Environment`
-  - _Requirements: 11.1-11.3_
+> **Phase 4 reconciliation (agreed with user).** The SAM plane uses the existing
+> per-module `Stage` parameter as the SINGLE environment knob (reused, not a parallel
+> `Environment` param) and DERIVES `APP_ENV` from it via a `StageToAppEnv` mapping
+> (`local`/`test` → `test`, `prod` → `production`). Stacks are PER-MODULE, not one
+> monolith: members = `test_sam-members`/`sam-members`, pretokengen =
+> `test_pretokengen`/`pretokengen-prod` (the design's `myAdmin-test`/`myAdmin-prod` were
+> illustrative). TEST tables carry the `test_` prefix; NO DynamoDB table is shared across
+> environments (TEST owns `test_governance_projection`). Live cross-prefix-DENY and
+> authorizer accept/reject exercises require a real deploy (gated), so they are covered
+> deploy-free by static template-contract tests; the live assertion happens at deploy time.
 
-- [ ] 20. Create test/prod SAM config environments
-  - [ ] 20.1 Add `[test.deploy.parameters]` section to `samconfig.toml` with `Environment=test`
-  - [ ] 20.2 Add `[prod.deploy.parameters]` section with `Environment=production`
-  - [ ] 20.3 Set distinct stack names: `myAdmin-test` and `myAdmin-prod`
-  - [ ] 20.4 Configure parameter overrides for each environment
+- [x] 19. Prepare SAM template for environment parameterization
+  - [x] 19.1 `Stage` (the single env knob) AllowedValues extended to `[local, test, prod]`
+  - [x] 19.2 `Stage` already flows into all resources (names, API stage, output URL)
+  - [x] 19.3 Added `APP_ENV` env var to each Lambda via `!FindInMap [StageToAppEnv, Stage]`
+  - [x] 19.4 Table names are per-env params; members pattern widened to accept `test_` prefix
+  - _Requirements: 11.1-11.3_
+  - _Done: sam/members/template.yaml + sam/pretokengen/template.yaml; sam validate --lint passes._
+
+- [x] 20. Create test/prod SAM config environments
+  - [x] 20.1 Added `[test.deploy.parameters]` with `Stage=test` (members; pretokengen already had it)
+  - [x] 20.2 `[prod.deploy.parameters]` with `Stage=prod` (both modules)
+  - [x] 20.3 Distinct per-module stack names: `test_sam-members`/`sam-members`, `test_pretokengen`/`pretokengen-prod`
+  - [x] 20.4 Per-env parameter overrides (tables, pool ARN, projection) configured
   - _Requirements: 11.2_
 
-- [ ] 21. Implement environment-scoped execution roles
-  - [ ] 21.1 Update IAM role policies to scope DynamoDB by prefix: `test_*` for TEST, unprefixed for PROD
-  - [ ] 21.2 Ensure TEST role denies access to unprefixed tables at IAM layer
-  - [ ] 21.3 Verify PROD role scoped to unprefixed tables only
-  - [ ] 21.4 Write integration test for IAM cross-prefix denial
+- [x] 21. Implement environment-scoped execution roles
+  - [x] 21.1 Inline IAM scopes DynamoDB to the EXACT table-name params (resolve to `test_*` for TEST, unprefixed for PROD)
+  - [x] 21.2 TEST role cannot reach unprefixed tables — no `table/*` wildcard, same-account only
+  - [x] 21.3 PROD role scoped to unprefixed table ARNs only
+  - [x] 21.4 Static contract test asserts the no-wildcard / exact-ARN scoping (live cross-prefix DENY exercised at deploy)
   - _Requirements: 10.3, 12.1-12.4_
+  - _Done: sam/tests/test_members_env_stack_contract.py, test_pretokengen_env_stack_contract.py._
 
-- [ ] 22. Deploy separate TEST API Gateway
-  - [ ] 22.1 Configure separate `AWS::Serverless::Api` for TEST stack
-  - [ ] 22.2 Ensure TEST and PROD stacks have distinct invoke URLs
-  - [ ] 22.3 Update frontend SAM API base URL resolution to use environment-specific URL
-  - [ ] 22.4 Update backend health report to include active SAM API URL
+- [x] 22. Deploy separate TEST API Gateway
+  - [x] 22.1 Each stack declares its own `AWS::Serverless::Api` (members); a distinct stack ⇒ distinct API
+  - [x] 22.2 TEST/PROD are distinct stacks ⇒ distinct invoke URLs (URL output is `Stage`-scoped)
+  - [x] 22.3 Frontend SAM API base URL resolves per-env from the Environment_Definition (TEST placeholder until first deploy)
+  - [x] 22.4 Backend health report already surfaces the active resolved SAM API URL
   - _Requirements: 13.1-13.4_
 
-- [ ] 23. Implement per-environment Cognito authorizer
-  - [ ] 23.1 Update authorizer configuration to reference pool based on `Environment`
-  - [ ] 23.2 TEST authorizer references test pool `eu-west-1_xyrlzfqbl`
-  - [ ] 23.3 PROD authorizer references production pool `eu-west-1_Hdp40eWmu`
-  - [ ] 23.4 Write integration test for authorizer accept/reject behavior
+- [x] 23. Implement per-environment Cognito authorizer
+  - [x] 23.1 Authorizer `UserPoolArn` is the per-env `CognitoUserPoolArn` parameter
+  - [x] 23.2 TEST `[test]` config sets the test pool `eu-west-1_xyrlzfqbl`
+  - [x] 23.3 PROD `[prod]` config sets the production pool `eu-west-1_Hdp40eWmu`
+  - [x] 23.4 Contract test asserts the per-env authorizer/invoke pool wiring (live accept/reject exercised at deploy)
   - _Requirements: 14.1-14.3_
 
-- [ ] 24. Extend guard to SAM plane
-  - [ ] 24.1 Add guard check for SAM authorizer pool matching `APP_ENV`
-  - [ ] 24.2 Add guard check for SAM API base URL matching `APP_ENV`
-  - [ ] 24.3 Add guard check for DynamoDB prefix matching `APP_ENV`
+- [x] 24. Extend guard to SAM plane
+  - [x] 24.1 `_check_sam_authorizer_pool` — SAM authorizer pool matches `APP_ENV`
+  - [x] 24.2 `_check_sam_api_base_url` — SAM API base URL matches `APP_ENV` (placeholder-tolerant pre-deploy)
+  - [x] 24.3 `_check_dynamodb_prefix` — DynamoDB prefix matches `APP_ENV`
   - _Requirements: 4.4, 14.4-14.5, 19.4_
+  - _Done: backend/src/environment/consistency_guard.py + paired tests; verified live `environment.check` → CONSISTENT._
 
-- [ ] 25. Update Environment_Definition with SAM delta
-  - [ ] 25.1 Record current-state delta: no separate TEST stack today
-  - [ ] 25.2 Document target state: stack-per-environment with separate API Gateway
-  - [ ] 25.3 Update definition with TEST and PROD SAM configuration
+- [x] 25. Update Environment_Definition with SAM delta
+  - [x] 25.1 Current-state delta recorded (comments: only the `test_` prefix isolates SAM today)
+  - [x] 25.2 Target state documented in design.md §9/§10 (per-module stack-per-environment)
+  - [x] 25.3 Definition updated with TEST (`test_sam-members`) and PROD (`sam-members`) SAM config; frontend mirrored
   - _Requirements: 15.1-15.3_
 
-- [ ] 26. Checkpoint - SAM plane ready for deployment
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 26. Checkpoint - SAM plane ready for deployment
+  - All tests pass: SAM suite 1207, backend env/guard suite 96, frontend 21. `sam validate --lint` passes both templates.
+  - REMAINING (needs user — LIVE AWS): deploy `test_sam-members` + `test_pretokengen` to the data account via `sam deploy --config-env test`, re-attach the Cognito pre-token-generation trigger on the `myAdmin-test` pool to the new `test_pretokengen` function, retire the old `pretokengen-data` stack, and seed `test_governance_projection` (local seed or Phase-5 Copy_Utility). Record the real TEST API invoke URL in the Environment_Definition after first deploy.
 
 ### Phase 5: Operational tooling + steering
 
