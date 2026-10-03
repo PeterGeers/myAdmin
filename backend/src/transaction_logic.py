@@ -13,10 +13,9 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 
 class TransactionLogic:
-    def __init__(self, test_mode=False):
-        self.test_mode = test_mode
+    def __init__(self):
         self.table_name = "mutaties"  # Use same table name in both databases
-        self.db = DatabaseManager(test_mode=test_mode)
+        self.db = DatabaseManager()
 
     def get_last_transactions(self, transaction_number, administration=None):
         """Get last transactions based on TransactionNumber and max date

@@ -55,7 +55,6 @@ def client():
         import importlib
         import routes.financial_reporting_routes as frr
         importlib.reload(frr)
-        frr.set_test_mode(True)
 
         from flask import Flask
         app = Flask(__name__)
@@ -84,7 +83,7 @@ class TestFinancialReportingService:
         """Empty conditions produce 1=1 WHERE clause."""
         from routes.financial_reporting_routes import FinancialReportingService
         with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
+            service = FinancialReportingService()
         clause, params = service.build_where_clause({})
         assert clause == "1=1"
         assert params == []
@@ -93,7 +92,7 @@ class TestFinancialReportingService:
         """Administration condition produces correct clause."""
         from routes.financial_reporting_routes import FinancialReportingService
         with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
+            service = FinancialReportingService()
         clause, params = service.build_where_clause({'administration': 'TestTenant'})
         assert 'administration = %s' in clause
         assert params == ['TestTenant']
@@ -102,7 +101,7 @@ class TestFinancialReportingService:
         """Date range condition produces BETWEEN clause."""
         from routes.financial_reporting_routes import FinancialReportingService
         with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
+            service = FinancialReportingService()
         clause, params = service.build_where_clause({
             'date_range': {'from': '2025-01-01', 'to': '2025-12-31'}
         })
@@ -113,7 +112,7 @@ class TestFinancialReportingService:
         """Date range with only 'to' produces <= clause."""
         from routes.financial_reporting_routes import FinancialReportingService
         with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
+            service = FinancialReportingService()
         clause, params = service.build_where_clause({
             'date_range': {'from': None, 'to': '2025-06-30'}
         })
@@ -124,7 +123,7 @@ class TestFinancialReportingService:
         """Years condition produces IN clause."""
         from routes.financial_reporting_routes import FinancialReportingService
         with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
+            service = FinancialReportingService()
         clause, params = service.build_where_clause({'years': [2024, 2025]})
         assert 'jaar IN (%s,%s)' in clause
         assert params == [2024, 2025]
@@ -133,7 +132,7 @@ class TestFinancialReportingService:
         """Profit/loss condition produces VW clause."""
         from routes.financial_reporting_routes import FinancialReportingService
         with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
+            service = FinancialReportingService()
         clause, params = service.build_where_clause({'profit_loss': 'Y'})
         assert 'VW = %s' in clause
         assert params == ['Y']
@@ -142,24 +141,20 @@ class TestFinancialReportingService:
         """'all' value is skipped in WHERE clause."""
         from routes.financial_reporting_routes import FinancialReportingService
         with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
+            service = FinancialReportingService()
         clause, params = service.build_where_clause({'profit_loss': 'all'})
         assert clause == "1=1"
         assert params == []
 
-    def test_table_name_test_mode(self):
-        """Test mode uses mutaties_test table."""
+    def test_table_name_is_fixed_mutaties(self):
+        """Phase-3 task 16: schema is always `finance` (environment selected by
+        APP_ENV), so the table name is fixed to `mutaties` — no `mutaties_test`
+        switch and no `test_mode` constructor argument."""
         from routes.financial_reporting_routes import FinancialReportingService
-        with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=True)
-        assert service.table_name == 'mutaties_test'
-
-    def test_table_name_production_mode(self):
-        """Production mode uses mutaties table."""
-        from routes.financial_reporting_routes import FinancialReportingService
-        with patch('routes.financial_reporting_routes.DatabaseManager'):
-            service = FinancialReportingService(test_mode=False)
+        with patch('routes.financial_reporting_routes.DatabaseManager') as mock_db:
+            service = FinancialReportingService()
         assert service.table_name == 'mutaties'
+        mock_db.assert_called_once_with()
 
 
 # ── GET /balance-data ──────────────────────────────────────────────────────

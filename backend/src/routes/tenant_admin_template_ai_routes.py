@@ -70,8 +70,7 @@ def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
         if not validation_errors:
             return jsonify({"error": "validation_errors is required"}), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         from services.ai_template_assistant import AITemplateAssistant
 
@@ -161,8 +160,7 @@ def apply_ai_fixes_endpoint(user_email, user_roles) -> ResponseReturnValue:
         if not fixes:
             return jsonify({"error": "fixes is required"}), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         from services.ai_template_assistant import AITemplateAssistant
 
@@ -223,8 +221,7 @@ def delete_tenant_template_endpoint(
                 {"error": "Invalid template type", "valid_types": VALID_TEMPLATE_TYPES}
             ), 400
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         select_query = """
             SELECT template_file_id

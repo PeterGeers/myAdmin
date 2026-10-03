@@ -62,8 +62,7 @@ def export_accounts(user_email, user_roles) -> ResponseReturnValue:
             return jsonify({"error": "FIN module not enabled"}), 403
 
         # Delegate to service
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         from services.chart_of_accounts_io_service import ChartOfAccountsIOService
 
         io_service = ChartOfAccountsIOService(db=db)
@@ -134,8 +133,7 @@ def import_accounts(user_email, user_roles) -> ResponseReturnValue:
             ), 400
 
         # Delegate to service
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         from services.chart_of_accounts_io_service import ChartOfAccountsIOService
 
         io_service = ChartOfAccountsIOService(db=db)

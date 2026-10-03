@@ -17,7 +17,7 @@ def test_database_views():
     print("=" * 60)
     
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         
         # Test 1: Check what views exist
         print("\n1. Checking existing views...")

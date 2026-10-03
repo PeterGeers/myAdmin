@@ -136,7 +136,7 @@ def airbnb_dataframe_strategy(min_rows=1, max_rows=10):
 @pytest.fixture
 def processor():
     """Create STRProcessor instance for testing."""
-    return STRProcessor(test_mode=True)
+    return STRProcessor()
 
 
 @pytest.fixture
@@ -247,7 +247,7 @@ class TestProperty2PartialFailureResilience:
 
         Feature: str-airbnb-multi-file-import, Property 2: Partial failure resilience
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             # Write valid files
@@ -283,7 +283,7 @@ class TestProperty2PartialFailureResilience:
 
         Feature: str-airbnb-multi-file-import, Property 2: Partial failure resilience
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             invalid_paths = []
@@ -311,7 +311,7 @@ class TestProperty2PartialFailureResilience:
 
         Feature: str-airbnb-multi-file-import, Property 2: Partial failure resilience
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             paths = []
@@ -528,7 +528,7 @@ class TestProperty5SourceFileFormatReflectsFileCount:
 
         Feature: str-airbnb-multi-file-import, Property 5: sourceFile format reflects file count
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             paths = []
@@ -556,7 +556,7 @@ class TestProperty5SourceFileFormatReflectsFileCount:
 
         Feature: str-airbnb-multi-file-import, Property 5: sourceFile format reflects file count
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             filename = "my_airbnb_export.csv"
@@ -584,7 +584,7 @@ class TestProperty5SourceFileFormatReflectsFileCount:
 
         Feature: str-airbnb-multi-file-import, Property 5: sourceFile format reflects file count
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         tmp_dir = tempfile.mkdtemp()
         try:
             # Create minimal valid CSVs
@@ -910,7 +910,7 @@ class TestAirbnbMultiImportUnitTests:
 
         Feature: str-airbnb-multi-file-import
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         # Create files that cannot be parsed as CSV
         paths = []
@@ -938,7 +938,7 @@ class TestAirbnbMultiImportUnitTests:
 
         Feature: str-airbnb-multi-file-import
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         payout_row = {
             "Type": "Payout",
@@ -992,7 +992,7 @@ class TestAirbnbMultiImportUnitTests:
 
         Feature: str-airbnb-multi-file-import
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         rows = []
         for listing in ['Green Studio', 'Red Studio', 'Child Friendly']:
@@ -1085,7 +1085,7 @@ class TestAirbnbMultiImportUnitTests:
 
         Feature: str-airbnb-multi-file-import
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         row_data = {
             'Begindatum': '15-06-2025',
@@ -1124,7 +1124,7 @@ class TestAirbnbMultiImportUnitTests:
 
         Feature: str-airbnb-multi-file-import
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         row_data = {
             'Begindatum': '15-06-2025',
@@ -1157,7 +1157,7 @@ class TestAirbnbMultiImportUnitTests:
 
         Feature: str-airbnb-multi-file-import
         """
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
 
         row_data = {
             'Begindatum': '15-06-2025',

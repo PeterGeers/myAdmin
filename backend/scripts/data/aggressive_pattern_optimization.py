@@ -26,7 +26,7 @@ import re
 
 def calculate_target_patterns(administration: str, target_reduction: float = 99.0):
     """Calculate the exact number of patterns needed for target reduction"""
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Get transaction count
     transaction_result = db.execute_query(f"""
@@ -58,7 +58,7 @@ def aggressive_pattern_optimization(administration: str, target_patterns: int):
     print(f"🎯 Target: {target_patterns} patterns")
     print("=" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Step 1: Keep only high-frequency patterns (occurrences >= 5)
     print("1️⃣ Keeping only high-frequency patterns (≥5 occurrences)...")
@@ -247,8 +247,8 @@ def test_final_performance(administration: str, target_reduction: float = 99.0):
     print(f"🚀 Testing Final Performance")
     print("=" * 40)
     
-    db = DatabaseManager(test_mode=False)
-    analyzer = PatternAnalyzer(test_mode=False)
+    db = DatabaseManager()
+    analyzer = PatternAnalyzer()
     
     # Clear cache for accurate test
     analyzer.persistent_cache.clear_all_cache()
@@ -347,7 +347,7 @@ def main():
     # Step 4: Update metadata
     print()
     print("📝 Updating analysis metadata...")
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     db.execute_query("""
         UPDATE pattern_analysis_metadata 
         SET patterns_discovered = %s,

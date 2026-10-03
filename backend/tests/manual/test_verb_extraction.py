@@ -6,7 +6,7 @@ sys.path.insert(0, 'src')
 
 from pattern_analyzer import PatternAnalyzer
 
-analyzer = PatternAnalyzer(test_mode=False)
+analyzer = PatternAnalyzer()
 
 # Test descriptions from the CSV
 test_descriptions = [

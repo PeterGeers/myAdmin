@@ -17,8 +17,7 @@ from services.year_end_config import YearEndConfigService
 year_end_config_bp = Blueprint("year_end_config", __name__)
 
 # Initialize service
-test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-config_service = YearEndConfigService(test_mode=test_mode)
+config_service = YearEndConfigService()
 
 
 # ============================================================================

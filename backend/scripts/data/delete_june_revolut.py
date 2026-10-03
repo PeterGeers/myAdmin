@@ -12,7 +12,7 @@ def delete_june_transactions():
     print("\n=== DELETE JUNE 2025 REVOLUT TRANSACTIONS ===")
     print("⚠️  WARNING: This will permanently delete transactions!")
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor(dictionary=True)
     

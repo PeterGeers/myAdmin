@@ -46,8 +46,7 @@ def get_verification_status(
         last_checked timestamp, and fallback sender info.
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         service = EmailVerificationService(db_manager=db)
 
         result = service.check_status(tenant)
@@ -84,8 +83,7 @@ def resend_verification(
         JSON with success message or rate limit error (429).
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         service = EmailVerificationService(db_manager=db)
 
         result = service.resend_verification(tenant)
@@ -129,8 +127,7 @@ def update_sender_email(
 
         new_email = data["email"].strip()
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         service = EmailVerificationService(db_manager=db)
 
         result = service.update_email(tenant, new_email)

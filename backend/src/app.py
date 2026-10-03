@@ -127,10 +127,7 @@ from shared_limiter import init_limiter
 
 init_limiter(app)
 
-# MODE CONFIGURATION
-# Set flag = True for TEST mode (uses mutaties_test table, local storage)
-# Set flag = False for PRODUCTION mode (uses mutaties table, Google Drive)
-flag = False
+# The active environment (TEST vs PRODUCTION) is selected solely by the APP_ENV env var.
 
 # Initialize scalability manager early
 try:
@@ -254,56 +251,15 @@ from routes.system_health_routes import set_scalability_manager
 
 set_scalability_manager(scalability_manager)
 
-# Set scalability manager and test mode for scalability_bp
+# Set scalability manager for scalability_bp
 from scalability_routes import (
     set_scalability_manager as set_scalability_bp_manager,
 )
-from scalability_routes import (
-    set_test_mode as set_scalability_test_mode,
-)
 
 set_scalability_bp_manager(scalability_manager)
-set_scalability_test_mode(flag)
 
-# Set test mode flag for cache_bp
-from routes.cache_routes import set_test_mode
-
-set_test_mode(flag)
-
-# Set config and flag for folder_bp (after config is instantiated)
+# Set config for folder_bp (after config is instantiated)
 # This is done later after config is created
-
-# Set test mode flag for invoice_bp
-from routes.invoice_routes import set_test_mode as set_invoice_test_mode
-
-set_invoice_test_mode(flag)
-
-# Set test mode flag for banking_bp
-from routes.banking_routes import set_test_mode as set_banking_test_mode
-
-set_banking_test_mode(flag)
-
-# Set test mode flag for media_asset_bp
-from routes.media_asset_routes import set_test_mode as set_media_asset_test_mode
-
-set_media_asset_test_mode(flag)
-
-# Set test mode flag for budget_bp
-from routes.budget_routes import set_test_mode as set_budget_test_mode
-
-set_budget_test_mode(flag)
-
-# Set test mode flag for zzp_trip_bp
-from routes.zzp_trip_routes import set_test_mode as set_zzp_trip_test_mode
-
-set_zzp_trip_test_mode(flag)
-
-# Set test mode flag for zzp_trip_io_bp
-from routes.zzp_trip_import_export_routes import (
-    set_test_mode as set_zzp_trip_io_test_mode,
-)
-
-set_zzp_trip_io_test_mode(flag)
 
 # Set config for str_bp - import here, call later after UPLOAD_FOLDER is defined
 from routes.str_routes import set_config as set_str_config
@@ -404,79 +360,49 @@ register_security_endpoints(app)
 # In-memory cache for uploaded files to prevent duplicates during session
 upload_cache = {}
 
-config = Config(test_mode=flag)
-processor = PDFProcessor(test_mode=flag)
-transaction_logic = TransactionLogic(test_mode=flag)
+config = Config()
+processor = PDFProcessor()
+transaction_logic = TransactionLogic()
 
-# Set config and flag for folder_bp (must be after config is instantiated)
-from routes.folder_routes import set_config_and_flag
+# Set config for folder_bp (must be after config is instantiated)
+from routes.folder_routes import set_config
 
-set_config_and_flag(config, flag)
+set_config(config)
 
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}
 
 # Set config for str_bp (must be after UPLOAD_FOLDER is defined)
-set_str_config(UPLOAD_FOLDER, flag)
+set_str_config(UPLOAD_FOLDER)
 
-# Set test mode and logger for tax_bp
+# Set logger for tax_bp
 from routes.tax_routes import (
     set_logger as set_tax_logger,
 )
-from routes.tax_routes import (
-    set_test_mode as set_tax_test_mode,
-)
 
-set_tax_test_mode(flag)
 set_tax_logger(logger)
 
-# Set test mode for pdf_validation_bp
-from routes.pdf_validation_routes import (
-    set_test_mode as set_pdf_test_mode,
-)
-
-set_pdf_test_mode(flag)
-
-# Set test mode for duplicate_detection_bp
-from routes.duplicate_detection_routes import (
-    set_test_mode as set_duplicate_test_mode,
-)
-
-set_duplicate_test_mode(flag)
-
-# Set test mode and logger for reporting_bp
+# Set logger for reporting_bp
 from reporting_routes import (
     set_logger as set_reporting_logger,
 )
-from reporting_routes import (
-    set_test_mode as set_reporting_test_mode,
-)
 
-set_reporting_test_mode(flag)
 set_reporting_logger(logger)
 
-# Set test mode and logger for aangifte_ib_bp
+# Set logger for aangifte_ib_bp
 from routes.aangifte_ib_routes import (
     set_logger as set_aangifte_ib_logger,
 )
-from routes.aangifte_ib_routes import (
-    set_test_mode as set_aangifte_ib_test_mode,
-)
 
-set_aangifte_ib_test_mode(flag)
 set_aangifte_ib_logger(logger)
 
-# Set test mode and logger for financial_reporting_bp
+# Set logger for financial_reporting_bp
 import sys
 
 from routes.financial_reporting_routes import (
     set_logger as set_fin_reporting_logger,
 )
-from routes.financial_reporting_routes import (
-    set_test_mode as set_fin_reporting_test_mode,
-)
 
-set_fin_reporting_test_mode(flag)
 set_fin_reporting_logger(logger)
 
 # Initialize pivot registry from database schema (must run at startup)
@@ -487,7 +413,7 @@ for _attempt in range(5):
         from services.parameter_service import ParameterService as _PivotParamService
         from services.pivot_service import build_registry_from_db
 
-        _pivot_db = DatabaseManager(test_mode=flag)
+        _pivot_db = DatabaseManager()
         _pivot_ps = _PivotParamService(_pivot_db)
         build_registry_from_db(_pivot_db, _pivot_ps)
         print("✅ Pivot registry initialized from database schema", flush=True)
@@ -523,7 +449,7 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
     """
     try:
         # Initialize database connection
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         # Check if this exact file already exists in the database
         # Look for transactions with the same filename in Ref4 and same folder in ReferenceNumber

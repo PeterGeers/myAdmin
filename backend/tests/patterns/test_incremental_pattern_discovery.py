@@ -22,8 +22,8 @@ def test_pattern_discovery_with_new_data():
     print("🧪 Testing Pattern Discovery with New Transaction Types")
     print("=" * 70)
     
-    analyzer = PatternAnalyzer(test_mode=False)
-    db = DatabaseManager(test_mode=False)
+    analyzer = PatternAnalyzer()
+    db = DatabaseManager()
     administration = "TestIncremental"
     
     # Clean up any existing test data

@@ -84,8 +84,7 @@ def upload_credentials(user_email, user_roles) -> ResponseReturnValue:
             return jsonify({'error': f'Failed to read file: {str(e)}'}), 400
         
         # Initialize credential service
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         credential_service = CredentialService(db)
         
         # Store encrypted credentials
@@ -129,8 +128,7 @@ def get_credentials_status(user_email, user_roles) -> ResponseReturnValue:
         tenant = get_current_tenant(request)
         
         # Initialize credential service
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         credential_service = CredentialService(db)
         
         # Get list of credential types
@@ -173,8 +171,7 @@ def test_credentials(user_email, user_roles) -> ResponseReturnValue:
         credential_type = data.get('credential_type', 'google_drive')
         
         # Initialize credential service
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         credential_service = CredentialService(db)
         
         # Get client credentials from google_drive_credentials for OAuth token testing
@@ -294,8 +291,7 @@ def start_oauth_flow(user_email, user_roles) -> ResponseReturnValue:
             }), 400
         
         # Get client credentials from database
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         credential_service = CredentialService(db)
         
         client_creds = credential_service.get_credential(tenant, 'google_drive_credentials')
@@ -498,8 +494,7 @@ def oauth_complete(user_email, user_roles) -> ResponseReturnValue:
         # Exchange code for tokens
         if service == 'google_drive':
             # Get client credentials from database
-            test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
-            db = DatabaseManager(test_mode=test_mode)
+            db = DatabaseManager()
             credential_service = CredentialService(db)
             
             client_creds = credential_service.get_credential(tenant, 'google_drive_credentials')

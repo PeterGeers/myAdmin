@@ -31,7 +31,7 @@ The universal shape asserted (scoped to the concrete reproducible case):
     but NO record exists for the row's own (administration, Ref1, Ref2),
     the row is saved as new.
 
-Runs against the ``testfinance`` schema with ``test_mode=True`` (seeded
+Runs against the ``finance`` schema (seeded
 ``rekeningschema`` + ``mutaties`` fixtures, cleaned up afterwards). No production data is
 touched.
 """
@@ -94,7 +94,7 @@ def db():
     os.environ["TEST_MODE"] = "true"
 
     try:
-        manager = DatabaseManager(test_mode=True)
+        manager = DatabaseManager()
         # Fail fast / skip if the schema is not reachable.
         manager.execute_query("SELECT 1", None, fetch=True)
     except Exception as exc:  # pragma: no cover - environment dependent
@@ -105,7 +105,7 @@ def db():
 @pytest.fixture
 def processor(db):
     """BankingProcessor wired to the testfinance DatabaseManager."""
-    proc = BankingProcessor(test_mode=True)
+    proc = BankingProcessor()
     proc.db = db
     return proc
 

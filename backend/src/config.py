@@ -2,8 +2,7 @@ import os
 
 
 class Config:
-    def __init__(self, test_mode=False):
-        self.test_mode = test_mode
+    def __init__(self):
         self.base_folder = os.path.join(os.getcwd(), "storage")
 
         # Vendor folder mapping (application-level config, not per-tenant)

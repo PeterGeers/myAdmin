@@ -47,14 +47,13 @@ def get_first_year(db, administration):
     return result[0]['first_year'] if result and result[0]['first_year'] else None
 
 
-def bulk_close_years(administration, up_to_year, test_mode=False, user_email='system@bulk-closure'):
+def bulk_close_years(administration, up_to_year, user_email='system@bulk-closure'):
     """
     Close all years from first year to up_to_year for an administration.
     
     Args:
         administration: Tenant identifier
         up_to_year: Last year to close (inclusive)
-        test_mode: Use test database
         user_email: Email to record in closure status
     """
     print(f"\n{'='*80}")
@@ -62,8 +61,8 @@ def bulk_close_years(administration, up_to_year, test_mode=False, user_email='sy
     print(f"{'='*80}\n")
     
     # Initialize services
-    db = DatabaseManager(test_mode=test_mode)
-    service = YearEndClosureService(test_mode=test_mode)
+    db = DatabaseManager()
+    service = YearEndClosureService()
     
     # Get first year
     first_year = get_first_year(db, administration)
@@ -133,7 +132,6 @@ def main():
     parser.add_argument('--administration', help='Administration to close years for')
     parser.add_argument('--all', action='store_true', help='Close years for all administrations')
     parser.add_argument('--up-to-year', type=int, required=True, help='Last year to close (inclusive)')
-    parser.add_argument('--test-mode', action='store_true', help='Use test database')
     parser.add_argument('--user-email', default='system@bulk-closure', help='Email to record in closure status')
     
     args = parser.parse_args()
@@ -146,7 +144,7 @@ def main():
     
     # Get list of administrations to process
     if args.all:
-        db = DatabaseManager(test_mode=args.test_mode)
+        db = DatabaseManager()
         administrations = get_all_administrations(db)
         print(f"\nProcessing all administrations: {', '.join(administrations)}")
     else:
@@ -158,7 +156,6 @@ def main():
         success = bulk_close_years(
             administration=admin,
             up_to_year=args.up_to_year,
-            test_mode=args.test_mode,
             user_email=args.user_email
         )
         if not success:

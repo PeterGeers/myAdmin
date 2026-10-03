@@ -20,7 +20,7 @@ def test_reference_number_prediction():
     print("TESTING REFERENCENUMBER PREDICTION")
     print("=" * 80)
     
-    processor = BankingProcessor(test_mode=False)
+    processor = BankingProcessor()
     administration = 'GoodwinSolutions'
     
     # Test transactions with missing ReferenceNumber values
@@ -154,7 +154,7 @@ def test_reference_pattern_analysis():
     print("TESTING REFERENCE PATTERN ANALYSIS")
     print("=" * 80)
     
-    processor = BankingProcessor(test_mode=False)
+    processor = BankingProcessor()
     administration = 'GoodwinSolutions'
     
     try:

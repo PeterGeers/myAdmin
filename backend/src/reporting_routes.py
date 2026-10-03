@@ -18,9 +18,12 @@ reporting_bp = Blueprint("reporting", __name__)
 
 
 class ReportingService:
-    def __init__(self, test_mode=False):
-        self.db = DatabaseManager(test_mode=test_mode)
-        self.table_name = "mutaties_test" if test_mode else "mutaties"
+    def __init__(self):
+        # Environment (TEST vs PROD) is selected by APP_ENV via the resolver, not by
+        # a request-driven `test_mode` flag. The MySQL schema is always `finance`, so
+        # the mutaties table name is fixed (no `mutaties_test` switch).
+        self.db = DatabaseManager()
+        self.table_name = "mutaties"
 
     @contextmanager
     def get_cursor(self):
@@ -121,9 +124,8 @@ def get_str_revenue(user_email, user_roles, tenant, user_tenants):
     try:
         date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
         date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
-        test_mode = request.args.get("testMode", "false").lower() == "true"
 
-        service = ReportingService(test_mode=test_mode)
+        service = ReportingService()
         result = service.get_str_revenue_summary(date_from, date_to, user_tenants)
 
         return jsonify(result)
@@ -138,9 +140,7 @@ def get_str_revenue(user_email, user_roles, tenant, user_tenants):
 def get_account_summary(user_email, user_roles, tenant, user_tenants):
     """Get account-based summary for chart of accounts analysis with tenant filtering"""
     try:
-        service = ReportingService(
-            request.args.get("testMode", "false").lower() == "true"
-        )
+        service = ReportingService()
         date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
         date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
         administration = request.args.get(
@@ -193,9 +193,7 @@ def get_account_summary(user_email, user_roles, tenant, user_tenants):
 def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
     """Get mutaties table data with PowerBI-style filters and tenant filtering"""
     try:
-        service = ReportingService(
-            request.args.get("testMode", "false").lower() == "true"
-        )
+        service = ReportingService()
 
         # Get administration parameter, default to current tenant
         administration = request.args.get("administration", tenant)
@@ -412,7 +410,6 @@ def get_available_data(data_type, user_email, user_roles, tenant, user_tenants):
 def get_check_reference(user_email, user_roles, tenant, user_tenants):
     """Get check reference data with transactions and summary - DIRECT DATABASE QUERY (NO CACHE)"""
     try:
-        test_mode = request.args.get("testMode", "false").lower() == "true"
         reference_number = request.args.get("referenceNumber", "all")
         administration = request.args.get(
             "administration", tenant
@@ -425,7 +422,7 @@ def get_check_reference(user_email, user_roles, tenant, user_tenants):
                 {"success": False, "error": "Access denied to administration"}
             ), 403
 
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Build WHERE clause for tenant filtering
         where_conditions = [
@@ -506,8 +503,9 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
     try:
         service = ReportingService()
 
-        # Determine table name based on test mode
-        table_name = "mutaties_test" if flag else "mutaties"
+        # Schema is always `finance` (environment selected by APP_ENV), so the
+        # mutaties table name is fixed — no `mutaties_test` switch.
+        table_name = "mutaties"
 
         # Build IN clause for user_tenants
         # Use YEAR() on base table — acceptable since administration index
@@ -531,14 +529,7 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
 
 
 # Global variables set by app.py
-flag = False
 logger = None
-
-
-def set_test_mode(test_mode):
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
 
 
 def set_logger(log_instance):

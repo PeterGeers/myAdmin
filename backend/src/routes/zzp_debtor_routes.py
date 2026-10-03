@@ -24,14 +24,6 @@ logger = logging.getLogger(__name__)
 
 zzp_debtor_bp = Blueprint("zzp_debtor", __name__)
 
-_test_mode = False
-
-
-def set_test_mode(flag: bool) -> None:
-    global _test_mode
-    _test_mode = flag
-
-
 # ── Helpers ──────────────────────────────────────────────────
 
 
@@ -119,7 +111,7 @@ def get_receivables(
     determine what is shown as outstanding.
     """
     try:
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
 
         # Resolve tenant-configurable debtor account for ledger queries
         debtor_account = _resolve_debtor_account(db, tenant)
@@ -266,7 +258,7 @@ def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
     FIN invoice processor and payments are recorded via banking.
     """
     try:
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
 
         # Resolve tenant-configurable creditor account for ledger queries
         creditor_account = _resolve_creditor_account(db, tenant)
@@ -371,7 +363,7 @@ def get_aging(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
     debtor account (consistent with the receivables endpoint).
     """
     try:
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
 
         # Resolve debtor account to filter by ledger balance
         debtor_account = _resolve_debtor_account(db, tenant)
@@ -522,7 +514,7 @@ def send_reminder(
         from services.tax_rate_service import TaxRateService
         from services.zzp_invoice_service import ZZPInvoiceService
 
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
         tax_svc = TaxRateService(db)
         param_svc = ParameterService(db)
         svc = ZZPInvoiceService(
@@ -583,7 +575,7 @@ def _validate_booking_account(tenant: str, key: str, account_code: str) -> None:
     if not flag:
         return  # No validation for unknown keys
 
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     rows = db.execute_query(
         f"""SELECT Account FROM rekeningschema
            WHERE administration = %s AND Account = %s
@@ -632,7 +624,7 @@ def validate_booking_param(
         _validate_booking_account(tenant, key, value)
 
         # Validation passed — save the parameter
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
         param_svc = ParameterService(db)
         param_svc.set_param(
             "tenant",
@@ -669,7 +661,7 @@ def get_invoice_ledger_accounts(
     Falls back to the zzp.revenue_account parameter if no accounts are flagged.
     """
     try:
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
         rows = db.execute_query(
             f"""SELECT Account AS nummer, AccountName AS naam
                FROM rekeningschema

@@ -58,8 +58,7 @@ def _generate_code() -> str:
 
 
 def _get_db() -> DatabaseManager:
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    return DatabaseManager(test_mode=test_mode)
+    return DatabaseManager()
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])

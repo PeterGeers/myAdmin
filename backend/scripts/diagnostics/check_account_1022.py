@@ -7,7 +7,7 @@ sys.path.insert(0, 'src')
 from database import DatabaseManager
 from dialect_helpers import dialect
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 print("=" * 80)
 print("Checking Account 1022 in Local Database (finance)")

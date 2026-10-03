@@ -113,7 +113,7 @@ class TestSesStatusMappingCorrectness:
             self.mock_ses = MagicMock()
             mock_boto3.client.return_value = self.mock_ses
             self.service = EmailVerificationService(
-                db_manager=mock_db, region='eu-west-1', test_mode=True
+                db_manager=mock_db, region='eu-west-1'
             )
         self.mock_db = mock_db
 
@@ -227,7 +227,7 @@ class TestResendRateLimiting:
             self.mock_ses = MagicMock()
             mock_boto3.client.return_value = self.mock_ses
             self.service = EmailVerificationService(
-                db_manager=mock_db, region='eu-west-1', test_mode=True
+                db_manager=mock_db, region='eu-west-1'
             )
         self.mock_db = mock_db
 
@@ -366,7 +366,7 @@ class TestEmailValidation:
             self.mock_ses = MagicMock()
             mock_boto3.client.return_value = self.mock_ses
             self.service = EmailVerificationService(
-                db_manager=mock_db, region='eu-west-1', test_mode=True
+                db_manager=mock_db, region='eu-west-1'
             )
         self.mock_db = mock_db
 

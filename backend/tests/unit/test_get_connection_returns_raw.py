@@ -34,7 +34,6 @@ from database import DatabaseManager
 def _bare_manager():
     """A DatabaseManager instance without running __init__ (no real pools)."""
     mgr = object.__new__(DatabaseManager)
-    mgr.test_mode = True
     mgr.config = {
         "host": "localhost",
         "user": "root",

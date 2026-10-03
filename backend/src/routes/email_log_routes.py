@@ -42,8 +42,7 @@ def get_email_logs(user_email, user_roles) -> ResponseReturnValue:
         recipient = request.args.get("recipient")
         limit = min(int(request.args.get("limit", 100)), 500)
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        service = EmailLogService(test_mode=test_mode)
+        service = EmailLogService()
         logs = service.get_logs(
             administration=tenant,
             recipient=recipient,
@@ -95,8 +94,7 @@ def ses_notification_webhook() -> ResponseReturnValue:
             if not ses_message_id:
                 return jsonify({"status": "ignored"}), 200
 
-            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-            service = EmailLogService(test_mode=test_mode)
+            service = EmailLogService()
 
             error_message = None
             if notification_type == "bounce":

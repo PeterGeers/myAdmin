@@ -10,7 +10,7 @@ def check_id_gap():
     """Check transactions in the ID gap"""
     print("\n=== CHECKING ID GAP 60307 to 60333 ===")
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor(dictionary=True)
     

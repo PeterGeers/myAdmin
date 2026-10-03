@@ -35,7 +35,6 @@ def patched_db_manager():
     """
     with patch.object(DatabaseManager, '__init__', lambda self, *a, **kw: None):
         db = DatabaseManager.__new__(DatabaseManager)
-        db.test_mode = True
         db.config = {
             'host': 'localhost', 'user': 'test',
             'password': 'test', 'database': 'test', 'port': 3306,
@@ -231,7 +230,6 @@ class TestDuplicateDetectionPerformance:
 
         with patch.object(DatabaseManager, '__init__', lambda self, *a, **kw: None):
             db = DatabaseManager.__new__(DatabaseManager)
-            db.test_mode = True
             db.config = {
                 'host': 'localhost', 'user': 'test',
                 'password': 'test', 'database': 'test', 'port': 3306,

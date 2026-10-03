@@ -2,10 +2,9 @@
 Migration: Create pivot_models table for Dynamic Pivot Views.
 
 Usage:
-    python create_pivot_models_table.py [--test]
+    python create_pivot_models_table.py
 
-Flags:
-    --test  Run against the test database instead of production.
+The target database is selected by APP_ENV / the DB_* env vars.
 """
 
 import sys
@@ -34,12 +33,9 @@ CREATE TABLE IF NOT EXISTS pivot_models (
 
 
 def main():
-    test_mode = '--test' in sys.argv
-    mode_label = 'TEST' if test_mode else 'PRODUCTION'
+    print("[pivot_models migration] Running migration...")
 
-    print(f"[pivot_models migration] Running against {mode_label} database...")
-
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
 
     try:
         db.execute_query(DDL, fetch=False, commit=True)

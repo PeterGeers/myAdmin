@@ -70,9 +70,8 @@ class STRProcessor:
     """Dispatcher that delegates platform-specific parsing to dedicated modules."""
 
     def __init__(
-        self, test_mode: bool = False, tax_rate_service=None, tenant: str | None = None
+        self, tax_rate_service=None, tenant: str | None = None
     ):
-        self.test_mode = test_mode
         self.platforms = ["airbnb", "booking", "direct"]
         self.tax_rate_service = tax_rate_service
         self.tenant = tenant
@@ -502,7 +501,7 @@ class STRProcessor:
         try:
             from str_database import STRDatabase
 
-            str_db = STRDatabase(test_mode=self.test_mode)
+            str_db = STRDatabase()
             channels = {b.get("channel", "") for b in bookings}
             existing_codes_by_channel = {
                 ch: str_db.get_existing_reservation_codes_for_channel(ch, self.tenant)

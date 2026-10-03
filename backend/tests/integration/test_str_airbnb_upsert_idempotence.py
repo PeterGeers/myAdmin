@@ -15,7 +15,7 @@ Requirements: 10.1, 10.2, 10.3, 10.4
 Feature: airbnb-export-format-update
 
 This test hits a real MySQL instance. It targets the testfinance schema via
-STRDatabase(test_mode=True). When the local Docker MySQL is not reachable the
+STRDatabase(). When the local Docker MySQL is not reachable the
 whole module is skipped with a clear reason rather than failing.
 """
 
@@ -69,9 +69,9 @@ def _booking(code, *, status, gross, listing="Green Studio", nights=3):
 
 
 def _db_available():
-    """Return a connected STRDatabase(test_mode=True), or None if unreachable."""
+    """Return a connected STRDatabase(), or None if unreachable."""
     try:
-        db = STRDatabase(test_mode=True)
+        db = STRDatabase()
         db.execute_query("SELECT 1", None, fetch=True)
         return db
     except Exception:
@@ -112,7 +112,7 @@ class TestAirbnbUpsertIdempotence:
 
     @pytest.fixture
     def db(self):
-        return STRDatabase(test_mode=True)
+        return STRDatabase()
 
     @pytest.fixture(autouse=True)
     def _cleanup(self, db):

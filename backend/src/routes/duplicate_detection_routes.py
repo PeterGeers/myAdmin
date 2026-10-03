@@ -15,16 +15,6 @@ from duplicate_checker import DuplicateChecker
 # Create blueprint
 duplicate_detection_bp = Blueprint("duplicate_detection", __name__)
 
-# Global variables set by app.py
-flag = False  # Test mode flag
-
-
-def set_test_mode(test_mode) -> None:
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
-
-
 @duplicate_detection_bp.route("/api/check-duplicate", methods=["POST"])
 @cognito_required(required_permissions=["invoices_read"])
 def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
@@ -48,7 +38,7 @@ def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
         new_file_id = data.get("newFileId", "")
 
         # Initialize duplicate checker with database manager
-        db_manager = DatabaseManager(test_mode=flag)
+        db_manager = DatabaseManager()
         duplicate_checker = DuplicateChecker(db_manager)
 
         # Check for duplicates
@@ -149,7 +139,7 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
             ), 400
 
         # Initialize duplicate checker with database manager
-        db_manager = DatabaseManager(test_mode=flag)
+        db_manager = DatabaseManager()
         duplicate_checker = DuplicateChecker(db_manager)
 
         # Log the decision
@@ -227,7 +217,7 @@ def handle_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
         # Initialize PDF processor for decision handling
         from pdf_processor import PDFProcessor
 
-        pdf_processor = PDFProcessor(test_mode=flag)
+        pdf_processor = PDFProcessor()
 
         # Handle the user decision
         result = pdf_processor.handle_duplicate_decision(
@@ -238,7 +228,7 @@ def handle_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
         if result["success"] and decision == "continue" and result["transactions"]:
             try:
                 # Initialize database manager for transaction insertion
-                db_manager = DatabaseManager(test_mode=flag)
+                db_manager = DatabaseManager()
 
                 # Insert transactions into database
                 inserted_count = 0

@@ -27,7 +27,7 @@ def test_close_year_workflow():
     print()
     
     # Initialize service
-    service = YearEndClosureService(test_mode=False)
+    service = YearEndClosureService()
     
     # Test with GoodwinSolutions tenant
     administration = 'GoodwinSolutions'

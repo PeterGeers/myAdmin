@@ -150,8 +150,7 @@ def upload_logo(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         ext = MIME_TO_EXT.get(content_type, "png")
 
         # Use MediaAssetService for upload + registry tracking
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         ps = ParameterService(db)
         asset_svc = MediaAssetService(db, ps)
 

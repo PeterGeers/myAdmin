@@ -132,13 +132,10 @@ def main():
                         help='Target environment (default: local)')
     args = parser.parse_args()
 
-    # Set test_mode based on environment
+    # Database target is selected by APP_ENV / DB_* env vars, not a test_mode flag.
     if args.env == 'local':
         os.environ.setdefault('DB_HOST', 'localhost')
-        test_mode = False
-    else:
-        # Production uses Railway env vars (DB_HOST, DB_PORT, etc.)
-        test_mode = False
+    # Production uses Railway env vars (DB_HOST, DB_PORT, etc.)
 
     region = os.environ.get('AWS_REGION', 'eu-west-1')
 
@@ -156,7 +153,7 @@ def main():
     # Step 2: Connect to database
     print("2. Connecting to database...")
     from database import DatabaseManager
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     print("   Connected.")
     print()
 

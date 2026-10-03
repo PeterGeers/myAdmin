@@ -28,8 +28,6 @@ def test_persistent_cache_functionality():
     print("🧪 Testing Persistent Pattern Cache Implementation")
     print("=" * 60)
     
-    # Use production mode since user will copy production to test
-    test_mode = False
     administration = "GoodwinSolutions"
     
     # Create temporary cache directory for testing
@@ -43,7 +41,7 @@ def test_persistent_cache_functionality():
         print("-" * 50)
         
         # Create first analyzer instance
-        analyzer1 = PatternAnalyzer(test_mode=test_mode)
+        analyzer1 = PatternAnalyzer()
         
         # Override cache directory for testing
         analyzer1.persistent_cache.cache_dir = Path(temp_cache_dir)
@@ -98,7 +96,7 @@ def test_persistent_cache_functionality():
         del analyzer1
         
         # Create new analyzer instance (simulate app restart)
-        analyzer2 = PatternAnalyzer(test_mode=test_mode)
+        analyzer2 = PatternAnalyzer()
         
         # Use same cache directory
         analyzer2.persistent_cache.cache_dir = Path(temp_cache_dir)
@@ -229,7 +227,7 @@ def test_cache_statistics():
     print("\n🧪 Testing Cache Statistics and Monitoring")
     print("=" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Get initial stats

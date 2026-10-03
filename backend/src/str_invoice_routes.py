@@ -41,7 +41,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             # Default to 14 days in the future
             end_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         # Search by guest name or reservation code with tenant and date filtering
         logger.info(
@@ -162,7 +162,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
             ), 400
 
         # Get booking details
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         booking_query = """
         SELECT amountGross, checkinDate, checkoutDate, guestName, channel, 
@@ -433,7 +433,7 @@ def _upload_template_s3(tenant):
     from services.storage_resolver import get_s3_storage
 
     s3_storage = get_s3_storage(tenant)
-    db = DatabaseManager(test_mode=os.getenv("TEST_MODE", "false").lower() == "true")
+    db = DatabaseManager()
 
     results = []
     templates = ["str_invoice_nl.html", "str_invoice_en.html"]
@@ -511,7 +511,7 @@ def _upload_template_gdrive(tenant):
     from auth.tenant_context import get_tenant_config
 
     base_template_folder_id = get_tenant_config(
-        DatabaseManager(test_mode=os.getenv("TEST_MODE", "false").lower() == "true"),
+        DatabaseManager(),
         tenant,
         "google_drive_templates_folder_id",
     )

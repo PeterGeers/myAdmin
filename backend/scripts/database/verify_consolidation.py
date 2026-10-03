@@ -15,7 +15,7 @@ def verify_consolidation():
     print("VERIFYING DATABASE VIEW CONSOLIDATION")
     print("=" * 50)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Check for reference views
     print("\n1. Checking reference views in database...")

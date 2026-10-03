@@ -123,7 +123,7 @@ class TestCreateVersion:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_creates_draft_version_successfully(self):
@@ -169,7 +169,7 @@ class TestListVersions:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_returns_all_versions_for_tenant(self):
@@ -230,7 +230,7 @@ class TestDeleteVersion:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_deletes_draft_version_successfully(self):
@@ -293,7 +293,7 @@ class TestActivateVersion:
     def service(self):
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as mock_db_class:
-            svc = BudgetService(test_mode=True)
+            svc = BudgetService()
             svc.db = mock_db_class.return_value
             yield svc
 
@@ -388,7 +388,7 @@ class TestTransitionStatus:
         with mock_patch('database.DatabaseManager') as mock_dm_class:
             mock_db = MagicMock()
             mock_dm_class.return_value = mock_db
-            svc = BudgetService(test_mode=True)
+            svc = BudgetService()
             svc.db = mock_db
             yield svc
 
@@ -525,7 +525,7 @@ class TestCreateLine:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_creates_monthly_line_successfully(self):
@@ -678,7 +678,7 @@ class TestUpdateLine:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_updates_with_monthly_amounts(self):
@@ -771,7 +771,7 @@ class TestListLines:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_returns_lines_for_version(self):
@@ -825,7 +825,7 @@ class TestDeleteLine:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_deletes_line_successfully(self):
@@ -891,7 +891,7 @@ class TestCopyBudget:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def _mock_transaction(self):
@@ -1266,7 +1266,7 @@ class TestGetRollup:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_invalid_level_returns_error(self):
@@ -1458,7 +1458,7 @@ class TestParsePeriod:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_individual_month(self):
@@ -1519,7 +1519,7 @@ class TestGetDashboard:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_no_active_version_returns_notification(self):
@@ -1760,7 +1760,7 @@ class TestTenantIsolationGuards:
         """Create a BudgetService with a mocked database."""
         with patch('database.DatabaseManager') as MockDB:
             self.mock_db = MockDB.return_value
-            self.service = BudgetService(test_mode=True)
+            self.service = BudgetService()
             self.service.db = self.mock_db
 
     def test_cross_tenant_version_delete_denied(self):

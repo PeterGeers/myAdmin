@@ -40,7 +40,7 @@ class TestGoogleDriveServiceTenants:
         """Create a database manager for testing"""
         # Use production database since credentials are stored there
         # Note: These are read-only tests, so it's safe to use production DB
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         yield db
     
     @pytest.fixture(scope="class")

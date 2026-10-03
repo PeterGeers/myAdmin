@@ -146,7 +146,7 @@ def main():
     # Step 1: Connect to database
     print("Step 1: Connecting to database...")
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         print("  ✅ Connected to database")
     except Exception as e:
         print(f"  ❌ Failed to connect: {e}")
@@ -177,7 +177,7 @@ def main():
 
     # Step 4: Run full pattern analysis
     print("\nStep 4: Running full pattern analysis...")
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     try:
         result = analyzer.analyze_historical_patterns(administration)
         print(f"  ✅ Analysis complete:")

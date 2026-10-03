@@ -22,7 +22,7 @@ class TestGetVatAccounts:
     def processor(self, mock_db):
         """Create BTWProcessor with mocked DatabaseManager."""
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     def test_get_vat_accounts_no_tax_rate_service_returns_defaults(self, processor):
@@ -39,7 +39,7 @@ class TestGetVatAccounts:
             {'ledger_account': '2021', 'code': 'low'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_vat_accounts('TestAdmin', reference_date='2024-06-30')
         assert result == ['2010', '2020', '2021']
@@ -49,7 +49,7 @@ class TestGetVatAccounts:
         mock_tax_service = MagicMock()
         mock_tax_service.get_all_vat_codes.return_value = []
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_vat_accounts('TestAdmin', reference_date='2024-03-31')
         assert result == ['2010', '2020', '2021']
@@ -63,7 +63,7 @@ class TestGetVatAccounts:
             {'ledger_account': '2020', 'code': 'high'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_vat_accounts('TestAdmin', reference_date='2024-06-30')
         assert result == ['2010', '2020']
@@ -72,7 +72,7 @@ class TestGetVatAccounts:
         """Test that without reference_date, defaults are returned even with service."""
         mock_tax_service = MagicMock()
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_vat_accounts('TestAdmin', reference_date=None)
         assert result == ['2010', '2020', '2021']
@@ -85,7 +85,7 @@ class TestGetReceivedVatAccounts:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     def test_get_received_vat_accounts_defaults_exclude_2010(self, processor):
@@ -103,7 +103,7 @@ class TestGetReceivedVatAccounts:
             {'ledger_account': '2021', 'code': 'low'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_received_vat_accounts('TestAdmin', reference_date='2024-06-30')
         assert '2010' not in result
@@ -117,7 +117,7 @@ class TestGetPrimaryVatAccount:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     def test_get_primary_vat_account_default(self, processor):
@@ -133,7 +133,7 @@ class TestGetPrimaryVatAccount:
             {'ledger_account': '2020', 'code': 'high'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_primary_vat_account('TestAdmin', reference_date='2024-06-30')
         assert result == '1500'
@@ -146,7 +146,7 @@ class TestGetPrimaryVatAccount:
             {'ledger_account': '2021', 'code': 'low'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_primary_vat_account('TestAdmin', reference_date='2024-06-30')
         assert result == '2010'
@@ -158,7 +158,7 @@ class TestCalculateBtwAmounts:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     def test_calculate_btw_amounts_positive_balance_te_ontvangen(self, processor):
@@ -247,7 +247,7 @@ class TestCalculateBtwAmounts:
             {'ledger_account': '2021', 'code': 'low'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         balance_data = [
             {'Reknum': '2020', 'AccountName': 'BTW Hoog', 'amount': 200.0},
@@ -271,7 +271,7 @@ class TestGetBalanceData:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     @patch('btw_processor.get_cache')
@@ -370,7 +370,7 @@ class TestGetQuarterData:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     @patch('btw_processor.get_cache')
@@ -484,7 +484,7 @@ class TestGenerateBtwReport:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     @patch('btw_processor.get_cache')
@@ -599,7 +599,7 @@ class TestGenerateHtmlReport:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     def test_generate_html_report_contains_administration(self, processor):
@@ -687,7 +687,7 @@ class TestPrepareBtwTransaction:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     def test_prepare_btw_transaction_negative_balance_debit_2010(self, processor):
@@ -749,7 +749,7 @@ class TestSaveBtwTransaction:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     @staticmethod
@@ -899,32 +899,14 @@ class TestUploadReportToDrive:
     """Tests for upload_report_to_drive method."""
 
     @pytest.fixture
-    def processor(self, mock_db):
-        with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
-        return proc
-
-    @pytest.fixture
     def prod_processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=False)
+            proc = BTWProcessor()
         return proc
 
-    def test_upload_report_test_mode_saves_locally(self, processor, temp_dir):
-        """Test that test mode saves file locally."""
-        html_content = '<html><body>Test Report</body></html>'
-        filename = 'btw_report_2024_Q1.html'
-
-        with patch('builtins.open', MagicMock()):
-            result = processor.upload_report_to_drive(html_content, filename, 'TestAdmin')
-
-        assert result['success'] is True
-        assert result['location'] == 'local'
-        assert 'localhost' in result['url']
-
     @patch('btw_processor.GoogleDriveService')
-    def test_upload_report_production_mode_uploads_to_drive(self, mock_drive_class, prod_processor):
-        """Test that production mode uploads to Google Drive."""
+    def test_upload_report_uploads_to_drive(self, mock_drive_class, prod_processor):
+        """Upload always goes to Google Drive now (the local-save branch was removed)."""
         mock_drive = MagicMock()
         mock_drive_class.return_value = mock_drive
         mock_drive.list_subfolders.return_value = [
@@ -975,7 +957,7 @@ class TestGetVatAccountsDateConversion:
             {'ledger_account': '2020', 'code': 'high'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_vat_accounts('TestAdmin', reference_date=date(2024, 6, 30))
         assert result == ['2010', '2020']
@@ -990,7 +972,7 @@ class TestGetVatAccountsDateConversion:
             {'ledger_account': '2021', 'code': 'low'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_received_vat_accounts('TestAdmin', reference_date=date(2024, 3, 31))
         assert '2010' not in result
@@ -1004,7 +986,7 @@ class TestGetVatAccountsDateConversion:
             {'ledger_account': '2010', 'code': 'zero'},
         ]
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True, tax_rate_service=mock_tax_service)
+            proc = BTWProcessor(tax_rate_service=mock_tax_service)
 
         result = proc._get_primary_vat_account('TestAdmin', reference_date=date(2024, 6, 30))
         assert result == '2010'
@@ -1016,7 +998,7 @@ class TestGetLastBtwTransaction:
     @pytest.fixture
     def processor(self, mock_db):
         with patch('btw_processor.DatabaseManager', return_value=mock_db):
-            proc = BTWProcessor(test_mode=True)
+            proc = BTWProcessor()
         return proc
 
     @staticmethod

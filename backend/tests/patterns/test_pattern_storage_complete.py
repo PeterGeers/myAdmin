@@ -35,7 +35,7 @@ def test_database_structure():
     print("1. Testing Database Structure")
     print("-" * 40)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Check if tables exist
     tables_to_check = [
@@ -60,11 +60,11 @@ def test_pattern_storage_functionality():
     print("\n2. Testing Pattern Storage Functionality")
     print("-" * 40)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Clear existing patterns for clean test
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     try:
         db.execute_query("DELETE FROM pattern_analysis_metadata WHERE administration = %s", (administration,), fetch=False, commit=True)
         db.execute_query("DELETE FROM pattern_debet_predictions WHERE administration = %s", (administration,), fetch=False, commit=True)
@@ -105,7 +105,7 @@ def test_performance_improvements():
     print("\n3. Testing Performance Improvements")
     print("-" * 40)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Get storage statistics
@@ -148,7 +148,7 @@ def test_incremental_updates():
     print("\n4. Testing Incremental Updates")
     print("-" * 40)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Test should_refresh_patterns
@@ -171,7 +171,7 @@ def test_data_reduction():
     print("\n5. Testing Data Reduction Benefits")
     print("-" * 40)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     storage_stats = analyzer.get_pattern_storage_stats(administration)
@@ -207,7 +207,7 @@ def test_pattern_application():
     print("\n6. Testing Pattern Application from Storage")
     print("-" * 40)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Create test transactions with missing fields

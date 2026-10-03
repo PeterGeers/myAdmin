@@ -30,7 +30,7 @@ def mock_db():
 def service(mock_db):
     """Create EmailLogService with mocked DatabaseManager."""
     with patch('services.email_log_service.DatabaseManager', return_value=mock_db):
-        svc = EmailLogService(test_mode=True)
+        svc = EmailLogService()
     return svc
 
 

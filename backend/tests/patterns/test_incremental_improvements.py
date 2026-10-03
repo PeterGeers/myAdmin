@@ -25,8 +25,8 @@ def test_incremental_metadata_accumulation():
     print("🧪 Testing Incremental Metadata Accumulation")
     print("=" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
-    db = DatabaseManager(test_mode=False)
+    analyzer = PatternAnalyzer()
+    db = DatabaseManager()
     administration = "GoodwinSolutions"
     
     # Get current metadata
@@ -81,7 +81,7 @@ def test_incremental_update_statistics():
     print(f"\n🧪 Testing Incremental Update Statistics")
     print("=" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     
     # Get incremental update statistics
     start_time = time.time()
@@ -126,7 +126,7 @@ def test_incremental_vs_full_analysis_performance():
     print(f"\n🧪 Testing Performance Comparison")
     print("=" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Time incremental analysis
@@ -175,7 +175,7 @@ def test_error_handling_and_fallback():
     print(f"\n🧪 Testing Error Handling and Fallback")
     print("=" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     
     # Test with non-existent administration
     print("🔍 Testing with non-existent administration...")

@@ -15,7 +15,7 @@ def compare_views():
     print("Comparing Reference Views")
     print("=" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Check structure of current view (old view has been removed)
     views = ['vw_readreferences']

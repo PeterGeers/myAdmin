@@ -67,7 +67,7 @@ def run_migrations(target: str, status_only: bool = False):
 
     from database_migrations import DatabaseMigration
 
-    migrator = DatabaseMigration(test_mode=False)
+    migrator = DatabaseMigration()
 
     status = migrator.get_migration_status()
     print(f"\n{'='*60}")

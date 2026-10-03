@@ -32,14 +32,12 @@ str_bp = Blueprint("str", __name__)
 
 # Configuration (will be set by set_config)
 UPLOAD_FOLDER = "uploads"
-test_mode = False
 
 
-def set_config(upload_folder: str, flag: bool) -> None:
+def set_config(upload_folder: str) -> None:
     """Set configuration for STR routes"""
-    global UPLOAD_FOLDER, test_mode
+    global UPLOAD_FOLDER
     UPLOAD_FOLDER = upload_folder
-    test_mode = flag
 
 
 @str_bp.route("/api/str/upload", methods=["POST", "OPTIONS"])
@@ -98,7 +96,7 @@ def str_upload_authenticated(
             file.save(temp_path)
             temp_paths.append(temp_path)
 
-        str_processor = STRProcessor(test_mode=test_mode)
+        str_processor = STRProcessor()
 
         bookings = str_processor.process_str_files(temp_paths, platform)
 
@@ -175,7 +173,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
         for booking in planned_bookings:
             booking["administration"] = tenant
 
-        str_db = STRDatabase(test_mode=test_mode)
+        str_db = STRDatabase()
 
         platform = data.get("platform", "")
 
@@ -202,7 +200,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
 
             # Generate and save future summary
             if planned_bookings:
-                str_processor = STRProcessor(test_mode=test_mode)
+                str_processor = STRProcessor()
                 future_summary = str_processor.generate_future_summary(planned_bookings)
                 str_db.insert_future_summary(future_summary)
 
@@ -259,7 +257,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
 
             # Generate and save future summary for planned bookings
             if planned_bookings:
-                str_processor = STRProcessor(test_mode=test_mode)
+                str_processor = STRProcessor()
                 future_summary = str_processor.generate_future_summary(planned_bookings)
                 str_db.insert_future_summary(future_summary)
 
@@ -282,7 +280,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             )
 
         # Standard flow for non-direct platforms
-        str_processor = STRProcessor(test_mode=test_mode)
+        str_processor = STRProcessor()
 
         results = {}
 
@@ -327,7 +325,7 @@ def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
         months = data.get("months", 14)
         listing = data.get("listing")
 
-        optimizer = HybridPricingOptimizer(test_mode=test_mode, tenant=user_email)
+        optimizer = HybridPricingOptimizer(tenant=user_email)
         result = optimizer.generate_pricing_strategy(months, listing)
 
         return jsonify(
@@ -348,7 +346,7 @@ def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
 def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
     """Get pricing recommendations with historical comparison"""
     try:
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         with db.get_cursor_only() as cursor:
             # Get all recommendations with historical data and multipliers
             query = f"""
@@ -402,7 +400,7 @@ def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
 def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
     """Get historical ADR data for trend analysis"""
     try:
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         with db.get_cursor_only() as cursor:
             # Get monthly historical ADR data with guest fee adjustment for Child Friendly
             query = f"""
@@ -470,7 +468,7 @@ def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
 def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
     """Get available listings for pricing"""
     try:
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         with db.get_cursor_only() as cursor:
             query = "SELECT listing_name, active FROM listings WHERE active = TRUE ORDER BY listing_name"
             cursor.execute(query)
@@ -499,7 +497,7 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
                 {"success": False, "error": "Listing parameter required"}
             ), 400
 
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         with db.get_cursor_only() as cursor:
             query = f"""
             SELECT price_date, listing_name, recommended_price,
@@ -543,7 +541,7 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
 def str_write_future(user_email, user_roles) -> ResponseReturnValue:
     """Write current BNB planned data to bnbfuture table"""
     try:
-        str_db = STRDatabase(test_mode=test_mode)
+        str_db = STRDatabase()
         result = str_db.write_bnb_future_summary()
 
         if result["success"]:
@@ -619,14 +617,14 @@ def str_import_payout_authenticated(user_email, user_roles) -> ResponseReturnVal
         print(f"Processing Payout CSV: {filename}", flush=True)
 
         # Process the Payout CSV file
-        str_processor = STRProcessor(test_mode=test_mode)
+        str_processor = STRProcessor()
         payout_result = str_processor._process_booking_payout(temp_path)
 
         if payout_result.get("errors"):
             print(f"Payout processing errors: {payout_result['errors']}", flush=True)
 
         # Update database with payout data
-        str_db = STRDatabase(test_mode=test_mode)
+        str_db = STRDatabase()
         update_result = str_db.update_from_payout(payout_result.get("updates", []))
 
         # Clean up temp file
@@ -677,7 +675,7 @@ def str_summary(user_email, user_roles) -> ResponseReturnValue:
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
 
-        str_db = STRDatabase(test_mode=test_mode)
+        str_db = STRDatabase()
         summary = str_db.get_str_summary(start_date, end_date)
 
         return jsonify({"success": True, "summary": summary})
@@ -691,7 +689,7 @@ def str_summary(user_email, user_roles) -> ResponseReturnValue:
 def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
     """Get BNB future revenue trend data"""
     try:
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         with db.get_cursor_only() as cursor:
             query = """
             SELECT date, channel, listing, amount, items
@@ -729,7 +727,7 @@ def str_enrich_direct(
         codes = data.get("reservation_codes")
 
         if not codes:
-            str_db = STRDatabase(test_mode=test_mode)
+            str_db = STRDatabase()
             codes = str_db.get_unenriched_direct_codes(tenant)
 
         if not codes:
@@ -741,7 +739,7 @@ def str_enrich_direct(
         from services.credential_service import CredentialService
         from services.parameter_service import ParameterService
 
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         credential_service = CredentialService(db)
         param_svc = ParameterService(db, credential_service=credential_service)
         stripe_key = param_svc.get_param("str", "stripe_secret_key", tenant=tenant)
@@ -775,7 +773,7 @@ def str_enrich_direct(
                     f"[Stripe Enrichment] {e['reservationCode']}: phone={e.get('phone')}, country={e.get('country')}, email={e.get('email')}, fee={e.get('stripe_fee')}",
                     flush=True,
                 )
-            str_db = STRDatabase(test_mode=test_mode)
+            str_db = STRDatabase()
             str_db.apply_stripe_enrichments(result["enrichments"], tenant)
 
         return jsonify(
@@ -811,7 +809,7 @@ def str_calculate_taxes(user_email, user_roles) -> ResponseReturnValue:
         if not data or "amountGross" not in data:
             return jsonify({"error": "amountGross is required"}), 400
 
-        processor = STRProcessor(test_mode=test_mode)
+        processor = STRProcessor()
         result = processor.calculate_str_taxes(
             gross_amount=float(data["amountGross"]),
             checkin_date=data.get("checkinDate", ""),

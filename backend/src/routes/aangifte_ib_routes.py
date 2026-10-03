@@ -18,14 +18,7 @@ from utils.closure_helpers import get_closure_aware_start_year
 aangifte_ib_bp = Blueprint("aangifte_ib", __name__)
 
 # Global variables set by app.py
-flag = False
 logger = None
-
-
-def set_test_mode(test_mode) -> None:
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
 
 
 def set_logger(log_instance) -> None:
@@ -57,7 +50,7 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
 
         # Get cache instance
         cache = get_cache()
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         # Ensure cache is loaded for this tenant (will auto-refresh if needed)
         cache.get_data(db, tenant=tenant)
@@ -124,7 +117,7 @@ def aangifte_ib_details(
 
         # Get cache instance
         cache = get_cache()
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         # Ensure cache is loaded for this tenant (will auto-refresh if needed)
         cache.get_data(db, tenant=tenant)
@@ -161,7 +154,7 @@ def aangifte_ib_details(
             {
                 "success": False,
                 "error": str(e),
-                "details": error_details if flag else None,
+                "details": None,
             }
         ), 500
 
@@ -208,7 +201,7 @@ def aangifte_ib_export(
 
         # Get cache instance for account details
         cache = get_cache()
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         # Ensure cache is loaded for this tenant
         cache.get_data(db, tenant=tenant)
@@ -422,7 +415,7 @@ def aangifte_ib_xlsx_export(
             ), 403
 
         # Debug: Check available administrations (filtered by user_tenants)
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         # Build query with tenant filtering — query base mutaties table directly
         placeholders = ", ".join(["%s"] * len(user_tenants))
@@ -433,7 +426,7 @@ def aangifte_ib_xlsx_export(
 
         from xlsx_export import XLSXExportProcessor
 
-        xlsx_processor = XLSXExportProcessor(test_mode=flag)
+        xlsx_processor = XLSXExportProcessor()
         results = xlsx_processor.generate_xlsx_export(administrations, years)
 
         successful_results = [r for r in results if r["success"]]
@@ -493,7 +486,7 @@ def aangifte_ib_xlsx_export_stream(
             try:
                 from xlsx_export import XLSXExportProcessor
 
-                xlsx_processor = XLSXExportProcessor(test_mode=flag)
+                xlsx_processor = XLSXExportProcessor()
 
                 # Send initial progress
                 yield f"data: {json.dumps({'type': 'start', 'administrations': administrations, 'years': years}, default=str)}\n\n"
@@ -566,7 +559,7 @@ def aangifte_ib_xlsx_download(
 
         from xlsx_export import XLSXExportProcessor
 
-        xlsx_processor = XLSXExportProcessor(test_mode=flag)
+        xlsx_processor = XLSXExportProcessor()
 
         # Get ledger data
         ledger_data = xlsx_processor.make_ledgers(year, administration)

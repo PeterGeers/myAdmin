@@ -25,16 +25,8 @@ product_bp = Blueprint("products", __name__)
 
 # ── Service initialisation ──────────────────────────────────
 
-_test_mode = False
-
-
-def set_test_mode(flag: bool) -> None:
-    global _test_mode
-    _test_mode = flag
-
-
 def _get_service() -> ProductService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     tax_svc = TaxRateService(db)
     param_svc = ParameterService(db)
     return ProductService(db=db, tax_rate_service=tax_svc, parameter_service=param_svc)

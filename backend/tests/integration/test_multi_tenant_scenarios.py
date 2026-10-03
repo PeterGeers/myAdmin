@@ -41,7 +41,7 @@ class TestMultiTenantScenarios:
     @pytest.fixture
     def db(self):
         """Create database manager for testing"""
-        return DatabaseManager(test_mode=False)
+        return DatabaseManager()
     
     def create_jwt_token(self, email, tenants, roles=None):
         """Helper to create a mock JWT token"""

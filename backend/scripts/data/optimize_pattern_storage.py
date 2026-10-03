@@ -28,7 +28,7 @@ def analyze_current_patterns(administration: str):
     print(f"🔍 Analyzing current patterns for {administration}")
     print("=" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Get current pattern statistics
     patterns = db.execute_query(f"""
@@ -92,7 +92,7 @@ def optimize_patterns(administration: str, target_patterns: int = 408):
     print(f"🎯 Target: {target_patterns} patterns")
     print("=" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     # Step 1: Remove low confidence patterns
     print("1️⃣ Removing low confidence patterns (<0.8)...")
@@ -163,8 +163,8 @@ def test_optimized_performance(administration: str):
     print(f"🚀 Testing optimized performance for {administration}")
     print("=" * 60)
     
-    db = DatabaseManager(test_mode=False)
-    analyzer = PatternAnalyzer(test_mode=False)
+    db = DatabaseManager()
+    analyzer = PatternAnalyzer()
     
     # Clear cache to ensure fresh test
     analyzer.persistent_cache.clear_all_cache()
@@ -261,7 +261,7 @@ def main():
     # Step 4: Update metadata
     print()
     print("📝 Updating analysis metadata...")
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     db.execute_query("""
         UPDATE pattern_analysis_metadata 
         SET patterns_discovered = %s,

@@ -30,15 +30,11 @@ class BudgetService:
         budget_routes.py and represents the authenticated user's current tenant.
     """
 
-    def __init__(self, test_mode: bool = False) -> None:
+    def __init__(self) -> None:
         """
         Initialize BudgetService.
-
-        Args:
-            test_mode: Whether to run in test mode (uses test database).
         """
-        self.test_mode = test_mode
-        self._db = DatabaseManager(test_mode=test_mode)
+        self._db = DatabaseManager()
         self._query = BudgetQueryService(db=self._db)
         self._mutation = BudgetMutationService(db=self._db)
 

@@ -30,19 +30,19 @@ def test_administration():
 @pytest.fixture
 def db():
     """Database manager for test mode"""
-    return DatabaseManager(test_mode=True)
+    return DatabaseManager()
 
 
 @pytest.fixture
 def config_service():
     """Year-end config service"""
-    return YearEndConfigService(test_mode=True)
+    return YearEndConfigService()
 
 
 @pytest.fixture
 def service():
     """Year-end closure service"""
-    return YearEndClosureService(test_mode=True)
+    return YearEndClosureService()
 
 
 @pytest.fixture

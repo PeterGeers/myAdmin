@@ -46,7 +46,7 @@ class TestMultiTenantPhase5:
         """Create database manager for testing"""
         # Use test database for integration tests
         # Run backend/scripts/create_testfinance_db.ps1 to create the test database
-        return DatabaseManager(test_mode=True)
+        return DatabaseManager()
     
     @pytest.fixture
     def tenants(self):

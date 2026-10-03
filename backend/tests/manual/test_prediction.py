@@ -6,7 +6,7 @@ sys.path.insert(0, 'src')
 
 from pattern_analyzer import PatternAnalyzer
 
-analyzer = PatternAnalyzer(test_mode=False)
+analyzer = PatternAnalyzer()
 
 # Get patterns
 patterns = analyzer.get_filtered_patterns('GoodwinSolutions')

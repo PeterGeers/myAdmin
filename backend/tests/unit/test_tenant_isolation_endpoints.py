@@ -19,8 +19,8 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from flask import Flask
-from routes.banking_routes import banking_bp, set_test_mode as banking_set_test_mode
-from routes.pdf_validation_routes import pdf_validation_bp, set_test_mode as pdf_set_test_mode
+from routes.banking_routes import banking_bp
+from routes.pdf_validation_routes import pdf_validation_bp
 
 
 # --- Helpers ---
@@ -87,7 +87,6 @@ def app_with_banking():
     app = Flask(__name__)
     app.config['TESTING'] = True
     app.register_blueprint(banking_bp)
-    banking_set_test_mode(True)
     return app, test_email, test_roles, test_tenants
 
 
@@ -101,7 +100,6 @@ def app_with_pdf():
     app = Flask(__name__)
     app.config['TESTING'] = True
     app.register_blueprint(pdf_validation_bp)
-    pdf_set_test_mode(True)
     return app, test_email, test_roles, test_tenants
 
 

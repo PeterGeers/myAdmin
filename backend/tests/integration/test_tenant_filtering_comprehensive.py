@@ -41,7 +41,7 @@ class TestTenantFilteringComprehensive:
     @pytest.fixture
     def db(self):
         """Create database manager for real database testing"""
-        return DatabaseManager(test_mode=False)  # Use real database
+        return DatabaseManager()  # Use real database
     
     def create_jwt_token(self, email, tenants, roles=None):
         """Helper to create a mock JWT token"""

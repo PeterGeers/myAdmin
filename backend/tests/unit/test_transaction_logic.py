@@ -13,7 +13,7 @@ class TestTransactionLogic:
     @pytest.fixture
     def transaction_logic(self):
         """Create TransactionLogic instance for testing"""
-        return TransactionLogic(test_mode=True)
+        return TransactionLogic()
     
     @pytest.fixture
     def mock_connection(self):
@@ -79,16 +79,9 @@ class TestTransactionLogic:
             }
         }
     
-    def test_init_test_mode(self):
-        """Test initialization in test mode"""
-        logic = TransactionLogic(test_mode=True)
-        assert logic.test_mode == True
-        assert logic.table_name == 'mutaties'
-    
-    def test_init_production_mode(self):
-        """Test initialization in production mode"""
-        logic = TransactionLogic(test_mode=False)
-        assert logic.test_mode == False
+    def test_init_uses_mutaties_table(self):
+        """TransactionLogic constructs (no test_mode) and targets the mutaties table."""
+        logic = TransactionLogic()
         assert logic.table_name == 'mutaties'
     
     @patch.dict(os.environ, {'TEST_MODE': 'true', 'TEST_DB_NAME': 'testfinance'})
@@ -511,7 +504,7 @@ class TestInvoiceServiceErrorHandling:
         """Test that process_invoice_file returns template_error when get_last_transactions returns error"""
         from services.invoice_service import InvoiceService
         
-        service = InvoiceService(test_mode=True)
+        service = InvoiceService()
         
         # Mock processor to return valid file processing result
         mock_result = {
@@ -552,7 +545,7 @@ class TestPdfProcessorErrorHandling:
         """Test that _format_vendor_transactions handles error dict gracefully"""
         from pdf_processor import PDFProcessor
         
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         # Mock TransactionLogic to return error dict from get_last_transactions
         mock_tl = MagicMock()

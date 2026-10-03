@@ -109,12 +109,14 @@ def mock_env():
     Provides hardcoded test values only.
     """
     test_env = {
-        'TEST_MODE': 'true',
+        # Environment is selected by APP_ENV; the MySQL schema is always `finance`
+        # (the legacy TEST_MODE/testfinance switch was removed in the test-env spec).
+        'APP_ENV': 'test',
         'DB_HOST': 'localhost',
         'DB_PORT': '3306',
         'DB_USER': 'test',
         'DB_PASSWORD': 'test',
-        'DB_NAME': 'testfinance',
+        'DB_NAME': 'finance',
         'COGNITO_USER_POOL_ID': 'us-east-1_test',
         'COGNITO_CLIENT_ID': 'test-client-id',
         'GOOGLE_DRIVE_FOLDER_ID': 'test-folder-id',
@@ -162,11 +164,14 @@ def mock_google_drive():
 
 @pytest.fixture
 def test_environment():
-    """Set up test environment variables"""
+    """Set up TEST environment variables.
+
+    Environment is selected by APP_ENV; the MySQL schema is always `finance`
+    (the legacy TEST_MODE/TEST_DB_NAME/testfinance switch was removed).
+    """
     test_env = {
-        'TEST_MODE': 'true',
+        'APP_ENV': 'test',
         'DB_NAME': 'finance',
-        'TEST_DB_NAME': 'testfinance',
         'FACTUREN_FOLDER_ID': 'prod_folder_id',
         'TEST_FACTUREN_FOLDER_ID': 'test_folder_id',
         'FACTUREN_FOLDER_NAME': 'Facturen',
@@ -178,9 +183,9 @@ def test_environment():
 
 @pytest.fixture
 def production_environment():
-    """Set up production environment variables"""
+    """Set up PRODUCTION environment variables (schema is always `finance`)."""
     prod_env = {
-        'TEST_MODE': 'false',
+        'APP_ENV': 'production',
         'DB_NAME': 'finance',
         'FACTUREN_FOLDER_ID': 'prod_folder_id',
         'FACTUREN_FOLDER_NAME': 'Facturen'

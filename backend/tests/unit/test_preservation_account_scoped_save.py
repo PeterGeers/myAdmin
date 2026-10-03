@@ -25,7 +25,7 @@ Observed baseline behaviors (bug condition does NOT hold):
     is rejected at the tenant-guarded insert (ValueError), so it is NOT saved
     (Req 3.7).
 
-These are run against ``testfinance`` (``test_mode=True``). As with the existing
+These are run against the ``finance`` schema. As with the existing
 banking-processor suites (``test_banking_processor.py``,
 ``test_preservation_closed_period.py``), the ``testfinance`` ``mutaties`` /
 ``year_closure_status`` state is represented through the mocked DB connection
@@ -148,7 +148,7 @@ def build_mock_db(ref2_duplicate=False, closed_years_for_admin=None):
 
 def make_processor(mock_db):
     with patch('banking_processor.DatabaseManager', return_value=mock_db):
-        bp = BankingProcessor(test_mode=True)
+        bp = BankingProcessor()
     bp.db = mock_db
     return bp
 

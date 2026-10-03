@@ -25,7 +25,7 @@ def get_all_tenants(db):
     return [r['administration'] for r in rows]
 
 def main():
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     tenants = get_all_tenants(db)
     print(f"Found {len(tenants)} tenants: {tenants}")
     

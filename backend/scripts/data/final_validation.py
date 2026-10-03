@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from banking_processor import BankingProcessor
 
 def main():
-    processor = BankingProcessor(test_mode=False)
+    processor = BankingProcessor()
 
     # Test with real-world scenario
     test_transactions = [

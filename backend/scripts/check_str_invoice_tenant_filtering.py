@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.database import DatabaseManager
 from src.dialect_helpers import dialect
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 print("="*80)
 print("STR INVOICE GENERATOR - TENANT FILTERING CHECK")

@@ -228,7 +228,7 @@ class TestInvoiceUploadS3Flow:
                  patch.dict(os.environ, {'S3_SHARED_BUCKET': 'test-shared-bucket'}):
 
                 from services.invoice_service import InvoiceService
-                service = InvoiceService(test_mode=False)
+                service = InvoiceService()
 
                 result = service.upload_to_drive(
                     temp_path=temp_path,

@@ -365,7 +365,7 @@ def main():
         print("MODE: DRY RUN (no changes will be made)")
     print("=" * 70)
 
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
 
     # Step 1: Show current definitions
     show_current_view_definitions(db)

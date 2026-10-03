@@ -23,7 +23,7 @@ Reservation          , y55PeMz92KfbsTyD    , 4649972566      , 2025-03-08   , 20
         csv_file.write_text(csv_content)
         
         # Process the file
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         # Verify results
@@ -51,7 +51,7 @@ Reservation          , test123             , 1234567890      , 2025-03-08   , 20
         csv_file = tmp_path / "Payout_test.csv"
         csv_file.write_text(csv_content)
         
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         update = results['updates'][0]
@@ -67,7 +67,7 @@ Reservation          , test123             , 1234567890      , 2025-03-08   , 20
         csv_file = tmp_path / "Payout_test.csv"
         csv_file.write_text(csv_content)
         
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         update = results['updates'][0]
@@ -89,7 +89,7 @@ Reservation          , test123             , 1234567890      , 2025-03-08   , 20
         csv_file = tmp_path / "Payout_test.csv"
         csv_file.write_text(csv_content)
         
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         update = results['updates'][0]
@@ -109,7 +109,7 @@ Reservation          , test123             , 1234567890      , 2026-01-15   , 20
         csv_file = tmp_path / "Payout_test.csv"
         csv_file.write_text(csv_content)
         
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         update = results['updates'][0]
@@ -132,7 +132,7 @@ Reservation          , y55PeMz92KfbsTyD    , 4649972566      , 2025-03-08   , 20
         csv_file = tmp_path / "Payout_test.csv"
         csv_file.write_text(csv_content)
         
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         # Should only process 1 Reservation row, not the 2 (Payout) rows
@@ -151,7 +151,7 @@ Reservation          , test3               , 3333333333      , 2025-03-15   , 20
         csv_file = tmp_path / "Payout_test.csv"
         csv_file.write_text(csv_content)
         
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         assert results['summary']['reservation_rows'] == 3
@@ -174,7 +174,7 @@ Reservation          , test3               , 3333333333      , 2025-03-15   , 20
         (tmp_path / "Check-in_2025-01-01.xls").write_text("test")
         (tmp_path / "reservations.csv").write_text("test")
 
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         files = processor.scan_str_files(str(tmp_path))
 
         assert 'booking_payout' in files
@@ -196,7 +196,7 @@ Reservation          , test123             , 1234567890      , 2025-03-15   , 20
         csv_file = tmp_path / "Payout_test.csv"
         csv_file.write_text(csv_content)
         
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         results = processor._process_booking_payout(str(csv_file))
         
         update = results['updates'][0]

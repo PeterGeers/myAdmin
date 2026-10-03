@@ -59,8 +59,7 @@ def reprovision_tenant(user_email, user_roles, administration) -> ResponseReturn
     try:
         data = request.get_json() or {}
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Verify tenant exists
         existing = db.execute_query(
@@ -162,8 +161,7 @@ def resend_invitation(user_email, user_roles, administration) -> ResponseReturnV
             return jsonify({"error": "Email cannot be empty"}), 400
 
         # ── Verify tenant exists ────────────────────────────────────
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         tenant_row = db.execute_query(
             "SELECT administration, status FROM tenants WHERE administration = %s",
@@ -184,7 +182,7 @@ def resend_invitation(user_email, user_roles, administration) -> ResponseReturnV
         from utils.frontend_url import get_frontend_url
 
         cognito = CognitoService()
-        invitation_service = InvitationService(test_mode=test_mode)
+        invitation_service = InvitationService()
         email_template = EmailTemplateService(administration=administration)
         ses = SESEmailService()
         login_url = get_frontend_url()

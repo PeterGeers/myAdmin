@@ -30,7 +30,7 @@ class TestInvitationService:
     @pytest.fixture
     def invitation_service(self, mock_db):
         """Create InvitationService instance with mocked DB"""
-        return InvitationService(test_mode=True)
+        return InvitationService()
     
     # Test 1: Generate temporary password
     def test_generate_temporary_password(self, invitation_service):

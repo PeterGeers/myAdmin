@@ -56,9 +56,8 @@ from pattern_storage import (
 class PatternAnalyzer:
     """Enhanced pattern analysis system for banking transactions"""
 
-    def __init__(self, test_mode: bool = False):
-        self.test_mode = test_mode
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
         self.patterns_cache = {}  # Keep for backward compatibility, but prefer database storage
         self.bank_accounts_cache = None
 

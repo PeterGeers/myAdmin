@@ -23,18 +23,10 @@ logger = logging.getLogger(__name__)
 
 zzp_time_bp = Blueprint("zzp_time", __name__)
 
-_test_mode = False
-
-
-def set_test_mode(flag: bool) -> None:
-    global _test_mode
-    _test_mode = flag
-
-
 def _get_time_service() -> TimeTrackingService:
     from services.time_tracking_service import TimeTrackingService as _TTS
 
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return _TTS(db=db, parameter_service=param_svc)
 

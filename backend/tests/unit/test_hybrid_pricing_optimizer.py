@@ -23,7 +23,7 @@ class TestGenerateAiInsights:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
                     opt.api_key = 'test-key'
         return opt
 
@@ -131,7 +131,7 @@ class TestGenerateDailyPricing:
                     'reasoning': 'Standard pricing',
                 }
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_generate_daily_pricing_returns_correct_count(self, optimizer):
@@ -223,7 +223,7 @@ class TestCalculateHistoricalRates:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_calculate_historical_rates_no_listing_returns_note(self, optimizer):
@@ -288,7 +288,7 @@ class TestGeneratePricingStrategy:
                     'reasoning': 'Standard',
                 }
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_generate_pricing_strategy_single_listing(self, optimizer):
@@ -347,7 +347,7 @@ class TestGenerateAllListingsPricing:
                     'reasoning': 'Standard',
                 }
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     @staticmethod
@@ -446,7 +446,7 @@ class TestSavePricingToDatabase:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_save_pricing_to_database_success(self, optimizer):
@@ -556,7 +556,7 @@ class TestSavePricingToDatabaseNoClear:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_save_pricing_no_clear_success(self, optimizer):
@@ -626,7 +626,7 @@ class TestSaveAiInsightsToFile:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_save_ai_insights_no_insights_returns_false(self, optimizer):
@@ -669,7 +669,7 @@ class TestGetEventsData:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_get_events_data_success(self, optimizer):
@@ -711,7 +711,7 @@ class TestGetListingPerformance:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_get_listing_performance_no_listing_returns_defaults(self, optimizer):
@@ -771,7 +771,7 @@ class TestGetHistoricalData:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_get_historical_data_with_listing(self, optimizer):
@@ -848,7 +848,7 @@ class TestGetLastYearAdr:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_get_last_year_adr_no_listing_returns_none(self, optimizer):
@@ -902,7 +902,7 @@ class TestGetEventNameForDate:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
         return opt
 
     def test_get_event_name_found(self, optimizer):
@@ -955,7 +955,7 @@ class TestRegistryIntegration:
         with patch('hybrid_pricing_optimizer.load_dotenv'):
             with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
                 with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt = HybridPricingOptimizer()
                     opt.api_key = 'test-key'
         return opt
 

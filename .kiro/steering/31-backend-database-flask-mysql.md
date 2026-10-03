@@ -70,7 +70,7 @@ real data.
 ## Migrations
 
 - Migration JSON files live in `backend/src/migrations/` and are applied by `DatabaseMigration.run_all_migrations()`
-- Migrations are NOT auto-applied on app startup — run manually via `PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration(test_mode=False).run_all_migrations()"`
+- Migrations are NOT auto-applied on app startup — run manually via `PYTHONPATH=src python -c "from database_migrations import DatabaseMigration; DatabaseMigration().run_all_migrations()"` (the target DB is selected by `APP_ENV` / the `DB_*` env vars; there is no `test_mode` argument)
 - The migration system tracks applied migrations in the `database_migrations` table — it won't re-run them
 - **MySQL 9.4 does NOT support `IF NOT EXISTS` / `IF EXISTS` on `CREATE INDEX` or `DROP INDEX`** — never use these clauses in migration files. Idempotency is handled by the migration system itself (it skips already-applied migrations).
 - Use plain `CREATE INDEX idx_name ON table (columns)` and `DROP INDEX idx_name ON table`

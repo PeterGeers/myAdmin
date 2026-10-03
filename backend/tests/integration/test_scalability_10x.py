@@ -171,7 +171,7 @@ class ScalabilityTester:
     
     def __init__(self, config: ScalabilityTestConfig):
         self.config = config
-        self.db_manager = DatabaseManager(test_mode=True)
+        self.db_manager = DatabaseManager()
         self.resource_monitor_active = False
         self.resource_monitor_thread = None
         

@@ -24,11 +24,10 @@ logger = logging.getLogger(__name__)
 
 tax_rate_admin_bp = Blueprint("tax_rate_admin", __name__)
 
-flag = os.getenv("TEST_MODE", "false").lower() == "true"
 
 
 def _get_service() -> "TaxRateService":
-    db = DatabaseManager(test_mode=flag)
+    db = DatabaseManager()
     return TaxRateService(db)
 
 
@@ -42,7 +41,7 @@ def _is_sysadmin(user_roles) -> bool:
 def list_tax_rates(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List all rates for tenant + applicable system defaults."""
     try:
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         query = """
             SELECT id, administration, tax_type, tax_code, rate, ledger_account,
                    effective_from, effective_to, description, calc_method, calc_params
@@ -146,7 +145,7 @@ def update_tax_rate(
 ) -> ResponseReturnValue:
     """Update a tax rate (fix typos on rate, description, ledger_account, dates)."""
     try:
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         rows = db.execute_query(
             "SELECT administration, tax_type, tax_code FROM tax_rates WHERE id = %s",
             (rate_id,),
@@ -215,7 +214,7 @@ def delete_tax_rate(
 ) -> ResponseReturnValue:
     """Delete a tenant tax rate override. System defaults require SysAdmin."""
     try:
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         rows = db.execute_query(
             "SELECT administration FROM tax_rates WHERE id = %s", (rate_id,), fetch=True
         )

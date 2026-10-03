@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 print("Checking a few sample transactions to understand Debet/Credit meaning:")
 print("\nSample where 1002 is in DEBET column (should be money IN):")

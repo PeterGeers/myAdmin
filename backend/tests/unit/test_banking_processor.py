@@ -19,7 +19,7 @@ class TestBankingProcessor:
         BankingProcessor.__init__ receives the mock instance for self.db.
         """
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            processor = BankingProcessor(test_mode=True)
+            processor = BankingProcessor()
         return processor
 
     @pytest.fixture
@@ -59,20 +59,12 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
 2025-01-15,Test transaction 1,100.00
 2025-01-16,Test transaction 2,-50.00"""
 
-    def test_init_test_mode(self, mock_db):
-        """Test initialization in test mode"""
+    def test_init_sets_up_db_and_download_folder(self, mock_db):
+        """BankingProcessor constructs (no test_mode) with db + download_folder."""
         with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            processor = BankingProcessor(test_mode=True)
-        assert processor.test_mode == True
+            processor = BankingProcessor()
         assert hasattr(processor, 'db')
         assert hasattr(processor, 'download_folder')
-
-    def test_init_production_mode(self, mock_db):
-        """Test initialization in production mode"""
-        with patch('banking_processor.DatabaseManager', return_value=mock_db):
-            processor = BankingProcessor(test_mode=False)
-        assert processor.test_mode == False
-        assert hasattr(processor, 'db')
 
     @patch('glob.glob')
     def test_get_csv_files_rabo_pattern(self, mock_glob, banking_processor):

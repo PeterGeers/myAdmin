@@ -29,8 +29,8 @@ Payout,,,,,550.00,,,
 @pytest.fixture
 def setup_test_bookings():
     """Setup test bookings in database"""
-    db = DatabaseManager(test_mode=True)
-    str_db = STRDatabase(test_mode=True)
+    db = DatabaseManager()
+    str_db = STRDatabase()
     
     # Insert test bookings that will be updated by payout
     test_bookings = [
@@ -111,7 +111,7 @@ def test_payout_processing_and_database_update(sample_payout_csv, setup_test_boo
     csv_file.write_text(sample_payout_csv)
     
     # Process the Payout CSV
-    str_processor = STRProcessor(test_mode=True)
+    str_processor = STRProcessor()
     payout_result = str_processor._process_booking_payout(str(csv_file))
     
     # Verify processing results
@@ -121,7 +121,7 @@ def test_payout_processing_and_database_update(sample_payout_csv, setup_test_boo
     assert len(payout_result['updates']) == 3
     
     # Update database
-    str_db = STRDatabase(test_mode=True)
+    str_db = STRDatabase()
     update_result = str_db.update_from_payout(payout_result['updates'])
     
     # Verify database update results
@@ -130,7 +130,7 @@ def test_payout_processing_and_database_update(sample_payout_csv, setup_test_boo
     assert '1111111111' in update_result['not_found']
     
     # Verify database was actually updated
-    db = DatabaseManager(test_mode=True)
+    db = DatabaseManager()
     
     # Check first booking
     result1 = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
@@ -157,14 +157,14 @@ def test_payout_vat_calculation_2025(sample_payout_csv, setup_test_bookings, tmp
     csv_file.write_text(sample_payout_csv)
     
     # Process and update
-    str_processor = STRProcessor(test_mode=True)
+    str_processor = STRProcessor()
     payout_result = str_processor._process_booking_payout(str(csv_file))
     
-    str_db = STRDatabase(test_mode=True)
+    str_db = STRDatabase()
     str_db.update_from_payout(payout_result['updates'])
     
     # Verify VAT calculation (9% for 2025)
-    db = DatabaseManager(test_mode=True)
+    db = DatabaseManager()
     
     result = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
     booking = result[0] if result else None
@@ -177,8 +177,8 @@ def test_payout_vat_calculation_2025(sample_payout_csv, setup_test_bookings, tmp
 def test_payout_vat_calculation_2026(setup_test_bookings, tmp_path):
     """Test VAT calculation for 2026 bookings (21% rate)"""
     # First insert a 2026 booking
-    db = DatabaseManager(test_mode=True)
-    str_db = STRDatabase(test_mode=True)
+    db = DatabaseManager()
+    str_db = STRDatabase()
     
     booking_2026 = {
         'sourceFile': 'test_booking.xlsx',
@@ -217,7 +217,7 @@ Reservation,2026123456,2026-02-15,2026-02-18,3,450.00,-45.00,-5.00,7.50
     csv_file.write_text(csv_content)
     
     # Process and update
-    str_processor = STRProcessor(test_mode=True)
+    str_processor = STRProcessor()
     payout_result = str_processor._process_booking_payout(str(csv_file))
     
     str_db.update_from_payout(payout_result['updates'])
@@ -238,14 +238,14 @@ def test_payout_tourist_tax_calculation(sample_payout_csv, setup_test_bookings, 
     csv_file.write_text(sample_payout_csv)
     
     # Process and update
-    str_processor = STRProcessor(test_mode=True)
+    str_processor = STRProcessor()
     payout_result = str_processor._process_booking_payout(str(csv_file))
     
-    str_db = STRDatabase(test_mode=True)
+    str_db = STRDatabase()
     str_db.update_from_payout(payout_result['updates'])
     
     # Verify tourist tax calculation
-    db = DatabaseManager(test_mode=True)
+    db = DatabaseManager()
     
     result = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
     booking = result[0] if result else None
@@ -268,7 +268,7 @@ def test_payout_empty_csv(tmp_path):
     csv_file = tmp_path / "Payout_from_2025-01-01_until_2025-01-31.csv"
     csv_file.write_text(csv_content)
     
-    str_processor = STRProcessor(test_mode=True)
+    str_processor = STRProcessor()
     payout_result = str_processor._process_booking_payout(str(csv_file))
     
     assert payout_result['summary']['reservation_rows'] == 0

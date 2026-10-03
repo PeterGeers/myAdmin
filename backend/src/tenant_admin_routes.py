@@ -111,8 +111,7 @@ def has_fin_module(tenant: str) -> bool:
         True if tenant has FIN module and it's active, False otherwise
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT is_active
@@ -191,8 +190,7 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
         Count of transactions using this account (0 if not used)
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT COUNT(*) as count
