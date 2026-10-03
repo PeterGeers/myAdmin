@@ -259,33 +259,95 @@ The implementation involves:
   - All Phase 5 tests pass: SAM suite (incl. Copy_Utility 15 + provisioning 17), backend env/guard suite, frontend Req-22 suite. `sam validate --lint` unaffected.
   - REMAINING (needs user — LIVE AWS, carried from Phase 4): deploy the TEST stacks, re-attach the Cognito pretoken trigger, retire `pretokengen-data`, seed `test_governance_projection`, record the real TEST API URL; widen the OIDC trust to the `test` ref (Task 31 prerequisite).
 
+### Phase 5a: Activate the TEST environment (LIVE AWS — gated, step-by-step)
+
+> **This phase creates/changes real cloud resources.** Everything before Phase 5a is code +
+> config; the TEST SAM plane is NOT operational until these steps run. Each step is small,
+> ordered, and independently verifiable. **Dependency order matters** — do them top to bottom.
+> Accounts: Cognito/identity = `personal` / `344561557829`; data (DynamoDB/API GW/Lambda) =
+> `nonprofit-deploy` / `506221081911`, `eu-west-1`. Use the `.env`-strip + identity sanity-check
+> from `41-shell-environment.md` for every `nonprofit-deploy` call. Each step is a STOP/GO gate.
+
+- [ ] 33. Pre-flight identity + inventory (read-only, no changes)
+  - [ ] 33.1 Verify data-account identity resolves to `506221081911` (NonprofitDeployRole) with the env-strip invocation — abort if it prints `344561557829`.
+  - [ ] 33.2 List existing stacks/tables (before-state): `sam-members`, `governance_projection`, `pretokengen-data`, `pretokengen-prod` present; `test_sam-members` / `test_pretokengen` / `test_governance_projection` ABSENT.
+  - [ ] 33.3 Confirm the test Cognito pool `eu-west-1_xyrlzfqbl` exists (personal account) and note its current Pre-Token-Generation trigger (if any).
+  - _Gate: identities + inventory confirmed before any write. Requirements: 23-aws-accounts guardrails._
+
+- [ ] 34. Create + seed the TEST projection table `test_governance_projection` (data account)
+  - [ ] 34.1 Create the real DynamoDB table (PK `tenant_id`, SK `sk`, PAY_PER_REQUEST) against real AWS (NOT the local emulator).
+  - [ ] 34.2 Seed via `scripts/test-environment/copy-prod-to-test.py dynamodb --source-table governance_projection --apply --i-understand-this-writes-test` (prod-parity) OR a synthetic seed.
+  - [ ] 34.3 Verify: `describe-table` ACTIVE; item count as expected.
+  - _Gate: TEST projection exists + populated. Reversible (drop table). Requirements: 10.2, 16._
+
+- [ ] 35. Deploy the members TEST stack `test_sam-members` (data account)
+  - [ ] 35.1 `cd sam/members && sam build && sam deploy --config-env test`.
+  - [ ] 35.2 Verify: stack CREATE_COMPLETE; `test_sam-members` table created; capture `MembersApiBaseUrl`.
+  - [ ] 35.3 Smoke: `curl` the TEST API base URL `/` — expect 401/403 (authorizer live).
+  - _Gate: TEST members API live. Reversible (delete stack; table Retain). Requirements: 11, 12, 13, 14._
+
+- [ ] 36. Deploy the pretokengen TEST stack `test_pretokengen` (data account)
+  - [ ] 36.1 `cd sam/pretokengen && sam build && sam deploy --config-env test`.
+  - [ ] 36.2 Verify: stack CREATE_COMPLETE; capture `PreTokenGenFunctionArn`; invoke permission for pool `eu-west-1_xyrlzfqbl` asserted.
+  - _Gate: TEST pretoken Lambda deployed (trigger not yet attached). Reversible. Requirements: 11, 12._
+
+- [ ] 37. Attach the Cognito Pre-Token-Generation trigger on the TEST pool (identity account)
+  - [ ] 37.1 In `personal`, set pool `eu-west-1_xyrlzfqbl` Pre-Token-Generation Lambda to the `test_pretokengen` ARN (capture the OLD value first — reversible).
+  - [ ] 37.2 Verify: a fresh test-pool sign-in mints a token carrying `custom:entitlements`.
+  - _Gate: TEST tokens entitlement-stamped by the TEST Lambda. Reversible. Requirements: 14, 17._
+
+- [ ] 38. Record the real TEST members API URL in the Environment_Definition (code, committed to `test`)
+  - [ ] 38.1 Replace `PLACEHOLDER_TEST_API` with the captured `MembersApiBaseUrl` in `backend/src/environment/environment_definition.py` AND `frontend/src/config/environmentDefinition.ts` (mirrored).
+  - [ ] 38.2 Update paired assertions (`test_environment_definition.py`, health-report example); the `sam_api_base_url` guard flips placeholder-tolerant to a concrete match.
+  - [ ] 38.3 Set `VITE_MEMBERS_API_BASE_URL` for TEST runs to the new URL.
+  - [ ] 38.4 Change-with-tests; run backend env/guard + frontend Req-22 suites.
+  - _Gate: definition reflects the live TEST endpoint. Requirements: 15, 21.5-21.6._
+
+- [ ] 39. Provision a Test_Account for sign-in (identity account)
+  - [ ] 39.1 `scripts/test-environment/provision-test-account.py --email <tester> --tenants <T> --role <R> --apply`.
+  - [ ] 39.2 Optionally mirror a prod reference account via the Copy_Utility (explicit).
+  - _Gate: a usable TEST login exists. Requirements: 17._
+
+- [ ] 40. End-to-end TEST smoke (the "can I test TEST" check)
+  - [ ] 40.1 Backend `APP_ENV=test`: `GET /api/environment` shows TEST pool/mysql/dynamodb + stack `test_sam-members` + the real (non-placeholder) SAM API URL; Consistency_Guard CONSISTENT.
+  - [ ] 40.2 Frontend `npm start` (`VITE_APP_ENV=test`): sign in with the Test_Account; EnvironmentIndicator shows TEST + the live SAM endpoint; Members page loads data from `test_sam-members`.
+  - _Gate: TEST environment operational end-to-end. Requirements: 19.3, 20, 22._
+
+- [ ] 41. (Optional) Retire the legacy `pretokengen-data` stack (data account)
+  - [ ] 41.1 ONLY after 37 + 40 pass — delete the old `pretokengen-data` stack; verify no pool still references its function first.
+  - _Gate: HARD-TO-REVERSE (stack delete). Explicit confirm required. Do last. Requirements: 11._
+
+> **CI alternative (Task 31 path).** Tasks 35/36 can run via the `test`-branch CI once
+> `NonprofitDeployRole`'s OIDC trust is widened to allow `refs/heads/test`. Tasks 34/37/39/41
+> stay manual (outside the data-account deploy workflow scope).
+
 ### Phase 6: Production config wiring + environment-variable consolidation
 
-- [ ] 33. Fill real non-secret config values in Environment_Definition
-  - [ ] 33.1 Replace remaining PLACEHOLDER values with real non-secret identifiers where the plane is live (done for PROD_CLIENT_ID=66tp0087h9tfbstggonnu5aghp; audit the rest)
-  - [ ] 33.2 Set the real production Flask API base URL (replace `https://PLACEHOLDER_PRODUCTION_FLASK_API`) once known
-  - [ ] 33.3 Keep every SECRET as an env-var reference only — never commit a secret value (client secret, DB password, AWS keys stay env-sourced)
-  - [ ] 33.4 Mirror each committed public identifier change in the frontend `environmentDefinition.ts` so backend/frontend cannot drift
-  - [ ] 33.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
+- [ ] 42. Fill real non-secret config values in Environment_Definition
+  - [ ] 42.1 Replace remaining PLACEHOLDER values with real non-secret identifiers where the plane is live (done for PROD_CLIENT_ID=66tp0087h9tfbstggonnu5aghp; audit the rest)
+  - [ ] 42.2 Set the real production Flask API base URL (replace `https://PLACEHOLDER_PRODUCTION_FLASK_API`) once known
+  - [ ] 42.3 Keep every SECRET as an env-var reference only — never commit a secret value (client secret, DB password, AWS keys stay env-sourced)
+  - [ ] 42.4 Mirror each committed public identifier change in the frontend `environmentDefinition.ts` so backend/frontend cannot drift
+  - [ ] 42.5 Add a test asserting NO `PLACEHOLDER_` value remains for any plane marked live in the definition
   - _Requirements: 3.1-3.6, 8.5_
 
-- [ ] 34. Retire duplicated identity env vars once resolver supplies identity
-  - [ ] 34.1 Make the backend derive the active identity block (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID) from the resolver's ResolvedConfig, not from raw env vars
-  - [ ] 34.2 Confirm the Pool_Registry (COGNITO_POOL_KEYS + {KEY}_COGNITO_* ) remains the SOLE source for token verification (multi-pool), independent of the identity block
-  - [ ] 34.3 Remove the now-redundant raw identity-block env vars from the deploy config (Railway) once 34.1 lands, keeping only the registry vars + secrets + APP_ENV
-  - [ ] 34.4 Keep COGNITO_CLIENT_SECRET as an env var (the resolver supplies the public identity; the secret stays operational)
-  - [ ] 34.5 Update the Consistency_Guard identity-block check to tolerate an unset identity block when the resolver is authoritative (no false fail-fast)
-  - [ ] 34.6 Change-with-tests: update guard + resolver tests for the resolver-authoritative identity
+- [ ] 43. Retire duplicated identity env vars once resolver supplies identity
+  - [ ] 43.1 Make the backend derive the active identity block (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID) from the resolver's ResolvedConfig, not from raw env vars
+  - [ ] 43.2 Confirm the Pool_Registry (COGNITO_POOL_KEYS + {KEY}_COGNITO_* ) remains the SOLE source for token verification (multi-pool), independent of the identity block
+  - [ ] 43.3 Remove the now-redundant raw identity-block env vars from the deploy config (Railway) once 43.1 lands, keeping only the registry vars + secrets + APP_ENV
+  - [ ] 43.4 Keep COGNITO_CLIENT_SECRET as an env var (the resolver supplies the public identity; the secret stays operational)
+  - [ ] 43.5 Update the Consistency_Guard identity-block check to tolerate an unset identity block when the resolver is authoritative (no false fail-fast)
+  - [ ] 43.6 Change-with-tests: update guard + resolver tests for the resolver-authoritative identity
   - _Requirements: 2.3, 2.4, 4.3, 8.3_
 
-- [ ] 35. Audit and consolidate deploy environment variables (Railway)
-  - [ ] 35.1 Produce a mapping of every deploy env var -> the code that consumes it (name-only; never record secret values)
-  - [ ] 35.2 Flag overlaps/duplicates (e.g. identity-block vs PROD_A_* registry; multiple frontend-URL/CloudFront vars) and record which are intentional vs redundant
-  - [ ] 35.3 Document the target per-plane variable set per environment in the Environment_Definition doc (which vars are required where)
-  - [ ] 35.4 Recommend rotation for any secret that has leaked into a non-gitignored/plaintext file, and verify no secret is committed
+- [ ] 44. Audit and consolidate deploy environment variables (Railway)
+  - [ ] 44.1 Produce a mapping of every deploy env var -> the code that consumes it (name-only; never record secret values)
+  - [ ] 44.2 Flag overlaps/duplicates (e.g. identity-block vs PROD_A_* registry; multiple frontend-URL/CloudFront vars) and record which are intentional vs redundant
+  - [ ] 44.3 Document the target per-plane variable set per environment in the Environment_Definition doc (which vars are required where)
+  - [ ] 44.4 Recommend rotation for any secret that has leaked into a non-gitignored/plaintext file, and verify no secret is committed
   - _Requirements: 3.5, 18.1-18.4_
 
-- [ ] 36. Checkpoint - Production config wiring complete
+- [ ] 45. Checkpoint - Production config wiring complete
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
