@@ -17,8 +17,8 @@ from database import DatabaseManager
 class BankingMutatieService:
     """Service for querying and updating banking transaction records."""
 
-    def __init__(self, test_mode: bool = False) -> None:
-        self.test_mode = test_mode
+    def __init__(self) -> None:
+        pass
 
     def get_mutaties(
         self, filters: dict[str, Any], tenant: str, user_tenants: list[str]

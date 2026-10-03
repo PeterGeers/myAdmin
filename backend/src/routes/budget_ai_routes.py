@@ -25,18 +25,9 @@ logger = logging.getLogger(__name__)
 # Create blueprint
 budget_ai_bp = Blueprint("budget_ai", __name__)
 
-# Service instances (will be set by set_test_mode)
-budget_service = None
-budget_ai_service = None
-
-
-def set_test_mode(test_mode: bool) -> None:
-    """Set test mode for budget AI/copy services"""
-    global budget_service, budget_ai_service
-    budget_service = BudgetService(test_mode=test_mode)
-    budget_ai_service = BudgetAIService(
-        db=budget_service.db if budget_service else None
-    )
+# Service instances
+budget_service = BudgetService()
+budget_ai_service = BudgetAIService(db=budget_service.db)
 
 
 # =============================================================================

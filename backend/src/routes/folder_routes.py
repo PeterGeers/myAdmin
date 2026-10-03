@@ -21,17 +21,15 @@ from services.storage_resolver import (
 
 folder_bp = Blueprint("folders", __name__)
 
-# Access to config and flag from app.py
-# These will be set by app.py after blueprint registration
+# Access to config from app.py
+# This will be set by app.py after blueprint registration
 config = None
-flag = False
 
 
-def set_config_and_flag(app_config, test_mode) -> None:
-    """Set the config and test mode flag from app.py"""
-    global config, flag
+def set_config(app_config) -> None:
+    """Set the config from app.py"""
+    global config
     config = app_config
-    flag = test_mode
 
 
 @folder_bp.route("/api/folders", methods=["GET"])
@@ -51,76 +49,73 @@ def get_folders(user_email, user_roles) -> ResponseReturnValue:
 
         regex_pattern = request.args.get("regex")
         print(
-            f"get_folders called for tenant={tenant}, flag={flag}, regex={regex_pattern}",
+            f"get_folders called for tenant={tenant}, regex={regex_pattern}",
             flush=True,
         )
 
-        if flag:  # Test mode - use local folders
+        # Production mode - resolve storage provider
+        try:
+            provider = resolve_storage_provider(tenant)
+            print(
+                f"Production mode: provider={provider} for tenant={tenant}",
+                flush=True,
+            )
+
+            if provider == "s3_shared":
+                # S3 tenant: list folders from S3 prefixes
+                folders = list_s3_folders(tenant)
+                print(
+                    f"S3: found {len(folders)} folders for tenant={tenant}",
+                    flush=True,
+                )
+            else:
+                # Google Drive tenant: use existing Drive service
+                print(
+                    f"Production mode: fetching Google Drive folders for tenant={tenant}",
+                    flush=True,
+                )
+                drive_service = GoogleDriveService(administration=tenant)
+                drive_folders = drive_service.list_subfolders()
+                print(
+                    f"Raw drive_folders result: {type(drive_folders)}, length: {len(drive_folders) if drive_folders else 0}",
+                    flush=True,
+                )
+
+                # Extract folder names and deduplicate (Google Drive allows duplicate folder names)
+                folder_names = [folder["name"] for folder in drive_folders]
+                # Use dict.fromkeys() to preserve order while removing duplicates
+                folders = list(dict.fromkeys(folder_names))
+
+                if len(folder_names) != len(folders):
+                    print(
+                        f"Warning: Deduplicated {len(folder_names)} folders to {len(folders)} unique names",
+                        flush=True,
+                    )
+                    # Log which folders were duplicated
+                    from collections import Counter
+
+                    duplicates = [
+                        name
+                        for name, count in Counter(folder_names).items()
+                        if count > 1
+                    ]
+                    print(f"Duplicate folder names found: {duplicates}", flush=True)
+
+                print(
+                    f"Google Drive: found {len(folders)} unique folders for tenant={tenant}",
+                    flush=True,
+                )
+        except Exception as e:
+            print(
+                f"Storage error for tenant={tenant}: {type(e).__name__}: {e}",
+                flush=True,
+            )
+            import traceback
+
+            traceback.print_exc()
+            # Fallback to local folders if storage backend fails
             folders = list(config.vendor_folders.values())
-            print(f"Test mode: returning {len(folders)} local folders", flush=True)
-        else:  # Production mode - resolve storage provider
-            try:
-                provider = resolve_storage_provider(tenant)
-                print(
-                    f"Production mode: provider={provider} for tenant={tenant}",
-                    flush=True,
-                )
-
-                if provider == "s3_shared":
-                    # S3 tenant: list folders from S3 prefixes
-                    folders = list_s3_folders(tenant)
-                    print(
-                        f"S3: found {len(folders)} folders for tenant={tenant}",
-                        flush=True,
-                    )
-                else:
-                    # Google Drive tenant: use existing Drive service
-                    print(
-                        f"Production mode: fetching Google Drive folders for tenant={tenant}",
-                        flush=True,
-                    )
-                    drive_service = GoogleDriveService(administration=tenant)
-                    drive_folders = drive_service.list_subfolders()
-                    print(
-                        f"Raw drive_folders result: {type(drive_folders)}, length: {len(drive_folders) if drive_folders else 0}",
-                        flush=True,
-                    )
-
-                    # Extract folder names and deduplicate (Google Drive allows duplicate folder names)
-                    folder_names = [folder["name"] for folder in drive_folders]
-                    # Use dict.fromkeys() to preserve order while removing duplicates
-                    folders = list(dict.fromkeys(folder_names))
-
-                    if len(folder_names) != len(folders):
-                        print(
-                            f"Warning: Deduplicated {len(folder_names)} folders to {len(folders)} unique names",
-                            flush=True,
-                        )
-                        # Log which folders were duplicated
-                        from collections import Counter
-
-                        duplicates = [
-                            name
-                            for name, count in Counter(folder_names).items()
-                            if count > 1
-                        ]
-                        print(f"Duplicate folder names found: {duplicates}", flush=True)
-
-                    print(
-                        f"Google Drive: found {len(folders)} unique folders for tenant={tenant}",
-                        flush=True,
-                    )
-            except Exception as e:
-                print(
-                    f"Storage error for tenant={tenant}: {type(e).__name__}: {e}",
-                    flush=True,
-                )
-                import traceback
-
-                traceback.print_exc()
-                # Fallback to local folders if storage backend fails
-                folders = list(config.vendor_folders.values())
-                print(f"Fallback: returning {len(folders)} local folders", flush=True)
+            print(f"Fallback: returning {len(folders)} local folders", flush=True)
 
         # Apply regex filter if provided
         if regex_pattern:

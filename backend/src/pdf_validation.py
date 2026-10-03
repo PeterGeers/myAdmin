@@ -4,9 +4,8 @@ from database import DatabaseManager
 
 
 class PDFValidator:
-    def __init__(self, test_mode=False):
-        self.test_mode = test_mode
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
         self.drive_service = None
         self.administration = None  # Will be set when needed
 

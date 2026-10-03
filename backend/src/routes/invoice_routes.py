@@ -22,16 +22,6 @@ invoice_bp = Blueprint("invoices", __name__)
 # Upload folder configuration
 UPLOAD_FOLDER = "uploads"
 
-# Access to flag from app.py (test mode)
-flag = False
-
-
-def set_test_mode(test_mode) -> None:
-    """Set the test mode flag from app.py"""
-    global flag
-    flag = test_mode
-
-
 @invoice_bp.route("/api/upload", methods=["POST", "OPTIONS"])
 def upload_file_wrapper() -> ResponseReturnValue:
     """Upload and process PDF file - wrapper to handle OPTIONS without auth"""
@@ -55,7 +45,7 @@ def upload_file_authenticated(
 
     try:
         # Initialize invoice service
-        invoice_service = InvoiceService(test_mode=flag)
+        invoice_service = InvoiceService()
 
         print("=== UPLOAD REQUEST START ===", flush=True)
         print(f"Request method: {request.method}", flush=True)
@@ -183,7 +173,7 @@ def approve_transactions(
     from transaction_logic import TransactionLogic
 
     try:
-        transaction_logic = TransactionLogic(test_mode=flag)
+        transaction_logic = TransactionLogic()
         data = request.get_json()
         transactions = data.get("transactions", [])
 

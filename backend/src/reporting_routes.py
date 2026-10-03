@@ -529,20 +529,7 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
 
 
 # Global variables set by app.py
-flag = False
 logger = None
-
-
-def set_test_mode(test_mode):
-    """Deprecated no-op retained for app.py wiring compatibility.
-
-    `test_mode` no longer selects the environment or the mutaties table — the
-    environment is chosen by APP_ENV and the schema is always `finance`. The flag
-    is stored but unused; this setter is removed with the rest of the `test_mode`
-    wiring in Phase-3 task 17.
-    """
-    global flag
-    flag = test_mode
 
 
 def set_logger(log_instance):

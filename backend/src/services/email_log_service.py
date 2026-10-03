@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 class EmailLogService:
     """Log and query email delivery events"""
 
-    def __init__(self, test_mode: bool = False):
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
 
     def log_sent(
         self,

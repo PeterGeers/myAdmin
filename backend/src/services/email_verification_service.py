@@ -30,16 +30,14 @@ class EmailVerificationService:
         self,
         db_manager: DatabaseManager | None = None,
         region: str | None = None,
-        test_mode: bool = False,
     ):
         """Initialize the service with database manager and SES client.
 
         Args:
-            db_manager: DatabaseManager instance. If None, creates one using test_mode.
+            db_manager: DatabaseManager instance. If None, creates one.
             region: AWS region for SES. Defaults to AWS_REGION env var or 'eu-west-1'.
-            test_mode: Whether to use test database.
         """
-        self.db = db_manager or DatabaseManager(test_mode=test_mode)
+        self.db = db_manager or DatabaseManager()
         self.region = region or os.getenv("AWS_REGION", "eu-west-1")
         self.ses_client = boto3.client("ses", region_name=self.region)
 

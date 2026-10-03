@@ -20,14 +20,7 @@ from toeristenbelasting_processor import ToeristenbelastingProcessor
 tax_bp = Blueprint("tax", __name__)
 
 # Global variables set by app.py
-flag = False  # Test mode flag
 logger = None  # Logger instance
-
-
-def set_test_mode(test_mode) -> None:
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
 
 
 def set_logger(log_instance) -> None:
@@ -67,7 +60,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
 
         # Get cache and database instances
         cache = get_cache()
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         cache.get_data(db, tenant=administration)
 
         # Generate structured report data using new generator
@@ -172,7 +165,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
         )
 
         # Prepare transaction for saving (using existing logic)
-        btw_processor = BTWProcessor(test_mode=flag)
+        btw_processor = BTWProcessor()
         transaction = btw_processor._prepare_btw_transaction(
             administration, year, quarter, report_data["calculations"]
         )
@@ -236,7 +229,7 @@ def btw_save_transaction(user_email, user_roles) -> ResponseReturnValue:
                 {"success": False, "error": "Transaction data required"}
             ), 400
 
-        btw_processor = BTWProcessor(test_mode=flag)
+        btw_processor = BTWProcessor()
         result = btw_processor.save_btw_transaction(transaction)
 
         return jsonify(result)
@@ -269,7 +262,7 @@ def btw_upload_report(user_email, user_roles) -> ResponseReturnValue:
                 {"success": False, "error": "Administration context not found"}
             ), 400
 
-        btw_processor = BTWProcessor(test_mode=flag)
+        btw_processor = BTWProcessor()
         result = btw_processor.upload_report_to_drive(
             html_content, filename, administration
         )
@@ -305,7 +298,7 @@ def toeristenbelasting_generate_report(
         if not year:
             return jsonify({"success": False, "error": "Year is required"}), 400
 
-        processor = ToeristenbelastingProcessor(test_mode=flag)
+        processor = ToeristenbelastingProcessor()
         result = processor.generate_toeristenbelasting_report(year, tenant=tenant)
 
         # If report generation failed, return error
@@ -319,7 +312,7 @@ def toeristenbelasting_generate_report(
             # This may need to be passed as a parameter in the future
             administration = result.get("administration", "default")
 
-            db = DatabaseManager(test_mode=flag)
+            db = DatabaseManager()
             from services.output_service import OutputService
 
             output_service = OutputService(db)

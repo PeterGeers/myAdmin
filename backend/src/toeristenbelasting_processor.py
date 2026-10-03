@@ -11,9 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class ToeristenbelastingProcessor:
-    def __init__(self, test_mode=False):
-        self.test_mode = test_mode
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
 
     def generate_toeristenbelasting_report(self, year, tenant=None):
         """Generate Toeristenbelasting (Tourist Tax) declaration report using TemplateService"""

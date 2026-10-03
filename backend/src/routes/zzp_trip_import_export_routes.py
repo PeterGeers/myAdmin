@@ -30,28 +30,20 @@ logger = logging.getLogger(__name__)
 
 zzp_trip_io_bp = Blueprint("zzp_trip_io", __name__)
 
-_test_mode = False
-
-
-def set_test_mode(flag: bool) -> None:
-    global _test_mode
-    _test_mode = flag
-
-
 def _get_vehicle_service() -> VehicleService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return VehicleService(db=db, parameter_service=param_svc)
 
 
 def _get_trip_service() -> TripService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return TripService(db=db, parameter_service=param_svc)
 
 
 def _get_invoice_service() -> ZZPInvoiceService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     tax_svc = TaxRateService(db)
     param_svc = ParameterService(db)
     return ZZPInvoiceService(
@@ -60,13 +52,13 @@ def _get_invoice_service() -> ZZPInvoiceService:
 
 
 def _get_export_service() -> TripExportService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return TripExportService(db=db, parameter_service=param_svc)
 
 
 def _get_import_service() -> TripImportService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return TripImportService(db=db, parameter_service=param_svc)
 

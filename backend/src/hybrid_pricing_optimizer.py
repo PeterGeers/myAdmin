@@ -20,11 +20,11 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 
 class HybridPricingOptimizer:
-    def __init__(self, test_mode=False, tenant=None):
+    def __init__(self, tenant=None):
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.db = DatabaseManager(test_mode=test_mode)
-        self.business_model = BusinessPricingModel(test_mode=test_mode)
+        self.db = DatabaseManager()
+        self.business_model = BusinessPricingModel()
         self.usage_tracker = AIUsageTracker(self.db)
         self.tenant = tenant
 

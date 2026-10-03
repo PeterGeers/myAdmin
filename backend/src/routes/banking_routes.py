@@ -22,14 +22,8 @@ from services.banking_service import BankingService
 # Create blueprint
 banking_bp = Blueprint("banking", __name__)
 
-# Service instance (will be set by set_test_mode)
-banking_service = None
-
-
-def set_test_mode(test_mode: bool) -> None:
-    """Set test mode for banking service"""
-    global banking_service
-    banking_service = BankingService(test_mode=test_mode)
+# Service instance
+banking_service = BankingService()
 
 
 @banking_bp.route("/api/banking/scan-files", methods=["GET"])
@@ -280,7 +274,7 @@ def banking_update_mutatie(
                 year = int(txn_date[:4])
                 from database import DatabaseManager
 
-                db = DatabaseManager(test_mode=False)
+                db = DatabaseManager()
                 rows = db.execute_query(
                     "SELECT year FROM year_closure_status WHERE administration = %s AND year = %s",
                     [tenant, year],
@@ -332,7 +326,7 @@ def banking_insert_mutatie(
         from database import DatabaseManager
         from db_exceptions import ClosedPeriodError
 
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
 
         txn_date = str(data.get("TransactionDate", ""))
         amount = float(data.get("TransactionAmount", 0))
@@ -414,7 +408,7 @@ def banking_check_sequence(
         if administration not in user_tenants:
             return jsonify({"error": "Access denied to requested administration"}), 403
 
-        processor = BankingProcessor(test_mode=banking_service.test_mode)
+        processor = BankingProcessor()
         account_code = request.args.get("account_code")
         start_date = request.args.get("start_date", "2025-01-01")
 
@@ -464,7 +458,7 @@ def banking_check_revolut_balance_debug(user_email, user_roles) -> ResponseRetur
     try:
         from banking_processor import BankingProcessor
 
-        processor = BankingProcessor(test_mode=banking_service.test_mode)
+        processor = BankingProcessor()
         iban = request.args.get("iban", "NL08REVO7549383472")
         account_code = request.args.get("account_code", "1022")
         start_date = request.args.get("start_date", "2025-05-01")
@@ -512,7 +506,7 @@ def banking_opening_balance_date(
         from banking_checks import _get_opening_balance_date
         from database import DatabaseManager
 
-        db = DatabaseManager(test_mode=banking_service.test_mode)
+        db = DatabaseManager()
         opening_balance_date = _get_opening_balance_date(db, tenant)
 
         if opening_balance_date:
@@ -546,7 +540,7 @@ def banking_migrate_revolut_ref2(user_email, user_roles) -> ResponseReturnValue:
     try:
         from migrate_revolut_ref2 import migrate_revolut_ref2
 
-        result = migrate_revolut_ref2(test_mode=banking_service.test_mode)
+        result = migrate_revolut_ref2()
         return jsonify(result)
     except Exception as e:
         print(f"Migration error: {e}", flush=True)
