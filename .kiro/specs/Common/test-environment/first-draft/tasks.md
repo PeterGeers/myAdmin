@@ -346,12 +346,13 @@ The implementation involves:
   - [x] 43.6 Added the guard unset-tolerance test; existing mismatch tests already cover the conflict path. Guard suite 53 passed.
   - _Requirements: 2.3, 2.4, 4.3, 8.3_
 
-- [ ] 44. Audit and consolidate deploy environment variables (Railway)
-  - [ ] 44.1 Produce a mapping of every deploy env var -> the code that consumes it (name-only; never record secret values)
-  - [ ] 44.2 Flag overlaps/duplicates (e.g. identity-block vs PROD_A_* registry; multiple frontend-URL/CloudFront vars) and record which are intentional vs redundant
-  - [ ] 44.3 Document the target per-plane variable set per environment in the Environment_Definition doc (which vars are required where)
-  - [ ] 44.4 Recommend rotation for any secret that has leaked into a non-gitignored/plaintext file, and verify no secret is committed
+- [x] 44. Audit and consolidate deploy environment variables (Railway)
+  - [x] 44.1 Produce a mapping of every deploy env var -> the code that consumes it (name-only; never record secret values)
+  - [x] 44.2 Flag overlaps/duplicates (e.g. identity-block vs PROD_A_* registry; multiple frontend-URL/CloudFront vars) and record which are intentional vs redundant
+  - [x] 44.3 Document the target per-plane variable set per environment in the Environment_Definition doc (which vars are required where)
+  - [x] 44.4 Recommend rotation for any secret that has leaked into a non-gitignored/plaintext file, and verify no secret is committed
   - _Requirements: 3.5, 18.1-18.4_
+  - _Artifact: `env-var-audit.md` (same spec folder) — the full var->consumer map, overlaps (intentional vs redundant), target per-plane set, leaked-secret check, and 3 follow-up findings (stale TEST_MODE/TEST_DB_NAME in system_health_routes; Google-Drive TEST_MODE toggle; legacy Cognito vars retirable from Railway)._
 
 - [ ] 45. Checkpoint - Production config wiring complete
   - Ensure all tests pass, ask the user if questions arise.
