@@ -17,8 +17,8 @@ from database import DatabaseManager
 class BankingMutatieService:
     """Service for querying and updating banking transaction records."""
 
-    def __init__(self, test_mode: bool = False) -> None:
-        self.test_mode = test_mode
+    def __init__(self) -> None:
+        pass
 
     def get_mutaties(
         self, filters: dict[str, Any], tenant: str, user_tenants: list[str]
@@ -36,8 +36,10 @@ class BankingMutatieService:
         try:
             from datetime import datetime
 
-            db = DatabaseManager(test_mode=self.test_mode)
-            table_name = "mutaties_test" if self.test_mode else "mutaties"
+            # Schema is always `finance` (environment selected by APP_ENV) — fixed
+            # mutaties table name, no `mutaties_test` switch.
+            db = DatabaseManager()
+            table_name = "mutaties"
 
             # Get filter parameters
             years = filters.get("years", [str(datetime.now().year)])
@@ -149,8 +151,10 @@ class BankingMutatieService:
         try:
             from datetime import datetime
 
-            db = DatabaseManager(test_mode=self.test_mode)
-            table_name = "mutaties_test" if self.test_mode else "mutaties"
+            # Schema is always `finance` (environment selected by APP_ENV) — fixed
+            # mutaties table name, no `mutaties_test` switch.
+            db = DatabaseManager()
+            table_name = "mutaties"
 
             # Update the record - FORCE Administration to current tenant
             update_query = f"""

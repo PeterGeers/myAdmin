@@ -179,7 +179,6 @@ class TestTransactionContextManager:
             db = __import__('database').DatabaseManager.__new__(
                 __import__('database').DatabaseManager
             )
-            db.test_mode = True
             db.config = {
                 'host': 'localhost', 'user': 'test',
                 'password': 'test', 'database': 'test', 'port': 3306
@@ -284,7 +283,6 @@ class TestConnectionPoolResourceManagement:
         mock_conn.cursor.return_value = mock_cursor
 
         db = database.DatabaseManager.__new__(database.DatabaseManager)
-        db.test_mode = True
         db.config = {
             'host': 'localhost', 'user': 'test',
             'password': 'test', 'database': 'test', 'port': 3306
@@ -330,7 +328,6 @@ class TestConnectionPoolResourceManagement:
         mock_sm.record_request_metrics = MagicMock()
 
         db = database.DatabaseManager.__new__(database.DatabaseManager)
-        db.test_mode = True
         db.config = {
             'host': 'localhost', 'user': 'test',
             'password': 'test', 'database': 'test', 'port': 3306

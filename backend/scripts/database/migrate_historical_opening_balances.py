@@ -108,7 +108,7 @@ def migrate_opening_balances(dry_run=False, tenant=None):
         print()
     
     # Initialize database and service
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     service = YearEndClosureService()
     
     # Get years needing migration

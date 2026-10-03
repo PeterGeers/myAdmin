@@ -26,7 +26,7 @@ class TestSTRInvoiceTenantFiltering:
     @pytest.fixture
     def db(self):
         """Create database manager for testing"""
-        return DatabaseManager(test_mode=True)
+        return DatabaseManager()
     
     def create_jwt_token(self, email, tenants, roles=None):
         """Helper to create a mock JWT token"""
@@ -348,7 +348,7 @@ def main():
     # Create fixtures
     app = Flask(__name__)
     app.config['TESTING'] = True
-    db = DatabaseManager(test_mode=True)
+    db = DatabaseManager()
     
     # Run tests
     tests = [

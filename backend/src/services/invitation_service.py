@@ -22,14 +22,11 @@ logger = logging.getLogger(__name__)
 class InvitationService:
     """Service for managing user invitations"""
 
-    def __init__(self, test_mode: bool = False):
+    def __init__(self):
         """
         Initialize invitation service
-
-        Args:
-            test_mode: Whether to use test database
         """
-        self.db = DatabaseManager(test_mode=test_mode)
+        self.db = DatabaseManager()
         self.invitation_expiry_days = 7
 
     def generate_temporary_password(self, length: int = 12) -> str:

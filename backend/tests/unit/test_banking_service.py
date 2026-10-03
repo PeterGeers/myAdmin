@@ -20,7 +20,7 @@ def service(mock_db):
             with patch('services.banking_service.BankingProcessor') as MockProcessor:
                 mock_processor = MagicMock()
                 MockProcessor.return_value = mock_processor
-                svc = BankingService(test_mode=True)
+                svc = BankingService()
                 svc._mock_db = mock_db
                 svc._mock_processor = mock_processor
                 yield svc

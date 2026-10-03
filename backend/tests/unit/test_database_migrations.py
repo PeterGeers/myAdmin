@@ -24,7 +24,7 @@ class TestDatabaseMigrationInit:
         """Test that __init__ creates the migrations tracking table."""
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
 
         mock_db.execute_query.assert_called_once()
         call_args = mock_db.execute_query.call_args
@@ -39,7 +39,7 @@ class TestGetAppliedMigrations:
     def migration(self, mock_db):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
         # Reset mock after init call
         mock_db.execute_query.reset_mock()
         return dm
@@ -71,7 +71,7 @@ class TestRecordMigration:
     def migration(self, mock_db):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
         mock_db.execute_query.reset_mock()
         return dm
 
@@ -99,7 +99,7 @@ class TestCreateMigration:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         return dm
 
@@ -143,7 +143,7 @@ class TestApplyMigration:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -218,7 +218,7 @@ class TestGetMigrationStatus:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -267,7 +267,7 @@ class TestQueryOptimizerCachedQuery:
     @pytest.fixture
     def optimizer(self, mock_db):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
-            opt = QueryOptimizer(test_mode=True)
+            opt = QueryOptimizer()
         return opt
 
     def test_cached_query_first_call_executes_query(self, optimizer, mock_db):
@@ -320,7 +320,7 @@ class TestQueryOptimizerAnalyzeQuery:
     @pytest.fixture
     def optimizer(self, mock_db):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
-            opt = QueryOptimizer(test_mode=True)
+            opt = QueryOptimizer()
         return opt
 
     def test_analyze_query_returns_analysis(self, optimizer, mock_db):
@@ -363,7 +363,7 @@ class TestRollbackMigration:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -440,7 +440,7 @@ class TestRunAllMigrations:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -506,7 +506,7 @@ class TestOptimizeDatabase:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -517,7 +517,7 @@ class TestOptimizeDatabase:
 
         result = migration.optimize_database()
 
-        assert len(result) == 8  # 4 OPTIMIZE + 4 ANALYZE
+        assert len(result) == 6  # 3 OPTIMIZE + 3 ANALYZE (mutaties, bnb, bnbplanned)
         assert all(r['success'] is True for r in result)
 
     def test_optimize_database_handles_errors(self, migration, mock_db):
@@ -529,16 +529,14 @@ class TestOptimizeDatabase:
             Exception("Permission denied"),
             [{'status': 'OK'}],
             [{'status': 'OK'}],
-            [{'status': 'OK'}],
-            [{'status': 'OK'}],
         ]
 
         result = migration.optimize_database()
 
-        assert len(result) == 8
+        assert len(result) == 6
         success_count = sum(1 for r in result if r['success'])
         failure_count = sum(1 for r in result if not r['success'])
-        assert success_count == 6
+        assert success_count == 4
         assert failure_count == 2
 
 
@@ -549,7 +547,7 @@ class TestCheckIndexes:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -557,8 +555,8 @@ class TestCheckIndexes:
     def test_check_indexes_returns_report(self, migration, mock_db):
         """Test that index check returns report for each table."""
         # First call: table exists check, second: show indexes
+        # Tables checked: mutaties, bnb, bnbplanned (3)
         mock_db.execute_query.side_effect = [
-            [{'count': 1}], [{'Key_name': 'PRIMARY', 'Column_name': 'id'}],
             [{'count': 1}], [{'Key_name': 'PRIMARY', 'Column_name': 'id'}],
             [{'count': 1}], [{'Key_name': 'PRIMARY', 'Column_name': 'id'}],
             [{'count': 1}], [{'Key_name': 'PRIMARY', 'Column_name': 'id'}],
@@ -566,14 +564,13 @@ class TestCheckIndexes:
 
         result = migration.check_indexes()
 
-        assert len(result) == 4
+        assert len(result) == 3
         assert all('table' in r for r in result)
 
     def test_check_indexes_table_not_exists(self, migration, mock_db):
         """Test handling when table doesn't exist."""
         mock_db.execute_query.side_effect = [
             [{'count': 0}],  # mutaties doesn't exist
-            [{'count': 0}],  # mutaties_test doesn't exist
             [{'count': 0}],  # bnb doesn't exist
             [{'count': 0}],  # bnbplanned doesn't exist
         ]
@@ -589,7 +586,7 @@ class TestCheckIndexes:
 
         result = migration.check_indexes()
 
-        assert len(result) == 4
+        assert len(result) == 3
         assert all('error' in r for r in result)
 
 
@@ -600,7 +597,7 @@ class TestCreateRecommendedIndexes:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -611,22 +608,22 @@ class TestCreateRecommendedIndexes:
         mock_db.execute_query.side_effect = [
             [],  # index doesn't exist
             None,  # create index
-        ] * 10  # 10 recommended indexes
+        ] * 7  # 7 recommended indexes (3 mutaties + 2 bnb + 2 bnbplanned)
 
         result = migration.create_recommended_indexes()
 
-        assert len(result) == 10
+        assert len(result) == 7
         assert all(r['status'] == 'created' for r in result)
 
     def test_create_recommended_indexes_skips_existing(self, migration, mock_db):
         """Test that existing indexes are skipped."""
         mock_db.execute_query.side_effect = [
             [{'Key_name': 'idx_transaction_date'}],  # index exists
-        ] * 10
+        ] * 7
 
         result = migration.create_recommended_indexes()
 
-        assert len(result) == 10
+        assert len(result) == 7
         assert all(r['status'] == 'exists' for r in result)
 
     def test_create_recommended_indexes_handles_errors(self, migration, mock_db):
@@ -634,11 +631,11 @@ class TestCreateRecommendedIndexes:
         mock_db.execute_query.side_effect = [
             [],  # index doesn't exist
             Exception("Permission denied"),  # create fails
-        ] * 10
+        ] * 7
 
         result = migration.create_recommended_indexes()
 
-        assert len(result) == 10
+        assert len(result) == 7
         assert all(r['status'] == 'failed' for r in result)
 
 
@@ -649,7 +646,7 @@ class TestCleanupDatabase:
     def migration(self, mock_db, temp_dir):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
             with patch('os.makedirs'):
-                dm = DatabaseMigration(test_mode=True)
+                dm = DatabaseMigration()
                 dm.migrations_dir = temp_dir
         mock_db.execute_query.reset_mock()
         return dm
@@ -686,7 +683,7 @@ class TestQueryOptimizerOptimizeQuery:
     @pytest.fixture
     def optimizer(self, mock_db):
         with patch('database_migrations.DatabaseManager', return_value=mock_db):
-            opt = QueryOptimizer(test_mode=True)
+            opt = QueryOptimizer()
         return opt
 
     def test_optimize_query_with_like(self, optimizer, mock_db):

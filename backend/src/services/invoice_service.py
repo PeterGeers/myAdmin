@@ -35,17 +35,13 @@ class InvoiceService:
         "eml",
     }
 
-    def __init__(self, test_mode=False):
+    def __init__(self):
         """
         Initialize InvoiceService
-
-        Args:
-            test_mode (bool): Whether to run in test mode (uses test database)
         """
-        self.test_mode = test_mode
-        self.db = DatabaseManager(test_mode=test_mode)
-        self.processor = PDFProcessor(test_mode=test_mode)
-        self.transaction_logic = TransactionLogic(test_mode=test_mode)
+        self.db = DatabaseManager()
+        self.processor = PDFProcessor()
+        self.transaction_logic = TransactionLogic()
         self.upload_cache = {}  # Cache for uploaded files to prevent duplicates
 
     def allowed_file(self, filename: str) -> bool:
@@ -172,10 +168,6 @@ class InvoiceService:
         Returns:
             dict: Upload result with 'id' and 'url'
         """
-        if self.test_mode:
-            # Test mode - local storage
-            return {"id": filename, "url": f"http://localhost:5000/uploads/{filename}"}
-
         # Resolve storage provider for this tenant
         from services.storage_resolver import resolve_storage_provider
 

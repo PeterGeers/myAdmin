@@ -41,7 +41,7 @@ class TestSTRInvoiceTemplateService:
         invoice_data['table_rows'] = table_rows
         
         # Initialize TemplateService
-        db = DatabaseManager(test_mode=True)
+        db = DatabaseManager()
         template_service = TemplateService(db)
         
         # Load template from filesystem
@@ -126,7 +126,7 @@ class TestSTRInvoiceTemplateService:
         invoice_data['table_rows'] = table_rows
         
         # Initialize TemplateService
-        db = DatabaseManager(test_mode=True)
+        db = DatabaseManager()
         template_service = TemplateService(db)
         
         # Load English template

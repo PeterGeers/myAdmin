@@ -749,6 +749,11 @@
         "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
         "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
         "timestamp": 1790952387094
+      },
+      {
+        "executionId": "47ea7de3-0cdd-4753-853e-a73f286c2e13",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1791030810366
       }
     ],
     "15.2 Add deprecation warning when `test_mode` is passed but ignored": [
@@ -756,6 +761,11 @@
         "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
         "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
         "timestamp": 1790952387188
+      },
+      {
+        "executionId": "47ea7de3-0cdd-4753-853e-a73f286c2e13",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1791030816860
       }
     ],
     "15.3 Keep `test_mode` parameter signature for backward compatibility": [
@@ -763,6 +773,11 @@
         "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
         "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
         "timestamp": 1790952387291
+      },
+      {
+        "executionId": "47ea7de3-0cdd-4753-853e-a73f286c2e13",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1791030818175
       }
     ],
     "15.4 Write property test for `test_mode` no longer selecting environment (Property 6)": [
@@ -770,6 +785,11 @@
         "executionId": "0c40600c-5d8d-40ce-9b3f-5bf4e56602e6",
         "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
         "timestamp": 1790952387491
+      },
+      {
+        "executionId": "47ea7de3-0cdd-4753-853e-a73f286c2e13",
+        "chatSessionId": "sess_cad4e259-23b5-464a-bbdd-36b454ff9ba8",
+        "timestamp": 1791030819127
       }
     ],
     "16.1 Update `reporting_routes` to stop reading `testMode` from request args": [

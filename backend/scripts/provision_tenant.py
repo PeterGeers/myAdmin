@@ -59,12 +59,12 @@ def get_promo_db():
     return db
 
 
-def get_finance_db(test_mode=False):
-    """Get DatabaseManager for finance database"""
-    return DatabaseManager(test_mode=test_mode)
+def get_finance_db():
+    """Get DatabaseManager for finance database (environment selected by APP_ENV)"""
+    return DatabaseManager()
 
 
-def generate_administration_name(company_name: str, email: str, test_mode=False) -> str:
+def generate_administration_name(company_name: str, email: str) -> str:
     """
     Generate a unique administration name from company name or email.
     Rules: PascalCase, alphanumeric only, max 50 chars, must be unique in tenants table.
@@ -79,7 +79,7 @@ def generate_administration_name(company_name: str, email: str, test_mode=False)
     base_name = base_name[:45]  # Leave room for suffix
 
     # Check uniqueness against finance DB
-    db = get_finance_db(test_mode)
+    db = get_finance_db()
     candidate = base_name
     suffix = 1
     while True:
@@ -109,9 +109,9 @@ def lookup_signup(email: str) -> dict:
     return result[0] if result else None
 
 
-def insert_tenant(admin_name: str, display_name: str, email: str, test_mode=False):
+def insert_tenant(admin_name: str, display_name: str, email: str):
     """Step 2: Insert into tenants table"""
-    db = get_finance_db(test_mode)
+    db = get_finance_db()
     db.execute_query(
         """INSERT INTO tenants 
            (administration, display_name, status, contact_email, country, created_at, created_by)
@@ -122,9 +122,9 @@ def insert_tenant(admin_name: str, display_name: str, email: str, test_mode=Fals
     logger.info(f"  ✅ Tenant '{admin_name}' inserted into tenants table")
 
 
-def insert_modules_list(admin_name: str, modules: list, test_mode=False):
+def insert_modules_list(admin_name: str, modules: list):
     """Step 3: Insert tenant_modules from provided list"""
-    db = get_finance_db(test_mode)
+    db = get_finance_db()
     with db.get_cursor() as (cursor, conn):
         for module in modules:
             cursor.execute(
@@ -136,9 +136,9 @@ def insert_modules_list(admin_name: str, modules: list, test_mode=False):
     logger.info(f"  ✅ Modules inserted: {', '.join(modules)}")
 
 
-def copy_default_chart_of_accounts(admin_name: str, test_mode=False):
+def copy_default_chart_of_accounts(admin_name: str):
     """Step 4: Copy rekeningschema from GoodwinSolutions as default template"""
-    db = get_finance_db(test_mode)
+    db = get_finance_db()
     with db.get_cursor() as (cursor, conn):
         cursor.execute(
             """INSERT INTO rekeningschema 
@@ -223,10 +223,11 @@ def send_notification(email: str, admin_name: str, first_name: str):
 # Main
 # ============================================================================
 
-def provision(email: str, dry_run=False, test_mode=False, admin_name_override=None, modules_override=None, force=False):
+def provision(email: str, dry_run=False, admin_name_override=None, modules_override=None, force=False):
     """Run the full provisioning flow"""
-    db_label = 'testfinance' if test_mode else 'finance'
-    logger.info(f"Provisioning tenant for: {email} (DB: {db_label})")
+    # Schema is always `finance`; TEST vs PROD is the resolved connection target
+    # selected by APP_ENV, not a separate `testfinance` schema.
+    logger.info(f"Provisioning tenant for: {email} (schema: finance)")
 
     # Step 1: Look up signup
     signup = lookup_signup(email)
@@ -248,7 +249,7 @@ def provision(email: str, dry_run=False, test_mode=False, admin_name_override=No
         admin_name = admin_name_override
         logger.info(f"  Using provided administration name: {admin_name}")
         # Still check uniqueness
-        db = get_finance_db(test_mode)
+        db = get_finance_db()
         result = db.execute_query(
             "SELECT COUNT(*) as cnt FROM tenants WHERE administration = %s",
             (admin_name,)
@@ -257,7 +258,7 @@ def provision(email: str, dry_run=False, test_mode=False, admin_name_override=No
             logger.error(f"❌ Administration '{admin_name}' already exists in tenants table")
             sys.exit(1)
     else:
-        admin_name = generate_administration_name(signup.get('company_name', ''), email, test_mode)
+        admin_name = generate_administration_name(signup.get('company_name', ''), email)
 
     # Modules: use override from frontend, fallback to default
     if modules_override:
@@ -285,7 +286,7 @@ def provision(email: str, dry_run=False, test_mode=False, admin_name_override=No
     from database import DatabaseManager
     from services.tenant_provisioning_service import TenantProvisioningService
 
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     service = TenantProvisioningService(db)
 
     locale = signup.get('locale', 'nl')
@@ -328,9 +329,8 @@ if __name__ == '__main__':
     parser.add_argument('--modules', help='Comma-separated module list, e.g. "FIN,STR,TENADMIN" (default: FIN,STR,TENADMIN)')
     parser.add_argument('--dry-run', action='store_true', help='Show what would happen without making changes')
     parser.add_argument('--force', action='store_true', help='Rerun provisioning even if already provisioned (for partial failures)')
-    parser.add_argument('--test-mode', action='store_true', help='Use testfinance DB instead of finance')
     args = parser.parse_args()
 
-    provision(args.email, dry_run=args.dry_run, test_mode=args.test_mode,
+    provision(args.email, dry_run=args.dry_run,
               admin_name_override=args.admin_name, modules_override=args.modules,
               force=args.force)

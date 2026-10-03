@@ -232,7 +232,7 @@ class TestPdfProcessorUsesTransactionLogic:
         """_format_vendor_transactions should handle error dict from TransactionLogic."""
         from pdf_processor import PDFProcessor
 
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
 
         vendor_data = {
             'date': '2025-01-15',
@@ -268,7 +268,7 @@ class TestPdfProcessorUsesTransactionLogic:
         """_format_vendor_transactions should use accounts from TransactionLogic."""
         from pdf_processor import PDFProcessor
 
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
 
         vendor_data = {
             'date': '2025-01-15',

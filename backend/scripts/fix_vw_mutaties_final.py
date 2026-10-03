@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 print("Fixing vw_mutaties with CORRECT accounting signs:")
 print("  - Debet (money IN) = POSITIVE")

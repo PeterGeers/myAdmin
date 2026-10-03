@@ -220,7 +220,7 @@ class TestComprehensiveDuplicateDetectionSystem:
         """
         Requirement 3.1: System SHALL process new transaction using normal workflow
         """
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         duplicate_info = {
             'has_duplicates': True,
@@ -281,7 +281,7 @@ class TestComprehensiveDuplicateDetectionSystem:
         """
         Requirement 4.1: System SHALL not process new transaction when cancelled
         """
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         duplicate_info = {'has_duplicates': True, 'existing_transactions': [{'id': 1}]}
         transactions = [{'date': '2024-01-15', 'amount': 150.50}]
@@ -346,7 +346,7 @@ class TestComprehensiveDuplicateDetectionSystem:
         """
         Requirement 5.1: System SHALL work with existing pdf_processor.py workflow
         """
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         # Verify: Processor has duplicate detection methods
         assert hasattr(processor, 'handle_duplicate_decision')
@@ -521,7 +521,7 @@ class TestComprehensiveDuplicateDetectionSystem:
         }]
         
         checker = DuplicateChecker(mock_db)
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         # Step 1: Detect duplicate
         duplicates = checker.check_for_duplicates('TestVendor', '2024-01-15', 150.50)
@@ -563,7 +563,7 @@ class TestComprehensiveDuplicateDetectionSystem:
         }]
         
         checker = DuplicateChecker(mock_db)
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         # Step 1: Detect duplicate
         duplicates = checker.check_for_duplicates('TestVendor', '2024-01-15', 150.50)
@@ -758,7 +758,7 @@ class TestComprehensiveDuplicateDetectionSystem:
         assert hasattr(cleanup_manager, 'cleanup_uploaded_file')
         
         # Requirement 5: Integration
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         assert hasattr(processor, 'handle_duplicate_decision')
         
         # Requirement 6: Error Handling

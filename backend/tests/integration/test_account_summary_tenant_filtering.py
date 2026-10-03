@@ -31,7 +31,7 @@ class TestAccountSummaryTenantFiltering:
     @pytest.fixture
     def db(self):
         """Create database connection"""
-        return DatabaseManager(test_mode=True)
+        return DatabaseManager()
     
     def create_jwt_token(self, email, tenants, groups):
         """Create a JWT token for testing"""

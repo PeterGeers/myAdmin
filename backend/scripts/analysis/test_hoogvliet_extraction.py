@@ -154,7 +154,7 @@ print("\n\n" + "="*80)
 print("ACTUAL PATTERN ANALYZER RESULTS")
 print("="*80)
 
-analyzer = PatternAnalyzer(test_mode=False)
+analyzer = PatternAnalyzer()
 for test in test_cases:
     result = analyzer._extract_company_name(test)
     print(f"'{test}' → '{result}'")

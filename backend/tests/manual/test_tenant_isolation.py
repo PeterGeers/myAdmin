@@ -28,8 +28,7 @@ def test_tenant_isolation():
     print("=" * 80)
     
     # Initialize database (use test mode)
-    test_mode = True
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     
     # Test data
     tenant1 = "GoodwinSolutions"

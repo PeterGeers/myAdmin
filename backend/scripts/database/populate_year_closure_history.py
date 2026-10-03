@@ -23,7 +23,7 @@ from database import DatabaseManager
 def populate_closure_history():
     """Populate year_closure_status with historical data"""
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     
     print("=" * 70)
     print("POPULATE YEAR CLOSURE HISTORY")

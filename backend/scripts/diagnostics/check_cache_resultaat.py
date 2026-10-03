@@ -13,7 +13,7 @@ load_dotenv(Path(__file__).parent / '.env')
 from database import DatabaseManager
 from mutaties_cache import get_cache
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 cache = get_cache()
 cache.get_data(db)
 

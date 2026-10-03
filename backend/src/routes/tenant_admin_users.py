@@ -94,8 +94,7 @@ def is_tenant_admin(user_roles) -> bool:
 def get_tenant_enabled_modules(tenant) -> list[str]:
     """Get enabled modules for tenant from database"""
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT module_name 
@@ -211,8 +210,7 @@ def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
                     user.get("Attributes", []), "email"
                 )
                 try:
-                    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-                    db = DatabaseManager(test_mode=test_mode)
+                    db = DatabaseManager()
                     role_rows = db.execute_query(
                         "SELECT role FROM user_tenant_roles WHERE email = %s AND administration = %s",
                         (user_email_addr, tenant),
@@ -369,8 +367,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
             )
 
             # Add user roles to DB
-            test_mode_flag = os.getenv("TEST_MODE", "false").lower() == "true"
-            db = DatabaseManager(test_mode=test_mode_flag)
+            db = DatabaseManager()
             for group_name in groups:
                 try:
                     db.execute_query(
@@ -472,8 +469,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
             # User doesn't exist - create new user
 
             # Initialize invitation service
-            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-            invitation_service = InvitationService(test_mode=test_mode)
+            invitation_service = InvitationService()
             email_service = EmailTemplateService(administration=tenant)
 
             # Create invitation record and generate temporary password
@@ -535,8 +531,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
                 raise
 
             # Add user roles to DB
-            test_mode_new = os.getenv("TEST_MODE", "false").lower() == "true"
-            db_new = DatabaseManager(test_mode=test_mode_new)
+            db_new = DatabaseManager()
             for group_name in groups:
                 try:
                     db_new.execute_query(
@@ -815,8 +810,7 @@ def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
 
         # Clean up per-tenant roles from DB
         target_email = username  # username is the email in Cognito
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         db.execute_query(
             "DELETE FROM user_tenant_roles WHERE email = %s AND administration = %s",
             (target_email, tenant),

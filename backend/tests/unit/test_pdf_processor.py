@@ -15,7 +15,7 @@ class TestPDFProcessor:
     @pytest.fixture
     def pdf_processor(self):
         """Create PDFProcessor instance for testing"""
-        return PDFProcessor(test_mode=True)
+        return PDFProcessor()
     
     @pytest.fixture
     def sample_pdf_content(self):
@@ -36,14 +36,9 @@ class TestPDFProcessor:
             'url': 'https://drive.google.com/file/d/mock_file_id/view'
         }
     
-    def test_init_test_mode(self):
-        """Test initialization in test mode"""
-        processor = PDFProcessor(test_mode=True)
-        assert hasattr(processor, 'config')
-    
-    def test_init_production_mode(self):
-        """Test initialization in production mode"""
-        processor = PDFProcessor(test_mode=False)
+    def test_init_constructs_with_config(self):
+        """PDFProcessor constructs (no test_mode) and exposes a config."""
+        processor = PDFProcessor()
         assert hasattr(processor, 'config')
     
     @patch('pdf_parsing_strategies.pdfplumber.open')
@@ -90,7 +85,7 @@ class TestPDFProcessor:
         mock_config_instance = MagicMock()
         mock_config.return_value = mock_config_instance
         
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         assert hasattr(processor, 'config')
     
     @patch('pdf_processor.Config')
@@ -217,7 +212,7 @@ class TestPDFProcessor:
         or significantly impacting performance.
         """
         # Create PDF processor instance for this test
-        pdf_processor = PDFProcessor(test_mode=True)
+        pdf_processor = PDFProcessor()
         
         # Ensure valid inputs
         assume(transaction_amount > 0)
@@ -350,7 +345,7 @@ class TestAIOnlyExtraction:
     @pytest.fixture
     def processor(self):
         """Create PDFProcessor instance for testing"""
-        return PDFProcessor(test_mode=True)
+        return PDFProcessor()
 
     @pytest.fixture
     def file_data(self):

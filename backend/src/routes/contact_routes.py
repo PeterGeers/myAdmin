@@ -24,16 +24,8 @@ contact_bp = Blueprint("contacts", __name__)
 
 # ── Service initialisation ──────────────────────────────────
 
-_test_mode = False
-
-
-def set_test_mode(flag: bool) -> None:
-    global _test_mode
-    _test_mode = flag
-
-
 def _get_service() -> ContactService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return ContactService(db=db, parameter_service=param_svc)
 

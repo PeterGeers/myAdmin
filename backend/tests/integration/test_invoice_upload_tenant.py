@@ -18,7 +18,7 @@ class TestInvoiceUploadTenant:
     @pytest.fixture
     def transaction_logic(self):
         """Create transaction logic for testing"""
-        return TransactionLogic(test_mode=True)
+        return TransactionLogic()
     
     def test_get_last_transactions_with_tenant(self, transaction_logic):
         """Test get_last_transactions filters by tenant"""

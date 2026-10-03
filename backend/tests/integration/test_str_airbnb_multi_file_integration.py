@@ -74,7 +74,7 @@ def _write_csv(df, directory, filename):
 
 @pytest.fixture
 def processor():
-    return STRProcessor(test_mode=True)
+    return STRProcessor()
 
 
 @pytest.fixture
@@ -304,7 +304,7 @@ class TestTempFileCleanupAirbnb:
         assert os.path.exists(path2)
 
         # Simulate the route's processing + cleanup logic
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         processor.process_str_files(temp_paths, 'airbnb')
 
         # Simulate route cleanup (same pattern as str_routes.py)
@@ -334,7 +334,7 @@ class TestTempFileCleanupAirbnb:
         temp_paths = [path1, path2]
 
         # Simulate route: process then cleanup (cleanup always runs)
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         try:
             processor.process_str_files(temp_paths, 'airbnb')
         except (ValueError, Exception):
@@ -371,7 +371,7 @@ class TestTempFileCleanupAirbnb:
 
         temp_paths = [valid_path, invalid_path]
 
-        processor = STRProcessor(test_mode=True)
+        processor = STRProcessor()
         try:
             result = processor.process_str_files(temp_paths, 'airbnb')
             # Should succeed with partial results

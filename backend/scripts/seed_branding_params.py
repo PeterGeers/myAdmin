@@ -27,7 +27,7 @@ def seed_namespace(ps, tenant: str, namespace: str, params: dict):
 
 
 if __name__ == '__main__':
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     ps = ParameterService(db)
 
     # Shared company details

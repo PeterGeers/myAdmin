@@ -19,14 +19,8 @@ from services.budget_service import BudgetService
 # Create blueprint
 budget_bp = Blueprint("budget", __name__)
 
-# Service instances (will be set by set_test_mode)
-budget_service = None
-
-
-def set_test_mode(test_mode: bool) -> None:
-    """Set test mode for budget service"""
-    global budget_service
-    budget_service = BudgetService(test_mode=test_mode)
+# Service instance
+budget_service = BudgetService()
 
 
 # =============================================================================

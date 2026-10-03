@@ -25,7 +25,7 @@ def create_test_conflict_patterns():
     print("1. Creating Test Conflict Patterns")
     print("-" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     administration = "TestConflicts"
     
     # Clear existing test patterns
@@ -98,7 +98,7 @@ def test_conflict_resolution_scenarios():
     print("\n2. Testing Conflict Resolution Scenarios")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "TestConflicts"
     
     # Test scenarios
@@ -169,7 +169,7 @@ def test_conflict_resolution_algorithm():
     print("\n3. Testing Conflict Resolution Algorithm")
     print("-" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     
     # Create mock patterns with different characteristics
     mock_patterns = [
@@ -226,7 +226,7 @@ def cleanup_test_data():
     print("\n4. Cleaning Up Test Data")
     print("-" * 60)
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     administration = "TestConflicts"
     
     # Remove test patterns

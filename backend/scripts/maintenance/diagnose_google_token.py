@@ -56,7 +56,7 @@ def check_database_token(administration='GoodwinSolutions'):
     print("="*60)
     
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         credential_service = CredentialService(db)
         
         # Check OAuth credentials

@@ -503,7 +503,6 @@ class TestBankingFilterOptions:
     @patch('routes.banking_routes.banking_service')
     def test_filter_options_success(self, mock_service, mock_db_class, client, banking_auth):
         """Returns distinct years and administrations via the context-managed cursor."""
-        mock_service.test_mode = True
         mock_instance, mock_cursor = self._mock_db_with_cursor(
             mock_db_class,
             fetch_results=[
@@ -531,7 +530,6 @@ class TestBankingFilterOptions:
     @patch('routes.banking_routes.banking_service')
     def test_filter_options_single_tenant_filter(self, mock_service, mock_db_class, client, banking_auth):
         """Single accessible tenant uses an equality administration filter with its value."""
-        mock_service.test_mode = True
         mock_instance, mock_cursor = self._mock_db_with_cursor(
             mock_db_class,
             fetch_results=[[], []],
@@ -549,7 +547,6 @@ class TestBankingFilterOptions:
     @patch('routes.banking_routes.banking_service')
     def test_filter_options_exception_returns_500(self, mock_service, mock_db_class, client, banking_auth):
         """A failure during query returns 500 (observable error preserved)."""
-        mock_service.test_mode = True
         mock_instance = MagicMock()
         mock_db_class.return_value = mock_instance
         mock_instance.get_cursor.side_effect = Exception('DB connection lost')

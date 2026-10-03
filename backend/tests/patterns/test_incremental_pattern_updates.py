@@ -22,8 +22,8 @@ def test_incremental_pattern_updates():
     print("🧪 Testing Incremental Pattern Updates")
     print("=" * 60)
     
-    analyzer = PatternAnalyzer(test_mode=False)
-    db = DatabaseManager(test_mode=False)
+    analyzer = PatternAnalyzer()
+    db = DatabaseManager()
     administration = "GoodwinSolutions"
     
     print(f"\n1. Testing Current State")
@@ -129,7 +129,7 @@ def test_should_refresh_logic():
     print(f"\n6. Testing Pattern Refresh Logic")
     print("-" * 40)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = "GoodwinSolutions"
     
     # Test current refresh status
@@ -151,8 +151,8 @@ def simulate_incremental_update():
     print(f"\n7. Simulating Incremental Update Scenario")
     print("-" * 40)
     
-    analyzer = PatternAnalyzer(test_mode=False)
-    db = DatabaseManager(test_mode=False)
+    analyzer = PatternAnalyzer()
+    db = DatabaseManager()
     administration = "GoodwinSolutions"
     
     # Get current pattern count

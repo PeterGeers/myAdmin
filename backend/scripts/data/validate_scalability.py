@@ -18,7 +18,7 @@ def test_database_improvements():
         from database import DatabaseManager
         
         # Test enhanced database manager
-        db = DatabaseManager(test_mode=True)
+        db = DatabaseManager()
         print("✅ Enhanced DatabaseManager initialized")
         
         # Test scalability methods
@@ -155,7 +155,7 @@ def test_configuration_improvements():
     # Check database.py for connection pool improvements
     try:
         from database import DatabaseManager
-        db = DatabaseManager(test_mode=True)
+        db = DatabaseManager()
         
         # Test legacy pool size (should be increased from 5 to 20)
         if hasattr(db, 'config'):

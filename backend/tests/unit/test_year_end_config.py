@@ -18,7 +18,7 @@ from services.year_end_config import YearEndConfigService
 @pytest.fixture
 def config_service():
     """Create config service with test mode"""
-    return YearEndConfigService(test_mode=True)
+    return YearEndConfigService()
 
 
 @pytest.fixture

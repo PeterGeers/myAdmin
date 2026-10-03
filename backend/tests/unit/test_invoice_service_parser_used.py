@@ -20,7 +20,7 @@ def invoice_service():
          patch('services.invoice_service.PDFProcessor'), \
          patch('services.invoice_service.TransactionLogic'):
         from services.invoice_service import InvoiceService
-        service = InvoiceService(test_mode=True)
+        service = InvoiceService()
         return service
 
 

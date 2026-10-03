@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, 'src')
 from database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 vendors = ['HOOGVLIET', 'TMC', 'VOSSENBERG', 'FUNMANIA']
 

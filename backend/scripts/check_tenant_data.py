@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
 
-db = DatabaseManager(test_mode=False)
+db = DatabaseManager()
 
 print("Checking all administrations in vw_mutaties:")
 result = db.execute_query("""

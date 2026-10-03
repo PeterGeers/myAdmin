@@ -9,9 +9,8 @@ from mutaties_cache import get_cache
 
 
 class BTWProcessor:
-    def __init__(self, test_mode=False, tax_rate_service=None):
-        self.test_mode = test_mode
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self, tax_rate_service=None):
+        self.db = DatabaseManager()
         self.tax_rate_service = tax_rate_service
 
     def _get_vat_accounts(self, administration, reference_date=None):
@@ -459,7 +458,9 @@ class BTWProcessor:
     def _get_last_btw_transaction(self, administration):
         """Get last BTW transaction for reference"""
         try:
-            table_name = "mutaties_test" if self.test_mode else "mutaties"
+            # Schema is always `finance` (environment selected by APP_ENV) — the
+            # mutaties table name is fixed, no `mutaties_test` switch.
+            table_name = "mutaties"
 
             query = f"""
                 SELECT * FROM {table_name}
@@ -485,7 +486,9 @@ class BTWProcessor:
         year and quarter to prevent duplicates from double-clicks.
         """
         try:
-            table_name = "mutaties_test" if self.test_mode else "mutaties"
+            # Schema is always `finance` (environment selected by APP_ENV) — the
+            # mutaties table name is fixed, no `mutaties_test` switch.
+            table_name = "mutaties"
 
             # Check for existing BTW transaction for same administration + year-quarter
             ref2 = transaction.get("Ref2", "")  # Format: "2026-Q1"
@@ -550,56 +553,44 @@ class BTWProcessor:
             administration: Tenant/administration identifier
         """
         try:
-            if self.test_mode:
-                # In test mode, save locally
-                safe_filename = os.path.basename(filename)
-                local_path = os.path.join("uploads", safe_filename)
-                with open(local_path, "w", encoding="utf-8") as f:
-                    f.write(html_content)
+            # Production mode - upload to Google Drive
+            drive_service = GoogleDriveService(administration)
+
+            # Find BTW folder
+            folders = drive_service.list_subfolders()
+            btw_folder_id = None
+
+            for folder in folders:
+                if folder["name"].lower() == "btw":
+                    btw_folder_id = folder["id"]
+                    break
+
+            if not btw_folder_id:
+                return {
+                    "success": False,
+                    "error": "BTW folder not found in Google Drive",
+                }
+
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".html", delete=False, encoding="utf-8"
+            ) as temp_file:
+                temp_file.write(html_content)
+                temp_path = temp_file.name
+
+            try:
+                # Upload to Google Drive
+                result = drive_service.upload_file(
+                    temp_path, filename, btw_folder_id
+                )
                 return {
                     "success": True,
-                    "url": f"http://localhost:5000/uploads/{safe_filename}",
-                    "location": "local",
+                    "url": result["url"],
+                    "location": "google_drive",
                 }
-            else:
-                # Production mode - upload to Google Drive
-                drive_service = GoogleDriveService(administration)
-
-                # Find BTW folder
-                folders = drive_service.list_subfolders()
-                btw_folder_id = None
-
-                for folder in folders:
-                    if folder["name"].lower() == "btw":
-                        btw_folder_id = folder["id"]
-                        break
-
-                if not btw_folder_id:
-                    return {
-                        "success": False,
-                        "error": "BTW folder not found in Google Drive",
-                    }
-
-                # Create temporary file
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".html", delete=False, encoding="utf-8"
-                ) as temp_file:
-                    temp_file.write(html_content)
-                    temp_path = temp_file.name
-
-                try:
-                    # Upload to Google Drive
-                    result = drive_service.upload_file(
-                        temp_path, filename, btw_folder_id
-                    )
-                    return {
-                        "success": True,
-                        "url": result["url"],
-                        "location": "google_drive",
-                    }
-                finally:
-                    # Clean up temp file
-                    os.unlink(temp_path)
+            finally:
+                # Clean up temp file
+                os.unlink(temp_path)
 
         except Exception as e:
             return {"success": False, "error": str(e)}

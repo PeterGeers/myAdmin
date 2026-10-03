@@ -26,8 +26,7 @@ sysadmin_provisioning_bp = Blueprint("sysadmin_provisioning", __name__)
 
 def _get_promo_db() -> DatabaseManager:
     """Get DatabaseManager for myadmin_promo database"""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     # Override database to promo DB
     promo_db_name = os.getenv("PROMO_DB_NAME", "myadmin_promo")
     db.config["database"] = promo_db_name
@@ -36,8 +35,7 @@ def _get_promo_db() -> DatabaseManager:
 
 def _get_finance_db() -> DatabaseManager:
     """Get DatabaseManager for finance database"""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    return DatabaseManager(test_mode=test_mode)
+    return DatabaseManager()
 
 
 @sysadmin_provisioning_bp.route("/pending", methods=["GET"])

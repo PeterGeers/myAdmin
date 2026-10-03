@@ -60,7 +60,7 @@ class TestDuplicateDetectionE2EIntegration:
                 mock_reader.pages = [mock_page]
                 mock_pdf_reader.return_value = mock_reader
                 
-                processor = PDFProcessor(test_mode=True)
+                processor = PDFProcessor()
                 
                 drive_result = {
                     'id': 'new_file_id',
@@ -100,7 +100,7 @@ class TestDuplicateDetectionE2EIntegration:
             }
             mock_image_ai_class.return_value = mock_image_ai
             
-            processor = PDFProcessor(test_mode=True)
+            processor = PDFProcessor()
             
             drive_result = {
                 'id': 'new_image_file_id',
@@ -120,7 +120,7 @@ class TestDuplicateDetectionE2EIntegration:
         
         Validates: Requirements 5.3, 5.4
         """
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         # Create mock duplicate info
         duplicate_info = {
@@ -183,7 +183,7 @@ class TestDuplicateDetectionE2EIntegration:
         
         Validates: Requirements 5.3, 5.4
         """
-        processor = PDFProcessor(test_mode=True)
+        processor = PDFProcessor()
         
         # Create mock duplicate info
         duplicate_info = {

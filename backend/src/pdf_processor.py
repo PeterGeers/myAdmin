@@ -34,9 +34,9 @@ from pdf_parsing_strategies import (
 
 
 class PDFProcessor:
-    def __init__(self, test_mode: bool = False, tenant: str | None = None):
+    def __init__(self, tenant: str | None = None):
         self.csv_rule_engine = CsvRuleEngine()
-        self.config = Config(test_mode=test_mode)
+        self.config = Config()
         self._current_tenant = tenant
 
     def process_file(self, file_path, drive_result, folder_name="Unknown"):
@@ -128,11 +128,7 @@ class PDFProcessor:
         try:
             from transaction_logic import TransactionLogic
 
-            tl = TransactionLogic(
-                test_mode=self.config.test_mode
-                if hasattr(self.config, "test_mode")
-                else False
-            )
+            tl = TransactionLogic()
             last_transactions = tl.get_last_transactions(reference_number)
             # Handle error result (no booking history for vendor)
             if isinstance(last_transactions, dict) and last_transactions.get("error"):

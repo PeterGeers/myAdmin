@@ -22,7 +22,7 @@ class TestTemplateServiceIntegration:
     @pytest.fixture
     def db(self):
         """Create database manager instance"""
-        return DatabaseManager(test_mode=True)
+        return DatabaseManager()
     
     @pytest.fixture
     def template_service(self, db):

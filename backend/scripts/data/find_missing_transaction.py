@@ -10,7 +10,7 @@ def find_gap():
     """Find where the gap starts"""
     print("\n=== FINDING THE GAP ===")
     
-    db = DatabaseManager(test_mode=False)
+    db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor(dictionary=True)
     

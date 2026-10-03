@@ -21,10 +21,9 @@ from pattern_analyzer import PatternAnalyzer
 
 
 class BankingProcessor:
-    def __init__(self, test_mode=False):
-        self.test_mode = test_mode
-        self.db = DatabaseManager(test_mode=test_mode)
-        self.pattern_analyzer = PatternAnalyzer(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
+        self.pattern_analyzer = PatternAnalyzer()
         self.download_folder = os.path.expanduser(
             "~/Downloads"
         )  # Default download folder

@@ -396,7 +396,7 @@ def get_vendor_history(folder_name: str, administration: str | None = None) -> l
         folder_name = "TestVendor"
 
     try:
-        tl = TransactionLogic(test_mode=False)  # Read-only access to production DB
+        tl = TransactionLogic()  # Read-only access to production DB
         transactions = tl.get_last_transactions(folder_name, administration)
 
         # Handle error result from get_last_transactions

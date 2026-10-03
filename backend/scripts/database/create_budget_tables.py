@@ -174,13 +174,11 @@ def verify_tables(db):
 
 def main():
     """Main migration function."""
-    test_mode = '--test-mode' in sys.argv or '--test' in sys.argv
     dry_run = '--dry-run' in sys.argv
 
     print("=" * 60)
     print("Budget Management — Database Migration")
     print("=" * 60)
-    print(f"Mode: {'TEST' if test_mode else 'PRODUCTION'}")
     print(f"Dry Run: {'YES' if dry_run else 'NO'}")
     print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
@@ -193,7 +191,7 @@ def main():
 
     # Connect
     try:
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         print(f"\n✅ Connected to database")
     except Exception as e:
         print(f"❌ Failed to connect to database: {e}")

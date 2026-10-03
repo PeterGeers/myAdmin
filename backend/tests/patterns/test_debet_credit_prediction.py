@@ -26,8 +26,8 @@ def test_debet_credit_prediction():
     print("TESTING DEBET/CREDIT PREDICTION FUNCTIONALITY")
     print("=" * 70)
     
-    processor = BankingProcessor(test_mode=False)
-    analyzer = PatternAnalyzer(test_mode=False)
+    processor = BankingProcessor()
+    analyzer = PatternAnalyzer()
     administration = 'GoodwinSolutions'
     
     # Test 1: Analyze patterns to ensure we have debet/credit patterns
@@ -199,7 +199,7 @@ def test_pattern_accuracy():
     print("TESTING PATTERN ACCURACY AND REPORTING")
     print("=" * 70)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = 'GoodwinSolutions'
     
     try:

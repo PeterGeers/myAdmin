@@ -290,8 +290,7 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
         recipient_email = recipient_email.strip().lower()
 
         # Initialize services
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        invitation_service = InvitationService(test_mode=test_mode)
+        invitation_service = InvitationService()
         email_service = EmailTemplateService(administration=tenant)
 
         # Resend invitation (generates new password and extends expiry)

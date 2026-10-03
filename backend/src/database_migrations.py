@@ -9,8 +9,8 @@ from dialect_helpers import dialect
 class DatabaseMigration:
     """Database migration system for schema changes and data updates"""
 
-    def __init__(self, test_mode=False):
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
         self.migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
         self.migrations_table = "database_migrations"
         os.makedirs(self.migrations_dir, exist_ok=True)
@@ -214,11 +214,9 @@ class DatabaseMigration:
         """Run database optimization queries"""
         optimizations = [
             "OPTIMIZE TABLE mutaties",
-            "OPTIMIZE TABLE mutaties_test",
             "OPTIMIZE TABLE bnb",
             "OPTIMIZE TABLE bnbplanned",
             "ANALYZE TABLE mutaties",
-            "ANALYZE TABLE mutaties_test",
             "ANALYZE TABLE bnb",
             "ANALYZE TABLE bnbplanned",
         ]
@@ -235,7 +233,7 @@ class DatabaseMigration:
 
     def check_indexes(self):
         """Check and report on database indexes"""
-        tables = ["mutaties", "mutaties_test", "bnb", "bnbplanned"]
+        tables = ["mutaties", "bnb", "bnbplanned"]
 
         index_report = []
         for table in tables:
@@ -268,13 +266,10 @@ class DatabaseMigration:
     def create_recommended_indexes(self):
         """Create recommended indexes for performance"""
         recommended_indexes = [
-            # For mutaties tables
+            # For mutaties table
             ("mutaties", "idx_transaction_date", "TransactionDate"),
             ("mutaties", "idx_ref1_ref2", "Ref1, Ref2"),
             ("mutaties", "idx_administration", "Administration"),
-            ("mutaties_test", "idx_transaction_date", "TransactionDate"),
-            ("mutaties_test", "idx_ref1_ref2", "Ref1, Ref2"),
-            ("mutaties_test", "idx_administration", "Administration"),
             # For bnb tables
             ("bnb", "idx_checkin_date", "checkinDate"),
             ("bnb", "idx_listing", "listing"),
@@ -368,8 +363,8 @@ class DatabaseMigration:
 class QueryOptimizer:
     """Query optimization and caching utilities"""
 
-    def __init__(self, test_mode=False):
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
         self.query_cache = {}
         self.cache_ttl = 300  # 5 minutes
 

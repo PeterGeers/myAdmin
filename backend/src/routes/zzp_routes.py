@@ -25,8 +25,6 @@ logger = logging.getLogger(__name__)
 
 zzp_bp = Blueprint("zzp", __name__)
 
-_test_mode = False
-
 VALID_ENTITIES = ("contacts", "products", "invoices", "time_entries")
 
 # Map entity name → field config param key
@@ -46,13 +44,8 @@ ENTITY_ALWAYS_REQUIRED = {
 }
 
 
-def set_test_mode(flag: bool) -> None:
-    global _test_mode
-    _test_mode = flag
-
-
 def _get_param_service() -> ParameterService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     return ParameterService(db)
 
 
@@ -178,7 +171,7 @@ def update_field_config(
 
 
 def _get_invoice_service() -> ZZPInvoiceService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     tax_svc = TaxRateService(db)
     param_svc = ParameterService(db)
 
@@ -187,7 +180,7 @@ def _get_invoice_service() -> ZZPInvoiceService:
         from services.invoice_booking_helper import InvoiceBookingHelper
         from transaction_logic import TransactionLogic
 
-        txn_logic = TransactionLogic(test_mode=_test_mode)
+        txn_logic = TransactionLogic()
         booking_helper = InvoiceBookingHelper(db, txn_logic, tax_svc, param_svc)
     except Exception as e:
         logger.warning("Could not initialize InvoiceBookingHelper: %s", e)
@@ -544,7 +537,7 @@ def run_payment_check(
     try:
         from services.payment_check_helper import PaymentCheckHelper
 
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
         helper = PaymentCheckHelper(db)
         result = helper.run_payment_check(tenant)
         return jsonify(result)
@@ -562,7 +555,7 @@ def get_payment_check_status(
 ) -> ResponseReturnValue:
     """Get summary of open/matched invoices."""
     try:
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
         open_count = db.execute_query(
             """SELECT COUNT(*) as cnt FROM invoices
                WHERE administration = %s AND status IN ('sent', 'overdue')
@@ -648,7 +641,7 @@ def upload_supporting_document(
         # Store via MediaAssetService
         from services.media_asset_service import MediaAssetService
 
-        db = DatabaseManager(test_mode=_test_mode)
+        db = DatabaseManager()
         asset_svc = MediaAssetService(db)
         result = asset_svc.store_and_register(
             tenant=tenant,

@@ -21,8 +21,8 @@ def analyze_current_database_impact():
     print("CURRENT IMPLEMENTATION: ALWAYS QUERIES MUTATIES TABLE")
     print("=" * 80)
     
-    db = DatabaseManager(test_mode=False)
-    analyzer = PatternAnalyzer(test_mode=False)
+    db = DatabaseManager()
+    analyzer = PatternAnalyzer()
     
     # Test 1: Database Query Analysis
     print("\n1. Analyzing Database Query Impact...")

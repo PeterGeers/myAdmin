@@ -61,15 +61,13 @@ landing_page_bp = Blueprint("landing_page", __name__)
 
 def _get_slug_service() -> TenantSlugService:
     """Create a TenantSlugService instance with current DB config."""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     return TenantSlugService(db)
 
 
 def _get_domain_service() -> DomainService:
     """Create a DomainService instance with current DB config."""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     return DomainService(db)
 
 
@@ -85,8 +83,7 @@ def _get_publish_service():
     from services.landing_page_publish_service import LandingPagePublishService
     from services.landing_page_service import LandingPageService
 
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
 
     landing_page_svc = LandingPageService()
     param_svc = ParameterService(db)
@@ -102,8 +99,7 @@ def _get_publish_service():
 
 def _get_parameter_service():
     """Create a ParameterService instance."""
-    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-    db = DatabaseManager(test_mode=test_mode)
+    db = DatabaseManager()
     return ParameterService(db)
 
 
@@ -128,8 +124,7 @@ def _record_audit_event(
         details: Optional additional detail text
     """
     try:
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         query = """
             INSERT INTO landing_page_audit
                 (administration, action, version, performed_by, details)
@@ -161,8 +156,7 @@ def _send_contact_notification(
         from services.parameter_service import ParameterService
         from services.ses_email_service import SESEmailService
 
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         param_svc = ParameterService(db)
 
         # Get tenant contact email from landing_page namespace

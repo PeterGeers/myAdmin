@@ -27,7 +27,7 @@ def test_enhanced_pattern_analysis():
     print("TESTING ENHANCED PATTERN ANALYSIS SYSTEM")
     print("=" * 80)
     
-    analyzer = PatternAnalyzer(test_mode=False)
+    analyzer = PatternAnalyzer()
     administration = 'GoodwinSolutions'
     
     # Test 1: Historical Pattern Analysis
@@ -269,7 +269,7 @@ def test_pattern_analysis_with_csv_data():
         print(f"   - {os.path.basename(csv_file)}")
     
     try:
-        analyzer = PatternAnalyzer(test_mode=False)
+        analyzer = PatternAnalyzer()
         
         # Analyze patterns for the test data
         patterns = analyzer.analyze_historical_patterns('GoodwinSolutions')

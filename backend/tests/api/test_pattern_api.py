@@ -17,7 +17,7 @@ def test_pattern_api():
     print("TESTING ENHANCED PATTERN ANALYSIS API")
     print("=" * 60)
     
-    processor = BankingProcessor(test_mode=False)
+    processor = BankingProcessor()
     administration = 'GoodwinSolutions'
     
     # Test 1: Analyze patterns

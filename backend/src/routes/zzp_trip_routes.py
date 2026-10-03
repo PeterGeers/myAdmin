@@ -26,28 +26,20 @@ logger = logging.getLogger(__name__)
 
 zzp_trip_bp = Blueprint("zzp_trip", __name__)
 
-_test_mode = False
-
-
-def set_test_mode(flag: bool) -> None:
-    global _test_mode
-    _test_mode = flag
-
-
 def _get_vehicle_service() -> VehicleService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return VehicleService(db=db, parameter_service=param_svc)
 
 
 def _get_trip_service() -> TripService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return TripService(db=db, parameter_service=param_svc)
 
 
 def _get_route_preset_service() -> RoutePresetService:
-    db = DatabaseManager(test_mode=_test_mode)
+    db = DatabaseManager()
     param_svc = ParameterService(db)
     return RoutePresetService(db=db, parameter_service=param_svc)
 

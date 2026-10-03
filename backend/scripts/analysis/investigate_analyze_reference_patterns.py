@@ -348,8 +348,8 @@ def main():
     print("even though is_bank_account('1022', 'PeterPrive') returns True")
     
     # Initialize database and analyzer
-    db = DatabaseManager(test_mode=False)
-    analyzer = PatternAnalyzer(test_mode=False)
+    db = DatabaseManager()
+    analyzer = PatternAnalyzer()
     
     administration = 'PeterPrive'
     

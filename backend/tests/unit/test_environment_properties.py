@@ -41,6 +41,7 @@ hold for all definitions, not just the committed one. The test oracle asserts ag
 the generated definition directly — it does not reimplement the resolver.
 """
 
+import os
 import string
 
 import pytest
@@ -628,3 +629,84 @@ class TestProperty11DatabaseTargetIsolation:
         """
         check = _mysql_target_check(definition, app_env)
         assert "testfinance" not in check.message
+
+
+# ---------------------------------------------------------------------------
+# Property 6: test_mode no longer selects the environment
+# Feature: test-environment, Property 6: test_mode no longer selects the
+#   environment
+# Validates: Requirements 2.6
+# ---------------------------------------------------------------------------
+#
+# Design (§ Testing Strategy, Property 6):
+#   "For any AppEnv value and for any legacy test_mode argument value, the
+#    resolved MySQL target is a function of APP_ENV alone — the resolved target is
+#    unchanged when only test_mode changes."
+#
+# Task 15 (Step 1 shim): DatabaseManager keeps the `test_mode` parameter for
+# backward compatibility but IGNORES it for environment/target selection. The
+# schema is always `finance` and the resolved target comes from APP_ENV (or the
+# legacy DB_* fallback when APP_ENV is unset) — never from `test_mode`. A truthy
+# `test_mode` additionally emits a one-time deprecation warning; the default
+# (False) stays silent.
+#
+# The autouse connection guard in tests/unit/conftest.py forbids a real DB, so
+# mysql.connector.connect / pooling are mocked exactly as the other
+# DatabaseManager unit tests do.
+
+from unittest.mock import patch as _patch
+
+from database import DatabaseManager
+
+
+# A DB_* environment that pins a deterministic legacy connection target, so the
+# resolved `config` depends only on this env + APP_ENV — never on `test_mode`.
+_DB_ENV = {
+    "DB_HOST": "db.example.test",
+    "DB_PORT": "3307",
+    "DB_USER": "finance_user",
+    "DB_PASSWORD": "pw-placeholder",
+}
+
+
+class TestProperty6SchemaIsEnvironmentIndependent:
+    """Environment/target selection does not depend on any per-instance flag (Req 2.6).
+
+    The removed `test_mode` parameter was never a selector. The resolved MySQL
+    target (`db.config`) is a function of APP_ENV (and the referenced env vars)
+    ALONE, and the schema is always `finance`.
+    """
+
+    @settings(max_examples=50)
+    @given(app_env=app_env_st)
+    def test_schema_always_finance(self, app_env: AppEnv) -> None:
+        """Under ANY APP_ENV, the resolved schema is `finance`, never testfinance."""
+        env = dict(_DB_ENV)
+        env["APP_ENV"] = app_env.value
+        with _patch("database.mysql.connector.connect"), _patch(
+            "database.pooling.MySQLConnectionPool"
+        ), _patch.dict(os.environ, env, clear=False):
+            db = DatabaseManager()
+        assert db.config["database"] == "finance"
+        assert db.config["database"] != "testfinance"
+
+    @given(app_env=app_env_st)
+    @settings(max_examples=50)
+    def test_resolved_target_is_deterministic_for_fixed_app_env(
+        self, app_env: AppEnv
+    ) -> None:
+        """Under a FIXED APP_ENV, two managers resolve the IDENTICAL MySQL target.
+
+        The target is a function of APP_ENV (plus the referenced DB_* vars) alone;
+        with `test_mode` removed there is no per-instance flag that could perturb
+        it, so repeated construction must yield an equal config field-for-field.
+        """
+        env = dict(_DB_ENV)
+        env["APP_ENV"] = app_env.value
+        with _patch("database.mysql.connector.connect"), _patch(
+            "database.pooling.MySQLConnectionPool"
+        ), _patch.dict(os.environ, env, clear=False):
+            db_first = DatabaseManager()
+            db_second = DatabaseManager()
+        assert db_first.config == db_second.config
+        assert db_first.config["database"] == "finance"

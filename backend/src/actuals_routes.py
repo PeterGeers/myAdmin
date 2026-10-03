@@ -30,13 +30,11 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
         years: comma-separated year list (default: '2025')
         administration: tenant filter (default: current tenant)
         per_year: when 'true', returns year-bucketed data with closedYears array
-        testMode: when 'true', uses test database
     """
     try:
         years = request.args.get("years", "2025").split(",")
         administration = request.args.get("administration", tenant)
         per_year = request.args.get("per_year", "false").lower() == "true"
-        test_mode = request.args.get("testMode", "false").lower() == "true"
 
         # Validate user has access to requested administration
         if administration != "all" and administration not in user_tenants:
@@ -46,7 +44,7 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
 
         # Get cache instance
         cache = get_cache()
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Closure-aware start year for balance sheet queries
         start_year = get_closure_aware_start_year(
@@ -167,7 +165,6 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         administration = request.args.get("administration", tenant)
         group_by = request.args.get("groupBy", "year")
         include_ref = request.args.get("includeRef", "false").lower() == "true"
-        test_mode = request.args.get("testMode", "false").lower() == "true"
 
         # Validate user has access to requested administration
         if administration != "all" and administration not in user_tenants:
@@ -177,7 +174,7 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
 
         # Get cache instance
         cache = get_cache()
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         # Get cached data — ensure requested years are loaded
         year_list = [int(y) for y in years]

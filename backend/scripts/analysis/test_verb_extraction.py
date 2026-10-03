@@ -17,7 +17,7 @@ from pattern_analyzer import PatternAnalyzer
 def test_verb_extraction():
     """Test verb extraction for different transaction descriptions"""
     
-    analyzer = PatternAnalyzer(test_mode=True)
+    analyzer = PatternAnalyzer()
     
     test_cases = [
         ("Hoogvliet", "Hoogvliet"),

@@ -51,7 +51,7 @@ def test_database_connection():
     print("Initializing Database Manager:")
     print("-" * 80)
     try:
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         print("✅ DatabaseManager initialized successfully")
     except Exception as e:
         print(f"❌ Failed to initialize DatabaseManager: {e}")

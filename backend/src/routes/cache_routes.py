@@ -17,17 +17,6 @@ from mutaties_cache import get_cache, invalidate_cache
 
 cache_bp = Blueprint("cache", __name__)
 
-# Access to flag from app.py (test mode)
-# This will be set by app.py after blueprint registration
-flag = False
-
-
-def set_test_mode(test_mode) -> None:
-    """Set the test mode flag from app.py"""
-    global flag
-    flag = test_mode
-
-
 # Cache Management Endpoints
 @cache_bp.route("/api/cache/warmup", methods=["POST"])
 @cognito_required(required_permissions=["actuals_read"])
@@ -52,7 +41,7 @@ def cache_warmup(user_email, user_roles) -> ResponseReturnValue:
             )
 
         # Load the cache (legacy: all tenants)
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
         cache.get_data(db)
 
         stats = cache.get_stats()
@@ -106,7 +95,7 @@ def cache_refresh(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
     """Force refresh the cache"""
     try:
         cache = get_cache()
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         # Force refresh by invalidating and then getting data
         cache.invalidate()
@@ -171,7 +160,7 @@ def bnb_cache_refresh(user_email, user_roles) -> ResponseReturnValue:
     """Force refresh the BNB cache"""
     try:
         bnb_cache = get_bnb_cache()
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         # Force refresh (all tenants)
         bnb_cache.refresh(db)

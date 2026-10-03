@@ -22,8 +22,8 @@ def test_opening_balances():
     print()
     
     # Initialize service
-    service = YearEndClosureService(test_mode=False)
-    db = DatabaseManager(test_mode=False)
+    service = YearEndClosureService()
+    db = DatabaseManager()
     
     # Test with GoodwinSolutions tenant
     administration = 'GoodwinSolutions'
@@ -93,7 +93,7 @@ def test_opening_balances():
             
             # Get interim account
             from services.year_end_config import YearEndConfigService
-            config_service = YearEndConfigService(test_mode=False)
+            config_service = YearEndConfigService()
             interim_account_info = config_service.get_account_by_purpose(
                 administration, 'interim_opening_balance'
             )

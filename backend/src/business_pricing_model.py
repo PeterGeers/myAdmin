@@ -8,8 +8,8 @@ warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy conne
 
 
 class BusinessPricingModel:
-    def __init__(self, test_mode=False):
-        self.db = DatabaseManager(test_mode=test_mode)
+    def __init__(self):
+        self.db = DatabaseManager()
 
     def calculate_business_price(self, listing, date):
         """Calculate price using business logic with occupancy data"""

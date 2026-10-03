@@ -18,8 +18,8 @@ def analyze_current_implementation():
     print("ANALYZING CURRENT PATTERN STORAGE IMPLEMENTATION")
     print("=" * 70)
     
-    analyzer = PatternAnalyzer(test_mode=False)
-    processor = BankingProcessor(test_mode=False)
+    analyzer = PatternAnalyzer()
+    processor = BankingProcessor()
     administration = 'GoodwinSolutions'
     
     # Test 1: Pattern Analysis Performance

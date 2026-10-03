@@ -62,8 +62,7 @@ def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
             ), 400
 
         # Upload via MediaAssetService (handles validation, S3 upload, and registry)
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = pkg.DatabaseManager(test_mode=test_mode)
+        db = pkg.DatabaseManager()
         ps = pkg.ParameterService(db)
         asset_svc = pkg.MediaAssetService(db, ps)
 

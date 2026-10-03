@@ -4,8 +4,8 @@ from dialect_helpers import dialect
 
 
 class STRDatabase(DatabaseManager):
-    def __init__(self, test_mode: bool = False):
-        super().__init__(test_mode)
+    def __init__(self):
+        super().__init__()
         self.connection = self._get_connection()
         # Uses existing tables: bnb, bnbplanned, bnbfuture
 

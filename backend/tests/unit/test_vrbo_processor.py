@@ -15,7 +15,7 @@ from str_processor import STRProcessor
 
 @pytest.fixture
 def processor():
-    return STRProcessor(test_mode=True)
+    return STRProcessor()
 
 
 @pytest.fixture

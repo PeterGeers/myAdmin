@@ -17,7 +17,7 @@ def test_cache_loading():
     
     try:
         cache = get_cache()
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         
         start_time = time.time()
         df = cache.get_data(db)
@@ -42,7 +42,7 @@ def test_actuals_balance():
     
     try:
         cache = get_cache()
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         df = cache.get_data(db)
         
         # Simulate the actuals-balance endpoint logic
@@ -87,7 +87,7 @@ def test_actuals_profitloss():
     
     try:
         cache = get_cache()
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         df = cache.get_data(db)
         
         # Simulate the actuals-profitloss endpoint logic
@@ -133,7 +133,7 @@ def test_btw_data():
     
     try:
         cache = get_cache()
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         df = cache.get_data(db)
         
         # Simulate BTW balance data query
@@ -181,7 +181,7 @@ def test_reference_number():
     
     try:
         cache = get_cache()
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         df = cache.get_data(db)
         
         # Simulate check-reference endpoint logic
@@ -227,7 +227,7 @@ def test_performance_comparison():
     
     try:
         cache = get_cache()
-        db = DatabaseManager(test_mode=False)
+        db = DatabaseManager()
         
         # First access (may need to load)
         start_time = time.time()

@@ -17,19 +17,14 @@ from pdf_validation import PDFValidator
 from xlsx_export import XLSXExportProcessor
 
 class TestEnvironmentModeSwitching:
-    
-    def test_config_test_mode(self):
-        config = Config(test_mode=True)
-        
-        assert config.test_mode is True
+
+    def test_config_initializes(self):
+        # `test_mode` was removed from Config; it now constructs with no args and
+        # the storage base folder is environment-independent.
+        config = Config()
+
         assert config.base_folder.endswith('storage')
-    
-    def test_config_production_mode(self):
-        config = Config(test_mode=False)
-        
-        assert config.test_mode is False
-        assert config.base_folder.endswith('storage')
-    
+
     def test_config_vendor_folders(self):
         config = Config()
         
@@ -54,45 +49,37 @@ class TestEnvironmentModeSwitching:
         
         mock_makedirs.assert_called_once_with('/test/folder', exist_ok=True)
     
-    def test_database_manager_test_mode_basic(self):
-        # The test_mode PARAMETER + attribute are preserved for backward
-        # compatibility (test-environment spec, task 12 — removal is Phase 3).
+    def test_database_manager_constructs(self):
+        # `test_mode` parameter + attribute were removed. DatabaseManager now
+        # constructs with no args and always targets the `finance` schema.
         with patch('database.mysql.connector.connect'):
-            db = DatabaseManager(test_mode=True)
-            assert db.test_mode is True
-    
-    def test_database_manager_production_mode_basic(self):
-        # Test basic mode setting without database connection
-        with patch('database.mysql.connector.connect'):
-            db = DatabaseManager(test_mode=False)
-            assert db.test_mode is False
+            db = DatabaseManager()
+            assert db.config['database'] == 'finance'
 
-    def test_database_manager_schema_always_finance_regardless_of_test_mode(self):
-        # Task 12 (Req 9.2, 9.3): the TEST_DB_NAME/testfinance switch is GONE.
-        # The schema is ALWAYS `finance` for both test_mode=True and False and
-        # regardless of the legacy TEST_MODE / TEST_DB_NAME env vars — TEST vs
-        # PROD is distinguished by the resolved connection target, not the schema.
+    def test_database_manager_schema_always_finance(self):
+        # Req 9.2, 9.3: the TEST_DB_NAME/testfinance switch is GONE. The schema is
+        # ALWAYS `finance` regardless of the legacy TEST_MODE / TEST_DB_NAME env
+        # vars — TEST vs PROD is distinguished by the resolved connection target,
+        # not by the schema name.
         with patch('database.mysql.connector.connect'):
             with patch.dict(os.environ,
                             {'TEST_MODE': 'true', 'TEST_DB_NAME': 'testfinance'},
                             clear=False):
-                db_test = DatabaseManager(test_mode=True)
-                db_env = DatabaseManager(test_mode=False)
-            db_prod = DatabaseManager(test_mode=False)
+                db_env = DatabaseManager()
+            db_default = DatabaseManager()
 
-        assert db_test.config['database'] == 'finance'
         assert db_env.config['database'] == 'finance'
-        assert db_prod.config['database'] == 'finance'
+        assert db_default.config['database'] == 'finance'
         # `testfinance` must never be selected anymore.
-        assert db_test.config['database'] != 'testfinance'
+        assert db_env.config['database'] != 'testfinance'
     
     @patch('database.DatabaseManager')
     @patch('services.credential_service.CredentialService')
-    @patch.dict(os.environ, {'TEST_MODE': 'true', 'TEST_FACTUREN_FOLDER_ID': 'test_folder_id'})
+    @patch.dict(os.environ, {'TEST_FACTUREN_FOLDER_ID': 'test_folder_id'})
     @patch('google_drive_service.build')
     @patch('google_drive_service.Credentials')
     @patch('google_drive_service.os.path.exists')
-    def test_google_drive_service_test_mode(self, mock_exists, mock_creds, mock_build, mock_cred_service, mock_db):
+    def test_google_drive_service_initializes(self, mock_exists, mock_creds, mock_build, mock_cred_service, mock_db):
         # Mock database and credential service
         mock_db_instance = Mock()
         mock_db.return_value = mock_db_instance
@@ -117,114 +104,55 @@ class TestEnvironmentModeSwitching:
         assert drive is not None
         assert drive.administration == 'test_admin'
     
-    @patch('database.DatabaseManager')
-    @patch('services.credential_service.CredentialService')
-    @patch.dict(os.environ, {'TEST_MODE': 'false', 'FACTUREN_FOLDER_ID': 'prod_folder_id'})
-    @patch('google_drive_service.build')
-    @patch('google_drive_service.Credentials')
-    @patch('google_drive_service.os.path.exists')
-    def test_google_drive_service_production_mode(self, mock_exists, mock_creds, mock_build, mock_cred_service, mock_db):
-        # Mock database and credential service
-        mock_db_instance = Mock()
-        mock_db.return_value = mock_db_instance
-        
-        mock_cred_service_instance = Mock()
-        mock_cred_service.return_value = mock_cred_service_instance
-        mock_cred_service_instance.get_credential.return_value = '{"client_id": "test"}'
-        
-        # Mock Google credentials
-        mock_exists.return_value = True
-        mock_creds_instance = Mock()
-        mock_creds_instance.valid = True
-        mock_creds.from_authorized_user_info.return_value = mock_creds_instance
-        
-        # Mock Google Drive service
-        mock_service = Mock()
-        mock_build.return_value = mock_service
-        
-        drive = GoogleDriveService(administration='prod_admin')
-        
-        # Verify the service was created
-        assert drive is not None
-        assert drive.administration == 'prod_admin'
-    
     def test_pdf_processor_initialization(self):
-        # Test that PDFProcessor can be initialized with different modes
-        processor_test = PDFProcessor(test_mode=True)
-        processor_prod = PDFProcessor(test_mode=False)
-        
-        # Both should initialize successfully
-        assert processor_test is not None
-        assert processor_prod is not None
+        # PDFProcessor no longer takes test_mode; it just constructs.
+        processor = PDFProcessor()
+
+        assert processor is not None
     
     def test_transaction_logic_initialization(self):
-        # Test that TransactionLogic can be initialized with different modes
+        # TransactionLogic no longer takes test_mode; it just constructs.
         with patch('database.mysql.connector.connect'):
-            logic_test = TransactionLogic(test_mode=True)
-            logic_prod = TransactionLogic(test_mode=False)
-            
-            assert logic_test.test_mode is True
-            assert logic_prod.test_mode is False
+            logic = TransactionLogic()
+
+            assert logic is not None
     
     @patch('banking_processor.DatabaseManager')
-    def test_banking_processor_test_mode(self, mock_db):
-        processor = BankingProcessor(test_mode=True)
-        
-        assert processor.test_mode is True
-        mock_db.assert_called_once_with(test_mode=True)
-    
-    @patch('banking_processor.DatabaseManager')
-    def test_banking_processor_production_mode(self, mock_db):
-        processor = BankingProcessor(test_mode=False)
-        
-        assert processor.test_mode is False
-        mock_db.assert_called_once_with(test_mode=False)
+    def test_banking_processor_initializes(self, mock_db):
+        # test_mode is gone from both BankingProcessor and the internal
+        # DatabaseManager it constructs.
+        processor = BankingProcessor()
+
+        assert processor is not None
+        mock_db.assert_called_once_with()
     
     def test_str_processor_initialization(self):
-        # Test that STRProcessor can be initialized with different modes
+        # STRProcessor no longer takes test_mode; it just constructs.
         with patch('database.mysql.connector.connect'):
-            processor_test = STRProcessor(test_mode=True)
-            processor_prod = STRProcessor(test_mode=False)
-            
-            assert processor_test.test_mode is True
-            assert processor_prod.test_mode is False
+            processor = STRProcessor()
+
+            assert processor is not None
     
     def test_str_database_initialization(self):
-        # Test that STRDatabase can be initialized with different modes
+        # STRDatabase no longer takes test_mode; it just constructs.
         with patch('database.mysql.connector.connect'):
-            db_test = STRDatabase(test_mode=True)
-            db_prod = STRDatabase(test_mode=False)
-            
-            assert db_test.test_mode is True
-            assert db_prod.test_mode is False
+            db = STRDatabase()
+
+            assert db is not None
     
     @patch('pdf_validation.DatabaseManager')
-    def test_pdf_validator_test_mode(self, mock_db):
-        validator = PDFValidator(test_mode=True)
-        
-        assert validator.test_mode is True
-        mock_db.assert_called_once_with(test_mode=True)
-    
-    @patch('pdf_validation.DatabaseManager')
-    def test_pdf_validator_production_mode(self, mock_db):
-        validator = PDFValidator(test_mode=False)
-        
-        assert validator.test_mode is False
-        mock_db.assert_called_once_with(test_mode=False)
+    def test_pdf_validator_initializes(self, mock_db):
+        validator = PDFValidator()
+
+        assert validator is not None
+        mock_db.assert_called_once_with()
     
     @patch('xlsx_export.DatabaseManager')
-    def test_xlsx_export_processor_test_mode(self, mock_db):
-        processor = XLSXExportProcessor(test_mode=True)
-        
-        assert processor.test_mode is True
-        mock_db.assert_called_once_with(test_mode=True)
-    
-    @patch('xlsx_export.DatabaseManager')
-    def test_xlsx_export_processor_production_mode(self, mock_db):
-        processor = XLSXExportProcessor(test_mode=False)
-        
-        assert processor.test_mode is False
-        mock_db.assert_called_once_with(test_mode=False)
+    def test_xlsx_export_processor_initializes(self, mock_db):
+        processor = XLSXExportProcessor()
+
+        assert processor is not None
+        mock_db.assert_called_once_with()
 
 class TestEnvironmentVariables:
     
@@ -247,14 +175,14 @@ class TestEnvironmentVariables:
         assert test_mode is False
     
     def test_database_schema_is_always_finance(self):
-        # Task 12 (Req 9.2): the old DB_NAME/TEST_DB_NAME -> finance/testfinance
-        # switch is removed. The DatabaseManager schema is now ALWAYS `finance`;
-        # TEST and PROD are told apart by the resolved connection target, not by
-        # the schema name. Even with the legacy TEST_DB_NAME var set, the manager
-        # must not select `testfinance`.
+        # Req 9.2: the old DB_NAME/TEST_DB_NAME -> finance/testfinance switch is
+        # removed. The DatabaseManager schema is now ALWAYS `finance`; TEST and
+        # PROD are told apart by the resolved connection target, not by the schema
+        # name. Even with the legacy TEST_DB_NAME var set, the manager must not
+        # select `testfinance`.
         with patch('database.mysql.connector.connect'):
             with patch.dict(os.environ, {'TEST_DB_NAME': 'testfinance'}, clear=False):
-                db = DatabaseManager(test_mode=True)
+                db = DatabaseManager()
         assert db.config['database'] == 'finance'
         assert db.config['database'] != 'testfinance'
     
@@ -276,39 +204,15 @@ class TestEnvironmentVariables:
 
 class TestModeConsistency:
     
-    def test_components_mode_consistency(self):
-        # Test that components can be initialized with consistent modes
+    def test_components_initialize_together(self):
+        # With test_mode removed, components simply construct against the single
+        # (finance) schema; there is no per-instance mode to keep consistent.
         with patch('database.mysql.connector.connect'):
-            test_mode = True
-            
-            # Initialize components with same test_mode
-            db = DatabaseManager(test_mode=test_mode)
-            banking = BankingProcessor(test_mode=test_mode)
-            
-            # Verify all use the same mode
-            assert db.test_mode == test_mode
-            assert banking.test_mode == test_mode
-    
-    def test_components_different_modes(self):
-        # Test that different instances can have different modes
-        with patch('database.mysql.connector.connect'):
-            db_test = DatabaseManager(test_mode=True)
-            db_prod = DatabaseManager(test_mode=False)
-            
-            assert db_test.test_mode is True
-            assert db_prod.test_mode is False
-            assert db_test.test_mode != db_prod.test_mode
-    
-    def test_mode_switching_isolation(self):
-        # Test that different instances can have different modes
-        config_test = Config(test_mode=True)
-        config_prod = Config(test_mode=False)
-        
-        assert config_test.test_mode is True
-        assert config_prod.test_mode is False
-        
-        # Verify they don't interfere with each other
-        assert config_test.test_mode != config_prod.test_mode
+            db = DatabaseManager()
+            banking = BankingProcessor()
+
+            assert db.config['database'] == 'finance'
+            assert banking is not None
 
 
 class TestDotenvLoaderHygiene:

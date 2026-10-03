@@ -20,7 +20,7 @@ class TestGenerateToeristenbelastingReport:
     def processor(self, mock_db):
         """Create ToeristenbelastingProcessor with mocked DatabaseManager."""
         with patch('toeristenbelasting_processor.DatabaseManager', return_value=mock_db):
-            proc = ToeristenbelastingProcessor(test_mode=True)
+            proc = ToeristenbelastingProcessor()
         return proc
 
     @patch('toeristenbelasting_processor.get_bnb_cache')
@@ -198,12 +198,12 @@ class TestGenerateToeristenbelastingReport:
         assert result['success'] is False
         assert 'Cache initialization failed' in result['error']
 
-    def test_processor_init_sets_test_mode(self, mock_db):
-        """Test that test_mode is properly set on initialization."""
+    def test_processor_init_constructs_with_db(self, mock_db):
+        """ToeristenbelastingProcessor constructs (no test_mode) with a db handle."""
         with patch('toeristenbelasting_processor.DatabaseManager', return_value=mock_db):
-            proc = ToeristenbelastingProcessor(test_mode=True)
+            proc = ToeristenbelastingProcessor()
 
-        assert proc.test_mode is True
+        assert proc.db is mock_db
 
     @patch('toeristenbelasting_processor.get_bnb_cache')
     @patch('toeristenbelasting_processor.get_cache')

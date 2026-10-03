@@ -44,8 +44,7 @@ def get_tenant_details(user_email, user_roles) -> ResponseReturnValue:
         tenant = get_current_tenant(request)
 
         # Get tenant details from database
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = """
             SELECT 
@@ -147,8 +146,7 @@ def update_tenant_details(user_email, user_roles) -> ResponseReturnValue:
         update_values.extend([user_email, tenant])
 
         # Update tenant details
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
 
         query = f"""
             UPDATE tenants

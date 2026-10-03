@@ -29,7 +29,7 @@ def test_complete_service():
     print("=" * 70)
     print()
     
-    service = YearEndClosureService(test_mode=False)
+    service = YearEndClosureService()
     administration = 'GoodwinSolutions'
     
     print(f"Testing with tenant: {administration}")

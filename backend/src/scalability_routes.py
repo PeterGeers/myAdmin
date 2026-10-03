@@ -36,9 +36,8 @@ def scalability_dashboard(user_email, user_roles):
     for monitoring 10x concurrent user capacity.
     """
     try:
-        # Get database manager
-        test_mode = request.args.get("test_mode", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        # Get database manager (environment selected by APP_ENV)
+        db = DatabaseManager()
 
         # Get scalability manager
         scalability_manager = None
@@ -286,7 +285,7 @@ def run_load_test(user_email, user_roles):
 
                 try:
                     # Simulate database operation
-                    db = DatabaseManager(test_mode=True)
+                    db = DatabaseManager()
                     test_query = "SELECT 1 as test_value"
                     db.execute_query(test_query)
 
@@ -381,9 +380,8 @@ def optimize_scalability(user_email, user_roles):
     try:
         data = request.get_json() or {}
         optimization_type = data.get("type", "all")
-        test_mode = data.get("test_mode", False)
 
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         optimizations_applied = []
 
         # Database optimizations
@@ -690,19 +688,12 @@ def get_scalability_alerts(user_email, user_roles):
 
 # Global variables set by app.py
 scalability_manager = None
-flag = False
 
 
 def set_scalability_manager(manager):
     """Set scalability manager instance"""
     global scalability_manager
     scalability_manager = manager
-
-
-def set_test_mode(test_mode):
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
 
 
 @scalability_bp.route("/api/scalability/status", methods=["GET"])
@@ -747,7 +738,7 @@ def scalability_status(user_email, user_roles):
 def scalability_database_status(user_email, user_roles):
     """Get database scalability status"""
     try:
-        db = DatabaseManager(test_mode=flag)
+        db = DatabaseManager()
 
         scalability_stats = db.get_scalability_statistics()
         health_status = db.get_scalability_health()

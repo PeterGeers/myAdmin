@@ -156,8 +156,7 @@ def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
             get_user_attribute(user_response.get("UserAttributes", []), "email")
             or username
         )
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         try:
             db.execute_query(
                 """INSERT INTO user_tenant_roles (email, administration, role, created_by)
@@ -272,8 +271,7 @@ def remove_user_group(
             get_user_attribute(user_response.get("UserAttributes", []), "email")
             or username
         )
-        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-        db = DatabaseManager(test_mode=test_mode)
+        db = DatabaseManager()
         db.execute_query(
             "DELETE FROM user_tenant_roles WHERE email = %s AND administration = %s AND role = %s",
             (target_email, tenant, group_name),

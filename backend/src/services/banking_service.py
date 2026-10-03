@@ -21,16 +21,12 @@ from db_exceptions import ClosedPeriodError
 class BankingService:
     """Service class for banking operations"""
 
-    def __init__(self, test_mode: bool = False) -> None:
+    def __init__(self) -> None:
         """
         Initialize BankingService
-
-        Args:
-            test_mode (bool): Whether to run in test mode (uses test database)
         """
-        self.test_mode = test_mode
-        self.db = DatabaseManager(test_mode=test_mode)
-        self.processor = BankingProcessor(test_mode=test_mode)
+        self.db = DatabaseManager()
+        self.processor = BankingProcessor()
 
     def scan_banking_files(self, folder_path: str | None = None) -> dict[str, Any]:
         """
@@ -105,7 +101,7 @@ class BankingService:
             return {"valid": False, "error": str(e)}
 
     def process_banking_files(
-        self, file_paths: list[str], tenant: str, test_mode: bool | None = None
+        self, file_paths: list[str], tenant: str
     ) -> dict[str, Any]:
         """
         Process selected CSV banking files
@@ -113,16 +109,12 @@ class BankingService:
         Args:
             file_paths (list): List of file paths to process
             tenant (str): Tenant/administration name
-            test_mode (bool, optional): Override test mode for this operation
 
         Returns:
             dict: Processing result with transactions or error
         """
         try:
-            if test_mode is None:
-                test_mode = self.test_mode
-
-            processor = BankingProcessor(test_mode=test_mode)
+            processor = BankingProcessor()
             df = processor.process_csv_files(file_paths, tenant)
 
             if df.empty:
@@ -152,7 +144,6 @@ class BankingService:
                 "success": True,
                 "transactions": records,
                 "count": len(records),
-                "test_mode": test_mode,
             }
 
         except Exception as e:
@@ -163,7 +154,6 @@ class BankingService:
         self,
         iban: str,
         sequences: list[dict[str, Any]],
-        test_mode: bool | None = None,
         administration: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -172,17 +162,13 @@ class BankingService:
         Args:
             iban (str): IBAN to check sequences for
             sequences (list): List of sequence numbers to check
-            test_mode (bool, optional): Override test mode for this operation
             administration (str, optional): Tenant to scope the sequence check to
 
         Returns:
             dict: Result with existing sequences and duplicates
         """
         try:
-            if test_mode is None:
-                test_mode = self.test_mode
-
-            db = DatabaseManager(test_mode=test_mode)
+            db = DatabaseManager()
             table_name = "mutaties"  # Always use 'mutaties' table
             existing_sequences = db.get_existing_sequences(
                 iban, table_name, administration=administration
@@ -206,7 +192,6 @@ class BankingService:
         transactions: list[dict[str, Any]],
         tenant: str,
         use_enhanced: bool = True,
-        test_mode: bool | None = None,
     ) -> dict[str, Any]:
         """
         Apply pattern matching to predict debet/credit accounts
@@ -215,15 +200,11 @@ class BankingService:
             transactions (list): List of transaction dictionaries
             tenant (str): Tenant/administration name
             use_enhanced (bool): Whether to use enhanced pattern analysis
-            test_mode (bool, optional): Override test mode for this operation
 
         Returns:
             dict: Result with updated transactions and pattern info
         """
         try:
-            if test_mode is None:
-                test_mode = self.test_mode
-
             if not transactions:
                 return {"success": False, "error": "No transactions provided"}
 
@@ -234,7 +215,7 @@ class BankingService:
 
             if use_enhanced:
                 # Use enhanced pattern analysis system
-                processor = BankingProcessor(test_mode=test_mode)
+                processor = BankingProcessor()
                 updated_transactions, results = processor.apply_enhanced_patterns(
                     transactions, tenant
                 )
@@ -249,7 +230,7 @@ class BankingService:
                 # Fall back to legacy pattern matching
                 import re
 
-                db = DatabaseManager(test_mode=test_mode)
+                db = DatabaseManager()
 
                 # Get patterns for this administration
                 patterns_data = db.get_patterns(tenant)
@@ -347,7 +328,6 @@ class BankingService:
         self,
         transactions: list[dict[str, Any]],
         tenant: str,
-        test_mode: bool | None = None,
     ) -> dict[str, Any]:
         """
         Save approved transactions to database with duplicate filtering
@@ -355,20 +335,16 @@ class BankingService:
         Args:
             transactions (list): List of transaction dictionaries
             tenant (str): Tenant/administration name
-            test_mode (bool, optional): Override test mode for this operation
 
         Returns:
             dict: Result with saved count and duplicate info
         """
         try:
-            if test_mode is None:
-                test_mode = self.test_mode
-
             # Add administration field to all transactions
             for transaction in transactions:
                 transaction["administration"] = tenant
 
-            db = DatabaseManager(test_mode=test_mode)
+            db = DatabaseManager()
             table_name = "mutaties"  # Always use 'mutaties' table
 
             # Group transactions by IBAN (Ref1)
@@ -392,7 +368,7 @@ class BankingService:
                 transactions_to_save.extend(new_transactions)
 
             # Save only new transactions
-            processor = BankingProcessor(test_mode=test_mode)
+            processor = BankingProcessor()
             saved_count = processor.save_approved_transactions(transactions_to_save)
 
             # Invalidate cache after saving transactions
@@ -439,7 +415,7 @@ class BankingService:
             dict: Lookup data with accounts, descriptions, and bank accounts
         """
         try:
-            db = DatabaseManager(test_mode=self.test_mode)
+            db = DatabaseManager()
 
             # Get bank account lookups filtered by tenant at SQL level
             bank_accounts = db.get_bank_account_lookups(administration=tenant)
@@ -488,7 +464,7 @@ class BankingService:
         """Get mutaties with filters. Delegates to BankingMutatieService."""
         from services.banking_mutatie_service import BankingMutatieService
 
-        svc = BankingMutatieService(test_mode=self.test_mode)
+        svc = BankingMutatieService()
         return svc.get_mutaties(filters, tenant, user_tenants)
 
     def update_mutatie(
@@ -497,7 +473,7 @@ class BankingService:
         """Update a mutatie record. Delegates to BankingMutatieService."""
         from services.banking_mutatie_service import BankingMutatieService
 
-        svc = BankingMutatieService(test_mode=self.test_mode)
+        svc = BankingMutatieService()
         return svc.update_mutatie(mutatie_id, data, tenant)
 
     def check_accounts(
@@ -514,7 +490,7 @@ class BankingService:
             dict: Result with account balances
         """
         try:
-            processor = BankingProcessor(test_mode=self.test_mode)
+            processor = BankingProcessor()
 
             # Pass tenant to filter accounts
             balances = processor.check_banking_accounts(
@@ -546,7 +522,7 @@ class BankingService:
             dict: Result with balance gaps and discrepancies
         """
         try:
-            processor = BankingProcessor(test_mode=self.test_mode)
+            processor = BankingProcessor()
 
             result = processor.check_revolut_balance_gaps(
                 iban=iban,

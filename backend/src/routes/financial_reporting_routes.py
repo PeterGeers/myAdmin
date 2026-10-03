@@ -17,14 +17,7 @@ from database import DatabaseManager
 financial_reporting_bp = Blueprint("financial_reporting", __name__)
 
 # Global variables set by app.py
-flag = False
 logger = None
-
-
-def set_test_mode(test_mode) -> None:
-    """Set test mode flag"""
-    global flag
-    flag = test_mode
 
 
 def set_logger(log_instance) -> None:
@@ -36,9 +29,12 @@ def set_logger(log_instance) -> None:
 class FinancialReportingService:
     """Service class for financial reporting database operations."""
 
-    def __init__(self, test_mode=False) -> None:
-        self.db = DatabaseManager(test_mode=test_mode)
-        self.table_name = "mutaties_test" if test_mode else "mutaties"
+    def __init__(self) -> None:
+        # Environment (TEST vs PROD) is selected by APP_ENV via the resolver, not by
+        # a request-driven `test_mode` flag. The MySQL schema is always `finance`, so
+        # the mutaties table name is fixed (no `mutaties_test` switch).
+        self.db = DatabaseManager()
+        self.table_name = "mutaties"
 
     @contextmanager
     def get_cursor(self):
@@ -90,9 +86,7 @@ def get_balance_data(
 ) -> ResponseReturnValue:
     """Get balance data grouped by Parent and ledger with tenant filtering"""
     try:
-        service = FinancialReportingService(
-            request.args.get("testMode", "false").lower() == "true"
-        )
+        service = FinancialReportingService()
 
         # Get administration parameter, default to current tenant
         administration = request.args.get("administration", tenant)
@@ -173,9 +167,7 @@ def get_trends_data(
 ) -> ResponseReturnValue:
     """Get P&L trends data by year"""
     try:
-        service = FinancialReportingService(
-            request.args.get("testMode", "false").lower() == "true"
-        )
+        service = FinancialReportingService()
 
         years = [
             int(y)

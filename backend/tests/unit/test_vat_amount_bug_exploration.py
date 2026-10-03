@@ -28,7 +28,7 @@ class TestVatAmountBugExploration:
     @pytest.fixture
     def transaction_logic(self):
         """Create TransactionLogic instance for testing."""
-        return TransactionLogic(test_mode=True)
+        return TransactionLogic()
 
     def test_prepare_new_transactions_uses_zero_vat_when_key_missing(
         self, transaction_logic
