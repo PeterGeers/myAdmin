@@ -7,11 +7,6 @@ import {
 } from '@chakra-ui/react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
-import { RESOLVED } from '../config/appEnv';
-
-// Flask API base URL resolved from APP_ENV (Req 21.2-21.4) — never a hardcoded
-// literal nor hostname-inferred.
-const API_BASE_URL = RESOLVED.flaskApiBaseUrl;
 
 interface ValidationRecord {
   status: string;
@@ -70,7 +65,7 @@ const PDFValidation: React.FC = () => {
 
       // EventSource with auth token and tenant in URL
       const eventSource = new EventSource(
-        `${API_BASE_URL}/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${currentTenant}&token=${encodeURIComponent(tokens.idToken)}`
+        `/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${currentTenant}&token=${encodeURIComponent(tokens.idToken)}`
       );
 
       eventSource.onmessage = (event) => {
