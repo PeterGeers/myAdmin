@@ -81,9 +81,9 @@ export interface EnvironmentDefinition {
 export const TEST_POOL_ID = 'eu-west-1_xyrlzfqbl';
 export const TEST_CLIENT_ID = '43s15cm8qcgg8an85udt0e087u';
 export const PROD_POOL_ID = 'eu-west-1_Hdp40eWmu';
-// PROD_CLIENT_ID placeholder — the actual production client ID is supplied via
-// operational configuration (mirrors the backend placeholder).
-export const PROD_CLIENT_ID = 'PLACEHOLDER_PRODUCTION_CLIENT_ID';
+// PROD_CLIENT_ID — the production Cognito app client id. PUBLIC, non-secret
+// identifier mirroring the backend definition (the frontend never holds a secret).
+export const PROD_CLIENT_ID = '66tp0087h9tfbstggonnu5aghp';
 
 /** TEST plane definition — selected when APP_ENV=test. */
 export const TEST_FRONTEND_CONFIG: FrontendPlaneDef = {

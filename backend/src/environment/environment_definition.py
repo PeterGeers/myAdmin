@@ -158,9 +158,12 @@ class EnvironmentDefinition:
 TEST_POOL_ID = "eu-west-1_xyrlzfqbl"
 TEST_CLIENT_ID = "43s15cm8qcgg8an85udt0e087u"
 PROD_POOL_ID = "eu-west-1_Hdp40eWmu"
-# PROD_CLIENT_ID placeholder — the actual production client ID should be filled
-# from operational configuration
-PROD_CLIENT_ID = "PLACEHOLDER_PRODUCTION_CLIENT_ID"
+# PROD_CLIENT_ID — the production Cognito app client id. PUBLIC, non-secret
+# identifier (like the pool ids above); the app-client SECRET is NOT stored here
+# (read from the COGNITO_CLIENT_SECRET env var). The startup Consistency_Guard
+# compares the service's COGNITO_CLIENT_ID against this value, so it must be the
+# real id (not a placeholder) or production fails fast at startup.
+PROD_CLIENT_ID = "66tp0087h9tfbstggonnu5aghp"
 
 ENVIRONMENT_DEFINITION = EnvironmentDefinition(
     test=PlaneDef(
