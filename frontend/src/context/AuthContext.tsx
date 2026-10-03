@@ -5,7 +5,7 @@
  * Uses AWS Amplify for Cognito integration.
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { getCurrentUser, signOut } from 'aws-amplify/auth';
 import {
   getCurrentUserRoles,
@@ -170,7 +170,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * the latest request (its seq is the current max and its tenant is still the
    * latest requested), so a late response for a superseded tenant is discarded.
    */
-  const refreshRolesForTenant = async (tenant: string) => {
+  const refreshRolesForTenant = useCallback(async (tenant: string) => {
     const tenantAtStart = tenant;
     const seq = ++roleRequestSeq.current;
     latestRequestedTenant.current = tenantAtStart;
@@ -183,7 +183,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     setUser(prev => (prev ? { ...prev, roles } : prev));
-  };
+  }, []);
 
   /**
    * Check if user has a specific role

@@ -242,3 +242,62 @@ describe('Bug condition: stale roles after in-app tenant switch (h-dcn)', () => 
     expect(screen.getByRole('button', { name: membersRe })).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: no infinite render loop (unstable refreshRolesForTenant ref)
+//
+// Root cause (pre-existing, from commit 6cc86fc "Fix stale roles in menu after
+// in-app tenant switch"): `refreshRolesForTenant` in AuthContext was a plain
+// function recreated every render, and it calls setUser(...). useTenantRoleSync's
+// effect depends on [currentTenant, refreshRolesForTenant], so each render handed
+// it a NEW function reference -> effect re-ran -> getCurrentUserRoles() (GET
+// /api/auth/me) + setUser -> re-render -> new reference -> ... unbounded loop.
+//
+// With refreshRolesForTenant wrapped in useCallback([]), its reference is stable
+// across renders, so the effect fires only on a REAL currentTenant change. This
+// test mounts WITHOUT any tenant switch, lets renders settle, then asserts the
+// /api/auth/me call count does NOT keep growing. On the unfixed (looping) code
+// the count climbs without bound; on the fixed code it stays flat.
+// ---------------------------------------------------------------------------
+
+describe('Regression: no infinite /api/auth/me loop without a tenant switch', () => {
+  beforeEach(() => {
+    authMeCalls.length = 0;
+    localStorage.clear();
+    localStorage.setItem('selectedTenant', ORIGIN_TENANT);
+    i18n.changeLanguage('en');
+  });
+
+  it('does not refetch /api/auth/me unboundedly after mount settles (no switch)', async () => {
+    renderApp();
+
+    // Let mount + the mount-tenant role resolution settle: the origin menu
+    // (gated on the mount-tenant roles) is rendered once roles are resolved.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Tenant Administration/ })
+      ).toBeInTheDocument();
+    });
+
+    // Capture the call count once things have settled.
+    const settledCount = authMeCalls.length;
+
+    // Allow any pending renders/effects to flush. On the looping code each flush
+    // triggers another refreshRolesForTenant -> /api/auth/me, so the count would
+    // keep climbing. Flush several microtask/render cycles deterministically
+    // (no real timers/sleeps).
+    for (let i = 0; i < 5; i++) {
+      await Promise.resolve();
+    }
+    await waitFor(() => {
+      // A stable condition that is already true — gives React a chance to flush
+      // any queued state updates/effects before we read the count.
+      expect(
+        screen.getByRole('button', { name: /Tenant Administration/ })
+      ).toBeInTheDocument();
+    });
+
+    // The count must NOT have grown — no self-sustaining render loop.
+    expect(authMeCalls.length).toBe(settledCount);
+  });
+});
