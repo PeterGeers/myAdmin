@@ -288,7 +288,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         """Generate pricing for all active listings"""
         try:
             # Get all active listings
-            with self.db.get_cursor() as (cursor, conn):
+            with self.db.get_cursor_only() as cursor:
                 cursor.execute(
                     "SELECT listing_name FROM listings WHERE active = TRUE ORDER BY listing_name"
                 )
@@ -306,7 +306,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             print(f"Generating pricing for {len(listings)} listings: {listings}")
 
             # Clear all existing recommendations first
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 cursor.execute("DELETE FROM pricing_recommendations")
             print("Cleared all existing pricing recommendations for new run")
 
@@ -375,7 +375,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         try:
             # Clear-then-insert is an atomic replace committed once at the end
             # (transaction() commits on success, rolls back on error).
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 # Clear ALL existing recommendations at start of new run
                 cursor.execute("DELETE FROM pricing_recommendations")
                 print("Cleared all existing pricing recommendations for new run")
@@ -432,7 +432,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         try:
             # Committed once at the end (transaction() commits on success,
             # rolls back on error) — preserving the original single-commit granularity.
-            with self.db.transaction() as (cursor, conn):
+            with self.db.transaction() as (cursor, _conn):
                 for price in valid_prices:
                     cursor.execute(
                         insert_sql,

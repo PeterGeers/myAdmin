@@ -352,13 +352,18 @@ class TestGenerateAllListingsPricing:
 
     @staticmethod
     def _wire_cursor(optimizer):
-        """Wire db.get_cursor() to yield a fresh (cursor, conn) tuple."""
+        """Wire db.get_cursor_only() to yield a fresh cursor (read path).
+
+        mock_conn is returned for signature compatibility with callers that unpack
+        it, but the cursor-only context manager yields just the cursor."""
         mock_cursor = MagicMock()
         mock_conn = MagicMock()
-        optimizer.db.get_cursor.return_value.__enter__ = MagicMock(
-            return_value=(mock_cursor, mock_conn)
+        optimizer.db.get_cursor_only.return_value.__enter__ = MagicMock(
+            return_value=mock_cursor
         )
-        optimizer.db.get_cursor.return_value.__exit__ = MagicMock(return_value=False)
+        optimizer.db.get_cursor_only.return_value.__exit__ = MagicMock(
+            return_value=False
+        )
         return mock_cursor, mock_conn
 
     @staticmethod
@@ -425,7 +430,7 @@ class TestGenerateAllListingsPricing:
 
     def test_generate_all_listings_exception_returns_error(self, optimizer):
         """Test that exceptions return error result."""
-        optimizer.db.get_cursor.side_effect = Exception("DB connection failed")
+        optimizer.db.get_cursor_only.side_effect = Exception("DB connection failed")
 
         result = optimizer._generate_all_listings_pricing(months=1)
 

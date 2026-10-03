@@ -351,6 +351,21 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
             cursor.close()
             conn.close()
 
+    @contextmanager
+    def get_cursor_only(self, dictionary=True, pool_type="primary"):
+        """Cursor-only context manager for READ paths that never touch the connection.
+
+        Identical lifecycle/exception semantics to get_cursor() (it delegates), but
+        yields just the cursor so call sites don't unpack an unused conn (prevents
+        the recurring RUF059 'unpacked variable conn is never used'). Use get_cursor()
+        / transaction() when you DO need conn (commit/rollback).
+        """
+        with self.get_cursor(dictionary=dictionary, pool_type=pool_type) as (
+            cursor,
+            _conn,
+        ):
+            yield cursor
+
     def execute_query(
         self, query, params=None, fetch=True, commit=False, pool_type="primary"
     ):

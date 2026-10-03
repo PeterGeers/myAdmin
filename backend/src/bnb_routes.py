@@ -72,7 +72,7 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
         ORDER BY year, q, m, listing
         """
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
 
@@ -143,7 +143,7 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
         ORDER BY year, q, m, channel
         """
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
 
@@ -189,7 +189,7 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
             ORDER BY year
         """
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
 
@@ -211,7 +211,7 @@ def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
         # Build tenant filter with placeholders for user_tenants
         placeholders = ", ".join(["%s"] * len(user_tenants))
 
-        with db.get_cursor(dictionary=False) as (cursor, conn):
+        with db.get_cursor_only(dictionary=False) as cursor:
             # Get distinct years
             years_query = f"SELECT DISTINCT year FROM bnb WHERE year IS NOT NULL AND administration IN ({placeholders}) ORDER BY year DESC"
             cursor.execute(years_query, user_tenants)
@@ -327,7 +327,7 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
             ORDER BY listing, channel, year
             """
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
 
@@ -360,7 +360,7 @@ def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
             ORDER BY aantal DESC, guestName ASC
         """
 
-        with db.get_cursor() as (cursor, conn):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, user_tenants)
             results = cursor.fetchall()
 
@@ -397,7 +397,7 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
         # Combine guest_name with user_tenants for query parameters
         params = [guest_name] + user_tenants
 
-        with db.get_cursor() as (cursor, connection):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
 
@@ -452,7 +452,7 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
             LIMIT 1000
         """
 
-        with db.get_cursor() as (cursor, connection):
+        with db.get_cursor_only() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
 

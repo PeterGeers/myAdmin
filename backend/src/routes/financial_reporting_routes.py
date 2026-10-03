@@ -48,7 +48,7 @@ class FinancialReportingService:
         yields ``(cursor, conn)`` with a dictionary cursor by default), while preserving
         this wrapper's single-value ``yield cursor`` contract for existing callers.
         """
-        with self.db.get_cursor() as (cursor, _conn):
+        with self.db.get_cursor_only() as cursor:
             yield cursor
 
     def build_where_clause(self, conditions) -> tuple:

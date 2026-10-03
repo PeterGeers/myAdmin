@@ -19,6 +19,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from banking_checks import _get_opening_balance_date
 from banking_processor import BankingProcessor
 
+from _db_contract import make_cursor_cm
+
 
 # ---------------------------------------------------------------------------
 # Tests for _get_opening_balance_date
@@ -185,7 +187,8 @@ class TestCheckSequenceNumbersClosure:
             {'TransactionDate': '2025-01-15', 'TransactionDescription': 'Test', 'Ref2': '1', 'TransactionAmount': 100.00}
         ]
 
-        with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
+        with patch.object(processor.db, 'get_cursor',
+                          return_value=make_cursor_cm(mock_cursor, mock_conn)), \
              patch.object(processor.db, 'get_bank_account_lookups', return_value=[
                  {'Account': '1600', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'TestAdmin'}
              ]), \
@@ -209,7 +212,8 @@ class TestCheckSequenceNumbersClosure:
             {'TransactionDate': '2024-06-15', 'TransactionDescription': 'Test', 'Ref2': '1', 'TransactionAmount': 100.00}
         ]
 
-        with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
+        with patch.object(processor.db, 'get_cursor',
+                          return_value=make_cursor_cm(mock_cursor, mock_conn)), \
              patch.object(processor.db, 'get_bank_account_lookups', return_value=[
                  {'Account': '1600', 'rekeningNummer': 'NL80RABO0107936917', 'administration': 'TestAdmin'}
              ]), \

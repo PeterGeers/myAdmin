@@ -1028,6 +1028,12 @@ class TestGetLastBtwTransaction:
         cm.__enter__.return_value = (mock_cursor, mock_conn)
         cm.__exit__.return_value = False
         processor.db.get_cursor.return_value = cm
+        # Read paths use get_cursor_only() (yields just the cursor); wire a
+        # separate CM so `with db.get_cursor_only() as cursor:` yields mock_cursor.
+        cm_only = MagicMock()
+        cm_only.__enter__.return_value = mock_cursor
+        cm_only.__exit__.return_value = False
+        processor.db.get_cursor_only.return_value = cm_only
         return mock_cursor, mock_conn
 
     def test_get_last_btw_transaction_returns_result(self, processor):
@@ -1043,8 +1049,8 @@ class TestGetLastBtwTransaction:
 
         assert result is not None
         assert result['ID'] == 100
-        # Read path must go through the context-managed cursor with a dict cursor.
-        processor.db.get_cursor.assert_called_once_with(dictionary=True)
+        # Read path must go through the cursor-only context manager with a dict cursor.
+        processor.db.get_cursor_only.assert_called_once_with(dictionary=True)
 
     def test_get_last_btw_transaction_no_result(self, processor):
         """Test when no BTW transaction exists."""
@@ -1057,7 +1063,7 @@ class TestGetLastBtwTransaction:
 
     def test_get_last_btw_transaction_exception_returns_none(self, processor):
         """Test that exceptions return None."""
-        processor.db.get_cursor.side_effect = Exception("DB error")
+        processor.db.get_cursor_only.side_effect = Exception("DB error")
 
         result = processor._get_last_btw_transaction('TestAdmin')
 

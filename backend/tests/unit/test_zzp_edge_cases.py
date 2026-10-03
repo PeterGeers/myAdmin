@@ -17,6 +17,7 @@ from services.contact_service import ContactService
 from services.product_service import ProductService
 from services.zzp_invoice_service import ZZPInvoiceService
 from services.pdf_generator_service import PDFGeneratorService
+from _db_contract import wire_cursor_contract
 
 
 # ── Helpers ─────────────────────────────────────────────────
@@ -273,7 +274,9 @@ def _mock_db_for_numbering(existing_sequence=None):
     else:
         cursor.fetchone.return_value = None
     db = Mock()
-    db.get_connection.return_value = conn
+    # New database.py contract: numbering runs inside `with db.transaction() as
+    # (cursor, conn):`. Wire the context-managed APIs to yield the 2-tuple.
+    wire_cursor_contract(db, cursor, conn)
     return db, conn, cursor
 
 
@@ -282,32 +285,41 @@ def test_generate_invoice_number_uses_for_update():
     db, conn, cursor = _mock_db_for_numbering(existing_sequence=1)
     svc = _make_invoice_service(db=db)
     svc._generate_invoice_number('T1', 'INV', 2026)
-    select_call = cursor.execute.call_args_list[1]  # [0]=START TRANSACTION, [1]=SELECT
+    # SELECT is the first execute now (BEGIN/COMMIT owned by db.transaction()).
+    select_call = cursor.execute.call_args_list[0]
     assert 'FOR UPDATE' in select_call[0][0]
 
 
 def test_generate_invoice_number_wraps_in_transaction():
-    """The method must use START TRANSACTION and COMMIT."""
+    """Numbering must run inside the single-commit transaction context.
+
+    Under the new database.py contract the atomic read-modify-write is wrapped in
+    `with db.transaction() as (cursor, conn):` (one commit on clean exit) rather
+    than explicit START TRANSACTION / COMMIT statements. Assert the helper opened
+    the transaction and issued the locking SELECT inside it.
+    """
     db, conn, cursor = _mock_db_for_numbering(existing_sequence=1)
     svc = _make_invoice_service(db=db)
     svc._generate_invoice_number('T1', 'INV', 2026)
-    start_call = cursor.execute.call_args_list[0]
-    assert 'START TRANSACTION' in start_call[0][0]
-    conn.commit.assert_called_once()
+    db.transaction.assert_called_once()
+    assert 'FOR UPDATE' in cursor.execute.call_args_list[0][0][0]
 
 
 def test_generate_invoice_number_rollback_on_error():
-    """Errors during numbering must trigger ROLLBACK."""
+    """Errors raised inside the transaction block propagate to the caller.
+
+    Rollback is owned by db.transaction() under the new contract; here we assert
+    the error surfaces unchanged when the locking SELECT fails.
+    """
     cursor = MagicMock()
     conn = MagicMock()
     conn.cursor.return_value = cursor
-    cursor.execute.side_effect = [None, Exception("DB error")]  # START ok, SELECT fails
+    cursor.execute.side_effect = Exception("DB error")  # SELECT ... FOR UPDATE fails
     db = Mock()
-    db.get_connection.return_value = conn
+    wire_cursor_contract(db, cursor, conn)
     svc = _make_invoice_service(db=db)
     with pytest.raises(Exception, match="DB error"):
         svc._generate_invoice_number('T1', 'INV', 2026)
-    conn.rollback.assert_called_once()
 
 
 def test_generate_invoice_number_sequential_calls_produce_different_numbers():
