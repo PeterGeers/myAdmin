@@ -15,11 +15,8 @@ import {
   ImportErrorResponse
 } from '../types/chartOfAccounts';
 import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete } from './apiService';
-import { RESOLVED } from '../config/appEnv';
 
-// Flask API base URL resolved from APP_ENV (Req 21.2-21.4) — never a hardcoded
-// literal nor hostname-inferred.
-const API_BASE_URL = RESOLVED.flaskApiBaseUrl;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 /**
  * List all accounts with optional search, sorting, and pagination
@@ -28,23 +25,24 @@ export const listAccounts = async (
   params?: AccountsQueryParams
 ): Promise<AccountsResponse> => {
   const queryParams = new URLSearchParams();
-
+  
   if (params?.search) queryParams.append('search', params.search);
   if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
   if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
   if (params?.page) queryParams.append('page', params.page.toString());
   if (params?.limit) queryParams.append('limit', params.limit.toString());
-
-  const endpoint = `/api/tenant-admin/chart-of-accounts${queryParams.toString() ? `?${queryParams.toString()}` : ''
-    }`;
-
+  
+  const endpoint = `/api/tenant-admin/chart-of-accounts${
+    queryParams.toString() ? `?${queryParams.toString()}` : ''
+  }`;
+  
   const response = await authenticatedGet(endpoint);
-
+  
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to list accounts');
   }
-
+  
   return response.json();
 };
 
@@ -56,12 +54,12 @@ export const createAccount = async (account: AccountFormData): Promise<Account> 
     `/api/tenant-admin/chart-of-accounts`,
     account
   );
-
+  
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to create account');
   }
-
+  
   const data: AccountResponse = await response.json();
   return data.account;
 };
@@ -77,12 +75,12 @@ export const updateAccount = async (
     `/api/tenant-admin/chart-of-accounts/${encodeURIComponent(accountNumber)}`,
     account
   );
-
+  
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to update account');
   }
-
+  
   const data: AccountResponse = await response.json();
   return data.account;
 };
@@ -94,7 +92,7 @@ export const deleteAccount = async (accountNumber: string): Promise<void> => {
   const response = await authenticatedDelete(
     `/api/tenant-admin/chart-of-accounts/${encodeURIComponent(accountNumber)}`
   );
-
+  
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || error.message || 'Failed to delete account');
@@ -108,12 +106,12 @@ export const exportAccounts = async (): Promise<Blob> => {
   const response = await authenticatedGet(
     `/api/tenant-admin/chart-of-accounts/export`
   );
-
+  
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to export accounts');
   }
-
+  
   return response.blob();
 };
 
@@ -125,17 +123,17 @@ export const importAccounts = async (
 ): Promise<ImportResponse | ImportErrorResponse> => {
   const formData = new FormData();
   formData.append('file', file);
-
+  
   // Use authenticatedRequest directly for FormData (don't JSON stringify)
   const { getCurrentAuthTokens } = await import('./authService');
   const tokens = await getCurrentAuthTokens();
-
+  
   if (!tokens?.idToken) {
     throw new Error('Authentication required');
   }
-
+  
   const tenant = localStorage.getItem('selectedTenant');
-
+  
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/chart-of-accounts/import`, {
     method: 'POST',
     headers: {
@@ -145,12 +143,12 @@ export const importAccounts = async (
     },
     body: formData
   });
-
+  
   const data = await response.json();
-
+  
   if (!response.ok) {
     throw new Error(data.error || 'Failed to import accounts');
   }
-
+  
   return data;
 };
