@@ -17,6 +17,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.service_accessors import make_db_service_accessor
 from services.parameter_service import ParameterService
 
 logger = logging.getLogger(__name__)
@@ -24,13 +25,15 @@ logger = logging.getLogger(__name__)
 parameter_admin_bp = Blueprint("parameter_admin", __name__)
 
 
-
-def _get_service() -> "ParameterService":
-    db = DatabaseManager()
+def _build_parameter_service(db: DatabaseManager) -> ParameterService:
+    # Local import kept to preserve the original module's lazy import of
+    # CredentialService (avoids importing cryptography at module import time).
     from services.credential_service import CredentialService
 
-    credential_service = CredentialService(db)
-    return ParameterService(db, credential_service=credential_service)
+    return ParameterService(db, credential_service=CredentialService(db))
+
+
+_get_service = make_db_service_accessor(_build_parameter_service)
 
 
 def _is_sysadmin(user_roles) -> bool:

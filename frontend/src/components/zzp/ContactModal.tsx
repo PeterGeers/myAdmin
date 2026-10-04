@@ -13,9 +13,10 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, DeleteIcon, EmailIcon } from '@chakra-ui/icons';
 import { Formik, Form, Field } from 'formik';
+import type { FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
-import { Contact, ContactEmail } from '../../types/zzp';
+import { Contact, ContactEmail, ContactType, EmailType } from '../../types/zzp';
 import { useFieldConfig } from '../../hooks/useFieldConfig';
 import { createContact, updateContact } from '../../services/contactService';
 
@@ -84,20 +85,37 @@ export const ContactModal: React.FC<ContactModalProps> = ({
     setEmails([...emails, { email: '', email_type: 'general', is_primary: false }]);
   };
   const removeEmail = (idx: number) => setEmails(emails.filter((_, i) => i !== idx));
-  const updateEmail = (idx: number, field: string, value: any) => {
+  const updateEmail = (idx: number, field: keyof ContactEmail, value: string | boolean) => {
     const updated = [...emails];
     updated[idx] = { ...updated[idx], [field]: value };
     setEmails(updated);
   };
 
-  const handleSubmit = async (values: typeof initialValues, { setSubmitting }: any) => {
+  const handleSubmit = async (
+    values: typeof initialValues,
+    { setSubmitting }: FormikHelpers<typeof initialValues>,
+  ) => {
     if (hasEmailErrors) {
       toast({ title: t('contacts.fixEmailErrors', 'Fix invalid email addresses'), status: 'warning' });
       setSubmitting(false);
       return;
     }
     try {
-      const data: any = { ...values, emails: emails.filter(e => e.email?.trim()) };
+      // Non-blank email rows only; coerce the Partial rows to full ContactEmail
+      // (email is guaranteed present by the filter; type/primary carry sane defaults).
+      const emailRows: ContactEmail[] = emails
+        .filter((e): e is Partial<ContactEmail> & { email: string } => !!e.email?.trim())
+        .map(e => ({
+          ...(e.id != null ? { id: e.id } : {}),
+          email: e.email.trim(),
+          email_type: (e.email_type ?? 'general') as EmailType,
+          is_primary: e.is_primary ?? false,
+        }));
+      const data: Partial<Contact> = {
+        ...values,
+        contact_type: values.contact_type as ContactType,
+        emails: emailRows,
+      };
       const resp = isEdit
         ? await updateContact(contact!.id, data)
         : await createContact(data);
@@ -107,8 +125,8 @@ export const ContactModal: React.FC<ContactModalProps> = ({
       } else {
         toast({ title: resp.error, status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error', status: 'error' });
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : 'Error', status: 'error' });
     } finally {
       setSubmitting(false);
     }

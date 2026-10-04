@@ -7,6 +7,7 @@ import {
   Badge,
   Code,
   Table,
+  TableContainer,
   Thead,
   Tbody,
   Tr,
@@ -194,20 +195,22 @@ function ExtractionResultSection({ result }: { result: ExtractionResult | null }
 
   return (
     <SectionBox title="Extraction Result">
-      <Table size="sm" variant="simple">
-        <Tbody>
-          {fields.map((field) => (
-            <Tr key={field.label}>
-              <Td color="gray.400" borderColor="gray.700" py={2} px={3} width="150px">
-                {field.label}
-              </Td>
-              <Td color="white" borderColor="gray.700" py={2} px={3} fontFamily="mono" fontSize="sm">
-                {typeof field.value === 'number' ? field.value.toFixed(2) : field.value}
-              </Td>
-            </Tr>
-          ))}
-        </Tbody>
-      </Table>
+      <TableContainer overflowX="auto">
+        <Table size="sm" variant="simple">
+          <Tbody>
+            {fields.map((field) => (
+              <Tr key={field.label}>
+                <Td color="gray.400" borderColor="gray.700" py={2} px={3} width="150px">
+                  {field.label}
+                </Td>
+                <Td color="white" borderColor="gray.700" py={2} px={3} fontFamily="mono" fontSize="sm">
+                  {typeof field.value === 'number' ? field.value.toFixed(2) : field.value}
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      </TableContainer>
     </SectionBox>
   );
 }
@@ -225,7 +228,7 @@ function FormattedTransactionsSection({ transactions }: { transactions: Transact
 
   return (
     <SectionBox title="Formatted Transactions">
-      <Box overflow="auto">
+      <TableContainer overflowX="auto">
         <Table size="sm" variant="simple">
           <Thead>
             <Tr>
@@ -250,7 +253,7 @@ function FormattedTransactionsSection({ transactions }: { transactions: Transact
             ))}
           </Tbody>
         </Table>
-      </Box>
+      </TableContainer>
       <Text fontSize="xs" color="gray.500" mt={2}>
         {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
       </Text>
@@ -271,7 +274,7 @@ function PreparedTransactionsSection({ transactions }: { transactions: PreparedT
 
   return (
     <SectionBox title="Prepared Transactions">
-      <Box overflow="auto">
+      <TableContainer overflowX="auto">
         <Table size="sm" variant="simple">
           <Thead>
             <Tr>
@@ -302,7 +305,7 @@ function PreparedTransactionsSection({ transactions }: { transactions: PreparedT
             ))}
           </Tbody>
         </Table>
-      </Box>
+      </TableContainer>
       <Text fontSize="xs" color="gray.500" mt={2}>
         {transactions.length} prepared transaction{transactions.length !== 1 ? 's' : ''}
       </Text>
@@ -346,26 +349,28 @@ function AIUsagePreviewSection({ preview }: { preview: AIUsagePreview }) {
       <Text fontSize="xs" color="gray.500" mb={2}>
         Preview of the usage log entry (not written in dry-run mode)
       </Text>
-      <Table size="sm" variant="simple">
-        <Tbody>
-          <Tr>
-            <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Administration</Td>
-            <Td color="white" borderColor="gray.700" py={1} px={3}>{preview.administration}</Td>
-          </Tr>
-          <Tr>
-            <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Feature</Td>
-            <Td color="white" borderColor="gray.700" py={1} px={3}>{preview.feature}</Td>
-          </Tr>
-          <Tr>
-            <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Tokens Used</Td>
-            <Td color="white" borderColor="gray.700" py={1} px={3}>{preview.tokens_used}</Td>
-          </Tr>
-          <Tr>
-            <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Cost Estimate</Td>
-            <Td color="white" borderColor="gray.700" py={1} px={3}>€{preview.cost_estimate}</Td>
-          </Tr>
-        </Tbody>
-      </Table>
+      <TableContainer overflowX="auto">
+        <Table size="sm" variant="simple">
+          <Tbody>
+            <Tr>
+              <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Administration</Td>
+              <Td color="white" borderColor="gray.700" py={1} px={3}>{preview.administration}</Td>
+            </Tr>
+            <Tr>
+              <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Feature</Td>
+              <Td color="white" borderColor="gray.700" py={1} px={3}>{preview.feature}</Td>
+            </Tr>
+            <Tr>
+              <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Tokens Used</Td>
+              <Td color="white" borderColor="gray.700" py={1} px={3}>{preview.tokens_used}</Td>
+            </Tr>
+            <Tr>
+              <Td color="gray.400" borderColor="gray.700" py={1} px={3}>Cost Estimate</Td>
+              <Td color="white" borderColor="gray.700" py={1} px={3}>€{preview.cost_estimate}</Td>
+            </Tr>
+          </Tbody>
+        </Table>
+      </TableContainer>
 
       {/* Cost Breakdown */}
       <Box mt={3} p={3} bg="gray.900" borderRadius="md" borderWidth="1px" borderColor="gray.700">

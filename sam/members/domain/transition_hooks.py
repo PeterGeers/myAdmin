@@ -100,7 +100,7 @@ class TransitionHookRegistry:
     ``tenant_id`` lookups — the registry has no knowledge of any specific tenant (Property 5).
     """
 
-    def __init__(self, hooks: Mapping[str, OnTransitionHook] | None = None):
+    def __init__(self, hooks: Mapping[str, OnTransitionHook] | None = None) -> None:
         self._hooks: dict[str, OnTransitionHook] = dict(hooks or {})
 
     def register(self, tenant_id: str, hook: OnTransitionHook) -> None:

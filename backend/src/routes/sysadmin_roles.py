@@ -23,8 +23,9 @@ import boto3
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
-from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
+from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
+from routes.sysadmin_helpers import _resolve_pool_id
 from services.module_registry import MODULE_REGISTRY
 
 # Initialize logger
@@ -36,29 +37,10 @@ cognito_client = boto3.client(
 )
 
 
-def _caller_token() -> str:
-    """Return the raw caller JWT from the request ``Authorization`` header.
-
-    Every route in this blueprint is gated by ``@cognito_required``, which has
-    already validated the ``Bearer`` token before the handler runs; this re-reads
-    that same header and strips the ``Bearer `` prefix to hand the raw token to the
-    shared resolver's token mode. Mirrors ``routes.sysadmin_helpers._caller_token``.
-    """
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        return auth_header[len("Bearer ") :].strip()
-    return auth_header.strip()
-
-
-def _resolve_pool_id() -> str:
-    """Resolve the target Cognito pool id for this admin request (token mode).
-
-    Resolves through the shared registry-backed resolver keyed to the caller
-    token's verified ``iss`` (2.3), replacing the legacy ``COGNITO_USER_POOL_ID``
-    read. Raises :class:`PoolResolutionError` when the pool cannot be resolved so
-    each handler can map it to a clear misconfiguration (500) response.
-    """
-    return resolve_pool_id_for_token(_caller_token())
+# ``_caller_token`` / ``_resolve_pool_id`` are the canonical copies imported from
+# ``routes.sysadmin_helpers`` (task H2). They are re-exported into this module's
+# namespace so handlers call them as module globals and existing patch points
+# (``routes.sysadmin_roles._resolve_pool_id``) keep working unchanged.
 
 
 # Build module role prefixes dynamically from MODULE_REGISTRY

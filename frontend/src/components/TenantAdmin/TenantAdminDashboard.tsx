@@ -95,11 +95,8 @@ export function TenantAdminDashboard() {
       // Get merged roles (global + per-tenant) from API
       let roles: string[] = [];
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         const tenant = currentTenant || (tenants.length > 0 ? tenants[0] : '');
-        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
-        if (tenant) headers['X-Tenant'] = tenant;
-        const resp = await fetch(`${apiUrl}/api/auth/me`, { headers });
+        const resp = await authenticatedGet('/api/auth/me', tenant ? { tenant } : {});
         if (resp.ok) {
           const data = await resp.json();
           roles = data.roles || [];

@@ -26,10 +26,11 @@ interface ApiListResponse {
   total?: number;
 }
 
-/** Response with a single trip (may include warnings for gap detection). */
+/** Response with a single trip (may include warnings for gap detection, or an error message on failure). */
 interface ApiTripResponse {
   success: boolean;
   data: Trip;
+  error?: string;
   warnings?: Array<{
     type: string;
     message: string;
