@@ -1,0 +1,133 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**H1. Give the shared cursor mock concrete `fetchall()`/`fetchone()` return values so the preservation / banking-service clusters stop leaking `MagicMock` (13 failing tests: G1 + G3 + most of G4).** [L] — the primary cause of the red backend job; a **recurrence** of the 10-03 H1 cluster one layer deeper (see requirements Lesson 1). Fix is in test mocks, not production.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142126672
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142139259
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142511973
+      }
+    ],
+    "**H2. Clear the 39 ruff-lint errors — dominated by 27 × `F401` (a stray `import os` sweep) + the un-cleaned `environment/` module.** [M] — CI-blocking (Backend Lint job red). 35 of 39 are safe-auto-fixable; ~4 need a human glance.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142126870
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142550067
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142724552
+      }
+    ],
+    "**H3. Reformat the 17 files flagged by `ruff format` (concentrated in the new `src/environment/` module).** [S] — CI-blocking (Ruff format check red); auto-fixable.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142126978
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142741616
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142809501
+      }
+    ],
+    "**H4. Migrate the env-isolation tests off the dead `TEST_MODE`/`TEST_DB_NAME`/`testfinance` contract to the `APP_ENV`/`finance` model (4 failing tests: G2).** [M] — CI-blocking (part of the 17 backend failures); **new** this cycle, unrelated to the DB-mock cluster.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142127115
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142824431
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142931405
+      }
+    ],
+    "**M1. Resolve `test_duplicate_checker` `continue`-decision property failure — same assertion failed on 10-03.** [M] — one of the 17 backend failures; flagged on 10-03 H1 as \"may be a real behaviour change\", never actually fixed.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142127231
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142937014
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791143069111
+      }
+    ],
+    "**L1. Broaden the pre-push guard from `--collect-only` to also run `ruff check` + `ruff format --check` + a changed-path test subset.** [M] — carried forward from 10-03 L1; **it would have caught this entire cycle's lint failure and most of the test failures before push**.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142127337
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791143074826
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791144415996
+      }
+    ],
+    "**L2. Harden the shared cursor-mock fixture so `fetchall()`/`fetchone()` must be given explicit returns (stop the G1/G3 recurrence).** [M] — durable prevention for the twice-recurred preservation/banking cluster.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142127444
+      },
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791144421844
+      }
+    ],
+    "**L3. Run `ruff --fix` + `ruff format` on new modules before they land (and fix the `ruff-lint.md` header count).** [S] — prevention; the `environment/` module landed un-linted/un-formatted and is nearly the whole lint load.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142127575
+      }
+    ],
+    "**L4. Confirm ruff stays pinned to 0.16.5 (reproducibility guard).** [S] — standing guard carried forward from 10-03 L3; no change expected.": [
+      {
+        "executionId": "167f3301-0713-4311-b845-e238170ef7c1",
+        "chatSessionId": "sess_dfcad6e0-9946-4f1d-9842-fcc1e381d404",
+        "timestamp": 1791142127697
+      }
+    ]
+  }
+}

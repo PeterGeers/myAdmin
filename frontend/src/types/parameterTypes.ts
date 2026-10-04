@@ -40,3 +40,11 @@ export interface ParametersResponse {
   tenant: string;
   parameters: Record<string, Parameter[]>;
 }
+
+/** Response shape for parameter create/update/delete mutations. */
+export interface ParameterMutationResponse {
+  success: boolean;
+  error?: string;
+  /** Present on create: the id of the newly created parameter row. */
+  id?: number;
+}

@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { buildApiUrl } from '@/config';
+import { authenticatedGet, buildEndpoint } from '@/services/apiService';
 import type {
   MediaAsset,
   AssetSearchFilters,
@@ -130,15 +130,10 @@ export function useAssetSearch(options: UseAssetSearchOptions = {}): UseAssetSea
       params.set('page', String(searchPage));
       params.set('page_size', String(searchFilters.page_size ?? DEFAULT_PAGE_SIZE));
 
-      const url = buildApiUrl('/api/media-assets/search', params);
-
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant': localStorage.getItem('selectedTenant') || '',
-        },
-      });
+      const response = await authenticatedGet(
+        buildEndpoint('/api/media-assets/search', params),
+        { signal: controller.signal },
+      );
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));

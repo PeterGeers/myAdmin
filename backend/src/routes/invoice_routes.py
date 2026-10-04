@@ -22,6 +22,7 @@ invoice_bp = Blueprint("invoices", __name__)
 # Upload folder configuration
 UPLOAD_FOLDER = "uploads"
 
+
 @invoice_bp.route("/api/upload", methods=["POST", "OPTIONS"])
 def upload_file_wrapper() -> ResponseReturnValue:
     """Upload and process PDF file - wrapper to handle OPTIONS without auth"""

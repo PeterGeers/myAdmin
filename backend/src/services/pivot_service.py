@@ -206,8 +206,6 @@ def ensure_registry(db=None, parameter_service=None) -> None:
     if _registry_initialised:
         return
 
-    import os
-
     from database import DatabaseManager
     from services.parameter_service import ParameterService
 

@@ -120,10 +120,10 @@ describe('useAssetSearch', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        headers: {
+        headers: expect.objectContaining({
           'Authorization': 'Bearer mock-jwt-token',
           'X-Tenant': 'test-tenant',
-        },
+        }),
       })
     );
   });

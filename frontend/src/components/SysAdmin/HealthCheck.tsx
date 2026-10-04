@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, VStack, HStack, Button, Text, Badge, useToast,
-  Table, Thead, Tbody, Tr, Th, Td, Spinner, Icon,
+  Table, TableContainer, Thead, Tbody, Tr, Th, Td, Spinner, Icon,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalCloseButton, Switch, FormControl, FormLabel, Select,
   Alert, AlertIcon, AlertDescription, Code
@@ -216,55 +216,57 @@ export function HealthCheck() {
             borderColor="gray.600"
             overflow="hidden"
           >
-            <Table variant="simple">
-              <Thead bg="gray.800">
-                <Tr>
-                  <Th color="gray.400">{t('healthCheck.table.service')}</Th>
-                  <Th color="gray.400">{t('healthCheck.table.status')}</Th>
-                  <Th color="gray.400" isNumeric>{t('healthCheck.table.responseTime')}</Th>
-                  <Th color="gray.400">{t('healthCheck.table.message')}</Th>
-                  <Th color="gray.400">{t('healthCheck.table.actions')}</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {health.services.map((service) => (
-                  <Tr key={service.service} _hover={{ bg: 'gray.600' }}>
-                    <Td color="white" fontWeight="medium">
-                      {service.service.replace('_', ' ').toUpperCase()}
-                    </Td>
-                    <Td>
-                      <HStack spacing={2}>
-                        <Icon
-                          as={getStatusIcon(service.status)}
-                          color={`${getStatusColor(service.status)}.400`}
-                        />
-                        <Badge colorScheme={getStatusColor(service.status)}>
-                          {service.status}
-                        </Badge>
-                      </HStack>
-                    </Td>
-                    <Td isNumeric>
-                      <Text color={getResponseTimeColor(service.responseTime)}>
-                        {service.responseTime}ms
-                      </Text>
-                    </Td>
-                    <Td color="gray.300" fontSize="sm">
-                      {service.message || '-'}
-                    </Td>
-                    <Td>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        colorScheme="orange"
-                        onClick={() => handleViewDetails(service)}
-                      >
-                        {t('healthCheck.table.viewDetails')}
-                      </Button>
-                    </Td>
+            <TableContainer overflowX="auto">
+              <Table variant="simple">
+                <Thead bg="gray.800">
+                  <Tr>
+                    <Th color="gray.400">{t('healthCheck.table.service')}</Th>
+                    <Th color="gray.400">{t('healthCheck.table.status')}</Th>
+                    <Th color="gray.400" isNumeric>{t('healthCheck.table.responseTime')}</Th>
+                    <Th color="gray.400">{t('healthCheck.table.message')}</Th>
+                    <Th color="gray.400">{t('healthCheck.table.actions')}</Th>
                   </Tr>
-                ))}
-              </Tbody>
-            </Table>
+                </Thead>
+                <Tbody>
+                  {health.services.map((service) => (
+                    <Tr key={service.service} _hover={{ bg: 'gray.600' }}>
+                      <Td color="white" fontWeight="medium">
+                        {service.service.replace('_', ' ').toUpperCase()}
+                      </Td>
+                      <Td>
+                        <HStack spacing={2}>
+                          <Icon
+                            as={getStatusIcon(service.status)}
+                            color={`${getStatusColor(service.status)}.400`}
+                          />
+                          <Badge colorScheme={getStatusColor(service.status)}>
+                            {service.status}
+                          </Badge>
+                        </HStack>
+                      </Td>
+                      <Td isNumeric>
+                        <Text color={getResponseTimeColor(service.responseTime)}>
+                          {service.responseTime}ms
+                        </Text>
+                      </Td>
+                      <Td color="gray.300" fontSize="sm">
+                        {service.message || '-'}
+                      </Td>
+                      <Td>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          colorScheme="orange"
+                          onClick={() => handleViewDetails(service)}
+                        >
+                          {t('healthCheck.table.viewDetails')}
+                        </Button>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </TableContainer>
           </Box>
         ) : (
           <Alert status="error" bg="red.900" borderRadius="md">

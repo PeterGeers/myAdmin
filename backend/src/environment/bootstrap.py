@@ -39,7 +39,6 @@ Security (Req 6.6 / design): the parse and guard log only non-secret labels/iden
 import logging
 import os
 from collections.abc import Mapping
-from typing import Optional
 
 from .app_env import AppEnv, parse_app_env
 from .consistency_guard import consistency_guard_startup_hook
@@ -58,7 +57,7 @@ APP_ENV_CONFIG_KEY = "APP_ENV"
 def bootstrap_environment(
     app,
     *,
-    environ: Optional[Mapping[str, str]] = None,
+    environ: Mapping[str, str] | None = None,
     run_guard: bool = True,
 ) -> ResolvedConfig:
     """Read ``APP_ENV``, resolve per-plane config, and run the fail-fast guard.

@@ -10,6 +10,7 @@ import {
   Input, Select, VStack, useToast,
 } from '@chakra-ui/react';
 import { Formik, Form, Field } from 'formik';
+import type { FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { Product } from '../../types/zzp';
@@ -56,19 +57,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     vat_code: Yup.string().required('VAT code is required'),
   });
 
-  const handleSubmit = async (values: typeof initialValues, { setSubmitting }: any) => {
+  const handleSubmit = async (
+    values: typeof initialValues,
+    { setSubmitting }: FormikHelpers<typeof initialValues>,
+  ) => {
     try {
+      const data: Partial<Product> = values;
       const resp = isEdit
-        ? await updateProduct(product!.id, values as any)
-        : await createProduct(values as any);
+        ? await updateProduct(product!.id, data)
+        : await createProduct(data);
       if (resp.success) {
         toast({ title: isEdit ? 'Product updated' : 'Product created', status: 'success' });
         onSaved();
       } else {
         toast({ title: resp.error, status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error', status: 'error' });
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : 'Error', status: 'error' });
     } finally {
       setSubmitting(false);
     }

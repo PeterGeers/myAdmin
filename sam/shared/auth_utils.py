@@ -45,20 +45,28 @@ module simply never introduces header trust).
 Dependencies (Lambda-appropriate, same as the Flask plane): ``PyJWT``,
 ``cryptography``, ``requests``. Only public, non-secret Cognito identifiers are used;
 nothing here is a credential.
+
+Internal layout (code-quality split M2 — a pure structural refactor, no behaviour
+change). This module is the **stable facade**: its full public import surface is
+preserved and re-exported here, so every ``from sam.shared.auth_utils import ...`` is
+unchanged. The verification machinery lives in cohesive sub-modules:
+
+- :mod:`sam.shared._auth_errors` — the exception types.
+- :mod:`sam.shared._pool_registry` — the issuer->pool registry (:class:`PoolConfig`,
+  :class:`PoolRegistry`, :func:`load_pool_registry`).
+- :mod:`sam.shared._jwks` — the JWKS fetch + cache (:class:`JWKSCache`, ``JwksFetcher``).
+- :mod:`sam.shared._verifier` — the RS256 :class:`JWTVerifier` + the global verifier.
+
+The handler-facing claims API (``get_verified_claims`` / ``get_groups`` /
+``get_verified_identity``) and the S4 entitlement reader (``has_capability`` and
+friends) stay **defined here** — they are the module's primary surface and a guard test
+pins ``has_capability.__module__ == "sam.shared.auth_utils"``.
 """
 
 import logging
-import os
-import threading
-import time
-from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
-
-import jwt
-import requests
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
-from jwt import algorithms
 
 # Vendored, dependency-free decoder for the S4 entitlement claim (T14). It mirrors the
 # decode half of backend/src/auth/entitlement_claim_codec.py WITHOUT importing
@@ -70,6 +78,30 @@ from sam.shared.entitlement_claim import (
 from sam.shared.entitlement_claim import (
     DecodedEntitlements,
     decode_entitlements,
+)
+
+# ── Extracted verification machinery (re-exported — stable import surface) ─────────────
+from sam.shared._auth_errors import (
+    InvalidTokenError,
+    JWKSFetchError,
+    PoolRegistryError,
+    ServiceUnavailableError,
+    UnknownIssuerError,
+    UnknownKidError,
+)
+from sam.shared._pool_registry import (
+    PoolConfig,
+    PoolRegistry,
+    load_pool_registry,
+)
+from sam.shared._jwks import (
+    JWKSCache,
+    JwksFetcher,
+)
+from sam.shared._verifier import (
+    JWTVerifier,
+    get_global_verifier,
+    reset_global_verifier,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,559 +135,6 @@ __all__ = [
     "get_entitlements_from_claims",
     "has_capability",
 ]
-
-
-# --------------------------------------------------------------------------- #
-# Errors
-# --------------------------------------------------------------------------- #
-
-
-class InvalidTokenError(Exception):
-    """Raised when signature/issuer/audience/expiry verification fails (HTTP 401).
-
-    Every rejection maps to a 401 with a generic message; the failure *reason* is
-    logged server-side only (never the token contents), per design.md
-    "Failure behavior (R1.3)".
-    """
-
-    def __init__(self, message: str = "Invalid token"):
-        self.message = message
-        self.http_status = 401
-        super().__init__(self.message)
-
-
-class ServiceUnavailableError(Exception):
-    """Raised when a pool's JWKS cannot be obtained at all (HTTP 503).
-
-    This *rejects* the request — it is never a way to skip verification (R1.3).
-    """
-
-    def __init__(self, message: str = "Authentication service unavailable"):
-        self.message = message
-        self.http_status = 503
-        super().__init__(self.message)
-
-
-class PoolRegistryError(RuntimeError):
-    """Raised when the issuer->pool registry is misconfigured (hard config error).
-
-    Fail loudly rather than fall back to an empty/partial registry
-    (no-dangerous-fallbacks).
-    """
-
-
-class UnknownIssuerError(PoolRegistryError):
-    """Raised when a token's ``iss`` has no registered pool (mapped to 401)."""
-
-    def __init__(self, iss: str):
-        self.iss = iss
-        super().__init__(
-            f"No pool is registered for issuer '{iss}'. The token's issuer is not in "
-            f"the configured issuer->pool registry; reject it."
-        )
-
-
-class JWKSFetchError(RuntimeError):
-    """Raised when JWKS cannot be fetched/parsed from a pool's ``jwks_uri`` (503)."""
-
-    def __init__(self, jwks_uri: str, reason: str):
-        self.jwks_uri = jwks_uri
-        self.reason = reason
-        super().__init__(f"Failed to fetch JWKS from '{jwks_uri}': {reason}")
-
-
-class UnknownKidError(RuntimeError):
-    """Raised when a ``kid`` is absent even after one rotation refetch (mapped 401)."""
-
-    def __init__(self, iss: str, kid: str):
-        self.iss = iss
-        self.kid = kid
-        super().__init__(
-            f"Signing key id '{kid}' is not published by issuer '{iss}' even after a "
-            f"single refetch; reject the token."
-        )
-
-
-# --------------------------------------------------------------------------- #
-# Issuer -> pool registry (config-not-code, fail-fast — mirrors Flask plane T3)
-# --------------------------------------------------------------------------- #
-
-# The env var that declares which pools exist: a comma-separated list of pool keys.
-# Each key K prefixes that pool's four required vars ({K}_COGNITO_ISSUER, etc.).
-_POOL_KEYS_ENV_VAR = "COGNITO_POOL_KEYS"
-
-_POOL_VAR_SUFFIXES = (
-    "COGNITO_ISSUER",
-    "COGNITO_JWKS_URI",
-    "COGNITO_CLIENT_ID",
-    "COGNITO_POOL_LABEL",
-)
-
-
-@dataclass(frozen=True)
-class PoolConfig:
-    """A single issuer->pool registry entry.
-
-    Attributes:
-        iss: The token issuer (the ``iss`` claim value) — the registry key.
-        jwks_uri: JWKS endpoint used to fetch signing keys for this pool.
-        audience: App-client id, matched against ``aud`` / ``client_id``.
-        pool_label: Human-readable label for logs/diagnostics.
-    """
-
-    iss: str
-    jwks_uri: str
-    audience: str
-    pool_label: str
-
-
-def _require_pool_env(pool_key: str, suffix: str, environ: Mapping[str, str]) -> str:
-    """Return a required per-pool env var, or raise if missing/blank (no defaults)."""
-    name = f"{pool_key}_{suffix}"
-    value = environ.get(name)
-    if value is None or value.strip() == "":
-        expected = ", ".join(f"{pool_key}_{s}" for s in _POOL_VAR_SUFFIXES)
-        raise PoolRegistryError(
-            f"Required env var '{name}' for pool '{pool_key}' is missing or blank. "
-            f"Every pool declared in {_POOL_KEYS_ENV_VAR} must set all of: {expected}. "
-            f"There is no default fallback (no-dangerous-fallbacks)."
-        )
-    return value.strip()
-
-
-def _load_pool_entry(pool_key: str, environ: Mapping[str, str]) -> PoolConfig:
-    """Build one :class:`PoolConfig` from a declared pool key's env vars."""
-    return PoolConfig(
-        iss=_require_pool_env(pool_key, "COGNITO_ISSUER", environ),
-        jwks_uri=_require_pool_env(pool_key, "COGNITO_JWKS_URI", environ),
-        audience=_require_pool_env(pool_key, "COGNITO_CLIENT_ID", environ),
-        pool_label=_require_pool_env(pool_key, "COGNITO_POOL_LABEL", environ),
-    )
-
-
-def _parse_pool_keys(raw: str | None) -> list[str]:
-    """Split COGNITO_POOL_KEYS into a clean, ordered, de-duplicated list (fail-fast)."""
-    if raw is None or raw.strip() == "":
-        raise PoolRegistryError(
-            f"'{_POOL_KEYS_ENV_VAR}' is missing or blank. Declare at least one pool "
-            f"key; an empty registry is a misconfiguration, not a valid state "
-            f"(no-dangerous-fallbacks)."
-        )
-    keys: list[str] = []
-    for token in raw.split(","):
-        key = token.strip()
-        if key and key not in keys:
-            keys.append(key)
-    if not keys:
-        raise PoolRegistryError(
-            f"'{_POOL_KEYS_ENV_VAR}' contained no usable pool key (value: {raw!r})."
-        )
-    return keys
-
-
-class PoolRegistry:
-    """An immutable issuer->pool map with explicit unknown-issuer handling.
-
-    :meth:`get` returns ``None`` for an unknown issuer; :meth:`require` raises
-    :class:`UnknownIssuerError`. The verifier turns either into a 401. The registry
-    never guesses a pool for an unrecognized ``iss``.
-    """
-
-    def __init__(self, entries: Iterable[PoolConfig]):
-        by_iss: dict[str, PoolConfig] = {}
-        for entry in entries:
-            if entry.iss in by_iss:
-                raise PoolRegistryError(
-                    f"Two pools declare the same issuer '{entry.iss}' "
-                    f"({by_iss[entry.iss].pool_label} and {entry.pool_label}); "
-                    f"issuers must be unique in the registry."
-                )
-            by_iss[entry.iss] = entry
-        self._by_iss = by_iss
-
-    def get(self, iss: str) -> PoolConfig | None:
-        """Return the pool for ``iss``, or ``None`` if the issuer is unknown."""
-        return self._by_iss.get(iss)
-
-    def require(self, iss: str) -> PoolConfig:
-        """Return the pool for ``iss`` or raise :class:`UnknownIssuerError`."""
-        pool = self._by_iss.get(iss)
-        if pool is None:
-            raise UnknownIssuerError(iss)
-        return pool
-
-    def issuers(self) -> list[str]:
-        """Return the registered issuers (diagnostics only, not decisions)."""
-        return list(self._by_iss.keys())
-
-    def __len__(self) -> int:
-        return len(self._by_iss)
-
-    def __contains__(self, iss: object) -> bool:
-        return iss in self._by_iss
-
-
-def load_pool_registry(environ: Mapping[str, str] | None = None) -> PoolRegistry:
-    """Load the issuer->pool registry from the environment (fail-fast, no defaults).
-
-    Reads ``COGNITO_POOL_KEYS`` for the declared pool keys, then loads each pool's
-    four required vars into a :class:`PoolConfig`. Any missing/blank var — or a blank
-    ``COGNITO_POOL_KEYS`` — raises :class:`PoolRegistryError`. The loader never
-    returns a partial, empty, or defaulted registry.
-    """
-    env = os.environ if environ is None else environ
-    pool_keys = _parse_pool_keys(env.get(_POOL_KEYS_ENV_VAR))
-    entries = [_load_pool_entry(key, env) for key in pool_keys]
-    return PoolRegistry(entries)
-
-
-# --------------------------------------------------------------------------- #
-# JWKS fetch + cache (Lambda global/execution-env scope — mirrors Flask plane T4)
-# --------------------------------------------------------------------------- #
-
-# Cognito rotates signing keys infrequently; an hour of caching keeps the hot path
-# off the network while a `kid` miss still forces an immediate refetch regardless.
-_DEFAULT_TTL_SECONDS = 3600
-_DEFAULT_FETCH_TIMEOUT_SECONDS = 5
-
-# A JWKS fetcher takes a jwks_uri and returns the parsed document ({"keys": [...]})
-# or raises JWKSFetchError. Injectable so unit tests never hit the network.
-JwksFetcher = Callable[[str], Mapping]
-
-
-def _default_fetcher(jwks_uri: str) -> Mapping:
-    """Fetch and parse a JWKS document over HTTPS (the production fetcher)."""
-    try:
-        response = requests.get(jwks_uri, timeout=_DEFAULT_FETCH_TIMEOUT_SECONDS)
-        response.raise_for_status()
-        return response.json()
-    except (requests.RequestException, ValueError) as exc:
-        logger.warning("JWKS fetch failed for %s: %s", jwks_uri, exc)
-        raise JWKSFetchError(jwks_uri, str(exc)) from exc
-
-
-@dataclass
-class _IssuerEntry:
-    """One issuer's cached key-set: ``kid -> JWK dict`` plus the fetch timestamp."""
-
-    keys: dict[str, dict] = field(default_factory=dict)
-    fetched_at: float = 0.0
-
-    def is_expired(self, ttl_seconds: int, now: float) -> bool:
-        """True if never populated or older than the TTL."""
-        if self.fetched_at == 0.0:
-            return True
-        return (now - self.fetched_at) > ttl_seconds
-
-
-def _index_keys_by_kid(document: Mapping) -> dict[str, dict]:
-    """Build a ``kid -> JWK`` map from a JWKS document, skipping keyless entries."""
-    keys = document.get("keys") if isinstance(document, Mapping) else None
-    if not isinstance(keys, list):
-        raise JWKSFetchError(
-            "<jwks-document>", "response did not contain a 'keys' array"
-        )
-    indexed: dict[str, dict] = {}
-    for key in keys:
-        if isinstance(key, Mapping):
-            kid = key.get("kid")
-            if kid:
-                indexed[kid] = dict(key)
-    return indexed
-
-
-class JWKSCache:
-    """Per-``iss`` JWKS cache with TTL and single-refetch rotation handling.
-
-    Held in module/global scope on the module plane so **warm Lambda invocations
-    reuse it** and never fetch JWKS per request (design.md "JWKS fetch + cache").
-    Lookups return the raw JWK dict for a ``kid``; converting it to a public key is
-    the verifier's concern, keeping this layer transport-only and easy to unit test.
-
-    A lock serializes refetches so concurrent invocations don't stampede the JWKS
-    endpoint.
-
-    Args:
-        registry: The issuer->pool registry. Resolves ``iss`` -> :class:`PoolConfig`.
-        fetcher: Callable that fetches a JWKS document from a ``jwks_uri``. Defaults
-            to an HTTPS fetch; unit tests inject a fake to avoid real network.
-        ttl_seconds: Cache lifetime per issuer before a lookup forces a refetch.
-    """
-
-    def __init__(
-        self,
-        registry: PoolRegistry,
-        fetcher: JwksFetcher | None = None,
-        ttl_seconds: int = _DEFAULT_TTL_SECONDS,
-    ):
-        self._registry = registry
-        self._fetcher = fetcher or _default_fetcher
-        self._ttl_seconds = ttl_seconds
-        self._entries: dict[str, _IssuerEntry] = {}
-        self._lock = threading.Lock()
-
-    def get_signing_key(self, iss: str, kid: str) -> dict:
-        """Return the JWK dict for ``(iss, kid)``, fetching/refreshing as needed.
-
-        Resolution: resolve the pool (unknown issuer -> :class:`UnknownIssuerError`);
-        ensure a fresh key-set (fetch if missing/stale); on a ``kid`` hit return it;
-        on a miss refetch **exactly once** (rotation) then return if now present, else
-        raise :class:`UnknownKidError`.
-        """
-        # Resolve the pool first — an unrecognized issuer is rejected with no network
-        # call (never fetch a guessed endpoint).
-        pool = self._registry.require(iss)
-
-        with self._lock:
-            entry = self._entries.get(iss)
-
-            # Populate or refresh a stale entry before the first lookup.
-            if entry is None or entry.is_expired(self._ttl_seconds, time.time()):
-                entry = self._refetch(pool)
-
-            # Warm hit — no network.
-            jwk = entry.keys.get(kid)
-            if jwk is not None:
-                return jwk
-
-            # Rotation: unknown kid within a fresh key-set -> exactly one refetch.
-            logger.info(
-                "kid '%s' not in cached JWKS for issuer '%s'; refetching once "
-                "(possible key rotation)",
-                kid,
-                iss,
-            )
-            entry = self._refetch(pool)
-            jwk = entry.keys.get(kid)
-            if jwk is not None:
-                return jwk
-
-            logger.warning(
-                "kid '%s' still absent for issuer '%s' after refetch; rejecting",
-                kid,
-                iss,
-            )
-            raise UnknownKidError(iss, kid)
-
-    def _refetch(self, pool: PoolConfig) -> _IssuerEntry:
-        """Fetch the pool's JWKS and replace the cached entry for its issuer."""
-        document = self._fetcher(pool.jwks_uri)
-        entry = _IssuerEntry(keys=_index_keys_by_kid(document), fetched_at=time.time())
-        self._entries[pool.iss] = entry
-        return entry
-
-
-# --------------------------------------------------------------------------- #
-# JWT verifier (RS256 + iss + aud/client_id + exp — mirrors Flask plane T5)
-# --------------------------------------------------------------------------- #
-
-
-class JWTVerifier:
-    """Multi-pool RS256 JWT verification via the issuer->pool registry.
-
-    Resolves the issuing pool from the token's ``iss`` claim, then verifies the RS256
-    signature and standard claims against **that** pool's JWKS (obtained through the
-    :class:`JWKSCache`). Adding a pool is configuration (a registry entry), never a
-    code change.
-
-    Args:
-        registry: The issuer->pool registry.
-        jwks_cache: Optional shared :class:`JWKSCache`. If omitted, the verifier
-            builds its own instance bound to ``registry``.
-        cache_ttl: JWKS cache TTL in seconds (used only if a cache is created here).
-    """
-
-    CLOCK_SKEW_SECONDS = 30
-    ALGORITHM = "RS256"
-
-    def __init__(
-        self,
-        registry: PoolRegistry,
-        jwks_cache: JWKSCache | None = None,
-        cache_ttl: int = _DEFAULT_TTL_SECONDS,
-    ):
-        self._registry = registry
-        self._cache = jwks_cache or JWKSCache(registry=registry, ttl_seconds=cache_ttl)
-
-    def verify_token(self, token: str) -> dict:
-        """Verify a JWT's signature and claims against its issuing pool.
-
-        Resolves the pool from the token's (unverified) ``iss``, fetches that pool's
-        JWKS through the cache, and verifies RS256 signature + ``iss`` +
-        audience/``client_id`` + ``exp`` (30s leeway). Any failure -> 401, with no
-        fallback that would accept an unverified token (R1.3).
-
-        Args:
-            token: Raw JWT string (without the ``Bearer `` prefix).
-
-        Returns:
-            The decoded, verified JWT payload as a dict.
-
-        Raises:
-            InvalidTokenError: Malformed token, wrong algorithm, unknown issuer,
-                unknown signing key, bad signature, wrong issuer/audience, or expiry
-                (HTTP 401).
-            ServiceUnavailableError: The pool's JWKS could not be obtained at all
-                (HTTP 503) — the request is rejected, never trusted.
-        """
-        # (1) Decode the header for kid + alg (no signature trust yet).
-        try:
-            unverified_header = jwt.get_unverified_header(token)
-        except jwt.exceptions.DecodeError:
-            raise InvalidTokenError("Invalid token format")
-
-        kid = unverified_header.get("kid")
-        if not kid:
-            raise InvalidTokenError("Token missing key ID (kid)")
-
-        algorithm = unverified_header.get("alg")
-        if algorithm != self.ALGORITHM:
-            raise InvalidTokenError(
-                f"Unsupported algorithm: {algorithm}. Only {self.ALGORITHM} is accepted"
-            )
-
-        # (2) Read the UNVERIFIED iss ONLY to select the pool. No claim is trusted
-        # here — signature verification below is what establishes trust.
-        try:
-            unverified_claims = jwt.decode(token, options={"verify_signature": False})
-        except jwt.exceptions.DecodeError:
-            raise InvalidTokenError("Invalid token format")
-
-        iss = unverified_claims.get("iss")
-        if not iss:
-            raise InvalidTokenError("Token missing issuer (iss)")
-
-        try:
-            pool = self._registry.require(iss)
-        except UnknownIssuerError:
-            logger.warning("Rejecting token from unregistered issuer '%s'", iss)
-            raise InvalidTokenError("Invalid token issuer")
-
-        # (3) Resolve the signing key for (iss, kid) via the fail-fast cache.
-        signing_key = self._get_signing_key(iss, kid)
-
-        # (4) Verify signature + iss + exp against the resolved pool's key.
-        try:
-            payload = jwt.decode(
-                token,
-                signing_key,
-                algorithms=[self.ALGORITHM],
-                issuer=pool.iss,
-                options={
-                    "verify_exp": True,
-                    "verify_iss": True,
-                    "verify_aud": False,  # aud/client_id handled explicitly below
-                    "require": ["exp", "iss"],
-                },
-                leeway=self.CLOCK_SKEW_SECONDS,
-            )
-        except jwt.ExpiredSignatureError:
-            raise InvalidTokenError("Token has expired")
-        except jwt.InvalidIssuerError:
-            raise InvalidTokenError("Invalid token issuer")
-        except jwt.InvalidSignatureError:
-            raise InvalidTokenError("Invalid token signature")
-        except jwt.DecodeError:
-            raise InvalidTokenError("Invalid token signature")
-        except jwt.InvalidTokenError as e:
-            raise InvalidTokenError(f"Invalid token: {e!s}")
-
-        # (4b) Verify audience/client_id against THIS pool's configured audience.
-        self._validate_audience(payload, pool.audience)
-
-        return payload
-
-    def _validate_audience(self, payload: dict, expected_audience: str) -> None:
-        """Validate ``aud`` or ``client_id`` matches the resolved pool's audience.
-
-        Cognito access tokens carry ``client_id``; ID tokens carry ``aud``. Either
-        matching the pool's configured app-client id is accepted.
-        """
-        aud = payload.get("aud")
-        client_id = payload.get("client_id")
-
-        if aud == expected_audience:
-            return
-        if client_id == expected_audience:
-            return
-        if isinstance(aud, list) and expected_audience in aud:
-            return
-
-        raise InvalidTokenError("Invalid token audience")
-
-    def _get_signing_key(self, iss: str, kid: str) -> RSAPublicKey:
-        """Resolve the RSA public key for ``(iss, kid)`` via the fail-fast cache.
-
-        Cache failures map to this verifier's contract: unknown issuer/kid -> 401;
-        a genuine inability to fetch keys -> 503 (rejects, never skips verification).
-        """
-        try:
-            jwk_data = self._cache.get_signing_key(iss, kid)
-        except UnknownIssuerError:
-            raise InvalidTokenError("Invalid token issuer")
-        except UnknownKidError:
-            raise InvalidTokenError("Token signing key not found")
-        except JWKSFetchError:
-            logger.warning("JWKS unavailable for issuer '%s'; rejecting request", iss)
-            raise ServiceUnavailableError("Authentication service unavailable")
-
-        return algorithms.RSAAlgorithm.from_jwk(jwk_data)
-
-
-# --------------------------------------------------------------------------- #
-# Global (execution-environment) verifier — warm Lambda reuse
-# --------------------------------------------------------------------------- #
-#
-# The module plane is Lambda: hold ONE verifier (and its JWKS cache) in module/global
-# scope so warm invocations reuse cached keys and never re-read the registry or
-# refetch JWKS on the hot path.
-
-_GLOBAL_VERIFIER: JWTVerifier | None = None
-_GLOBAL_VERIFIER_LOCK = threading.Lock()
-
-
-def get_global_verifier(
-    registry: PoolRegistry | None = None,
-    fetcher: JwksFetcher | None = None,
-    ttl_seconds: int = _DEFAULT_TTL_SECONDS,
-) -> JWTVerifier:
-    """Return the execution-environment-wide :class:`JWTVerifier`, building it once.
-
-    On first call it loads the issuer->pool registry from the environment (fail-fast)
-    unless a ``registry`` is injected, and builds a verifier whose JWKS cache lives in
-    global scope. Subsequent (warm) calls reuse the same instance and **ignore** later
-    arguments (use :func:`reset_global_verifier` to rebuild, e.g. between tests).
-
-    Args:
-        registry: Optional pre-built registry (tests inject one). Defaults to
-            :func:`load_pool_registry` reading the environment.
-        fetcher: Optional JWKS fetcher (tests inject a fake; defaults to HTTPS).
-        ttl_seconds: JWKS cache TTL used only when the verifier is created now.
-
-    Returns:
-        The shared :class:`JWTVerifier` instance.
-    """
-    global _GLOBAL_VERIFIER
-    if _GLOBAL_VERIFIER is None:
-        with _GLOBAL_VERIFIER_LOCK:
-            if _GLOBAL_VERIFIER is None:
-                resolved_registry = registry or load_pool_registry()
-                cache = JWKSCache(
-                    registry=resolved_registry,
-                    fetcher=fetcher,
-                    ttl_seconds=ttl_seconds,
-                )
-                _GLOBAL_VERIFIER = JWTVerifier(
-                    registry=resolved_registry, jwks_cache=cache
-                )
-    return _GLOBAL_VERIFIER
-
-
-def reset_global_verifier() -> None:
-    """Drop the global verifier (test isolation / forced rebuild)."""
-    global _GLOBAL_VERIFIER
-    with _GLOBAL_VERIFIER_LOCK:
-        _GLOBAL_VERIFIER = None
 
 
 # --------------------------------------------------------------------------- #

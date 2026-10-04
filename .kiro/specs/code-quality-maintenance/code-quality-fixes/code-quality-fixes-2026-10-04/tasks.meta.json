@@ -1,0 +1,294 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**H1. Route all frontend `fetch()` calls through `services/apiService`.** [L]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066480470
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066491029
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791067279493
+      }
+    ],
+    "**H2. Consolidate `_caller_token` / `_resolve_pool_id` into one shared helper.** [M]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066480750
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791067289722
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791067807484
+      }
+    ],
+    "**H3. Add tests for the highest-risk untested backend modules.** [L]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066480943
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791067812783
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791068149893
+      }
+    ],
+    "**H4. Add tests for the untested frontend banking hooks + API services.** [L]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066481134
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791068154638
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791068887250
+      }
+    ],
+    "**M1. Split `sam/members/domain/membership_service.py` (2267 lines).** [L]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066481341
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791068891839
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791093884674
+      }
+    ],
+    "**M2. Split the other 3 files > 1000 lines.** [L]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066481539
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791093890975
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791095501800
+      }
+    ],
+    "**M3. Verify + remove SAM dead code.** [S]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066481710
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791095508607
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791095631818
+      }
+    ],
+    "**M4. De-duplicate frontend utilities.** [S]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066481890
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791095636863
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791096202253
+      }
+    ],
+    "**M5. Consolidate the backend `_get_service` accessor pattern.** [M]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066482074
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791096207433
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791098158901
+      }
+    ],
+    "**M6. Add responsive wrappers to the 2 Medium-severity mobile tables.** [S]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066482257
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791098165745
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791098349456
+      }
+    ],
+    "**M7. Tighten service-layer + recurring `any` in frontend prod code.** [M]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066482503
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791098354655
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791099047955
+      }
+    ],
+    "**L1. Add responsive wrappers to the 3 Low-severity (sysadmin) mobile tables.** [S]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066482688
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791099053233
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791099261796
+      }
+    ],
+    "**L2. Refactor 500–1000 line files opportunistically.** [L]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066482871
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791099267586
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791127587535
+      }
+    ],
+    "**L3. Reduce the backend/SAM missing-return-hint count where cheap.** [M]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066483059
+      },
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791127593560
+      },
+      {
+        "executionId": "e898ed08-595f-408d-af24-318099f6934c",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791128222143
+      }
+    ],
+    "**L4. Replace bespoke filter re-impls with the shared `GenericFilter` framework.** [M]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066483242
+      },
+      {
+        "executionId": "e898ed08-595f-408d-af24-318099f6934c",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791128227307
+      },
+      {
+        "executionId": "e898ed08-595f-408d-af24-318099f6934c",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791128397095
+      }
+    ],
+    "**L5. Archive stale point-in-time status docs.** [S]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066483471
+      },
+      {
+        "executionId": "e898ed08-595f-408d-af24-318099f6934c",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791128401611
+      },
+      {
+        "executionId": "e898ed08-595f-408d-af24-318099f6934c",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791128538566
+      }
+    ],
+    "**L6. Add a lint/review gate for the two recurring categories.** [S]": [
+      {
+        "executionId": "23a376ed-76a5-42c2-88d8-e26b4114e933",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791066483654
+      },
+      {
+        "executionId": "e898ed08-595f-408d-af24-318099f6934c",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791128543456
+      },
+      {
+        "executionId": "e898ed08-595f-408d-af24-318099f6934c",
+        "chatSessionId": "sess_9e75fecf-a82e-4726-bdad-d759359b29ca",
+        "timestamp": 1791129613882
+      }
+    ]
+  }
+}

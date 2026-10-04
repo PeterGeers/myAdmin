@@ -24,10 +24,11 @@ interface ApiListResponse {
   data: Vehicle[];
 }
 
-/** Response with a single vehicle item. */
+/** Response with a single vehicle item (or an error message on failure). */
 interface ApiItemResponse {
   success: boolean;
   data: Vehicle;
+  error?: string;
 }
 
 const BASE = '/api/zzp/vehicles';

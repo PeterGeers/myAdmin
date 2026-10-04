@@ -7,6 +7,7 @@ import {
   Badge,
   Code,
   Table,
+  TableContainer,
   Thead,
   Tbody,
   Tr,
@@ -153,35 +154,37 @@ function ModelFailuresDisplay({ failures }: { failures: ModelFailure[] }) {
       <Text fontSize="xs" color="red.300" fontWeight="medium" mb={1}>
         Model Failures ({failures.length})
       </Text>
-      <Table size="sm" variant="simple">
-        <Thead>
-          <Tr>
-            <Th color="gray.400" borderColor="gray.700" fontSize="xs" py={1}>Model</Th>
-            <Th color="gray.400" borderColor="gray.700" fontSize="xs" py={1}>Reason</Th>
-            <Th color="gray.400" borderColor="gray.700" fontSize="xs" py={1}>Details</Th>
-          </Tr>
-        </Thead>
-        <Tbody>
-          {failures.map((failure, idx) => (
-            <Tr key={idx}>
-              <Td color="white" borderColor="gray.700" fontSize="xs" py={1}>
-                {failure.model}
-              </Td>
-              <Td borderColor="gray.700" fontSize="xs" py={1}>
-                <Badge
-                  colorScheme={failure.failure_reason === 'timeout' ? 'yellow' : 'red'}
-                  fontSize="xs"
-                >
-                  {failure.failure_reason}
-                </Badge>
-              </Td>
-              <Td color="gray.300" borderColor="gray.700" fontSize="xs" py={1}>
-                {failure.details}
-              </Td>
+      <TableContainer overflowX="auto">
+        <Table size="sm" variant="simple">
+          <Thead>
+            <Tr>
+              <Th color="gray.400" borderColor="gray.700" fontSize="xs" py={1}>Model</Th>
+              <Th color="gray.400" borderColor="gray.700" fontSize="xs" py={1}>Reason</Th>
+              <Th color="gray.400" borderColor="gray.700" fontSize="xs" py={1}>Details</Th>
             </Tr>
-          ))}
-        </Tbody>
-      </Table>
+          </Thead>
+          <Tbody>
+            {failures.map((failure, idx) => (
+              <Tr key={idx}>
+                <Td color="white" borderColor="gray.700" fontSize="xs" py={1}>
+                  {failure.model}
+                </Td>
+                <Td borderColor="gray.700" fontSize="xs" py={1}>
+                  <Badge
+                    colorScheme={failure.failure_reason === 'timeout' ? 'yellow' : 'red'}
+                    fontSize="xs"
+                  >
+                    {failure.failure_reason}
+                  </Badge>
+                </Td>
+                <Td color="gray.300" borderColor="gray.700" fontSize="xs" py={1}>
+                  {failure.details}
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 }

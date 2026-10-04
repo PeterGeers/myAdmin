@@ -6,7 +6,6 @@ Also includes module management endpoints nested under tenants
 """
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue

@@ -76,7 +76,11 @@ jobs:
             echo '```' >> reports/lint/ruff-lint.md
             echo "" >> reports/lint/ruff-lint.md
             echo "### Total Errors" >> reports/lint/ruff-lint.md
-            TOTAL=$(wc -l < reports/lint/ruff-errors.txt)
+            # Count only real diagnostic lines (path:line:col:) — ruff's concise
+            # output appends a "Found N errors." summary + a "[*] N fixable" hint
+            # line that wc -l wrongly included (the 41-vs-39 off-by-two). This now
+            # matches the per-rule table above, which already filters to diagnostics.
+            TOTAL=$(grep -cP '^\S+:\d+:\d+:' reports/lint/ruff-errors.txt)
             echo "Found $TOTAL errors" >> reports/lint/ruff-lint.md
             echo "" >> reports/lint/ruff-lint.md
             echo "### All Errors" >> reports/lint/ruff-lint.md
@@ -254,7 +258,9 @@ jobs:
           pip install boto3==1.42.30
           # ruff pin MUST match backend/requirements-test.txt (canonical). Used for the
           # REPORT-ONLY SAM lint below — SAM shares the backend ruff policy (backend/ruff.toml).
-          pip install pytest pytest-html hypothesis ruff==0.16.5
+          # pyyaml is TEST-ONLY (the *_env_stack_contract.py tests parse template.yaml);
+          # it is NOT a Lambda runtime dep, so it lives here and NOT in shared/requirements.txt.
+          pip install pytest pytest-html hypothesis pyyaml==6.0.2 ruff==0.16.5
 
       - name: Run all SAM tests
         working-directory: sam
@@ -262,6 +268,7 @@ jobs:
           set -o pipefail
           mkdir -p reports
           python -m pytest \
+            --continue-on-collection-errors \
             --tb=short -q \
             --junitxml=reports/junit-results.xml \
             --html=reports/test-report.html --self-contained-html \

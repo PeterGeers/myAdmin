@@ -191,12 +191,14 @@ class TestTransactionLogicGammaFallback:
         # First query (vendor search): 0 results
         mock_cursor.fetchall.return_value = []
 
+        # get_last_transactions reads via `with self.db.get_cursor_only() as cursor:`
+        # (read path yields the cursor only, not a (cursor, conn) tuple).
         @contextmanager
-        def mock_get_cursor(**kwargs):
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only(**kwargs):
+            yield mock_cursor
 
         tl.db = MagicMock()
-        tl.db.get_cursor = mock_get_cursor
+        tl.db.get_cursor_only = mock_get_cursor_only
 
         result = tl.get_last_transactions(vendor, administration=admin)
 
@@ -268,12 +270,14 @@ class TestTransactionLogicSingleResultVAT:
             'description': 'BTW hoog'
         }
 
+        # get_last_transactions reads via `with self.db.get_cursor_only() as cursor:`
+        # (read path yields the cursor only, not a (cursor, conn) tuple).
         @contextmanager
-        def mock_get_cursor(**kwargs):
-            yield mock_cursor, mock_conn
+        def mock_get_cursor_only(**kwargs):
+            yield mock_cursor
 
         tl.db = MagicMock()
-        tl.db.get_cursor = mock_get_cursor
+        tl.db.get_cursor_only = mock_get_cursor_only
 
         with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             result = tl.get_last_transactions(vendor, administration=admin)

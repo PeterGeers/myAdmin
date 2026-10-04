@@ -17,7 +17,6 @@ Endpoints:
 
 import json
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue

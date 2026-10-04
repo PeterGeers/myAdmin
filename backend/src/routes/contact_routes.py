@@ -13,7 +13,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
-from database import DatabaseManager
+from routes.service_accessors import make_db_service_accessor
 from services.contact_service import ContactService
 from services.module_registry import module_required
 from services.parameter_service import ParameterService
@@ -24,10 +24,9 @@ contact_bp = Blueprint("contacts", __name__)
 
 # ── Service initialisation ──────────────────────────────────
 
-def _get_service() -> ContactService:
-    db = DatabaseManager()
-    param_svc = ParameterService(db)
-    return ContactService(db=db, parameter_service=param_svc)
+_get_service = make_db_service_accessor(
+    lambda db: ContactService(db=db, parameter_service=ParameterService(db))
+)
 
 
 # ── Endpoints ───────────────────────────────────────────────

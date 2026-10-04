@@ -38,7 +38,7 @@ import {
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { buildApiUrl } from '@/config';
+import { authenticatedGet, buildEndpoint } from '@/services/apiService';
 import type {
   MediaAsset,
   AssetCategory,
@@ -165,14 +165,7 @@ export const AssetPicker: React.FC<AssetPickerProps> = ({
       params.set('page', String(filters.page ?? 1));
       params.set('page_size', String(filters.page_size ?? PAGE_SIZE));
 
-      const url = buildApiUrl('/api/media-assets/search', params);
-
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant': localStorage.getItem('selectedTenant') || '',
-        },
-      });
+      const response = await authenticatedGet(buildEndpoint('/api/media-assets/search', params));
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
@@ -239,8 +232,8 @@ export const AssetPicker: React.FC<AssetPickerProps> = ({
 
   const mediaTypeOptions = allowedMediaTypes
     ? ALL_MEDIA_TYPES.filter(
-        (opt) => opt.value === '' || allowedMediaTypes.includes(opt.value as AssetMediaType)
-      )
+      (opt) => opt.value === '' || allowedMediaTypes.includes(opt.value as AssetMediaType)
+    )
     : ALL_MEDIA_TYPES;
 
   // ── Handle asset selection ────────────────────────────────────────────────

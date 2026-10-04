@@ -113,9 +113,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         user_ref = resolved_mysql.user_ref if resolved_mysql else None
         password_ref = resolved_mysql.password_ref if resolved_mysql else None
 
-        host = _ref(
-            host_ref, "DB_HOST", "RAILWAY_PRIVATE_DOMAIN", default="localhost"
-        )
+        host = _ref(host_ref, "DB_HOST", "RAILWAY_PRIVATE_DOMAIN", default="localhost")
         user = _ref(user_ref, "DB_USER", "MYSQL_USER", default="root")
         password = _ref(password_ref, "DB_PASSWORD", "MYSQL_PASSWORD", default="")
         port = _ref(port_ref, "DB_PORT", default="3306")

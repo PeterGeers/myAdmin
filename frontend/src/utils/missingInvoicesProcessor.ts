@@ -1,5 +1,9 @@
 import { generateReceipt, canvasToBlob, generateReceiptFilename } from './receiptGenerator';
-import { buildApiUrl } from '../config';
+import {
+  authenticatedPost,
+  authenticatedFormData,
+  buildEndpoint,
+} from '../services/apiService';
 
 interface MissingInvoiceRecord {
   ID: string;
@@ -84,11 +88,7 @@ export const processMissingInvoices = async (
 };
 
 const fetchTransactionData = async (ids: string[]): Promise<TransactionData[]> => {
-  const response = await fetch(buildApiUrl('/api/transactions'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids })
-  });
+  const response = await authenticatedPost('/api/transactions', { ids });
   return response.json();
 };
 
@@ -97,19 +97,12 @@ const uploadToGoogleDrive = async (blob: Blob, filename: string, supplierName: s
   formData.append('file', blob, filename);
   formData.append('supplierName', supplierName);
 
-  const response = await fetch(buildApiUrl('/api/upload-receipt'), {
-    method: 'POST',
-    body: formData
-  });
-  
+  const response = await authenticatedFormData(buildEndpoint('/api/upload-receipt'), formData);
+
   const result = await response.json();
   return result.driveUrl;
 };
 
 const updateTransactionRefs = async (ids: string[], driveUrl: string, filename: string): Promise<void> => {
-  await fetch(buildApiUrl('/api/update-transaction-refs'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids, driveUrl, filename })
-  });
+  await authenticatedPost('/api/update-transaction-refs', { ids, driveUrl, filename });
 };

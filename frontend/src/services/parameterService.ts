@@ -2,7 +2,7 @@
  * API service for parameter administration.
  */
 import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
-import { ParametersResponse, ParameterCreateRequest, ParameterUpdateRequest, ParameterDefaultResponse } from '../types/parameterTypes';
+import { ParametersResponse, ParameterCreateRequest, ParameterUpdateRequest, ParameterDefaultResponse, ParameterMutationResponse } from '../types/parameterTypes';
 
 const BASE = '/api/tenant-admin/parameters';
 
@@ -12,17 +12,17 @@ export async function getParameters(namespace?: string): Promise<ParametersRespo
   return resp.json();
 }
 
-export async function createParameter(data: ParameterCreateRequest): Promise<any> {
+export async function createParameter(data: ParameterCreateRequest): Promise<ParameterMutationResponse> {
   const resp = await authenticatedPost(buildEndpoint(BASE), data);
   return resp.json();
 }
 
-export async function updateParameter(id: number, data: ParameterUpdateRequest): Promise<any> {
+export async function updateParameter(id: number, data: ParameterUpdateRequest): Promise<ParameterMutationResponse> {
   const resp = await authenticatedPut(buildEndpoint(`${BASE}/${id}`), data);
   return resp.json();
 }
 
-export async function deleteParameter(id: number): Promise<any> {
+export async function deleteParameter(id: number): Promise<ParameterMutationResponse> {
   const resp = await authenticatedDelete(buildEndpoint(`${BASE}/${id}`));
   return resp.json();
 }

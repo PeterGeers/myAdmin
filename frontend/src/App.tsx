@@ -16,7 +16,7 @@ import { useTenantRoleSync } from './hooks/useTenantRoleSync';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 import { HelpButton } from './components/help';
 import { MenuGroup } from './components/MenuGroup';
-import { buildApiUrl } from './config';
+import { authenticatedGet } from './services/apiService';
 import { MainMenu } from './components/MainMenu';
 import EnvironmentIndicator from './components/EnvironmentIndicator';
 import { APP_ENV } from './config/appEnv';
@@ -91,7 +91,7 @@ function AppContent() {
   };
 
   useEffect(() => {
-    fetch(buildApiUrl('/api/status'))
+    authenticatedGet('/api/status', { skipAuth: true })
       .then(res => res.json())
       .then(data => setStatus(data))
       .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));

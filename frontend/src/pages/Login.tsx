@@ -36,7 +36,7 @@ import {
   isPasskeySupported,
 } from '../services/authService';
 import { confirmSignIn } from 'aws-amplify/auth';
-import { buildApiUrl } from '../config';
+import { authenticatedPost } from '../services/apiService';
 import EnvironmentIndicator from '../components/EnvironmentIndicator';
 
 interface LoginProps {
@@ -73,11 +73,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     }
     try {
       setIsResetLoading(true);
-      const response = await fetch(buildApiUrl('/api/auth/forgot-password'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const response = await authenticatedPost('/api/auth/forgot-password', { email }, { skipAuth: true });
       const data = await response.json();
       if (data.success) {
         toast({ title: t('auth:forgotPassword.codeSent'), status: 'success', duration: 5000, isClosable: true });
@@ -101,11 +97,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     if (!email || !resetCode || !newPassword) return;
     try {
       setIsResetLoading(true);
-      const response = await fetch(buildApiUrl('/api/auth/confirm-reset'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: resetCode, new_password: newPassword }),
-      });
+      const response = await authenticatedPost(
+        '/api/auth/confirm-reset',
+        { email, code: resetCode, new_password: newPassword },
+        { skipAuth: true },
+      );
       const data = await response.json();
       if (data.success) {
         toast({ title: t('auth:forgotPassword.resetSuccess'), status: 'success', duration: 5000, isClosable: true });

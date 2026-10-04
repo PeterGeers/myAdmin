@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { Menu, MenuButton, MenuList, MenuItem, Button, useToast } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDownIcon } from '@chakra-ui/icons';
+import { authenticatedPut } from '../services/apiService';
 
 interface Language {
   code: string;
@@ -41,14 +42,8 @@ export const LanguageSelector: React.FC = () => {
       try {
         const token = localStorage.getItem('idToken');
         if (token) {
-          await fetch('/api/user/language', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'X-Language': langCode
-            },
-            body: JSON.stringify({ language: langCode })
+          await authenticatedPut('/api/user/language', { language: langCode }, {
+            headers: { 'X-Language': langCode },
           });
         }
       } catch (apiError) {
@@ -60,8 +55,8 @@ export const LanguageSelector: React.FC = () => {
       const langName = languages.find(l => l.code === langCode)?.name || langCode;
       toast({
         title: langCode === 'nl' ? 'Taal gewijzigd' : 'Language changed',
-        description: langCode === 'nl' 
-          ? `Taal ingesteld op ${langName}` 
+        description: langCode === 'nl'
+          ? `Taal ingesteld op ${langName}`
           : `Language set to ${langName}`,
         status: 'success',
         duration: 2000,

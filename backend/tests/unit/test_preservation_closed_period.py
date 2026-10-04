@@ -170,6 +170,16 @@ def build_mock_db_for_banking_processor(closed_years_for_admin=None,
         yield (mock_bp_cursor, mock_conn)
     mock_db.get_cursor = _get_cursor_cm
 
+    # BankingProcessor.save_approved_transactions runs the duplicate-check SELECTs via
+    # `with self.db.get_cursor_only() as cursor:` (read path yields the cursor only).
+    # The test's SELECT-call assertion inspects mock_bp_cursor.execute, so the same
+    # cursor must back get_cursor_only; otherwise a fresh auto-mock cursor is used and
+    # no execute() calls are recorded (0 SELECTs) while fetchone() reads as a duplicate.
+    @contextmanager
+    def _get_cursor_only_cm(*args, **kwargs):
+        yield mock_bp_cursor
+    mock_db.get_cursor_only = _get_cursor_only_cm
+
     # insert_transaction: track calls
     mock_db.insert_transaction = MagicMock()
 
