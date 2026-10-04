@@ -15,6 +15,7 @@ from pdf_validation import PDFValidator
 # Create blueprint
 pdf_validation_bp = Blueprint("pdf_validation", __name__)
 
+
 @pdf_validation_bp.route("/api/pdf/validate-urls-stream", methods=["GET"])
 @cognito_required(required_permissions=["invoices_read"])
 @tenant_required()

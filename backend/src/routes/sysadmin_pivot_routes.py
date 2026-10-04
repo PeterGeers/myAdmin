@@ -14,7 +14,6 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md §9
 """
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue

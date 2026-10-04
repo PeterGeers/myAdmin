@@ -76,7 +76,11 @@ jobs:
             echo '```' >> reports/lint/ruff-lint.md
             echo "" >> reports/lint/ruff-lint.md
             echo "### Total Errors" >> reports/lint/ruff-lint.md
-            TOTAL=$(wc -l < reports/lint/ruff-errors.txt)
+            # Count only real diagnostic lines (path:line:col:) — ruff's concise
+            # output appends a "Found N errors." summary + a "[*] N fixable" hint
+            # line that wc -l wrongly included (the 41-vs-39 off-by-two). This now
+            # matches the per-rule table above, which already filters to diagnostics.
+            TOTAL=$(grep -cP '^\S+:\d+:\d+:' reports/lint/ruff-errors.txt)
             echo "Found $TOTAL errors" >> reports/lint/ruff-lint.md
             echo "" >> reports/lint/ruff-lint.md
             echo "### All Errors" >> reports/lint/ruff-lint.md

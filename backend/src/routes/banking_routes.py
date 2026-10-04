@@ -82,9 +82,7 @@ def banking_check_sequences(
         iban = data.get("iban")
         sequences = data.get("sequences", [])
 
-        result = banking_service.check_sequences(
-            iban, sequences, administration=tenant
-        )
+        result = banking_service.check_sequences(iban, sequences, administration=tenant)
         return jsonify(result)
 
     except Exception as e:

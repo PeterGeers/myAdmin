@@ -37,12 +37,12 @@ because they are non-secret public identifiers (they already live in the committ
 Environment_Definition as public ids, per Req 8.5).
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from .resolver import ResolvedConfig
 
 
-def build_environment_report(resolved: ResolvedConfig) -> Dict[str, Any]:
+def build_environment_report(resolved: ResolvedConfig) -> dict[str, Any]:
     """Build the non-secret environment/health report from a resolved config.
 
     Pure function: the returned dict is derived entirely from ``resolved`` (Req 6.5),

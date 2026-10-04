@@ -10,7 +10,6 @@ API endpoints for managing assets:
 """
 
 import logging
-import os
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request

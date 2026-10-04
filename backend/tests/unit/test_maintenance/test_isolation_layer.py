@@ -49,9 +49,9 @@ class TestMockDb:
 class TestMockEnv:
     """Tests for the mock_env fixture."""
 
-    def test_sets_test_mode(self, mock_env):
-        """mock_env sets TEST_MODE to 'true'."""
-        assert os.environ['TEST_MODE'] == 'true'
+    def test_sets_app_env(self, mock_env):
+        """mock_env sets APP_ENV to 'test'."""
+        assert os.environ['APP_ENV'] == 'test'
 
     def test_sets_db_host(self, mock_env):
         """mock_env sets DB_HOST to 'localhost'."""
@@ -67,8 +67,8 @@ class TestMockEnv:
         assert os.environ['DB_PASSWORD'] == 'test'
 
     def test_sets_db_name(self, mock_env):
-        """mock_env sets DB_NAME to 'testfinance'."""
-        assert os.environ['DB_NAME'] == 'testfinance'
+        """mock_env sets DB_NAME to 'finance' (schema is always `finance`)."""
+        assert os.environ['DB_NAME'] == 'finance'
 
     def test_sets_cognito_vars(self, mock_env):
         """mock_env sets COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID."""
@@ -90,7 +90,7 @@ class TestMockEnv:
     def test_all_expected_keys_present(self, mock_env):
         """mock_env yields a dict with all expected keys."""
         expected_keys = {
-            'TEST_MODE', 'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD',
+            'APP_ENV', 'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD',
             'DB_NAME', 'COGNITO_USER_POOL_ID', 'COGNITO_CLIENT_ID',
             'GOOGLE_DRIVE_FOLDER_ID', 'AWS_REGION', 'FLASK_ENV',
         }

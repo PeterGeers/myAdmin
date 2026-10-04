@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 zzp_trip_io_bp = Blueprint("zzp_trip_io", __name__)
 
+
 def _get_vehicle_service() -> VehicleService:
     db = DatabaseManager()
     param_svc = ParameterService(db)

@@ -242,27 +242,34 @@ class TestCreateFolderPreservation:
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Test mode (flag=True) returns local folders regardless of provider
+# Test 3: S3 tenants list folders from S3 without touching Google Drive
 # Requirement: 3.9
+#
+# NOTE: This replaces the former `flag=True` "test mode returns local folders"
+# preservation test. The module-level `flag`/test_mode shortcut in get_folders()
+# was deliberately removed in commit af6c4b0 ("refactor(env): remove test_mode
+# parameter from src classes") as part of the APP_ENV migration — get_folders()
+# now always resolves the storage provider. Setting `folder_routes.flag` is a
+# no-op, so the old assertion (local config folders returned in test mode) can
+# no longer hold. The preserved intent — a non-Google-Drive (S3) provider lists
+# its folders from S3 and never instantiates GoogleDriveService — is asserted
+# against the current provider-resolution contract below.
 # ---------------------------------------------------------------------------
 
 class TestFlagModePreservation:
     """
-    When flag=True (test mode), get_folders() MUST return local config folders
-    regardless of the tenant's invoice_provider setting.
+    For an S3-backed tenant, get_folders() lists folders from S3 and does NOT
+    instantiate GoogleDriveService.
 
     **Validates: Requirements 3.9**
     """
 
     @settings(max_examples=20, deadline=None)
-    @given(
-        tenant=tenant_st,
-        provider=st.sampled_from(['google_drive', None, 's3_shared', 's3_tenant'])
-    )
-    def test_flag_true_returns_local_folders_regardless_of_provider(self, tenant, provider):
+    @given(tenant=tenant_st)
+    def test_s3_provider_lists_s3_folders_without_google_drive(self, tenant):
         """
-        PRESERVATION: get_folders() with flag=True returns local config folders
-        and does NOT call GoogleDriveService. MUST PASS on unfixed code.
+        get_folders() for an S3 tenant resolves provider='s3_shared', lists the
+        tenant's S3 folders, and never calls GoogleDriveService.
 
         **Validates: Requirements 3.9**
         """
@@ -271,16 +278,16 @@ class TestFlagModePreservation:
         from routes import folder_routes
         app.register_blueprint(folder_routes.folder_bp)
 
-        # Set TEST mode
-        local_folders = {'vendor1': 'Supplier1', 'vendor2': 'KPN', 'vendor3': 'Ziggo'}
         mock_config = MagicMock()
-        mock_config.vendor_folders = local_folders
+        mock_config.vendor_folders = {'vendor1': 'Supplier1'}
         folder_routes.config = mock_config
-        folder_routes.flag = True  # TEST MODE
 
+        s3_folders = ['Supplier1', 'KPN', 'Ziggo']
         mock_gds_class = MagicMock()
 
         with patch.object(folder_routes, 'GoogleDriveService', mock_gds_class), \
+             patch('routes.folder_routes.resolve_storage_provider', return_value='s3_shared'), \
+             patch('routes.folder_routes.list_s3_folders', return_value=s3_folders), \
              patch('auth.tenant_context.get_current_tenant', return_value=tenant), \
              patch('auth.cognito_utils.extract_user_credentials', return_value=('test@test.com', ['invoices_read'], None)), \
              patch('auth.cognito_utils.validate_permissions', return_value=(True, None)), \
@@ -293,16 +300,15 @@ class TestFlagModePreservation:
                 'Authorization': 'Bearer fake_token'
             })
 
-            # PRESERVATION: In test mode, GoogleDriveService must NOT be called
+            # PRESERVATION: for a non-Google-Drive provider, GDS must NOT be called
             assert not mock_gds_class.called, (
-                f"REGRESSION: get_folders() in test mode (flag=True) for tenant "
-                f"'{tenant}' with provider='{provider}' called GoogleDriveService. "
-                f"Test mode should always return local folders."
+                f"REGRESSION: get_folders() for S3 tenant '{tenant}' "
+                f"instantiated GoogleDriveService."
             )
-            # Verify response contains local folder values
+            # Response is the S3 folder listing for this provider
             assert response.status_code == 200
             response_data = response.get_json()
-            assert set(response_data) == set(local_folders.values())
+            assert set(response_data) == set(s3_folders)
 
 
 # ---------------------------------------------------------------------------

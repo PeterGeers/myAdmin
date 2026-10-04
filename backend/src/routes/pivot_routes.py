@@ -20,7 +20,6 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md §3 Pivot API Routes
 """
 
 import logging
-import os
 from datetime import date, datetime
 from decimal import Decimal
 

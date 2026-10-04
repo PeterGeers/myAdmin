@@ -17,6 +17,7 @@ from mutaties_cache import get_cache, invalidate_cache
 
 cache_bp = Blueprint("cache", __name__)
 
+
 # Cache Management Endpoints
 @cache_bp.route("/api/cache/warmup", methods=["POST"])
 @cognito_required(required_permissions=["actuals_read"])

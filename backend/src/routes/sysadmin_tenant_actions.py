@@ -9,7 +9,6 @@ Split from sysadmin_tenants.py to keep files under 500 lines.
 """
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue

@@ -18,7 +18,6 @@ Based on spec: .kiro/specs/FIN/Chart of Accounts Management/
 
 import json as json_lib
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue

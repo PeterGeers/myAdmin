@@ -15,6 +15,7 @@ from duplicate_checker import DuplicateChecker
 # Create blueprint
 duplicate_detection_bp = Blueprint("duplicate_detection", __name__)
 
+
 @duplicate_detection_bp.route("/api/check-duplicate", methods=["POST"])
 @cognito_required(required_permissions=["invoices_read"])
 def check_duplicate(user_email, user_roles) -> ResponseReturnValue:

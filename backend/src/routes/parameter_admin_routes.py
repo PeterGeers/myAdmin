@@ -9,7 +9,6 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue

@@ -10,7 +10,6 @@ Endpoints:
 """
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request, send_file
 from flask.typing import ResponseReturnValue
