@@ -19,6 +19,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.service_accessors import make_db_service_accessor
 from services.asset_service import AssetService
 from services.function_guard import function_guard
 
@@ -27,9 +28,7 @@ logger = logging.getLogger(__name__)
 asset_bp = Blueprint("assets", __name__, url_prefix="/api/assets")
 
 
-def _get_service() -> AssetService:
-    db = DatabaseManager()
-    return AssetService(db)
+_get_service = make_db_service_accessor(AssetService)
 
 
 @asset_bp.route("", methods=["GET"])

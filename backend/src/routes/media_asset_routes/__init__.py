@@ -44,7 +44,7 @@ import logging
 
 from flask import Blueprint
 
-from database import DatabaseManager
+from routes.service_accessors import make_db_service_accessor
 from services.media_asset_service import MediaAssetService
 from services.parameter_service import ParameterService
 
@@ -53,11 +53,13 @@ logger = logging.getLogger(__name__)
 # Create blueprint
 media_asset_bp = Blueprint("media_assets", __name__, url_prefix="/api/media-assets")
 
-def _get_service() -> MediaAssetService:
-    """Create a MediaAssetService instance."""
-    db = DatabaseManager()
-    ps = ParameterService(db)
-    return MediaAssetService(db, ps)
+# Lazy MediaAssetService accessor. Handlers in the endpoint submodules resolve
+# this through the ``routes.media_asset_routes`` package namespace at call time,
+# so ``patch('routes.media_asset_routes._get_service')`` keeps intercepting
+# every instantiation exactly as before.
+_get_service = make_db_service_accessor(
+    lambda db: MediaAssetService(db, ParameterService(db))
+)
 
 
 # Import endpoint submodules AFTER the blueprint and helpers are defined so that

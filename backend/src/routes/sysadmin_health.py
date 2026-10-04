@@ -10,12 +10,13 @@ import time
 from datetime import datetime
 
 import boto3
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
 from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from routes.sysadmin_helpers import _caller_token
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -29,24 +30,11 @@ sns_client = boto3.client("sns", region_name=os.getenv("AWS_REGION", "eu-west-1"
 # Configuration
 SNS_TOPIC_ARN = os.getenv("SNS_TOPIC_ARN")
 
-
-def _caller_token() -> str:
-    """Return the raw caller JWT from the request ``Authorization`` header.
-
-    The health route is gated by ``@cognito_required(required_roles=["SysAdmin"])``,
-    which has already validated the ``Bearer`` token before the handler runs; this
-    simply re-reads that same header and strips the ``Bearer `` prefix to hand the raw
-    token to the shared resolver's token mode. Mirrors ``admin_routes._caller_token``.
-
-    Returns:
-        The raw JWT (without the ``Bearer `` prefix), or ``""`` when the header is
-        absent/malformed (the resolver then surfaces the misconfiguration).
-    """
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        return auth_header[len("Bearer ") :].strip()
-    return auth_header.strip()
-
+# ``_caller_token`` is the canonical copy from ``routes.sysadmin_helpers`` (task H2).
+# It is re-exported into this module's namespace so the handler can call it as a
+# module global and so existing patch points (``routes.sysadmin_health._caller_token``)
+# keep working. ``get_system_health`` resolves the pool via the module-local
+# ``resolve_pool_id_for_token`` import (patched by tests), passing ``_caller_token()``.
 
 # Create blueprint
 sysadmin_health_bp = Blueprint("sysadmin_health", __name__)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Box, Table, Thead, Tbody, Tr, Td, Badge, Button, Grid,
+  Box, Table, TableContainer, Thead, Tbody, Tr, Td, Badge, Button, Grid,
   useToast, useDisclosure, Spinner, Text, HStack, Select,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   FormControl, FormLabel, Input,
@@ -147,103 +147,105 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
       <HStack mb={4} justify="flex-end">
         <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={handleAdd}>{t('tenantAdmin.taxRates.addTaxRate')}</Button>
       </HStack>
-      <Table variant="simple" size="sm">
-        <Thead>
-          <Tr>
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.taxType')}
-              filterValue={filters.tax_type}
-              onFilterChange={(v) => setFilter('tax_type', v)}
-              sortable
-              sortDirection={sortField === 'tax_type' ? sortDirection : null}
-              onSort={() => handleSort('tax_type')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.taxCode')}
-              filterValue={filters.tax_code}
-              onFilterChange={(v) => setFilter('tax_code', v)}
-              sortable
-              sortDirection={sortField === 'tax_code' ? sortDirection : null}
-              onSort={() => handleSort('tax_code')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.rate')}
-              filterValue={filters.rate}
-              onFilterChange={(v) => setFilter('rate', v)}
-              isNumeric
-              sortable
-              sortDirection={sortField === 'rate' ? sortDirection : null}
-              onSort={() => handleSort('rate')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.ledgerAccount')}
-              filterValue={filters.ledger_display}
-              onFilterChange={(v) => setFilter('ledger_display', v)}
-              sortable
-              sortDirection={sortField === 'ledger_display' ? sortDirection : null}
-              onSort={() => handleSort('ledger_display')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.effectiveFrom')}
-              filterValue={filters.effective_from}
-              onFilterChange={(v) => setFilter('effective_from', v)}
-              sortable
-              sortDirection={sortField === 'effective_from' ? sortDirection : null}
-              onSort={() => handleSort('effective_from')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.effectiveTo')}
-              filterValue={filters.effective_to_display}
-              onFilterChange={(v) => setFilter('effective_to_display', v)}
-              sortable
-              sortDirection={sortField === 'effective_to_display' ? sortDirection : null}
-              onSort={() => handleSort('effective_to_display')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.status')}
-              filterValue={filters.status_text}
-              onFilterChange={(v) => setFilter('status_text', v)}
-              sortable
-              sortDirection={sortField === 'status_text' ? sortDirection : null}
-              onSort={() => handleSort('status_text')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.scopeOrigin')}
-              filterValue={filters.scope_origin}
-              onFilterChange={(v) => setFilter('scope_origin', v)}
-              sortable
-              sortDirection={sortField === 'scope_origin' ? sortDirection : null}
-              onSort={() => handleSort('scope_origin')}
-            />
-            <FilterableHeader
-              label={t('tenantAdmin.taxRates.description')}
-              filterValue={filters.description_display}
-              onFilterChange={(v) => setFilter('description_display', v)}
-              sortable
-              sortDirection={sortField === 'description_display' ? sortDirection : null}
-              onSort={() => handleSort('description_display')}
-            />
-          </Tr>
-        </Thead>
-        <Tbody>
-          {processedData.map(r => {
-            const status = r.status_text;
-            return (
-              <Tr key={r.id} cursor={canEdit(r) ? 'pointer' : 'default'} _hover={canEdit(r) ? { bg: 'gray.600' } : {}} onClick={() => handleRowClick(r)}>
-                <Td color="white" fontSize="sm">{r.tax_type}</Td>
-                <Td color="white" fontSize="sm">{r.tax_code}</Td>
-                <Td color="white" fontSize="sm" isNumeric>{r.rate}</Td>
-                <Td color="white" fontSize="sm">{r.ledger_display}</Td>
-                <Td color="white" fontSize="sm">{r.effective_from}</Td>
-                <Td color="white" fontSize="sm">{r.effective_to_display}</Td>
-                <Td><Badge colorScheme={statusColors[status]} fontSize="xs">{status}</Badge></Td>
-                <Td><Badge colorScheme={r.scope_origin === 'tenant' ? 'orange' : 'gray'} fontSize="xs">{r.scope_origin}</Badge></Td>
-                <Td color="white" fontSize="sm" maxW="200px" isTruncated>{r.description_display}</Td>
-              </Tr>);
-          })}
-          {processedData.length === 0 && <Tr><Td colSpan={9} color="gray.500" textAlign="center">{t('tenantAdmin.taxRates.noTaxRates')}</Td></Tr>}
-        </Tbody>
-      </Table>
+      <TableContainer overflowX="auto">
+        <Table variant="simple" size="sm">
+          <Thead>
+            <Tr>
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.taxType')}
+                filterValue={filters.tax_type}
+                onFilterChange={(v) => setFilter('tax_type', v)}
+                sortable
+                sortDirection={sortField === 'tax_type' ? sortDirection : null}
+                onSort={() => handleSort('tax_type')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.taxCode')}
+                filterValue={filters.tax_code}
+                onFilterChange={(v) => setFilter('tax_code', v)}
+                sortable
+                sortDirection={sortField === 'tax_code' ? sortDirection : null}
+                onSort={() => handleSort('tax_code')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.rate')}
+                filterValue={filters.rate}
+                onFilterChange={(v) => setFilter('rate', v)}
+                isNumeric
+                sortable
+                sortDirection={sortField === 'rate' ? sortDirection : null}
+                onSort={() => handleSort('rate')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.ledgerAccount')}
+                filterValue={filters.ledger_display}
+                onFilterChange={(v) => setFilter('ledger_display', v)}
+                sortable
+                sortDirection={sortField === 'ledger_display' ? sortDirection : null}
+                onSort={() => handleSort('ledger_display')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.effectiveFrom')}
+                filterValue={filters.effective_from}
+                onFilterChange={(v) => setFilter('effective_from', v)}
+                sortable
+                sortDirection={sortField === 'effective_from' ? sortDirection : null}
+                onSort={() => handleSort('effective_from')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.effectiveTo')}
+                filterValue={filters.effective_to_display}
+                onFilterChange={(v) => setFilter('effective_to_display', v)}
+                sortable
+                sortDirection={sortField === 'effective_to_display' ? sortDirection : null}
+                onSort={() => handleSort('effective_to_display')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.status')}
+                filterValue={filters.status_text}
+                onFilterChange={(v) => setFilter('status_text', v)}
+                sortable
+                sortDirection={sortField === 'status_text' ? sortDirection : null}
+                onSort={() => handleSort('status_text')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.scopeOrigin')}
+                filterValue={filters.scope_origin}
+                onFilterChange={(v) => setFilter('scope_origin', v)}
+                sortable
+                sortDirection={sortField === 'scope_origin' ? sortDirection : null}
+                onSort={() => handleSort('scope_origin')}
+              />
+              <FilterableHeader
+                label={t('tenantAdmin.taxRates.description')}
+                filterValue={filters.description_display}
+                onFilterChange={(v) => setFilter('description_display', v)}
+                sortable
+                sortDirection={sortField === 'description_display' ? sortDirection : null}
+                onSort={() => handleSort('description_display')}
+              />
+            </Tr>
+          </Thead>
+          <Tbody>
+            {processedData.map(r => {
+              const status = r.status_text;
+              return (
+                <Tr key={r.id} cursor={canEdit(r) ? 'pointer' : 'default'} _hover={canEdit(r) ? { bg: 'gray.600' } : {}} onClick={() => handleRowClick(r)}>
+                  <Td color="white" fontSize="sm">{r.tax_type}</Td>
+                  <Td color="white" fontSize="sm">{r.tax_code}</Td>
+                  <Td color="white" fontSize="sm" isNumeric>{r.rate}</Td>
+                  <Td color="white" fontSize="sm">{r.ledger_display}</Td>
+                  <Td color="white" fontSize="sm">{r.effective_from}</Td>
+                  <Td color="white" fontSize="sm">{r.effective_to_display}</Td>
+                  <Td><Badge colorScheme={statusColors[status]} fontSize="xs">{status}</Badge></Td>
+                  <Td><Badge colorScheme={r.scope_origin === 'tenant' ? 'orange' : 'gray'} fontSize="xs">{r.scope_origin}</Badge></Td>
+                  <Td color="white" fontSize="sm" maxW="200px" isTruncated>{r.description_display}</Td>
+                </Tr>);
+            })}
+            {processedData.length === 0 && <Tr><Td colSpan={9} color="gray.500" textAlign="center">{t('tenantAdmin.taxRates.noTaxRates')}</Td></Tr>}
+          </Tbody>
+        </Table>
+      </TableContainer>
 
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />

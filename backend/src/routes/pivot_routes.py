@@ -30,6 +30,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.service_accessors import make_db_service_accessor
 from services.parameter_service import ParameterService
 from services.pivot_model_store import PivotModelStore
 from services.pivot_service import PivotService
@@ -79,11 +80,9 @@ def _clean_rows(rows) -> list:
     return cleaned
 
 
-def _get_service() -> PivotService:
-    """Create a PivotService instance with current test mode setting."""
-    db = DatabaseManager()
-    ps = ParameterService(db)
-    return PivotService(db, ps)
+_get_service = make_db_service_accessor(
+    lambda db: PivotService(db, ParameterService(db))
+)
 
 
 def _get_store() -> PivotModelStore:

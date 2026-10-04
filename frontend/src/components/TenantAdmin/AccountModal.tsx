@@ -37,7 +37,7 @@ import {
   Divider
 } from '@chakra-ui/react';
 import { AccountModalProps, AccountFormData } from '../../types/chartOfAccounts';
-import { buildApiUrl } from '../../services/apiService';
+import { authenticatedGet } from '../../services/apiService';
 
 // Parameter definition from the API
 interface ParamDefinition {
@@ -84,14 +84,14 @@ const AccountModal: React.FC<AccountModalProps> = ({
     bank_account: false,
     iban: ''
   });
-  
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingParams, setEditingParams] = useState(false);
   const [paramEntries, setParamEntries] = useState<ParamEntry[]>([]);
   const [paramDefs, setParamDefs] = useState<ParamDefinition[]>([]);
-  
+
   // Delete confirmation dialog
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -100,8 +100,7 @@ const AccountModal: React.FC<AccountModalProps> = ({
   useEffect(() => {
     const loadParamDefs = async () => {
       try {
-        const url = buildApiUrl('/api/config/ledger-parameters');
-        const response = await fetch(url);
+        const response = await authenticatedGet('/api/config/ledger-parameters', { skipAuth: true });
         if (response.ok) {
           const defs = await response.json();
           setParamDefs(defs);
@@ -234,7 +233,7 @@ const AccountModal: React.FC<AccountModalProps> = ({
             {mode === 'create' ? 'Add Account' : 'Edit Account'}
           </ModalHeader>
           <ModalCloseButton color="white" />
-          
+
           <ModalBody>
             <VStack spacing={4} pb={6}>
               {/* Account Number */}
@@ -373,14 +372,14 @@ const AccountModal: React.FC<AccountModalProps> = ({
                   >
                     {paramEntries.length > 0
                       ? paramEntries
-                          .filter(e => e.key.trim())
-                          .map(e => {
-                            const def = paramDefs.find(d => d.key === e.key);
-                            const label = def ? getParamLabel(def) : e.key;
-                            const displayValue = typeof e.value === 'boolean' ? (e.value ? '✓' : '✗') : e.value;
-                            return `${label}: ${displayValue}`;
-                          })
-                          .join('\n')
+                        .filter(e => e.key.trim())
+                        .map(e => {
+                          const def = paramDefs.find(d => d.key === e.key);
+                          const label = def ? getParamLabel(def) : e.key;
+                          const displayValue = typeof e.value === 'boolean' ? (e.value ? '✓' : '✗') : e.value;
+                          return `${label}: ${displayValue}`;
+                        })
+                        .join('\n')
                       : lang === 'nl' ? 'Geen parameters' : 'No parameters'}
                   </Box>
                 ) : (
@@ -402,73 +401,73 @@ const AccountModal: React.FC<AccountModalProps> = ({
                       });
 
                       return (
-                      <HStack key={idx} spacing={2}>
-                        <Select
-                          size="sm"
-                          bg="gray.700"
-                          color="white"
-                          borderColor="gray.600"
-                          value={entry.key}
-                          onChange={(e) => {
-                            const newEntries = [...paramEntries];
-                            const newKey = e.target.value;
-                            const def = paramDefs.find(d => d.key === newKey);
-                            newEntries[idx] = {
-                              key: newKey,
-                              value: def?.type === 'boolean' ? true : ''
-                            };
-                            setParamEntries(newEntries);
-                          }}
-                          flex={1}
-                        >
-                          <option value="">Select key...</option>
-                          {availableKeys.map(d => (
-                            <option key={d.key} value={d.key}>{getParamLabel(d)}</option>
-                          ))}
-                          {entry.key && !paramDefs.find(d => d.key === entry.key) && (
-                            <option value={entry.key}>{entry.key}</option>
-                          )}
-                        </Select>
-
-                        {paramDefs.find(d => d.key === entry.key)?.type === 'boolean' ? (
-                          <Switch
-                            isChecked={entry.value === true}
-                            onChange={(e) => {
-                              const newEntries = [...paramEntries];
-                              newEntries[idx] = { ...entry, value: e.target.checked };
-                              setParamEntries(newEntries);
-                            }}
-                            colorScheme="orange"
-                          />
-                        ) : (
-                          <Input
+                        <HStack key={idx} spacing={2}>
+                          <Select
                             size="sm"
                             bg="gray.700"
                             color="white"
                             borderColor="gray.600"
-                            value={entry.value as string}
+                            value={entry.key}
                             onChange={(e) => {
                               const newEntries = [...paramEntries];
-                              newEntries[idx] = { ...entry, value: e.target.value };
+                              const newKey = e.target.value;
+                              const def = paramDefs.find(d => d.key === newKey);
+                              newEntries[idx] = {
+                                key: newKey,
+                                value: def?.type === 'boolean' ? true : ''
+                              };
                               setParamEntries(newEntries);
                             }}
-                            placeholder="Value"
                             flex={1}
-                          />
-                        )}
+                          >
+                            <option value="">Select key...</option>
+                            {availableKeys.map(d => (
+                              <option key={d.key} value={d.key}>{getParamLabel(d)}</option>
+                            ))}
+                            {entry.key && !paramDefs.find(d => d.key === entry.key) && (
+                              <option value={entry.key}>{entry.key}</option>
+                            )}
+                          </Select>
 
-                        <IconButton
-                          aria-label="Remove parameter"
-                          icon={<Text>✕</Text>}
-                          size="sm"
-                          variant="ghost"
-                          colorScheme="red"
-                          onClick={() => {
-                            setParamEntries(paramEntries.filter((_, i) => i !== idx));
-                          }}
-                        />
-                      </HStack>
-                    );
+                          {paramDefs.find(d => d.key === entry.key)?.type === 'boolean' ? (
+                            <Switch
+                              isChecked={entry.value === true}
+                              onChange={(e) => {
+                                const newEntries = [...paramEntries];
+                                newEntries[idx] = { ...entry, value: e.target.checked };
+                                setParamEntries(newEntries);
+                              }}
+                              colorScheme="orange"
+                            />
+                          ) : (
+                            <Input
+                              size="sm"
+                              bg="gray.700"
+                              color="white"
+                              borderColor="gray.600"
+                              value={entry.value as string}
+                              onChange={(e) => {
+                                const newEntries = [...paramEntries];
+                                newEntries[idx] = { ...entry, value: e.target.value };
+                                setParamEntries(newEntries);
+                              }}
+                              placeholder="Value"
+                              flex={1}
+                            />
+                          )}
+
+                          <IconButton
+                            aria-label="Remove parameter"
+                            icon={<Text>✕</Text>}
+                            size="sm"
+                            variant="ghost"
+                            colorScheme="red"
+                            onClick={() => {
+                              setParamEntries(paramEntries.filter((_, i) => i !== idx));
+                            }}
+                          />
+                        </HStack>
+                      );
                     })}
 
                     <Button
@@ -497,9 +496,9 @@ const AccountModal: React.FC<AccountModalProps> = ({
                   Delete
                 </Button>
               )}
-              
+
               <Box flex={1} />
-              
+
               {/* Save/Cancel buttons */}
               <HStack spacing={3}>
                 <Button variant="ghost" onClick={onClose} color="white">

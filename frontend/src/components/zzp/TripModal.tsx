@@ -14,7 +14,7 @@ import {
   AlertDialogContent, AlertDialogOverlay,
 } from '@chakra-ui/react';
 import { Formik, Form, Field } from 'formik';
-import type { FieldProps } from 'formik';
+import type { FieldProps, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { createTrip, updateTrip, cancelTrip, getTrips } from '../../services/tripService';
@@ -137,9 +137,15 @@ export const TripModal: React.FC<TripModalProps> = ({
       : Yup.string(),
   });
 
-  const handleSubmit = async (values: TripFormValues, { setSubmitting }: any) => {
+  const handleSubmit = async (
+    values: TripFormValues,
+    { setSubmitting }: FormikHelpers<TripFormValues>,
+  ) => {
     try {
-      const data: any = {
+      // Trip create/update payload: the stored Trip fields plus an update-only
+      // `correction_reason` (an audit reason the server accepts on PUT; it is not a
+      // persisted Trip property, so it is modelled here rather than on `Trip`).
+      const data: Partial<Trip> & { correction_reason?: string } = {
         vehicle_id: vehicleId,
         trip_date: values.trip_date,
         start_address: values.start_address,
@@ -156,7 +162,7 @@ export const TripModal: React.FC<TripModalProps> = ({
       if (values.project_name) data.project_name = values.project_name;
       if (values.notes) data.notes = values.notes;
 
-      let resp;
+      let resp: Awaited<ReturnType<typeof updateTrip>>;
       if (isEdit) {
         data.correction_reason = values.correction_reason;
         resp = await updateTrip(trip!.id, data);
@@ -185,13 +191,13 @@ export const TripModal: React.FC<TripModalProps> = ({
         onClose();
       } else {
         toast({
-          title: (resp as any).error || t('trips.toast.error'),
+          title: resp.error || t('trips.toast.error'),
           status: 'error',
           duration: 3000,
         });
       }
-    } catch (err: any) {
-      toast({ title: err.message || t('trips.toast.error'), status: 'error', duration: 3000 });
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : t('trips.toast.error'), status: 'error', duration: 3000 });
     } finally {
       setSubmitting(false);
     }
@@ -215,8 +221,8 @@ export const TripModal: React.FC<TripModalProps> = ({
       } else {
         toast({ title: resp.error || t('trips.toast.error'), status: 'error', duration: 3000 });
       }
-    } catch (err: any) {
-      toast({ title: err.message || t('trips.toast.error'), status: 'error', duration: 3000 });
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : t('trips.toast.error'), status: 'error', duration: 3000 });
     } finally {
       setCancelling(false);
     }

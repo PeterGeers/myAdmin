@@ -60,7 +60,8 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report",
     "playwright:install": "playwright install",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "lint:tables": "node scripts/check-table-wrappers.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

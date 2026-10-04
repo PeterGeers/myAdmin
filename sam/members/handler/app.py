@@ -41,20 +41,30 @@ edge (R1.1) so every route parses → authenticates (verified) → establishes t
 So an authenticated + authorized request to a declared-but-unbuilt route returns 501; an
 unauthenticated request returns 401; an authenticated-but-unentitled request returns 403;
 an unknown path returns 404; a known path with the wrong method returns 405.
+
+Internal layout (code-quality split M2 — a pure structural refactor, no behaviour change).
+This module is the **stable facade / entry point**. The HTTP adapter helpers (request
+parsing + response/error shaping) live in :mod:`sam.members.handler._http`, and the
+per-route delegation lives in :mod:`sam.members.handler._dispatch`; both are re-exported
+here so the module's public surface — ``handler``, ``RouteNotImplemented``,
+``has_capability``, ``_response`` / ``_json_default``, the ``_*_OVERRIDE`` test seams, and
+``_get_membership_service`` / ``_dispatch`` / ``_resolve_scope_access`` /
+``_scope_access_from_grant`` — is unchanged. The auth/tenant/scope resolution (which is
+coupled to the module-level provider-override seams the tests rebind) stays HERE, and the
+thin ``_dispatch(spec, request, ctx)`` wrapper resolves the service via the patchable
+``_get_membership_service`` before delegating, so every existing monkeypatch seam holds.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from decimal import Decimal
 from typing import Any, Protocol
 
-from sam.members.domain.error_codes import FieldError
+from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
 from sam.members.domain.field_resolver import TenantOverlay, TenantOverlayProvider
-from sam.members.domain.fixed_fields import MembershipStatus
+from sam.members.domain.fixed_fields import MembershipStatus  # noqa: F401 (surface compat)
 from sam.members.domain.lifecycle_config import (
     HDCN_LIFECYCLE_CONFIG,
     StaticLifecycleConfigProvider,
@@ -100,6 +110,29 @@ from sam.shared.auth_utils import (
     get_groups,
     get_verified_claims,
     has_capability,
+)
+
+# ── HTTP adapter helpers (request parsing + response shaping) — re-exported ────────────
+from sam.members.handler._http import (
+    ParsedRequest,
+    _CORS_HEADERS,
+    _error,
+    _field_errors_array,
+    _json_default,
+    _parse_request,
+    _reasons_array,
+    _response,
+)
+
+# ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
+from sam.members.handler._dispatch import (
+    RouteNotImplemented,
+    _parse_to_state,
+    _query_flag,
+    _require_path_param,
+    _transition_context,
+    _write_body,
+    dispatch_route,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,16 +189,6 @@ def _new_projection_reader() -> MembersProjectionReader:
     return MembersProjectionReader()
 
 
-#: Test-only override for the scope-GRANT reader (``None`` in production → fresh reader).
-#: The scope-config provider (:data:`_SCOPE_CONFIG_PROVIDER_OVERRIDE`) supplies the tenant's
-#: ``ScopeConfig`` shape; this override supplies the caller's PROJECTED grants (task 8.3), so
-#: a test can drive the projected-grant model (a Noord-scoped caller → ``["Noord"]``, an
-#: all-access caller → ``["*"]``, a ``required_for``-capability caller with no grant → deny)
-#: without an AWS round-trip. When unset (production), each request reads grants off the same
-#: fresh :class:`MembersProjectionReader` used for the scope config (one Query per partition).
-_SCOPE_GRANTS_READER_OVERRIDE: _ScopeGrantsReader | None = None
-
-
 class _ScopeGrantsReader(Protocol):
     """The minimal seam the edge needs to read a caller's PROJECTED scope grants (C5).
 
@@ -176,6 +199,16 @@ class _ScopeGrantsReader(Protocol):
 
     def get_scope_grants(self, tenant_id: str, email: str) -> Mapping[str, list[str]]:
         ...
+
+
+#: Test-only override for the scope-GRANT reader (``None`` in production → fresh reader).
+#: The scope-config provider (:data:`_SCOPE_CONFIG_PROVIDER_OVERRIDE`) supplies the tenant's
+#: ``ScopeConfig`` shape; this override supplies the caller's PROJECTED grants (task 8.3), so
+#: a test can drive the projected-grant model (a Noord-scoped caller → ``["Noord"]``, an
+#: all-access caller → ``["*"]``, a ``required_for``-capability caller with no grant → deny)
+#: without an AWS round-trip. When unset (production), each request reads grants off the same
+#: fresh :class:`MembersProjectionReader` used for the scope config (one Query per partition).
+_SCOPE_GRANTS_READER_OVERRIDE: _ScopeGrantsReader | None = None
 
 
 def _scope_config_provider() -> ScopeConfigProvider:
@@ -303,185 +336,6 @@ __all__ = [
     "TenantResolutionError",
     "handler",
 ]
-
-
-class RouteNotImplemented(NotImplementedError):
-    """Raised by the (stubbed) domain dispatch for a route whose behaviour is pending.
-
-    The route exists in the map and resolved correctly; its domain implementation is a
-    later Step-1/Step-3/Step-5 task. The edge maps this to ``501 Not Implemented`` so a
-    caller can tell "route not built yet" apart from "no such route" (404).
-    """
-
-    def __init__(self, route_name: str):
-        self.route_name = route_name
-        super().__init__(f"route '{route_name}' is not implemented yet")
-
-
-# ── Request parsing (handler-layer adapter concern) ───────────────────────────────────
-
-
-@dataclass(frozen=True)
-class ParsedRequest:
-    """The pieces of an API Gateway proxy event the router + edge need."""
-
-    method: str
-    path: str
-    headers: Mapping[str, Any]
-    query: Mapping[str, Any]
-    body: Any
-
-
-def _parse_request(event: Mapping[str, Any]) -> ParsedRequest:
-    """Extract method/path/headers/query/body from an API Gateway proxy event.
-
-    Supports both the REST/HTTP-v1 shape (``httpMethod`` + ``path``) and the HTTP-v2 shape
-    (``requestContext.http.method`` + ``rawPath``). JSON bodies are decoded best-effort; a
-    non-JSON or empty body is passed through as-is (the domain layer validates content).
-    """
-    event = event or {}
-
-    method = event.get("httpMethod")
-    path = event.get("path")
-    request_context = event.get("requestContext") or {}
-    http_ctx = request_context.get("http") if isinstance(request_context, Mapping) else None
-    if not method and isinstance(http_ctx, Mapping):
-        method = http_ctx.get("method")
-    if not path:
-        path = event.get("rawPath") or (http_ctx.get("path") if isinstance(http_ctx, Mapping) else None)
-
-    headers = event.get("headers") or {}
-    query = event.get("queryStringParameters") or {}
-
-    body: Any = event.get("body")
-    if isinstance(body, str) and body:
-        try:
-            body = json.loads(body)
-        except (ValueError, TypeError):
-            # Leave the raw string; the domain layer decides whether that is acceptable.
-            pass
-
-    return ParsedRequest(
-        method=method or "",
-        path=path or "/",
-        headers=headers if isinstance(headers, Mapping) else {},
-        query=query if isinstance(query, Mapping) else {},
-        body=body,
-    )
-
-
-# ── Response shaping (handler-layer adapter concern) ──────────────────────────────────
-
-
-_CORS_HEADERS: dict[str, str] = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-}
-
-
-def _json_default(obj: Any) -> Any:
-    """`json.dumps` fallback for types the stdlib encoder can't handle.
-
-    DynamoDB returns every number as a :class:`decimal.Decimal` (boto3's resource client),
-    which `json.dumps` refuses to serialize (`TypeError: Object of type Decimal is not JSON
-    serializable`) — so a member READ whose items carry any numeric attribute would crash
-    the response and surface as a 502. Convert a `Decimal` to an `int` when it is integral
-    (e.g. a year, a count) else to a `float`, so the JSON body mirrors the source number
-    without a spurious ``.0``. Any other unexpected type falls through to a `TypeError`
-    (fail loud in tests rather than silently coerce).
-    """
-    if isinstance(obj, Decimal):
-        # Integral Decimals -> int (no trailing .0); fractional -> float.
-        return int(obj) if obj == obj.to_integral_value() else float(obj)
-    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
-
-
-def _response(status: int, payload: Mapping[str, Any]) -> dict:
-    """Build an API Gateway proxy response with the platform envelope + CORS headers.
-
-    Platform API response & error standard v1.0 (steering `37`): every response carries a
-    ``success`` boolean DERIVED from the HTTP status range (2xx → ``true``, else ``false``) so
-    the body shape matches the Flask/ZZP plane — success ``{success:true, data}``, error
-    ``{success:false, error, code?, ...}`` — while the real HTTP status stays authoritative.
-    ``success`` is prepended so it always appears (a caller ``payload`` never needs to set it).
-
-    Every response carries the same CORS headers so a browser client can read it (including the
-    401/403 error envelopes below); the body is always well-formed JSON. Uses
-    :func:`_json_default` so DynamoDB ``Decimal`` numbers serialize (else a read carrying any
-    number 502s — `Decimal is not JSON serializable`).
-    """
-    body: dict[str, Any] = {"success": 200 <= status < 300}
-    body.update(payload)
-    return {
-        "statusCode": status,
-        "headers": {"Content-Type": "application/json", **_CORS_HEADERS},
-        "body": json.dumps(body, default=_json_default),
-    }
-
-
-def _error(
-    status: int,
-    message: str,
-    *,
-    code: str | None = None,
-    params: Mapping[str, Any] | None = None,
-    **extra: Any,
-) -> dict:
-    """Shape a JSON error envelope ``{success:false, error, code?, params?, ...}``.
-
-    ``code`` is a stable, machine-readable identifier that IS a key in the frontend's existing
-    ``errors``/``validation`` i18n namespaces (v1.0, steering `37`); the SPA maps it to localized
-    NL/EN copy, with ``message`` (English) as the dev/last-resort fallback. ``params`` carries
-    interpolation values for that copy. ``extra`` still carries the structured details the edge
-    already returns — ``errors`` (422 per-field) / ``reasons`` (409 transition denials).
-    """
-    payload: dict[str, Any] = {"error": message}
-    if code is not None:
-        payload["code"] = code
-    if params:
-        payload["params"] = dict(params)
-    payload.update(extra)
-    return _response(status, payload)
-
-
-def _field_errors_array(errors: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Shape a domain ``{field: FieldError}`` map into the RFC 9457 ``errors`` array (v1.0).
-
-    Each entry is ``{field, code, params?, detail}`` (steering `37`). ``field`` is the dotted
-    field key; ``code`` is the machine i18n key the SPA localizes; ``detail`` is the English
-    fallback. Tolerant of a legacy bare-string value (wrapped as ``{field, detail}`` with the
-    generic ``errors.api.badRequest`` code) so a caller that has not migrated still serializes.
-    """
-    array: list[dict[str, Any]] = []
-    for field_key, value in errors.items():
-        if isinstance(value, FieldError):
-            array.append(value.as_entry(field_key=str(field_key)))
-        else:  # defensive: a not-yet-migrated string reason
-            array.append(
-                {"field": str(field_key), "code": "errors.api.badRequest", "detail": str(value)}
-            )
-    return array
-
-
-def _reasons_array(reasons: Any) -> list[dict[str, Any]]:
-    """Shape a :class:`TransitionDenied` ``reasons`` sequence into the RFC 9457 array (v1.0).
-
-    Each entry is ``{code, params?, detail}`` (no ``field`` — a transition denial is not tied to
-    one input field). Today the domain emits reasons as plain English strings (config-driven
-    guard messages), so each is wrapped under the shared ``errors.transition.denied`` code with
-    the string as ``detail``; a :class:`FieldError` reason (future) passes through via
-    ``as_entry``. Tolerant of a single string or a non-sequence.
-    """
-    if isinstance(reasons, (str, bytes)):
-        reasons = [reasons]
-    array: list[dict[str, Any]] = []
-    for reason in reasons or ():
-        if isinstance(reason, FieldError):
-            array.append(reason.as_entry())
-        else:
-            array.append({"code": "errors.transition.denied", "detail": str(reason)})
-    return array
 
 
 # ── Auth + tenant context + authorization (task 3.0 — the verified-auth edge) ─────────
@@ -960,284 +814,19 @@ def _get_membership_service() -> MembershipService:
     return _SERVICE
 
 
-def _require_path_param(ctx: RequestContext, name: str) -> str:
-    """Return a required path parameter, or raise :class:`RouteNotImplemented`-free 400-ish.
-
-    The router only matches a route when its ``{param}`` segments are present, so a resolved
-    READ route always carries its ids; this guard is defensive (a mis-wired route would
-    surface loudly rather than silently reading the wrong member).
-    """
-    value = ctx.path_params.get(name)
-    if not value:
-        raise KeyError(name)
-    return value
-
-
-def _query_flag(query: Mapping[str, Any], name: str) -> bool:
-    """Read a boolean query-string flag, tolerant of the usual truthy spellings.
-
-    API Gateway hands query params as strings (or ``None`` when absent). ``true`` / ``1`` /
-    ``yes`` / ``on`` (any case) read as ``True``; anything else (incl. a missing param) reads
-    as ``False`` — so the flag defaults off, which for the catalog list means "management
-    view: return ALL entries" unless the caller explicitly asks ``?active_only=true``.
-    """
-    raw = query.get(name) if isinstance(query, Mapping) else None
-    if raw is None:
-        return False
-    return str(raw).strip().lower() in {"true", "1", "yes", "on"}
-
-
-def _write_body(request: ParsedRequest) -> Mapping[str, Any]:
-    """The parsed request body for a WRITE route, as a mapping (empty when absent/non-JSON).
-
-    Write routes carry a JSON object body; a missing or non-object body is normalised to an
-    empty mapping so the domain layer's authoritative validation surfaces the "required
-    field" errors (a 422), rather than the handler guessing. The handler never enriches the
-    body — the domain stamps the verified ``tenant_id`` itself (verify-before-trust).
-    """
-    body = request.body
-    return body if isinstance(body, Mapping) else {}
-
-
-def _parse_to_state(body: Mapping[str, Any]) -> MembershipStatus:
-    """Read the requested target lifecycle state from a transition request body → enum.
-
-    The transition routes carry ``{"to_state": "active", ...}`` (or ``"to"``). An absent or
-    unrecognised state is a client error the edge maps to a 422 (:class:`MemberValidationError`)
-    — the domain never guesses a target state.
-    """
-    raw = None
-    if isinstance(body, Mapping):
-        raw = body.get("to_state") or body.get("to")
-    try:
-        return MembershipStatus(raw)
-    except (ValueError, TypeError):
-        raise MemberValidationError(
-            {"to_state": f"a valid target lifecycle state is required (got {raw!r})"}
-        )
-
-
-def _transition_context(body: Mapping[str, Any]) -> Mapping[str, Any]:
-    """The declarative transition context (guard facts) from a transition request body.
-
-    The lifecycle guards may read ``context.*`` facts threaded in at call time (e.g. h-dcn's
-    ``context.approved`` approval flag). We pass through the body's ``context`` object when
-    present, else an empty mapping — the guards treat missing facts as absent (deny where a
-    guard requires the fact).
-    """
-    if isinstance(body, Mapping):
-        ctx = body.get("context")
-        if isinstance(ctx, Mapping):
-            return ctx
-    return {}
-
-
-# The READ routes this task (3.2) implements, dispatched by their stable route ``name``.
-# WRITE routes (create/update/delete/transition/delegates) are intentionally absent — they
-# fall through to :class:`RouteNotImplemented` (Step 5 / task 5.2).
 def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> Any:
     """Delegate a resolved route to the generic membership engine (design C2).
 
-    Task 3.2 wires the **READ** routes end-to-end: the edge hands the domain service the
-    verified ``tenant_id`` (isolation, Property 1), the resolved per-dimension
-    ``allowed_scopes`` map (domain-layer scope filtering, design C4 / Property 4/6; s5d task
-    4.2 iterates it AND-across-dimensions, so no gating dimension is threaded),
-    the requester ``sub`` and the route's ``self_service`` flag (so a member can read their
-    OWN record), and the router's path params (``{member_id}`` / ``{membership_id}``). The
-    handler stays thin — no scope math, no field resolution, no DynamoDB here.
+    Thin wrapper preserved on the facade so the existing monkeypatch seams hold: it resolves
+    the module-global :class:`MembershipService` via :func:`_get_membership_service` (which
+    tests patch) and hands it to :func:`sam.members.handler._dispatch.dispatch_route` (which
+    owns the per-route ``if name == ...`` body). The ``(spec, request, ctx)`` signature is
+    unchanged — tests also patch ``app._dispatch`` directly with the same shape.
 
-    WRITE routes remain a stub: they raise :class:`RouteNotImplemented` (→ 501) until Step 5.
+    WRITE/READ wiring and the honest-501 fall-through live in ``dispatch_route``.
     """
     service = _get_membership_service()
-    tenant_id = ctx.tenant_id
-    scopes = ctx.allowed_scopes
-
-    name = spec.name
-
-    # ── Group MEMBER (reads) ──────────────────────────────────────────────────────────
-    if name == "list_members":
-        return service.list_members(tenant_id, scopes)
-
-    if name == "list_members_filtered":
-        filters = request.body if isinstance(request.body, Mapping) else None
-        return service.list_members(tenant_id, scopes, filters=filters)
-
-    if name == "export_members":
-        return service.export_members(tenant_id, scopes)
-
-    if name == "get_self":
-        # Pure self-service (capability None): only ever the caller's own record.
-        return service.get_self(tenant_id, ctx.sub)
-
-    if name == "get_field_config":
-        # The resolved field config (fixed ⊕ overlay) + the tenant's ACTIVE membership-type
-        # catalog as the membership_type dropdown options. Tenant-scoped by the verified
-        # tenant_id (never a client-supplied tenant); the frontend renders it, enforces
-        # nothing (R2.3/R2.4, design C3/C8).
-        return service.get_field_config(tenant_id)
-
-    if name == "get_member":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.get_member(
-            tenant_id,
-            member_id,
-            scopes,
-            requester_sub=ctx.sub,
-            self_service=spec.self_service,
-        )
-
-    # ── Group MEMBERSHIP (reads) ────────────────────────────────────────────────────
-    if name == "list_memberships":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.list_memberships(
-            tenant_id,
-            member_id,
-            scopes,
-            requester_sub=ctx.sub,
-            self_service=spec.self_service,
-        )
-
-    if name == "get_membership":
-        member_id = _require_path_param(ctx, "member_id")
-        membership_id = _require_path_param(ctx, "membership_id")
-        return service.get_membership(
-            tenant_id,
-            member_id,
-            membership_id,
-            scopes,
-            requester_sub=ctx.sub,
-            self_service=spec.self_service,
-        )
-
-    # ── Group PAYMENT (read) ──────────────────────────────────────────────────────────
-    if name == "get_member_payments":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.get_member_payments(
-            tenant_id,
-            member_id,
-            scopes,
-            requester_sub=ctx.sub,
-            self_service=spec.self_service,
-        )
-
-    # ── Group CATALOG (Lidmaatschap Beheer reads, design C8 — task 3.4) ─────────────
-    if name == "list_membership_types":
-        # Management view defaults to ALL entries (incl. retired active=false); an explicit
-        # ``?active_only=true`` narrows to the assignable ones. Tenant-scoped by the verified
-        # tenant_id (never a client-supplied tenant); the catalog is not scope-partitioned.
-        active_only = _query_flag(request.query, "active_only")
-        return service.list_membership_types(tenant_id, active_only=active_only)
-
-    if name == "get_membership_type":
-        type_code = _require_path_param(ctx, "type_code")
-        return service.get_membership_type(tenant_id, type_code)
-
-    # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
-    if name == "create_member":
-        return service.create_member(
-            tenant_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, caller_roles=ctx.groups,
-        )
-
-    if name == "update_member":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.update_member(
-            tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service,
-            caller_roles=ctx.groups,
-        )
-
-    if name == "delete_member":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.delete_member(
-            tenant_id, member_id, scopes, requester_sub=ctx.sub,
-        )
-
-    # ── Group MEMBERSHIP (writes — task 5.2) ──────────────────────────────────────────
-    if name == "create_membership":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.create_membership(
-            tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub,
-        )
-
-    if name == "update_membership":
-        member_id = _require_path_param(ctx, "member_id")
-        membership_id = _require_path_param(ctx, "membership_id")
-        return service.update_membership(
-            tenant_id, member_id, membership_id, _write_body(request), scopes,
-            requester_sub=ctx.sub,
-        )
-
-    if name == "delete_membership":
-        member_id = _require_path_param(ctx, "member_id")
-        membership_id = _require_path_param(ctx, "membership_id")
-        return service.delete_membership(
-            tenant_id, member_id, membership_id, scopes,
-            requester_sub=ctx.sub,
-        )
-
-    if name == "transition_membership":
-        member_id = _require_path_param(ctx, "member_id")
-        body = _write_body(request)
-        to_state = _parse_to_state(body)
-        result = service.transition_member(
-            tenant_id, member_id, to_state, scopes,
-            context=_transition_context(body),
-            requester_sub=ctx.sub,
-        )
-        return {
-            "member": result.member,
-            "from": result.from_state.value,
-            "to": result.to_state.value,
-        }
-
-    if name == "bulk_transition_memberships":
-        body = _write_body(request)
-        to_state = _parse_to_state(body)
-        member_ids = body.get("member_ids") if isinstance(body, Mapping) else None
-        if not isinstance(member_ids, (list, tuple)) or not member_ids:
-            raise MemberValidationError(
-                {"member_ids": "a non-empty member_ids list is required"}
-            )
-        return service.bulk_transition_members(
-            tenant_id, [str(m) for m in member_ids], to_state, scopes,
-            context=_transition_context(body),
-            requester_sub=ctx.sub,
-        )
-
-    # ── Group DELEGATE (writes — task 5.2; self-service) ──────────────────────────────
-    if name == "manage_delegates":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.manage_delegates(
-            tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service,
-        )
-
-    if name == "send_delegate_invitation":
-        member_id = _require_path_param(ctx, "member_id")
-        return service.send_delegate_invitation(
-            tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service,
-        )
-
-    # ── Group CATALOG (Lidmaatschap Beheer writes, design C8 — task 5.3) ─────────────
-    if name == "create_membership_type":
-        # Create a catalog entry; a duplicate type_code is a 409 (never a silent overwrite).
-        # Tenant-scoped by the verified tenant_id (never a body tenant_id — verify-before-trust).
-        return service.create_membership_type(tenant_id, _write_body(request))
-
-    if name == "update_membership_type":
-        type_code = _require_path_param(ctx, "type_code")
-        return service.update_membership_type(tenant_id, type_code, _write_body(request))
-
-    if name == "deactivate_membership_type":
-        # Soft-delete (retire → active=false), NEVER a hard delete (C8 referential integrity).
-        type_code = _require_path_param(ctx, "type_code")
-        return service.deactivate_membership_type(tenant_id, type_code)
-
-    # Anything not wired above → honest 501.
-    raise RouteNotImplemented(spec.name)
+    return dispatch_route(service, spec, request, ctx)
 
 
 # ── Lambda entry point ────────────────────────────────────────────────────────────────

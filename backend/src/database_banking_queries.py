@@ -22,13 +22,13 @@ class DatabaseBankingQueriesMixin:
     Requires self.execute_query() from DatabaseManager.
     """
 
-    def get_used_transaction_numbers(self, ref1, table_name="mutaties"):
+    def get_used_transaction_numbers(self, ref1, table_name="mutaties") -> list:
         """Get existing transaction numbers for duplicate prevention"""
         return self.execute_query(
             f"SELECT Ref2 FROM {table_name} WHERE Ref1 = %s", (ref1,)
         )
 
-    def get_bank_account_lookups(self, administration=None):
+    def get_bank_account_lookups(self, administration=None) -> list:
         """Get bank account lookup data from rekeningschema using parameters $.bank_account flag.
 
         The IBAN is read from the parameters JSON ($.iban) as the canonical source,
@@ -53,7 +53,7 @@ class DatabaseBankingQueriesMixin:
             )
         return self.execute_query(base_query + " ORDER BY administration, Account")
 
-    def get_credit_card_lookups(self, administration=None):
+    def get_credit_card_lookups(self, administration=None) -> list:
         """Get credit card lookup data from rekeningschema using parameters $.credit_card flag.
 
         Args:
@@ -79,7 +79,7 @@ class DatabaseBankingQueriesMixin:
             )
         return self.execute_query(base_query + " ORDER BY administration, Account")
 
-    def get_exchange_rate_account(self, administration=None):
+    def get_exchange_rate_account(self, administration=None) -> list:
         """Get the exchange rate difference account from rekeningschema.
 
         Args:
@@ -99,7 +99,9 @@ class DatabaseBankingQueriesMixin:
             )
         return self.execute_query(base_query)
 
-    def get_existing_sequences(self, iban, table_name="mutaties", administration=None):
+    def get_existing_sequences(
+        self, iban, table_name="mutaties", administration=None
+    ) -> list:
         """Get existing Ref2 sequences for a specific IBAN within last 2 years."""
         query = f"""
             SELECT Ref2 as existing FROM {table_name}
@@ -115,7 +117,7 @@ class DatabaseBankingQueriesMixin:
         results = self.execute_query(query, tuple(params))
         return [r["existing"] for r in results]
 
-    def get_patterns(self, administration):
+    def get_patterns(self, administration) -> list:
         """Get patterns from vw_readreferences view with date filtering.
 
         Bank accounts are resolved from rekeningschema.parameters $.bank_account flag.
@@ -142,7 +144,7 @@ class DatabaseBankingQueriesMixin:
 
     def get_recent_transactions(
         self, limit=100, table_name="mutaties", administration=None
-    ):
+    ) -> list:
         """Get recent transactions for lookup data"""
         if administration:
             return self.execute_query(
@@ -163,7 +165,7 @@ class DatabaseBankingQueriesMixin:
 
     def get_previous_transactions(
         self, reference_number, limit=3, table_name="mutaties"
-    ):
+    ) -> list:
         """Get previous transactions with descriptions for AI pattern learning"""
         query = f"""
             SELECT TransactionDate as Datum, TransactionDescription as Omschrijving,
@@ -183,7 +185,7 @@ class DatabaseBankingQueriesMixin:
         transaction_date,
         transaction_amount,
         table_name="mutaties",
-    ):
+    ) -> list:
         """
         Check for existing transactions with matching criteria within 2-year window.
 

@@ -8,8 +8,12 @@
 import React, { useState, useEffect } from 'react';
 import { Box, VStack, Button, Spinner, useToast, useDisclosure } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
-import { fetchAuthSession } from 'aws-amplify/auth';
-import { buildApiUrl } from '../../config';
+import {
+  authenticatedGet,
+  authenticatedPost,
+  authenticatedPut,
+  authenticatedDelete,
+} from '../../services/apiService';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { useFilterableTable } from '../../hooks/useFilterableTable';
 import { UserTable, User } from './UserTable';
@@ -79,20 +83,9 @@ export default function UserManagement({ tenant }: UserManagementProps) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
-
-      if (!token) throw new Error(t('userManagement.messages.noAuthToken'));
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'X-Tenant': tenant,
-      };
-
       const [usersRes, rolesRes] = await Promise.all([
-        fetch(buildApiUrl('/api/tenant-admin/users'), { headers }),
-        fetch(buildApiUrl('/api/tenant-admin/roles'), { headers }),
+        authenticatedGet('/api/tenant-admin/users', { tenant }),
+        authenticatedGet('/api/tenant-admin/roles', { tenant }),
       ]);
 
       if (usersRes.ok && rolesRes.ok) {
@@ -156,42 +149,26 @@ export default function UserManagement({ tenant }: UserManagementProps) {
   };
 
   // ---------------------------------------------------------------------------
-  // Auth helper
-  // ---------------------------------------------------------------------------
-
-  const getAuthHeaders = async () => {
-    const session = await fetchAuthSession();
-    const token = session.tokens?.idToken?.toString();
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-Tenant': tenant,
-    };
-  };
-
-  // ---------------------------------------------------------------------------
   // CRUD handlers
   // ---------------------------------------------------------------------------
 
   const handleCreateUser = async () => {
     setActionLoading(true);
     try {
-      const headers = await getAuthHeaders();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       try {
-        const response = await fetch(buildApiUrl('/api/tenant-admin/users'), {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
+        const response = await authenticatedPost(
+          '/api/tenant-admin/users',
+          {
             email: newUserEmail,
             name: newUserName,
             password: newUserPassword,
             groups: selectedRoles,
-          }),
-          signal: controller.signal,
-        });
+          },
+          { tenant, signal: controller.signal },
+        );
 
         clearTimeout(timeoutId);
         const data = await response.json();
@@ -234,14 +211,12 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     if (!selectedUser) return;
     setActionLoading(true);
     try {
-      const headers = await getAuthHeaders();
-
       if (editUserName !== (selectedUser.name || '')) {
-        await fetch(buildApiUrl(`/api/tenant-admin/users/${selectedUser.username}`), {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ name: editUserName }),
-        });
+        await authenticatedPut(
+          `/api/tenant-admin/users/${selectedUser.username}`,
+          { name: editUserName },
+          { tenant },
+        );
       }
 
       const currentRoles = selectedUser.groups;
@@ -249,18 +224,18 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       const rolesToRemove = currentRoles.filter(r => !selectedRoles.includes(r));
 
       for (const role of rolesToAdd) {
-        await fetch(buildApiUrl(`/api/tenant-admin/users/${selectedUser.username}/groups`), {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ groupName: role }),
-        });
+        await authenticatedPost(
+          `/api/tenant-admin/users/${selectedUser.username}/groups`,
+          { groupName: role },
+          { tenant },
+        );
       }
 
       for (const role of rolesToRemove) {
-        await fetch(buildApiUrl(`/api/tenant-admin/users/${selectedUser.username}/groups/${role}`), {
-          method: 'DELETE',
-          headers: { 'Authorization': headers.Authorization, 'X-Tenant': tenant },
-        });
+        await authenticatedDelete(
+          `/api/tenant-admin/users/${selectedUser.username}/groups/${role}`,
+          { tenant },
+        );
       }
 
       toast({ title: t('userManagement.messages.userUpdated'), status: 'success', duration: 3000 });
@@ -275,12 +250,11 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
   const handleToggleUserStatus = async (user: User, enable: boolean) => {
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(buildApiUrl(`/api/tenant-admin/users/${user.username}`), {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ enabled: enable }),
-      });
+      const response = await authenticatedPut(
+        `/api/tenant-admin/users/${user.username}`,
+        { enabled: enable },
+        { tenant },
+      );
 
       if (response.ok) {
         toast({ title: enable ? t('userManagement.messages.userEnabled') : t('userManagement.messages.userDisabled'), status: 'success', duration: 3000 });
@@ -296,11 +270,10 @@ export default function UserManagement({ tenant }: UserManagementProps) {
   const handleDeleteUser = async (user: User) => {
     if (!window.confirm(t('userManagement.messages.confirmDelete', { email: user.email }))) return;
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(buildApiUrl(`/api/tenant-admin/users/${user.username}`), {
-        method: 'DELETE',
-        headers: { 'Authorization': headers.Authorization, 'X-Tenant': tenant },
-      });
+      const response = await authenticatedDelete(
+        `/api/tenant-admin/users/${user.username}`,
+        { tenant },
+      );
       const data = await response.json();
       if (response.ok) {
         toast({ title: t('userManagement.messages.userDeleted'), description: data.message, status: 'success', duration: 3000 });
@@ -317,16 +290,15 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     if (!selectedUser) return;
     setSendingEmail(true);
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(buildApiUrl('/api/tenant-admin/send-email'), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
+      const response = await authenticatedPost(
+        '/api/tenant-admin/send-email',
+        {
           email: selectedUser.email,
           template_type: selectedEmailTemplate,
           user_data: { name: selectedUser.name, username: selectedUser.username, status: selectedUser.status },
-        }),
-      });
+        },
+        { tenant },
+      );
       const data = await response.json();
       if (response.ok) {
         toast({ title: t('userManagement.messages.emailSent'), description: t('userManagement.messages.emailSentTo', { email: selectedUser.email }), status: 'success', duration: 3000 });
@@ -344,12 +316,11 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     if (!selectedUser) return;
     setSendingEmail(true);
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(buildApiUrl('/api/tenant-admin/resend-invitation'), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ email: selectedUser.email, username: selectedUser.username }),
-      });
+      const response = await authenticatedPost(
+        '/api/tenant-admin/resend-invitation',
+        { email: selectedUser.email, username: selectedUser.username },
+        { tenant },
+      );
       const data = await response.json();
       if (response.ok) {
         toast({ title: t('userManagement.messages.invitationResent'), description: t('userManagement.messages.invitationResentMessage', { email: selectedUser.email, days: data.expiry_days }), status: 'success', duration: 5000 });

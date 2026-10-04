@@ -11,6 +11,7 @@ import {
   Input, Select, Switch, VStack, HStack, Text, useToast,
 } from '@chakra-ui/react';
 import { Formik, Form, Field } from 'formik';
+import type { FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { TimeEntry, Contact, Product } from '../../types/zzp';
@@ -62,9 +63,12 @@ export const TimeEntryModal: React.FC<TimeEntryModalProps> = ({
     hourly_rate: Yup.number().required('Rate is required').min(0, 'Must be >= 0'),
   });
 
-  const handleSubmit = async (values: typeof initialValues, { setSubmitting }: any) => {
+  const handleSubmit = async (
+    values: typeof initialValues,
+    { setSubmitting }: FormikHelpers<typeof initialValues>,
+  ) => {
     try {
-      const data: any = {
+      const data: Partial<TimeEntry> = {
         contact_id: Number(values.contact_id),
         entry_date: values.entry_date,
         hours: Number(values.hours),
@@ -84,8 +88,8 @@ export const TimeEntryModal: React.FC<TimeEntryModalProps> = ({
       } else {
         toast({ title: resp.error || 'Error', status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error', status: 'error' });
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : 'Error', status: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -101,8 +105,8 @@ export const TimeEntryModal: React.FC<TimeEntryModalProps> = ({
       } else {
         toast({ title: resp.error || 'Error', status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error', status: 'error' });
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : 'Error', status: 'error' });
     }
   };
 

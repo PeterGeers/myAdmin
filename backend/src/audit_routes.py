@@ -13,6 +13,7 @@ import tempfile
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, send_file
+from flask.typing import ResponseReturnValue
 
 from audit_logger import AuditLogger
 from auth.cognito_utils import cognito_required
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 audit_bp = Blueprint("audit", __name__, url_prefix="/api/audit")
 
 
-def get_audit_logger():
+def get_audit_logger() -> AuditLogger:
     """Get an AuditLogger instance"""
     db = DatabaseManager()
     return AuditLogger(db)
@@ -33,7 +34,7 @@ def get_audit_logger():
 
 @audit_bp.route("/logs", methods=["GET"])
 @cognito_required(required_roles=["SysAdmin"])
-def get_audit_logs(user_email, user_roles):
+def get_audit_logs(user_email, user_roles) -> ResponseReturnValue:
     """
     Get audit logs with optional filtering.
 
@@ -113,7 +114,7 @@ def get_audit_logs(user_email, user_roles):
 
 @audit_bp.route("/logs/count", methods=["GET"])
 @cognito_required(required_roles=["SysAdmin"])
-def get_audit_log_count(user_email, user_roles):
+def get_audit_log_count(user_email, user_roles) -> ResponseReturnValue:
     """
     Get count of audit log entries.
 
@@ -158,7 +159,7 @@ def get_audit_log_count(user_email, user_roles):
 
 @audit_bp.route("/reports/compliance", methods=["GET"])
 @cognito_required(required_roles=["SysAdmin"])
-def generate_compliance_report(user_email, user_roles):
+def generate_compliance_report(user_email, user_roles) -> ResponseReturnValue:
     """
     Generate a compliance report for audit purposes.
 
@@ -204,7 +205,7 @@ def generate_compliance_report(user_email, user_roles):
 
 @audit_bp.route("/reports/user/<user_id>", methods=["GET"])
 @cognito_required(required_roles=["SysAdmin"])
-def get_user_activity_report(user_id, user_email, user_roles):
+def get_user_activity_report(user_id, user_email, user_roles) -> ResponseReturnValue:
     """
     Generate a user activity report.
 
@@ -244,7 +245,7 @@ def get_user_activity_report(user_id, user_email, user_roles):
 
 @audit_bp.route("/transaction-trail", methods=["GET"])
 @cognito_required(required_roles=["SysAdmin"])
-def get_transaction_audit_trail(user_email, user_roles):
+def get_transaction_audit_trail(user_email, user_roles) -> ResponseReturnValue:
     """
     Get complete audit trail for a specific transaction.
 
@@ -314,7 +315,7 @@ def get_transaction_audit_trail(user_email, user_roles):
 
 @audit_bp.route("/export/csv", methods=["GET"])
 @cognito_required(required_roles=["SysAdmin"])
-def export_logs_to_csv(user_email, user_roles):
+def export_logs_to_csv(user_email, user_roles) -> ResponseReturnValue:
     """
     Export audit logs to CSV file.
 
@@ -367,7 +368,7 @@ def export_logs_to_csv(user_email, user_roles):
 
         # Schedule file deletion after sending
         @response.call_on_close
-        def cleanup():
+        def cleanup() -> None:
             try:
                 os.unlink(temp_file_name)
             except Exception as e:
@@ -384,7 +385,7 @@ def export_logs_to_csv(user_email, user_roles):
 
 @audit_bp.route("/cleanup", methods=["POST"])
 @cognito_required(required_roles=["SysAdmin"])
-def cleanup_old_logs(user_email, user_roles):
+def cleanup_old_logs(user_email, user_roles) -> ResponseReturnValue:
     """
     Clean up old audit logs based on retention policy.
 
@@ -434,7 +435,7 @@ def cleanup_old_logs(user_email, user_roles):
 
 @audit_bp.route("/health", methods=["GET"])
 @cognito_required(required_permissions=[])
-def audit_health_check(user_email, user_roles):
+def audit_health_check(user_email, user_roles) -> ResponseReturnValue:
     """
     Health check endpoint for audit logging system.
 
@@ -470,7 +471,7 @@ def audit_health_check(user_email, user_roles):
 
 # Error handlers
 @audit_bp.errorhandler(404)
-def not_found(error):
+def not_found(error) -> ResponseReturnValue:
     """Handle 404 errors"""
     return jsonify(
         {"success": False, "error": "Endpoint not found", "message": str(error)}
@@ -478,7 +479,7 @@ def not_found(error):
 
 
 @audit_bp.errorhandler(500)
-def internal_error(error):
+def internal_error(error) -> ResponseReturnValue:
     """Handle 500 errors"""
     logger.error(f"Internal server error in audit routes: {error}")
     return jsonify(

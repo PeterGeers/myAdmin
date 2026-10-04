@@ -137,7 +137,9 @@ class StaticViewContextsProvider:
     DynamoDB-backed reader's behavior so tests and production agree.
     """
 
-    def __init__(self, contexts_by_tenant: Mapping[str, Sequence[ViewContext]] | None = None):
+    def __init__(
+        self, contexts_by_tenant: Mapping[str, Sequence[ViewContext]] | None = None
+    ) -> None:
         self._contexts_by_tenant = dict(contexts_by_tenant or {})
 
     def get_view_contexts(self, tenant_id: str) -> tuple[ViewContext, ...]:

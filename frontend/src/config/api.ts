@@ -16,7 +16,7 @@ const getApiBaseUrl = (): string => {
   if (window.API_BASE_URL !== undefined) {
     return window.API_BASE_URL;
   }
-  
+
   // Default to empty string for relative URLs
   return '';
 };
@@ -36,26 +36,22 @@ export const API_ENDPOINTS = {
   AANGIFTE_IB: '/api/reports/aangifte-ib',
   AANGIFTE_IB_EXPORT: '/api/reports/aangifte-ib-export',
   AANGIFTE_IB_XLSX_EXPORT: '/api/reports/aangifte-ib-xlsx-export',
-  
+
   // BNB
   BNB_VIOLIN_DATA: '/api/bnb/bnb-violin-data',
   BNB_RETURNING_GUESTS: '/api/bnb/bnb-returning-guests',
   BNB_GUEST_BOOKINGS: '/api/bnb/bnb-guest-bookings',
   BNB_FILTER_OPTIONS_BNB: '/api/bnb/bnb-filter-options',
-  
+
   // Status
   STATUS: '/api/status',
   TEST: '/api/test'
 } as const;
 
-// Helper function to build API URLs
-// DEPRECATED: Use buildEndpoint from apiService instead when using with authenticatedGet/Post/etc
-export const buildApiUrl = (endpoint: string, params?: URLSearchParams): string => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  return params ? `${url}?${params.toString()}` : url;
-};
-
-// Re-export authenticated API functions for convenience
+// Re-export authenticated API functions for convenience.
+// `buildApiUrl` has a single implementation in services/apiService — re-exported
+// here (and under the legacy `buildAuthenticatedApiUrl` alias) so existing call
+// sites keep working. Use buildEndpoint with authenticatedGet/Post/etc.
 export {
   authenticatedRequest,
   authenticatedGet,
@@ -64,5 +60,6 @@ export {
   authenticatedDelete,
   authenticatedFormData,
   buildEndpoint, // Use this with authenticatedGet/Post/etc
-  buildApiUrl as buildAuthenticatedApiUrl // Full URL builder (rarely needed)
+  buildApiUrl, // Single-source full URL builder (from apiService)
+  buildApiUrl as buildAuthenticatedApiUrl // Legacy alias (rarely needed)
 } from '../services/apiService';

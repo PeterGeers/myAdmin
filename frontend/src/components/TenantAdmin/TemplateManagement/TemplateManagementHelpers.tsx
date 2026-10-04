@@ -1,6 +1,11 @@
 import React from 'react';
 import { Box, VStack, Text } from '@chakra-ui/react';
-import type { TemplateType } from '../../../services/templateApi';
+
+// `getRequiredPlaceholders` has a single implementation (backed by the
+// REQUIRED_PLACEHOLDERS map) in types/template.ts. Re-export it here so the
+// existing `import { getRequiredPlaceholders } from './TemplateManagementHelpers'`
+// call site keeps working without a second copy of the placeholder map.
+export { getRequiredPlaceholders } from '../../../types/template';
 
 /**
  * Helper function to read file as text
@@ -18,23 +23,6 @@ export function readFileAsText(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsText(file);
   });
-}
-
-/**
- * Get required placeholders for template type
- */
-export function getRequiredPlaceholders(templateType: TemplateType): string[] {
-  const placeholders: Record<TemplateType, string[]> = {
-    str_invoice_nl: ['invoice_number', 'invoice_date', 'company_name', 'total_amount'],
-    str_invoice_en: ['invoice_number', 'invoice_date', 'company_name', 'total_amount'],
-    btw_aangifte: ['period', 'year', 'quarter', 'btw_total'],
-    aangifte_ib: ['year', 'administration', 'total_income', 'total_expenses'],
-    toeristenbelasting: ['year', 'accommodation_name', 'total_nights', 'tourist_tax'],
-    financial_report: ['year', 'administration', 'report_type'],
-    zzp_invoice: ['invoice_number', 'invoice_date', 'company_name', 'grand_total', 'subtotal', 'lines'],
-  };
-
-  return placeholders[templateType] || [];
 }
 
 /**
