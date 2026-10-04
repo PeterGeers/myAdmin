@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, VStack, HStack, Button, Text, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, Badge, Alert, AlertIcon,
+  Table, TableContainer, Thead, Tbody, Tr, Th, Td, Badge, Alert, AlertIcon,
   Input, FormControl, FormLabel, Select, Modal, ModalOverlay,
   ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   useDisclosure
 } from '@chakra-ui/react';
-import { 
-  CheckCircleIcon, 
-  RepeatIcon, 
+import {
+  CheckCircleIcon,
+  RepeatIcon,
   ExternalLinkIcon
 } from '@chakra-ui/icons';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import {
+  authenticatedGet,
+  authenticatedPost,
+  authenticatedFormData,
+  buildEndpoint,
+} from '../../services/apiService';
 
 interface CredentialInfo {
   type: string;
@@ -41,15 +46,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
   const loadCredentials = async () => {
     setLoading(true);
     try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant': tenant
-        }
-      });
+      const response = await authenticatedGet('/api/tenant-admin/credentials', { tenant });
 
       if (!response.ok) {
         throw new Error('Failed to load credentials');
@@ -99,21 +96,15 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
 
     setUploading(true);
     try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
-
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('credential_type', credentialType);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant': tenant
-        },
-        body: formData
-      });
+      const response = await authenticatedFormData(
+        buildEndpoint('/api/tenant-admin/credentials'),
+        formData,
+        { tenant },
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -159,18 +150,11 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
   const handleTestCredential = async (type: string) => {
     setTesting(type);
     try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials/test`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant': tenant,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ credential_type: type })
-      });
+      const response = await authenticatedPost(
+        '/api/tenant-admin/credentials/test',
+        { credential_type: type },
+        { tenant },
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -200,18 +184,11 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
 
   const handleStartOAuth = async () => {
     try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials/oauth/start`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant': tenant,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ service: 'google_drive' })
-      });
+      const response = await authenticatedPost(
+        '/api/tenant-admin/credentials/oauth/start',
+        { service: 'google_drive' },
+        { tenant },
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -225,22 +202,18 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
         if (event.data.type === 'oauth_success') {
           // Remove listener
           window.removeEventListener('message', messageHandler);
-          
+
           // Call complete endpoint to store tokens
           try {
-            const completeResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials/oauth/complete`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-Tenant': tenant,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
+            const completeResponse = await authenticatedPost(
+              '/api/tenant-admin/credentials/oauth/complete',
+              {
                 code: event.data.code,
                 state: event.data.state,
                 service: 'google_drive'
-              })
-            });
+              },
+              { tenant },
+            );
 
             if (!completeResponse.ok) {
               const errorData = await completeResponse.json();
@@ -267,7 +240,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
         } else if (event.data.type === 'oauth_error') {
           // Remove listener
           window.removeEventListener('message', messageHandler);
-          
+
           toast({
             title: 'OAuth failed',
             description: event.data.error || 'Authorization failed',
@@ -282,7 +255,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
 
       // Open OAuth URL in new window
       const popup = window.open(data.oauth_url, '_blank', 'width=600,height=700');
-      
+
       if (!popup) {
         window.removeEventListener('message', messageHandler);
         toast({
@@ -374,37 +347,39 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
       ) : (
         <VStack spacing={4} align="stretch">
           <Box bg="gray.800" borderRadius="lg" overflow="hidden">
-            <Table variant="simple">
-              <Thead bg="gray.700">
-                <Tr>
-                  <Th color="gray.300">Credential Type</Th>
-                  <Th color="gray.300">Created</Th>
-                  <Th color="gray.300">Last Updated</Th>
-                  <Th color="gray.300">Status</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {credentials.map((cred) => (
-                  <Tr key={cred.type}>
-                    <Td color="gray.100">
-                      <Badge colorScheme="blue">{cred.type}</Badge>
-                    </Td>
-                    <Td color="gray.300" fontSize="sm">
-                      {formatDate(cred.created_at)}
-                    </Td>
-                    <Td color="gray.300" fontSize="sm">
-                      {formatDate(cred.updated_at)}
-                    </Td>
-                    <Td>
-                      <Badge colorScheme="green" display="flex" alignItems="center" gap={1} w="fit-content">
-                        <CheckCircleIcon />
-                        Configured
-                      </Badge>
-                    </Td>
+            <TableContainer overflowX="auto">
+              <Table variant="simple">
+                <Thead bg="gray.700">
+                  <Tr>
+                    <Th color="gray.300">Credential Type</Th>
+                    <Th color="gray.300">Created</Th>
+                    <Th color="gray.300">Last Updated</Th>
+                    <Th color="gray.300">Status</Th>
                   </Tr>
-                ))}
-              </Tbody>
-            </Table>
+                </Thead>
+                <Tbody>
+                  {credentials.map((cred) => (
+                    <Tr key={cred.type}>
+                      <Td color="gray.100">
+                        <Badge colorScheme="blue">{cred.type}</Badge>
+                      </Td>
+                      <Td color="gray.300" fontSize="sm">
+                        {formatDate(cred.created_at)}
+                      </Td>
+                      <Td color="gray.300" fontSize="sm">
+                        {formatDate(cred.updated_at)}
+                      </Td>
+                      <Td>
+                        <Badge colorScheme="green" display="flex" alignItems="center" gap={1} w="fit-content">
+                          <CheckCircleIcon />
+                          Configured
+                        </Badge>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </TableContainer>
           </Box>
 
           {/* Test All Google Drive Credentials Button */}

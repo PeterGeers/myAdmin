@@ -9,7 +9,6 @@ triggered by a sysadmin endpoint).
 """
 
 import logging
-import os
 
 from database import DatabaseManager
 from services.cloudfront_domain_service import CloudFrontDomainService

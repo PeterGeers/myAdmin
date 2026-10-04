@@ -8,11 +8,13 @@
 # It symlinks each committed hook under scripts/hooks/ into .git/hooks/ (falling
 # back to a copy if symlinks are unavailable) and marks it executable:
 #   - pre-commit : ggshield secret scan + ruff check / ruff format --check
-#   - pre-push   : clean-checkout guard — SAM collect smoke test PLUS ruff
-#                  check, ruff format --check, and an affected-test pytest
-#                  subset scoped to the changed backend files being pushed
-#                  (catches runtime test / lint regressions, and an
-#                  untracked-but-required module, before they reach CI).
+#   - pre-push   : clean-checkout guard — SAM collect smoke test PLUS
+#                  `ruff check src/` and `ruff format --check src/` over the
+#                  whole backend/src/ tree (mirrors the CI lint job), PLUS a
+#                  changed-path pytest subset (via scoped_runner) for the
+#                  backend files being pushed. Catches runtime test / lint /
+#                  format regressions, and an untracked-but-required module,
+#                  before they reach CI.
 #                  Opt out with SKIP_PREPUSH=1 (or legacy SKIP_PREPUSH_COLLECT=1).
 # Replacing any old .git/hooks/<name> loses nothing.
 # ---------------------------------------------------------------------------

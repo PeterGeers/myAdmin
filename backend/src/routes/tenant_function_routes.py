@@ -9,7 +9,6 @@ Reference: .kiro/specs/tenant-optional-functions/design.md
 """
 
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
@@ -17,6 +16,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.service_accessors import make_db_service_accessor
 from services.function_registry import FUNCTION_REGISTRY
 from services.module_registry import has_module
 from services.tenant_function_service import TenantFunctionService
@@ -26,9 +26,7 @@ logger = logging.getLogger(__name__)
 tenant_function_bp = Blueprint("tenant_functions", __name__)
 
 
-def _get_service() -> "TenantFunctionService":
-    db = DatabaseManager()
-    return TenantFunctionService(db)
+_get_service = make_db_service_accessor(TenantFunctionService)
 
 
 @tenant_function_bp.route("/api/tenant/functions", methods=["GET"])

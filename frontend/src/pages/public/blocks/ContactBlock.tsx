@@ -13,6 +13,7 @@ import {
   AlertIcon,
   Container,
 } from '@chakra-ui/react';
+import { authenticatedPost } from '../../../services/apiService';
 
 // reCAPTCHA v3 global type declaration (Task 4.9)
 declare global {
@@ -38,8 +39,6 @@ export interface ContactBlockProps {
 }
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 /**
  * Contact form block for public landing pages.
@@ -112,19 +111,16 @@ export const ContactBlock: React.FC<ContactBlockProps> = ({
         }
       }
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/public/landing/${tenantSlug}/contact`,
+      const response = await authenticatedPost(
+        `/api/public/landing/${tenantSlug}/contact`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name.trim(),
-            email: email.trim(),
-            message: message.trim(),
-            honeypot,
-            ...(captchaToken && { captcha_token: captchaToken }),
-          }),
-        }
+          name: name.trim(),
+          email: email.trim(),
+          message: message.trim(),
+          honeypot,
+          ...(captchaToken && { captcha_token: captchaToken }),
+        },
+        { skipAuth: true },
       );
 
       const result = await response.json();

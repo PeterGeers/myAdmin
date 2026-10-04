@@ -1,0 +1,167 @@
+{
+  "specId": "a3fdd5dd-6d89-4342-aec7-ea16a9d9b750",
+  "spec": "full-test-suite-fixes-2026-10-04",
+  "ciRun": 37226495303,
+  "ciRunNumber": 52,
+  "ciConclusion": "failure",
+  "ciHeadSha": "bd529bb0b51dc89f761fa4a96cb385e5ec4de128",
+  "ciHeadBranch": "spec/code-quality-fixes-2026-10-04",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #52, 2026-10-04)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1",
+      "H2",
+      "H3",
+      "H4"
+    ],
+    "medium": [
+      "M1"
+    ],
+    "low": [
+      "L1",
+      "L2",
+      "L3",
+      "L4"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Give the shared cursor mock concrete fetchall()/fetchone() returns (G1+G3+most G4, 13 failing tests)",
+      "priority": "high",
+      "effort": "L",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "RECURRENCE of 10-03 H1 one layer deeper. The 10-03 fix made the cursor context-manager mock yield (cursor, conn) so the unpack stopped failing, but the mock's fetchall()/fetchone() still return a default MagicMock. Symptoms this cycle: test_banking_service.py x3 ('<' not supported between int and MagicMock -> success False -> KeyError 'mutaties'), test_bug_condition_hardcoded_accounts.py x2 (isinstance(MagicMock, dict/list) False; fetchall() returns a MagicMock not []), test_preservation_account_scoped_save.py x4 + test_preservation_closed_period.py x1 (duplicate-check lookup returns a truthy MagicMock for every candidate -> 'Skipping duplicate (Ref2 match)' -> 0 saved, 0 SELECT calls seen), plus test_closure_aware_bug_condition.py x1 (no beginning balance) and test_provider_aware_preservation.py x1 (empty set) likely feeding off the same row-shape gap. Fix the shared fixture to return concrete lists/tuples/None from fetchall()/fetchone(), not bare mocks. Production + SAM + Frontend run fine; fix is in tests."
+    },
+    {
+      "id": "H2",
+      "title": "Clear 39 ruff-lint errors (27 F401 stray 'import os' sweep + un-cleaned environment/ module)",
+      "priority": "high",
+      "effort": "M",
+      "plane": "lint",
+      "type": "fix",
+      "rootCause": "ruff 0.16.5 reports 39 errors (report header's '41' is a stale summary line; per-rule table + footer = 39). Breakdown: F401 x27 (mostly an unused 'import os' left across ~22 src/routes/*.py and src/services/{domain_verification_job,function_guard,pivot_service}.py, + 4 unused imports in src/environment/resolver.py: dataclasses.field, CognitoDef, MysqlDef, SamDef), UP045 x5 (Optional[X]->X|None in bootstrap.py, environment_definition.py x2, resolver.py x2), I001 x2 (environment/__init__.py:15, resolver.py:32), F841 x2 (resolver.py:186 url, :187 branch - NOT safe-fix, review for dropped use), UP035 x1 + UP006 x1 (health_report.py Dict->dict), RUF022 x1 (environment/__init__.py:45 __all__ unsorted). 35 of 39 are [*] safe-fixable via 'ruff check src/ --fix'; residue ~4 (2 F841, 2 non-[*] F401 at landing_page_routes/__init__.py:47 and pivot_service.py:209, UP035) needs a human glance. Do NOT blanket --unsafe-fixes (F841 delete could hide a dropped assignment)."
+    },
+    {
+      "id": "H3",
+      "title": "Reformat the 17 files flagged by ruff format (concentrated in src/environment/)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "lint",
+      "type": "fix",
+      "rootCause": "'17 files would be reformatted, 307 files already formatted' (worst in the 09-29..10-04 arc; 10-03 was 1). The CI artifact reports only the count, not file names - run 'ruff format --check src/' locally to list them. Concentrated around the freshly-added src/environment/ module which never had ruff format run on it. Auto-fixable via 'ruff format src/'. CI-blocking (Ruff format step red). Land with H2."
+    },
+    {
+      "id": "H4",
+      "title": "Migrate env-isolation tests off dead TEST_MODE/TEST_DB_NAME/testfinance to APP_ENV/finance (G2, 4 failing tests)",
+      "priority": "high",
+      "effort": "M",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "NEW this cycle, independent of the DB-mock cluster. The app uses the APP_ENV + resolved-DB-target model (DB name 'finance' on both local-Docker and Railway targets per the #database convention); these tests still assert the legacy TEST_MODE/testfinance shape. test_infrastructure.py::test_test_environment_fixture (KeyError 'TEST_DB_NAME'), ::test_production_environment_fixture (os.getenv('TEST_MODE') is None, assert == 'false'), test_maintenance/test_isolation_layer.py::TestMockEnv::test_sets_db_name (expects 'testfinance', gets 'finance'), ::test_all_expected_keys_present (expected-set has TEST_MODE; fixture now has APP_ENV). Fix test expectations + the mock_env expected-keys set to the APP_ENV/finance model; do NOT reintroduce TEST_MODE/testfinance in production env resolution (that is the legacy escape hatch, not the model)."
+    },
+    {
+      "id": "M1",
+      "title": "Resolve test_duplicate_checker continue-decision property failure (recurred from 10-03)",
+      "priority": "medium",
+      "effort": "M",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "test_duplicate_checker.py::TestDuplicateCheckerProperties::test_property_user_decision_processing_consistency fails 'Decision handling should succeed for continue' on BOTH 10-03 and 10-04. Hypothesis property test with a reproducible falsifying example (continue branch), NOT a flake. The 10-03 H1 note already flagged it as possibly a real behaviour change rather than a mock issue; it was marked fixed but never resolved. Decide whether the continue path should return success (fix handler/mock) or behaviour changed (fix assertion). May fall out with H1 if it shares the row-shape gap - re-check after H1."
+    },
+    {
+      "id": "L1",
+      "title": "Broaden pre-push guard from collect-only to ruff check + ruff format --check + changed-path tests",
+      "priority": "low",
+      "effort": "M",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "Carried forward from 10-03 L1 (still open). 4+ consecutive red cycles entered via branch commits that only surface at the next scheduled run (09-30 format, 10-02 collection, 10-03 DB refactor, 10-04 import-sweep + env-drift). The current pytest --collect-only guard catches collection breaks but not runtime test failures or F401/format lint - exactly this cycle's shape. Adding 'cd backend && ruff check src/ && ruff format --check src/' + a changed-path pytest subset would have caught this cycle's entire lint failure and most of the test failures before push."
+    },
+    {
+      "id": "L2",
+      "title": "Harden the shared cursor-mock fixture so fetchall()/fetchone() require explicit returns",
+      "priority": "low",
+      "effort": "M",
+      "plane": "backend",
+      "type": "prevention",
+      "rootCause": "The preservation/closure/banking cluster has now broken on 10-03 (ValueError unpack expected 2 got 0) and 10-04 (MagicMock leak / 0 saved) off the SAME under-specified cursor mock. A fixture that returns a bare MagicMock cursor keeps producing a new failure signature each refactor. Durable fix: default fetchall()->[] and fetchone()->None (never a bare mock), require tests to opt into seeded rows explicitly, and optionally fail loudly when a test forgets to seed."
+    },
+    {
+      "id": "L3",
+      "title": "Lint/format new modules before landing + fix the ruff-lint.md header count (39 vs 41)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "The entire non-os lint load (I001, UP045, UP035, UP006, RUF022, F841) and a large share of the 17 format files sit in one freshly-added src/environment/ module that never had ruff check --fix / ruff format run on it - same meta-pattern as prior cycles. Separately, backend-lint-reports/ruff-lint.md header says 'Found 41 errors' but the per-rule table and ruff footer say 39; the report generator's summary line is off by two. Document the ruff pre-landing step (gate via L1) and fix the report header."
+    },
+    {
+      "id": "L4",
+      "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "Standing reproducibility guard carried forward from 10-03 L3. The 39 lint errors are real code, not a version artifact; keep local 0.16.5 == CI 0.16.5 so counts stay trustworthy."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "M1",
+      "type": "recommended-before",
+      "reason": "M1 (continue-decision property) may share H1's cursor-row-shape gap; land H1 and re-run M1 before deep-diving it"
+    },
+    {
+      "from": "H1",
+      "to": "L2",
+      "type": "recommended-after",
+      "reason": "fix the mock returns to get green first, then harden the shared fixture so fetchall()/fetchone() can't silently return a bare mock again"
+    },
+    {
+      "from": "H2",
+      "to": "H3",
+      "type": "recommended-before",
+      "reason": "run ruff check --fix before ruff format so the lint autofix and the format pass converge on one final shape"
+    },
+    {
+      "from": "H2",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "once ruff lint is green, wire ruff check/format into the pre-push guard to keep it green"
+    },
+    {
+      "from": "H2",
+      "to": "L3",
+      "type": "recommended-after",
+      "reason": "after clearing the environment/ module's lint, codify the lint/format-before-landing step so a new module can't re-introduce it"
+    }
+  ],
+  "recommendedOrder": [
+    "H1",
+    "H4",
+    "H2",
+    "H3",
+    "M1",
+    "L1",
+    "L2",
+    "L3",
+    "L4"
+  ],
+  "notes": [
+    "CI run #52 (id 37226495303) is RED with TWO failing jobs (Backend Full Test Suite: 17 failed of 6938; Backend Lint & Static Analysis: ruff lint 39 + ruff format 17). SAM Module-Plane (1247 tests) and Frontend (2928 tests) are GREEN. Unlike 10-03 this is NOT one root cause: the test failures and the lint failures are decoupled.",
+    "IMPROVING: backend failures 46 (10-03) -> 17 (10-04); 10-03's 40x RUF059 (the DB (cursor,conn) refactor lint) is fully cleared this cycle.",
+    "RECURRENCE (prominent): test_preservation_account_scoped_save.py, test_preservation_closed_period.py, test_closure_aware_bug_condition.py and test_duplicate_checker.py were all in the 10-03 46-failure cluster (ValueError unpack expected 2 got 0), landed under 10-03 H1 and marked fixed. They are RED AGAIN on 10-04 with a DIFFERENT signature (MagicMock-in-comparison / 0 saved / assert False). The 10-03 shared-mock fix repaired the OUTER (cursor,conn) unpack shape but left fetchall()/fetchone() returning a bare MagicMock - the failure moved one layer deeper. H1 fixes the mock end-to-end; L2 hardens the fixture so it can't recur a third time.",
+    "RECURRENCE: test_duplicate_checker continue-decision property assertion fails with the SAME message on 10-03 and 10-04; flagged on 10-03 as possibly a real behaviour change, never resolved. Re-tracked as M1.",
+    "NEW this cycle: G2 env-isolation drift (test_infrastructure.py, test_isolation_layer.py) asserts the dead TEST_MODE/TEST_DB_NAME/testfinance contract; app uses APP_ENV + resolved-DB-target (DB name 'finance'). Unrelated to the DB-mock cluster. H4.",
+    "NEW this cycle: lint regressed on a different axis than 10-03 - 27x F401 (dominated by a stray unused 'import os' across ~22 routes/ + a few services/ files) + an un-cleaned src/environment/ module (I001/UP045/UP035/UP006/RUF022/F841), and ruff format jumped 1 -> 17 files (worst in the arc). 35 of 39 lint errors are safe-auto-fixable.",
+    "Hypothesis caveat: 10+ of the 17 failures print 'Falsifying example' + @reproduce_failure('6.92.1', ...). These are DETERMINISTIC minimised failures, NOT deadline/flaky non-determinism - the derandomize=True + deadline=None remedy (CI Lesson Rule 2) does NOT apply; debug them as ordinary assertion failures via the reproduce decorator.",
+    "META-PATTERN (continued, 4th+ cycle): breakage keeps entering via branch commits that only surface at the next scheduled run. The 10-03 L1 pre-push broadening (ruff + changed-path tests) is still open and would have caught this cycle's entire lint failure and most test failures pre-push - carried forward as L1.",
+    "Lint count: use 39 (per-rule table + ruff footer). The ruff-lint.md header says 41 - a stale summary line in the report generator (fix tracked in L3 / requirements Lesson 7).",
+    "Ruff version: CI 0.16.5 == local 0.16.5. The lint failures are real code, not a version mismatch.",
+    "No report-only (SAM-ruff / FE-ESLint / FE-tsc) sections were present in this run's artifacts - only the four core artifact groups were produced. Nothing report-only recorded this cycle."
+  ]
+}

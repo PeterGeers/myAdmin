@@ -29,10 +29,10 @@ returns references (env var names) for secrets. Actual credential resolution hap
 at the consumption point (e.g., DatabaseManager reads the referenced env vars).
 """
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+
 from .app_env import AppEnv
-from .environment_definition import EnvironmentDefinition, CognitoDef, MysqlDef, SamDef
+from .environment_definition import EnvironmentDefinition
 
 
 @dataclass(frozen=True)
@@ -125,8 +125,8 @@ class ResolvedConfig:
     sam: ResolvedSam
     test_url: str
     production_url: str
-    test_branch: Optional[str] = None
-    production_branch: Optional[str] = None
+    test_branch: str | None = None
+    production_branch: str | None = None
 
     @property
     def dynamodb_prefix(self) -> str:
@@ -179,12 +179,8 @@ def resolve(app_env: AppEnv, definition: EnvironmentDefinition) -> ResolvedConfi
     # Select the appropriate plane definition based on APP_ENV
     if app_env == AppEnv.TEST:
         plane_def = definition.test
-        url = definition.test_url
-        branch = definition.test_branch
     else:  # AppEnv.PRODUCTION
         plane_def = definition.production
-        url = definition.production_url
-        branch = definition.production_branch
 
     # Convert CognitoDef to ResolvedCognito
     cognito_def = plane_def.cognito

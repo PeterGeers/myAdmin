@@ -463,15 +463,17 @@ class TestDuplicateCheckerProperties:
             mock_checker_class.return_value = mock_checker
             mock_cleanup_class.return_value = mock_cleanup
 
-            # Configure the mocked DatabaseManager's get_cursor() to behave as a
-            # proper context manager yielding (cursor, conn) so the connectivity
-            # probe (`with db.get_cursor() as (cursor, _conn): cursor.execute("SELECT 1")`)
-            # in initialize_duplicate_components() succeeds.
+            # Configure the mocked DatabaseManager's get_cursor_only() to behave
+            # as a proper context manager yielding a bare cursor so the
+            # connectivity probe (`with db.get_cursor_only() as cursor:
+            # cursor.execute("SELECT 1")`) in initialize_duplicate_components()
+            # succeeds. The read-path probe uses get_cursor_only() (yields only
+            # the cursor, no conn) per the DatabaseManager read-path convention.
             mock_cursor = MagicMock()
             cursor_cm = MagicMock()
-            cursor_cm.__enter__.return_value = (mock_cursor, MagicMock())
+            cursor_cm.__enter__.return_value = mock_cursor
             cursor_cm.__exit__.return_value = False
-            mock_db.get_cursor.return_value = cursor_cm
+            mock_db.get_cursor_only.return_value = cursor_cm
             
             # Configure mock behavior
             mock_checker.log_duplicate_decision.return_value = True

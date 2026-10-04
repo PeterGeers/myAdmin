@@ -69,9 +69,7 @@ def _airbnb_is_realised(columns: list[str]) -> bool:
 class STRProcessor:
     """Dispatcher that delegates platform-specific parsing to dedicated modules."""
 
-    def __init__(
-        self, tax_rate_service=None, tenant: str | None = None
-    ):
+    def __init__(self, tax_rate_service=None, tenant: str | None = None):
         self.platforms = ["airbnb", "booking", "direct"]
         self.tax_rate_service = tax_rate_service
         self.tenant = tenant

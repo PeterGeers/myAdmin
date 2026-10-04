@@ -12,6 +12,7 @@ import {
   FormErrorMessage,
 } from '@chakra-ui/react';
 import { Formik, Form, Field } from 'formik';
+import type { FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { createVehicle, updateVehicle } from '../../services/vehicleService';
@@ -89,7 +90,10 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({
       .max(new Date().getFullYear() + 1, 'Ongeldig bouwjaar'),
   });
 
-  const handleSubmit = async (values: VehicleFormValues, { setSubmitting }: any) => {
+  const handleSubmit = async (
+    values: VehicleFormValues,
+    { setSubmitting }: FormikHelpers<VehicleFormValues>,
+  ) => {
     try {
       const data: Partial<Vehicle> = {
         license_plate: values.license_plate.trim(),
@@ -104,12 +108,9 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({
         start_date: values.start_date,
       };
 
-      let resp;
-      if (isEdit) {
-        resp = await updateVehicle(vehicle!.id, data);
-      } else {
-        resp = await createVehicle(data);
-      }
+      const resp = isEdit
+        ? await updateVehicle(vehicle!.id, data)
+        : await createVehicle(data);
 
       if (resp.success) {
         toast({
@@ -120,13 +121,13 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({
         onSaved();
       } else {
         toast({
-          title: (resp as any).error || 'Fout bij opslaan',
+          title: resp.error || 'Fout bij opslaan',
           status: 'error',
           duration: 3000,
         });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Fout bij opslaan', status: 'error', duration: 3000 });
+    } catch (err: unknown) {
+      toast({ title: err instanceof Error ? err.message : 'Fout bij opslaan', status: 'error', duration: 3000 });
     } finally {
       setSubmitting(false);
     }

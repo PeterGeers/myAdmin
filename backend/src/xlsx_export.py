@@ -32,9 +32,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
     from XLSXProgressExportMixin.
     """
 
-    def __init__(
-        self, parameter_service=None, tenant: str | None = None
-    ):
+    def __init__(self, parameter_service=None, tenant: str | None = None):
         self.db = DatabaseManager()
         self.template_service = TemplateService(self.db)
         # Default template path (fallback)

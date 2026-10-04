@@ -132,6 +132,15 @@ def build_mock_db(ref2_duplicate=False, closed_years_for_admin=None):
         yield (mock_cursor, mock_conn)
     mock_db.get_cursor = _get_cursor_cm
 
+    # BankingProcessor.save_approved_transactions reads via
+    # `with self.db.get_cursor_only() as cursor:` (read path yields the cursor only).
+    # Without this, the duplicate-check cursor would be a fresh auto-mock whose
+    # fetchone() returns a truthy MagicMock → every row read as a Ref2 duplicate.
+    @contextmanager
+    def _get_cursor_only_cm(*args, **kwargs):
+        yield mock_cursor
+    mock_db.get_cursor_only = _get_cursor_only_cm
+
     def mock_execute_query(query, params=None, **kwargs):
         if 'year_closure_status' in query and params:
             admin = params[0]

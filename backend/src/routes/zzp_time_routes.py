@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 zzp_time_bp = Blueprint("zzp_time", __name__)
 
+
 def _get_time_service() -> TimeTrackingService:
     from services.time_tracking_service import TimeTrackingService as _TTS
 

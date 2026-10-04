@@ -8,14 +8,16 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast, useDisclosure } from '@chakra-ui/react';
-import { fetchAuthSession } from 'aws-amplify/auth';
 import { getParameterSchema } from '../../services/parameterSchemaService';
 import { createParameter } from '../../services/parameterService';
-import { authenticatedFormData, buildEndpoint } from '../../services/apiService';
+import {
+  authenticatedGet,
+  authenticatedPost,
+  authenticatedFormData,
+  buildEndpoint,
+} from '../../services/apiService';
 import type { MediaAsset } from '@/types/mediaAsset';
 import { useDuplicateNotification } from '@/hooks/useDuplicateNotification';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export interface CredentialInfo {
   type: string;
@@ -89,20 +91,6 @@ export function useStorageTab(tenant: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
-  const getToken = async () => {
-    const session = await fetchAuthSession();
-    return session.tokens?.idToken?.toString() || '';
-  };
-
-  const authHeaders = async () => {
-    const token = await getToken();
-    return {
-      'Authorization': `Bearer ${token}`,
-      'X-Tenant': tenant,
-      'Content-Type': 'application/json',
-    };
-  };
-
   // Load provider from parameter schema
   const loadProvider = useCallback(async () => {
     setProviderLoading(true);
@@ -141,10 +129,7 @@ export function useStorageTab(tenant: string) {
   const loadCredentials = useCallback(async () => {
     setCredsLoading(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'X-Tenant': tenant },
-      });
+      const resp = await authenticatedGet('/api/tenant-admin/credentials', { tenant });
       if (resp.ok) {
         const data = await resp.json();
         setCredentials(data.credentials || []);
@@ -158,10 +143,7 @@ export function useStorageTab(tenant: string) {
   const loadFolderConfig = useCallback(async () => {
     setFoldersLoading(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/storage/config`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'X-Tenant': tenant },
-      });
+      const resp = await authenticatedGet('/api/tenant-admin/storage/config', { tenant });
       if (resp.ok) {
         const data = await resp.json();
         setFolderConfig(data.config || {});
@@ -262,11 +244,11 @@ export function useStorageTab(tenant: string) {
   // Start Google Drive OAuth
   const handleStartOAuth = async () => {
     try {
-      const headers = await authHeaders();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials/oauth/start`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ service: 'google_drive' }),
-      });
+      const resp = await authenticatedPost(
+        '/api/tenant-admin/credentials/oauth/start',
+        { service: 'google_drive' },
+        { tenant },
+      );
       if (!resp.ok) {
         const err = await resp.json();
         throw new Error(err.error || 'Failed to start OAuth');
@@ -277,10 +259,11 @@ export function useStorageTab(tenant: string) {
         if (event.data.type === 'oauth_success') {
           window.removeEventListener('message', messageHandler);
           try {
-            const completeResp = await fetch(`${API_URL}/api/tenant-admin/credentials/oauth/complete`, {
-              method: 'POST', headers,
-              body: JSON.stringify({ code: event.data.code, state: event.data.state, service: 'google_drive' }),
-            });
+            const completeResp = await authenticatedPost(
+              '/api/tenant-admin/credentials/oauth/complete',
+              { code: event.data.code, state: event.data.state, service: 'google_drive' },
+              { tenant },
+            );
             if (completeResp.ok) {
               toast({ title: 'Google Drive connected', status: 'success', duration: 5000 });
               loadCredentials();
@@ -315,15 +298,14 @@ export function useStorageTab(tenant: string) {
       return;
     }
     try {
-      const token = await getToken();
       const formData = new FormData();
       formData.append('file', file);
       formData.append('credential_type', 'google_drive');
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'X-Tenant': tenant },
-        body: formData,
-      });
+      const resp = await authenticatedFormData(
+        buildEndpoint('/api/tenant-admin/credentials'),
+        formData,
+        { tenant },
+      );
       if (resp.ok) {
         toast({ title: 'Credentials uploaded', status: 'success', duration: 3000 });
         loadCredentials();
@@ -341,11 +323,11 @@ export function useStorageTab(tenant: string) {
   // Test credential connection
   const handleTestConnection = async () => {
     try {
-      const headers = await authHeaders();
-      const resp = await fetch(`${API_URL}/api/tenant-admin/credentials/test`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ credential_type: 'google_drive_credentials' }),
-      });
+      const resp = await authenticatedPost(
+        '/api/tenant-admin/credentials/test',
+        { credential_type: 'google_drive_credentials' },
+        { tenant },
+      );
       const data = await resp.json();
       const result = data.test_result;
       toast({

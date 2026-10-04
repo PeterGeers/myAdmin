@@ -25,7 +25,6 @@ active APP_ENV.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -146,8 +145,8 @@ class EnvironmentDefinition:
     production: PlaneDef
     test_url: str
     production_url: str
-    test_branch: Optional[str]
-    production_branch: Optional[str]
+    test_branch: str | None
+    production_branch: str | None
 
 
 # -----------------------------------------------------------------------------

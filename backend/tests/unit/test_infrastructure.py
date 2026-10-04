@@ -46,15 +46,15 @@ class TestInfrastructure:
         assert hasattr(mock_service, 'files')
     
     def test_test_environment_fixture(self, test_environment):
-        """Test environment variables fixture"""
-        assert os.getenv('TEST_MODE') == 'true'
-        assert os.getenv('TEST_DB_NAME') == test_environment['TEST_DB_NAME']
+        """Test environment variables fixture (APP_ENV model, schema always `finance`)"""
+        assert os.getenv('APP_ENV') == 'test'
+        assert os.getenv('DB_NAME') == test_environment['DB_NAME'] == 'finance'
         assert 'TEST_FACTUREN_FOLDER_ID' in test_environment
     
     def test_production_environment_fixture(self, production_environment):
-        """Test production environment fixture"""
-        assert os.getenv('TEST_MODE') == 'false'
-        assert os.getenv('DB_NAME') == production_environment['DB_NAME']
+        """Test production environment fixture (APP_ENV model, schema always `finance`)"""
+        assert os.getenv('APP_ENV') == 'production'
+        assert os.getenv('DB_NAME') == production_environment['DB_NAME'] == 'finance'
         assert 'FACTUREN_FOLDER_ID' in production_environment
     
     def test_sample_data_fixtures(self, sample_pdf_content, sample_csv_content, 
