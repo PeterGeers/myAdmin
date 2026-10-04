@@ -83,7 +83,9 @@ def get_environment_report() -> ResponseReturnValue:
         # Log the detail server-side only; do NOT expose the exception text to the
         # (unauthenticated) client — return a stable, non-sensitive error label.
         # (CodeQL: information exposure through an exception.)
-        logger.warning("Environment report requested but APP_ENV is unresolved: %s", exc)
+        logger.warning(
+            "Environment report requested but APP_ENV is unresolved: %s", exc
+        )
         return (
             jsonify({"error": "environment_unresolved"}),
             503,

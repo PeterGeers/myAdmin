@@ -296,19 +296,20 @@ class TestGetMutaties:
     """Tests for mutation retrieval."""
 
     def _setup_cursor(self, service, rows, total=None):
-        """Helper to configure mock get_cursor() context manager for get_mutaties."""
-        mock_conn = MagicMock()
+        """Helper to configure mock get_cursor_only() context manager for get_mutaties."""
         mock_cursor = MagicMock()
         # First call is COUNT, second is the SELECT
         if total is None:
             total = len(rows)
         mock_cursor.fetchone.return_value = {'total': total}
         mock_cursor.fetchall.return_value = rows
-        # get_mutaties reads via `with db.get_cursor(dictionary=True) as (cursor, conn)`
+        # BankingMutatieService.get_mutaties reads via
+        # `with db.get_cursor_only(dictionary=True) as cursor:` (read path yields the
+        # cursor only, not a (cursor, conn) tuple).
         cm = MagicMock()
-        cm.__enter__.return_value = (mock_cursor, mock_conn)
+        cm.__enter__.return_value = mock_cursor
         cm.__exit__.return_value = False
-        service._mock_db.get_cursor.return_value = cm
+        service._mock_db.get_cursor_only.return_value = cm
         return mock_cursor
 
     def test_returns_mutaties_for_tenant(self, service):

@@ -580,9 +580,7 @@ class BTWProcessor:
 
             try:
                 # Upload to Google Drive
-                result = drive_service.upload_file(
-                    temp_path, filename, btw_folder_id
-                )
+                result = drive_service.upload_file(temp_path, filename, btw_folder_id)
                 return {
                     "success": True,
                     "url": result["url"],

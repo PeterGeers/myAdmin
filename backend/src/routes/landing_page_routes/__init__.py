@@ -44,7 +44,6 @@ Note: Register this blueprint in app.py:
 """
 
 import logging
-import os
 
 from flask import Blueprint
 

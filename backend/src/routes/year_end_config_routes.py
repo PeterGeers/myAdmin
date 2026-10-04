@@ -5,8 +5,6 @@ API endpoints for managing year-end closure configuration including
 account purposes and VAT netting parameters.
 """
 
-import os
-
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 

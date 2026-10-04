@@ -15,7 +15,6 @@ Reference: .kiro/specs/tenant-optional-functions/design.md
 """
 
 import functools
-import os
 
 from flask import jsonify
 
