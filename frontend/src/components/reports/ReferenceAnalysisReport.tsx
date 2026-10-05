@@ -19,8 +19,8 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { useTenant } from '../../context/TenantContext';

@@ -38,11 +38,11 @@ import {
   deleteAccount
 } from '../../services/chartOfAccountsService';
 import { Account, AccountFormData } from '../../types/chartOfAccounts';
-import AccountModal from './AccountModal';
 import { FilterableHeader } from '../filters/FilterableHeader';
 import { useFilterableTable } from '../../hooks/useFilterableTable';
 import { useTableConfig } from '../../hooks/useTableConfig';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import AccountModal from './AccountModal';
 
 interface ChartOfAccountsProps {
   tenant: string;

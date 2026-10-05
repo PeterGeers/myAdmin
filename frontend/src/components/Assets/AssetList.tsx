@@ -8,10 +8,10 @@ import {
 import { AddIcon } from '@chakra-ui/icons';
 import { useTenant } from '../../context/TenantContext';
 import { getAssets, Asset, generateDepreciation, disposeAsset } from '../../services/assetService';
-import AssetForm from './AssetForm';
-import AssetDetail from './AssetDetail';
 import { FilterableHeader } from '../filters/FilterableHeader';
 import { useFilterableTable } from '../../hooks/useFilterableTable';
+import AssetForm from './AssetForm';
+import AssetDetail from './AssetDetail';
 
 export default function AssetList() {
   const [assets, setAssets] = useState<Asset[]>([]);

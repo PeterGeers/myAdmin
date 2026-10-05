@@ -45,7 +45,7 @@ export function useUnsavedChangesGuard(
 
   const confirmDiscard = useCallback((): boolean => {
     if (!isDirty) return true;
-    // eslint-disable-next-line no-alert
+     
     return window.confirm(message);
   }, [isDirty, message]);
 

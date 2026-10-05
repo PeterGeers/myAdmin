@@ -11,9 +11,9 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { YearFilter } from './YearFilter';
+import { render, screen } from '@/test-utils';
 
 
 describe('YearFilter', () => {

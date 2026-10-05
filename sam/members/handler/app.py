@@ -64,7 +64,9 @@ from typing import Any, Protocol
 
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
 from sam.members.domain.field_resolver import TenantOverlay, TenantOverlayProvider
-from sam.members.domain.fixed_fields import MembershipStatus  # noqa: F401 (surface compat)
+from sam.members.domain.fixed_fields import (
+    MembershipStatus,  # noqa: F401 (surface compat)
+)
 from sam.members.domain.lifecycle_config import (
     HDCN_LIFECYCLE_CONFIG,
     StaticLifecycleConfigProvider,
@@ -88,6 +90,23 @@ from sam.members.domain.scope_dimensions import (
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.view_contexts import ViewContext, ViewContextsProvider
+
+# ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
+from sam.members.handler._dispatch import (
+    RouteNotImplemented,
+    dispatch_route,
+)
+
+# ── HTTP adapter helpers (request parsing + response shaping) — re-exported ────────────
+from sam.members.handler._http import (
+    ParsedRequest,
+    _error,
+    _field_errors_array,
+    _json_default,  # noqa: F401 (surface compat: tests reach app._json_default)
+    _parse_request,
+    _reasons_array,
+    _response,
+)
 from sam.members.handler.router import (
     MethodNotAllowed,
     NoRouteMatch,
@@ -110,29 +129,6 @@ from sam.shared.auth_utils import (
     get_groups,
     get_verified_claims,
     has_capability,
-)
-
-# ── HTTP adapter helpers (request parsing + response shaping) — re-exported ────────────
-from sam.members.handler._http import (
-    ParsedRequest,
-    _CORS_HEADERS,
-    _error,
-    _field_errors_array,
-    _json_default,
-    _parse_request,
-    _reasons_array,
-    _response,
-)
-
-# ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
-from sam.members.handler._dispatch import (
-    RouteNotImplemented,
-    _parse_to_state,
-    _query_flag,
-    _require_path_param,
-    _transition_context,
-    _write_body,
-    dispatch_route,
 )
 
 logger = logging.getLogger(__name__)

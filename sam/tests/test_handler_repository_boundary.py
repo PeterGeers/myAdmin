@@ -77,7 +77,7 @@ def _iter_handler_router_sources():
             # A module is in scope if its filename starts with handler/router, OR it
             # lives inside a ``handler`` package directory (e.g. handler/app.py).
             in_handler_pkg = os.path.basename(dirpath) == "handler"
-            if name.startswith("handler") or name.startswith("router") or in_handler_pkg:
+            if name.startswith(("handler", "router")) or in_handler_pkg:
                 abspath = os.path.join(dirpath, name)
                 relpath = os.path.relpath(abspath, _REPO_ROOT)
                 yield relpath, abspath

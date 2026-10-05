@@ -36,10 +36,10 @@ import {
   Thead,
   Tr,
 } from '@chakra-ui/react';
+import type { AccountOption } from '../hooks/useAccountLookup';
 import { FieldHelp } from './help';
 import AccountSelect from './common/AccountSelect';
 import type { Transaction } from './BankingProcessor';
-import type { AccountOption } from '../hooks/useAccountLookup';
 
 // ---------------------------------------------------------------------------
 // Types

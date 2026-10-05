@@ -1,7 +1,7 @@
 import React from 'react';
-import { render, screen, fireEvent, within } from '@/test-utils';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import UserMenu from './UserMenu';
+import { render, screen, fireEvent, within } from '@/test-utils';
 
 // Mock AuthContext
 //

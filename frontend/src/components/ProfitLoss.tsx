@@ -12,10 +12,10 @@ import {
   Tabs, TabList, TabPanels, Tab, TabPanel,
 } from '@chakra-ui/react';
 import { useFilterableTable } from '../hooks/useFilterableTable';
+import { authenticatedGet, buildEndpoint } from '../services/apiService';
 import { FilterableHeader } from './filters/FilterableHeader';
 import { MutatiesFilterPanel, BnbFilterPanel, BalanceFilterPanel } from './ProfitLossFilterPanel';
 import { ProfitLossChartPanel, BalanceRecord } from './ProfitLossChartPanel';
-import { authenticatedGet, buildEndpoint } from '../services/apiService';
 
 // ---------------------------------------------------------------------------
 // Types

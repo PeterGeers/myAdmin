@@ -1,8 +1,8 @@
 /**
  * API service for ZZP field configuration (visibility/required per entity).
  */
-import { authenticatedGet, authenticatedPut, buildEndpoint } from './apiService';
 import { FieldConfig } from '../types/zzp';
+import { authenticatedGet, authenticatedPut, buildEndpoint } from './apiService';
 
 const BASE = '/api/zzp/field-config';
 

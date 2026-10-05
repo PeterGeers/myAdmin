@@ -1,15 +1,15 @@
 import React from 'react';
 import { Box, VStack, Heading, Button, HStack, Flex, Text, Alert, AlertIcon, AlertDescription, CloseButton, Link as ChakraLink } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
+import { APP_ENV } from '../config/appEnv';
+import type { User } from '../context/AuthContext';
+import type { PageType } from '../appPages';
 import TenantSelector from './TenantSelector';
 import UserMenu from './UserMenu';
 import { LanguageSelector } from './LanguageSelector';
 import { HelpButton } from './help';
 import { MenuGroup } from './MenuGroup';
 import EnvironmentIndicator from './EnvironmentIndicator';
-import { APP_ENV } from '../config/appEnv';
-import type { User } from '../context/AuthContext';
-import type { PageType } from '../appPages';
 
 interface MainMenuProps {
   currentPage: PageType;

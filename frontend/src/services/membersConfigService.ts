@@ -12,10 +12,10 @@
  *    request (a PUT when a tenant row exists, else a POST creating the tenant-scope row).
  *    One save → one request → one enqueue_sync → one per-tenant re-projection.
  */
-import { authenticatedGet } from './apiService';
-import { getParameters, createParameter, updateParameter } from './parameterService';
 import type { Parameter } from '../types/parameterTypes';
 import type { MembersParamDefinition, MembersConfigValue } from '../types/membersConfig';
+import { authenticatedGet } from './apiService';
+import { getParameters, createParameter, updateParameter } from './parameterService';
 
 export const MEMBERS_NAMESPACE = 'members';
 

@@ -11,13 +11,13 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render } from '@/test-utils';
 import fc from 'fast-check';
 
 
 // Import component after mocks
-// eslint-disable-next-line import-x/first
+ 
 import { FilterableHeader } from '../FilterableHeader';
+import { render } from '@/test-utils';
 
 /**
  * Generate non-empty label strings.

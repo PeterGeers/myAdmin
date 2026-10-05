@@ -12,10 +12,10 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@/test-utils';
 import BankingTransactionModal from '../components/BankingTransactionModal';
 import type { BankingTransactionModalProps } from '../components/BankingTransactionModal';
 import type { Transaction } from '../components/BankingProcessor.types';
+import { render, screen, fireEvent } from '@/test-utils';
 
 // Debet/Credit render as LazySelect (task 6.1): a role="combobox" trigger whose accessible name
 // comes from the `label` prop (t('table.debit')/'Debit', t('table.credit')/'Credit'). LazySelect

@@ -6,7 +6,6 @@
 
 import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   validateYear,
   closeYear,
@@ -14,6 +13,7 @@ import {
   getYearStatus,
   reopenYear,
 } from './yearEndClosureService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');

@@ -12,8 +12,8 @@ import {
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { FilterableHeader } from '../filters/FilterableHeader';
-import { BudgetLineTableProps } from './types';
 import { BudgetLine } from '../../types/budget';
+import { BudgetLineTableProps } from './types';
 
 /** Compute total from a BudgetLine's 12 monthly amounts */
 export const lineTotal = (line: BudgetLine): number =>

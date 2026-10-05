@@ -32,6 +32,12 @@ import { FilterableHeader } from '../filters/FilterableHeader';
 import { useFilterableTable } from '../../hooks/useFilterableTable';
 import { useTableConfig } from '../../hooks/useTableConfig';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import { downloadCsv } from '../../utils/csvExport';
+import {
+  transactionsCsvColumns,
+  buildTransactionsCsv,
+  transactionsCsvFilename,
+} from './transactionsCsv';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -224,6 +230,25 @@ const BankingMutatiesTab: React.FC<BankingMutatiesTabProps> = ({
     [processedData, displayLimit],
   );
 
+  // Export the FULL filtered-and-sorted dataset (processedData), NOT the
+  // display-limited slice. Headers are resolved via i18n; the pure builder and
+  // shared downloadCsv handle RFC-4180 escaping and the UTF-8 BOM.
+  const handleExportCsv = React.useCallback(() => {
+    if (processedData.length === 0) return;
+    const columns = transactionsCsvColumns({
+      trxNumber: t('mutaties.export.trxNumber'),
+      date: t('mutaties.export.date'),
+      description: t('mutaties.export.description'),
+      amount: t('mutaties.export.amount'),
+      debit: t('mutaties.export.debit'),
+      credit: t('mutaties.export.credit'),
+      reference: t('mutaties.export.reference'),
+      administration: t('mutaties.export.administration'),
+    });
+    const csv = buildTransactionsCsv(columns, processedData);
+    downloadCsv(csv, transactionsCsvFilename());
+  }, [processedData, t]);
+
   return (
     <VStack align="stretch" spacing={4}>
       {/* Above-table filters: year multi-select + display limit (hybrid approach) */}
@@ -263,14 +288,25 @@ const BankingMutatiesTab: React.FC<BankingMutatiesTabProps> = ({
             </Button>
           )}
         </HStack>
-        <Button
-          colorScheme="green"
-          size="sm"
-          leftIcon={<span>+</span>}
-          onClick={openInsertModal}
-        >
-          {t('mutaties.addNewRecord')}
-        </Button>
+        <HStack spacing={2}>
+          <Button
+            colorScheme="blue"
+            size="sm"
+            onClick={handleExportCsv}
+            isDisabled={processedData.length === 0}
+            data-testid="export-transactions-csv-button"
+          >
+            {t('mutaties.export.exportToCsv')}
+          </Button>
+          <Button
+            colorScheme="green"
+            size="sm"
+            leftIcon={<span>+</span>}
+            onClick={openInsertModal}
+          >
+            {t('mutaties.addNewRecord')}
+          </Button>
+        </HStack>
       </HStack>
 
       <TableContainer maxH="600px" overflowY="auto" overflowX="auto">

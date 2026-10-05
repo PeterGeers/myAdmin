@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
-import { fireEvent, render, screen } from '@/test-utils';
 import React from 'react';
+import { fireEvent, render, screen } from '@/test-utils';
 
 // Mock DuplicateWarningDialog component for testing
 interface Transaction {

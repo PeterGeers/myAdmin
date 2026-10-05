@@ -12,13 +12,13 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 import MembersPage from '../pages/MembersPage';
 import { MembersTransitionModal } from '../components/members/MembersTransitionModal';
 import * as membersApiService from '../services/membersApiService';
 import { ApiError } from '../shared/api/ApiError';
 import type { Member, FieldConfig } from '../types/members';
 import { pickLazySelectOption, pickMembershipType } from './helpers/lazySelect';
+import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 
 vi.mock('../services/membersApiService');
 

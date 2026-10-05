@@ -14,12 +14,12 @@
 
 import { vi } from 'vitest';
 import React from 'react';
+import { FilterableHeader } from '../FilterableHeader';
 import { render, screen, fireEvent } from '@/test-utils';
 
 
 // Import component after mocks
-// eslint-disable-next-line import-x/first
-import { FilterableHeader } from '../FilterableHeader';
+ 
 
 describe('FilterableHeader', () => {
   // -----------------------------------------------------------------------

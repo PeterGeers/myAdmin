@@ -22,12 +22,12 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent, waitFor } from '@/test-utils';
-import i18n from '../../i18n';
 import { Formik, Form } from 'formik';
+import i18n from '../../i18n';
 import type { FieldConfig, FieldConfigField, MembershipType } from '../../types/members';
 import { MembersFieldFormBody } from './MembersFieldFormBody';
 import { groupFieldsBySection, formFields } from './fieldForm';
+import { render, screen, within, fireEvent, waitFor } from '@/test-utils';
 
 // The membership_type field loads its options ASYNC via the members API service on open. Mock the
 // module the component imports (`../../services/membersApiService`) so `listMembershipTypes(true)`

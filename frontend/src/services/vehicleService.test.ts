@@ -10,13 +10,13 @@ import {
   authenticatedPut,
   authenticatedRequest,
 } from './apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   getVehicles,
   createVehicle,
   updateVehicle,
   deactivateVehicle,
 } from './vehicleService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Keep the real buildEndpoint (pure URL helper); stub only the network fns.
 vi.mock('./apiService', async () => {
@@ -72,9 +72,9 @@ describe('vehicleService', () => {
   it('updateVehicle PUTs to the id-scoped endpoint', async () => {
     mockPut.mockResolvedValue(createMockResponse({ body: { success: true, data: { id: 4 } } }));
 
-    await updateVehicle(4, { label: 'Van' });
+    await updateVehicle(4, { make: 'Van' });
 
-    expect(mockPut).toHaveBeenCalledWith('/api/zzp/vehicles/4', { label: 'Van' });
+    expect(mockPut).toHaveBeenCalledWith('/api/zzp/vehicles/4', { make: 'Van' });
   });
 
   it('deactivateVehicle issues a DELETE', async () => {

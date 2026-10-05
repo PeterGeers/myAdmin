@@ -16,7 +16,6 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
