@@ -6,7 +6,6 @@
 
 import { vi } from 'vitest';
 import { authenticatedGet, authenticatedPost, authenticatedPut } from './apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   fetchAssetDashboard,
   triggerScan,
@@ -20,6 +19,7 @@ import {
   fetchDuplicates,
   mergeDuplicates,
 } from './mediaAssetService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Keep the real buildEndpoint (pure URL helper); stub only the network fns.
 vi.mock('./apiService', async () => {

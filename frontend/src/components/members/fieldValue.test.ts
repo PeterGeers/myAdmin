@@ -13,13 +13,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { FieldConfigField } from '../../types/members';
 import {
   renderFieldValue,
   isColumnCandidate,
   isReadOnlyField,
   EMPTY_CELL,
 } from './fieldValue';
-import type { FieldConfigField } from '../../types/members';
 
 const field = (over: Partial<FieldConfigField> = {}): FieldConfigField => ({
   key: 'k',

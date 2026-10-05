@@ -10,11 +10,11 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@/test-utils';
 import {
   TEST_FRONTEND_CONFIG,
   PROD_FRONTEND_CONFIG,
 } from '../config/environmentDefinition';
+import { render, screen, within } from '@/test-utils';
 
 afterEach(() => {
   vi.unstubAllEnvs();

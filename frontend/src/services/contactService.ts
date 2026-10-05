@@ -1,8 +1,8 @@
 /**
  * API service for shared contact registry.
  */
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 import { Contact } from '../types/zzp';
+import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 
 const BASE = '/api/contacts';
 

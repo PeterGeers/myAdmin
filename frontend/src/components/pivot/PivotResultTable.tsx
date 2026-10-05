@@ -49,13 +49,13 @@ import {
   flattenTree,
 } from '../../utils/pivotTreeBuilder';
 import type { PivotTreeNode } from '../../utils/pivotTreeBuilder';
-import { PivotResultTablePivoted, isPivotedResult } from './PivotResultTablePivoted';
-import { PivotExportMenu } from './PivotExportMenu';
 import type {
   NumberFormat,
   PivotColumnMeta,
   PivotConfig,
 } from '../../types/pivot';
+import { PivotResultTablePivoted, isPivotedResult } from './PivotResultTablePivoted';
+import { PivotExportMenu } from './PivotExportMenu';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -230,7 +230,7 @@ export function PivotResultTable({
     } else {
       setTreeNodes([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [data, isHierarchical, groupColumnNames, aggregateColumnNames, aggregateFunctionMap]);
 
   // Flatten tree for rendering (respects expand/collapse state)

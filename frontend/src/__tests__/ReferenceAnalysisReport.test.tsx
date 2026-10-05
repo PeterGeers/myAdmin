@@ -11,13 +11,13 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Import the component after mocks
 import ReferenceAnalysisReport from '../components/reports/ReferenceAnalysisReport';
 import { authenticatedGet } from '../services/apiService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Mock the API service
 vi.mock('../services/apiService', () => ({

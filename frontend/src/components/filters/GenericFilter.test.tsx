@@ -12,13 +12,13 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 
 
 // Import component after mocks
-// eslint-disable-next-line import-x/first
+ 
 import { GenericFilter } from './GenericFilter';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Test data types
 interface TestObject {

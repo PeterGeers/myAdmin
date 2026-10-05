@@ -303,7 +303,7 @@ describe('Preservation — account-scoped dedupe leaves non-colliding inputs unc
     );
     expect(padded).not.toBeNull();
     expect(padded!.Ref2).toBe('7');
-    expect(padded!.Ref2).toBe(parseInt('000000000000000007' || '0').toString());
+    expect(padded!.Ref2).toBe(parseInt('000000000000000007', 10).toString());
 
     // Plain integer Volgnr stays itself.
     const plain = processRabobankTransaction(

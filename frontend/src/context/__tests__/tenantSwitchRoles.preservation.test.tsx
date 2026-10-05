@@ -33,7 +33,6 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../../i18n';
 import { AuthProvider, useAuth } from '../AuthContext';

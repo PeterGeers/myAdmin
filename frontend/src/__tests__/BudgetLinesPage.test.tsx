@@ -8,10 +8,10 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@/test-utils';
+import * as chakra from '@chakra-ui/react';
 import BudgetLinesPage from '../pages/BudgetLinesPage';
 import * as budgetService from '../services/budgetService';
-import * as chakra from '@chakra-ui/react';
+import { render, screen, waitFor, fireEvent, act } from '@/test-utils';
 
 vi.mock('../services/budgetService');
 

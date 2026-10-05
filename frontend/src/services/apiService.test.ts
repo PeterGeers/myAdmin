@@ -3,8 +3,8 @@
  */
 
 import { vi } from 'vitest';
-import { authenticatedRequest } from './apiService';
 import i18n from '../i18n';
+import { authenticatedRequest } from './apiService';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock fetch

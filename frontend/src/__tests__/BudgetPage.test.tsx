@@ -11,9 +11,9 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import * as chakra from '@chakra-ui/react';
-import { render, screen, waitFor, fireEvent } from '@/test-utils';
 import BudgetPage from '../pages/BudgetPage';
 import * as budgetService from '../services/budgetService';
+import { render, screen, waitFor, fireEvent } from '@/test-utils';
 
 vi.mock('../services/budgetService');
 

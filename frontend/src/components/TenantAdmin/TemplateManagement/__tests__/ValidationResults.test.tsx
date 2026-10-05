@@ -6,10 +6,10 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { ValidationResults } from '../ValidationResults';
 import type { ValidationResult } from '../../../../types/template';
+import { render, screen } from '@/test-utils';
 
 
 

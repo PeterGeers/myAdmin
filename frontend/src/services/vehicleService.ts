@@ -2,6 +2,7 @@
  * API service for ZZP vehicle management (Rittenregistratie).
  * Reference: .kiro/specs/ZZP/rittenregistratie/design.md §5.5
  */
+import type { Vehicle } from '../types/zzpTrips';
 import {
   authenticatedGet,
   authenticatedPost,
@@ -9,7 +10,6 @@ import {
   authenticatedRequest,
   buildEndpoint,
 } from './apiService';
-import type { Vehicle } from '../types/zzpTrips';
 
 /** Base API response shape. */
 interface ApiResponse {

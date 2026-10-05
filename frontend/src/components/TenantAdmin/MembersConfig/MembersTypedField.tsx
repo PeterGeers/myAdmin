@@ -421,7 +421,7 @@ export const MembersTypedField: React.FC<Props> = ({
       onChange(next);
     };
     const addEntry = () => {
-      let base = 'new_field';
+      const base = 'new_field';
       let candidate = base;
       let n = 1;
       while (map[candidate] !== undefined) candidate = `${base}_${n++}`;

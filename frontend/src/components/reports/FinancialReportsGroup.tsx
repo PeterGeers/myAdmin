@@ -5,16 +5,15 @@ import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { useTenant } from '../../context/TenantContext';
 
 // Import individual report components
+import { PivotViewsTab } from '../pivot/PivotViewsTab';
+import type { DisplayFormat } from '../../types/financialReports';
 import MutatiesReport from './MutatiesReport';
 import BalanceReport from './BalanceReport';
 import ProfitLossReport from './ProfitLossReport';
 import BtwReport from './BtwReport';
 import ReferenceAnalysisReport from './ReferenceAnalysisReport';
 import AangifteIbReport from './AangifteIbReport';
-import { PivotViewsTab } from '../pivot/PivotViewsTab';
 import BudgetDashboardTab from './BudgetDashboardTab';
-
-import type { DisplayFormat } from '../../types/financialReports';
 
 const FinancialReportsGroup: React.FC = () => {
   const { t } = useTypedTranslation('reports');

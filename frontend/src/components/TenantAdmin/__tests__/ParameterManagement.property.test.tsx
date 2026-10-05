@@ -24,8 +24,8 @@
  */
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, fireEvent, cleanup } from '../../../test-utils';
 import fc from 'fast-check';
+import { render, screen, waitFor, fireEvent, cleanup } from '../../../test-utils';
 
 /* ------------------------------------------------------------------ */
 /*  Chakra UI mock — render modals inline, stable hooks                */

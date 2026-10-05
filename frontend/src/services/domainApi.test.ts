@@ -5,7 +5,6 @@
 
 import { vi } from 'vitest';
 import { authenticatedGet, authenticatedPost, authenticatedDelete } from './apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   getDomains,
   enableJabaki,
@@ -14,6 +13,7 @@ import {
   verifyCustomDomain,
   removeCustomDomain,
 } from './domainApi';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('./apiService');
 const mockGet = vi.mocked(authenticatedGet);
