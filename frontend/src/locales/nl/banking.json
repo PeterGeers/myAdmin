@@ -43,7 +43,18 @@
     "addNewRecord": "Nieuw Record Toevoegen",
     "updateRecord": "Record Bijwerken",
     "insertRecord": "Record Invoegen",
-    "updating": "Bijwerken..."
+    "updating": "Bijwerken...",
+    "export": {
+      "exportToCsv": "Exporteren naar CSV",
+      "trxNumber": "Trx Nummer",
+      "date": "Datum",
+      "description": "Omschrijving",
+      "amount": "Bedrag",
+      "debit": "Debet",
+      "credit": "Credit",
+      "reference": "Referentie",
+      "administration": "Administratie"
+    }
   },
   "checkAccounts": {
     "title": "Controleer Bankrekeningen",
