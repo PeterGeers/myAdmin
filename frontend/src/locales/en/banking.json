@@ -43,7 +43,18 @@
     "addNewRecord": "Add New Record",
     "updateRecord": "Update Record",
     "insertRecord": "Insert Record",
-    "updating": "Updating..."
+    "updating": "Updating...",
+    "export": {
+      "exportToCsv": "Export to CSV",
+      "trxNumber": "Trx Number",
+      "date": "Date",
+      "description": "Description",
+      "amount": "Amount",
+      "debit": "Debit",
+      "credit": "Credit",
+      "reference": "Reference",
+      "administration": "Administration"
+    }
   },
   "checkAccounts": {
     "title": "Check Banking Accounts",

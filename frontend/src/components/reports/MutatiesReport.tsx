@@ -21,6 +21,8 @@ import { formatCurrency, formatDate } from '../../utils/formatting';
 import { useFilterableTable } from '../../hooks/useFilterableTable';
 import { FilterableHeader } from '../filters/FilterableHeader';
 import { YearFilter } from '../filters/YearFilter';
+import { generateCsv, downloadCsv } from '../../utils/csvExport';
+import { mutatiesCsvHeaders, mapMutatiesRow } from './mutatiesCsv';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -81,26 +83,19 @@ const MutatiesReport: React.FC = () => {
   });
 
   const exportMutatiesCsv = useCallback(() => {
-    const csvContent = [
-      [t('tables.date'), t('tables.reference'), t('tables.description'), t('tables.amount'), t('tables.debit'), t('tables.credit'), t('filters.administration')],
-      ...processedData.map(row => [
-        row.TransactionDate,
-        row.ReferenceNumber,
-        row.TransactionDescription,
-        row.Amount,
-        row.Reknum,
-        row.AccountName,
-        row.Administration
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mutaties-${filtersRef.current.dateFrom}-${filtersRef.current.dateTo}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const headers = mutatiesCsvHeaders({
+      date: t('tables.date'),
+      reference: t('tables.reference'),
+      description: t('tables.description'),
+      amount: t('tables.amount'),
+      debit: t('tables.debit'),
+      credit: t('tables.credit'),
+      administration: t('filters.administration'),
+    });
+    const rows = processedData.map(mapMutatiesRow);
+    const csv = generateCsv(headers, rows);
+    const { dateFrom: from, dateTo: to } = filtersRef.current;
+    downloadCsv(csv, `mutaties-${from}-${to}.csv`);
   }, [processedData, t]);
 
   const fetchMutatiesData = useCallback(async () => {
@@ -137,7 +132,7 @@ const MutatiesReport: React.FC = () => {
   // Initial data fetch
   useEffect(() => {
     fetchMutatiesData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-fetch when year changes (skip initial mount — handled above)
@@ -147,7 +142,7 @@ const MutatiesReport: React.FC = () => {
       return;
     }
     fetchMutatiesData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear]);
 
   // Auto-refresh on tenant change
@@ -157,7 +152,7 @@ const MutatiesReport: React.FC = () => {
       resetFilters();
       fetchMutatiesData();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant]);
 
   // Tenant validation
