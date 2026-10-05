@@ -12,9 +12,9 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@/test-utils';
 import { FilterPanel } from './FilterPanel';
 import { FilterConfig, SearchFilterConfig } from './types';
+import { render, screen } from '@/test-utils';
 
 // Mock GenericFilter to simplify testing
 vi.mock('./GenericFilter', () => ({

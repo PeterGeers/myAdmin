@@ -40,9 +40,9 @@
  * _Requirements: R7.3, R7.4_
  */
 
-import { getCurrentAuthTokens } from './authService';
 import { apiErrorFromResponse } from '../shared/api/ApiError';
 import type { Member } from '../types/members';
+import { getCurrentAuthTokens } from './authService';
 
 // ============================================================================
 // Fail-fast base URL resolution (R7.3)

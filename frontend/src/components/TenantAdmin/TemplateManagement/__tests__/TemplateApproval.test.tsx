@@ -6,9 +6,9 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { TemplateApproval } from '../TemplateApproval';
+import { render, screen, waitFor } from '@/test-utils';
 
 describe('TemplateApproval', () => {
   const mockOnApprove = vi.fn();

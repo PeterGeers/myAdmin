@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import { useAuth } from './AuthContext';
 import { Box, Button, Text, VStack, Badge, Spinner } from '@chakra-ui/react';
+import { useAuth } from './AuthContext';
 
 /**
  * Example component showing authentication state

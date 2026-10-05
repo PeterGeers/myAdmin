@@ -6,10 +6,10 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { AIHelpButton } from '../AIHelpButton';
 import type { AIHelpResponse } from '../../../../types/template';
+import { render, screen, waitFor } from '@/test-utils';
 
 
 

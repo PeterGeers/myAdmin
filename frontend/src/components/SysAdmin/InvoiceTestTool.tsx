@@ -17,10 +17,10 @@ import {
 } from '@chakra-ui/react';
 import { AttachmentIcon } from '@chakra-ui/icons';
 import { processFile } from '../../services/invoiceTestToolService';
+import type { ProcessResponse } from '../../types/invoiceTestTool';
 import { PipelineResultsPanel } from './PipelineResultsPanel';
 import { CustomPromptEditor } from './CustomPromptEditor';
 import { VendorHistoryPanel } from './VendorHistoryPanel';
-import type { ProcessResponse } from '../../types/invoiceTestTool';
 
 /** Allowed file extensions for invoice upload. */
 const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'csv', 'eml', 'mhtml'];

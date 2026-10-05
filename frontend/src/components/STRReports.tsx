@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, VStack, Alert, AlertIcon } from '@chakra-ui/react';
-import BnbReportsGroup from './reports/BnbReportsGroup';
 import { useAuth } from '../context/AuthContext';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
+import BnbReportsGroup from './reports/BnbReportsGroup';
 
 const STRReports: React.FC = () => {
   const { t } = useTypedTranslation('str');

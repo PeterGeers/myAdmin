@@ -8,10 +8,10 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@/test-utils';
 import BudgetDashboard from '../pages/BudgetDashboard';
 import * as budgetService from '../services/budgetService';
 import type { DashboardParams } from '../services/budgetService';
+import { render, screen, waitFor, fireEvent } from '@/test-utils';
 
 vi.mock('../services/budgetService');
 

@@ -1,8 +1,8 @@
 /**
  * API service for shared product/service registry.
  */
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 import { Product } from '../types/zzp';
+import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 
 const BASE = '/api/products';
 

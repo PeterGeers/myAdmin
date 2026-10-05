@@ -9,9 +9,9 @@
 import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { authenticatedPost } from '../services/apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
-import { useBankingPatterns } from './useBankingPatterns';
 import type { Transaction } from '../components/BankingProcessor.types';
+import { useBankingPatterns } from './useBankingPatterns';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('../services/apiService');
 const mockPost = vi.mocked(authenticatedPost);
@@ -131,7 +131,7 @@ describe('useBankingPatterns', () => {
     await act(async () => {
       await result.current.applyPatterns();
     });
-    deps.setTransactions.mockClear();
+    vi.mocked(deps.setTransactions).mockClear();
 
     act(() => {
       result.current.rejectPatternSuggestions();

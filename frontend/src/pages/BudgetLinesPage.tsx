@@ -24,9 +24,6 @@ import {
   formatDimension,
 } from '../components/budget';
 import type { BudgetLineFormValues, EnrichedBudgetLine } from '../components/budget';
-import BudgetLineModal from './BudgetLineModal';
-import GenerateDraftModal from './GenerateDraftModal';
-import CopyBudgetModal from './CopyBudgetModal';
 import {
   BudgetVersion,
   BudgetLine,
@@ -46,6 +43,9 @@ import {
   listTemplates,
   getDraftSuggestions,
 } from '../services/budgetService';
+import BudgetLineModal from './BudgetLineModal';
+import GenerateDraftModal from './GenerateDraftModal';
+import CopyBudgetModal from './CopyBudgetModal';
 
 const INITIAL_FILTERS: Record<string, string> = {
   account_code: '',

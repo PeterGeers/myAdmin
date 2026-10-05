@@ -35,8 +35,8 @@ import {
 } from '@chakra-ui/react';
 import { resolveLabel } from '../members/fieldForm';
 import { getScopeDimensions, getUserScope, setUserScope } from '../../services/tenantAdminApi';
-import { fuzzyFilterValues } from './scopeFuzzyFilter';
 import type { ScopeGrant, ScopeDimensionOption } from '../../types/members';
+import { fuzzyFilterValues } from './scopeFuzzyFilter';
 
 // ---------------------------------------------------------------------------
 // Constants

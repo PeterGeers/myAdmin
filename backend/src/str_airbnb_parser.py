@@ -254,7 +254,16 @@ def process_airbnb_multi(
             # skipinitialspace lets pandas honour the quotes around space-padded
             # European amounts (e.g. ` "42,59"`) so the C parser doesn't choke on the
             # embedded comma; on_bad_lines is a belt-and-suspenders fallback.
-            df = pd.read_csv(fp, skipinitialspace=True, on_bad_lines="skip")
+            #
+            # dtype=str forces every column to be read verbatim as a string and
+            # disables pandas' numeric dtype inference. Without it, a numeric-looking
+            # Bevestigingscode such as "0000E0" is coerced as scientific notation to
+            # the float 0.0 (so the group key becomes "0.0" and no longer matches the
+            # original code). Confirmation codes are opaque identifiers and must stay
+            # as-is (airbnb-export-format-update Property 3). All downstream consumers
+            # already parse their values from strings (parse_airbnb_amount,
+            # parse_airbnb_date, int(float(...)) for nights), so string columns are safe.
+            df = pd.read_csv(fp, skipinitialspace=True, on_bad_lines="skip", dtype=str)
         except Exception as e:
             failed_files.append(os.path.basename(fp))
             print(f"Airbnb multi-import: failed to parse {os.path.basename(fp)}: {e}")

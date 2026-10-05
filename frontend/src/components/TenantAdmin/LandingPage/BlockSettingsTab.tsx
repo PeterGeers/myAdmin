@@ -10,11 +10,11 @@ import {
   VStack, FormControl, FormLabel, RadioGroup, Radio, Stack,
   Button, ButtonGroup, Input, Text, HStack,
 } from '@chakra-ui/react';
-import { BlockSettings } from '@/services/landingPageApi';
-import { DEFAULT_BLOCK_SETTINGS } from './blockSettingsDefaults';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
+import { DEFAULT_BLOCK_SETTINGS } from './blockSettingsDefaults';
 import ImageUploader from './ImageUploader';
 import GradientPicker from './GradientPicker';
+import { BlockSettings } from '@/services/landingPageApi';
 
 interface BlockSettingsTabProps {
   settings: BlockSettings;

@@ -46,7 +46,7 @@ class RouteNotImplemented(NotImplementedError):
         super().__init__(f"route '{route_name}' is not implemented yet")
 
 
-def _require_path_param(ctx: "RequestContext", name: str) -> str:
+def _require_path_param(ctx: RequestContext, name: str) -> str:
     """Return a required path parameter, or raise :class:`RouteNotImplemented`-free 400-ish.
 
     The router only matches a route when its ``{param}`` segments are present, so a resolved
@@ -122,10 +122,10 @@ def _transition_context(body: Mapping[str, Any]) -> Mapping[str, Any]:
 # routes (create/update/delete/transition/delegates) are wired by task 5.2/5.3. Anything not
 # wired falls through to :class:`RouteNotImplemented`.
 def dispatch_route(
-    service: "MembershipService",
+    service: MembershipService,
     spec: RouteSpec,
     request: ParsedRequest,
-    ctx: "RequestContext",
+    ctx: RequestContext,
 ) -> Any:
     """Delegate a resolved route to the generic membership engine (design C2).
 
@@ -334,10 +334,10 @@ def dispatch_route(
 
 __all__ = [
     "RouteNotImplemented",
-    "dispatch_route",
-    "_require_path_param",
-    "_query_flag",
-    "_write_body",
     "_parse_to_state",
+    "_query_flag",
+    "_require_path_param",
     "_transition_context",
+    "_write_body",
+    "dispatch_route",
 ]

@@ -30,12 +30,12 @@ import {
 } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import { LockIcon, ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
+import { confirmSignIn } from 'aws-amplify/auth';
 import {
   signInWithPassword,
   signInWithPasskey,
   isPasskeySupported,
 } from '../services/authService';
-import { confirmSignIn } from 'aws-amplify/auth';
 import { authenticatedPost } from '../services/apiService';
 import EnvironmentIndicator from '../components/EnvironmentIndicator';
 

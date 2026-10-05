@@ -11,12 +11,12 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
+import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Login from '../pages/Login';
-import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import * as authService from '../services/authService';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth', () => ({

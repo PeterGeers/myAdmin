@@ -37,12 +37,12 @@ import type {
   PivotConfig,
   PivotResult,
 } from '../../types/pivot';
-import { usePivotConfig } from './usePivotConfig';
 import { GenericFilter } from '../filters/GenericFilter';
+import { executePivot } from '../../services/pivotService';
+import { usePivotConfig } from './usePivotConfig';
 import { PivotBuilderMeasures } from './PivotBuilderMeasures';
 import { PivotBuilderFilters } from './PivotBuilderFilters';
 import { PivotBuilderModels } from './PivotBuilderModels';
-import { executePivot } from '../../services/pivotService';
 
 // ---------------------------------------------------------------------------
 // Props

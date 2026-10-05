@@ -12,7 +12,6 @@ import {
   authenticatedRequest,
   authenticatedFormData,
 } from './apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   getTrips,
   createTrip,
@@ -27,6 +26,7 @@ import {
   commitImport,
   getGaps,
 } from './tripService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Keep the real buildEndpoint (pure URL helper); stub only the network fns.
 vi.mock('./apiService', async () => {

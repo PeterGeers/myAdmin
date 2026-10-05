@@ -22,8 +22,6 @@ import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { useFilterableTable } from '../hooks/useFilterableTable';
 import { FilterableHeader } from '../components/filters/FilterableHeader';
-import BudgetLineModal from './BudgetLineModal';
-import BudgetNewVersionModal from './BudgetNewVersionModal';
 import { BudgetVersion, BudgetLine, PeriodMode, DimensionType } from '../types/budget';
 import {
   listVersions,
@@ -36,6 +34,8 @@ import {
   deleteVersion,
   copyBudget,
 } from '../services/budgetService';
+import BudgetLineModal from './BudgetLineModal';
+import BudgetNewVersionModal from './BudgetNewVersionModal';
 
 /** Compute total from a BudgetLine's 12 monthly amounts */
 const lineTotal = (line: BudgetLine): number =>

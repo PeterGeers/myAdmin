@@ -11,7 +11,6 @@ import {
   authenticatedDelete,
   authenticatedFormData,
 } from './apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   getSlug,
   setSlug,
@@ -29,6 +28,7 @@ import {
   uploadImage,
   type Section,
 } from './landingPageApi';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('./apiService');
 const mockGet = vi.mocked(authenticatedGet);

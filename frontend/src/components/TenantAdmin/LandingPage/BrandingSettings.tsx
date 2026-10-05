@@ -18,15 +18,15 @@ import {
   FaTiktok, FaXTwitter, FaHotel,
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
-import ImageUploader from './ImageUploader';
-import ThemeSelector from './ThemeSelector';
-import TypographySettings from './TypographySettings';
-import { THEME_PRESETS } from './themePresets';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import {
   getBrandingSettings, saveBrandingSettings,
   SocialLinks, LandingPageSettings,
 } from '../../../services/landingPageApi';
+import ImageUploader from './ImageUploader';
+import ThemeSelector from './ThemeSelector';
+import TypographySettings from './TypographySettings';
+import { THEME_PRESETS } from './themePresets';
 
 // ============================================================================
 // Types & Constants

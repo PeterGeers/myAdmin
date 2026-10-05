@@ -23,7 +23,6 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 import MembersPage from '../pages/MembersPage';
 import * as membersApiService from '../services/membersApiService';
 import type { Member, FieldConfig } from '../types/members';
@@ -33,6 +32,7 @@ import {
   pickLazySelectOption,
   pickMembershipType,
 } from './helpers/lazySelect';
+import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 
 vi.mock('../services/membersApiService');
 

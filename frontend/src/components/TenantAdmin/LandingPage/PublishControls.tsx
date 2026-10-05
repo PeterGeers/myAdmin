@@ -19,7 +19,6 @@ import {
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import { useFilterableTable } from '../../../hooks/useFilterableTable';
 import { FilterableHeader } from '../../filters/FilterableHeader';
-import PreviewPanel from './PreviewPanel';
 import {
   getVersions,
   getVersionDetail,
@@ -28,6 +27,7 @@ import {
   VersionEntry,
   Section,
 } from '../../../services/landingPageApi';
+import PreviewPanel from './PreviewPanel';
 
 interface PublishControlsProps {
   onVersionChange: (version: number) => void;

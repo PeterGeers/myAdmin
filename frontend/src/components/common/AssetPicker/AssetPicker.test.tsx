@@ -4,9 +4,9 @@
 
 import React from 'react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { AssetPicker } from './AssetPicker';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import type { MediaAsset } from '@/types/mediaAsset';
 
 // ─── Mock data ────────────────────────────────────────────────────────────────

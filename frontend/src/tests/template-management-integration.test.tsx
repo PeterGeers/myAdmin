@@ -6,15 +6,14 @@
  */
 
 import { vi } from 'vitest';
-
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { TemplateUpload } from '../components/TenantAdmin/TemplateManagement/TemplateUpload';
 import { ValidationResults } from '../components/TenantAdmin/TemplateManagement/ValidationResults';
 import { TemplatePreview } from '../components/TenantAdmin/TemplateManagement/TemplatePreview';
 import { TemplateApproval } from '../components/TenantAdmin/TemplateManagement/TemplateApproval';
 import { AIHelpButton } from '../components/TenantAdmin/TemplateManagement/AIHelpButton';
+import { render, screen, waitFor, fireEvent } from '@/test-utils';
 
 describe('Template Management Integration Tests', () => {
   describe('Upload → Validation Flow', () => {
