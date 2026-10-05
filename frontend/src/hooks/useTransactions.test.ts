@@ -9,9 +9,9 @@
 
 import { vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { useTransactions } from './useTransactions';
 import { authenticatedGet, authenticatedPost } from '@/services/apiService';
 import { createMockResponse } from '@/test-utils/mockHelpers';
-import { useTransactions } from './useTransactions';
 import type { Transaction } from '@/components/BankingProcessor.types';
 
 vi.mock('@/services/apiService');

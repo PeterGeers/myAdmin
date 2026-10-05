@@ -5,8 +5,8 @@
 
 import React from 'react';
 import type { Data, Layout } from 'plotly.js';
-import Plot from './PlotlyChart';
 import { Box, VStack, Text } from '@chakra-ui/react';
+import Plot from './PlotlyChart';
 
 // Sample data structure that matches what the API returns
 const sampleData = [

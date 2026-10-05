@@ -145,7 +145,7 @@ describe('useLazyOptions property: ensureLoaded idempotence / caching', () => {
       const { result, unmount } = renderHook(() => useLazyOptions(fn));
 
       for (let i = 0; i < repeats; i += 1) {
-        // eslint-disable-next-line no-await-in-loop
+         
         await act(async () => {
           result.current.ensureLoaded();
         });

@@ -475,6 +475,7 @@ class TestHealthScanner:
                 "signature_change": "signature_change",
                 "key_rename": "key_mismatch",
                 "return_type_change": "signature_change",
+                "patch_target_unresolved": "patch_target_unresolved",
             }
             root_cause = root_cause_map.get(v.drift_type, "other")
             item = MaintenanceWorkItem(
@@ -520,6 +521,7 @@ class TestHealthScanner:
                 "convention_violation": "5-15 min per file",
                 "signature_change": "10-20 min per test",
                 "key_mismatch": "10-20 min per test",
+                "patch_target_unresolved": "5-15 min per test",
                 "frontend_missing_msw": "10-20 min per file",
                 "frontend_missing_provider": "5-10 min per file",
                 "frontend_stale_import": "5-10 min per file",
@@ -702,6 +704,7 @@ class TestHealthScanner:
                 "signature_change": "signature_change",
                 "key_rename": "key_mismatch",
                 "return_type_change": "signature_change",
+                "patch_target_unresolved": "patch_target_unresolved",
             }
             cause = drift_map.get(v.drift_type, "other")
             counts[cause] = counts.get(cause, 0) + 1

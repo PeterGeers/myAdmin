@@ -7,7 +7,7 @@ submission storage, and SES notification.
 
 import os
 import sys
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 def app():
     """Create a Flask test app with the landing_page blueprint registered."""
     from flask import Flask
+
     from routes.landing_page_routes import landing_page_bp
 
     app = Flask(__name__)
@@ -422,43 +423,35 @@ class TestSendContactNotificationHelper:
     """Unit tests for _send_contact_notification helper function."""
 
     @patch("routes.landing_page_routes.DatabaseManager")
-    @patch("routes.landing_page_routes.os.getenv", return_value="false")
-    def test_no_email_configured_skips_send(self, mock_getenv, mock_db_cls):
-        """If tenant has no email configured, notification is skipped."""
+    def test_no_email_configured_skips_send(self, mock_db_cls):
+        """If tenant has no email configured, notification is skipped.
+
+        The helper reads the tenant's contact email via
+        ``ParameterService.get_param('landing_page', 'email', ...)`` — there is
+        no ``os.getenv`` seam. When the parameter returns ``None`` the function
+        must log and return without attempting to send, so SES is never invoked.
+        """
         from routes.landing_page_routes import _send_contact_notification
 
+        mock_db_cls.return_value = Mock()
+
+        # ParameterService / SESEmailService are imported inside the function
+        # body from their defining modules, so patch them there.
         with patch(
             "services.parameter_service.ParameterService"
-        ) as MockParamSvc:
+        ) as MockParam, patch(
+            "services.ses_email_service.SESEmailService"
+        ) as MockSES:
             mock_param = Mock()
             mock_param.get_param.return_value = None
-            MockParamSvc.return_value = mock_param
+            MockParam.return_value = mock_param
 
-            with patch(
-                "routes.landing_page_routes.ParameterService", MockParamSvc
-            ) if hasattr(__import__("routes.landing_page_routes", fromlist=[""]), "ParameterService") else patch(
-                "services.parameter_service.ParameterService", MockParamSvc
-            ):
-                # The function imports ParameterService inside, so we need to patch the import
-                with patch.dict("sys.modules", {}):
-                    pass
+            _send_contact_notification(
+                "TestTenant", "Alice", "alice@example.com", "Hello"
+            )
 
-        # Simpler approach: just call and verify no crash
-        with patch("routes.landing_page_routes.DatabaseManager") as MockDB:
-            MockDB.return_value = Mock()
-            with patch(
-                "services.parameter_service.ParameterService"
-            ) as MockParam:
-                mock_p = Mock()
-                mock_p.get_param.return_value = None
-                MockParam.return_value = mock_p
-
-                # This will import ParameterService inside the function
-                # We need to patch it where it's imported
-                _send_contact_notification(
-                    "TestTenant", "Alice", "alice@example.com", "Hello"
-                )
-                # Should not crash — that's the test
+            # No email configured -> SES must never be constructed or called.
+            MockSES.assert_not_called()
 
     @patch("routes.landing_page_routes.DatabaseManager")
     def test_ses_error_does_not_raise(self, mock_db_cls):

@@ -76,7 +76,7 @@ export const ContactBlock: React.FC<ContactBlockProps> = ({
   }, [captchaEnabled, settings?.captcha_site_key]);
 
   const isValidEmail = (value: string): boolean => {
-    return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(value);
+    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

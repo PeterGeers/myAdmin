@@ -6,17 +6,17 @@
  * and vendor transaction history lookups.
  */
 
+import type {
+  ProcessResponse,
+  RerunPromptResponse,
+  VendorHistoryResponse,
+} from '../types/invoiceTestTool';
 import {
   authenticatedGet,
   authenticatedPost,
   authenticatedFormData,
   buildEndpoint,
 } from './apiService';
-import type {
-  ProcessResponse,
-  RerunPromptResponse,
-  VendorHistoryResponse,
-} from '../types/invoiceTestTool';
 
 const BASE_PATH = '/api/sysadmin/test-tool';
 

@@ -1,9 +1,9 @@
 import React from 'react';
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@chakra-ui/react';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 // Import individual report components
+import { PivotViewsTab } from '../pivot/PivotViewsTab';
 import BnbRevenueReport from './BnbRevenueReport';
 import BnbActualsReport from './BnbActualsReport';
 import BnbViolinsReport from './BnbViolinsReport';
@@ -11,7 +11,6 @@ import BnbReturningGuestsReport from './BnbReturningGuestsReport';
 import BnbFutureReport from './BnbFutureReport';
 import ToeristenbelastingReport from './ToeristenbelastingReport';
 import BnbCountryBookingsReport from './BnbCountryBookingsReport';
-import { PivotViewsTab } from '../pivot/PivotViewsTab';
 
 const BnbReportsGroup: React.FC = () => {
   const { t } = useTypedTranslation('reports');

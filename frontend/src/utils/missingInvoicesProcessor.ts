@@ -1,9 +1,9 @@
-import { generateReceipt, canvasToBlob, generateReceiptFilename } from './receiptGenerator';
 import {
   authenticatedPost,
   authenticatedFormData,
   buildEndpoint,
 } from '../services/apiService';
+import { generateReceipt, canvasToBlob, generateReceiptFilename } from './receiptGenerator';
 
 interface MissingInvoiceRecord {
   ID: string;

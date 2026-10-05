@@ -24,11 +24,11 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@/test-utils';
 import MembersPage from '../pages/MembersPage';
 import * as membersApiService from '../services/membersApiService';
 import * as csvExport from '../utils/csvExport';
 import type { Member, FieldConfig } from '../types/members';
+import { render, screen, waitFor, fireEvent } from '@/test-utils';
 
 vi.mock('../services/membersApiService');
 

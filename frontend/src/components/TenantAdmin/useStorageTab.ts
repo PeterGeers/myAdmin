@@ -88,7 +88,7 @@ export function useStorageTab(tenant: string) {
         duration: 3000,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [toast]);
 
   // Load provider from parameter schema
@@ -122,7 +122,7 @@ export function useStorageTab(tenant: string) {
     } finally {
       setProviderLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [toast]);
 
   // Load credentials
@@ -136,7 +136,7 @@ export function useStorageTab(tenant: string) {
       }
     } catch { /* ignore */ }
     finally { setCredsLoading(false); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [tenant]);
 
   // Load folder config
@@ -150,7 +150,7 @@ export function useStorageTab(tenant: string) {
       }
     } catch { /* ignore */ }
     finally { setFoldersLoading(false); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [tenant]);
 
   useEffect(() => {

@@ -4,8 +4,8 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import { TenantProvider, useTenant } from './TenantContext';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Mock AuthContext
 vi.mock('./AuthContext', async () => ({

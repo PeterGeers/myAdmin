@@ -1,7 +1,7 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TenantManagement } from './TenantManagement';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 
 // Mock sysadminService
 const mockGetTenants = vi.fn();

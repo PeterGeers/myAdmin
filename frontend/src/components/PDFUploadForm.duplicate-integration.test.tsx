@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@/test-utils';
 import React from 'react';
+import { render, screen, waitFor } from '@/test-utils';
 
 /**
  * Integration test for duplicate detection in PDFUploadForm

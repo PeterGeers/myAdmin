@@ -22,8 +22,8 @@ import type {
   MembersParamDefinition,
   MembersConfigValue,
 } from '../../../types/membersConfig';
-import { MembersTypedField, type MembersEditorContext } from './MembersTypedField';
 import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard';
+import { MembersTypedField, type MembersEditorContext } from './MembersTypedField';
 
 interface Props {
   paramKey: MembersParamKey;

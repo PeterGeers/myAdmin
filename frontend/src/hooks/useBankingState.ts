@@ -13,9 +13,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDisclosure } from '@chakra-ui/react';
 import { authenticatedGet } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
+import type { Transaction, LookupData, CreditCardAccount } from '../components/BankingProcessor.types';
 import { useTypedTranslation } from './useTypedTranslation';
 import { useAccountLookup } from './useAccountLookup';
-import type { Transaction, LookupData, CreditCardAccount } from '../components/BankingProcessor.types';
 
 // ---------------------------------------------------------------------------
 // Utility helpers (stateless)

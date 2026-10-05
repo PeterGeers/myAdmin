@@ -1,7 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import AssetList from './AssetList';
 
 // Mock the asset service
 vi.mock('../../services/assetService', () => ({
@@ -63,6 +62,7 @@ vi.mock('../../hooks/useFilterableTable', () => ({
 }));
 
 import { getAssets, generateDepreciation, disposeAsset } from '../../services/assetService';
+import AssetList from './AssetList';
 
 const mockGetAssets = getAssets as ReturnType<typeof vi.fn>;
 const mockGenerateDepreciation = generateDepreciation as ReturnType<typeof vi.fn>;

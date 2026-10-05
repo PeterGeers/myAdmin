@@ -46,7 +46,8 @@ class DriftIssue:
         line_number:  1-based line number in the *test* file where the
                       outdated reference appears.
         drift_type:   Category — ``"signature_change"``, ``"key_rename"``,
-                      or ``"return_type_change"``.
+                      ``"return_type_change"``, or
+                      ``"patch_target_unresolved"``.
         severity:     One of ``"critical"``, ``"high"``, ``"medium"``,
                       ``"low"``.
         old_value:    The value as it appears in the test (outdated).
@@ -64,7 +65,12 @@ class DriftIssue:
     description: str
 
 
-VALID_DRIFT_TYPES = {"signature_change", "key_rename", "return_type_change"}
+VALID_DRIFT_TYPES = {
+    "signature_change",
+    "key_rename",
+    "return_type_change",
+    "patch_target_unresolved",
+}
 VALID_SEVERITIES = {"critical", "high", "medium", "low"}
 
 
@@ -250,6 +256,79 @@ class DriftDetector:
 
         return issues
 
+    def detect_patch_target_drift(
+        self,
+        test_file: str,
+    ) -> List[DriftIssue]:
+        """Detect ``@patch`` / ``patch.object`` targets that no longer resolve.
+
+        A lint autofix (e.g. ``ruff --fix``) that removes an unused import
+        from a module can silently orphan a test's patch target — the test
+        still does ``@patch("routes.landing_page_routes.os")`` while ``os``
+        is no longer importable from that module.  Nothing flags the now
+        dangling target until the test actually runs and raises
+        ``AttributeError``/``ModuleNotFoundError``.
+
+        This check parses *test_file* for string patch targets of the form
+        ``"<module path>.<attr>[.<attr>...]"``, resolves the longest
+        importable module prefix, and verifies every remaining attribute is
+        reachable.  A target is flagged **only** when the module prefix
+        imports successfully but a trailing attribute is missing — i.e. we
+        are confident the symbol was removed.
+
+        The check is deliberately conservative to avoid noise:
+
+        - Targets whose module cannot be imported for *any* reason (optional
+          dependency, unrelated import error, not on ``sys.path``) are
+          skipped, not reported.
+        - ``patch.object(obj, "name")`` where ``obj`` is not a plain dotted
+          name string is skipped (we cannot statically resolve it).
+
+        Args:
+            test_file: Path to the test ``.py`` file to analyse.
+
+        Returns:
+            List of :class:`DriftIssue` (``drift_type="patch_target_unresolved"``)
+            for each patch target that resolves to a missing attribute.
+        """
+        targets = _extract_patch_targets(test_file)
+        if not targets:
+            return []
+
+        issues: List[DriftIssue] = []
+
+        for line_number, target in targets:
+            resolution = _resolve_patch_target(target)
+            if resolution is None:
+                # Module prefix could not be imported — skip conservatively.
+                continue
+
+            missing_attr, container = resolution
+            if missing_attr is None:
+                # Fully resolved — no drift.
+                continue
+
+            issues.append(DriftIssue(
+                source_file=container,
+                test_file=test_file,
+                line_number=line_number,
+                drift_type="patch_target_unresolved",
+                severity="high",
+                old_value=target,
+                new_value=f"(attribute '{missing_attr}' not found on "
+                          f"'{container}')",
+                description=(
+                    f"Test patches '{target}' but the attribute "
+                    f"'{missing_attr}' is no longer reachable on "
+                    f"'{container}'. The symbol was likely removed (e.g. an "
+                    f"import deleted by a lint autofix), leaving a dangling "
+                    f"patch target that will fail at runtime. Update the "
+                    f"patch target or restore the symbol."
+                ),
+            ))
+
+        return issues
+
     def generate_drift_report(
         self, issues: List[DriftIssue]
     ) -> DriftReport:
@@ -337,9 +416,12 @@ class DriftDetector:
         # Store the global lookup so detect_signature_drift can use it
         self._global_best_sig = global_best_sig
 
+        all_test_files: Set[str] = set()
+
         for source_file, test_files in backend_map.items():
             if not test_files:
                 continue
+            all_test_files.update(test_files)
             try:
                 all_issues.extend(
                     self.detect_signature_drift(source_file, test_files)
@@ -351,6 +433,22 @@ class DriftDetector:
                 logger.warning(
                     "Error detecting drift for %s: %s — skipping",
                     source_file,
+                    exc,
+                )
+
+        # --- Patch-target drift (per test file, source-independent) --------
+        # A dangling @patch target is a property of the test file alone, so
+        # analyse each unique test file once rather than per source pair.
+        for test_file in sorted(all_test_files):
+            try:
+                all_issues.extend(
+                    self.detect_patch_target_drift(test_file)
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Error detecting patch-target drift for %s: %s — "
+                    "skipping",
+                    test_file,
                     exc,
                 )
 
@@ -758,6 +856,142 @@ def _extract_dict_keys(
                 keys_by_context.setdefault(context, set()).add(key_str)
 
     return keys_by_context
+
+
+def _extract_patch_targets(
+    file_path: str,
+) -> Optional[List[Tuple[int, str]]]:
+    """Extract ``@patch`` / ``patch(...)`` / ``patch.object(...)`` targets.
+
+    Scans a test file for ``mock.patch`` usages and returns the dotted
+    string targets they reference, each paired with the source line.
+
+    Recognised forms (``patch`` may be bare or dotted, e.g.
+    ``mock.patch`` / ``unittest.mock.patch``):
+
+    - ``@patch("a.b.c")``                     → ``"a.b.c"``
+    - ``patch("a.b.c")``                      → ``"a.b.c"``
+    - ``patch.object(a.b.C, "name")``         → ``"a.b.C.name"``
+    - ``patch.object(SomeClass, "name")``     → ``"SomeClass.name"``
+
+    ``patch.dict`` / ``patch.multiple`` and non-string / dynamically built
+    targets are skipped — they cannot be statically resolved to a single
+    attribute path.
+
+    Returns ``[(line_number, target), ...]`` or ``None`` if the file cannot
+    be read/parsed.
+    """
+    result = _read_and_parse(file_path)
+    if result is None:
+        return None
+
+    tree, _ = result
+    targets: List[Tuple[int, str]] = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+
+        call_name = _get_call_name(node)
+        if call_name is None:
+            continue
+
+        leaf = call_name.rsplit(".", 1)[-1]
+        is_patch = leaf == "patch"
+        is_patch_object = call_name.endswith("patch.object")
+
+        if is_patch:
+            # patch("a.b.c", ...) — first positional arg must be a string.
+            if node.args:
+                target = _get_string_constant(node.args[0])
+                if target and "." in target:
+                    targets.append((node.lineno, target))
+        elif is_patch_object:
+            # patch.object(target_obj, "attr", ...)
+            if len(node.args) >= 2:
+                obj_path = _get_attribute_path(node.args[0])
+                attr = _get_string_constant(node.args[1])
+                if obj_path and attr:
+                    targets.append((node.lineno, f"{obj_path}.{attr}"))
+
+    return targets
+
+
+def _get_attribute_path(node: ast.AST) -> Optional[str]:
+    """Return the dotted path of a ``Name``/``Attribute`` node, or ``None``.
+
+    e.g. ``routes.landing_page_routes`` for ``routes.landing_page_routes``,
+    or ``SomeClass`` for a bare name.  Returns ``None`` for anything that is
+    not a plain dotted reference (calls, subscripts, etc.).
+    """
+    parts: List[str] = []
+    cur = node
+    while isinstance(cur, ast.Attribute):
+        parts.append(cur.attr)
+        cur = cur.value
+    if isinstance(cur, ast.Name):
+        parts.append(cur.id)
+        parts.reverse()
+        return ".".join(parts)
+    return None
+
+
+def _resolve_patch_target(
+    target: str,
+) -> Optional[Tuple[Optional[str], str]]:
+    """Resolve a dotted patch *target* against the current environment.
+
+    Finds the longest importable module prefix of *target*, then walks the
+    remaining dotted components as attributes.
+
+    Returns:
+        ``None`` — no prefix of *target* could be imported as a module. The
+            target is unresolvable for reasons unrelated to a removed symbol
+            (optional dep, not on ``sys.path``, import error), so callers
+            should skip it rather than report a false positive.
+        ``(None, container)`` — the target fully resolved; ``container`` is
+            the dotted path that was successfully traversed. No drift.
+        ``(missing_attr, container)`` — the module prefix imported but
+            ``missing_attr`` was not found while walking attributes;
+            ``container`` is the dotted path resolved just before the gap.
+            This is a dangling target.
+    """
+    import importlib
+
+    parts = target.split(".")
+
+    # Find the longest importable module prefix.  Iterate from longest to
+    # shortest so that, e.g., a package module wins over its parent package.
+    module = None
+    module_parts = 0
+    for i in range(len(parts), 0, -1):
+        candidate = ".".join(parts[:i])
+        try:
+            module = importlib.import_module(candidate)
+            module_parts = i
+            break
+        except Exception as exc:
+            # ModuleNotFoundError, ImportError, or any import-time error —
+            # try a shorter prefix.
+            logger.debug(
+                "Patch-target prefix '%s' not importable: %s", candidate, exc
+            )
+            continue
+
+    if module is None:
+        # Nothing importable — conservatively skip.
+        return None
+
+    # Walk the remaining components as attributes on the imported module.
+    container_parts = parts[:module_parts]
+    obj = module
+    for attr in parts[module_parts:]:
+        if not hasattr(obj, attr):
+            return (attr, ".".join(container_parts))
+        obj = getattr(obj, attr)
+        container_parts.append(attr)
+
+    return (None, ".".join(container_parts))
 
 
 # ---------------------------------------------------------------------------

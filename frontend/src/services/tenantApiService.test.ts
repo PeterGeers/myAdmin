@@ -9,7 +9,6 @@ import {
   getCurrentTenant,
   requireTenant,
 } from './tenantApiService';
-
 import { authenticatedGet, authenticatedPost } from './apiService';
 
 // Mock the base API service
