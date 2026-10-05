@@ -139,7 +139,7 @@ export const MembersConfigEditor: React.FC<Props> = ({
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [tenant]);
 
   const defByKey = useMemo(() => {

@@ -8,9 +8,9 @@
 
 import { vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { useCheckAccounts } from './useCheckAccounts';
 import { authenticatedGet } from '@/services/apiService';
 import { createMockResponse } from '@/test-utils/mockHelpers';
-import { useCheckAccounts } from './useCheckAccounts';
 
 vi.mock('@/services/apiService');
 const mockGet = vi.mocked(authenticatedGet);

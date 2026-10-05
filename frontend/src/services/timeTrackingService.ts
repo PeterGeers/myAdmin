@@ -1,8 +1,8 @@
 /**
  * API service for ZZP time tracking.
  */
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 import { TimeEntry, TimeEntryFilters, TimeSummary } from '../types/zzp';
+import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 
 const BASE = '/api/zzp/time-entries';
 

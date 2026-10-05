@@ -12,8 +12,8 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import FINReports from './FINReports';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Mock the contexts
 const mockUseAuth = vi.fn();

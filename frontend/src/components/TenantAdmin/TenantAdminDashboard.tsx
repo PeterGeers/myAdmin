@@ -7,6 +7,8 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
+import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
+import MediaAssetAdminPage from '../../pages/MediaAssetAdminPage';
 import UserManagement from './UserManagement';
 import TemplateManagement from './TemplateManagement/TemplateManagement';
 import StorageTab from './StorageTab';
@@ -15,9 +17,7 @@ import TenantInfoTab from './TenantInfoTab';
 import SenderSettingsTab from './SenderSettingsTab';
 import AdvancedTab from './AdvancedTab';
 import FunctionsTab from './FunctionsTab';
-import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
 import { LandingPageEditor } from './LandingPage';
-import MediaAssetAdminPage from '../../pages/MediaAssetAdminPage';
 import { MembersConfigEditor } from './MembersConfig';
 
 interface TenantInfo {
@@ -50,7 +50,7 @@ export function TenantAdminDashboard() {
     if (currentTenant) {
       loadTenantModules();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentTenant]);
 
   const loadTenantModules = async () => {

@@ -6,11 +6,11 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { TemplateManagement } from '../TemplateManagement';
 import * as templateApi from '../../../../services/templateApi';
 import type { PreviewResponse, AIHelpResponse, ApprovalResponse, RejectionResponse } from '../../../../types/template';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Mock the template API
 vi.mock('../../../../services/templateApi');

@@ -8,10 +8,10 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createMockResponse } from '@/test-utils/mockHelpers';
+import { ApiError } from '../shared/api/ApiError';
 import { getCurrentAuthTokens } from './authService';
 import { createMember, transitionMembership, getMember } from './membersApiService';
-import { ApiError } from '../shared/api/ApiError';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('./authService', () => ({
   getCurrentAuthTokens: vi.fn(),

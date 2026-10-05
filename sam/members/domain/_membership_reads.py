@@ -1,90 +1,24 @@
 """Membership-service READ surface (M1 split): scope filtering, self-service ownership, calculated-field enrichment, and the member / membership / payment reads. Mixed into ``MembershipService`` -- bodies are verbatim."""
 from __future__ import annotations
 
-import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
+from sam.members.domain._membership_errors import (
+    MemberNotFound,
+)
 from sam.members.domain.calculated_fields import CALCULATED_FIELDS
-from sam.members.domain.error_codes import (
-    ENUM_ROLE_RESTRICTED,
-    MEMBERSHIP_TYPE_RETIRED,
-    MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
-    VALIDATION_MUST_BE_ONE_OF,
-    VALIDATION_REQUIRED,
-    VALIDATION_UNSUPPORTED_FIELD_TYPE,
-    FieldError,
-)
 from sam.members.domain.field_resolver import (
-    OVERLAY_GROUP,
-    FieldOrigin,
-    FieldResolver,
-    FunctionalGroup,
-    ResolvedField,
-    StaticOverlayProvider,
-    TenantOverlayProvider,
     _member_value,
-    evaluate_show_when,
-)
-from sam.members.domain.field_resolver import (
-    FieldConfig as ResolvedFieldConfig,
-)
-from sam.members.domain.fixed_fields import (
-    MEMBER_NUMBER_FIELD_KEY,
-    EnumOption,
-    FieldGroup,
-    FieldType,
-    FieldValidationError,
-    MemberNumberFormat,
-    MembershipStatus,
-    roles_for_option,
-    validate_fixed_fields,
-    validate_member_number_format,
-)
-from sam.members.domain.lifecycle_config import (
-    GuardEvaluation,
-    LifecycleConfig,
-    LifecycleConfigProvider,
-    StaticLifecycleConfigProvider,
-    evaluate_guards,
-    evaluate_required_fields,
-)
-from sam.members.domain.membership_type_catalog import (
-    MembershipTypeEntry,
-    MembershipTypeValidationError,
 )
 from sam.members.domain.scope_canon import scope_canon
 from sam.members.domain.scope_dimensions import (
     WILDCARD,
-    ScopeConfigProvider,
-)
-from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
-from sam.members.domain.transition_hooks import TransitionHookRegistry
-from sam.members.domain.view_contexts import (
-    StaticViewContextsProvider,
-    ViewContext,
-    ViewContextsProvider,
 )
 from sam.members.repository.members_repository import (
     Member,
     Membership,
-    MembersRepository,
     Payment,
-)
-
-from sam.members.domain._membership_errors import (
-    DEFAULT_SCOPE_DIMENSION_KEY,
-    MEMBERSHIP_STATUS_FIELD_KEY,
-    MEMBERSHIP_TYPE_FIELD_KEY,
-    MemberNotFound,
-    MemberValidationError,
-    MembershipTypeConflict,
-    MembershipTypeNotFound,
-    ScopeDenied,
-    TransitionDenied,
-    TransitionResult,
-    _as_field_error,
 )
 
 

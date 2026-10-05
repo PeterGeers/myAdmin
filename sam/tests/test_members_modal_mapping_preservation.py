@@ -82,14 +82,12 @@ class TestMappedOverlayPreservationBaseline:
 
     def test_mapped_overlay_fields_render_their_stored_values(self):
         rec = _map(
-            **{
-                "Clubblad": "Papier",          # → overlay.magazine_pref (magazine rule)
-                "Motormerk": "harley_davidson",  # → overlay.motor_brand (single)
-                "Afmelding": "2020-06-15",      # → overlay.deregistration_date (date)
-                "Beeindiging": "2021-07-20T00:00:00.000Z",  # → overlay.termination_date (date)
-                "Opmerkingen": "some notes here",  # → overlay.notes (single)
-                "WieWatWaar": "via een vriend",  # → overlay.referral_source (single)
-            }
+            Clubblad="Papier",          # → overlay.magazine_pref (magazine rule)
+            Motormerk="harley_davidson",  # → overlay.motor_brand (single)
+            Afmelding="2020-06-15",      # → overlay.deregistration_date (date)
+            Beeindiging="2021-07-20T00:00:00.000Z",  # → overlay.termination_date (date)
+            Opmerkingen="some notes here",  # → overlay.notes (single)
+            WieWatWaar="via een vriend",  # → overlay.referral_source (single)
         )
         overlay = rec["overlay"]
         # Observed outputs (recorded from the unfixed transform):

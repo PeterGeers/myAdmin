@@ -23,9 +23,9 @@ TEST role (resolved to `test_governance_projection`) cannot read the prod table.
 """
 
 import os
-import tomllib
 
 import pytest
+import tomllib
 import yaml
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +70,7 @@ _CfnLoader.add_multi_constructor("!", _cfn_multi_constructor)
 @pytest.fixture(scope="module")
 def template() -> dict:
     with open(_TEMPLATE_PATH, "rb") as fh:
-        return yaml.load(fh, Loader=_CfnLoader)  # noqa: S506 - custom safe loader
+        return yaml.load(fh, Loader=_CfnLoader)
 
 
 @pytest.fixture(scope="module")

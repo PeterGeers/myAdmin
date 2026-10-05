@@ -9,8 +9,8 @@
 import { vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import { useBankingProcessor, formatAmount } from './useBankingProcessor';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('../services/apiService');
 const mockGet = vi.mocked(authenticatedGet);

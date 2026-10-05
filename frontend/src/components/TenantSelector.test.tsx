@@ -4,8 +4,8 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@/test-utils';
 import TenantSelector from './TenantSelector';
+import { render, screen } from '@/test-utils';
 
 // Mock the tenant context
 const mockUseTenant = vi.fn();

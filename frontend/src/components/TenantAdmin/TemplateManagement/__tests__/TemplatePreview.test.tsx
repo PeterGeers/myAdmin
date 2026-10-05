@@ -6,8 +6,8 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@/test-utils';
 import { TemplatePreview } from '../TemplatePreview';
+import { render, screen } from '@/test-utils';
 
 describe('TemplatePreview', () => {
   describe('No Preview State', () => {

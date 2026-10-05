@@ -1,10 +1,9 @@
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
-import { createMockResponse } from '@/test-utils/mockHelpers';
-
 import App from './App';
+import { render, screen, waitFor } from '@/test-utils';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock fetch for API calls
 global.fetch = vi.fn((): Promise<Response> =>

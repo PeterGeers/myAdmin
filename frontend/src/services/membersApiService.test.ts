@@ -8,7 +8,6 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import { getCurrentAuthTokens } from './authService';
 import {
   listMembers,
@@ -24,6 +23,7 @@ import {
   transitionMembership,
   bulkTransition,
 } from './membersApiService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock the auth seam so no AWS Amplify session is needed.
 vi.mock('./authService', () => ({

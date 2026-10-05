@@ -7,8 +7,8 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '../../../test-utils';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { render, screen, waitFor, fireEvent } from '../../../test-utils';
 import UserManagement from '../UserManagement';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 

@@ -11,8 +11,8 @@ import {
   AccordionIcon, Text,
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
-import TenantDetails from './TenantDetails';
 import EmailLogPanel from '../shared/EmailLogPanel';
+import TenantDetails from './TenantDetails';
 
 interface TenantInfoTabProps {
   tenant: string;

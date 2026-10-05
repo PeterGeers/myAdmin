@@ -82,9 +82,9 @@ class UnknownKidError(RuntimeError):
 
 __all__ = [
     "InvalidTokenError",
-    "ServiceUnavailableError",
-    "PoolRegistryError",
-    "UnknownIssuerError",
     "JWKSFetchError",
+    "PoolRegistryError",
+    "ServiceUnavailableError",
+    "UnknownIssuerError",
     "UnknownKidError",
 ]

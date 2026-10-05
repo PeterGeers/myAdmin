@@ -1,6 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@/test-utils';
 
 /**
  * PDFUploadForm tests
@@ -113,6 +112,7 @@ vi.mock('../hooks/usePDFUpload', () => ({
 }));
 
 import PDFUploadForm from './PDFUploadForm';
+import { render, screen, fireEvent } from '@/test-utils';
 
 beforeEach(() => {
   vi.clearAllMocks();

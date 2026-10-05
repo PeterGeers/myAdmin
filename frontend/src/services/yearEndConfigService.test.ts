@@ -5,13 +5,13 @@
 
 import { vi } from 'vitest';
 import { authenticatedGet, authenticatedPost, authenticatedDelete } from './apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   getVATNettingConfig,
   configureVATNetting,
   removeVATNetting,
   getBalanceSheetAccounts,
 } from './yearEndConfigService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('./apiService');
 const mockGet = vi.mocked(authenticatedGet);

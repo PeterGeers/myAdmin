@@ -165,3 +165,78 @@ class TestAnchoredExamples:
             code = booking["reservationCode"]
             assert code not in ("", "nan", "None")
             assert code.strip() != ""
+
+
+_NUMERIC_CODE_HEADER = [
+    "Datum",
+    "Type",
+    "Bevestigingscode",
+    "Boekingsdatum",
+    "Begindatum",
+    "Einddatum",
+    "Nachten",
+    "Gast",
+    "Advertentie",
+    "Informatie",
+    "Referentienummer",
+    "Valuta",
+    "Bedrag",
+    "Servicekosten",
+    "Schoonmaakkosten",
+    "Bruto-inkomsten",
+    "Door Airbnb doorbelaste en afgedragen heffingen",
+    "Inkomstenjaar",
+]
+
+
+class TestNumericLookingConfirmationCode:
+    """Confirmation codes are opaque strings; numeric-looking codes must not be coerced.
+
+    Regression for the Hypothesis-minimised example ``0000E0`` (looks like scientific
+    notation): pandas' dtype inference turned it into the float ``0.0`` so the group key
+    became ``"0.0"`` and no longer matched the original code. Reading with ``dtype=str``
+    keeps the code verbatim (airbnb-export-format-update Property 3).
+
+    Validates: Requirements 2.1, 2.2, 2.3
+    """
+
+    def _booking_row(self, code):
+        return {
+            "Datum": "09/23/2026",
+            "Type": "Boeking",
+            "Bevestigingscode": code,
+            "Boekingsdatum": "09/04/2026",
+            "Begindatum": "09/23/2026",
+            "Einddatum": "09/25/2026",
+            "Nachten": "2",
+            "Gast": "Test Guest",
+            "Advertentie": "Test Listing",
+            "Informatie": "",
+            "Referentienummer": "",
+            "Valuta": "EUR",
+            "Bedrag": "274.80",
+            "Servicekosten": "42,59",
+            "Schoonmaakkosten": "0.00",
+            "Bruto-inkomsten": "274.80",
+            "Door Airbnb doorbelaste en afgedragen heffingen": "0.00",
+            "Inkomstenjaar": "2026",
+        }
+
+    @pytest.mark.parametrize("code", ["0000E0", "1E5", "007", "123456"])
+    def test_numeric_looking_code_kept_verbatim(self, code, tmp_path):
+        import csv
+
+        from str_airbnb_parser import process_airbnb_multi
+
+        csv_path = tmp_path / "airbnb_pending.csv"
+        with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=_NUMERIC_CODE_HEADER)
+            writer.writeheader()
+            writer.writerow(self._booking_row(code))
+
+        result = process_airbnb_multi([str(csv_path)], status="planned")
+
+        assert len(result) == 1
+        # The code must survive end-to-end exactly as written, with no numeric
+        # coercion (e.g. "0000E0" must not become "0.0").
+        assert result[0]["reservationCode"] == code

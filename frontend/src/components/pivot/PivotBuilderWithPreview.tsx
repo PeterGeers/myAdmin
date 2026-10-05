@@ -8,9 +8,9 @@
 
 import React, { useCallback, useState } from 'react';
 import { Box, Divider } from '@chakra-ui/react';
+import type { PivotConfig, PivotResult } from '../../types/pivot';
 import { PivotBuilder } from './PivotBuilder';
 import { PivotResultTable } from './PivotResultTable';
-import type { PivotConfig, PivotResult } from '../../types/pivot';
 
 export function PivotBuilderWithPreview(): React.ReactElement {
   const [result, setResult] = useState<PivotResult | null>(null);
