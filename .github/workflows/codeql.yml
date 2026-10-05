@@ -2,9 +2,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
   pull_request:
-    branches: [main]
+    branches: [main, test]
   workflow_dispatch:
   schedule:
     # Weekly scan (Mondays 06:17 UTC) to catch newly-published advisories.
