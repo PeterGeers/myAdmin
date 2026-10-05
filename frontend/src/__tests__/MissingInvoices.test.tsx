@@ -11,8 +11,8 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import MissingInvoices from '../components/MissingInvoices';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 
 // Mock TenantContext
 const mockUseTenant = vi.fn();

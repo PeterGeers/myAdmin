@@ -9,8 +9,8 @@
 
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, fireEvent } from '@/test-utils';
 import { EmailPreviewPanel } from '../components/zzp/EmailPreviewPanel';
+import { render, screen, fireEvent } from '@/test-utils';
 
 // Mock useTypedTranslation to return the key as-is (with optional fallback)
 vi.mock('../hooks/useTypedTranslation', () => ({

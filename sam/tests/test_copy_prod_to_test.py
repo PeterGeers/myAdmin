@@ -144,7 +144,7 @@ class FakeDynamoResource:
         self.data = {k: list(v) for k, v in data.items()}
         self.writes: list[str] = []
 
-    def Table(self, name):  # noqa: N802 - mimics boto3 resource.Table
+    def Table(self, name):
         return _FakeTable(self, name)
 
 

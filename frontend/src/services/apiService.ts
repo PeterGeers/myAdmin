@@ -5,8 +5,8 @@
  * with automatic JWT token injection and token refresh handling.
  */
 
-import { getCurrentAuthTokens } from './authService';
 import { API_BASE_URL } from '../config/api';
+import { getCurrentAuthTokens } from './authService';
 
 /**
  * Request options for authenticated API calls

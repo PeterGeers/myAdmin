@@ -9,11 +9,11 @@
 
 import { Box } from '@chakra-ui/react';
 import React from 'react';
+import { useBankingProcessor } from '../hooks/useBankingProcessor';
 import BankingProcessorTable from './BankingProcessorTable';
 import BankingFileUpload from './BankingFileUpload';
 import BankingPatternPanel from './BankingPatternPanel';
 import BankingTransactionModal from './BankingTransactionModal';
-import { useBankingProcessor } from '../hooks/useBankingProcessor';
 
 // Re-export types and utilities for backward compatibility
 export type { Transaction, CreditCardAccount, LookupData } from './BankingProcessor.types';

@@ -1,8 +1,8 @@
 /**
  * API service for tax rate administration.
  */
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 import { TaxRate, TaxRatesResponse, TaxRateCreateRequest, TaxRateUpdateRequest } from '../types/taxRateTypes';
+import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 
 const BASE = '/api/tenant-admin/tax-rates';
 

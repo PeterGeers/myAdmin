@@ -6,7 +6,6 @@
 
 import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   getAssets,
   getAsset,
@@ -18,6 +17,7 @@ import {
   getAssetRegisterReport,
   getDepreciationScheduleReport,
 } from './assetService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');

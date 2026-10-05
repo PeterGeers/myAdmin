@@ -9,9 +9,9 @@
 import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { authenticatedPost } from '../services/apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
-import { useBankingUpload } from './useBankingUpload';
 import type { Transaction } from '../components/BankingProcessor.types';
+import { useBankingUpload } from './useBankingUpload';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('../services/apiService');
 const mockPost = vi.mocked(authenticatedPost);
@@ -195,7 +195,7 @@ describe('useBankingUpload', () => {
       });
 
       // setTransactions called with an updater fn — exercise it directly
-      const updater = deps.setTransactions.mock.calls[0][0] as (p: Transaction[]) => Transaction[];
+      const updater = vi.mocked(deps.setTransactions).mock.calls[0][0] as (p: Transaction[]) => Transaction[];
       const next = updater([tx({ row_id: 10, TransactionAmount: 100 }), tx({ row_id: 11 })]);
       expect(next[0].TransactionAmount).toBe(500);
       expect(next[1].TransactionAmount).toBe(100);

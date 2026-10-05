@@ -8,13 +8,6 @@
  * Reference: .kiro/specs/dynamic-pivot-views/design.md §6
  */
 
-import {
-  authenticatedGet,
-  authenticatedPost,
-  authenticatedPut,
-  authenticatedDelete,
-  buildEndpoint,
-} from './apiService';
 import type {
   PivotConfig,
   PivotResult,
@@ -28,6 +21,13 @@ import type {
   AggregateMeasure,
   DisplayMode,
 } from '../types/pivot';
+import {
+  authenticatedGet,
+  authenticatedPost,
+  authenticatedPut,
+  authenticatedDelete,
+  buildEndpoint,
+} from './apiService';
 
 const BASE = '/api/pivot';
 

@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Mock the BankingProcessor component with confirmation dialog functionality
 const MockBankingProcessorWithConfirmation = ({ 

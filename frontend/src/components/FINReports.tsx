@@ -23,9 +23,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { Box, VStack, Alert, AlertIcon, Spinner, Text } from '@chakra-ui/react';
-import FinancialReportsGroup from './reports/FinancialReportsGroup';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
+import FinancialReportsGroup from './reports/FinancialReportsGroup';
 
 const FINReports: React.FC = () => {
   const { user } = useAuth();

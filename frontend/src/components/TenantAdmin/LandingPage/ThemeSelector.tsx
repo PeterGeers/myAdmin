@@ -12,8 +12,8 @@ import React from 'react';
 import {
   Box, Wrap, WrapItem, Text, Button, VStack, HStack,
 } from '@chakra-ui/react';
-import { THEME_PRESETS, ThemePreset } from './themePresets';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
+import { THEME_PRESETS, ThemePreset } from './themePresets';
 
 // ============================================================================
 // Types

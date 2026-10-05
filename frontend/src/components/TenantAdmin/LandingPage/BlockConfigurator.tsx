@@ -124,7 +124,7 @@ export default function BlockConfigurator({ section, onUpdate, onClose }: BlockC
 
 // --- Type-specific field renderers ---
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function renderFieldsForType(
   section: Section,
   updateProperty: (key: string, value: unknown) => void,

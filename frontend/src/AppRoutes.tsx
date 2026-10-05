@@ -8,6 +8,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import { Box, Button, Heading, HStack, Flex } from '@chakra-ui/react';
 import ProtectedRoute from './components/ProtectedRoute';
 import TenantSelector from './components/TenantSelector';
 import UserMenu from './components/UserMenu';
@@ -15,7 +16,6 @@ import { LanguageSelector } from './components/LanguageSelector';
 import { HelpButton } from './components/help';
 import { MainMenu } from './components/MainMenu';
 import type { User } from './context/AuthContext';
-import { Box, Button, Heading, HStack, Flex } from '@chakra-ui/react';
 import {
   PDFUploadForm,
   BankingProcessor,
@@ -87,7 +87,7 @@ export function AppRoutes(props: AppRoutesProps) {
           {options?.showLanguage && <LanguageSelector />}
           <TenantSelector size="sm" hide={options?.hideTenant} />
           <HelpButton page={currentPage} />
-          <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
+          <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} />
         </HStack>
       </Flex>
     </Box>

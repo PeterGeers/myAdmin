@@ -9,9 +9,9 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@/test-utils';
 import '@testing-library/jest-dom';
-import AangifteIbReport from './AangifteIbReport';
 import { useTenant } from '../../context/TenantContext';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
+import AangifteIbReport from './AangifteIbReport';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock dependencies

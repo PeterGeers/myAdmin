@@ -2,6 +2,7 @@
  * API service for ZZP trip/mileage registration (Rittenregistratie).
  * Reference: .kiro/specs/ZZP/rittenregistratie/design.md §5.5
  */
+import type { Trip, TripFilters, TripSummary, TripAuditEntry, GapFillData } from '../types/zzpTrips';
 import {
   authenticatedGet,
   authenticatedPost,
@@ -10,7 +11,6 @@ import {
   authenticatedFormData,
   buildEndpoint,
 } from './apiService';
-import type { Trip, TripFilters, TripSummary, TripAuditEntry, GapFillData } from '../types/zzpTrips';
 
 /** Base API response shape. */
 interface ApiResponse {

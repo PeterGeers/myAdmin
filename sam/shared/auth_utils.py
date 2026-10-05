@@ -68,6 +68,29 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+# ── Extracted verification machinery (re-exported — stable import surface) ─────────────
+from sam.shared._auth_errors import (
+    InvalidTokenError,
+    JWKSFetchError,
+    PoolRegistryError,
+    ServiceUnavailableError,
+    UnknownIssuerError,
+    UnknownKidError,
+)
+from sam.shared._jwks import (
+    JWKSCache,
+)
+from sam.shared._pool_registry import (
+    PoolConfig,
+    PoolRegistry,
+    load_pool_registry,
+)
+from sam.shared._verifier import (
+    JWTVerifier,
+    get_global_verifier,
+    reset_global_verifier,
+)
+
 # Vendored, dependency-free decoder for the S4 entitlement claim (T14). It mirrors the
 # decode half of backend/src/auth/entitlement_claim_codec.py WITHOUT importing
 # backend/src, keeping this shared layer standalone (see entitlement_claim.py's
@@ -78,30 +101,6 @@ from sam.shared.entitlement_claim import (
 from sam.shared.entitlement_claim import (
     DecodedEntitlements,
     decode_entitlements,
-)
-
-# ── Extracted verification machinery (re-exported — stable import surface) ─────────────
-from sam.shared._auth_errors import (
-    InvalidTokenError,
-    JWKSFetchError,
-    PoolRegistryError,
-    ServiceUnavailableError,
-    UnknownIssuerError,
-    UnknownKidError,
-)
-from sam.shared._pool_registry import (
-    PoolConfig,
-    PoolRegistry,
-    load_pool_registry,
-)
-from sam.shared._jwks import (
-    JWKSCache,
-    JwksFetcher,
-)
-from sam.shared._verifier import (
-    JWTVerifier,
-    get_global_verifier,
-    reset_global_verifier,
 )
 
 logger = logging.getLogger(__name__)

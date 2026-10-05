@@ -2,8 +2,8 @@
  * Asset Service — API calls for asset administration
  */
 
-import { buildApiUrl } from '../config';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { buildApiUrl } from '../config';
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const session = await fetchAuthSession();

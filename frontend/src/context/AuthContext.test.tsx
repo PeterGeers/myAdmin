@@ -4,10 +4,10 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
-import { AuthProvider, useAuth } from './AuthContext';
 import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import * as authService from '../services/authService';
+import { AuthProvider, useAuth } from './AuthContext';
+import { render, screen, waitFor } from '@/test-utils';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');

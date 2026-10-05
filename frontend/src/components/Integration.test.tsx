@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor } from '@/test-utils';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock fetch

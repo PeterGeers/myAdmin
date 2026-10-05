@@ -1,8 +1,8 @@
 /**
  * API service for parameter administration.
  */
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 import { ParametersResponse, ParameterCreateRequest, ParameterUpdateRequest, ParameterDefaultResponse, ParameterMutationResponse } from '../types/parameterTypes';
+import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete, buildEndpoint } from './apiService';
 
 const BASE = '/api/tenant-admin/parameters';
 

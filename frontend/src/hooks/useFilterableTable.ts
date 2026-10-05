@@ -10,9 +10,9 @@
  * @see .kiro/specs/table-filter-framework-v2/design.md §3
  */
 
+import { SortDirection } from '../components/filters/types';
 import { useColumnFilters } from './useColumnFilters';
 import { useTableSort } from './useTableSort';
-import { SortDirection } from '../components/filters/types';
 
 export interface UseFilterableTableConfig {
   /** Initial filter keys and empty values */

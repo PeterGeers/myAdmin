@@ -5,7 +5,6 @@
  * including preview, validation, approval, rejection, and AI assistance.
  */
 
-import { authenticatedRequest } from './apiService';
 import type {
   TemplateType,
   ValidationError,
@@ -19,6 +18,7 @@ import type {
   FieldMappings,
   CurrentTemplateResponse,
 } from '../types/template';
+import { authenticatedRequest } from './apiService';
 
 // Re-export types from the types file
 export type {

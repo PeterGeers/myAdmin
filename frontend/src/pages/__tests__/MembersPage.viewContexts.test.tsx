@@ -27,10 +27,10 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 import MembersPage from '../MembersPage';
 import * as membersApiService from '../../services/membersApiService';
 import type { Member, FieldConfig, ViewContext } from '../../types/members';
+import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 
 vi.mock('../../services/membersApiService');
 

@@ -4,8 +4,8 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import { LanguageSelector } from './LanguageSelector';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 
 // Track language state for tests
 let mockCurrentLanguage = 'en';

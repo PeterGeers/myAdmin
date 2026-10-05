@@ -37,8 +37,6 @@ import {
   getAvailableColumns,
   filterSourcesByModule,
 } from '../../services/pivotService';
-import { PivotBuilderFilters } from './PivotBuilderFilters';
-import { PivotResultTable } from './PivotResultTable';
 import type {
   DataSourceModule,
   PivotConfig,
@@ -47,6 +45,8 @@ import type {
   PivotResult,
   ColumnDef,
 } from '../../types/pivot';
+import { PivotBuilderFilters } from './PivotBuilderFilters';
+import { PivotResultTable } from './PivotResultTable';
 
 // ---------------------------------------------------------------------------
 // Props

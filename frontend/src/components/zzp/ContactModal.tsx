@@ -66,7 +66,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
     company_name: Yup.string().required(t('contacts.companyName') + ' is required'),
   });
 
-  const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   const validateEmail = (email: string): string | null => {
     if (!email || !email.trim()) return null; // blank rows are skipped

@@ -8,9 +8,9 @@
 
 import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { useStrChannelRevenue } from './useStrChannelRevenue';
 import { authenticatedGet, authenticatedPost } from '@/services/apiService';
 import { createMockResponse } from '@/test-utils/mockHelpers';
-import { useStrChannelRevenue } from './useStrChannelRevenue';
 
 vi.mock('@/services/apiService');
 const mockGet = vi.mocked(authenticatedGet);

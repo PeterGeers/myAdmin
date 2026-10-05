@@ -15,7 +15,6 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import {
   Area,
   AreaChart,
@@ -26,6 +25,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { FilterableHeader } from '../filters/FilterableHeader';

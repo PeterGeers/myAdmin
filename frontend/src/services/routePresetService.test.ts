@@ -10,13 +10,13 @@ import {
   authenticatedPut,
   authenticatedRequest,
 } from './apiService';
-import { createMockResponse } from '@/test-utils/mockHelpers';
 import {
   getRoutePresets,
   createRoutePreset,
   updateRoutePreset,
   deleteRoutePreset,
 } from './routePresetService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Keep the real buildEndpoint (pure URL helper); stub only the network fns.
 vi.mock('./apiService', async () => {
@@ -48,7 +48,7 @@ describe('routePresetService', () => {
 
   it('createRoutePreset POSTs the payload to the base endpoint', async () => {
     mockPost.mockResolvedValue(createMockResponse({ body: { success: true, data: { id: 2 } } }));
-    const payload = { label: 'Home → Office' };
+    const payload = { from_address: 'Home → Office' };
 
     const result = await createRoutePreset(payload);
 
@@ -59,9 +59,9 @@ describe('routePresetService', () => {
   it('updateRoutePreset PUTs to the id-scoped endpoint', async () => {
     mockPut.mockResolvedValue(createMockResponse({ body: { success: true, data: { id: 7 } } }));
 
-    await updateRoutePreset(7, { label: 'x' });
+    await updateRoutePreset(7, { from_address: 'x' });
 
-    expect(mockPut).toHaveBeenCalledWith('/api/zzp/route-presets/7', { label: 'x' });
+    expect(mockPut).toHaveBeenCalledWith('/api/zzp/route-presets/7', { from_address: 'x' });
   });
 
   it('deleteRoutePreset issues a DELETE request to the id-scoped endpoint', async () => {

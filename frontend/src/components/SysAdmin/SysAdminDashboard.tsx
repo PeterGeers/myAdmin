@@ -5,11 +5,11 @@ import {
 } from '@chakra-ui/react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import EmailLogPanel from '../shared/EmailLogPanel';
 import RoleManagement from './RoleManagement';
 import TenantManagement from './TenantManagement';
 import HealthCheck from './HealthCheck';
 import ProvisioningPanel from './ProvisioningPanel';
-import EmailLogPanel from '../shared/EmailLogPanel';
 import SystemTaxRates from './SystemTaxRates';
 import SysAdminPivotDataSources from './SysAdminPivotDataSources';
 

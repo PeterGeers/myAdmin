@@ -20,8 +20,8 @@ import {
   ListIcon
 } from '@chakra-ui/react';
 import { WarningIcon, LockIcon, CheckCircleIcon } from '@chakra-ui/icons';
-import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext';
 
 interface UnauthorizedProps {
   requiredRoles?: string[];
