@@ -68,25 +68,58 @@ per-column `FilterableHeader`.
   precision complement to Option 1, but a focused multi-day change, not a quick
   win.
 
-### Reality check — "filter + sort work unchanged" is NOT true today
+### Reality check — the real rule is "is the field a FLAT key on the row?"
 
-An earlier draft of this note said per-field filtering and sorting would work
-"for free / unchanged." Investigation of `MembersPage.tsx` and the shared table
-hooks shows that is **not** the case:
+An earlier draft said per-field filtering + sorting would work "for free /
+unchanged." The precise, verified rule (from `MembersPage.tsx`, `flattenMember`
+in `membersApiService.ts`, and the shared `useColumnFilters` / `useTableSort`
+hooks) is:
 
-- The **cell render** path already resolves any nested field correctly
-  (`valueFor` is nested-aware), BUT
-- the **filter and sort engines read flat `row[key]` only** — they do not consult
-  the field's storage `group`. Calculated / overlay fields live in nested buckets
-  (`membership.years_member`, `overlay.*`) and are not promoted to flat aliases.
-  So filtering on such a key silently no-ops and sorting pushes every row to the
-  end. Today an overlay column is therefore **sortable-but-broken and not
-  filterable at all** (its header is rendered without filter wiring, and its key
-  is absent from the fixed `INITIAL_FILTERS` allow-list).
+> **A field is filterable + sortable on the overview if and only if it is a flat
+> top-level key on the row object.**
 
-This is a real latent defect **independent of Option 2** (the F-003 / F-005 class
-in `member-analytics/findings.md`): overlay columns in full view are already
-sortable-but-wrong for nested fields.
+- The **cell render** path resolves any field correctly, including nested ones
+  (`renderFieldValue(f, valueFor(row, f.group, f.key), lang)` — `valueFor` is
+  nested-aware). So a field can DISPLAY fine yet not filter.
+- The **filter + sort engines read flat `row[key]` only** — they do not consult
+  the field's storage `group`. `applyFilters` even short-circuits
+  `if (!(key in row)) return true`, so a filter on a key that is not a top-level
+  property **silently no-ops** (passes every row); sort on such a key reads
+  `undefined` and pushes rows to the end.
+
+What makes the fixed columns work is `flattenMember`, which promotes a SPECIFIC
+set of convenience aliases to flat top-level keys on every row:
+
+```
+member_number, name, email, status, membership_type, region   (+ membership_id)
+```
+
+That is exactly why filtering on **type** (`membership_type`) narrows the table
+(e.g. 1215 → 57) and **region** works too — they are flat aliases, not because
+they are "fixed" fields. Any field OUTSIDE that alias list — a genuine overlay /
+calculated field that lives only in a nested bucket (`membership.*`,
+`overlay.*`), e.g. a derived *membership duration* — would:
+
+1. render NO filter input today (the overlay header is wired `sortable` only, no
+   `filterValue`), and
+2. even if an input were wired, **no-op** because its key is not a flat `row[key]`
+   (and its key is absent from the fixed `INITIAL_FILTERS` set).
+
+So the dividing line is **flat-key vs nested**, NOT fixed vs overlay. This is the
+real latent defect behind the F-003 / F-005 class in
+`member-analytics/findings.md`.
+
+### Why pivot result tables filter on EVERY column (the proof-of-concept)
+
+The exact same engine filters every column of a pivot result correctly — because
+the pivot path already satisfies the flat-key rule in two ways the overview does
+not: `executeMemberPivot` **projects every field into a flat top-level key**
+(resolving nested values via `valueFor` at projection time), and
+`PivotResultTable` **registers a filter key per result column** (dynamic key set,
+not a fixed six). So a membership-duration column filters fine in a pivot result
+today, but not on the overview. The pivot adapter is the working proof that the
+Option 2 approach below (flatten the chosen fields, register their keys) is
+sound.
 
 ### What the build actually involves
 
