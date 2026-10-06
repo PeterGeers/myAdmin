@@ -50,20 +50,78 @@ types, rows are narrowed client-side to those where **any** resolved field
 
 On top of the existing admin-defined view contexts, let a user **temporarily**
 add any field (including overlay / calculated) as a column for their current
-session. Once added, the existing per-column `FilterableHeader` filter and sort
-work on it unchanged.
+session. Once added, the user can filter and sort on it with the existing
+per-column `FilterableHeader`.
 
 - **Mechanism:** a field picker that appends chosen fields to the session's
-  visible columns (candidates come from the same `overlayColumns` /
-  `isColumnCandidate` logic). Reuses the whole existing filter+sort pipeline — no
-  new filtering engine.
+  visible columns (candidates come from `fields.filter(isColumnCandidate)`), plus
+  the plumbing to make filter + sort actually work on those fields (see the
+  reality check below).
 - **Pros:** precise and powerful. Follows the familiar Jira / Airtable "fields"
-  pattern. Per-field filtering and sorting for free. Non-destructive to the
-  admin view contexts (session-only).
-- **Cons:** more UI than Option 1 (a column-management affordance). The user has
-  to know which field they want to surface.
+  pattern. Non-destructive to the admin view contexts (session-only, no
+  persistence to integrate). No permission blocker — surfacing a column is pure
+  client-side presentation; row scope stays server-enforced.
+- **Cons:** more UI than Option 1 (a column-management affordance), and — the
+  important correction — filter + sort are **not** free (see below). The user
+  also has to know which field they want to surface.
 - **Assessment:** user called this "very interesting." Strong candidate as the
-  precision complement to Option 1.
+  precision complement to Option 1, but a focused multi-day change, not a quick
+  win.
+
+### Reality check — "filter + sort work unchanged" is NOT true today
+
+An earlier draft of this note said per-field filtering and sorting would work
+"for free / unchanged." Investigation of `MembersPage.tsx` and the shared table
+hooks shows that is **not** the case:
+
+- The **cell render** path already resolves any nested field correctly
+  (`valueFor` is nested-aware), BUT
+- the **filter and sort engines read flat `row[key]` only** — they do not consult
+  the field's storage `group`. Calculated / overlay fields live in nested buckets
+  (`membership.years_member`, `overlay.*`) and are not promoted to flat aliases.
+  So filtering on such a key silently no-ops and sorting pushes every row to the
+  end. Today an overlay column is therefore **sortable-but-broken and not
+  filterable at all** (its header is rendered without filter wiring, and its key
+  is absent from the fixed `INITIAL_FILTERS` allow-list).
+
+This is a real latent defect **independent of Option 2** (the F-003 / F-005 class
+in `member-analytics/findings.md`): overlay columns in full view are already
+sortable-but-wrong for nested fields.
+
+### What the build actually involves
+
+1. **Nested-aware filter + sort** — the dominant cost. Either pre-flatten the
+   chosen session fields onto the rows via `valueFor` / `groupForKey`, or teach
+   `useColumnFilters` / `useTableSort` to resolve by group. Pre-flattening only
+   the chosen columns is the lower-risk route (hooks untouched).
+2. **Dynamic filter key set** — `INITIAL_FILTERS` is a fixed 6-key allow-list; the
+   hook already reconciles on a changing key signature (findings F-007), so this
+   is wiring, not a rewrite.
+3. **Filter wiring on added headers** — the overlay header map passes no
+   `filterValue` / `onFilterChange` today; added columns need that.
+4. **A column-chooser UI** — a modal of checkboxes over
+   `fields.filter(isColumnCandidate)`. The analytics `MemberFieldPicker` is a
+   near-perfect pattern to copy (grouped, bilingual, keyboard-accessible), but it
+   is NOT imported by `MembersPage` today — so a copy, not a reuse.
+5. **Render-path handling** — there are two separate paths (hardcoded default vs
+   `contextColumns.map`); added columns must target the active one.
+6. **`filterable_columns` exemption** — in a context that defines a filterable
+   allow-list, an added key must be exempted or it won't get a filter input.
+7. **Session state + tests** — session state is trivial local state; existing
+   MembersPage / useFilterableTable / FilterableHeader / fieldValue tests must stay
+   green and gain coverage for nested filter/sort.
+
+**Rough size: ~2–4 focused days.** It touches shared table infrastructure, so it
+carries more regression surface than the picker UI alone suggests.
+
+### Strategic note
+
+Fixing the nested filter/sort engine (item 1) pays down the existing F-003/F-005
+defect **and** unlocks correct filter/sort for *every* column, not only added
+ones — so part of this cost is debt paydown, not pure new-feature cost. Option 1,
+by contrast, reads values only via `valueFor` to narrow rows and sidesteps the
+flat-read filter/sort engines entirely, which is why it stays the genuine quick
+win.
 
 ## Option 3 — Analytics filtered-list pivot (already built)
 
@@ -93,7 +151,9 @@ The Member Analytics "list" pivot already produces a saved / shareable
 - Ship **Option 1** first — lowest risk, directly solves "find a value in a
   hidden field," no new config surface.
 - Follow with **Option 2** for precise, per-field filtering when the user knows
-  the field they care about.
+  the field they care about — budgeting ~2–4 days, since it requires making the
+  filter/sort engine nested-aware (which also fixes the existing F-003/F-005
+  defect), not just adding a column picker.
 - Keep **Option 3** as the persistent/shareable reporting path, and separately
   resolve the open edit-from-row decision before changing that behaviour.
 
