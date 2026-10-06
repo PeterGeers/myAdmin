@@ -226,9 +226,12 @@ export function MainMenu({
             {/* ── Members Module ──────────────────────── */}
             {hasMEMBERS && (user?.roles?.some(role => ['Members_Read', 'Members_CRUD'].includes(role))) && (
               <>
-                <Text color="purple.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>👥 {t('members:overview.title')}</Text>
+                {/* Section header = the domain ("Members" / "Leden"); the items
+                    below are its distinct functions (Overview / Analytics) so the
+                    header no longer shares a name with the Overview item. */}
+                <Text color="purple.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>👥 {t('members:nav.sectionTitle')}</Text>
                 <Button size="lg" w="full" colorScheme="purple" justifyContent="flex-start" onClick={() => setCurrentPage('members')}>
-                  👥 {t('members:overview.title')}
+                  👥 {t('members:overview.navLabel')}
                 </Button>
                 <Button size="lg" w="full" colorScheme="purple" justifyContent="flex-start" onClick={() => setCurrentPage('member-analytics')}>
                   📊 {t('members:analytics.navLabel')}
