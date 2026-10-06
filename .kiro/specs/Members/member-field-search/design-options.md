@@ -106,8 +106,9 @@ calculated field that lives only in a nested bucket (`membership.*`,
    (and its key is absent from the fixed `INITIAL_FILTERS` set).
 
 So the dividing line is **flat-key vs nested**, NOT fixed vs overlay. This is the
-real latent defect behind the F-003 / F-005 class in
-`member-analytics/findings.md`.
+same "flat `row[key]` misses a nested value" root cause as findings F-003 / F-005
+(explained at the end of this section) — those were already fixed in the analytics
+stats/distributions; the overview filter/sort is where the pattern still bites.
 
 ### Why pivot result tables filter on EVERY column (the proof-of-concept)
 
@@ -124,9 +125,9 @@ sound.
 ### What the build actually involves
 
 1. **Nested-aware filter + sort** — the dominant cost. Either pre-flatten the
-   chosen session fields onto the rows via `valueFor` / `groupForKey`, or teach
-   `useColumnFilters` / `useTableSort` to resolve by group. Pre-flattening only
-   the chosen columns is the lower-risk route (hooks untouched).
+   chosen session fields onto the rows **on the fly** (a client-side memo — see
+   the recommended mechanism below), so the existing flat-key filter/sort engine
+   just works. No need to teach `useColumnFilters` / `useTableSort` about nesting.
 2. **Dynamic filter key set** — `INITIAL_FILTERS` is a fixed 6-key allow-list; the
    hook already reconciles on a changing key signature (findings F-007), so this
    is wiring, not a rewrite.
@@ -142,19 +143,82 @@ sound.
    allow-list, an added key must be exempted or it won't get a filter input.
 7. **Session state + tests** — session state is trivial local state; existing
    MembersPage / useFilterableTable / FilterableHeader / fieldValue tests must stay
-   green and gain coverage for nested filter/sort.
+   green and gain coverage for the surfaced-field filter/sort.
 
-**Rough size: ~2–4 focused days.** It touches shared table infrastructure, so it
-carries more regression surface than the picker UI alone suggests.
+### Recommended mechanism — on-the-fly flattening (no backend, no hook rewrite)
+
+The flattening does NOT need `flattenMember`, the API, or the shared hooks to
+change. The nested data is already in memory on every loaded row, and `valueFor`
+already resolves it. So a reactive memo promotes just the user-surfaced fields to
+flat top-level keys:
+
+```ts
+const enrichedRows = useMemo(
+  () => memberRows.map((row) => {
+    const extra: Record<string, unknown> = {};
+    for (const f of sessionColumns) {          // the fields the user surfaced
+      extra[f.key] = coerceByType(f, valueFor(row, f.group, f.key));
+    }
+    return { ...row, ...extra };               // promote chosen keys to flat
+  }),
+  [memberRows, sessionColumns],
+);
+```
+
+Feed `enrichedRows` to `useFilterableTable` and add the surfaced keys to the
+filter key set — the existing flat `row[key]` filter/sort engine then works
+unchanged. This is exactly what the pivot adapter already does for its results,
+just computed reactively instead of baked into a server result.
+
+Three caveats, all small:
+
+- **Derived, in-memory, per-session** — nothing persists; recomputed on load and
+  when the surfaced set changes. That is precisely what "session columns" wants,
+  and cheap for a scoped row count (hundreds).
+- **No key collisions** — never overwrite an existing flat alias
+  (`membership_type`, `region`, …); only promote keys that are not already flat.
+- **Type-correct sort** — the filter engine stringifies, so text filtering works
+  for anything, but sorting a number/date as a string sorts lexically ("10"
+  before "2"). `coerceByType(f, …)` above should coerce by the field's `type`
+  (number → Number, date → comparable form) so sort is not surprising.
+
+**Rough size: ~1–2 focused days** (down from the earlier 2–4). Because the hard
+part — resolving nested values — is already done by `valueFor`, the work is the
+memo + dynamic key set + the picker UI + wiring, not a filter-engine rewrite.
 
 ### Strategic note
 
-Fixing the nested filter/sort engine (item 1) pays down the existing F-003/F-005
-defect **and** unlocks correct filter/sort for *every* column, not only added
-ones — so part of this cost is debt paydown, not pure new-feature cost. Option 1,
-by contrast, reads values only via `valueFor` to narrow rows and sidesteps the
-flat-read filter/sort engines entirely, which is why it stays the genuine quick
-win.
+The same on-the-fly flatten can be applied to **every** overlay/candidate column
+(not only user-surfaced ones) to make the whole overview filter/sort correctly on
+nested fields — turning the Option-2 feature into a general fix. That is slightly
+more rows×fields work but still client-side and low-risk. Option 1, by contrast,
+reads values only via `valueFor` to narrow rows and sidesteps the flat-key engine
+entirely, which is why it stays the genuine quick win.
+
+### What were F-003 / F-005? (context for the "flat-key" problem)
+
+These are two entries in `member-analytics/findings.md`, and they are the **same
+root cause** as the overview filter gap — which is why they keep coming up:
+
+- **F-003** — the Member Analytics **Overview** showed the member *count* but the
+  "average age" and "average years-member" cards were blank.
+- **F-005** — the Analytics **Distributions** (the age / years-member violin
+  charts) showed "Not enough data" even though every member had a calculated age
+  and years-member.
+- **Root cause (both):** the code read the value with a **flat** `row['age']` /
+  `row[metricKey]`, but `age` and `years_member` are **calculated fields that live
+  in nested buckets** (`personal.age`, `membership.years_member`). So every read
+  returned `undefined` → the averages had nothing to average, and the
+  distributions had zero valid points.
+- **Fix (both, already shipped — marked done in findings):** read via the
+  nested-aware accessor `valueFor(row, groupForKey(fieldConfig, key), key)`
+  instead of the flat key.
+
+So F-003/F-005 were the analytics-stats version of the exact bug the overview
+*columns* still have for nested fields: **flat `row[key]` misses a nested value.**
+They are already fixed in the stats/distributions; the overview filter/sort is the
+remaining place the same pattern bites, and the on-the-fly flatten above is the
+column-table equivalent of the `valueFor` fix they used.
 
 ## Option 3 — Analytics filtered-list pivot (already built)
 
@@ -184,9 +248,9 @@ The Member Analytics "list" pivot already produces a saved / shareable
 - Ship **Option 1** first — lowest risk, directly solves "find a value in a
   hidden field," no new config surface.
 - Follow with **Option 2** for precise, per-field filtering when the user knows
-  the field they care about — budgeting ~2–4 days, since it requires making the
-  filter/sort engine nested-aware (which also fixes the existing F-003/F-005
-  defect), not just adding a column picker.
+  the field they care about — budgeting ~1–2 days, using the on-the-fly
+  `valueFor` flatten (no backend change, no filter-engine rewrite), plus the
+  column-chooser UI.
 - Keep **Option 3** as the persistent/shareable reporting path, and separately
   resolve the open edit-from-row decision before changing that behaviour.
 
