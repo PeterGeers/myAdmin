@@ -593,6 +593,72 @@ overlay key. This is the ideal multi-tenant resolution of what were otherwise op
   exactly like the field config and scope dimensions; it SHALL NOT write it (authoring is the
   configurator's job).
 
+### R11 — Shared pivot/list library + per-user preferred lists (SAM-plane, member-independent)
+
+> Added after post-implementation review (the F-012 saved-set work surfaced the real usage model).
+> This REFINES R4.4 / R4.4a / R4.4b (saved sets) into a **two-layer** model and makes the ownership
+> identity explicit. It supersedes the earlier implicit "saved sets are just tenant-scoped models"
+> wording where they differ. Storage stays on the **SAM/DynamoDB plane** per F-012; nothing here
+> touches the Flask admin-config plane (that remains the tenant admin's domain — R9).
+
+- **R11.1 (user ≠ member — the identity principle).** The **owner/actor** of any analytics set or
+  preferred list is the **authenticated user**, identified by the verified Cognito **`sub`**, and is
+  **independent of whether that user is also a member** of the club. A user may be a member, both,
+  or (e.g. `webmaster@…`) a user who is NOT a member. Ownership, listing, and personal preferences
+  SHALL key on `sub` (+ `tenant_id`), NEVER on a `member_id` / member record. A member's record is
+  data the user may query (subject to scope), never their identity. (This mirrors the F-012/F-013
+  plane discipline: a durable principle, not an incidental detail.)
+
+- **R11.2 (two layers: shared definitions + private preference).** Analytics sets SHALL be modeled
+  in two distinct layers:
+  1. **Set definitions = a TENANT-SHARED library.** Every pivot/list *definition* — predefined OR
+     user-created — belongs to the **tenant** and is **visible to every user in that tenant**. A set
+     a user creates joins the shared library so other users can find and reuse it (deliberately
+     preventing duplicate near-identical sets). Set definitions are `tenant_id`-scoped (NOT
+     per-user).
+  2. **Preferred list = PRIVATE per user.** Each user curates **one** preferred list
+     (`tenant_id` + `sub`) — an **ordered list of references** into the shared library (predefined
+     and/or user-created). It stores REFERENCES, not copies, so there is exactly one definition per
+     set and no duplication. Each user sees only their own preferred list.
+
+- **R11.3 (capabilities — export OR CRUD, not admin).** The analytics set + preferred-list surface
+  SHALL be usable by any user holding **`members:export` OR `members:write` (Members_CRUD)** — it is
+  NOT restricted to tenant admins. Specifically:
+  - **run/list/get** a set and **read my preferred list** → `members:read`;
+  - **create** a (shared) set, and **edit my own preferred list** → `members:export` OR
+    `members:write`;
+  - **edit/delete a user-created shared set** → `members:write` (Members_CRUD) OR tenant admin
+    (any CRUD-capable user or an admin may curate the shared library — not restricted to the set's
+    creator). A `created_by` (`sub`) SHALL be stamped for attribution/audit, but it does NOT gate
+    edit/delete.
+  - **Predefined (code) sets** SHALL be **immutable** — never editable or deletable through this
+    surface (R11.5).
+
+- **R11.4 (scope inherited, member-independent).** A set definition SHALL NOT encode scope. When a
+  set runs, it runs over the caller's **scope-authorized** member dataset (`GET /members`,
+  server-narrowed by the caller's region grant), so the SAME shared definition yields all members
+  for a `Regio_All`/wildcard user and only the caller's region for a region-limited user — with no
+  cross-region leak (the out-of-scope rows never reach the client). Scope is resolved from
+  roles/grants, NOT from membership, so a non-member user with a wildcard grant sees all members
+  and a region-limited user sees their region (restates R5.3 for the shared library).
+
+- **R11.5 (predefined sets stay as code, referenced by key).** The predefined presets SHALL remain
+  **code/config** (`memberPivotPresets.ts`), not stored library items — they cannot be deleted, and
+  a user simply does not add ones that add no value for them. A preferred list SHALL reference items
+  with a **tagged reference** — `preset:<key>` for a predefined set, `set:<id>` for a shared
+  user-created set — so one uniform reference space addresses both without migrating the presets.
+
+- **R11.6 (graceful degradation of references).** A preferred list that references a set which no
+  longer resolves (a deleted shared set, or a predefined/role-backed preset not currently available
+  to the tenant) SHALL **skip the missing reference** and still render the rest — never crash, never
+  show a broken entry (mirrors the preset-degradation rule R4.3).
+
+- **R11.7 (storage plane).** Shared set definitions and per-user preferred lists SHALL be persisted
+  by the **Members module on its own DynamoDB table** (`tenant_id` tenancy, reached through the
+  Members Lambda), reusing the F-012 analytics-set store — NEVER the Flask/MySQL plane (steering 35
+  rule 5a). The engine SHALL stay module-agnostic / extraction-friendly (no `sam/shared/analytics/`
+  library until a second consumer — F-013 rule of three).
+
 ### R10 — Out of scope (explicitly excluded)
 
 - **R10.1** **AI-command / natural-language analytics** over members — out of scope here (s5c R10.1

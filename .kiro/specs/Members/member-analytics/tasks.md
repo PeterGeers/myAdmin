@@ -242,6 +242,62 @@ CSV/PDF-label/SES-mail exports — all scope-authorized and tenant-isolated.
   build is green.
   - _Requirements: R6.5 | Design: all_
 
+### Phase 12 — Shared pivot library + per-user preferred lists (R11 / C9)
+
+> Added post-review. Supersedes the Phase 7 "saved models via the Flask `pivotService`" approach:
+> F-012 moved saved-set storage to the Members module's DynamoDB plane (the analytics-set CRUD is
+> already built + deployed to `test`). This phase refines that into the two-layer model R11 settles
+> — a tenant-shared set LIBRARY + a per-user PREFERRED LIST — keyed on the authenticated `sub`
+> (user ≠ member, R11.1). SAM plane only; the Flask admin-config plane is untouched. Build the
+> store/CRUD module-agnostic (extraction-friendly, no `sam/shared/analytics/` yet — F-013).
+
+- [ ] 12.1 **Backend — set item `origin`/`created_by`.** Extend the `AnalyticsSetEntry` entity +
+  the create/update domain service so a stored set carries `origin: 'user'` and `created_by`
+  (the verified `sub`, attribution/audit only — NOT an access gate). Update
+  `test_analytics_set_entity.py` / `test_analytics_set_routes.py`.
+  - _Requirements: R11.2, R11.3 | Design: C9_
+
+- [ ] 12.2 **Backend — any-of capability gate.** Add an optional `capabilities_any: tuple[str, ...]`
+  to `RouteSpec`; the edge authorize step (`_authenticate_and_authorize`) passes when the caller
+  holds ANY listed capability. Keep the single `capability` for existing routes. Unit-test the
+  edge: a caller with only `members:export` passes an `export|write` route; a caller with neither
+  is 403.
+  - _Requirements: R11.3 | Design: C9_
+
+- [ ] 12.3 **Backend — widen the set-CRUD gates.** `create_analytics_set` →
+  `capabilities_any = (members:export, members:write)`; `update`/`delete_analytics_set` →
+  `capabilities_any = (members:write, members:admin)`. Reads stay `members:read`. Route-level
+  tests for each matrix cell (export-only create OK; read-only create 403; CRUD delete OK).
+  - _Requirements: R11.3 | Design: C9_
+
+- [ ] 12.4 **Backend — preferred-list item + CRUD.** New `PREFLIST#<sub>` DynamoDB item (one per
+  user): ordered `refs: string[]` of tagged references (`preset:<key>` / `set:<id>`). New routes
+  `GET /members/analytics-sets/preferred` + `PUT /members/analytics-sets/preferred`, keyed on
+  `ctx.sub` (body carries no owner), declared BEFORE the `{set_id}` routes. Entity +
+  repository + domain service + dispatch + app wiring, mirroring the analytics-set pattern. Gate:
+  read = `members:read`; write = `capabilities_any (members:export, members:write)`. Tests:
+  per-user isolation (one sub's list never returns another's), empty-when-unset, replace semantics.
+  - _Requirements: R11.1, R11.2, R11.3, R11.7 | Design: C9_
+
+- [ ] 12.5 **Frontend — preferred-list service.** Add `getPreferredList()` / `savePreferredList(refs)`
+  to `membersApiService` (unwrap envelope; refs are tagged-ref strings). Types on
+  `types/members.ts`.
+  - _Requirements: R11.2, R11.5 | Design: C9_
+
+- [ ] 12.6 **Frontend — preferred-list UI + shared library.** In `MemberPivotViews`: the set
+  dropdown already lists the shared library (code presets + all tenant user sets — now visible to
+  every user). Add a "my preferred sets" control (add / remove / reorder tagged refs), resolving
+  `preset:<key>` via `getAvailablePresets` and `set:<id>` via the shared sets; skip refs that no
+  longer resolve (R11.6). Show create per `canExport || canWrite`; show delete-shared-set per
+  `canWrite || isAdmin`. Component tests for the capability gating + ref degradation.
+  - _Requirements: R11.2, R11.3, R11.5, R11.6 | Design: C9_
+
+- [ ] 12.7 **Verify + deploy.** Full SAM suite + ruff + `sam build` green; frontend tsc + affected
+  vitest green. Commit the SAM-plane changes (+ `.kiro` docs) and push to `test` → the
+  `Deploy SAM Members` workflow deploys `test-sam-members`. Frontend stays local (`npm start`
+  against the test Members API). Confirm the deploy run concludes `success`.
+  - _Requirements: R11.7 | Design: C9; steering 43-cicd-deploys, 35-sam-module-architecture-sam_
+
 ## Task Dependency Graph
 
 ```json
@@ -258,7 +314,11 @@ CSV/PDF-label/SES-mail exports — all scope-authorized and tenant-isolated.
     { "id": 8, "tasks": ["7.5", "8.1", "8.2"] },
     { "id": 9, "tasks": ["8.3", "9.1"] },
     { "id": 10, "tasks": ["9.2", "9.3", "10.1", "10.2", "10.3"] },
-    { "id": 11, "tasks": ["11.1", "11.2", "11.3", "11.4", "11.5"] }
+    { "id": 11, "tasks": ["11.1", "11.2", "11.3", "11.4", "11.5"] },
+    { "id": 12, "tasks": ["12.1", "12.2"] },
+    { "id": 13, "tasks": ["12.3", "12.4"] },
+    { "id": 14, "tasks": ["12.5", "12.6"] },
+    { "id": 15, "tasks": ["12.7"] }
   ]
 }
 ```

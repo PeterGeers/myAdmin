@@ -99,8 +99,8 @@ PILOT_TENANT = "h-dcn"
 _SAMPLE_REGION_VALUES = tuple(
     v for d in SAMPLE_SCOPE_CONFIG if d.key == "region" for v in d.values
 )
-PILOT_REGION = _SAMPLE_REGION_VALUES[0]        # "North"
-_SECOND_REGION = _SAMPLE_REGION_VALUES[1]      # "South"
+PILOT_REGION = _SAMPLE_REGION_VALUES[0]  # "North"
+_SECOND_REGION = _SAMPLE_REGION_VALUES[1]  # "South"
 
 
 # ── The parity-report data structures (the harness emits + asserts on these) ──────────
@@ -180,7 +180,9 @@ class ParityReport:
         outcome: Outcome,
         observed: str,
     ) -> ParityCheck:
-        check = ParityCheck(dimension, hdcn_behaviour, migrated_route, outcome, observed)
+        check = ParityCheck(
+            dimension, hdcn_behaviour, migrated_route, outcome, observed
+        )
         self.checks.append(check)
         return check
 
@@ -233,7 +235,9 @@ class ParityReport:
             lines.append("")
             lines.append(f"── {dimension.value} ({len(dim_checks)} checks) " + "─" * 30)
             for c in dim_checks:
-                mark = {"pass": "PASS", "fail": "FAIL", "manual": "MANUAL"}[c.outcome.value]
+                mark = {"pass": "PASS", "fail": "FAIL", "manual": "MANUAL"}[
+                    c.outcome.value
+                ]
                 route = c.migrated_route or "-"
                 lines.append(f"  [{mark:6}] {c.hdcn_behaviour} → {route}")
                 lines.append(f"           {c.observed}")
@@ -276,8 +280,8 @@ _ADMIN_CAPS = ("members:read", "members:write", "members:admin", "members:export
 #    verified EMAIL, which keys the projected grants the edge reads (via a FakeScopeGrants
 #    reader installed for the walkthrough). A caller with no mappable scope group falls back
 #    to the all-access email (the walkthrough's default admin caller). ──────────────────
-_EMAIL_ALL = "regio-all@h-dcn.test"        # all-access → region ["*"]
-_EMAIL_NOORD = "regio-noord@h-dcn.test"    # scoped to Noord
+_EMAIL_ALL = "regio-all@h-dcn.test"  # all-access → region ["*"]
+_EMAIL_NOORD = "regio-noord@h-dcn.test"  # scoped to Noord
 
 #: Projected scope grants for the walkthrough (mirrors the ``scopegrant#<email>#region`` rows
 #: the real projection reader would surface), keyed by (tenant_id, email).
@@ -464,7 +468,11 @@ class MembersParityHarness:
         # SCALAR (single-valued per scope field, R3.2).
         return {
             "member_id": member_id,
-            "personal": {"first_name": "Alex", "last_name": "de Vries", "email": "alex@example.com"},
+            "personal": {
+                "first_name": "Alex",
+                "last_name": "de Vries",
+                "email": "alex@example.com",
+            },
             "membership": membership,
             "overlay": {"region": region or self.region},
         }
@@ -500,7 +508,9 @@ class MembersParityHarness:
         # Unauthenticated → 401 (no verified token at the edge).
         resp = self.call("GET", "/members", authenticated=False)
         report.record(
-            d, "reject unauthenticated caller", "list_members",
+            d,
+            "reject unauthenticated caller",
+            "list_members",
             Outcome.PASS if resp["statusCode"] == 401 else Outcome.FAIL,
             f"GET /members unauthenticated → {resp['statusCode']} (expected 401)",
         )
@@ -508,7 +518,9 @@ class MembersParityHarness:
         # Authenticated but WITHOUT the required capability → 403.
         resp = self.call("GET", "/members", capabilities=("members:export",))
         report.record(
-            d, "forbid caller lacking members:read", "list_members",
+            d,
+            "forbid caller lacking members:read",
+            "list_members",
             Outcome.PASS if resp["statusCode"] == 403 else Outcome.FAIL,
             f"GET /members without members:read → {resp['statusCode']} (expected 403)",
         )
@@ -519,44 +531,67 @@ class MembersParityHarness:
 
         # Admin / Regio_All → tenant-wide (sees both regions).
         resp = self.call("GET", "/members", groups=("Regio_All",))
-        ids = sorted(m["member_id"] for m in self.data(resp)) if resp["statusCode"] == 200 else []
+        ids = (
+            sorted(m["member_id"] for m in self.data(resp))
+            if resp["statusCode"] == 200
+            else []
+        )
         report.record(
-            d, "admin/Regio_All sees tenant-wide", "list_members",
-            Outcome.PASS if resp["statusCode"] == 200 and ids == ["AUTHZ-N", "AUTHZ-Z"]
+            d,
+            "admin/Regio_All sees tenant-wide",
+            "list_members",
+            Outcome.PASS
+            if resp["statusCode"] == 200 and ids == ["AUTHZ-N", "AUTHZ-Z"]
             else Outcome.FAIL,
             f"Regio_All GET /members → {resp['statusCode']} ids={ids} (expected both)",
         )
 
         # Region-scoped caller (Regio_Noord) → only their region's member (Property 4).
         resp = self.call("GET", "/members", groups=("Regio_Noord",))
-        ids = [m["member_id"] for m in self.data(resp)] if resp["statusCode"] == 200 else []
+        ids = (
+            [m["member_id"] for m in self.data(resp)]
+            if resp["statusCode"] == 200
+            else []
+        )
         report.record(
-            d, "region-scoped caller sees only their region", "list_members",
-            Outcome.PASS if resp["statusCode"] == 200 and ids == ["AUTHZ-N"] else Outcome.FAIL,
+            d,
+            "region-scoped caller sees only their region",
+            "list_members",
+            Outcome.PASS
+            if resp["statusCode"] == 200 and ids == ["AUTHZ-N"]
+            else Outcome.FAIL,
             f"Regio_Noord GET /members → {resp['statusCode']} ids={ids} (expected [AUTHZ-N])",
         )
 
         # A scoped caller reading an out-of-scope member → 404 (no existence leak).
         resp = self.call("GET", "/members/AUTHZ-Z", groups=("Regio_Noord",))
         report.record(
-            d, "out-of-scope read is indistinguishable 404", "get_member",
+            d,
+            "out-of-scope read is indistinguishable 404",
+            "get_member",
             Outcome.PASS if resp["statusCode"] == 404 else Outcome.FAIL,
             f"Regio_Noord GET /members/AUTHZ-Z → {resp['statusCode']} (expected 404)",
         )
 
         # A scoped caller WRITING out of scope → 403 (Property 4 — honest denial on write).
         resp = self.call(
-            "PUT", "/members/AUTHZ-Z", groups=("Regio_Noord",),
+            "PUT",
+            "/members/AUTHZ-Z",
+            groups=("Regio_Noord",),
             body={"personal": {"name": "Nope"}},
         )
         report.record(
-            d, "region-scoped caller cannot write out of region", "update_member",
+            d,
+            "region-scoped caller cannot write out of region",
+            "update_member",
             Outcome.PASS if resp["statusCode"] == 403 else Outcome.FAIL,
             f"Regio_Noord PUT /members/AUTHZ-Z → {resp['statusCode']} (expected 403)",
         )
 
         # Verify-before-trust: a body tenant_id can never redirect the write.
-        body = self.valid_member_body("AUTHZ-VBT", region="Noord", member_number="A-1003")
+        body = self.valid_member_body(
+            "AUTHZ-VBT", region="Noord", member_number="A-1003"
+        )
         body["tenant_id"] = "evil-tenant"
         resp = self.call("POST", "/members", body=body)
         # The create route mints its own member_id (body id ignored, s5k) — read it back to
@@ -565,9 +600,12 @@ class MembersParityHarness:
         landed = self.repo.get_member(self.tenant_id, minted) if minted else None
         redirected = self.repo.get_member("evil-tenant", minted) if minted else None
         report.record(
-            d, "verify-before-trust: body tenant_id ignored", "create_member",
-            Outcome.PASS if resp["statusCode"] == 200 and redirected is None
-            and landed is not None else Outcome.FAIL,
+            d,
+            "verify-before-trust: body tenant_id ignored",
+            "create_member",
+            Outcome.PASS
+            if resp["statusCode"] == 200 and redirected is None and landed is not None
+            else Outcome.FAIL,
             "POST /members with body tenant_id='evil-tenant' persisted under verified "
             f"tenant only (evil={redirected is None}, pilot={landed is not None})",
         )
@@ -584,11 +622,15 @@ class MembersParityHarness:
         resp = self.call("GET", "/members/field-config")
         cfg = self.data(resp) if resp["statusCode"] == 200 else {}
         field_names = {f.get("key") or f.get("name") for f in cfg.get("fields", [])}
-        has_personal_and_membership = bool(cfg.get("by_group", {}).get("personal")) and \
-            bool(cfg.get("by_group", {}).get("membership"))
+        has_personal_and_membership = bool(
+            cfg.get("by_group", {}).get("personal")
+        ) and bool(cfg.get("by_group", {}).get("membership"))
         report.record(
-            d, "fixed base ⊕ overlay field config resolves", "get_field_config",
-            Outcome.PASS if resp["statusCode"] == 200 and has_personal_and_membership
+            d,
+            "fixed base ⊕ overlay field config resolves",
+            "get_field_config",
+            Outcome.PASS
+            if resp["statusCode"] == 200 and has_personal_and_membership
             else Outcome.FAIL,
             f"GET /members/field-config → {resp['statusCode']}, "
             f"{len(field_names)} fields, groups={sorted(cfg.get('by_group', {}))}",
@@ -596,26 +638,47 @@ class MembersParityHarness:
 
         # The Lidmaatschap Beheer dropdown lists ONLY active types. Retire one, confirm it
         # drops out of the options while remaining visible in the management list.
-        self.call("POST", "/membership-types", body={
-            "type_code": "temp_retired", "label": {"nl": "Tijdelijk", "en": "Temp"},
-            "active": True, "order": 99,
-        })
-        self.call("DELETE", "/membership-types/temp_retired")  # soft-delete (active=false)
+        self.call(
+            "POST",
+            "/membership-types",
+            body={
+                "type_code": "temp_retired",
+                "label": {"nl": "Tijdelijk", "en": "Temp"},
+                "active": True,
+                "order": 99,
+            },
+        )
+        self.call(
+            "DELETE", "/membership-types/temp_retired"
+        )  # soft-delete (active=false)
         resp = self.call("GET", "/members/field-config")
-        options = self.data(resp).get("membership_type_options", []) if resp["statusCode"] == 200 else []
+        options = (
+            self.data(resp).get("membership_type_options", [])
+            if resp["statusCode"] == 200
+            else []
+        )
         option_codes = {o.get("value") for o in options}
         report.record(
-            d, "dropdown lists only ACTIVE membership types", "get_field_config",
-            Outcome.PASS if "temp_retired" not in option_codes and "erelid" in option_codes
+            d,
+            "dropdown lists only ACTIVE membership types",
+            "get_field_config",
+            Outcome.PASS
+            if "temp_retired" not in option_codes and "erelid" in option_codes
             else Outcome.FAIL,
             f"active options={sorted(option_codes)} (retired 'temp_retired' excluded)",
         )
 
         # The management catalog list DOES show the retired entry (soft-delete, not gone).
         resp = self.call("GET", "/membership-types")
-        all_codes = {e.get("type_code") for e in self.data(resp)} if resp["statusCode"] == 200 else set()
+        all_codes = (
+            {e.get("type_code") for e in self.data(resp)}
+            if resp["statusCode"] == 200
+            else set()
+        )
         report.record(
-            d, "management catalog shows retired (soft-deleted) types", "list_membership_types",
+            d,
+            "management catalog shows retired (soft-deleted) types",
+            "list_membership_types",
             Outcome.PASS if "temp_retired" in all_codes else Outcome.FAIL,
             f"GET /membership-types (all) codes include retired: {'temp_retired' in all_codes}",
         )
@@ -626,7 +689,9 @@ class MembersParityHarness:
         # defaults status→active, derives joined_date, and canonicalizes region via an INJECTED
         # RegionCanonicalizer built from the synthetic sample vocabulary (D17 — tenant data
         # injected, never a core constant).
-        region_lower = PILOT_REGION.lower()  # e.g. "north" — a case variant to canonicalize
+        region_lower = (
+            PILOT_REGION.lower()
+        )  # e.g. "north" — a case variant to canonicalize
         raw_row = {
             "SAM Code": "M09001",
             "Lidnummer": "9001",
@@ -653,9 +718,14 @@ class MembersParityHarness:
         create = self.call("POST", "/members", body=record)
         # s5k: the create route mints its OWN member_id (the transform's uuid is stripped) — read
         # the created id back from the response to fetch it.
-        minted_id = self.data(create).get("member_id") if create["statusCode"] == 200 else None
-        read = self.call("GET", f"/members/{minted_id}", groups=("Regio_All",)) if minted_id \
+        minted_id = (
+            self.data(create).get("member_id") if create["statusCode"] == 200 else None
+        )
+        read = (
+            self.call("GET", f"/members/{minted_id}", groups=("Regio_All",))
+            if minted_id
             else {"statusCode": 404}
+        )
         read_data = self.data(read) if read["statusCode"] == 200 else {}
         stored_number = read_data.get("membership", {}).get("member_number")
         round_tripped = (
@@ -665,7 +735,9 @@ class MembersParityHarness:
             and read_data.get("membership", {}).get("membership_type") == "erelid"
         )
         report.record(
-            d, "backfilled member (4.1 transform) round-trips create→read", "create_member",
+            d,
+            "backfilled member (4.1 transform) round-trips create→read",
+            "create_member",
             Outcome.PASS if round_tripped else Outcome.FAIL,
             f"map_hdcn_row→POST /members→GET: create={create['statusCode']} "
             f"read={read['statusCode']} number={stored_number}",
@@ -674,8 +746,12 @@ class MembersParityHarness:
         # The scope field (region) is present + canonicalized on the stored record — a PLAIN
         # `overlay.region` field now (S5d D1), not a `scope_values` bucket.
         report.record(
-            d, "overlay.region scope field present + canonicalized", "create_member",
-            Outcome.PASS if region_seeded and read_data.get("overlay", {}).get("region") == PILOT_REGION
+            d,
+            "overlay.region scope field present + canonicalized",
+            "create_member",
+            Outcome.PASS
+            if region_seeded
+            and read_data.get("overlay", {}).get("region") == PILOT_REGION
             else Outcome.FAIL,
             f"stored overlay.region={read_data.get('overlay', {}).get('region')!r} "
             f"(transform canonicalized {region_lower!r}→{PILOT_REGION!r}: {region_seeded})",
@@ -697,9 +773,14 @@ class MembersParityHarness:
         # Seed a member (fixture with a stable id) + membership so read/lifecycle routes have
         # data addressable by "API-1". The member is seeded via the repository (the create ROUTE
         # mints its own uuid — s5k); the membership is created through the route under that id.
-        self._seed_member("API-1", region=self.region, member_number="C-1001", status="pending")
-        self.call("POST", "/members/API-1/memberships", body={
-            "membership_id": "MS-1", "status": "pending"})
+        self._seed_member(
+            "API-1", region=self.region, member_number="C-1001", status="pending"
+        )
+        self.call(
+            "POST",
+            "/members/API-1/memberships",
+            body={"membership_id": "MS-1", "status": "pending"},
+        )
         # The delete_member route check targets "API-NEW"; seed it as an addressable fixture so
         # DELETE finds a real member (the create-route check below still mints its own uuid).
         self._seed_member("API-NEW", region=self.region, member_number="C-2001")
@@ -713,78 +794,331 @@ class MembersParityHarness:
         # accept the module's honest client-error answer (e.g. 422/409) as "route answered".
         checks: list[tuple] = [
             # ── Member CRUD (8 h-dcn behaviours) ──
-            ("create_member", "POST", "/members",
-             self.valid_member_body("API-NEW", member_number="C-2001"), None, {200}, {},
-             "create a member"),
+            (
+                "create_member",
+                "POST",
+                "/members",
+                self.valid_member_body("API-NEW", member_number="C-2001"),
+                None,
+                {200},
+                {},
+                "create a member",
+            ),
             ("list_members", "GET", "/members", None, None, {200}, {}, "list members"),
-            ("list_members_filtered", "POST", "/members/search",
-             {"status": "active"}, None, {200}, {}, "server-side filtered list"),
-            ("export_members", "GET", "/members/export", None, None, {200}, {}, "export members"),
-            ("get_self", "GET", "/members/me", None, None, {200, 404}, {"sub": "admin-sub"},
-             "own record (404 if the caller has no member record)"),
-            ("get_field_config", "GET", "/members/field-config", None, None, {200}, {},
-             "resolved field config + dropdown options"),
-            ("get_member", "GET", "/members/API-1", None, None, {200}, {}, "get one member"),
-            ("update_member", "PUT", "/members/API-1",
-             {"personal": {"name": "Renamed"}}, None, {200}, {}, "update a member"),
-            ("delete_member", "DELETE", "/members/API-NEW", None, None, {200}, {},
-             "delete a member"),
+            (
+                "list_members_filtered",
+                "POST",
+                "/members/search",
+                {"status": "active"},
+                None,
+                {200},
+                {},
+                "server-side filtered list",
+            ),
+            (
+                "export_members",
+                "GET",
+                "/members/export",
+                None,
+                None,
+                {200},
+                {},
+                "export members",
+            ),
+            (
+                "get_self",
+                "GET",
+                "/members/me",
+                None,
+                None,
+                {200, 404},
+                {"sub": "admin-sub"},
+                "own record (404 if the caller has no member record)",
+            ),
+            (
+                "get_field_config",
+                "GET",
+                "/members/field-config",
+                None,
+                None,
+                {200},
+                {},
+                "resolved field config + dropdown options",
+            ),
+            (
+                "get_member",
+                "GET",
+                "/members/API-1",
+                None,
+                None,
+                {200},
+                {},
+                "get one member",
+            ),
+            (
+                "update_member",
+                "PUT",
+                "/members/API-1",
+                {"personal": {"name": "Renamed"}},
+                None,
+                {200},
+                {},
+                "update a member",
+            ),
+            (
+                "delete_member",
+                "DELETE",
+                "/members/API-NEW",
+                None,
+                None,
+                {200},
+                {},
+                "delete a member",
+            ),
             # ── Membership lifecycle (7 h-dcn behaviours) ──
-            ("create_membership", "POST", "/members/API-1/memberships",
-             {"membership_id": "MS-2", "status": "pending"}, None, {200}, {},
-             "create a membership"),
-            ("list_memberships", "GET", "/members/API-1/memberships", None, None, {200}, {},
-             "list memberships"),
-            ("get_membership", "GET", "/members/API-1/memberships/MS-1", None, None, {200}, {},
-             "get one membership"),
-            ("update_membership", "PUT", "/members/API-1/memberships/MS-1",
-             {"status": "suspended"}, None, {200}, {}, "update a membership"),
-            ("transition_membership", "POST",
-             "/members/API-1/memberships/MS-1/transition",
-             {"to_state": "active"}, None, {200, 409}, {},
-             "apply a guarded lifecycle transition"),
-            ("delete_membership", "DELETE", "/members/API-1/memberships/MS-2", None, None,
-             {200}, {}, "delete a membership"),
-            ("bulk_transition_memberships", "POST", "/memberships/transition",
-             {"to_state": "left", "member_ids": ["API-1"]}, None, {200}, {},
-             "bulk lifecycle transition"),
+            (
+                "create_membership",
+                "POST",
+                "/members/API-1/memberships",
+                {"membership_id": "MS-2", "status": "pending"},
+                None,
+                {200},
+                {},
+                "create a membership",
+            ),
+            (
+                "list_memberships",
+                "GET",
+                "/members/API-1/memberships",
+                None,
+                None,
+                {200},
+                {},
+                "list memberships",
+            ),
+            (
+                "get_membership",
+                "GET",
+                "/members/API-1/memberships/MS-1",
+                None,
+                None,
+                {200},
+                {},
+                "get one membership",
+            ),
+            (
+                "update_membership",
+                "PUT",
+                "/members/API-1/memberships/MS-1",
+                {"status": "suspended"},
+                None,
+                {200},
+                {},
+                "update a membership",
+            ),
+            (
+                "transition_membership",
+                "POST",
+                "/members/API-1/memberships/MS-1/transition",
+                {"to_state": "active"},
+                None,
+                {200, 409},
+                {},
+                "apply a guarded lifecycle transition",
+            ),
+            (
+                "delete_membership",
+                "DELETE",
+                "/members/API-1/memberships/MS-2",
+                None,
+                None,
+                {200},
+                {},
+                "delete a membership",
+            ),
+            (
+                "bulk_transition_memberships",
+                "POST",
+                "/memberships/transition",
+                {"to_state": "left", "member_ids": ["API-1"]},
+                None,
+                {200},
+                {},
+                "bulk lifecycle transition",
+            ),
             # ── Delegates (2 h-dcn behaviours) ──
-            ("manage_delegates", "PUT", "/members/API-1/delegates",
-             {"delegates": [{"email": "d@x.com"}]}, None, {200}, {}, "manage delegates"),
-            ("send_delegate_invitation", "POST", "/members/API-1/delegates/invitations",
-             {"delegate_email": "invite@x.com"}, None, {200}, {}, "send delegate invitation"),
+            (
+                "manage_delegates",
+                "PUT",
+                "/members/API-1/delegates",
+                {"delegates": [{"email": "d@x.com"}]},
+                None,
+                {200},
+                {},
+                "manage delegates",
+            ),
+            (
+                "send_delegate_invitation",
+                "POST",
+                "/members/API-1/delegates/invitations",
+                {"delegate_email": "invite@x.com"},
+                None,
+                {200},
+                {},
+                "send delegate invitation",
+            ),
             # ── Payments — member-scoped (1 h-dcn behaviour) ──
-            ("get_member_payments", "GET", "/members/API-1/payments", None, None, {200}, {},
-             "get member payments"),
+            (
+                "get_member_payments",
+                "GET",
+                "/members/API-1/payments",
+                None,
+                None,
+                {200},
+                {},
+                "get member payments",
+            ),
             # ── Lidmaatschap Beheer catalog (new, design C8) ──
-            ("list_membership_types", "GET", "/membership-types", None, None, {200}, {},
-             "list catalog (management)"),
-            ("get_membership_type", "GET", "/membership-types/erelid", None, None, {200}, {},
-             "get one catalog entry"),
-            ("create_membership_type", "POST", "/membership-types",
-             {"type_code": "new_type", "label": {"nl": "Nieuw", "en": "New"}, "order": 50},
-             None, {200}, {}, "create catalog entry"),
-            ("update_membership_type", "PUT", "/membership-types/new_type",
-             {"label": {"nl": "Nieuw2", "en": "New2"}, "order": 51}, None, {200}, {},
-             "update catalog entry"),
-            ("deactivate_membership_type", "DELETE", "/membership-types/new_type", None, None,
-             {200}, {}, "soft-delete (retire) catalog entry"),
+            (
+                "list_membership_types",
+                "GET",
+                "/membership-types",
+                None,
+                None,
+                {200},
+                {},
+                "list catalog (management)",
+            ),
+            (
+                "get_membership_type",
+                "GET",
+                "/membership-types/erelid",
+                None,
+                None,
+                {200},
+                {},
+                "get one catalog entry",
+            ),
+            (
+                "create_membership_type",
+                "POST",
+                "/membership-types",
+                {
+                    "type_code": "new_type",
+                    "label": {"nl": "Nieuw", "en": "New"},
+                    "order": 50,
+                },
+                None,
+                {200},
+                {},
+                "create catalog entry",
+            ),
+            (
+                "update_membership_type",
+                "PUT",
+                "/membership-types/new_type",
+                {"label": {"nl": "Nieuw2", "en": "New2"}, "order": 51},
+                None,
+                {200},
+                {},
+                "update catalog entry",
+            ),
+            (
+                "deactivate_membership_type",
+                "DELETE",
+                "/membership-types/new_type",
+                None,
+                None,
+                {200},
+                {},
+                "soft-delete (retire) catalog entry",
+            ),
             # ── Member analytics-sets (new, F-012) ──
             # create first so the subsequent get/update/delete have an addressable id; the id
             # is server-generated, so those three target it via a mutable closure (see below).
-            ("create_analytics_set", "POST", "/members/analytics-sets",
-             {"name": "Parity set", "kind": "list",
-              "definition": {"data_source": "members", "group_columns": [],
-                             "aggregate_measures": [], "filters": {}}},
-             None, {200}, {}, "create a member analytics-set (empty group/measures, F-011)"),
-            ("list_analytics_sets", "GET", "/members/analytics-sets", None, None, {200}, {},
-             "list member analytics-sets"),
-            ("get_analytics_set", "GET", "/members/analytics-sets/__ASET_ID__", None, None,
-             {200}, {}, "get one analytics-set"),
-            ("update_analytics_set", "PUT", "/members/analytics-sets/__ASET_ID__",
-             {"name": "Parity set renamed"}, None, {200}, {}, "update an analytics-set"),
-            ("delete_analytics_set", "DELETE", "/members/analytics-sets/__ASET_ID__", None,
-             None, {200}, {}, "delete an analytics-set"),
+            (
+                "create_analytics_set",
+                "POST",
+                "/members/analytics-sets",
+                {
+                    "name": "Parity set",
+                    "kind": "list",
+                    "definition": {
+                        "data_source": "members",
+                        "group_columns": [],
+                        "aggregate_measures": [],
+                        "filters": {},
+                    },
+                },
+                None,
+                {200},
+                {},
+                "create a member analytics-set (empty group/measures, F-011)",
+            ),
+            (
+                "list_analytics_sets",
+                "GET",
+                "/members/analytics-sets",
+                None,
+                None,
+                {200},
+                {},
+                "list member analytics-sets",
+            ),
+            (
+                "get_analytics_set",
+                "GET",
+                "/members/analytics-sets/__ASET_ID__",
+                None,
+                None,
+                {200},
+                {},
+                "get one analytics-set",
+            ),
+            (
+                "update_analytics_set",
+                "PUT",
+                "/members/analytics-sets/__ASET_ID__",
+                {"name": "Parity set renamed"},
+                None,
+                {200},
+                {},
+                "update an analytics-set",
+            ),
+            (
+                "delete_analytics_set",
+                "DELETE",
+                "/members/analytics-sets/__ASET_ID__",
+                None,
+                None,
+                {200},
+                {},
+                "delete an analytics-set",
+            ),
+            # ── Per-user preferred list (new, R11.2) ──
+            # Keyed server-side on the authenticated sub (user ≠ member, R11.1); an unset
+            # list reads back empty refs. PUT is a full replace (one list per user). The
+            # literal /preferred path is declared BEFORE /{set_id}, so it never collides.
+            (
+                "get_preferred_list",
+                "GET",
+                "/members/analytics-sets/preferred",
+                None,
+                None,
+                {200},
+                {},
+                "get the caller's preferred list (empty when unset, R11.2)",
+            ),
+            (
+                "save_preferred_list",
+                "PUT",
+                "/members/analytics-sets/preferred",
+                {"refs": ["preset:membership-types"]},
+                None,
+                {200},
+                {},
+                "replace the caller's preferred list (full replace, one per user)",
+            ),
         ]
 
         # The analytics-set id is server-generated by the create route, so the get/update/
@@ -795,7 +1129,9 @@ class MembersParityHarness:
 
         for name, method, path, body, _q, expected, extra_kwargs, note in checks:
             if "__ASET_ID__" in path:
-                path = path.replace("__ASET_ID__", analytics_set_id.get("id", "missing"))
+                path = path.replace(
+                    "__ASET_ID__", analytics_set_id.get("id", "missing")
+                )
             resp = self.call(method, path, body=body, **extra_kwargs)
             if name == "create_analytics_set" and resp["statusCode"] == 200:
                 analytics_set_id["id"] = self.data(resp)["set_id"]
@@ -804,7 +1140,9 @@ class MembersParityHarness:
             # neither a routing miss (404 where a route should exist) nor a 501 stub.
             answered = status in expected and status != 501
             report.record(
-                d, note, name,
+                d,
+                note,
+                name,
                 Outcome.PASS if answered else Outcome.FAIL,
                 f"{method} {path} → {status} (expected one of {sorted(expected)})",
             )
@@ -815,7 +1153,9 @@ class MembersParityHarness:
         covered = {c.migrated_route for c in report.by_dimension(d)}
         missing = declared - covered
         report.record(
-            d, "every declared route is exercised", None,
+            d,
+            "every declared route is exercised",
+            None,
             Outcome.PASS if not missing else Outcome.FAIL,
             f"{len(covered)}/{len(declared)} routes exercised; missing={sorted(missing)}",
         )
@@ -824,7 +1164,10 @@ class MembersParityHarness:
         # export file formatting) can only be confirmed by a human walkthrough — flagged for
         # task 6.2's hands-on review, not asserted here.
         report.record(
-            d, "frontend look & feel / UX parity", None, Outcome.MANUAL,
+            d,
+            "frontend look & feel / UX parity",
+            None,
+            Outcome.MANUAL,
             "requires hands-on review (task 6.2): the module serves the contract; the "
             "presentation-only frontend rendering is confirmed by a human walkthrough",
         )
@@ -843,8 +1186,9 @@ class MembersParityHarness:
         # a motor so the active-state validate_member hook passes. Seeded via the repository so
         # the id "WF-1" is stable/addressable across the transition steps (the create ROUTE mints
         # its own uuid — s5k); the lifecycle transitions below are what this dimension exercises.
-        record = self.valid_member_body(mid, region=self.region, member_number="W-1001",
-                                        status="application")
+        record = self.valid_member_body(
+            mid, region=self.region, member_number="W-1001", status="application"
+        )
         record["overlay"] = {**record.get("overlay", {}), "motor": "Honda CB500"}
         record["tenant_id"] = self.tenant_id
         self.repo.save_member(self.tenant_id, record)
@@ -853,7 +1197,9 @@ class MembersParityHarness:
             payload: dict[str, Any] = {"to_state": to_state}
             if context is not None:
                 payload["context"] = dict(context)
-            resp = self.call("POST", f"/members/{mid}/memberships/MS-1/transition", body=payload)
+            resp = self.call(
+                "POST", f"/members/{mid}/memberships/MS-1/transition", body=payload
+            )
             return resp["statusCode"]
 
         def current_status() -> str | None:
@@ -864,14 +1210,23 @@ class MembersParityHarness:
         # the state is not mutated (guard enforced).
         denied = transition("pending")  # no context.approved
         report.record(
-            d, "application→pending denied without approval flag", "transition_membership",
-            Outcome.PASS if denied == 409 and current_status() == "application" else Outcome.FAIL,
+            d,
+            "application→pending denied without approval flag",
+            "transition_membership",
+            Outcome.PASS
+            if denied == 409 and current_status() == "application"
+            else Outcome.FAIL,
             f"pending (unapproved) → {denied} (expected 409), state still {current_status()!r}",
         )
 
         # The happy path, step by step.
         steps = [
-            ("application→pending (approved)", "pending", {"approved": True}, "pending"),
+            (
+                "application→pending (approved)",
+                "pending",
+                {"approved": True},
+                "pending",
+            ),
             ("pending→active (guards pass)", "active", None, "active"),
             ("active→suspended", "suspended", None, "suspended"),
             ("suspended→active", "active", None, "active"),
@@ -882,7 +1237,9 @@ class MembersParityHarness:
             code = transition(to_state, ctx)
             ok = code == 200 and current_status() == expected_state
             report.record(
-                d, label, "transition_membership",
+                d,
+                label,
+                "transition_membership",
                 Outcome.PASS if ok else Outcome.FAIL,
                 f"{label} → {code} (expected 200), state now {current_status()!r}",
             )
@@ -890,10 +1247,15 @@ class MembersParityHarness:
         # An undeclared edge (application→active directly) is denied — proven on a fresh member
         # (seeded via the repository so "WF-2" is addressable; the create route mints its own id).
         self._seed_member("WF-2", member_number="W-1002", status="application")
-        resp = self.call("POST", "/members/WF-2/memberships/MS-1/transition",
-                         body={"to_state": "active"})
+        resp = self.call(
+            "POST",
+            "/members/WF-2/memberships/MS-1/transition",
+            body={"to_state": "active"},
+        )
         report.record(
-            d, "undeclared transition edge is denied", "transition_membership",
+            d,
+            "undeclared transition edge is denied",
+            "transition_membership",
             Outcome.PASS if resp["statusCode"] == 409 else Outcome.FAIL,
             f"application→active (undeclared) → {resp['statusCode']} (expected 409)",
         )

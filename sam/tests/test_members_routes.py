@@ -45,41 +45,65 @@ def test_route_map_covers_eighteen_behaviours_total():
     # field-config read (task 3.3, R2.3/R2.4) = 19, plus the two Lidmaatschap Beheer catalog
     # READ routes (task 3.4, R2.4 — list + get) = 21, plus the three catalog WRITE routes
     # (task 5.3, R2.4/R1.4 — create + update + soft-delete) = 24, plus the five member
-    # analytics-set CRUD routes (F-012 — create + list + get + update + delete) = 29.
-    assert len(ROUTES) == 29
+    # analytics-set CRUD routes (F-012 — create + list + get + update + delete) = 29, plus
+    # the two preferred-list routes (R11.2 — get + save) = 31.
+    assert len(ROUTES) == 31
 
 
 def test_route_map_groups_match_the_design_c1_counts():
     # Member CRUD 8 + field-config 1 · membership lifecycle 7 · delegates 2 · payments 1 ·
     # catalog reads 2 (list + get, task 3.4) + catalog writes 3 (create + update + delete,
-    # task 5.3) = 5 · analytics-sets 5 (create + list + get + update + delete, F-012).
+    # task 5.3) = 5 · analytics 7 (sets: create+list+get+update+delete, F-012; preferred list:
+    # get+save, R11.2).
     assert len(routes_by_group(RouteGroup.MEMBER)) == 9
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 7
     assert len(routes_by_group(RouteGroup.DELEGATE)) == 2
     assert len(routes_by_group(RouteGroup.PAYMENT)) == 1
     assert len(routes_by_group(RouteGroup.CATALOG)) == 5
-    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 5
+    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 7
 
 
 def test_route_map_includes_each_named_behaviour():
     expected = {
         # member CRUD
-        "create_member", "list_members", "list_members_filtered", "export_members",
-        "get_self", "get_field_config", "get_member", "update_member", "delete_member",
+        "create_member",
+        "list_members",
+        "list_members_filtered",
+        "export_members",
+        "get_self",
+        "get_field_config",
+        "get_member",
+        "update_member",
+        "delete_member",
         # membership lifecycle
-        "create_membership", "list_memberships", "get_membership", "update_membership",
-        "delete_membership", "transition_membership", "bulk_transition_memberships",
+        "create_membership",
+        "list_memberships",
+        "get_membership",
+        "update_membership",
+        "delete_membership",
+        "transition_membership",
+        "bulk_transition_memberships",
         # delegates
-        "manage_delegates", "send_delegate_invitation",
+        "manage_delegates",
+        "send_delegate_invitation",
         # payments
         "get_member_payments",
         # Lidmaatschap Beheer catalog reads (task 3.4)
-        "list_membership_types", "get_membership_type",
+        "list_membership_types",
+        "get_membership_type",
         # Lidmaatschap Beheer catalog writes (task 5.3)
-        "create_membership_type", "update_membership_type", "deactivate_membership_type",
+        "create_membership_type",
+        "update_membership_type",
+        "deactivate_membership_type",
         # Member analytics-sets CRUD (F-012)
-        "create_analytics_set", "list_analytics_sets", "get_analytics_set",
-        "update_analytics_set", "delete_analytics_set",
+        "create_analytics_set",
+        "list_analytics_sets",
+        "get_analytics_set",
+        "update_analytics_set",
+        "delete_analytics_set",
+        # Per-user preferred list (R11.2)
+        "get_preferred_list",
+        "save_preferred_list",
     }
     assert set(route_names()) == expected
 
@@ -92,9 +116,15 @@ def test_route_map_has_no_duplicate_endpoints_or_names():
 
 
 def test_every_route_is_gated_by_capability_or_self_service():
-    # A route with neither would be an unguarded surface — the map forbids it.
+    # A route with no gate would be an unguarded surface — the map forbids it. A route is
+    # gated by a single `capability`, an any-of `capabilities_any` set (R11.3), self-service,
+    # or a combination.
     for spec in ROUTES:
-        assert spec.capability is not None or spec.self_service
+        assert (
+            spec.capability is not None
+            or bool(spec.capabilities_any)
+            or spec.self_service
+        ), f"route {spec.name} has no gate"
 
 
 # ── Router: dispatch + path params ────────────────────────────────────────────────────
@@ -120,9 +150,7 @@ def test_resolve_item_get_extracts_member_id_path_param(router):
 
 
 def test_resolve_nested_path_extracts_all_params(router):
-    match = router.resolve(
-        "POST", "/members/M-1/memberships/MS-9/transition"
-    )
+    match = router.resolve("POST", "/members/M-1/memberships/MS-9/transition")
     assert isinstance(match, RouteMatch)
     assert match.spec.name == "transition_membership"
     assert match.path_params == {"member_id": "M-1", "membership_id": "MS-9"}
@@ -133,7 +161,9 @@ def test_resolve_static_before_param_prefers_literal_route(router):
     assert router.resolve("GET", "/members/export").spec.name == "export_members"
     assert router.resolve("GET", "/members/me").spec.name == "get_self"
     # /members/field-config is literal too and must win over /members/{member_id}.
-    assert router.resolve("GET", "/members/field-config").spec.name == "get_field_config"
+    assert (
+        router.resolve("GET", "/members/field-config").spec.name == "get_field_config"
+    )
 
 
 def test_resolve_is_case_insensitive_on_method(router):
@@ -180,7 +210,12 @@ def _authorized_event(
     path: str,
     *,
     tenant: str = "h-dcn",
-    capabilities: tuple[str, ...] = ("members:read", "members:write", "members:export", "members:admin"),
+    capabilities: tuple[str, ...] = (
+        "members:read",
+        "members:write",
+        "members:export",
+        "members:admin",
+    ),
     body=None,
 ) -> dict:
     """An API-GW-authorizer event whose VERIFIED claims entitle the caller (task 3.0 gate).
@@ -200,7 +235,9 @@ def _authorized_event(
                 "claims": {
                     "sub": "user-1",
                     "cognito:groups": ["Members_CRUD"],
-                    "custom:entitlements": _entitlement_claim(tenant, list(capabilities)),
+                    "custom:entitlements": _entitlement_claim(
+                        tenant, list(capabilities)
+                    ),
                 }
             }
         },
@@ -260,7 +297,9 @@ def test_handler_supports_http_api_v2_event_shape(monkeypatch):
                         "cognito:groups": ["Members_Read"],
                         # Even a self-service route still establishes tenant context from
                         # the verified entitlement (verify-before-trust).
-                        "custom:entitlements": _entitlement_claim("h-dcn", ["members:read"]),
+                        "custom:entitlements": _entitlement_claim(
+                            "h-dcn", ["members:read"]
+                        ),
                     }
                 }
             },
@@ -289,7 +328,9 @@ def test_every_repository_method_is_keyed_by_tenant_id():
         if name.startswith("_"):
             continue
         params = list(inspect.signature(member).parameters)
-        assert params[:2] == ["self", "tenant_id"], f"{name} is not keyed by tenant_id first"
+        assert params[:2] == ["self", "tenant_id"], (
+            f"{name} is not keyed by tenant_id first"
+        )
 
 
 def test_stub_repository_methods_raise_not_implemented():

@@ -422,6 +422,72 @@ established:
   proportionally more. If a scope-authorized set grows past the warning cap, ODI-1 (server-side
   aggregation / a paginated read) is the documented escalation (R7.5).
 
+### C9 — Shared pivot library + per-user preferred lists (R11)
+
+Refines C4's saved-set model into the two-layer shape R11 settles. Identity is the authenticated
+**`sub`**, never a member record (R11.1 — a user may or may not be a member; `webmaster@…` is a
+user-only). Storage stays on the Members module's DynamoDB table (F-012); the Flask admin-config
+plane is untouched.
+
+**Two DynamoDB item types on the `sam-members` table (both `tenant_id` partition):**
+
+| Item | Sort key | Scope | Carries |
+| --- | --- | --- | --- |
+| **Analytics set** (shared definition) | `ANALYTICSSET#<setId>` | tenant-shared (all users see it) | `setId`, `name`, `kind` (`count`/`list`), `definition` (PivotConfig), `origin` (`user`), `created_by` (`sub`, attribution only), `created_at`/`updated_at` |
+| **Preferred list** (private) | `PREFLIST#<sub>` | per-user (one per `sub`) | `sub`, ordered `refs: string[]` of tagged references (`preset:<key>` \| `set:<id>`), `updated_at` |
+
+The analytics-set item is the **existing F-012 item** (already deployed), extended with `origin` +
+`created_by`. The preferred-list item is **NEW**. Predefined presets stay in code
+(`memberPivotPresets.ts`) and are referenced as `preset:<key>` — never stored as items (R11.5).
+
+**Members Lambda routes (reuse the F-012 CRUD; add the preferred-list + widen gates):**
+
+- Sets (shared library): `POST /members/analytics-sets` (create → joins the shared library),
+  `GET /members/analytics-sets` (list the tenant's whole library — predefined are added client-side
+  from code), `GET /members/analytics-sets/{id}`, `PUT /members/analytics-sets/{id}`,
+  `DELETE /members/analytics-sets/{id}`.
+- Preferred list (NEW): `GET /members/analytics-sets/preferred` (the caller's list; empty when
+  unset), `PUT /members/analytics-sets/preferred` (replace the caller's ordered `refs`). Keyed by
+  `ctx.sub` from the verified claims — the body never carries an owner. (Route literal is disjoint
+  from `/members/analytics-sets/{set_id}` only if declared BEFORE it OR under a distinct segment;
+  declare `.../preferred` BEFORE the `{set_id}` route so the literal wins, mirroring how the
+  analytics-set routes are declared before `/members/{member_id}`.)
+
+**Capability gates (R11.3) — needs an "any-of" capability at the edge.** `RouteSpec.capability` is a
+single string today; the edge checks exactly that one via `has_capability`. R11.3 needs
+create/edit-my-list gated by **`members:export` OR `members:write`**, and edit/delete-shared-set by
+**`members:write` OR tenant admin**. Design choice: extend `RouteSpec` with an optional
+`capabilities_any: tuple[str, ...]` (the single `capability` stays for the common case); the edge's
+authorize step passes when the caller holds ANY listed capability (`has_capability` true for one).
+Reads stay single-capability `members:read`. Tenant-admin membership is already expressible as a
+capability (`members:admin`) in the any-of set. This keeps the gate declarative on the route map and
+avoids per-handler capability logic (steering 35 — the edge authorizes).
+
+**Delete/edit of a shared user-created set (R11.3):** allowed for `members:write` OR
+`members:admin` — any CRUD-capable user or admin, NOT restricted to `created_by`. `created_by` is
+stamped for attribution/audit only. A predefined (code) set has no item to delete, so the route can
+only ever target a stored user set (a `preset:<key>` is never a DELETE target).
+
+**Frontend (`MemberPivotViews` + a new preferred-list control):**
+- The set dropdown shows the shared library (code presets + `listAnalyticsSets()` user sets) exactly
+  as today — now every tenant user sees every user-created set (R11.2 layer 1).
+- A NEW "my preferred sets" control lets the user add/remove/reorder references into their preferred
+  list (`getPreferredList` / `savePreferredList` via `membersApiService`), stored as tagged refs.
+  Resolving a ref: `preset:<key>` → `getAvailablePresets` by key; `set:<id>` → the shared set;
+  a ref that no longer resolves is skipped (R11.6).
+- Create/save/delete buttons are shown per the caller's capabilities (`canExport || canWrite` to
+  create; `canWrite || isAdmin` to delete a shared set) — resolved from the same capability signals
+  the surface already receives.
+
+**Extraction-friendliness (R11.7 / F-013):** the preferred-list item, its CRUD, and the tagged-ref
+resolution are written module-agnostic (no members-specific logic in the store/CRUD) so they lift
+into `sam/shared/analytics/` when the second SAM module needs them — NOT built as a shared library
+now (one consumer).
+
+**Migration note:** the F-012 analytics-set store is already `tenant_id`-shared (no owner key), so
+layer 1 needs no key change — only the additive `origin`/`created_by` attributes. The preferred-list
+item is purely additive. The store is only in `test` today, so no production data migration.
+
 ## Error handling
 
 - Missing/absent calculated or overlay field → excluded from aggregation (`toNumber` → `null`),

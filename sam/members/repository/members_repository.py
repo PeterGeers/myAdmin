@@ -34,6 +34,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from sam.members.domain.analytics_set import AnalyticsSetEntry
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
+from sam.members.domain.preferred_list import PreferredList
 from sam.members.repository import table_design as td
 
 __all__ = [
@@ -98,9 +99,7 @@ class MembersRepository(Protocol):
         """Return a single membership of a member, or ``None`` if absent."""
         ...
 
-    def list_memberships(
-        self, tenant_id: str, member_id: str
-    ) -> Sequence[Membership]:
+    def list_memberships(self, tenant_id: str, member_id: str) -> Sequence[Membership]:
         """List a member's memberships for ``tenant_id``."""
         ...
 
@@ -132,9 +131,7 @@ class MembersRepository(Protocol):
 
     # ── Member-scoped payments ───────────────────────────────────────────────────────
 
-    def list_member_payments(
-        self, tenant_id: str, member_id: str
-    ) -> Sequence[Payment]:
+    def list_member_payments(self, tenant_id: str, member_id: str) -> Sequence[Payment]:
         """List a member's payments for ``tenant_id``."""
         ...
 
@@ -185,9 +182,7 @@ class MembersRepository(Protocol):
         """Return the analytics-set ``set_id`` for ``tenant_id``, or ``None`` if absent."""
         ...
 
-    def list_analytics_sets(
-        self, tenant_id: str
-    ) -> Sequence[AnalyticsSetEntry]:
+    def list_analytics_sets(self, tenant_id: str) -> Sequence[AnalyticsSetEntry]:
         """List a tenant's analytics-set entries, sorted by ``(name, set_id)``."""
         ...
 
@@ -197,10 +192,20 @@ class MembersRepository(Protocol):
         """Create or update an analytics-set for ``tenant_id`` (validated before persist)."""
         ...
 
-    def delete_analytics_set(
-        self, tenant_id: str, set_id: str
-    ) -> None:
+    def delete_analytics_set(self, tenant_id: str, set_id: str) -> None:
         """Delete an analytics-set for ``tenant_id``."""
+        ...
+
+    # ── Preferred lists (per-user, R11.2) ──────────────────────────────────────────
+
+    def get_preferred_list(self, tenant_id: str, sub: str) -> PreferredList | None:
+        """Return user ``sub``'s preferred list for ``tenant_id``, or ``None`` if unset."""
+        ...
+
+    def save_preferred_list(
+        self, tenant_id: str, entry: PreferredList
+    ) -> PreferredList:
+        """Create or replace user ``sub``'s preferred list (validated before persist)."""
         ...
 
 
@@ -270,6 +275,12 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def delete_analytics_set(self, tenant_id: str, set_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def get_preferred_list(self, tenant_id: str, sub: str):
+        raise NotImplementedError(self._PENDING)
+
+    def save_preferred_list(self, tenant_id: str, entry):
         raise NotImplementedError(self._PENDING)
 
 
@@ -434,9 +445,7 @@ class DynamoDbMembersRepository:
         )
         return response.get("Item")
 
-    def list_memberships(
-        self, tenant_id: str, member_id: str
-    ) -> Sequence[Membership]:
+    def list_memberships(self, tenant_id: str, member_id: str) -> Sequence[Membership]:
         self._require_tenant(tenant_id)
         prefix = td.build_sort_key(
             td.RECORD_TYPE_MEMBER, member_id, td.RECORD_TYPE_MEMBERSHIP
@@ -473,11 +482,13 @@ class DynamoDbMembersRepository:
         """Replace the member's delegate set (stored as a single item under the member)."""
         self._require_tenant(tenant_id)
         stored = list(delegates)
-        item = td.floats_to_decimal({
-            **td.build_key(tenant_id, td.delegates_sk(member_id)),
-            "member_id": member_id,
-            "delegates": stored,
-        })
+        item = td.floats_to_decimal(
+            {
+                **td.build_key(tenant_id, td.delegates_sk(member_id)),
+                "member_id": member_id,
+                "delegates": stored,
+            }
+        )
         self.table.put_item(Item=item)
         return stored
 
@@ -502,9 +513,7 @@ class DynamoDbMembersRepository:
 
     # ── Member-scoped payments ───────────────────────────────────────────────────────
 
-    def list_member_payments(
-        self, tenant_id: str, member_id: str
-    ) -> Sequence[Payment]:
+    def list_member_payments(self, tenant_id: str, member_id: str) -> Sequence[Payment]:
         self._require_tenant(tenant_id)
         prefix = td.build_sort_key(
             td.RECORD_TYPE_MEMBER, member_id, td.RECORD_TYPE_PAYMENT
@@ -561,7 +570,11 @@ class DynamoDbMembersRepository:
                 f"{tenant_id!r} (no cross-tenant write, Property 1)"
             )
         # Bind the entry to the caller's tenant, then validate + serialize.
-        bound = entry if entry.tenant_id == tenant_id else replace(entry, tenant_id=tenant_id)
+        bound = (
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
+        )
         payload = bound.to_item()
         item = td.build_membership_type_item(tenant_id, bound.type_code, payload)
         self.table.put_item(Item=item)
@@ -596,9 +609,7 @@ class DynamoDbMembersRepository:
         item = response.get("Item")
         return AnalyticsSetEntry.from_item(item) if item is not None else None
 
-    def list_analytics_sets(
-        self, tenant_id: str
-    ) -> Sequence[AnalyticsSetEntry]:
+    def list_analytics_sets(self, tenant_id: str) -> Sequence[AnalyticsSetEntry]:
         """List the tenant's analytics-set entries, sorted by ``(name, set_id)``.
 
         Queries the ``analyticsset#`` sub-tree of the tenant partition (isolation is
@@ -632,7 +643,9 @@ class DynamoDbMembersRepository:
                 f"{tenant_id!r} (no cross-tenant write, Property 1)"
             )
         bound = (
-            entry if entry.tenant_id == tenant_id else replace(entry, tenant_id=tenant_id)
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
         )
         payload = bound.to_item()
         item = td.build_analytics_set_item(tenant_id, bound.set_id, payload)
@@ -642,6 +655,49 @@ class DynamoDbMembersRepository:
     def delete_analytics_set(self, tenant_id: str, set_id: str) -> None:
         """Hard-delete an analytics-set (F-012 — no referencing records to orphan)."""
         self._require_tenant(tenant_id)
-        self.table.delete_item(
-            Key=td.build_key(tenant_id, td.analytics_set_sk(set_id))
+        self.table.delete_item(Key=td.build_key(tenant_id, td.analytics_set_sk(set_id)))
+
+    # ── Preferred lists (per-user, R11.2) ──────────────────────────────────────────
+
+    def get_preferred_list(self, tenant_id: str, sub: str) -> PreferredList | None:
+        """Return user ``sub``'s preferred list for ``tenant_id``, or ``None`` if unset.
+
+        A single ``get_item`` on ``preflist#<sub>`` within the tenant partition (isolation is
+        structural — the partition key is pinned to ``tenant_id``). A missing item → ``None``
+        (the domain treats that as an empty list — empty-is-valid, R11).
+        """
+        self._require_tenant(tenant_id)
+        if not sub:
+            return None
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.pref_list_sk(sub))
         )
+        item = response.get("Item")
+        return PreferredList.from_item(item) if item is not None else None
+
+    def save_preferred_list(
+        self, tenant_id: str, entry: PreferredList
+    ) -> PreferredList:
+        """Create or REPLACE user ``sub``'s preferred list, validated before persist.
+
+        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
+        write, Property 1). A plain ``PutItem`` replaces the whole list (there is exactly one
+        per user — R11.2). :meth:`PreferredList.to_item` validates the shape and
+        :func:`table_design.build_pref_list_item` stamps the authoritative primary key, so a
+        malformed or misplaced entry can never be written.
+        """
+        self._require_tenant(tenant_id)
+        if entry.tenant_id and entry.tenant_id != tenant_id:
+            raise ValueError(
+                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
+                f"{tenant_id!r} (no cross-tenant write, Property 1)"
+            )
+        bound = (
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
+        )
+        payload = bound.to_item()
+        item = td.build_pref_list_item(tenant_id, bound.sub, payload)
+        self.table.put_item(Item=item)
+        return bound

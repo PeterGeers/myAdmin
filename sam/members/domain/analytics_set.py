@@ -36,12 +36,14 @@ from sam.members.domain.error_codes import (
     ANALYTICS_SET_ID,
     ANALYTICS_SET_KIND,
     ANALYTICS_SET_NAME,
+    ANALYTICS_SET_ORIGIN,
     ANALYTICS_SET_TENANT,
     FieldError,
 )
 
 __all__ = [
     "ANALYTICS_SET_KINDS",
+    "ANALYTICS_SET_ORIGINS",
     "SORT_KEY_SEPARATOR",
     "AnalyticsSetEntry",
     "AnalyticsSetValidationError",
@@ -51,6 +53,12 @@ __all__ = [
 #: (filtered-list) set. Kept as a constant so the entity, the domain CRUD, and any caller agree
 #: on one set.
 ANALYTICS_SET_KINDS: tuple[str, ...] = ("count", "list")
+
+#: The valid ``origin`` values (R11.2). Every STORED set is ``user`` (predefined presets stay
+#: in frontend code and are never persisted — R11.5), but the attribute is carried so the
+#: shared library is self-describing and a future ``predefined`` origin (if presets are ever
+#: promoted to stored items) needs no shape change. Default: ``user``.
+ANALYTICS_SET_ORIGINS: tuple[str, ...] = ("user", "predefined")
 
 #: Mirrors ``table_design.SORT_KEY_SEPARATOR`` — a ``set_id`` may not contain it, since the id
 #: becomes a sort-key segment. Duplicated here (not imported) to keep the domain layer free of
@@ -90,6 +98,13 @@ class AnalyticsSetEntry:
       ``column_nest_levels``, ``display_mode``, ``include_rollup``). A mapping. Its
       ``group_columns`` / ``aggregate_measures`` MAY be empty — a filtered-list set is
       first-class (F-011); validation never requires them to be non-empty.
+    - ``origin`` — ``'user'`` (default) for a user-created shared set; ``'predefined'`` reserved
+      (R11.2). A stored set is always ``user`` today (presets stay in code, R11.5).
+    - ``created_by`` — the verified Cognito ``sub`` of the user who created the set
+      (ATTRIBUTION/audit only — R11.3; NEVER an access gate: any ``members:write``/admin user may
+      edit/delete a shared set regardless of ``created_by``). Independent of membership (user ≠
+      member, R11.1) — it is a user principal, not a ``member_id``. Optional (older items / an
+      unauthenticated-context create leave it blank).
     - ``created_at`` / ``updated_at`` — ISO-8601 UTC timestamp strings stamped by the domain.
     """
 
@@ -98,6 +113,8 @@ class AnalyticsSetEntry:
     name: str
     kind: str
     definition: Mapping[str, Any] = field(default_factory=dict)
+    origin: str = "user"
+    created_by: str = ""
     created_at: str = ""
     updated_at: str = ""
 
@@ -150,6 +167,16 @@ class AnalyticsSetEntry:
                 detail="must be a mapping (the PivotConfig)",
             )
 
+        if self.origin not in ANALYTICS_SET_ORIGINS:
+            errors["origin"] = FieldError(
+                code=ANALYTICS_SET_ORIGIN,
+                detail=f"must be one of: {', '.join(ANALYTICS_SET_ORIGINS)}",
+                params={"allowed": list(ANALYTICS_SET_ORIGINS)},
+            )
+
+        # `created_by` is attribution-only (R11.3) — optional and un-gated; a non-string is
+        # simply ignored rather than a validation error (never blocks a save).
+
         if errors:
             raise AnalyticsSetValidationError(errors)
 
@@ -170,6 +197,8 @@ class AnalyticsSetEntry:
             "name": self.name,
             "kind": self.kind,
             "definition": dict(self.definition),
+            "origin": self.origin,
+            "created_by": self.created_by,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -191,12 +220,19 @@ class AnalyticsSetEntry:
                 }
             )
         definition = item.get("definition") or {}
+        # `origin` defaults to 'user' for a legacy item written before the field existed
+        # (every stored set is user-origin — R11.5). `created_by` defaults to blank (older
+        # items carry no attribution).
+        origin = item.get("origin")
+        created_by = item.get("created_by")
         return cls(
             tenant_id=item.get("tenant_id", ""),
             set_id=item.get("set_id", ""),
             name=item.get("name", ""),
             kind=item.get("kind", "count"),
             definition=dict(definition) if isinstance(definition, Mapping) else {},
+            origin=origin if isinstance(origin, str) and origin else "user",
+            created_by=created_by if isinstance(created_by, str) else "",
             created_at=item.get("created_at", ""),
             updated_at=item.get("updated_at", ""),
         )

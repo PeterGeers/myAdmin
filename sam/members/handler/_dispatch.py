@@ -28,7 +28,9 @@ from sam.members.domain.membership_service import (
 from sam.members.handler._http import ParsedRequest
 from sam.members.handler.routes import RouteSpec
 
-if TYPE_CHECKING:  # pragma: no cover - typing only, avoids an app<->_dispatch import cycle
+if (
+    TYPE_CHECKING
+):  # pragma: no cover - typing only, avoids an app<->_dispatch import cycle
     from sam.members.domain.membership_service import MembershipService
     from sam.members.handler.app import RequestContext
 
@@ -226,9 +228,13 @@ def dispatch_route(
 
     # ── Group ANALYTICS (member analytics-sets, F-012) ──────────────────────────────
     if name == "create_analytics_set":
-        # Create a saved set; tenant-scoped by the verified tenant_id (never a body tenant_id —
-        # verify-before-trust). set_id is server-generated. Empty group/measures is first-class.
-        return service.create_analytics_set(tenant_id, _write_body(request))
+        # Create a (tenant-shared) saved set; tenant-scoped by the verified tenant_id (never a
+        # body tenant_id — verify-before-trust). set_id is server-generated. Empty group/measures
+        # is first-class. created_by = the verified caller sub (R11.3 attribution; user ≠ member,
+        # R11.1) — passed from the edge, never trusted from the body.
+        return service.create_analytics_set(
+            tenant_id, _write_body(request), created_by=ctx.sub
+        )
 
     if name == "list_analytics_sets":
         return service.list_analytics_sets(tenant_id)
@@ -245,32 +251,55 @@ def dispatch_route(
         set_id = _require_path_param(ctx, "set_id")
         return service.delete_analytics_set(tenant_id, set_id)
 
+    if name == "get_preferred_list":
+        # The caller's OWN preferred list, keyed by the verified sub (user ≠ member, R11.1 —
+        # NOT a path param, NOT a body owner). Empty when the user has none (R11 empty-is-valid).
+        return service.get_preferred_list(tenant_id, ctx.sub)
+
+    if name == "save_preferred_list":
+        # Replace the caller's OWN preferred list; sub is authoritative from the verified
+        # context (never the body). refs is the ordered tagged-reference list.
+        return service.save_preferred_list(tenant_id, ctx.sub, _write_body(request))
+
     # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
     if name == "create_member":
         return service.create_member(
-            tenant_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, caller_roles=ctx.groups,
+            tenant_id,
+            _write_body(request),
+            scopes,
+            requester_sub=ctx.sub,
+            caller_roles=ctx.groups,
         )
 
     if name == "update_member":
         member_id = _require_path_param(ctx, "member_id")
         return service.update_member(
-            tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service,
+            tenant_id,
+            member_id,
+            _write_body(request),
+            scopes,
+            requester_sub=ctx.sub,
+            self_service=spec.self_service,
             caller_roles=ctx.groups,
         )
 
     if name == "delete_member":
         member_id = _require_path_param(ctx, "member_id")
         return service.delete_member(
-            tenant_id, member_id, scopes, requester_sub=ctx.sub,
+            tenant_id,
+            member_id,
+            scopes,
+            requester_sub=ctx.sub,
         )
 
     # ── Group MEMBERSHIP (writes — task 5.2) ──────────────────────────────────────────
     if name == "create_membership":
         member_id = _require_path_param(ctx, "member_id")
         return service.create_membership(
-            tenant_id, member_id, _write_body(request), scopes,
+            tenant_id,
+            member_id,
+            _write_body(request),
+            scopes,
             requester_sub=ctx.sub,
         )
 
@@ -278,7 +307,11 @@ def dispatch_route(
         member_id = _require_path_param(ctx, "member_id")
         membership_id = _require_path_param(ctx, "membership_id")
         return service.update_membership(
-            tenant_id, member_id, membership_id, _write_body(request), scopes,
+            tenant_id,
+            member_id,
+            membership_id,
+            _write_body(request),
+            scopes,
             requester_sub=ctx.sub,
         )
 
@@ -286,7 +319,10 @@ def dispatch_route(
         member_id = _require_path_param(ctx, "member_id")
         membership_id = _require_path_param(ctx, "membership_id")
         return service.delete_membership(
-            tenant_id, member_id, membership_id, scopes,
+            tenant_id,
+            member_id,
+            membership_id,
+            scopes,
             requester_sub=ctx.sub,
         )
 
@@ -295,7 +331,10 @@ def dispatch_route(
         body = _write_body(request)
         to_state = _parse_to_state(body)
         result = service.transition_member(
-            tenant_id, member_id, to_state, scopes,
+            tenant_id,
+            member_id,
+            to_state,
+            scopes,
             context=_transition_context(body),
             requester_sub=ctx.sub,
         )
@@ -314,7 +353,10 @@ def dispatch_route(
                 {"member_ids": "a non-empty member_ids list is required"}
             )
         return service.bulk_transition_members(
-            tenant_id, [str(m) for m in member_ids], to_state, scopes,
+            tenant_id,
+            [str(m) for m in member_ids],
+            to_state,
+            scopes,
             context=_transition_context(body),
             requester_sub=ctx.sub,
         )
@@ -323,15 +365,23 @@ def dispatch_route(
     if name == "manage_delegates":
         member_id = _require_path_param(ctx, "member_id")
         return service.manage_delegates(
-            tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service,
+            tenant_id,
+            member_id,
+            _write_body(request),
+            scopes,
+            requester_sub=ctx.sub,
+            self_service=spec.self_service,
         )
 
     if name == "send_delegate_invitation":
         member_id = _require_path_param(ctx, "member_id")
         return service.send_delegate_invitation(
-            tenant_id, member_id, _write_body(request), scopes,
-            requester_sub=ctx.sub, self_service=spec.self_service,
+            tenant_id,
+            member_id,
+            _write_body(request),
+            scopes,
+            requester_sub=ctx.sub,
+            self_service=spec.self_service,
         )
 
     # ── Group CATALOG (Lidmaatschap Beheer writes, design C8 — task 5.3) ─────────────
@@ -342,7 +392,9 @@ def dispatch_route(
 
     if name == "update_membership_type":
         type_code = _require_path_param(ctx, "type_code")
-        return service.update_membership_type(tenant_id, type_code, _write_body(request))
+        return service.update_membership_type(
+            tenant_id, type_code, _write_body(request)
+        )
 
     if name == "deactivate_membership_type":
         # Soft-delete (retire → active=false), NEVER a hard delete (C8 referential integrity).
