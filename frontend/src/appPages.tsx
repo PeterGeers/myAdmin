@@ -33,6 +33,7 @@ export const ZZPTripImport = lazy(() => import('./pages/ZZPTripImport'));
 
 // Members module page
 export const MembersPage = lazy(() => import('./pages/MembersPage'));
+export const MemberAnalyticsPage = lazy(() => import('./pages/MemberAnalyticsPage'));
 
 // Admin pages (named exports)
 export const TenantAdminDashboard = lazy(() =>
@@ -81,7 +82,8 @@ export type PageType =
   | 'check-reference'
   | 'str-channel-revenue'
   | 'media-asset-admin'
-  | 'members';
+  | 'members'
+  | 'member-analytics';
 
 // URL path → page mapping for PWA deep-link support.
 // Supports both dev (/) and production (/myAdmin/) base paths.
@@ -102,6 +104,7 @@ export const urlPageMap: Record<string, PageType> = {
   '/fin/str-channel-revenue': 'str-channel-revenue',
   '/admin/assets': 'media-asset-admin',
   '/leden': 'members',
+  '/leden/analyse': 'member-analytics',
 };
 
 // Resolve the current window location to a PageType, honoring the base path.

@@ -216,4 +216,80 @@ describe('useColumnFilters', () => {
 
     expect(result.current.hasActiveFilters).toBe(false);
   });
+
+  // Findings F-007: when the SAME hook instance is reused with a DIFFERENT set of
+  // columns (the Member Analytics PivotResultTable stays mounted while the user
+  // Executes a set with different columns), the filter key set must re-sync — a
+  // column absent from `filters` gets filterValue === undefined and renders no
+  // filter input ("only one column has a filter"). The reconcile adds new keys,
+  // drops removed keys, and preserves surviving values.
+  describe('re-syncs the filter key set when initialFilters keys change (F-007)', () => {
+    it('adds filter keys for newly-introduced columns', () => {
+      const { result, rerender } = renderHook<
+        ReturnType<typeof useColumnFilters<TestRow>>,
+        { init: Record<string, string> }
+      >(({ init }) => useColumnFilters(sampleData, init), {
+        initialProps: { init: { membership_type: '' } },
+      });
+      // Only the first set's column is tracked initially.
+      expect(Object.keys(result.current.filters)).toEqual(['membership_type']);
+
+      // Execute a different set → different columns.
+      rerender({ init: { name: '', email: '', birthday: '', country: '' } });
+
+      // Every new column is now a tracked (defined) filter key.
+      expect(Object.keys(result.current.filters).sort()).toEqual(
+        ['birthday', 'country', 'email', 'name'].sort(),
+      );
+      for (const key of ['name', 'email', 'birthday', 'country']) {
+        expect(result.current.filters[key]).toBe('');
+      }
+      // The removed column is no longer tracked.
+      expect(result.current.filters).not.toHaveProperty('membership_type');
+    });
+
+    it('preserves an active filter value for a column that survives the change', () => {
+      const { result, rerender } = renderHook<
+        ReturnType<typeof useColumnFilters<TestRow>>,
+        { init: Record<string, string> }
+      >(({ init }) => useColumnFilters(sampleData, init), {
+        initialProps: { init: { name: '', email: '' } },
+      });
+
+      act(() => {
+        result.current.setFilter('name', 'alice');
+      });
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+      expect(result.current.filters.name).toBe('alice');
+
+      // Rerender with a changed key set that still includes `name`.
+      rerender({ init: { name: '', email: '', region: '' } });
+
+      // `name`'s active value survives; the new `region` key is added empty.
+      expect(result.current.filters.name).toBe('alice');
+      expect(result.current.filters.region).toBe('');
+    });
+
+    it('does not disturb state when the key set is unchanged (stable columns)', () => {
+      const { result, rerender } = renderHook(
+        ({ init }: { init: Record<string, string> }) => useColumnFilters(sampleData, init),
+        { initialProps: { init: { name: '', email: '', status: '' } } },
+      );
+
+      act(() => {
+        result.current.setFilter('email', 'example');
+      });
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+
+      // A fresh initialFilters object with the SAME keys (new identity each
+      // render) must not reset the active filter.
+      rerender({ init: { name: '', email: '', status: '' } });
+      expect(result.current.filters.email).toBe('example');
+      expect(result.current.filteredData).toEqual([sampleData[0], sampleData[2]]);
+    });
+  });
 });

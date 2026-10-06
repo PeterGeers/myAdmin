@@ -230,6 +230,9 @@ export function MainMenu({
                 <Button size="lg" w="full" colorScheme="purple" justifyContent="flex-start" onClick={() => setCurrentPage('members')}>
                   👥 {t('members:overview.title')}
                 </Button>
+                <Button size="lg" w="full" colorScheme="purple" justifyContent="flex-start" onClick={() => setCurrentPage('member-analytics')}>
+                  📊 {t('members:analytics.navLabel')}
+                </Button>
               </>
             )}
 

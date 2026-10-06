@@ -10,7 +10,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@/test-utils';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import '@testing-library/jest-dom';
 import { PivotResultTable } from '../PivotResultTable';
 import type { PivotColumnMeta, PivotConfig } from '../../../types/pivot';
@@ -686,6 +686,26 @@ describe('PivotResultTable — Export Buttons', () => {
     expect(exportMenu).not.toBeDisabled();
   });
 
+  // Findings F-008: a consumer that owns its own output actions (Member
+  // Analytics) suppresses the built-in two-option menu (whose "Export underlying
+  // data" calls the Flask SQL path that fails for the client-side members
+  // adapter), so there is a single action group — not a duplicate + a broken
+  // underlying export.
+  it('suppresses the built-in export menu when hideExportMenu is set (F-008)', () => {
+    render(
+      <PivotResultTable
+        data={sampleData}
+        columns={sampleColumns}
+        config={baseConfig}
+        isLoading={false}
+        hideExportMenu
+      />,
+    );
+
+    // Data is present (so the toolbar renders), but the built-in menu is gone.
+    expect(screen.queryByTestId('pivot-export-menu')).not.toBeInTheDocument();
+  });
+
   it('does not render export menu when no data (empty state)', () => {
     render(
       <PivotResultTable
@@ -753,5 +773,135 @@ describe('PivotResultTable — Export Buttons', () => {
     const exportMenu = screen.getByTestId('pivot-export-menu');
     expect(exportMenu).toBeInTheDocument();
     expect(exportMenu).not.toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// columnLabels — localize result HEADERS without touching data/export keys
+// (findings: "result column headers stay English"). FIN/STR omit the prop and
+// keep the raw DB-key behavior unchanged.
+// ---------------------------------------------------------------------------
+
+describe('PivotResultTable — columnLabels (localized headers)', () => {
+  it('renders the mapped label as the header when columnLabels is provided (flat mode)', () => {
+    render(
+      <PivotResultTable
+        data={sampleData}
+        columns={sampleColumns}
+        config={baseConfig}
+        isLoading={false}
+        columnLabels={{ Aangifte: 'Belastingsoort', 'SUM_Amount': 'Som bedrag' }}
+      />,
+    );
+    // The mapped columns render their display label as the header…
+    expect(screen.getByTestId('th-Belastingsoort')).toBeInTheDocument();
+    expect(screen.getByTestId('th-Som bedrag')).toBeInTheDocument();
+    // …and the raw key is no longer used as the header for a mapped column.
+    expect(screen.queryByTestId('th-Aangifte')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the raw column name for unmapped columns', () => {
+    render(
+      <PivotResultTable
+        data={sampleData}
+        columns={sampleColumns}
+        config={baseConfig}
+        isLoading={false}
+        columnLabels={{ Aangifte: 'Belastingsoort' }}
+      />,
+    );
+    // 'jaar' is not in the map → the raw key is used verbatim.
+    expect(screen.getByTestId('th-jaar')).toBeInTheDocument();
+    expect(screen.getByTestId('th-Belastingsoort')).toBeInTheDocument();
+  });
+
+  it('keeps raw DB-key headers when columnLabels is omitted (FIN/STR path unchanged)', () => {
+    render(
+      <PivotResultTable
+        data={sampleData}
+        columns={sampleColumns}
+        config={baseConfig}
+        isLoading={false}
+      />,
+    );
+    // No prop → every header is the raw column name, exactly as before.
+    expect(screen.getByTestId('th-Aangifte')).toBeInTheDocument();
+    expect(screen.getByTestId('th-jaar')).toBeInTheDocument();
+    expect(screen.getByTestId('th-SUM_Amount')).toBeInTheDocument();
+    expect(screen.getByTestId('th-COUNT')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onVisibleRowsChange — report the post-filter rows so a consumer's own export
+// honors the in-table column filters (findings: table filters limit the export)
+// ---------------------------------------------------------------------------
+
+describe('PivotResultTable — onVisibleRowsChange (filtered export)', () => {
+  const flatColumns: PivotColumnMeta[] = [
+    { name: 'Aangifte', type: 'group', dataType: 'varchar' },
+    { name: 'COUNT', type: 'aggregate', dataType: 'int', function: 'COUNT', sourceColumn: '*' },
+  ];
+  const flatConfig: PivotConfig = {
+    ...baseConfig,
+    groupColumns: ['Aangifte'],
+    aggregateMeasures: [{ function: 'COUNT', column: '*' }],
+  };
+  const flatData = [
+    { Aangifte: 'BTW', COUNT: 42 },
+    { Aangifte: 'IB', COUNT: 20 },
+  ];
+
+  it('reports all rows on mount (flat mode)', () => {
+    const onVisibleRowsChange = vi.fn();
+    render(
+      <PivotResultTable
+        data={flatData}
+        columns={flatColumns}
+        config={flatConfig}
+        isLoading={false}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />,
+    );
+    expect(onVisibleRowsChange).toHaveBeenCalled();
+    const last = onVisibleRowsChange.mock.calls.at(-1)![0];
+    expect(last).toEqual(flatData);
+  });
+
+  it('reports the NARROWED rows after an in-table column filter', async () => {
+    const onVisibleRowsChange = vi.fn();
+    render(
+      <PivotResultTable
+        data={flatData}
+        columns={flatColumns}
+        config={flatConfig}
+        isLoading={false}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />,
+    );
+    // Filter the Aangifte column to 'BTW' (the FilterableHeader mock wires the
+    // input to the table's setFilter → useFilterableTable → processedData). The
+    // column filter is debounced (~150ms), so poll until the narrowed set is
+    // reported.
+    fireEvent.change(screen.getByTestId('filter-Aangifte'), { target: { value: 'BTW' } });
+
+    await waitFor(() => {
+      const last = onVisibleRowsChange.mock.calls.at(-1)![0];
+      expect(last).toEqual([{ Aangifte: 'BTW', COUNT: 42 }]);
+    });
+  });
+
+  it('does not report rows for hierarchical mode (consumer owns derived rows)', () => {
+    const onVisibleRowsChange = vi.fn();
+    render(
+      <PivotResultTable
+        data={sampleData}
+        columns={sampleColumns}
+        config={{ ...baseConfig, displayMode: 'hierarchical' }}
+        isLoading={false}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />,
+    );
+    expect(onVisibleRowsChange).not.toHaveBeenCalled();
   });
 });
