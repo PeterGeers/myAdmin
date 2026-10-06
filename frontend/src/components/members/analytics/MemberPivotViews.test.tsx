@@ -816,10 +816,21 @@ describe('MemberPivotViews', () => {
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [columns, rows] = generateCsvFromObjects.mock.calls[0];
-      // Columns map a result column's name to BOTH key + header.
+      // The CSV column KEY is the raw result column name (so values read from the
+      // data rows); the HEADER is the LOCALIZED label — the SAME `columnLabels`
+      // map handed to the result table — so the exported header matches the
+      // on-screen header in the user's language (not the raw English key).
+      const labels = (produced as unknown as { columnLabels?: Record<string, string> })
+        .columnLabels ?? {};
       expect(columns).toEqual(
-        produced.columns.map((c) => ({ key: c.name, header: c.name })),
+        produced.columns.map((c) => ({ key: c.name, header: labels[c.name] ?? c.name })),
       );
+      // The group column's header is the field's resolved label, not the raw key.
+      expect(labels['membership_type']).toBeDefined();
+      expect(columns[0]).toEqual({
+        key: 'membership_type',
+        header: labels['membership_type'],
+      });
       // The result's data rows are exported verbatim.
       expect(rows).toBe(produced.data);
       // The generated CSV is handed to downloadCsv (reuse — not reimplemented).
@@ -874,8 +885,12 @@ describe('MemberPivotViews', () => {
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [columns, rows] = generateCsvFromObjects.mock.calls[0];
+      // Key = raw column name; header = localized label (falls back to the raw
+      // name for a column with no fieldConfig label).
+      const listLabels = (produced as unknown as { columnLabels?: Record<string, string> })
+        .columnLabels ?? {};
       expect(columns).toEqual(
-        produced.columns.map((c) => ({ key: c.name, header: c.name })),
+        produced.columns.map((c) => ({ key: c.name, header: listLabels[c.name] ?? c.name })),
       );
       expect(rows).toBe(produced.data);
       expect(downloadCsv).toHaveBeenCalledTimes(1);
@@ -954,18 +969,19 @@ describe('MemberPivotViews', () => {
       });
 
       // New set is always available; the others require a selected saved model.
+      // (Delete is no longer a main-pane button — it lives in the "All sets"
+      // modal per-row trash icon.)
       expect(screen.getByTestId('member-pivot-new-set')).not.toBeDisabled();
       expect(screen.getByTestId('member-pivot-save-as')).toBeDisabled();
       expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
-      expect(screen.getByTestId('member-pivot-delete')).toBeDisabled();
+      expect(screen.queryByTestId('member-pivot-delete')).not.toBeInTheDocument();
 
-      // Selecting a PRESET enables Save-as but NOT Update/Delete (preset ≠ model).
+      // Selecting a PRESET enables Save-as but NOT Update (preset ≠ saved model).
       fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
         target: { value: 'preset:membership-types' },
       });
       expect(screen.getByTestId('member-pivot-save-as')).not.toBeDisabled();
       expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
-      expect(screen.getByTestId('member-pivot-delete')).toBeDisabled();
     });
 
     it('New set opens the picker to compose + save a brand-new set (R4.4)', async () => {
@@ -1086,43 +1102,11 @@ describe('MemberPivotViews', () => {
       expect(config.filters).toEqual({ clubblad: 'Papier' });
     });
 
-    it('Delete confirms, deletes via deleteAnalyticsSet, and refreshes the list', async () => {
-      listAnalyticsSets
-        .mockResolvedValueOnce([savedModel]) // initial list
-        .mockResolvedValueOnce([]); // after delete
-      // Make the saved set preferred so model:set-7 is a selectable dropdown
-      // option; after the delete its ref dangles → the option disappears (which
-      // is exactly what this test asserts below).
-      getPreferredList.mockResolvedValue({
-        sub: 'u1',
-        refs: ['set:set-7'],
-        updated_at: '',
-      });
-
-      render(<MemberPivotViews {...makeProps()} />);
-      await waitFor(() => {
-        const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
-        const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
-        expect(values).toContain('model:set-7');
-      });
-
-      fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
-        target: { value: 'model:set-7' },
-      });
-      fireEvent.click(screen.getByTestId('member-pivot-delete'));
-
-      // A confirmation dialog appears — delete is explicit + confirmed (R4.4b).
-      expect(await screen.findByTestId('member-pivot-delete-dialog')).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId('member-pivot-delete-confirm'));
-
-      await waitFor(() => expect(deleteAnalyticsSet).toHaveBeenCalledWith('set-7'));
-      // The list is refreshed; the deleted set no longer appears.
-      await waitFor(() => {
-        const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
-        const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
-        expect(values).not.toContain('model:set-7');
-      });
-    });
+    // NOTE: permanent delete moved to the "All sets" modal (per-row trash icon);
+    // its flow is covered by the modal delete tests ("offers permanent Delete
+    // ONLY on custom saved sets" / "deletes a custom saved set ... confirm
+    // dialog"). The old dropdown-Delete lifecycle test was removed with that
+    // button.
 
     it('round-trips a saved set: save → appears in the list → load reproduces its config incl. filters', async () => {
       // Start with no saved sets; after the save the refreshed list returns the
@@ -1875,29 +1859,54 @@ describe('MemberPivotViews — shared-set capability gating (R11)', () => {
     expect(screen.queryByTestId('member-pivot-delete')).not.toBeInTheDocument();
   });
 
-  it('HIDES Delete for a write-only caller (write alone no longer grants delete)', async () => {
+  it('a write-only caller can create/edit but gets NO delete control (modal)', async () => {
     // Delete is gated on isAdmin now (page rule: (Regio_All AND Members_CRUD) OR
     // Tenant_Admin). A plain Members_CRUD / members:write caller — isAdmin false —
-    // can create/edit but NOT delete.
+    // can create/edit, but the "All sets" modal shows no Delete on any row.
+    // (Delete is no longer a main-pane button at all.)
+    listAnalyticsSets.mockResolvedValue([
+      { id: 'set-7', name: 'Active seniors', kind: 'count' },
+    ]);
     render(
       <MemberPivotViews
         {...makeProps({ capabilities: { canExport: true, canWrite: true, isAdmin: false } })}
       />,
     );
     await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
-    // Create/edit actions are present …
+    // Create/edit actions are present in the main pane.
     expect(screen.getByTestId('member-pivot-new-set')).toBeInTheDocument();
-    // … but Delete is NOT.
+    // No main-pane delete button exists anymore.
     expect(screen.queryByTestId('member-pivot-delete')).not.toBeInTheDocument();
+    // And the modal shows no Delete control for this non-admin caller.
+    await openLibrary();
+    await waitFor(() =>
+      expect(screen.getAllByTestId('member-pivot-library-item').length).toBeGreaterThan(0),
+    );
+    expect(screen.queryByTestId('member-pivot-library-delete')).not.toBeInTheDocument();
   });
 
-  it('shows Delete for an admin caller (isAdmin — Tenant_Admin or Regio_All+CRUD)', async () => {
+  it('an admin caller gets the Delete control on a custom set in the modal', async () => {
+    listAnalyticsSets.mockResolvedValue([
+      { id: 'set-7', name: 'Active seniors', kind: 'count' },
+    ]);
     render(
       <MemberPivotViews
         {...makeProps({ capabilities: { canExport: true, isAdmin: true } })}
       />,
     );
     await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
-    expect(screen.getByTestId('member-pivot-delete')).toBeInTheDocument();
+    // No main-pane delete button (delete lives in the modal now).
+    expect(screen.queryByTestId('member-pivot-delete')).not.toBeInTheDocument();
+    // The modal's custom-set row offers the Delete control to an admin.
+    await openLibrary();
+    await waitFor(() =>
+      expect(screen.getAllByTestId('member-pivot-library-item').length).toBeGreaterThan(0),
+    );
+    const savedRow = screen
+      .getAllByTestId('member-pivot-library-item')
+      .find((el) => (el.textContent ?? '').includes('Active seniors'))!;
+    expect(
+      savedRow.querySelector('[data-testid="member-pivot-library-delete"]'),
+    ).toBeTruthy();
   });
 });
