@@ -403,12 +403,3 @@ re-implementing it per module:
 7. **F-010** (date filter on new-members) — enhancement.
 8. **F-004** (membership-type breakdown) — enhancement (MAY clause).
 9. **F-001** (console noise) — cosmetic, pre-existing.
-
-
-
-Pivot view Buttons
-Save as: is black on black when not possible and when activates only visible when moving the mouse over it
-Update: is black on black when not possible and when activates only visible when moving the mouse over it
-Delete: This button isoboslete as the delete function is in the modal All sets
-
-Allsets and Execute: can they witch from location as execute should be colse to the selected pivot and All sets is a differnt function

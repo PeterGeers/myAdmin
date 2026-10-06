@@ -155,6 +155,51 @@ describe('MemberFieldPicker', () => {
     expect(screen.getByText('analytics.pivotViews.fieldPicker.title')).toBeInTheDocument();
   });
 
+  it('groups both field lists by functional group (catalog order), alphabetical within each', () => {
+    // A config with two functional groups (catalog order: contact THEN membership)
+    // and fields deliberately out of alphabetical order within each group.
+    const grouped = {
+      functional_groups: [
+        { key: 'contact', label: { en: 'Contact', nl: 'Contact' }, order: 1 },
+        { key: 'membership', label: { en: 'Membership', nl: 'Lidmaatschap' }, order: 2 },
+      ],
+      fields: [
+        { key: 'phone', functional_group: 'contact', label: { en: 'Phone' } },
+        { key: 'email', functional_group: 'contact', label: { en: 'Email' } },
+        { key: 'tier', functional_group: 'membership', label: { en: 'Tier' } },
+        { key: 'joined', functional_group: 'membership', label: { en: 'Joined' } },
+        // No functional group → appended last in an unlabelled "ungrouped" section.
+        { key: 'notes', label: { en: 'Notes' } },
+      ],
+    } as unknown as FieldConfig;
+
+    render(<MemberFieldPicker {...makeProps({ fieldConfig: grouped })} />);
+
+    // A blank compose is a list set → assert on the List-columns list.
+    const list = screen.getByTestId('field-picker-list-fields');
+    const order = Array.from(list.querySelectorAll('[data-testid^="field-picker-list-"]'))
+      .map((el) => el.getAttribute('data-testid'))
+      // Keep only the per-field checkbox testids (not the section wrappers).
+      .filter((id): id is string => !!id && !id.includes('-section-'));
+
+    // contact group first (Email < Phone), then membership (Joined < Tier),
+    // then the ungrouped fallback (Notes) — sections in catalog order,
+    // alphabetical within each.
+    expect(order).toEqual([
+      'field-picker-list-email',
+      'field-picker-list-phone',
+      'field-picker-list-joined',
+      'field-picker-list-tier',
+      'field-picker-list-notes',
+    ]);
+
+    // The section headings are rendered for the catalog groups.
+    expect(screen.getByTestId('field-picker-list-section-contact')).toHaveTextContent('Contact');
+    expect(screen.getByTestId('field-picker-list-section-membership')).toHaveTextContent(
+      'Membership',
+    );
+  });
+
   it('shows a neutral "no fields" message when the config exposes none', () => {
     render(
       <MemberFieldPicker {...makeProps({ fieldConfig: { fields: [] } as unknown as FieldConfig })} />,
@@ -248,22 +293,13 @@ describe('MemberFieldPicker', () => {
     expect(screen.queryByTestId('field-picker-list-fields')).not.toBeInTheDocument();
   });
 
-  it('defaults a new list set to ALL pickable fields and saves them as listColumns', async () => {
+  it('seeds a new list set with NO list columns pre-selected', () => {
     render(<MemberFieldPicker {...makeProps()} />);
-    fireEvent.change(screen.getByTestId('field-picker-name'), {
-      target: { value: 'Everyone' },
-    });
-    // No group column, no measure — a pure filtered list. Its list columns were
-    // pre-selected to every pickable field on open (the fix), so Save is enabled
-    // and the saved config carries them (never near-empty).
-    fireEvent.click(screen.getByTestId('field-picker-save'));
-
-    await waitFor(() => expect(mockSaveAnalyticsSet).toHaveBeenCalledTimes(1));
-    const [, config, kind] = mockSaveAnalyticsSet.mock.calls[0];
-    expect(kind).toBe('list');
-    expect(config.groupColumns).toEqual([]);
-    // The three visible fields (hidden 'secret' excluded) are the list columns.
-    expect(config.listColumns).toEqual(['membership_type', 'clubblad', 'years_member']);
+    // A brand-new blank compose is a list set, but nothing is pre-checked —
+    // the user picks the columns they want (no all-fields default).
+    expect(checkboxInput('field-picker-list-membership_type')).not.toBeChecked();
+    expect(checkboxInput('field-picker-list-clubblad')).not.toBeChecked();
+    expect(checkboxInput('field-picker-list-years_member')).not.toBeChecked();
   });
 
   it('persists exactly the user-chosen list columns for a filtered-list set', async () => {
@@ -271,12 +307,15 @@ describe('MemberFieldPicker', () => {
     fireEvent.change(screen.getByTestId('field-picker-name'), {
       target: { value: 'Just two' },
     });
-    // Deselect one of the defaulted list columns, leaving two.
-    fireEvent.click(screen.getByTestId('field-picker-list-years_member'));
+    // Nothing is pre-selected; the user picks the two columns they want.
+    fireEvent.click(screen.getByTestId('field-picker-list-membership_type'));
+    fireEvent.click(screen.getByTestId('field-picker-list-clubblad'));
     fireEvent.click(screen.getByTestId('field-picker-save'));
 
     await waitFor(() => expect(mockSaveAnalyticsSet).toHaveBeenCalledTimes(1));
-    const [, config] = mockSaveAnalyticsSet.mock.calls[0];
+    const [, config, kind] = mockSaveAnalyticsSet.mock.calls[0];
+    expect(kind).toBe('list');
+    expect(config.groupColumns).toEqual([]);
     expect(config.listColumns).toEqual(['membership_type', 'clubblad']);
   });
 
@@ -414,15 +453,8 @@ describe('MemberFieldPicker', () => {
     render(<MemberFieldPicker {...makeProps()} />);
 
     const save = screen.getByTestId('field-picker-save');
-    // On open, a blank compose is a filtered-LIST set whose list columns default
-    // to every pickable field (the "missing columns" fix — a list set is never
-    // empty), so there IS a selection; the save is blocked only on the missing
-    // NAME. Clear every list column to reach the true "no selection" state.
-    fireEvent.click(screen.getByTestId('field-picker-list-membership_type'));
-    fireEvent.click(screen.getByTestId('field-picker-list-clubblad'));
-    fireEvent.click(screen.getByTestId('field-picker-list-years_member'));
-
-    // Nothing selected, no name → disabled, with the selection reason.
+    // On open, a blank compose is a filtered-LIST set with NO list columns
+    // pre-selected and no name — so it starts in the true "no selection" state.
     expect(save).toBeDisabled();
     expect(screen.getByTestId('field-picker-selection-required')).toBeInTheDocument();
 
