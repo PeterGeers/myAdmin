@@ -5,12 +5,32 @@ Extracts text content from PDF, image, CSV, MHTML, and EML files.
 Also contains generic line-based parsing for unknown vendors.
 """
 
+import io
 import os
 import re
+import shutil
 from datetime import datetime
 
 import pdfplumber
 from pypdf import PdfReader
+
+
+def resolve_tesseract_cmd():
+    """Resolve the tesseract binary path from the environment.
+
+    Resolution order:
+    1. The ``TESSERACT_CMD`` environment variable, if set.
+    2. ``shutil.which("tesseract")`` (binary on PATH).
+    3. ``None`` when no binary is found.
+
+    Never returns a hardcoded OS-specific path, so OCR works on Linux/WSL and
+    degrades gracefully (``None``) when tesseract is absent.
+    """
+    env_cmd = os.environ.get("TESSERACT_CMD")
+    if env_cmd:
+        return env_cmd
+    return shutil.which("tesseract")
+
 
 try:
     import pytesseract
@@ -18,11 +38,72 @@ try:
         Image,  # noqa: F401  # availability probe: OCR path is skipped if Pillow is absent
     )
 
-    pytesseract.pytesseract.tesseract_cmd = (
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    )
+    # Resolve the binary from the environment; only set it when found so a
+    # missing binary leaves pytesseract's default intact rather than pointing at
+    # a path that cannot exist.
+    _tesseract_cmd = resolve_tesseract_cmd()
+    if _tesseract_cmd:
+        pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
 except ImportError:
     pytesseract = None
+
+
+def ocr_pdf_pages(file_path):
+    """Recover text from a PDF with no text layer via OCR.
+
+    Renders each page with PyMuPDF at 300 dpi, converts the pixmap to a PIL
+    image, and runs tesseract over it. This is the fallback for "Microsoft:
+    Print To PDF" vector-outline PDFs where ``pypdf``/``pdfplumber`` return no
+    text. PyMuPDF does its own rendering, so no Ghostscript/poppler/ImageMagick
+    system dependency is needed.
+
+    Degrades gracefully — returns ``[]`` (never raises) when the tesseract
+    binary is unavailable or the ``pymupdf``/``pytesseract``/``PIL`` imports
+    fail, so the import pipeline falls through to the honest "No data found"
+    failure rather than crashing.
+
+    Args:
+        file_path: Path to the PDF file
+
+    Returns:
+        List of non-empty recovered text lines across all pages (``[]`` when
+        OCR is unavailable or recovers nothing).
+    """
+    if resolve_tesseract_cmd() is None:
+        print("OCR skipped: tesseract binary not found (resolve_tesseract_cmd -> None)")
+        return []
+
+    try:
+        try:
+            import pymupdf
+        except ImportError:
+            import fitz as pymupdf  # legacy module name for PyMuPDF
+
+        import pytesseract
+        from PIL import Image
+    except ImportError as e:
+        print(f"OCR skipped: optional dependency unavailable ({e})")
+        return []
+
+    text_lines = []
+    try:
+        with pymupdf.open(file_path) as doc:
+            for page_number, page in enumerate(doc, start=1):
+                try:
+                    pixmap = page.get_pixmap(dpi=300)
+                    image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+                    page_text = pytesseract.image_to_string(image)
+                    for line in page_text.split("\n"):
+                        if line.strip():
+                            text_lines.append(line)
+                except Exception as e:
+                    print(f"OCR error on page {page_number}: {e}")
+        print(f"OCR recovered {len(text_lines)} lines")
+    except Exception as e:
+        print(f"OCR error opening PDF: {e}")
+        return []
+
+    return text_lines
 
 
 def process_pdf(file_path, drive_result, config, folder_name="Unknown"):
@@ -69,6 +150,13 @@ def process_pdf(file_path, drive_result, config, folder_name="Unknown"):
             text_lines = [f"[Error reading PDF with both libraries: {e!s}]"]
     else:
         print(f"PyPDF2 extracted {len(text_lines)} lines")
+
+    # If both text-layer extractors produced nothing (e.g. a "Microsoft: Print
+    # To PDF" vector-outline PDF), fall back to OCR. This fires only for
+    # bug-condition inputs; text-layer PDFs skip it entirely.
+    if not text_lines:
+        print("No text layer found; attempting OCR fallback...")
+        text_lines.extend(ocr_pdf_pages(file_path))
 
     # Use configured folder structure
     storage_folder = config.get_storage_folder(folder_name)
