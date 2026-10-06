@@ -224,6 +224,27 @@ def dispatch_route(
         type_code = _require_path_param(ctx, "type_code")
         return service.get_membership_type(tenant_id, type_code)
 
+    # ── Group ANALYTICS (member analytics-sets, F-012) ──────────────────────────────
+    if name == "create_analytics_set":
+        # Create a saved set; tenant-scoped by the verified tenant_id (never a body tenant_id —
+        # verify-before-trust). set_id is server-generated. Empty group/measures is first-class.
+        return service.create_analytics_set(tenant_id, _write_body(request))
+
+    if name == "list_analytics_sets":
+        return service.list_analytics_sets(tenant_id)
+
+    if name == "get_analytics_set":
+        set_id = _require_path_param(ctx, "set_id")
+        return service.get_analytics_set(tenant_id, set_id)
+
+    if name == "update_analytics_set":
+        set_id = _require_path_param(ctx, "set_id")
+        return service.update_analytics_set(tenant_id, set_id, _write_body(request))
+
+    if name == "delete_analytics_set":
+        set_id = _require_path_param(ctx, "set_id")
+        return service.delete_analytics_set(tenant_id, set_id)
+
     # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
     if name == "create_member":
         return service.create_member(

@@ -57,6 +57,11 @@ __all__ = [
     "MEMBERSHIP_TYPE_ORDER",
     "MEMBERSHIP_TYPE_UNKNOWN_REFERENCE",
     "MEMBERSHIP_TYPE_RETIRED",
+    "ANALYTICS_SET_TENANT",
+    "ANALYTICS_SET_ID",
+    "ANALYTICS_SET_NAME",
+    "ANALYTICS_SET_KIND",
+    "ANALYTICS_SET_DEFINITION",
 ]
 
 
@@ -162,3 +167,25 @@ MEMBERSHIP_TYPE_UNKNOWN_REFERENCE = "errors.membershiptype.unknownReference"
 #: A member references a ``membership_type`` that exists but is retired (``active=false``).
 #: ``params`` carries ``{"type_code": ...}``.
 MEMBERSHIP_TYPE_RETIRED = "errors.membershiptype.retired"
+
+
+# ── Analytics-set field-level domain codes — keys in the EXISTING ``errors.*`` namespace ──
+#
+# Analytics-set (member saved-set) validation codes. Mirror the membership-type catalog block:
+# one code per validated field. A set's ``definition`` is a mapping (the frontend ``PivotConfig``
+# in snake_case); group_columns and aggregate_measures may be EMPTY (a filtered-list set, F-011).
+
+#: An analytics-set entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard).
+ANALYTICS_SET_TENANT = "errors.analyticsset.tenant"
+
+#: An analytics-set entry has an invalid/blank ``set_id``.
+ANALYTICS_SET_ID = "errors.analyticsset.id"
+
+#: An analytics-set entry has an invalid/blank ``name``.
+ANALYTICS_SET_NAME = "errors.analyticsset.name"
+
+#: An analytics-set entry has an invalid ``kind`` (must be ``'count'`` or ``'list'``).
+ANALYTICS_SET_KIND = "errors.analyticsset.kind"
+
+#: An analytics-set entry has an invalid ``definition`` (must be a mapping).
+ANALYTICS_SET_DEFINITION = "errors.analyticsset.definition"

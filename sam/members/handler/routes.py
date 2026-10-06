@@ -72,6 +72,7 @@ class RouteGroup(str, Enum):
     DELEGATE = "delegate"             # delegates
     PAYMENT = "payment"               # member-scoped payments
     CATALOG = "catalog"               # Lidmaatschap Beheer membership-type catalog (C8)
+    ANALYTICS = "analytics"           # member analytics-sets (F-012)
 
 
 # The capability names the entitlement gate (task 3.0, C7) checks. Declared here as
@@ -175,6 +176,60 @@ ROUTES: tuple[RouteSpec, ...] = (
             "Resolved field config (fixed ⊕ overlay) for the current tenant, incl. the "
             "membership_type dropdown = the tenant's active catalog entries."
         ),
+    ),
+    # ── Analytics-sets — CRUD (5), F-012 ───────────────────────────────────────────
+    #
+    # Tenant-scoped member analytics-sets: saved pivot/list definitions owned by the Members
+    # module (DynamoDB), replacing the Flask /api/pivot/models store. The literal
+    # `/members/analytics-sets` prefix is disjoint from `/members/{member_id}` and the other
+    # `/members/...` literal routes (field-config, export, me, search) so no (method, path)
+    # collision or shadowing. DECLARED BEFORE the `{member_id}` routes so the literal prefix
+    # matches FIRST (the router returns the first matching route in declaration order for a
+    # method). Reads use `members:read`, writes use `members:write`, not self-service.
+    RouteSpec(
+        name="create_analytics_set",
+        method=HttpMethod.POST,
+        path="/members/analytics-sets",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_WRITE,
+        self_service=False,
+        summary="Create a member analytics-set (a saved pivot/list definition, F-012).",
+    ),
+    RouteSpec(
+        name="list_analytics_sets",
+        method=HttpMethod.GET,
+        path="/members/analytics-sets",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_READ,
+        self_service=False,
+        summary="List the tenant's member analytics-sets.",
+    ),
+    RouteSpec(
+        name="get_analytics_set",
+        method=HttpMethod.GET,
+        path="/members/analytics-sets/{set_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_READ,
+        self_service=False,
+        summary="Get a single member analytics-set by its set_id (404 if absent).",
+    ),
+    RouteSpec(
+        name="update_analytics_set",
+        method=HttpMethod.PUT,
+        path="/members/analytics-sets/{set_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_WRITE,
+        self_service=False,
+        summary="Update a member analytics-set by its set_id (404 if absent).",
+    ),
+    RouteSpec(
+        name="delete_analytics_set",
+        method=HttpMethod.DELETE,
+        path="/members/analytics-sets/{set_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_WRITE,
+        self_service=False,
+        summary="Delete a member analytics-set (hard delete; 404 if absent).",
     ),
     RouteSpec(
         name="get_member",

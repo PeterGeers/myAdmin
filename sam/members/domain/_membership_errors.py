@@ -108,6 +108,40 @@ class MembershipTypeConflict(Exception):
         )
 
 
+class AnalyticsSetNotFound(Exception):
+    """Raised when an analytics-set entry does not exist for the tenant (→ 404).
+
+    The analytics-set ``get`` / ``update`` / ``delete`` are tenant-scoped by the verified
+    ``tenant_id`` (Property 1); an absent ``set_id`` — or one that exists only for another
+    tenant — is an ordinary not-found the edge maps to a ``404`` (mirroring
+    :class:`MembershipTypeNotFound` → 404 for the catalog read).
+    """
+
+    def __init__(self, tenant_id: str, set_id: str):
+        self.tenant_id = tenant_id
+        self.set_id = set_id
+        super().__init__(
+            f"analytics set {set_id!r} not found for tenant {tenant_id!r}"
+        )
+
+
+class AnalyticsSetConflict(Exception):
+    """Raised when CREATING an analytics-set whose ``set_id`` already exists (→ 409).
+
+    With a server-generated uuid4 ``set_id`` a collision is effectively impossible, so this is
+    carried for symmetry with :class:`MembershipTypeConflict`: the create method checks that
+    the generated id is not already present before persisting, and raises this if it somehow is
+    (the edge maps it to a ``409``). ``update`` / ``delete`` never raise this.
+    """
+
+    def __init__(self, tenant_id: str, set_id: str):
+        self.tenant_id = tenant_id
+        self.set_id = set_id
+        super().__init__(
+            f"analytics set {set_id!r} already exists for tenant {tenant_id!r}"
+        )
+
+
 class TransitionDenied(Exception):
     """Raised when a membership transition is not permitted (design C2 — never a silent allow).
 

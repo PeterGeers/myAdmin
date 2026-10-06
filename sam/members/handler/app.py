@@ -62,6 +62,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from sam.members.domain.analytics_set import AnalyticsSetValidationError
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
 from sam.members.domain.field_resolver import TenantOverlay, TenantOverlayProvider
 from sam.members.domain.fixed_fields import (
@@ -73,6 +74,8 @@ from sam.members.domain.lifecycle_config import (
 )
 from sam.members.domain.membership_service import (
     DEFAULT_SCOPE_DIMENSION_KEY,
+    AnalyticsSetConflict,
+    AnalyticsSetNotFound,
     MemberNotFound,
     MembershipService,
     MembershipTypeConflict,
@@ -904,6 +907,25 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
     except MembershipTypeValidationError as exc:
         # A malformed catalog write (blank/invalid code, missing nl label, non-int order) →
         # 422 Unprocessable, carrying the per-field errors as an RFC 9457 array (v1.0).
+        return _error(
+            422,
+            "Validation failed",
+            code="errors.validation.failed",
+            errors=_field_errors_array(exc.errors),
+        )
+    except AnalyticsSetNotFound:
+        # Absent analytics-set for the tenant (F-012) → 404, consistent with the member /
+        # catalog not-found mappings (get/update/delete of an absent set_id).
+        return _error(404, "Not found", code="errors.api.notFound")
+    except AnalyticsSetConflict:
+        # Creating an analytics-set whose set_id already exists (F-012) → 409 Conflict. With a
+        # server-generated uuid4 this is effectively unreachable; carried for symmetry.
+        return _error(
+            409, "Analytics set already exists", code="errors.analyticsset.conflict"
+        )
+    except AnalyticsSetValidationError as exc:
+        # A malformed analytics-set write (blank name, bad kind, non-mapping definition) → 422
+        # Unprocessable, carrying the per-field errors as an RFC 9457 array (v1.0).
         return _error(
             422,
             "Validation failed",

@@ -44,19 +44,21 @@ def test_route_map_covers_eighteen_behaviours_total():
     # h-dcn's ~18 per-action handlers collapse into 18 internal routes, plus the resolved
     # field-config read (task 3.3, R2.3/R2.4) = 19, plus the two Lidmaatschap Beheer catalog
     # READ routes (task 3.4, R2.4 — list + get) = 21, plus the three catalog WRITE routes
-    # (task 5.3, R2.4/R1.4 — create + update + soft-delete) = 24.
-    assert len(ROUTES) == 24
+    # (task 5.3, R2.4/R1.4 — create + update + soft-delete) = 24, plus the five member
+    # analytics-set CRUD routes (F-012 — create + list + get + update + delete) = 29.
+    assert len(ROUTES) == 29
 
 
 def test_route_map_groups_match_the_design_c1_counts():
     # Member CRUD 8 + field-config 1 · membership lifecycle 7 · delegates 2 · payments 1 ·
     # catalog reads 2 (list + get, task 3.4) + catalog writes 3 (create + update + delete,
-    # task 5.3) = 5.
+    # task 5.3) = 5 · analytics-sets 5 (create + list + get + update + delete, F-012).
     assert len(routes_by_group(RouteGroup.MEMBER)) == 9
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 7
     assert len(routes_by_group(RouteGroup.DELEGATE)) == 2
     assert len(routes_by_group(RouteGroup.PAYMENT)) == 1
     assert len(routes_by_group(RouteGroup.CATALOG)) == 5
+    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 5
 
 
 def test_route_map_includes_each_named_behaviour():
@@ -75,6 +77,9 @@ def test_route_map_includes_each_named_behaviour():
         "list_membership_types", "get_membership_type",
         # Lidmaatschap Beheer catalog writes (task 5.3)
         "create_membership_type", "update_membership_type", "deactivate_membership_type",
+        # Member analytics-sets CRUD (F-012)
+        "create_analytics_set", "list_analytics_sets", "get_analytics_set",
+        "update_analytics_set", "delete_analytics_set",
     }
     assert set(route_names()) == expected
 

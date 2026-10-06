@@ -126,6 +126,18 @@ class FakeMembersRepository:
     def deactivate_membership_type(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
+    def get_analytics_set(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_analytics_sets(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def save_analytics_set(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def delete_analytics_set(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
 
 def _member(
     member_id, *, region=None, age_group=None, name="Alex", contact=None, sub=None

@@ -38,7 +38,7 @@ if _BACKEND_SRC not in sys.path:
 
 from services import projection_schema as schema
 
-from sam.members.domain.field_resolver import TenantOverlay
+from sam.members.domain.field_resolver import AnalyticsRole, TenantOverlay
 from sam.members.domain.fixed_fields import FieldType
 from sam.members.domain.scope_dimensions import ScopeConfig
 from sam.members.domain.view_contexts import DEFAULT_CONTEXT_KEY, ViewContext
@@ -309,6 +309,104 @@ class TestGetOverlay:
         assert isinstance(overlay, TenantOverlay)
         assert dict(overlay.fields) == {}
         assert dict(overlay.overrides) == {}
+        # member-analytics R9: no analytics slice authored → None (empty-is-valid, R9.5).
+        assert overlay.analytics is None
+
+
+# ---------------------------------------------------------------------------
+# member-analytics (R9, C-CONFIG) — the analytics slice on config#fields → TenantOverlay.analytics
+#
+# ODI-2: the analytics config rides on the SAME config#fields row (an `analytics` object), so the
+# reader rebuilds it onto TenantOverlay.analytics. Empty-is-valid: an absent/empty slice → None.
+#
+# Validates: Requirements R9.1, R9.5
+# ---------------------------------------------------------------------------
+
+
+def _config_fields_item_with_analytics(tenant_id, analytics, version=1):
+    item = _config_fields_item(tenant_id, fields={}, overrides={}, version=version)
+    item["analytics"] = analytics
+    return item
+
+
+class TestGetOverlayAnalytics:
+    def test_analytics_slice_round_trips_all_three_blocks(self):
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_analytics(
+                "h-dcn",
+                {
+                    "jubilee_rule": {"years": [25, 40, 50]},
+                    "field_roles": {
+                        "cancellation_date": "overlay.opzegdatum",
+                        "clubblad_paper": "overlay.clubblad_papier",
+                    },
+                    "address_mapping": {
+                        "name": "personal.display_name",
+                        "street": "overlay.straat",
+                        "postcode": "overlay.postcode",
+                        "city": "overlay.woonplaats",
+                    },
+                },
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        overlay = reader.get_overlay("h-dcn")
+
+        analytics = overlay.analytics
+        assert analytics is not None
+        assert analytics.jubilee_rule is not None
+        assert analytics.jubilee_rule.years == (25, 40, 50)
+        assert analytics.jubilee_rule.multiple_of is None
+        assert analytics.field_roles[AnalyticsRole.CANCELLATION_DATE] == "overlay.opzegdatum"
+        assert analytics.field_roles[AnalyticsRole.CLUBBLAD_PAPER] == "overlay.clubblad_papier"
+        assert analytics.address_mapping is not None
+        assert analytics.address_mapping.name == "personal.display_name"
+        assert analytics.address_mapping.street == "overlay.straat"
+        assert analytics.address_mapping.country is None  # absent line stays None
+
+    def test_jubilee_multiple_of_rule_round_trips(self):
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_analytics(
+                "h-dcn", {"jubilee_rule": {"multiple_of": 5}}
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        rule = reader.get_overlay("h-dcn").analytics.jubilee_rule
+        assert rule is not None
+        assert rule.multiple_of == 5
+        assert rule.years is None
+
+    def test_unknown_role_token_is_skipped_not_raised(self):
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_analytics(
+                "h-dcn",
+                {"field_roles": {"not_a_real_role": "overlay.x", "referral_source": "overlay.bron"}},
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        roles = reader.get_overlay("h-dcn").analytics.field_roles
+        # The stray token degrades gracefully (skipped); the valid role survives.
+        assert roles == {AnalyticsRole.REFERRAL_SOURCE: "overlay.bron"}
+
+    def test_empty_analytics_slice_collapses_to_none(self):
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_analytics(
+                "h-dcn",
+                {"jubilee_rule": {}, "field_roles": {}, "address_mapping": {}},
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_overlay("h-dcn").analytics is None
+
+    def test_non_dict_analytics_slice_collapses_to_none(self):
+        table = FakeTable()
+        table.put(_config_fields_item_with_analytics("h-dcn", "not-a-dict"))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_overlay("h-dcn").analytics is None
 
 
 # ---------------------------------------------------------------------------

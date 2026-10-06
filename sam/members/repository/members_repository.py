@@ -32,6 +32,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol, runtime_checkable
 
+from sam.members.domain.analytics_set import AnalyticsSetEntry
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.repository import table_design as td
 
@@ -176,6 +177,32 @@ class MembersRepository(Protocol):
         """
         ...
 
+    # ── Analytics-sets (member saved-sets, F-012) ──────────────────────────────────
+
+    def get_analytics_set(
+        self, tenant_id: str, set_id: str
+    ) -> AnalyticsSetEntry | None:
+        """Return the analytics-set ``set_id`` for ``tenant_id``, or ``None`` if absent."""
+        ...
+
+    def list_analytics_sets(
+        self, tenant_id: str
+    ) -> Sequence[AnalyticsSetEntry]:
+        """List a tenant's analytics-set entries, sorted by ``(name, set_id)``."""
+        ...
+
+    def save_analytics_set(
+        self, tenant_id: str, entry: AnalyticsSetEntry
+    ) -> AnalyticsSetEntry:
+        """Create or update an analytics-set for ``tenant_id`` (validated before persist)."""
+        ...
+
+    def delete_analytics_set(
+        self, tenant_id: str, set_id: str
+    ) -> None:
+        """Delete an analytics-set for ``tenant_id``."""
+        ...
+
 
 class _StubMembersRepository:
     """A do-nothing repository whose every method raises :class:`NotImplementedError`.
@@ -231,6 +258,18 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def deactivate_membership_type(self, tenant_id: str, type_code: str):
+        raise NotImplementedError(self._PENDING)
+
+    def get_analytics_set(self, tenant_id: str, set_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def list_analytics_sets(self, tenant_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def save_analytics_set(self, tenant_id: str, entry):
+        raise NotImplementedError(self._PENDING)
+
+    def delete_analytics_set(self, tenant_id: str, set_id: str):
         raise NotImplementedError(self._PENDING)
 
 
@@ -544,3 +583,65 @@ class DynamoDbMembersRepository:
         if not existing.active:
             return existing  # already soft-deleted — idempotent
         return self.save_membership_type(tenant_id, existing.deactivated())
+
+    # ── Analytics-sets (member saved-sets, F-012) ──────────────────────────────────
+
+    def get_analytics_set(
+        self, tenant_id: str, set_id: str
+    ) -> AnalyticsSetEntry | None:
+        self._require_tenant(tenant_id)
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.analytics_set_sk(set_id))
+        )
+        item = response.get("Item")
+        return AnalyticsSetEntry.from_item(item) if item is not None else None
+
+    def list_analytics_sets(
+        self, tenant_id: str
+    ) -> Sequence[AnalyticsSetEntry]:
+        """List the tenant's analytics-set entries, sorted by ``(name, set_id)``.
+
+        Queries the ``analyticsset#`` sub-tree of the tenant partition (isolation is
+        structural — the partition key is pinned to ``tenant_id``), rebuilds each stored item
+        into an :class:`AnalyticsSetEntry`, and sorts by ``(name, set_id)`` so the list renders
+        deterministically.
+        """
+        self._require_tenant(tenant_id)
+        prefix = td.RECORD_TYPE_ANALYTICS_SET + td.SORT_KEY_SEPARATOR
+        entries = [
+            AnalyticsSetEntry.from_item(item)
+            for item in self._query_prefix(tenant_id, prefix)
+        ]
+        entries.sort(key=lambda e: e.sort_order_key())
+        return entries
+
+    def save_analytics_set(
+        self, tenant_id: str, entry: AnalyticsSetEntry
+    ) -> AnalyticsSetEntry:
+        """Create or update an analytics-set, validated before persist.
+
+        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
+        write, Property 1). :meth:`AnalyticsSetEntry.to_item` validates the shape, and
+        :func:`table_design.build_analytics_set_item` stamps the authoritative primary key, so
+        a malformed or misplaced entry can never be written.
+        """
+        self._require_tenant(tenant_id)
+        if entry.tenant_id and entry.tenant_id != tenant_id:
+            raise ValueError(
+                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
+                f"{tenant_id!r} (no cross-tenant write, Property 1)"
+            )
+        bound = (
+            entry if entry.tenant_id == tenant_id else replace(entry, tenant_id=tenant_id)
+        )
+        payload = bound.to_item()
+        item = td.build_analytics_set_item(tenant_id, bound.set_id, payload)
+        self.table.put_item(Item=item)
+        return bound
+
+    def delete_analytics_set(self, tenant_id: str, set_id: str) -> None:
+        """Hard-delete an analytics-set (F-012 — no referencing records to orphan)."""
+        self._require_tenant(tenant_id)
+        self.table.delete_item(
+            Key=td.build_key(tenant_id, td.analytics_set_sk(set_id))
+        )

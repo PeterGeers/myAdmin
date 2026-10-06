@@ -67,6 +67,7 @@ __all__ = [
     "LEADING_KEYS_IAM_POLICY_PLAN",
     "MEMBERS_TABLE_ENV_VAR",
     "PARTITION_KEY_ATTR",
+    "RECORD_TYPE_ANALYTICS_SET",
     "RECORD_TYPE_DELEGATES",
     "RECORD_TYPE_MEMBER",
     "RECORD_TYPE_MEMBERSHIP",
@@ -74,6 +75,8 @@ __all__ = [
     "RECORD_TYPE_PAYMENT",
     "SORT_KEY_ATTR",
     "SORT_KEY_SEPARATOR",
+    "analytics_set_sk",
+    "build_analytics_set_item",
     "build_key",
     "build_member_item",
     "build_membership_type_item",
@@ -136,6 +139,11 @@ RECORD_TYPE_PAYMENT = "payment"
 #: membership type the tenant offers; the member record's ``membership.membership_type``
 #: references its ``type_code``. Lives in the tenant partition like every other entity.
 RECORD_TYPE_MEMBERSHIP_TYPE = "membershiptype"
+
+#: Analytics-set entity (F-012). An ``analyticsset#<set_id>`` item is one member
+#: analytics-set (saved pivot/list definition) the tenant owns; the ``set_id`` is a
+#: server-chosen uuid4 hex. Lives in the tenant partition like every other entity.
+RECORD_TYPE_ANALYTICS_SET = "analyticsset"
 
 
 # --- Sort-key composition / parsing ----------------------------------------
@@ -218,6 +226,11 @@ def payment_sk(member_id: str, payment_id: str) -> str:
 def membership_type_sk(type_code: str) -> str:
     """SK for a Lidmaatschap Beheer catalog entry: ``membershiptype#<type_code>`` (C8)."""
     return build_sort_key(RECORD_TYPE_MEMBERSHIP_TYPE, type_code)
+
+
+def analytics_set_sk(set_id: str) -> str:
+    """SK for an analytics-set entry: ``analyticsset#<set_id>`` (F-012)."""
+    return build_sort_key(RECORD_TYPE_ANALYTICS_SET, set_id)
 
 
 def member_sk_prefix(member_id: str) -> str:
@@ -362,6 +375,40 @@ def build_membership_type_item(
     # Keep the reference code addressable without re-parsing the sort key. (tenant_id is
     # already the partition-key attribute, stamped above.)
     item["type_code"] = type_code
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
+def build_analytics_set_item(
+    tenant_id: str, set_id: str, entry: Mapping[str, Any]
+) -> dict:
+    """Compose the stored DynamoDB item for an analytics-set entry (F-012).
+
+    Stamps the tenant partition key and the ``analyticsset#<set_id>`` sort key onto a copy of
+    the domain-layer ``entry`` payload (``name`` / ``kind`` / ``definition`` / ``created_at`` /
+    ``updated_at``). The caller's ``tenant_id`` and ``set_id`` are authoritative — any values
+    already on the payload are overwritten so a domain-layer mistake can never land an entry in
+    the wrong partition or under the wrong id.
+
+    Args:
+        tenant_id: The tenant (partition key).
+        set_id: The analytics-set id (sort-key id segment; server-chosen uuid4 hex).
+        entry: The domain entry payload (``name`` / ``kind`` / ``definition`` / timestamps).
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + id attrs.
+
+    Raises:
+        ValueError: ``tenant_id`` or ``set_id`` is empty.
+    """
+    if not set_id:
+        raise ValueError("set_id must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = analytics_set_sk(set_id)
+    # Keep the id addressable without re-parsing the sort key.
+    item["set_id"] = set_id
     # Fail-fast if the composed key would be invalid (blank tenant, etc.).
     build_key(tenant_id, item[SORT_KEY_ATTR])
     return item
