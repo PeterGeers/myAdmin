@@ -398,8 +398,16 @@ class TestAIOnlyExtraction:
 
     @patch('database.DatabaseManager')
     @patch('ai_extractor.AIExtractor')
-    def test_ai_extraction_zero_amount_returns_zero(self, mock_ai_class, mock_db_class, processor, file_data):
-        """Test that AI extraction returning total_amount=0 results in transaction with amount=0."""
+    def test_ai_extraction_zero_amount_returns_empty_list(self, mock_ai_class, mock_db_class, processor, file_data):
+        """AI extraction with no positive amount yields an empty list (honest failure).
+
+        Honest-failure fix (pdf-text-extraction-ocr-fallback 3.3): when the AI
+        returns no positive total_amount, extract_transactions no longer
+        fabricates a placeholder transaction (today's date / 0.0 /
+        "<folder> invoice"). It returns an empty list so
+        _determine_parser_used classifies it as "ai_failed" — the channel that
+        surfaces the UI's "No data found in the file" error.
+        """
         # Setup AIExtractor mock to return zero amount
         mock_ai_instance = MagicMock()
         mock_ai_instance.extract_invoice_data.return_value = {
@@ -428,15 +436,20 @@ class TestAIOnlyExtraction:
 
             result = processor.extract_transactions(file_data)
 
+        # No positive amount -> no fabricated transaction, routed to "ai_failed".
         assert isinstance(result, list)
-        assert len(result) >= 1
-        # Transaction should have amount=0 since AI returned no valid amount
-        assert result[0]['amount'] == 0.0
+        assert result == []
 
     @patch('database.DatabaseManager')
     @patch('ai_extractor.AIExtractor')
-    def test_ai_extraction_exception_returns_zero_and_logs(self, mock_ai_class, mock_db_class, processor, file_data, capsys):
-        """Test that AIExtractor raising exception results in logged error and total_amount=0."""
+    def test_ai_extraction_exception_returns_empty_list_and_logs(self, mock_ai_class, mock_db_class, processor, file_data, capsys):
+        """AIExtractor raising yields a logged error and an empty list (honest failure).
+
+        Honest-failure fix (pdf-text-extraction-ocr-fallback 3.3): an AI error
+        produces no usable extraction, so extract_transactions returns an empty
+        list (routed to "ai_failed") instead of fabricating a 0.0 placeholder
+        transaction. The error is still logged to stdout.
+        """
         # Setup AIExtractor mock to raise exception
         mock_ai_instance = MagicMock()
         mock_ai_instance.extract_invoice_data.side_effect = RuntimeError("API connection timeout")
@@ -458,10 +471,9 @@ class TestAIOnlyExtraction:
 
             result = processor.extract_transactions(file_data)
 
-        # Verify transaction has amount=0
+        # AI error -> no fabricated transaction, routed to "ai_failed".
         assert isinstance(result, list)
-        assert len(result) >= 1
-        assert result[0]['amount'] == 0.0
+        assert result == []
 
         # Verify error was logged to stdout
         captured = capsys.readouterr()
