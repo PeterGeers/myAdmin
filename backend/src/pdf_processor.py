@@ -9,7 +9,6 @@ Delegates to:
 """
 
 import os
-from datetime import datetime
 
 from config import Config
 from csv_rules import CsvRuleEngine
@@ -89,19 +88,13 @@ class PDFProcessor:
         if ai_result and ai_result.get("total_amount", 0) > 0:
             return self._format_vendor_transactions(ai_result, file_data)
 
-        # AI failed — return empty transactions with failure marker
-        failure_data = (
-            ai_result
-            if ai_result
-            else {
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "total_amount": 0.0,
-                "vat_amount": 0.0,
-                "description": f"{folder_name} invoice",
-                "vendor": folder_name,
-            }
-        )
-        return self._format_vendor_transactions(failure_data, file_data)
+        # Honest failure: text (and OCR fallback) recovered nothing usable, or
+        # the AI produced no positive amount. Do NOT fabricate placeholder data
+        # (today's date / 0.0 / "<folder> invoice"). Return an empty transaction
+        # list so invoice_service / invoice_test_service._determine_parser_used
+        # classifies it as "ai_failed" — the channel that drives the UI's
+        # explicit "No data found in the file" error.
+        return []
 
     def _extract_with_ai(self, lines, folder_name):
         """Extract invoice data using AI only. No vendor-specific fallback."""
