@@ -15,6 +15,18 @@ def extract_with_ai(lines: list[str], folder_name: str) -> dict | None:
     Returns:
         Dictionary with extracted invoice data, or None on error
     """
+    # Honest failure: never hand empty/whitespace content to the AI model.
+    # When text extraction (and OCR fallback) recovered nothing, short-circuit
+    # before the AI call so the model cannot hallucinate placeholder values.
+    text_content = "\n".join(lines)
+    if not text_content.strip():
+        print(
+            f"Skipping AI extraction for {folder_name}: no text content "
+            "(empty extraction / OCR recovered nothing)",
+            flush=True,
+        )
+        return None
+
     try:
         from ai_extractor import AIExtractor
 
@@ -29,7 +41,6 @@ def extract_with_ai(lines: list[str], folder_name: str) -> dict | None:
         except Exception as e:
             print(f"Could not get previous transactions: {e}")
 
-        text_content = "\n".join(lines)
         print(f"Starting AI extraction for {folder_name}...", flush=True)
         ai_result = ai_extractor.extract_invoice_data(
             text_content, folder_name, previous_transactions

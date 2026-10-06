@@ -628,13 +628,14 @@ class TestAIOnlyExtractionPath:
 
 class TestAIFailureFallbackStructure:
     """
-    Property 3: AI failure produces correct fallback structure
+    Property 3: AI failure returns an empty list (routed to ai_failed), not a fabricated placeholder.
 
     For any folder name, when the AI extractor returns a result with
     total_amount == 0 or raises any exception, the extraction SHALL return
-    a data structure with total_amount set to 0.0, vat_amount set to 0.0,
-    and description containing the folder name. If an exception occurred,
-    the folder name and exception message SHALL be logged to standard output.
+    an empty list so that the caller's _determine_parser_used classifies it
+    as "ai_failed" and surfaces the "No data found in the file" error.
+    If an exception occurred, the folder name and exception message SHALL
+    be logged to standard output.
 
     Feature: vendor-parser-cleanup, Property 3: AI failure produces correct fallback structure
     **Validates: Requirements 2.3, 2.4, 5.1, 5.2**
@@ -642,13 +643,13 @@ class TestAIFailureFallbackStructure:
 
     @settings(max_examples=30)
     @given(folder_name=folder_name_st)
-    def test_ai_zero_amount_produces_fallback_with_zero_amounts(self, folder_name):
+    def test_ai_zero_amount_returns_empty_list(self, folder_name):
         """
         Scenario A: AI returns zero amount.
 
         For any folder name (not matching CSV rules), when AIExtractor returns
-        a result with total_amount=0.0, the output SHALL have total_amount=0.0
-        and vat_amount=0.0.
+        a result with total_amount=0.0, the output SHALL be an empty list
+        (routed to ai_failed), not a fabricated placeholder.
 
         Feature: vendor-parser-cleanup, Property 3: AI failure produces correct fallback structure
         **Validates: Requirements 2.3, 5.1**
@@ -693,23 +694,20 @@ class TestAIFailureFallbackStructure:
             processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
-        # Verify fallback structure
-        assert isinstance(result, list), "Result should be a list of transactions"
-        assert len(result) >= 1, "Should have at least one transaction"
-
-        main_tx = result[0]
-        assert float(main_tx['amount']) == 0.0, (
-            f"Expected amount=0.0, got {main_tx['amount']}"
+        # AI failure returns empty list (routed to ai_failed), not a fabricated placeholder
+        assert result == [], (
+            f"Expected empty list for zero-amount AI result, got {result!r}"
         )
 
     @settings(max_examples=30)
     @given(folder_name=folder_name_st)
-    def test_ai_zero_amount_description_contains_folder_name(self, folder_name):
+    def test_ai_zero_amount_returns_empty_list_no_description(self, folder_name):
         """
         Scenario A: AI returns zero amount.
 
         For any folder name, when AIExtractor returns total_amount=0.0,
-        the description SHALL contain the folder name.
+        the output SHALL be an empty list (routed to ai_failed) — no
+        fabricated placeholder transaction with a folder-name description.
 
         Feature: vendor-parser-cleanup, Property 3: AI failure produces correct fallback structure
         **Validates: Requirements 2.3, 5.1**
@@ -749,23 +747,20 @@ class TestAIFailureFallbackStructure:
             processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
-        assert len(result) >= 1, "Should have at least one transaction"
-        main_tx = result[0]
-        # The description should contain the folder name (lowercased, since
-        # extract_transactions lowercases folder_name)
-        assert folder_lower in main_tx['description'].lower(), (
-            f"Expected folder name '{folder_lower}' in description, "
-            f"got '{main_tx['description']}'"
+        # AI failure returns empty list (routed to ai_failed), not a fabricated placeholder
+        assert result == [], (
+            f"Expected empty list for zero-amount AI result, got {result!r}"
         )
 
     @settings(max_examples=30, derandomize=True)
     @given(folder_name=folder_name_st, error_msg=exception_message_st)
-    def test_ai_exception_produces_fallback_with_zero_amounts(self, folder_name, error_msg):
+    def test_ai_exception_returns_empty_list(self, folder_name, error_msg):
         """
         Scenario B: AI raises exception.
 
         For any folder name and exception message, when AIExtractor raises
-        an Exception, the output SHALL have total_amount=0.0 and vat_amount=0.0.
+        an Exception, the output SHALL be an empty list (routed to ai_failed),
+        not a fabricated placeholder.
 
         Feature: vendor-parser-cleanup, Property 3: AI failure produces correct fallback structure
         **Validates: Requirements 2.4, 5.1**
@@ -795,23 +790,20 @@ class TestAIFailureFallbackStructure:
             processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
-        # Verify fallback structure
-        assert isinstance(result, list), "Result should be a list of transactions"
-        assert len(result) >= 1, "Should have at least one transaction"
-
-        main_tx = result[0]
-        assert float(main_tx['amount']) == 0.0, (
-            f"Expected amount=0.0, got {main_tx['amount']}"
+        # AI failure returns empty list (routed to ai_failed), not a fabricated placeholder
+        assert result == [], (
+            f"Expected empty list for AI exception, got {result!r}"
         )
 
     @settings(max_examples=30)
     @given(folder_name=folder_name_st, error_msg=exception_message_st)
-    def test_ai_exception_description_contains_folder_name(self, folder_name, error_msg):
+    def test_ai_exception_returns_empty_list_no_description(self, folder_name, error_msg):
         """
         Scenario B: AI raises exception.
 
         For any folder name and exception message, when AIExtractor raises
-        an Exception, the description SHALL contain the folder name.
+        an Exception, the output SHALL be an empty list (routed to ai_failed) —
+        no fabricated placeholder transaction with a folder-name description.
 
         Feature: vendor-parser-cleanup, Property 3: AI failure produces correct fallback structure
         **Validates: Requirements 2.4, 5.1**
@@ -841,14 +833,9 @@ class TestAIFailureFallbackStructure:
             processor = PDFProcessor()
             result = processor.extract_transactions(file_data)
 
-        assert len(result) >= 1, "Should have at least one transaction"
-        main_tx = result[0]
-        folder_lower = folder_name.lower()
-        # When AI raises exception, _extract_with_ai returns None,
-        # and extract_transactions creates fallback with '{folder_name} invoice'
-        assert folder_lower in main_tx['description'].lower(), (
-            f"Expected folder name '{folder_lower}' in description, "
-            f"got '{main_tx['description']}'"
+        # AI failure returns empty list (routed to ai_failed), not a fabricated placeholder
+        assert result == [], (
+            f"Expected empty list for AI exception, got {result!r}"
         )
 
     @settings(max_examples=30, derandomize=True)
