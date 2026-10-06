@@ -7,10 +7,22 @@
  * - Statistics table with quartiles
  * - Grouping by listing or channel
  * 
- * Extracted from myAdminReports.tsx (lines 3154-3297)
+ * Extracted from myAdminReports.tsx (lines 3154-3297).
+ *
+ * Task 2.2 (spec `.kiro/specs/Members/member-analytics`, design C3): the bespoke
+ * inline violin + stats implementation has been replaced by the shared
+ * `charts/ViolinChart` (traces, Plotly rendering) and `charts/violinStats` (quartile
+ * math). BNB behavior is UNCHANGED:
+ *   - the chart traces + layout are produced by the shared `ViolinChart`, which lifted
+ *     the BNB trace construction verbatim;
+ *   - BNB keeps its OWN price-aware stats table (€ formatting for the price metric,
+ *     one-decimal mean/range for the nights metric), computed via the shared
+ *     `violinStats` helper, so the rendered figures and formatting are byte-identical
+ *     to the previous inline table. The shared chart renders with `showStats={false}`
+ *     so the generic plain-number table never double-renders here.
  */
 
-import React, { useState, useEffect, Suspense, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -32,9 +44,7 @@ import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { useTenant } from '../../context/TenantContext';
-
-// Lazy load Plotly only when needed (reduces initial bundle size)
-const Plot = React.lazy(() => import('../PlotlyChart'));
+import { ViolinChart, violinStats, type ViolinDatum } from '../charts';
 
 interface BnbViolinFilterOptions {
   years: string[];
@@ -48,10 +58,13 @@ interface ViolinDataPoint {
   value: number;
 }
 
-interface ViolinChartProps {
+/** Group BNB points by the chosen domain field (listing or channel). */
+type BnbGroupBy = 'listing' | 'channel';
+
+interface BnbViolinChartProps {
   data: ViolinDataPoint[];
   metric: string;
-  groupBy: string;
+  groupBy: BnbGroupBy;
 }
 
 interface StatsData {
@@ -67,146 +80,81 @@ interface StatsData {
 }
 
 /**
- * Violin Chart Component using Plotly
- * Displays distribution data with kernel density estimation
+ * BNB violin chart + stats table.
+ *
+ * Maps the BNB domain shape `{listing, channel, value}` onto the generic
+ * `ViolinDatum {group, value}` via the selected `groupBy`, renders the shared
+ * `ViolinChart` for the plot, and keeps the BNB-specific price-aware stats table
+ * (computed with the shared `violinStats`).
  */
-const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
+const BnbViolinChart: React.FC<BnbViolinChartProps> = ({ data, metric, groupBy }) => {
   const { t } = useTypedTranslation('reports');
-  const { plotData, statsData } = useMemo(() => {
-    if (!data.length) return { plotData: [], statsData: [] };
-    
-    // Group data by the specified field (listing or channel)
-    const grouped = data.reduce((acc, item) => {
-      const key = item[groupBy as keyof ViolinDataPoint] as string;
+
+  // Map {listing, channel, value} -> ViolinDatum {group, value} via the chosen
+  // grouping field. This preserves the previous grouping behavior exactly: group
+  // key is the listing/channel string, value is coerced to a number.
+  const violinData: ViolinDatum[] = useMemo(
+    () =>
+      data.map((item) => ({
+        group: item[groupBy],
+        value: Number(item.value) || 0,
+      })),
+    [data, groupBy]
+  );
+
+  // BNB-specific stats table, computed with the SHARED violinStats so the quartile
+  // math matches the chart. Grouping + alphabetical sort reproduce the original.
+  const statsData: StatsData[] = useMemo(() => {
+    if (!violinData.length) return [];
+
+    const grouped = violinData.reduce((acc, item) => {
+      const key = item.group;
       if (!acc[key]) acc[key] = [];
-      acc[key].push(Number(item.value) || 0);
+      acc[key].push(item.value);
       return acc;
     }, {} as Record<string, number[]>);
-    
-    // Sort groups alphabetically
-    const sortedGroups = Object.keys(grouped).sort();
-    
-    // Create Plotly violin traces
-    const plotData = sortedGroups.map(name => ({
-      type: 'violin',
-      y: grouped[name],
-      name: name,
-      box: {
-        visible: true,
-        fillcolor: 'rgba(49, 130, 206, 0.5)',
-        line: {
-          color: 'rgb(49, 130, 206)',
-          width: 2
-        }
-      },
-      meanline: {
-        visible: true,
-        color: 'rgb(245, 101, 0)',
-        width: 2
-      },
-      line: {
-        color: 'rgb(49, 130, 206)',
-        width: 2
-      },
-      fillcolor: 'rgba(49, 130, 206, 0.3)',
-      opacity: 0.6,
-      points: false,
-      hoveron: 'violins+points',
-      hovertemplate: '<b>%{fullData.name}</b><br>' +
-                     'Value: %{y}<br>' +
-                     '<extra></extra>'
-    } as any));
-    
-    // Calculate statistics for the table
-    const statsData: StatsData[] = sortedGroups.map(name => {
-      const values = grouped[name].sort((a: number, b: number) => a - b);
-      const len = values.length;
-      
-      const min = values[0];
-      const max = values[len - 1];
-      const median = len % 2 === 0 
-        ? (values[len / 2 - 1] + values[len / 2]) / 2
-        : values[Math.floor(len / 2)];
-      const q1 = values[Math.floor(len * 0.25)];
-      const q3 = values[Math.floor(len * 0.75)];
-      const mean = values.reduce((sum: number, val: number) => sum + val, 0) / len;
-      
-      return {
+
+    return Object.keys(grouped)
+      .sort()
+      .map((name) => ({
         name,
-        count: len,
-        min,
-        q1,
-        median,
-        mean,
-        q3,
-        max,
-        range: max - min
-      };
-    });
-    
-    return { plotData, statsData };
-  }, [data, groupBy]);
-  
-  if (!plotData.length) {
+        // violinStats sorts its input in place; pass a copy to be safe.
+        ...violinStats([...grouped[name]]),
+      }));
+  }, [violinData]);
+
+  if (!violinData.length) {
     return (
       <Box p={4} textAlign="center">
         <Text color="white">{t('charts.noData')}</Text>
       </Box>
     );
   }
-  
-  const metricLabel = metric === 'pricePerNight' ? t('bnb.pricePerNightEuro') : t('bnb.nightsPerStay');
+
+  const metricLabel =
+    metric === 'pricePerNight' ? t('bnb.pricePerNightEuro') : t('bnb.nightsPerStay');
+  const groupLabel = groupBy === 'listing' ? t('filters.listing') : t('filters.channel');
   const isPriceMetric = metric === 'pricePerNight';
-  
+
   return (
     <VStack spacing={4}>
-      {/* Plotly Violin Chart */}
-      <Box w="100%" bg="white" borderRadius="md" p={2}>
-        <Suspense fallback={
-          <Box p={8} textAlign="center">
-            <Progress size="xs" isIndeterminate colorScheme="orange" mb={2} />
-            <Text color="gray.600" fontSize="sm">{t('bnb.loadingViolinChart')}</Text>
-          </Box>
-        }>
-          <Plot
-            data={plotData as any}
-            layout={{
-              title: metricLabel + ' ' + t('charts.distribution'),
-              yaxis: {
-                title: { text: metricLabel },
-                zeroline: false,
-                gridcolor: '#e2e8f0'
-              },
-              xaxis: {
-                title: { text: groupBy === 'listing' ? t('filters.listing') : t('filters.channel') },
-                gridcolor: '#e2e8f0'
-              },
-              paper_bgcolor: 'white',
-              plot_bgcolor: 'white',
-              showlegend: false,
-              hovermode: 'closest',
-              margin: { l: 60, r: 30, t: 50, b: 100 },
-              height: 500
-            } as any}
-            config={{
-              responsive: true,
-              displayModeBar: true,
-              displaylogo: false,
-              modeBarButtonsToRemove: ['lasso2d', 'select2d']
-            }}
-            style={{ width: '100%', height: '500px' }}
-          />
-        </Suspense>
-      </Box>
-      
-      {/* Statistics Summary Table */}
+      {/* Shared Plotly Violin Chart — stats table rendered separately below to keep
+          the BNB-specific price/decimal formatting. */}
+      <ViolinChart
+        data={violinData}
+        metricLabel={metricLabel}
+        groupLabel={groupLabel}
+        showStats={false}
+      />
+
+      {/* BNB price-aware Statistics Summary Table (unchanged rendering) */}
       <Card bg="gray.600" w="100%">
         <CardBody>
           <TableContainer>
             <Table size="sm" variant="simple">
               <Thead>
                 <Tr>
-                  <Th color="white">{groupBy === 'listing' ? t('filters.listing') : t('filters.channel')}</Th>
+                  <Th color="white">{groupLabel}</Th>
                   <Th color="white" isNumeric>{t('charts.count')}</Th>
                   <Th color="white" isNumeric>{t('bnb.min')}</Th>
                   <Th color="white" isNumeric>{t('bnb.q1')}</Th>
@@ -260,25 +208,25 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
 const BnbViolinsReport: React.FC = () => {
   const { t } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
-  
+
   // Metric options constant
   const metricOptions = [
     { value: 'pricePerNight', label: t('bnb.pricePerNight') },
     { value: 'nightsPerStay', label: t('bnb.daysPerStay') }
   ];
-  
+
   // Separate state for each filter
   const [selectedYears, setSelectedYears] = useState<string[]>([new Date().getFullYear().toString()]);
   const [selectedMetric, setSelectedMetric] = useState<string>('pricePerNight'); // 'pricePerNight' or 'nightsPerStay'
   const [selectedListings, setSelectedListings] = useState<string[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
-  
+
   const [bnbViolinFilterOptions, setBnbViolinFilterOptions] = useState<BnbViolinFilterOptions>({
     years: [],
     listings: [],
     channels: []
   });
-  
+
   const [bnbViolinData, setBnbViolinData] = useState<ViolinDataPoint[]>([]);
   const [bnbViolinLoading, setBnbViolinLoading] = useState(false);
 
@@ -300,10 +248,10 @@ const BnbViolinsReport: React.FC = () => {
         metric: selectedMetric,
         administration: currentTenant
       });
-      
+
       const response = await authenticatedGet(buildEndpoint('/api/bnb/bnb-violin-data', params));
       const data = await response.json();
-      
+
       if (data.success) {
         setBnbViolinData(data.data);
       }
@@ -346,12 +294,12 @@ const BnbViolinsReport: React.FC = () => {
     selectedMetric,
     currentTenant
   ], [selectedYears, selectedListings, selectedChannels, selectedMetric, currentTenant]);
-  
+
   useEffect(() => {
     if (selectedYears.length > 0 && currentTenant) {
       fetchBnbViolinData();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, bnbViolinFilterDeps);
 
   return (
@@ -433,10 +381,10 @@ const BnbViolinsReport: React.FC = () => {
               </Heading>
             </CardHeader>
             <CardBody>
-              <ViolinChart 
-                data={bnbViolinData} 
-                metric={selectedMetric} 
-                groupBy="listing" 
+              <BnbViolinChart
+                data={bnbViolinData}
+                metric={selectedMetric}
+                groupBy="listing"
               />
             </CardBody>
           </Card>
@@ -449,10 +397,10 @@ const BnbViolinsReport: React.FC = () => {
               </Heading>
             </CardHeader>
             <CardBody>
-              <ViolinChart 
-                data={bnbViolinData} 
-                metric={selectedMetric} 
-                groupBy="channel" 
+              <BnbViolinChart
+                data={bnbViolinData}
+                metric={selectedMetric}
+                groupBy="channel"
               />
             </CardBody>
           </Card>

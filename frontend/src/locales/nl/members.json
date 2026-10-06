@@ -2,6 +2,228 @@
   "overview": {
     "title": "Leden Overzicht"
   },
+  "analytics": {
+    "title": "Analyse",
+    "navLabel": "Analyse",
+    "subtitle": "Ledenanalyse over uw geautoriseerde selectie",
+    "noPermission": "U heeft geen toestemming om Ledenanalyse te bekijken.",
+    "areas": {
+      "overview": "Overzicht",
+      "distributions": "Verdelingen",
+      "pivotViews": "Draaitabellen"
+    },
+    "overview": {
+      "title": "Overzicht",
+      "stats": {
+        "count": "Aantal leden",
+        "avgAge": "Gemiddelde leeftijd",
+        "avgYearsMember": "Gemiddeld aantal lidjaren",
+        "activeCount": "Actieve leden",
+        "topRegions": "Topregio's",
+        "membersPerType": "Leden per lidmaatschapstype"
+      },
+      "excludedCount": "{{count}} van {{total}} rijen uitgesloten (ontbrekende of ongeldige waarde)"
+    },
+    "distributions": {
+      "title": "Verdelingen",
+      "metrics": {
+        "age": "Leeftijd",
+        "yearsMember": "Lidjaren"
+      },
+      "groupBy": {
+        "label": "Groeperen op",
+        "none": "Geen groepering",
+        "region": "Regio",
+        "membershipType": "Lidmaatschapstype",
+        "gender": "Geslacht"
+      },
+      "stats": {
+        "count": "Aantal",
+        "min": "Min",
+        "q1": "Q1",
+        "median": "Mediaan",
+        "mean": "Gemiddelde",
+        "q3": "Q3",
+        "max": "Max",
+        "range": "Spreiding"
+      }
+    },
+    "pivotViews": {
+      "title": "Draaitabellen",
+      "selectSet": "Kies een set",
+      "selectSetPlaceholder": "Selecteer een set…",
+      "execute": "Uitvoeren",
+      "savedSets": "Opgeslagen sets",
+      "presets": "Voorgedefinieerde sets",
+      "newSet": "Nieuwe set",
+      "save": "Opslaan",
+      "saveAs": "Opslaan als",
+      "update": "Bijwerken",
+      "delete": "Verwijderen",
+      "jubileeYear": "Jubileumjaar",
+      "jubileeYearPlaceholder": "Kies een jubileumjaar",
+      "joinedAfter": "Lid sinds (jaar)",
+      "joinedAfterPlaceholder": "Kies een beginjaar",
+      "presetNames": {
+        "membershipTypes": "Leden per lidmaatschapstype",
+        "birthdayBirthMonth": "Verjaardag / geboortemaand",
+        "jubilees": "Jubilea (lidjaren)",
+        "newMembers": "Nieuwe leden (inschrijfdatum)",
+        "cancellations": "Opzeggingen (opzegdatum)",
+        "clubbladPaperCountry": "Clubblad: papier / land",
+        "clubbladDigital": "Clubblad: digitaal",
+        "referralSource": "Verwijzingsbron"
+      },
+      "fieldPicker": {
+        "title": "Velden kiezen",
+        "cancel": "Annuleren",
+        "confirm": "Toepassen",
+        "groupColumns": "Groeperen op",
+        "groupColumnsHint": "Velden om rijen op te groeperen. Laat leeg voor een gefilterde ledenlijst.",
+        "listColumns": "Lijstkolommen",
+        "listColumnsHint": "Kolommen die in de ledenlijst worden getoond. Alleen zichtbaar bij een gefilterde lijst (zonder groeperen).",
+        "measures": "Metingen",
+        "measuresHint": "Aggregaties die per groep worden berekend.",
+        "availableFields": "Beschikbare velden",
+        "noFields": "Geen velden beschikbaar",
+        "addMeasure": "Meting toevoegen",
+        "removeMeasure": "Meting verwijderen",
+        "measureFunction": "Functie",
+        "measureColumn": "Kolom",
+        "countAll": "Alle rijen",
+        "name": "Setnaam",
+        "namePlaceholder": "Geef deze set een naam…",
+        "save": "Set opslaan",
+        "seededFrom": "Overgenomen van: {{preset}}",
+        "nameRequired": "Voer een naam in om de set op te slaan",
+        "selectionRequired": "Kies ten minste één groepeerkolom of meting",
+        "filters": "Filters",
+        "filtersHint": "Beperk de set tot leden van wie een veld gelijk is aan een waarde (bijv. clubblad = Papier). Wordt met de set opgeslagen.",
+        "addFilter": "Filter toevoegen",
+        "removeFilter": "Filter verwijderen",
+        "filterField": "Veld",
+        "filterValue": "Waarde",
+        "functions": {
+          "COUNT": "Aantal",
+          "SUM": "Som",
+          "AVG": "Gemiddelde",
+          "MIN": "Minimum",
+          "MAX": "Maximum"
+        },
+        "toast": {
+          "saved": "Set opgeslagen",
+          "saveError": "Opslaan van de set is mislukt",
+          "updated": "Set bijgewerkt",
+          "updateError": "Bijwerken van de set is mislukt"
+        },
+        "updateTitle": "Set bewerken",
+        "update": "Set bijwerken"
+      },
+      "lifecycle": {
+        "deleted": "Set verwijderd",
+        "deleteError": "Verwijderen van de set is mislukt",
+        "confirmDeleteTitle": "Set verwijderen",
+        "confirmDelete": "Set \"{{name}}\" verwijderen? Dit kan niet ongedaan worden gemaakt.",
+        "confirmDeleteCancel": "Annuleren",
+        "confirmDeleteConfirm": "Verwijderen"
+      },
+      "aggregates": {
+        "COUNT": "Aantal",
+        "SUM": "Som",
+        "AVG": "Gemiddelde",
+        "MIN": "Minimum",
+        "MAX": "Maximum"
+      },
+      "library": {
+        "open": "Alle sets",
+        "title": "Alle sets",
+        "description": "Alle voorgedefinieerde en opgeslagen sets, op naam gesorteerd. Voeg sets toe aan je keuzelijst of voer ze uit.",
+        "filterPlaceholder": "Zoek een set op naam…",
+        "empty": "Geen sets gevonden voor je zoekopdracht.",
+        "add": "Toevoegen aan mijn lijst",
+        "remove": "Verwijderen uit mijn lijst",
+        "delete": "Set permanent verwijderen"
+      },
+      "preferred": {
+        "title": "Mijn voorkeurslijst",
+        "description": "Je persoonlijke shortlist van sets, in je eigen volgorde. Alleen jij ziet deze.",
+        "empty": "Je voorkeurslijst is leeg. Voeg een set toe vanuit de lijst rechts.",
+        "add": "Toevoegen aan mijn lijst",
+        "remove": "Verwijderen",
+        "moveUp": "Omhoog",
+        "moveDown": "Omlaag",
+        "alreadyAdded": "Staat al in je lijst",
+        "run": "Uitvoeren",
+        "filterPlaceholder": "Zoek in je lijst…",
+        "saved": "Voorkeurslijst bijgewerkt",
+        "saveError": "Opslaan van je voorkeurslijst is mislukt"
+      }
+    },
+    "export": {
+      "csv": "Exporteren naar CSV",
+      "pdfLabels": "Adreslabels (PDF)",
+      "mail": "E-mailen",
+      "empty": "Geen gegevens om te exporteren"
+    },
+    "labels": {
+      "format": "Labelformaat",
+      "sortOrder": "Sorteervolgorde",
+      "sort": {
+        "name": "Op naam",
+        "postcode": "Op postcode",
+        "region": "Op regio"
+      },
+      "startPosition": "Starten bij label",
+      "alignment": "Uitlijning",
+      "align": {
+        "left": "Links",
+        "center": "Gecentreerd",
+        "right": "Rechts"
+      },
+      "fontSize": "Lettergrootte",
+      "showBorder": "Rand tonen",
+      "showCountry": "Land tonen",
+      "labelCount": "{{count}} labels",
+      "pageCount": "{{count}} pagina's",
+      "excludedCount": "{{count}} uitgesloten (onvolledig adres)"
+    },
+    "mail": {
+      "title": "E-mail versturen",
+      "subject": "Onderwerp",
+      "body": "Bericht",
+      "subjectTemplate": "Bericht aan onze leden",
+      "bodyTemplate": "Beste lid,\n\n\n\nMet vriendelijke groet,\nHet bestuur",
+      "attachCsv": "CSV bijvoegen",
+      "attachPdf": "PDF-labels bijvoegen",
+      "recipientCount": "{{count}} ontvangers",
+      "recipientCountZero": "Geen ontvangers met een herleidbaar e-mailadres",
+      "confirm": "U staat op het punt {{count}} ontvangers te e-mailen (als BCC). Doorgaan?",
+      "noEmailField": "Er is geen e-mailveld geconfigureerd; ontvangers kunnen niet worden bepaald",
+      "send": "Versturen",
+      "cancel": "Annuleren",
+      "toast": {
+        "success": "E-mail verstuurd",
+        "error": "Versturen van e-mail mislukt",
+        "rateLimited": "Verzendlimiet bereikt. Probeer het later opnieuw."
+      }
+    },
+    "states": {
+      "empty": "Geen leden in de huidige selectie",
+      "loadError": "Laden van analysegegevens mislukt",
+      "retry": "Opnieuw proberen",
+      "notEnoughPoints": "Onvoldoende gegevens om een verdeling te tonen"
+    },
+    "degradation": {
+      "noConfig": "Geen analyseconfiguratie ingesteld; configuratie-afhankelijke sets zijn niet beschikbaar",
+      "roleUnmapped": "Deze set is niet beschikbaar: het veld is niet geconfigureerd voor deze organisatie",
+      "fieldAbsent": "Deze set is niet beschikbaar: het benodigde veld ontbreekt",
+      "addressMappingAbsent": "Adreslabels zijn niet beschikbaar: adresvelden zijn niet geconfigureerd"
+    },
+    "overLimit": {
+      "warning": "De gegevensset nadert de maximale grootte; resultaten kunnen onvolledig zijn",
+      "exceeded": "Gegevensset te groot om te verwerken"
+    }
+  },
   "actions": {
     "add": "Nieuw lid",
     "export": "Exporteren",

@@ -74,6 +74,43 @@ export interface PivotResultTableProps {
   numberFormat?: NumberFormat;
   /** Callback when the user changes the number format via the toggle */
   onNumberFormatChange?: (format: NumberFormat) => void;
+  /**
+   * Suppress the table's built-in `PivotExportMenu` (findings F-008). The menu's
+   * "Export underlying data" option calls the Flask SQL `exportUnderlying` path,
+   * which only works for the server-side SQL engine — it fails for the
+   * client-side Member Analytics adapter (`data_source: 'members'`). A consumer
+   * that provides its OWN output actions (Member Analytics: one CSV / PDF-labels
+   * / mail group in the capability-gated `pivot-result-actions` slot) sets this
+   * so there is a SINGLE action group, not a duplicate + a broken underlying
+   * export. Defaults to `false` — FIN/STR keep the framework's built-in menu.
+   */
+  hideExportMenu?: boolean;
+  /**
+   * Called whenever the table's VISIBLE rows change — i.e. the rows after the
+   * user's in-table column filters + sort are applied (flat mode's
+   * `processedData`). A consumer that owns its OWN export actions (Member
+   * Analytics: the CSV / PDF-labels / mail group in the capability-gated
+   * `pivot-result-actions` slot) uses this so an export reflects exactly the
+   * filtered subset the user SEES, not the full unfiltered result (findings:
+   * "table filters do not limit the export"). Fires on mount and on every
+   * filter/sort change. Only wired for flat mode (the mode member analytics
+   * uses); hierarchical/pivoted modes manage their own derived rows.
+   */
+  onVisibleRowsChange?: (rows: Record<string, any>[]) => void;
+  /**
+   * Optional display-label map for result columns, keyed by a column's raw
+   * `name` (findings: "result column headers stay English"). The pivot result's
+   * `columns[].name` is the raw field key (`membership_type`, `clubblad`) or an
+   * aggregate expression (`COUNT(*)`, `SUM(age)`); the SQL framework renders that
+   * verbatim, so a Dutch tenant sees English keys even though `fieldConfig` has
+   * Dutch labels. When provided, a header renders `columnLabels[col.name]`
+   * (falling back to `col.name` when a column is not mapped), so the consumer
+   * (Member Analytics) can localize headers from its field config without
+   * changing the SQL callers (FIN/STR omit this prop → unchanged DB-key
+   * behavior). The underlying result data + export keys are unaffected — this is
+   * purely a header display concern.
+   */
+  columnLabels?: Record<string, string>;
 }
 
 /** The three available number format options for the toggle. */
@@ -179,9 +216,21 @@ export function PivotResultTable({
   isLoading,
   numberFormat,
   onNumberFormatChange,
+  hideExportMenu = false,
+  onVisibleRowsChange,
+  columnLabels,
 }: PivotResultTableProps): React.ReactElement {
   const { t, i18n } = useTypedTranslation('reports');
   const locale = resolveLocale(i18n.language);
+
+  // Resolve a column's HEADER label: the consumer-supplied `columnLabels` map
+  // (keyed by the raw column name) when present, else the raw name verbatim.
+  // Purely a display concern — the result data + export keys stay the raw name,
+  // and a SQL caller (FIN/STR) that omits the prop renders the DB key unchanged.
+  const labelForColumn = useCallback(
+    (name: string): string => columnLabels?.[name] ?? name,
+    [columnLabels],
+  );
 
   // Internal number format state — controlled externally when numberFormat prop is set
   const [internalFormat, setInternalFormat] = useState<NumberFormat>('decimal');
@@ -230,7 +279,7 @@ export function PivotResultTable({
     } else {
       setTreeNodes([]);
     }
-     
+
   }, [data, isHierarchical, groupColumnNames, aggregateColumnNames, aggregateFunctionMap]);
 
   // Flatten tree for rendering (respects expand/collapse state)
@@ -285,6 +334,17 @@ export function PivotResultTable({
     initialFilters,
   });
 
+  // Report the VISIBLE (post-filter/sort) rows to a consumer that owns its own
+  // export (Member Analytics) so an export reflects the filtered subset the user
+  // sees, not the full result (findings: "table filters do not limit the
+  // export"). Flat mode only — the mode member analytics uses; the hook's
+  // `processedData` is the authoritative filtered+sorted row set.
+  useEffect(() => {
+    if (!onVisibleRowsChange) return;
+    if (isPivoted || isHierarchical) return;
+    onVisibleRowsChange(processedData);
+  }, [onVisibleRowsChange, processedData, isPivoted, isHierarchical]);
+
   const columnSortDirection = (field: string): 'asc' | 'desc' | null => {
     return sortField === field ? sortDirection : null;
   };
@@ -327,13 +387,18 @@ export function PivotResultTable({
           </ButtonGroup>
         )}
 
-        {/* CSV export menu */}
-        <PivotExportMenu
-          data={data}
-          columns={columns}
-          config={config}
-          numberFormat={activeFormat}
-        />
+        {/* CSV export menu — suppressed when the consumer owns its own output
+            actions (findings F-008: Member Analytics provides a single
+            CSV/PDF-labels/mail group and must not also show the framework's
+            two-option menu with the broken "Export underlying data"). */}
+        {!hideExportMenu && (
+          <PivotExportMenu
+            data={data}
+            columns={columns}
+            config={config}
+            numberFormat={activeFormat}
+          />
+        )}
       </Flex>
 
       {/* Number format toggle — only shown when aggregate columns exist */}
@@ -418,7 +483,7 @@ export function PivotResultTable({
                     <Tr>
                       {/* Single "Group" header for the tree label column */}
                       <Th color="gray.300" fontSize="xs" borderColor="gray.600">
-                        {groupColumnNames.join(' → ')}
+                        {groupColumnNames.map(labelForColumn).join(' → ')}
                       </Th>
                       {/* Aggregate column headers */}
                       {columns
@@ -431,7 +496,7 @@ export function PivotResultTable({
                             borderColor="gray.600"
                             isNumeric
                           >
-                            {col.name}
+                            {labelForColumn(col.name)}
                           </Th>
                         ))}
                     </Tr>
@@ -535,7 +600,7 @@ export function PivotResultTable({
                       {columns.map((col) => (
                         <FilterableHeader
                           key={col.name}
-                          label={col.name}
+                          label={labelForColumn(col.name)}
                           filterValue={filters[col.name]}
                           onFilterChange={(v) => setFilter(col.name, v)}
                           sortable

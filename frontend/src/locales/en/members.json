@@ -2,6 +2,228 @@
   "overview": {
     "title": "Members Overview"
   },
+  "analytics": {
+    "title": "Analytics",
+    "navLabel": "Analytics",
+    "subtitle": "Member analytics over your scope-authorized set",
+    "noPermission": "You do not have permission to view Member Analytics.",
+    "areas": {
+      "overview": "Overview",
+      "distributions": "Distributions",
+      "pivotViews": "Pivot Views"
+    },
+    "overview": {
+      "title": "Overview",
+      "stats": {
+        "count": "Number of members",
+        "avgAge": "Average age",
+        "avgYearsMember": "Average years-member",
+        "activeCount": "Active members",
+        "topRegions": "Top regions",
+        "membersPerType": "Members per membership type"
+      },
+      "excludedCount": "{{count}} of {{total}} rows excluded (missing or invalid value)"
+    },
+    "distributions": {
+      "title": "Distributions",
+      "metrics": {
+        "age": "Age",
+        "yearsMember": "Years-member"
+      },
+      "groupBy": {
+        "label": "Group by",
+        "none": "No grouping",
+        "region": "Region",
+        "membershipType": "Membership type",
+        "gender": "Gender"
+      },
+      "stats": {
+        "count": "Count",
+        "min": "Min",
+        "q1": "Q1",
+        "median": "Median",
+        "mean": "Mean",
+        "q3": "Q3",
+        "max": "Max",
+        "range": "Range"
+      }
+    },
+    "pivotViews": {
+      "title": "Pivot Views",
+      "selectSet": "Select a set",
+      "selectSetPlaceholder": "Select a set…",
+      "execute": "Execute",
+      "savedSets": "Saved sets",
+      "presets": "Predefined sets",
+      "newSet": "New set",
+      "save": "Save",
+      "saveAs": "Save as",
+      "update": "Update",
+      "delete": "Delete",
+      "jubileeYear": "Jubilee year",
+      "jubileeYearPlaceholder": "Select a jubilee year",
+      "joinedAfter": "Joined since (year)",
+      "joinedAfterPlaceholder": "Select a start year",
+      "presetNames": {
+        "membershipTypes": "Members per membership type",
+        "birthdayBirthMonth": "Birthday / birth month",
+        "jubilees": "Jubilees (years-member)",
+        "newMembers": "New members (joined date)",
+        "cancellations": "Cancellations (cancellation date)",
+        "clubbladPaperCountry": "Clubblad: paper / country",
+        "clubbladDigital": "Clubblad: digital",
+        "referralSource": "Referral source"
+      },
+      "fieldPicker": {
+        "title": "Select fields",
+        "cancel": "Cancel",
+        "confirm": "Apply",
+        "groupColumns": "Group by",
+        "groupColumnsHint": "Fields to group rows by. Leave empty for a filtered list of members.",
+        "listColumns": "List columns",
+        "listColumnsHint": "Columns to show in the member list. Shown only for a filtered list (no group-by).",
+        "measures": "Measures",
+        "measuresHint": "Aggregates to compute per group.",
+        "availableFields": "Available fields",
+        "noFields": "No fields available",
+        "addMeasure": "Add measure",
+        "removeMeasure": "Remove measure",
+        "measureFunction": "Function",
+        "measureColumn": "Column",
+        "countAll": "All rows",
+        "name": "Set name",
+        "namePlaceholder": "Name this set…",
+        "save": "Save set",
+        "seededFrom": "Seeded from: {{preset}}",
+        "nameRequired": "Enter a name to save the set",
+        "selectionRequired": "Choose at least one group column or measure",
+        "filters": "Filters",
+        "filtersHint": "Narrow the set to members whose field equals a value (e.g. clubblad = Paper). Saved with the set.",
+        "addFilter": "Add filter",
+        "removeFilter": "Remove filter",
+        "filterField": "Field",
+        "filterValue": "Value",
+        "functions": {
+          "COUNT": "Count",
+          "SUM": "Sum",
+          "AVG": "Average",
+          "MIN": "Minimum",
+          "MAX": "Maximum"
+        },
+        "toast": {
+          "saved": "Set saved",
+          "saveError": "Failed to save the set",
+          "updated": "Set updated",
+          "updateError": "Failed to update the set"
+        },
+        "updateTitle": "Edit set",
+        "update": "Update set"
+      },
+      "lifecycle": {
+        "deleted": "Set deleted",
+        "deleteError": "Failed to delete the set",
+        "confirmDeleteTitle": "Delete set",
+        "confirmDelete": "Delete the set \"{{name}}\"? This cannot be undone.",
+        "confirmDeleteCancel": "Cancel",
+        "confirmDeleteConfirm": "Delete"
+      },
+      "aggregates": {
+        "COUNT": "Count",
+        "SUM": "Sum",
+        "AVG": "Average",
+        "MIN": "Minimum",
+        "MAX": "Maximum"
+      },
+      "library": {
+        "open": "All sets",
+        "title": "All sets",
+        "description": "Every predefined and saved set, sorted by name. Add sets to your picker, or run them.",
+        "filterPlaceholder": "Find a set by name…",
+        "empty": "No sets match your search.",
+        "add": "Add to my list",
+        "remove": "Remove from my list",
+        "delete": "Delete set permanently"
+      },
+      "preferred": {
+        "title": "My preferred list",
+        "description": "Your personal shortlist of sets, in your own order. Only you see it.",
+        "empty": "Your preferred list is empty. Add a set from the list on the right.",
+        "add": "Add to my list",
+        "remove": "Remove",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "alreadyAdded": "Already in your list",
+        "run": "Run",
+        "filterPlaceholder": "Find in your list…",
+        "saved": "Preferred list updated",
+        "saveError": "Failed to save your preferred list"
+      }
+    },
+    "export": {
+      "csv": "Export to CSV",
+      "pdfLabels": "Address labels (PDF)",
+      "mail": "Mail",
+      "empty": "No data to export"
+    },
+    "labels": {
+      "format": "Label format",
+      "sortOrder": "Sort order",
+      "sort": {
+        "name": "By name",
+        "postcode": "By postcode",
+        "region": "By region"
+      },
+      "startPosition": "Start at label",
+      "alignment": "Alignment",
+      "align": {
+        "left": "Left",
+        "center": "Center",
+        "right": "Right"
+      },
+      "fontSize": "Font size",
+      "showBorder": "Show border",
+      "showCountry": "Show country",
+      "labelCount": "{{count}} labels",
+      "pageCount": "{{count}} pages",
+      "excludedCount": "{{count}} excluded (incomplete address)"
+    },
+    "mail": {
+      "title": "Send mail",
+      "subject": "Subject",
+      "body": "Message",
+      "subjectTemplate": "Message to our members",
+      "bodyTemplate": "Dear member,\n\n\n\nKind regards,\nThe board",
+      "attachCsv": "Attach CSV",
+      "attachPdf": "Attach PDF labels",
+      "recipientCount": "{{count}} recipients",
+      "recipientCountZero": "No recipients with a resolvable email address",
+      "confirm": "You are about to email {{count}} recipients (as BCC). Continue?",
+      "noEmailField": "No email field is configured; cannot resolve recipients",
+      "send": "Send",
+      "cancel": "Cancel",
+      "toast": {
+        "success": "Mail sent",
+        "error": "Failed to send mail",
+        "rateLimited": "Send rate limit reached. Please try again later."
+      }
+    },
+    "states": {
+      "empty": "No members in the current selection",
+      "loadError": "Failed to load analytics data",
+      "retry": "Retry",
+      "notEnoughPoints": "Not enough data to show a distribution"
+    },
+    "degradation": {
+      "noConfig": "No analytics config set; config-dependent sets are unavailable",
+      "roleUnmapped": "This set is unavailable: the field is not configured for this organization",
+      "fieldAbsent": "This set is unavailable: the required field is missing",
+      "addressMappingAbsent": "Address labels are unavailable: address fields are not configured"
+    },
+    "overLimit": {
+      "warning": "The dataset is nearing the maximum size; results may be incomplete",
+      "exceeded": "Dataset too large to process"
+    }
+  },
   "actions": {
     "add": "New member",
     "export": "Export",

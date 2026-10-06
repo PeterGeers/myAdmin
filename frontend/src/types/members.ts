@@ -13,6 +13,8 @@
  * _Requirements: R7.5, R7.6_
  */
 
+import type { PivotConfig } from './pivot';
+
 /** A localized label ({ nl, en }) as emitted by the projection/field-config. */
 export interface LocalizedLabel {
   nl?: string;
@@ -83,6 +85,62 @@ export interface MembershipType {
   label?: string | LocalizedLabel;
   /** Whether the type is currently active (for active-only dropdowns). */
   active?: boolean;
+}
+
+/**
+ * Summary of a member analytics-set as returned by `GET /members/analytics-sets`
+ * (the list feed). The Members module now OWNS member saved-sets in DynamoDB
+ * (F-012), replacing the Flask `/api/pivot/models` store — so the member
+ * saved-set path goes through `membersApiService`, not `pivotService`.
+ *
+ * NOTE: `id` is the backend `set_id` — a STRING (a server-chosen uuid4 hex),
+ * NOT the pivot models' numeric id.
+ */
+export interface MemberAnalyticsSetSummary {
+  /** The backend `set_id` (string, server-chosen opaque id). */
+  id: string;
+  /** The user-authored set name. */
+  name: string;
+  /** `'count'` (aggregate) or `'list'` (filtered list). */
+  kind: 'count' | 'list';
+}
+
+/**
+ * A full member analytics-set as returned by `GET /members/analytics-sets/{id}`
+ * (and by create/update). Carries the resolved `PivotConfig` definition (the
+ * service converts the backend snake_case `definition` to the camelCase
+ * `PivotConfig` via `fromBackendConfig`).
+ */
+export interface MemberAnalyticsSet {
+  /** The backend `set_id` (string, server-chosen opaque id). */
+  id: string;
+  /** The user-authored set name. */
+  name: string;
+  /** `'count'` (aggregate) or `'list'` (filtered list). */
+  kind: 'count' | 'list';
+  /** The pivot/list definition (camelCase `PivotConfig`). */
+  definition: PivotConfig;
+  /** ISO-8601 UTC create timestamp. */
+  created_at: string;
+  /** ISO-8601 UTC last-update timestamp. */
+  updated_at: string;
+}
+
+/**
+ * A user's preferred list of analytics-set references (R11.2 layer 2 — one list
+ * per user, keyed by the authenticated Cognito `sub`, NOT a member id: user ≠
+ * member, R11.1). `refs` is an ORDERED list of TAGGED references, never copies:
+ * `preset:<key>` points at a predefined preset (code, `memberPivotPresets.ts`),
+ * `set:<id>` points at a tenant-shared analytics-set (`set_id`). Dangling refs
+ * (a set another user deleted) are skipped by the UI, not an error.
+ */
+export interface MemberPreferredList {
+  /** The owning user's Cognito `sub` (echoed by the backend; informational). */
+  sub: string;
+  /** Ordered tagged references: `preset:<key>` or `set:<id>`. */
+  refs: string[];
+  /** ISO-8601 UTC last-update timestamp (empty string when never saved). */
+  updated_at: string;
 }
 
 /**
@@ -204,6 +262,60 @@ export interface FunctionalGroup {
 }
 
 /**
+ * The analytics roles a tenant may map to a resolvable field key (design C-CONFIG,
+ * R9.1). Each role names a semantic the analytics surface needs but whose concrete
+ * field key varies per tenant: the cancellation date, the referral source, the two
+ * clubblad (newsletter) delivery flags, and a detailed country field. An unmapped
+ * role → the sets that depend on it are hidden with a bilingual reason (R9.5), never
+ * an error.
+ */
+export type AnalyticsRole =
+  | 'cancellation_date'
+  | 'referral_source'
+  | 'clubblad_paper'
+  | 'clubblad_digital'
+  | 'country_detail';
+
+/**
+ * The tenant's analytics configuration block, served additively on
+ * `GET /members/field-config` as {@link FieldConfig.analytics} (design C-CONFIG, R9.1).
+ * Authored in the Members configurator "Analytics" tab, projected one-directionally
+ * from the `members.*` param schema. Read-only tenant data on the analytics surface.
+ *
+ * All three members are optional; an absent block (or absent member) falls back to
+ * documented defaults (R9.5):
+ *   - `jubilee_rule` absent → `{ multiple_of: 5 }` (jubilees are multiples of 5 years).
+ *   - a role unmapped in `field_roles` → sets depending on it are hidden with a reason.
+ *   - `address_mapping` absent → PDF address labels are unavailable; CSV export still works.
+ */
+export interface MemberAnalyticsConfig {
+  /**
+   * How a jubilee (anniversary) year is decided. Either an explicit set of qualifying
+   * years-member values (`years`) or an "every Nth year" rule (`multiple_of`). Default
+   * when the whole block is absent: `{ multiple_of: 5 }`.
+   */
+  jubilee_rule?: { years?: number[]; multiple_of?: number };
+  /**
+   * Maps each {@link AnalyticsRole} to a resolvable field key (a key present in
+   * {@link FieldConfig.fields}). Partial — a tenant maps only the roles it has fields for.
+   */
+  field_roles?: Partial<Record<AnalyticsRole, string>>;
+  /**
+   * Which resolvable field keys fill each slot of a printed address label. Each slot is
+   * optional; an incomplete mapping degrades the label generator (and is reported) rather
+   * than crashing.
+   */
+  address_mapping?: {
+    name?: string;
+    street?: string;
+    postcode?: string;
+    city?: string;
+    country?: string;
+    region?: string;
+  };
+}
+
+/**
  * The resolved field configuration returned by `GET /members/field-config`:
  * the fixed base ⊕ tenant overlay, plus the scope dimensions the tenant
  * configured (used for the region/subgroup badge + filters).
@@ -235,6 +347,13 @@ export interface FieldConfig {
    * hands the selected context to the existing filterable-table toolkit.
    */
   view_contexts?: ViewContext[];
+  /**
+   * The tenant's analytics configuration (design C-CONFIG, R9.1), served additively by
+   * the module. Absent for tenants that have not authored it — the analytics surface then
+   * falls back to documented defaults (see {@link MemberAnalyticsConfig}). Mirrors the
+   * backend-served shape (task 6.1).
+   */
+  analytics?: MemberAnalyticsConfig;
 }
 
 /**

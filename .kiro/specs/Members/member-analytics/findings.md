@@ -406,9 +406,27 @@ re-implementing it per module:
 
 
 
-NOTE
+The pivot view if now rather confusing
 
-The filter table works again
-When I want to export a pivot (verjaardag / birthday) result and I filter on the table to select a subset. The whole dataset is exported , For the pivot jubilea (lidjaren) the initial subset is also exported and the filters are not used to limit the dataset export 
+There are 3 views to initiate a pivot
+1) the origibal drop down (Select a set)
 
-The pivot Nieuwe leden inschrijf datum ((lid sinds jaar)) Same problem table filters do niot limit the export file
+2) My preferred list showing the items I ahve selected and at each row a run button. However the run button does not ecxecute anything as before already reported. The arrows to up or down a row in my preferred list is a nice option
+
+3) All sets in a similar table as 2) only sorted on pivot name and an indicator if it is in your preferred lsiut and the option to add the non-selected ones
+
+Preferred solution:
+- Put the my preferred list pivots (now in 2) in the 1) the origibal drop down
+- Remove 2) from the pane
+- The function all sets should be a button when clicked on shows all sets as is now and the button should be on the same row as Select a set (1)
+
+please read .kiro\steering\41-shell-environment.md
+
+Sorry you are  not accurate.  
+Forgetting key elements, YES we are on npm start for the local changes. Only the sam plane requires a push to test. Yes we need to update all code to github as a fall back. 
+From a functional req point of view:
+a) my preferred pivots should be in the main Select a set dropdown pivot, without the prefab items (unless I have selected them)  Now they are both in
+b) The total list of pivots (prfab and custiom made should be a button and use a modal (keeps the main pane clean) and the itenms in the long list of pivots should have a sderach column to filter, the pivots mst be alphabetically sorted
+
+
+When a csv is exported the column names are the english ones and not the ones of tghe language of the user. This happened befor with tabke columns and that i solved now for the csbv export

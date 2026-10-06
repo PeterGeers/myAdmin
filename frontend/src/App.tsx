@@ -43,6 +43,7 @@ import {
   ZZPTripQuick,
   ZZPTripImport,
   MembersPage,
+  MemberAnalyticsPage,
   TenantAdminDashboard,
   SysAdminDashboard,
   PasskeySettings,
@@ -509,6 +510,19 @@ function AppContent() {
             <Box minH="100vh" bg="gray.900">
               {renderPageHeader(`👥 ${t('members:overview.title')}`)}
               <MembersPage />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'member-analytics':
+        return (
+          <ProtectedRoute
+            requiredRoles={['Members_Read', 'Members_CRUD']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`📊 ${t('members:analytics.title')}`)}
+              <MemberAnalyticsPage />
             </Box>
           </ProtectedRoute>
         );
