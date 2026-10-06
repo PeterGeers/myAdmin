@@ -165,24 +165,17 @@ Return ONLY valid JSON:
 
     def _try_tesseract(self, image_path, vendor_hint, previous_transactions):
         """Fallback to Tesseract OCR + AI text extraction"""
-        try:
-            import subprocess
+        from pdf_parsing_strategies import resolve_tesseract_cmd
 
-            subprocess.run(
-                [r"C:\Program Files\Tesseract-OCR\tesseract.exe", "--version"],
-                capture_output=True,
-                check=True,
-            )
-        except Exception:
+        tesseract_cmd = resolve_tesseract_cmd()
+        if not tesseract_cmd:
             print("Tesseract not installed")
             return self._fallback_data(vendor_hint)
 
         try:
             import pytesseract
 
-            pytesseract.pytesseract.tesseract_cmd = (
-                r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-            )
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
             image = Image.open(image_path)
             if image.mode != "RGB":
