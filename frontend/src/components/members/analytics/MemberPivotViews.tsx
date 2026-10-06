@@ -911,7 +911,13 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     if (!result || result.columns.length === 0) {
       return;
     }
-    const columns = result.columns.map((col) => ({ key: col.name, header: col.name }));
+    // The CSV HEADER uses the localized column label (same `columnLabels` map the
+    // result table renders — Dutch/English per the active language); the KEY
+    // stays the raw result column name so values still read from each data row.
+    const columns = result.columns.map((col) => ({
+      key: col.name,
+      header: columnLabels[col.name] ?? col.name,
+    }));
     const csv = generateCsvFromObjects(columns, exportRows);
     downloadCsv(csv, 'member-analytics.csv');
 
@@ -943,13 +949,18 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     if (!result || result.columns.length === 0) {
       return null;
     }
-    const columns = result.columns.map((col) => ({ key: col.name, header: col.name }));
+    // Localized headers, raw-name keys — identical mapping to the download path
+    // so the attached CSV is byte-identical to the downloaded one.
+    const columns = result.columns.map((col) => ({
+      key: col.name,
+      header: columnLabels[col.name] ?? col.name,
+    }));
     const csv = generateCsvFromObjects(columns, exportRows);
     // Prepend the UTF-8 BOM to match the downloaded file, then base64-encode the
     // UTF-8 bytes (btoa needs a binary string, so encode via encodeURIComponent).
     const withBom = `\uFEFF${csv}`;
     return btoa(unescape(encodeURIComponent(withBom)));
-  }, [result, exportRows]);
+  }, [result, exportRows, columnLabels]);
 
   // Build the PDF address-label bytes for the CURRENT result rows, base64-encoded,
   // for the mail compose "attach PDF labels" toggle (task 9.2). Uses the jsPDF
@@ -1001,18 +1012,6 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
               ))}
             </Select>
           </FormControl>
-
-          {/* "All sets" — opens the library modal to browse/filter every preset +
-              saved set and manage which are in the preferred (dropdown) list.
-              Solid orange so it is clearly visible on the dark row beside the
-              "Select a set" dropdown. */}
-          <Button
-            colorScheme="orange"
-            onClick={() => setIsLibraryOpen(true)}
-            data-testid="member-pivot-open-library"
-          >
-            {t('analytics.pivotViews.library.open')}
-          </Button>
 
           {/* Jubilee year selector — shown ONLY for the Jubilees preset (the set
               flagged usesJubileeRule, task 7.2 / R4.2). The chosen year becomes a
@@ -1081,8 +1080,8 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
             </FormControl>
           )}
 
-          {/* Execute — nothing runs until this is clicked (R1.6). Disabled until
-              a set is chosen so a bare Execute never runs an empty set. */}
+          {/* Execute — sits right next to the selected pivot (R1.6: nothing runs
+              until clicked; disabled until a set is chosen). */}
           <Button
             colorScheme="orange"
             onClick={handleExecute}
@@ -1091,6 +1090,20 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
             data-testid="member-pivot-execute"
           >
             {t('analytics.pivotViews.execute')}
+          </Button>
+
+          {/* "All sets" — a SEPARATE manage function (browse/filter the library,
+              add/remove from the dropdown, delete custom sets). Placed after
+              Execute + visually separated (outline) so it reads as a distinct
+              action, not part of the run flow. */}
+          <Button
+            variant="outline"
+            colorScheme="orange"
+            ml={2}
+            onClick={() => setIsLibraryOpen(true)}
+            data-testid="member-pivot-open-library"
+          >
+            {t('analytics.pivotViews.library.open')}
           </Button>
         </HStack>
 
@@ -1113,8 +1126,12 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
             >
               {t('analytics.pivotViews.newSet')}
             </Button>
+            {/* Save as / Update: orange outline (readable on dark, enabled AND
+                disabled) — previously an uncolored ghost that rendered
+                black-on-black / invisible until hover. */}
             <Button
               variant="outline"
+              colorScheme="orange"
               onClick={handleSaveAs}
               isDisabled={!selectedSet}
               data-testid="member-pivot-save-as"
@@ -1123,27 +1140,17 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
             </Button>
             <Button
               variant="outline"
+              colorScheme="orange"
               onClick={handleUpdate}
               isDisabled={!selectedModelSummary}
               data-testid="member-pivot-update"
             >
               {t('analytics.pivotViews.update')}
             </Button>
-            {/* No main-pane quick-add: the dropdown now lists ONLY preferred
-                sets, so a selected set is always already preferred. Adding a set
-                to the preferred list happens in the "All sets" modal (per-row
-                "Add to my list"). */}
-            {canDeleteSets && (
-              <Button
-                variant="outline"
-                colorScheme="red"
-                onClick={() => setPendingDelete(selectedModelSummary ?? null)}
-                isDisabled={!selectedModelSummary}
-                data-testid="member-pivot-delete"
-              >
-                {t('analytics.pivotViews.delete')}
-              </Button>
-            )}
+            {/* No Delete here — permanently deleting a saved set lives in the
+                "All sets" modal (per-row trash icon), the single place to manage
+                the library. No main-pane quick-add either (the dropdown is the
+                preferred list; adding happens in the modal). */}
           </HStack>
         )}
 
