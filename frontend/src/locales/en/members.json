@@ -1,6 +1,10 @@
 {
+  "nav": {
+    "sectionTitle": "Members"
+  },
   "overview": {
-    "title": "Members Overview"
+    "title": "Members Overview",
+    "navLabel": "Overview"
   },
   "analytics": {
     "title": "Analytics",

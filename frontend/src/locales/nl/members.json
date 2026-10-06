@@ -1,6 +1,10 @@
 {
+  "nav": {
+    "sectionTitle": "Leden"
+  },
   "overview": {
-    "title": "Leden Overzicht"
+    "title": "Leden Overzicht",
+    "navLabel": "Overzicht"
   },
   "analytics": {
     "title": "Analyse",
