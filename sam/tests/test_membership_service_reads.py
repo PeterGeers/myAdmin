@@ -138,6 +138,12 @@ class FakeMembersRepository:
     def delete_analytics_set(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
+    def get_preferred_list(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def save_preferred_list(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
 
 def _member(
     member_id, *, region=None, age_group=None, name="Alex", contact=None, sub=None

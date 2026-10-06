@@ -73,6 +73,7 @@ __all__ = [
     "RECORD_TYPE_MEMBERSHIP",
     "RECORD_TYPE_MEMBERSHIP_TYPE",
     "RECORD_TYPE_PAYMENT",
+    "RECORD_TYPE_PREF_LIST",
     "SORT_KEY_ATTR",
     "SORT_KEY_SEPARATOR",
     "analytics_set_sk",
@@ -80,6 +81,7 @@ __all__ = [
     "build_key",
     "build_member_item",
     "build_membership_type_item",
+    "build_pref_list_item",
     "build_sort_key",
     "delegates_sk",
     "floats_to_decimal",
@@ -90,6 +92,7 @@ __all__ = [
     "membership_sk",
     "membership_type_sk",
     "payment_sk",
+    "pref_list_sk",
     "resolve_members_table_name",
     "split_sort_key",
 ]
@@ -144,6 +147,12 @@ RECORD_TYPE_MEMBERSHIP_TYPE = "membershiptype"
 #: analytics-set (saved pivot/list definition) the tenant owns; the ``set_id`` is a
 #: server-chosen uuid4 hex. Lives in the tenant partition like every other entity.
 RECORD_TYPE_ANALYTICS_SET = "analyticsset"
+
+#: A user's PREFERRED LIST of analytics sets (R11.2 layer 2). One item per user, keyed by the
+#: user's Cognito ``sub`` (NOT a member_id — user ≠ member, R11.1). SK ``preflist#<sub>``. Holds
+#: an ordered list of tagged references (``preset:<key>`` / ``set:<id>``) into the tenant-shared
+#: set library. Private to the user; lives in the tenant partition like every other entity.
+RECORD_TYPE_PREF_LIST = "preflist"
 
 
 # --- Sort-key composition / parsing ----------------------------------------
@@ -233,6 +242,16 @@ def analytics_set_sk(set_id: str) -> str:
     return build_sort_key(RECORD_TYPE_ANALYTICS_SET, set_id)
 
 
+def pref_list_sk(sub: str) -> str:
+    """SK for a user's preferred-list entry: ``preflist#<sub>`` (R11.2).
+
+    Keyed by the user's Cognito ``sub`` (the authenticated principal — user ≠ member, R11.1),
+    one item per user. ``sub`` must be non-blank and contain no key separator (an opaque
+    Cognito sub never does).
+    """
+    return build_sort_key(RECORD_TYPE_PREF_LIST, sub)
+
+
 def member_sk_prefix(member_id: str) -> str:
     """The SK prefix that selects a member and everything hanging off it.
 
@@ -310,7 +329,9 @@ def floats_to_decimal(value: Any) -> Any:
     return value
 
 
-def build_member_item(tenant_id: str, member_id: str, member: Mapping[str, Any]) -> dict:
+def build_member_item(
+    tenant_id: str, member_id: str, member: Mapping[str, Any]
+) -> dict:
     """Compose the stored DynamoDB item for a member record.
 
     Stamps the tenant partition key and the ``member#<member_id>`` sort key onto a copy of the
@@ -409,6 +430,38 @@ def build_analytics_set_item(
     item[SORT_KEY_ATTR] = analytics_set_sk(set_id)
     # Keep the id addressable without re-parsing the sort key.
     item["set_id"] = set_id
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
+def build_pref_list_item(tenant_id: str, sub: str, entry: Mapping[str, Any]) -> dict:
+    """Compose the stored DynamoDB item for a user's preferred-list entry (R11.2).
+
+    Stamps the tenant partition key and the ``preflist#<sub>`` sort key onto a copy of the
+    domain-layer ``entry`` payload (``refs`` / ``updated_at``). The caller's ``tenant_id`` and
+    ``sub`` are authoritative — any values already on the payload are overwritten so a
+    domain-layer mistake can never land an entry in the wrong partition or under the wrong
+    user. ``sub`` is the owner key (user ≠ member — R11.1).
+
+    Args:
+        tenant_id: The tenant (partition key).
+        sub: The owning user's Cognito ``sub`` (sort-key id segment).
+        entry: The domain entry payload (``refs`` list + ``updated_at``).
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + ``sub`` attr.
+
+    Raises:
+        ValueError: ``tenant_id`` or ``sub`` is empty.
+    """
+    if not sub:
+        raise ValueError("sub must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = pref_list_sk(sub)
+    # Keep the owner sub addressable without re-parsing the sort key.
+    item["sub"] = sub
     # Fail-fast if the composed key would be invalid (blank tenant, etc.).
     build_key(tenant_id, item[SORT_KEY_ATTR])
     return item

@@ -101,17 +101,45 @@ class TestAnalyticsSetEntryValidate:
             _entry(definition=["not", "a", "mapping"]).validate()
         assert "definition" in exc.value.errors
 
+    # R11.2/R11.3 — origin + created_by (shared-library attribution).
+    def test_origin_defaults_to_user(self):
+        assert _entry().origin == "user"
+
+    def test_valid_origin_passes(self):
+        _entry(origin="user").validate()
+        _entry(origin="predefined").validate()
+
+    def test_bad_origin_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(origin="imported").validate()
+        assert "origin" in exc.value.errors
+
+    def test_created_by_is_optional_and_ungated(self):
+        # created_by is attribution-only (a user sub) — blank is fine, never a validation error.
+        _entry(created_by="").validate()
+        _entry(created_by="c2559464-sub").validate()
+
 
 class TestAnalyticsSetEntryRoundTrip:
     def test_to_item_carries_the_domain_shape(self):
-        item = _entry().to_item()
+        item = _entry(created_by="sub-1").to_item()
         assert item["tenant_id"] == "h-dcn"
         assert item["set_id"] == "abc123"
         assert item["name"] == "Paper clubblad"
         assert item["kind"] == "count"
         assert item["definition"]["data_source"] == "members"
+        assert item["origin"] == "user"
+        assert item["created_by"] == "sub-1"
         assert item["created_at"] == "2024-01-01T00:00:00+00:00"
         assert item["updated_at"] == "2024-01-01T00:00:00+00:00"
+
+    def test_from_item_defaults_origin_and_created_by_for_legacy_item(self):
+        # A legacy stored item written before origin/created_by existed.
+        rebuilt = AnalyticsSetEntry.from_item(
+            {"tenant_id": "h-dcn", "set_id": "x", "name": "N", "kind": "list"}
+        )
+        assert rebuilt.origin == "user"
+        assert rebuilt.created_by == ""
 
     def test_to_item_validates_first(self):
         with pytest.raises(AnalyticsSetValidationError):

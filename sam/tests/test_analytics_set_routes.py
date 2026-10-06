@@ -198,6 +198,30 @@ class TestAnalyticsSetDomain:
         # Genuinely persisted in the tenant partition.
         assert repo.get_analytics_set("h-dcn", out["set_id"]) is not None
 
+    def test_create_stamps_origin_user_and_created_by(self, service, repo):
+        # R11.2/R11.3: a created set is origin 'user' and carries the caller's sub as
+        # created_by (attribution only). The domain takes created_by explicitly.
+        out = service.create_analytics_set(
+            "h-dcn",
+            {"name": "Mine", "kind": "count", "definition": _count_definition()},
+            created_by="sub-123",
+        )
+        assert out["origin"] == "user"
+        assert out["created_by"] == "sub-123"
+
+    def test_update_preserves_origin_and_created_by(self, service, repo):
+        created = service.create_analytics_set(
+            "h-dcn",
+            {"name": "Mine", "kind": "count", "definition": _count_definition()},
+            created_by="author-sub",
+        )
+        updated = service.update_analytics_set(
+            "h-dcn", created["set_id"], {"name": "Renamed"}
+        )
+        # Original author attribution survives an edit by anyone (R11.3).
+        assert updated["created_by"] == "author-sub"
+        assert updated["origin"] == "user"
+
     def test_create_list_set_with_empty_group_and_measures(self, service, repo):
         # F-011 at the domain level: empty group_columns AND empty aggregate_measures is valid.
         out = service.create_analytics_set(
@@ -271,6 +295,27 @@ class TestAnalyticsSetEdge:
         assert data["definition"]["group_columns"] == []
         assert data["definition"]["aggregate_measures"] == []
         assert repo.get_analytics_set("h-dcn", data["set_id"]) is not None
+
+    def test_create_stamps_created_by_from_the_token_sub(self, repo):
+        # End-to-end: created_by is taken from the VERIFIED token sub (ctx.sub), never the body
+        # (R11.1/R11.3 — the owner is the authenticated principal, not a body value).
+        resp = app.handler(
+            _event(
+                "POST",
+                "/members/analytics-sets",
+                sub="webmaster-sub",
+                body={
+                    "name": "By webmaster",
+                    "kind": "count",
+                    "definition": _count_definition(),
+                    "created_by": "spoofed",  # body attempt is ignored
+                },
+            )
+        )
+        assert resp["statusCode"] == 200
+        data = _data(resp)
+        assert data["created_by"] == "webmaster-sub"
+        assert data["origin"] == "user"
 
     def test_create_count_set_returns_200(self, repo):
         resp = app.handler(
@@ -427,6 +472,304 @@ class TestAnalyticsSetEdge:
                     "kind": "count",
                     "definition": _count_definition(),
                 },
+            )
+        )
+        assert resp["statusCode"] == 200
+
+
+# =====================================================================================
+# Capability gates (R11.3) — any-of: export OR write to create; write OR admin to edit/delete
+# =====================================================================================
+
+
+class TestAnalyticsSetCapabilityGates:
+    """The analytics-set surface is NOT admin-only (R11.3). Create = export OR write;
+    edit/delete = write OR admin; reads = members:read. A caller holding ANY accepted
+    capability passes; a caller holding none is 403."""
+
+    def _create_as(self, caps):
+        return app.handler(
+            _event(
+                "POST",
+                "/members/analytics-sets",
+                capabilities=caps,
+                body={"name": "S", "kind": "count", "definition": _count_definition()},
+            )
+        )
+
+    # ── create: export OR write ──────────────────────────────────────────────────────
+    def test_export_only_user_can_create(self):
+        # An EXPORT-only user (no write) can create a set (R11.3).
+        resp = self._create_as(("members:read", "members:export"))
+        assert resp["statusCode"] == 200
+
+    def test_write_only_user_can_create(self):
+        resp = self._create_as(("members:read", "members:write"))
+        assert resp["statusCode"] == 200
+
+    def test_read_only_user_cannot_create(self):
+        # Neither export nor write → 403 (not a silent allow).
+        resp = self._create_as(("members:read",))
+        assert resp["statusCode"] == 403
+
+    # ── delete: write OR admin ───────────────────────────────────────────────────────
+    def _seed_set(self):
+        created = _data(self._create_as(("members:read", "members:write")))
+        return created["set_id"]
+
+    def test_write_user_can_delete(self):
+        set_id = self._seed_set()
+        resp = app.handler(
+            _event(
+                "DELETE",
+                f"/members/analytics-sets/{set_id}",
+                capabilities=("members:read", "members:write"),
+            )
+        )
+        assert resp["statusCode"] == 200
+
+    def test_admin_user_can_delete(self):
+        set_id = self._seed_set()
+        resp = app.handler(
+            _event(
+                "DELETE",
+                f"/members/analytics-sets/{set_id}",
+                capabilities=("members:read", "members:admin"),
+            )
+        )
+        assert resp["statusCode"] == 200
+
+    def test_export_only_user_cannot_delete(self):
+        # Export lets you CREATE but NOT delete a shared set (delete = write OR admin).
+        set_id = self._seed_set()
+        resp = app.handler(
+            _event(
+                "DELETE",
+                f"/members/analytics-sets/{set_id}",
+                capabilities=("members:read", "members:export"),
+            )
+        )
+        assert resp["statusCode"] == 403
+
+    def test_update_requires_write_or_admin(self):
+        set_id = self._seed_set()
+        # export-only → 403
+        assert (
+            app.handler(
+                _event(
+                    "PUT",
+                    f"/members/analytics-sets/{set_id}",
+                    capabilities=("members:read", "members:export"),
+                    body={"name": "renamed"},
+                )
+            )["statusCode"]
+            == 403
+        )
+        # write → 200
+        assert (
+            app.handler(
+                _event(
+                    "PUT",
+                    f"/members/analytics-sets/{set_id}",
+                    capabilities=("members:read", "members:write"),
+                    body={"name": "renamed"},
+                )
+            )["statusCode"]
+            == 200
+        )
+
+    # ── reads: members:read ──────────────────────────────────────────────────────────
+    def test_list_requires_only_read(self):
+        resp = app.handler(
+            _event("GET", "/members/analytics-sets", capabilities=("members:read",))
+        )
+        assert resp["statusCode"] == 200
+
+
+class TestAnyOfCapabilityHelpers:
+    """Unit-level cover for the edge's any-of capability resolution (12.2)."""
+
+    def test_route_required_capabilities_prefers_any_of(self):
+        from sam.members.handler.routes import HttpMethod, RouteGroup, RouteSpec
+
+        spec = RouteSpec(
+            name="x",
+            method=HttpMethod.POST,
+            path="/x",
+            group=RouteGroup.ANALYTICS,
+            capability=None,
+            capabilities_any=("members:export", "members:write"),
+            self_service=False,
+            summary="",
+        )
+        assert app._route_required_capabilities(spec) == (
+            "members:export",
+            "members:write",
+        )
+
+    def test_route_required_capabilities_single(self):
+        from sam.members.handler.routes import HttpMethod, RouteGroup, RouteSpec
+
+        spec = RouteSpec(
+            name="y",
+            method=HttpMethod.GET,
+            path="/y",
+            group=RouteGroup.ANALYTICS,
+            capability="members:read",
+            self_service=False,
+            summary="",
+        )
+        assert app._route_required_capabilities(spec) == ("members:read",)
+
+    def test_any_capability_granted_passes_on_any_true(self):
+        claims = {"custom:entitlements": _entitlement("h-dcn", ["members:export"])}
+        assert (
+            app._any_capability_granted(
+                claims, "h-dcn", ("members:export", "members:write")
+            )
+            is True
+        )
+
+    def test_any_capability_granted_false_when_none_held(self):
+        claims = {"custom:entitlements": _entitlement("h-dcn", ["members:read"])}
+        assert (
+            app._any_capability_granted(
+                claims, "h-dcn", ("members:export", "members:write")
+            )
+            is False
+        )
+
+
+# =====================================================================================
+# Preferred list (R11.2 layer 2) — per-user, keyed by the verified sub (user ≠ member)
+# =====================================================================================
+
+
+class TestPreferredListDomain:
+    def test_get_is_empty_when_unset(self, service):
+        out = service.get_preferred_list("h-dcn", "sub-1")
+        assert out["sub"] == "sub-1"
+        assert out["refs"] == []
+
+    def test_save_then_get_round_trips_refs(self, service, repo):
+        service.save_preferred_list(
+            "h-dcn", "sub-1", {"refs": ["preset:jubilees", "set:abc123"]}
+        )
+        out = service.get_preferred_list("h-dcn", "sub-1")
+        assert out["refs"] == ["preset:jubilees", "set:abc123"]
+        assert out["updated_at"]
+
+    def test_save_replaces_the_whole_list(self, service):
+        service.save_preferred_list("h-dcn", "sub-1", {"refs": ["preset:a", "set:b"]})
+        service.save_preferred_list("h-dcn", "sub-1", {"refs": ["preset:c"]})
+        assert service.get_preferred_list("h-dcn", "sub-1")["refs"] == ["preset:c"]
+
+    def test_save_drops_blank_and_non_string_refs(self, service):
+        service.save_preferred_list(
+            "h-dcn", "sub-1", {"refs": ["preset:a", "", "  ", 42, None, "set:b"]}
+        )
+        assert service.get_preferred_list("h-dcn", "sub-1")["refs"] == [
+            "preset:a",
+            "set:b",
+        ]
+
+    def test_empty_refs_is_valid_clears_preferences(self, service):
+        service.save_preferred_list("h-dcn", "sub-1", {"refs": ["preset:a"]})
+        service.save_preferred_list("h-dcn", "sub-1", {"refs": []})
+        assert service.get_preferred_list("h-dcn", "sub-1")["refs"] == []
+
+    def test_lists_are_isolated_per_user(self, service):
+        service.save_preferred_list("h-dcn", "sub-1", {"refs": ["preset:one"]})
+        service.save_preferred_list("h-dcn", "sub-2", {"refs": ["preset:two"]})
+        assert service.get_preferred_list("h-dcn", "sub-1")["refs"] == ["preset:one"]
+        assert service.get_preferred_list("h-dcn", "sub-2")["refs"] == ["preset:two"]
+
+
+class TestPreferredListEdge:
+    def test_get_empty_returns_200_with_empty_refs(self):
+        resp = app.handler(
+            _event("GET", "/members/analytics-sets/preferred", sub="webmaster-sub")
+        )
+        assert resp["statusCode"] == 200
+        data = _data(resp)
+        assert data["sub"] == "webmaster-sub"
+        assert data["refs"] == []
+
+    def test_put_then_get_round_trips_for_the_same_sub(self):
+        put = app.handler(
+            _event(
+                "PUT",
+                "/members/analytics-sets/preferred",
+                sub="sub-x",
+                body={"refs": ["preset:jubilees", "set:deadbeef"]},
+            )
+        )
+        assert put["statusCode"] == 200
+        got = app.handler(
+            _event("GET", "/members/analytics-sets/preferred", sub="sub-x")
+        )
+        assert _data(got)["refs"] == ["preset:jubilees", "set:deadbeef"]
+
+    def test_preferred_list_is_private_per_user(self):
+        app.handler(
+            _event(
+                "PUT",
+                "/members/analytics-sets/preferred",
+                sub="sub-a",
+                body={"refs": ["preset:mine"]},
+            )
+        )
+        # A DIFFERENT user's GET must not see sub-a's list (keyed by the verified sub).
+        other = app.handler(
+            _event("GET", "/members/analytics-sets/preferred", sub="sub-b")
+        )
+        assert _data(other)["refs"] == []
+
+    def test_preferred_literal_wins_over_set_id_route(self):
+        # GET /members/analytics-sets/preferred must resolve to the preferred-list route, NOT
+        # be swallowed by GET /members/analytics-sets/{set_id} (declaration order). A 200 with
+        # a `refs` key (not an analytics-set shape / 404) proves the literal won.
+        resp = app.handler(
+            _event("GET", "/members/analytics-sets/preferred", sub="sub-q")
+        )
+        assert resp["statusCode"] == 200
+        assert "refs" in _data(resp)
+
+    def test_put_gate_export_or_write(self):
+        # Export-only can save a preferred list (R11.3 — same gate as create).
+        assert (
+            app.handler(
+                _event(
+                    "PUT",
+                    "/members/analytics-sets/preferred",
+                    sub="s1",
+                    capabilities=("members:read", "members:export"),
+                    body={"refs": ["preset:a"]},
+                )
+            )["statusCode"]
+            == 200
+        )
+        # Read-only cannot.
+        assert (
+            app.handler(
+                _event(
+                    "PUT",
+                    "/members/analytics-sets/preferred",
+                    sub="s1",
+                    capabilities=("members:read",),
+                    body={"refs": ["preset:a"]},
+                )
+            )["statusCode"]
+            == 403
+        )
+
+    def test_get_requires_only_read(self):
+        resp = app.handler(
+            _event(
+                "GET",
+                "/members/analytics-sets/preferred",
+                sub="s1",
+                capabilities=("members:read",),
             )
         )
         assert resp["statusCode"] == 200

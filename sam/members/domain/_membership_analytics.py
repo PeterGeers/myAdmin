@@ -17,6 +17,9 @@ from sam.members.domain._membership_errors import (
 from sam.members.domain.analytics_set import (
     AnalyticsSetEntry,
 )
+from sam.members.domain.preferred_list import (
+    PreferredList,
+)
 
 
 class AnalyticsSetsMixin:
@@ -49,17 +52,20 @@ class AnalyticsSetsMixin:
     # ── create / update / delete ────────────────────────────────────────────────────
 
     def create_analytics_set(
-        self, tenant_id: str, body: Mapping[str, Any]
+        self, tenant_id: str, body: Mapping[str, Any], created_by: str | None = None
     ) -> dict[str, Any]:
-        """Create an analytics-set for the tenant.
+        """Create a (tenant-shared) analytics-set for the tenant (R11.2 layer 1).
 
         Stamps the authoritative ``tenant_id`` (never trusting a body ``tenant_id`` / ``set_id``
         — verify-before-trust, Property 2). Generates ``set_id = uuid4().hex`` (server-chosen
         opaque id — unlike the catalog's client-supplied ``type_code``, an analytics-set has no
         natural key). Reads ``name`` / ``kind`` / ``definition`` from the body, stamps
+        ``origin = 'user'`` and ``created_by`` = the verified caller ``sub`` (ATTRIBUTION only —
+        R11.3; never trusted from the body, never an access gate), and
         ``created_at = updated_at = now(UTC) ISO``, validates, persists, and returns the
-        serialized entry. Raises :class:`AnalyticsSetConflict` if the generated id already
-        exists (effectively impossible with uuid4, carried for symmetry).
+        serialized entry. The set joins the TENANT-SHARED library — visible to every user in the
+        tenant (R11.2). Raises :class:`AnalyticsSetConflict` if the generated id already exists
+        (effectively impossible with uuid4, carried for symmetry).
         """
         payload = dict(body) if isinstance(body, Mapping) else {}
         now = datetime.now(timezone.utc).isoformat()
@@ -72,6 +78,10 @@ class AnalyticsSetsMixin:
             name=str(payload.get("name", "")),
             kind=str(payload.get("kind", "count")),
             definition=dict(definition) if isinstance(definition, Mapping) else {},
+            # Every stored set is user-origin (presets stay in code, R11.5). created_by is the
+            # authenticated principal's sub (R11.1 — user ≠ member); attribution only.
+            origin="user",
+            created_by=created_by or "",
             created_at=now,
             updated_at=now,
         )
@@ -114,6 +124,8 @@ class AnalyticsSetsMixin:
             name=name,
             kind=kind,
             definition=definition,
+            origin=existing.origin,  # preserved — identity, never changed by an edit
+            created_by=existing.created_by,  # preserved — original author attribution (R11.3)
             created_at=existing.created_at,  # preserved from original
             updated_at=now,  # bumped
         )
@@ -134,20 +146,81 @@ class AnalyticsSetsMixin:
         self._repo.delete_analytics_set(tenant_id, set_id)
         return self._serialize_analytics_set(existing)
 
-    # ── serialization helper ────────────────────────────────────────────────────────
+    # ── preferred list (per-user, R11.2 layer 2) ────────────────────────────────────
+
+    def get_preferred_list(self, tenant_id: str, sub: str) -> dict[str, Any]:
+        """Return user ``sub``'s preferred list (empty refs when the user has none).
+
+        Keyed by the authenticated ``sub`` (user ≠ member — R11.1); the preferred list is
+        private to that principal. A user who has not curated one yet gets an EMPTY list
+        (empty-is-valid, R11) — never a 404. Returns the JSON-friendly serialized shape.
+        """
+        entry = self._repo.get_preferred_list(tenant_id, sub)
+        if entry is None:
+            entry = PreferredList.empty(tenant_id, sub)
+        return self._serialize_preferred_list(entry)
+
+    def save_preferred_list(
+        self, tenant_id: str, sub: str, body: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Create or REPLACE user ``sub``'s preferred list from the request body (R11.2).
+
+        ``tenant_id`` and ``sub`` are AUTHORITATIVE (the verified principal — never trusted
+        from the body). Reads ``refs`` (the ordered tagged-reference list) from the body,
+        coercing each entry to a string and dropping blanks/non-strings, stamps
+        ``updated_at = now(UTC) ISO``, validates, persists (a full replace — exactly one list
+        per user), and returns the serialized shape. An empty / absent ``refs`` is valid (the
+        user clears their preferences).
+        """
+        payload = dict(body) if isinstance(body, Mapping) else {}
+        now = datetime.now(timezone.utc).isoformat()
+        raw_refs = payload.get("refs")
+        refs = (
+            [str(r) for r in raw_refs if isinstance(r, str) and r.strip()]
+            if isinstance(raw_refs, (list, tuple))
+            else []
+        )
+        entry = PreferredList(
+            tenant_id=tenant_id,  # authoritative — never the body
+            sub=sub,  # authoritative — the verified principal, never the body (R11.1)
+            refs=refs,
+            updated_at=now,
+        )
+        entry.validate()
+        saved = self._repo.save_preferred_list(tenant_id, entry)
+        return self._serialize_preferred_list(saved)
+
+    # ── serialization helpers ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _serialize_preferred_list(entry: PreferredList) -> dict[str, Any]:
+        """Project a preferred-list entry to the JSON-friendly shape the handler returns.
+
+        Carries ``sub`` (owner), ``refs`` (ordered tagged references), ``updated_at``.
+        ``tenant_id`` is omitted (the caller already knows the tenant context).
+        """
+        return {
+            "sub": entry.sub,
+            "refs": list(entry.refs),
+            "updated_at": entry.updated_at,
+        }
 
     @staticmethod
     def _serialize_analytics_set(entry: AnalyticsSetEntry) -> dict[str, Any]:
         """Project an analytics-set entry to the JSON-friendly shape the handler returns.
 
-        Carries ``set_id``, ``name``, ``kind``, ``definition``, ``created_at``, ``updated_at``
-        as plain JSON. ``tenant_id`` is omitted (the caller already knows the tenant context).
+        Carries ``set_id``, ``name``, ``kind``, ``definition``, ``origin``, ``created_by``,
+        ``created_at``, ``updated_at`` as plain JSON. ``tenant_id`` is omitted (the caller
+        already knows the tenant context). ``created_by`` is surfaced for attribution display
+        (R11.3) — the SPA shows "created by" but never gates on it.
         """
         return {
             "set_id": entry.set_id,
             "name": entry.name,
             "kind": entry.kind,
             "definition": dict(entry.definition),
+            "origin": entry.origin,
+            "created_by": entry.created_by,
             "created_at": entry.created_at,
             "updated_at": entry.updated_at,
         }

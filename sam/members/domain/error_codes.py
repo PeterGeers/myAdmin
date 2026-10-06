@@ -62,6 +62,10 @@ __all__ = [
     "ANALYTICS_SET_NAME",
     "ANALYTICS_SET_KIND",
     "ANALYTICS_SET_DEFINITION",
+    "ANALYTICS_SET_ORIGIN",
+    "PREF_LIST_TENANT",
+    "PREF_LIST_SUB",
+    "PREF_LIST_REFS",
 ]
 
 
@@ -189,3 +193,18 @@ ANALYTICS_SET_KIND = "errors.analyticsset.kind"
 
 #: An analytics-set entry has an invalid ``definition`` (must be a mapping).
 ANALYTICS_SET_DEFINITION = "errors.analyticsset.definition"
+
+#: An analytics-set entry has an invalid ``origin`` (must be ``'user'`` or ``'predefined'``).
+ANALYTICS_SET_ORIGIN = "errors.analyticsset.origin"
+
+
+# ── Preferred-list field-level domain codes (R11.2 — per-user analytics-set preferred list) ──
+
+#: A preferred-list entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard).
+PREF_LIST_TENANT = "errors.preflist.tenant"
+
+#: A preferred-list entry has an invalid/blank ``sub`` (the owning user principal).
+PREF_LIST_SUB = "errors.preflist.sub"
+
+#: A preferred-list entry has invalid ``refs`` (must be a list of non-blank reference strings).
+PREF_LIST_REFS = "errors.preflist.refs"

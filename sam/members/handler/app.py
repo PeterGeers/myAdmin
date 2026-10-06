@@ -196,8 +196,9 @@ class _ScopeGrantsReader(Protocol):
     a test may inject any object with the same method.
     """
 
-    def get_scope_grants(self, tenant_id: str, email: str) -> Mapping[str, list[str]]:
-        ...
+    def get_scope_grants(
+        self, tenant_id: str, email: str
+    ) -> Mapping[str, list[str]]: ...
 
 
 #: Test-only override for the scope-GRANT reader (``None`` in production → fresh reader).
@@ -276,7 +277,9 @@ class _ProjectionScopeConfigProvider:
 #: fresh projection each call (see :class:`_ProjectionScopeConfigProvider`). Without this the
 #: service's `_scope_vocab` is empty and a scope-dimension enum with no inline choices (region)
 #: is rejected → field-config 502. (This was the missing wiring in the first s5j deploy.)
-_SCOPE_CONFIG_PROVIDER_FOR_SERVICE: ScopeConfigProvider = _ProjectionScopeConfigProvider()
+_SCOPE_CONFIG_PROVIDER_FOR_SERVICE: ScopeConfigProvider = (
+    _ProjectionScopeConfigProvider()
+)
 
 
 class _ProjectionViewContextsProvider:
@@ -663,6 +666,36 @@ def _resolve_scope_access(
 # ``tenant_keys`` is the sole tenant authority.
 
 
+def _route_required_capabilities(spec: RouteSpec) -> tuple[str, ...]:
+    """The capabilities a route requires, as an any-of tuple (R11.3).
+
+    A route declares EITHER a single ``capability`` (the common case → a one-element tuple)
+    OR an any-of ``capabilities_any`` set (→ that tuple). A self-service-only route (neither)
+    returns an empty tuple, so the caller skips the capability gate. ``capabilities_any`` wins
+    when both happen to be set (a route should use one or the other).
+    """
+    if spec.capabilities_any:
+        return tuple(spec.capabilities_any)
+    if spec.capability is not None:
+        return (spec.capability,)
+    return ()
+
+
+def _any_capability_granted(
+    claims: Mapping[str, Any], tenant_id: str, required: tuple[str, ...]
+) -> bool:
+    """True when the caller holds ANY of the ``required`` capabilities (R11.3).
+
+    Each capability is checked with the three-state :func:`has_capability` (True = token-backed
+    grant; False = token-backed denial; None = token does not answer → deny). The route passes
+    as soon as ONE returns ``True``; if none do, it is a deny (the caller holds none of the
+    accepted capabilities). This preserves the single-capability semantics exactly for a
+    one-element tuple (True passes, False/None deny) while supporting the export-OR-write and
+    write-OR-admin gates R11.3 needs — never a blanket allow.
+    """
+    return any(has_capability(claims, tenant_id, cap) is True for cap in required)
+
+
 def _authenticate_and_authorize(
     event: Mapping[str, Any],
     request: ParsedRequest,
@@ -740,19 +773,22 @@ def _authenticate_and_authorize(
     #     A self-service route (no capability) carries an empty map — the domain enforces
     #     ownership on `sub`, not scope.
     allowed_scopes: dict[str, list[str]] = {}
-    if spec.capability is not None:
-        granted = has_capability(claims, tenant_id, spec.capability)
-        if granted is not True:
+
+    # A route may be gated by a SINGLE capability (`spec.capability`) or an ANY-OF set
+    # (`spec.capabilities_any`, R11.3 — e.g. export OR write). `_capability_gate` resolves
+    # whichever applies into a single True/deny decision. A self-service-only route (neither
+    # set) skips the capability gate entirely (the domain enforces ownership on `sub`).
+    required_caps = _route_required_capabilities(spec)
+    if required_caps:
+        if not _any_capability_granted(claims, tenant_id, required_caps):
             # Capability comes SOLELY from the verified entitlement (custom:entitlements via
             # the S4 PreTokenGen channel). There is NO cognito:groups fallback (R6.1, removed
-            # in s5c): False = authoritative token-backed denial; None = token does not answer
-            # → module policy is deny (never a silent allow, never a blanket allow).
-            reason = "denied" if granted is False else "not answered by token"
+            # in s5c). A route passes when the caller holds ANY required capability; otherwise
+            # deny (never a silent/blanket allow). For an any-of route, "none of them granted".
             logger.info(
-                "Members route '%s' capability '%s' %s for tenant '%s'",
+                "Members route '%s' required capability (any of) %s not granted for tenant '%s'",
                 spec.name,
-                spec.capability,
-                reason,
+                list(required_caps),
                 tenant_id,
             )
             raise AuthorizationError("Missing required capability")
@@ -872,7 +908,9 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         )
     except InvalidTokenError as exc:
         return _error(
-            getattr(exc, "http_status", 401), "Unauthorized", code="errors.api.unauthorized"
+            getattr(exc, "http_status", 401),
+            "Unauthorized",
+            code="errors.api.unauthorized",
         )
     except ServiceUnavailableError as exc:
         return _error(
@@ -888,7 +926,9 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         result = _dispatch(spec, request, ctx)
     except RouteNotImplemented:
         logger.info("Members route '%s' resolved but not implemented yet", spec.name)
-        return _error(501, "Not implemented", code="errors.api.notImplemented", route=spec.name)
+        return _error(
+            501, "Not implemented", code="errors.api.notImplemented", route=spec.name
+        )
     except MemberNotFound:
         # Missing member within the tenant, OR out of the caller's scope on a READ —
         # deliberately indistinguishable so a scoped caller cannot probe for out-of-scope
