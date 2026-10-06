@@ -57,6 +57,10 @@ from .fixed_fields import (
 
 __all__ = [
     "OVERLAY_GROUP",
+    "AnalyticsConfig",
+    "AnalyticsRole",
+    "AddressMapping",
+    "JubileeRule",
     "FieldConfig",
     "FieldOrigin",
     "FieldResolver",
@@ -136,6 +140,11 @@ class FieldConfig:
     #: Modals / view contexts SECTION by these (design C-SURFACE); a field whose
     #: ``functional_group`` is absent from this catalog falls back to a default section at render.
     functional_groups: tuple[FunctionalGroup, ...] = ()
+    #: The tenant's analytics config (member-analytics R9, C-CONFIG), projected one-directionally
+    #: from the overlay slice. ``None`` when the tenant authored none → the analytics consumer
+    #: applies the documented defaults (R9.5). Read-only tenant data: the module serves it, it
+    #: enforces nothing off it (mirrors ``functional_groups`` / view contexts / lifecycle).
+    analytics: AnalyticsConfig | None = None
 
     def by_group(self) -> Mapping[str, tuple[ResolvedField, ...]]:
         buckets: dict[str, list[ResolvedField]] = {}
@@ -228,6 +237,108 @@ class FunctionalGroup:
     order: int = 0
 
 
+# ── Analytics config (member-analytics C-CONFIG, R9) — a slice of the members.* overlay ──
+#
+# ODI-2 (resolved): the analytics block is authored as a SLICE of the existing
+# ``members.field_overlay`` param (the ``config#fields`` row), NOT a separate param — it rides
+# on :class:`TenantOverlay` beside ``fields`` / ``overrides`` / ``functional_groups``, is read by
+# the one projection reader, and is projected one-directionally onto ``FieldConfig.analytics``
+# and served on ``GET /members/field-config``. The served ``FieldConfig.analytics`` shape is held
+# stable regardless of this authoring choice (the shape in design C-CONFIG).
+#
+# This is **read-only tenant data** for the presentation layer: the module serves it; it enforces
+# nothing off it (jubilee semantics / which overlay field backs which analytics set are the
+# frontend's to apply — exactly like ``view_contexts`` / ``lifecycle``). Absent → documented
+# defaults (jubilee multiples-of-5; unmapped roles → their sets hidden; no address mapping → PDF
+# labels unavailable), applied by the consumer, never invented here.
+
+
+class AnalyticsRole(str, Enum):
+    """The analytics field ROLES a tenant maps to its own overlay/field keys (R9.3, C-CONFIG).
+
+    A role is the GENERIC analytics meaning ("the cancellation-date field", "the paper-clubblad
+    flag"); a tenant maps it to whichever of ITS field keys fills that meaning via
+    :attr:`AnalyticsConfig.field_roles`. Analytics resolves a role → key → presence in the
+    resolved ``fields`` to decide whether a role-backed set is offered or hidden (R4.3). Generic +
+    multi-tenant: no tenant conditionals, no hardcoded overlay key names.
+    """
+
+    CANCELLATION_DATE = "cancellation_date"
+    REFERRAL_SOURCE = "referral_source"
+    CLUBBLAD_PAPER = "clubblad_paper"
+    CLUBBLAD_DIGITAL = "clubblad_digital"
+    COUNTRY_DETAIL = "country_detail"
+
+
+@dataclass(frozen=True)
+class JubileeRule:
+    """What counts as a jubilee year (R9.2) — a configured set OR a multiple-of rule.
+
+    ``years`` is an explicit list of jubilee years (e.g. ``[25, 40, 50]``); ``multiple_of`` is the
+    "every Nth year" rule (e.g. every 5th year). A tenant authors at most one meaningfully; when
+    BOTH are absent the consumer applies the documented default (``multiple_of = 5``) — the
+    default is NOT materialized here (an empty rule stays empty so the served shape mirrors what
+    the tenant authored).
+    """
+
+    years: tuple[int, ...] | None = None
+    multiple_of: int | None = None
+
+    def is_empty(self) -> bool:
+        return not self.years and self.multiple_of is None
+
+
+@dataclass(frozen=True)
+class AddressMapping:
+    """Which resolvable field keys fill each line of a printed address label (R9.4, C5).
+
+    Each attribute is a field KEY (resolved against the field config at render), not a value.
+    All optional + empty-is-valid: an absent mapping → PDF address labels are unavailable with a
+    clear reason (the consumer's degradation, R4.10); CSV export is always available.
+    """
+
+    name: str | None = None
+    street: str | None = None
+    postcode: str | None = None
+    city: str | None = None
+    country: str | None = None
+    region: str | None = None
+
+    def is_empty(self) -> bool:
+        return not any(
+            (self.name, self.street, self.postcode, self.city, self.country, self.region)
+        )
+
+
+@dataclass(frozen=True)
+class AnalyticsConfig:
+    """The tenant-authored analytics semantics (R9, C-CONFIG) — a slice of the members overlay.
+
+    Three additive, all-optional pieces:
+
+    - :attr:`jubilee_rule` — what a jubilee year is (R9.2);
+    - :attr:`field_roles` — generic analytics ROLE → tenant field key (R9.3);
+    - :attr:`address_mapping` — which keys fill a printed address label (R9.4).
+
+    Empty-is-valid: a tenant that authored none yields :meth:`is_empty` ``True`` and the consumer
+    falls back to the documented defaults (R9.5). The resolver carries this verbatim — it does not
+    validate role targets against the resolved ``fields`` (that reference check / skip-on-
+    unresolvable is the SPA's at render and the Flask-plane validator's at Save, exactly as for
+    view-context columns), so an unmapped/dangling role never crashes the field-config read.
+    """
+
+    jubilee_rule: JubileeRule | None = None
+    field_roles: Mapping[AnalyticsRole, str] = field(default_factory=dict)
+    address_mapping: AddressMapping | None = None
+
+    def is_empty(self) -> bool:
+        return (
+            (self.jubilee_rule is None or self.jubilee_rule.is_empty())
+            and not self.field_roles
+            and (self.address_mapping is None or self.address_mapping.is_empty())
+        )
+
+
 @dataclass(frozen=True)
 class TenantOverlay:
     """The full per-tenant overlay: functional-group catalog + variable fields + fixed overrides.
@@ -248,6 +359,11 @@ class TenantOverlay:
     overrides: Mapping[str, FixedFieldOverride] = field(default_factory=dict)
     #: The tenant's functional-group (display) catalog, keyed by group ``key`` (R4.9).
     functional_groups: Mapping[str, FunctionalGroup] = field(default_factory=dict)
+    #: The tenant's analytics config (member-analytics R9, C-CONFIG) — a SLICE of this overlay
+    #: (ODI-2). ``None``/empty when the tenant authored none → the consumer applies the documented
+    #: defaults (R9.5). Carried verbatim (not validated against ``fields`` here) and projected
+    #: one-directionally onto ``FieldConfig.analytics``.
+    analytics: AnalyticsConfig | None = None
 
 
 class OverlayError(Exception):
@@ -372,8 +488,19 @@ class FieldResolver:
         groups = tuple(
             sorted(overlay.functional_groups.values(), key=lambda g: (g.order, g.key))
         )
+        # Project the analytics config (R9, C-CONFIG) ONE-DIRECTIONALLY off the overlay slice
+        # (ODI-2): carried verbatim onto the resolved config, never validated against `resolved`
+        # here (the role→key reference check is the SPA's at render / the validator's at Save,
+        # like view-context columns). An empty/absent block collapses to `None` so the served
+        # shape mirrors what the tenant authored (empty-is-valid → consumer defaults, R9.5).
+        analytics = overlay.analytics
+        if analytics is not None and analytics.is_empty():
+            analytics = None
         return FieldConfig(
-            tenant_id=tenant_id, fields=tuple(resolved), functional_groups=groups
+            tenant_id=tenant_id,
+            fields=tuple(resolved),
+            functional_groups=groups,
+            analytics=analytics,
         )
 
     # ── internals ─────────────────────────────────────────────────────────────────────

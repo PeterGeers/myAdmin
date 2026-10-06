@@ -1,0 +1,663 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0.1 Create `frontend/src/components/members/analytics/` with a barrel `index.ts`, and": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223256225
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223272300
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223707208
+      }
+    ],
+    "0.2 Add **jsPDF** to the frontend (`npm install jspdf`, pin exact version in": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223256587
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223273201
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223708866
+      }
+    ],
+    "0.3 Add i18n keys for the analytics surface to the existing `members` / `reports` namespace": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223256781
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223274439
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223710128
+      }
+    ],
+    "1.1 `analytics/memberAggregations.ts`: `toNumber`, `mean`, `countExcluded`. Unit-test": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223256913
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223725685
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791224575348
+      }
+    ],
+    "1.2 `charts/violinStats.ts`: `violinStats(values) → {count, min, q1, median, mean, q3, max,": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223257048
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223727095
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791224576414
+      }
+    ],
+    "2.1 Create `charts/ViolinChart.tsx` with generic props (`data: ViolinDatum[]`, `metricLabel`,": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223257177
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791224671879
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791225495788
+      }
+    ],
+    "2.2 Refactor `BnbViolinsReport.tsx` to import the shared `ViolinChart` + `violinStats`,": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223257309
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791225663343
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791226161876
+      }
+    ],
+    "3.1 Create `MemberAnalyticsPage.tsx` as a **separate page/route** in the Members module.": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223257439
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791225662095
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791226163243
+      }
+    ],
+    "3.2 In the page, fetch the scope-authorized set: `listMembers()` → `memberRows` + ": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223257579
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791226169758
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791226797751
+      }
+    ],
+    "3.3 Create `analytics/MemberAnalyticsPanel.tsx` — the view switch (one area visible at a": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223257706
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791226802357
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791227347508
+      }
+    ],
+    "3.4 Implement the three non-happy states distinctly (R1.4): empty set → neutral; no analytics": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223257825
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791226803904
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228057121
+      }
+    ],
+    "4.1 Create `analytics/MemberOverviewStats.tsx`: Chakra `Stat` cards (count, avg age, avg": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223258010
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228072343
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228823025
+      }
+    ],
+    "4.2 Surface excluded-count (rows with absent/invalid age/years-member) where it aids": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223258169
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228840788
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791229263908
+      }
+    ],
+    "5.1 Create `analytics/MemberDistributions.tsx`: build `ViolinDatum[]` for `age` and": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223258314
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228073143
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228822102
+      }
+    ],
+    "5.2 Add optional **group-by** selector (region / membership_type / gender, discovered from": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223258450
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791229272320
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791230407733
+      }
+    ],
+    "6.1 Declare the analytics config on the `members.*` param schema in the SAM module": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223258611
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223728529
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791224578077
+      }
+    ],
+    "6.2 Extend `frontend/src/types/members.ts` `FieldConfig` with": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223258740
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223729602
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791224578889
+      }
+    ],
+    "6.3 Add an **Analytics** tab to `MembersConfigEditor.tsx` (new `MembersParamSubEditor`": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223258904
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791224682457
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791225497079
+      }
+    ],
+    "6.4 Unit-test config consumption helpers: resolve a role → key via `analytics.field_roles`": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223259065
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791224673712
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791225498055
+      }
+    ],
+    "7.1 Implement `analytics/memberPivotAdapter.ts`:": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223259215
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228074235
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228819405
+      }
+    ],
+    "7.2 Implement `analytics/memberPivotPresets.ts`: predefined sets (members-per-type,": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223259371
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228075232
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791228820534
+      }
+    ],
+    "7.3 Create `analytics/MemberPivotViews.tsx`: dropdown of [presets] + [saved member models": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223259522
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791229274974
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791230408943
+      }
+    ],
+    "7.4 Create `analytics/MemberFieldPicker.tsx`: modal listing groupable/aggregatable fields": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223259749
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791229273601
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791230406319
+      }
+    ],
+    "7.5 Wire save / save-as / update / delete of member sets through the unchanged": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223259899
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791231201930
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791232152478
+      }
+    ],
+    "7.6 Jubilee year selector: reads `analytics.jubilee_rule`, renders a year filter on the": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223260063
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791230418134
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791231191782
+      }
+    ],
+    "8.1 Wire CSV export on a pivot/list result: reuse `csvExport.ts`, gated by": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223260207
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791232162644
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791232637640
+      }
+    ],
+    "8.2 Port `AddressLabelGenerator.tsx` + `addressLabelService.ts` from h-dcn": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223260349
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791231200607
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791232157020
+      }
+    ],
+    "8.3 Address-label tests: label-format grid calculations, address formatting from resolved": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223260481
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791232666358
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791233548597
+      }
+    ],
+    "9.1 Create a Flask route (e.g. `POST /api/members/mail-set`) that accepts filtered member": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223260620
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791232668822
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791233549711
+      }
+    ],
+    "9.2 Frontend mail compose UI on a filtered-list result: editable subject/body (bilingual": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223260762
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791233560808
+      }
+    ],
+    "9.3 Surface a clear error if SES rate-limits the send. Ensure transient artifacts (CSV/PDF": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223260897
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791234644747
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791235284314
+      }
+    ],
+    "10.1 Implement audit logging for every CSV export, PDF-label generate, and SES mail send:": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223261039
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791233563461
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791234639062
+      }
+    ],
+    "10.2 Implement the data-volume guard: measure `GET /members` response size (byte length);": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223261182
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791233565162
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791234638368
+      }
+    ],
+    "10.3 Measure the actual per-record JSON size for the heaviest-overlay tenant; establish": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223261320
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791233566652
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791234639724
+      }
+    ],
+    "11.1 Scope-safety test: feed a scoped `members` subset → assert no analytics area, export,": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223261496
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791235299770
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791236304155
+      }
+    ],
+    "11.2 Memoization / perf pass: confirm Overview renders < ~1s after rows loaded; filter": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223261653
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791235300585
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791236305711
+      }
+    ],
+    "11.3 Accessibility pass: controls keyboard-navigable (view switch, filters, set dropdown,": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223261802
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791235301274
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791236307062
+      }
+    ],
+    "11.4 BNB regression: confirm the STR BNB violin report renders identically after the": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223261958
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791235301954
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791236308076
+      }
+    ],
+    "11.5 Run the full frontend test suite and type-check; fix any regressions. Confirm the": [
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791223262109
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791236312853
+      },
+      {
+        "executionId": "51ca94bd-fe42-455b-aa9b-640d8a03eeb9",
+        "chatSessionId": "sess_099e2380-26d4-4132-a4fe-ee633300873d",
+        "timestamp": 1791237075722
+      }
+    ]
+  }
+}

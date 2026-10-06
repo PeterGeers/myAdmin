@@ -502,3 +502,66 @@ def test_member_number_format_surfaces_via_override():
 def test_member_number_has_no_format_by_default():
     cfg = _resolver().resolve("t")
     assert cfg.field("membership.member_number").member_number_format is None
+
+
+# ── member-analytics Task 6.1 — one-directional projection of the analytics slice (R9, C-CONFIG) ──
+#
+# ODI-2: the analytics config rides on `TenantOverlay.analytics` (a slice of the members.* overlay)
+# and the resolver projects it ONE-DIRECTIONALLY onto `FieldConfig.analytics` — carried verbatim,
+# never validated against the resolved `fields` here (the role→key reference check is the SPA's at
+# render / the Flask-plane validator's at Save, like view-context columns). Empty/absent → None.
+#
+# Validates: Requirements R9.1, R9.5
+
+from sam.members.domain.field_resolver import (
+    AddressMapping,
+    AnalyticsConfig,
+    AnalyticsRole,
+    JubileeRule,
+)
+
+
+class TestAnalyticsProjection:
+    def test_absent_analytics_resolves_to_none(self):
+        config = _resolver({"h-dcn": TenantOverlay()}).resolve("h-dcn")
+        assert config.analytics is None
+
+    def test_analytics_projected_verbatim_onto_field_config(self):
+        analytics = AnalyticsConfig(
+            jubilee_rule=JubileeRule(years=(25, 50)),
+            field_roles={AnalyticsRole.REFERRAL_SOURCE: "overlay.bron"},
+            address_mapping=AddressMapping(name="personal.display_name"),
+        )
+        overlay = TenantOverlay(analytics=analytics)
+        config = _resolver({"h-dcn": overlay}).resolve("h-dcn")
+
+        assert config.analytics is analytics
+        assert config.analytics.jubilee_rule.years == (25, 50)
+        assert config.analytics.field_roles[AnalyticsRole.REFERRAL_SOURCE] == "overlay.bron"
+        assert config.analytics.address_mapping.name == "personal.display_name"
+
+    def test_empty_analytics_block_collapses_to_none(self):
+        overlay = TenantOverlay(analytics=AnalyticsConfig())
+        config = _resolver({"h-dcn": overlay}).resolve("h-dcn")
+        assert config.analytics is None
+
+    def test_analytics_does_not_affect_the_resolved_fields(self):
+        # Projection is additive + orthogonal: the fixed base ⊕ calculated set is unchanged.
+        plain = _resolver({"h-dcn": TenantOverlay()}).resolve("h-dcn")
+        with_analytics = _resolver(
+            {"h-dcn": TenantOverlay(analytics=AnalyticsConfig(jubilee_rule=JubileeRule(multiple_of=5)))}
+        ).resolve("h-dcn")
+        assert [f.dotted_key() for f in plain.fields] == [
+            f.dotted_key() for f in with_analytics.fields
+        ]
+
+    def test_analytics_not_validated_against_fields_at_resolve(self):
+        # A role mapped to a key that is NOT present in the resolved fields is carried anyway
+        # (reference check is the SPA's at render / the validator's at Save) — never raises here.
+        overlay = TenantOverlay(
+            analytics=AnalyticsConfig(
+                field_roles={AnalyticsRole.CLUBBLAD_DIGITAL: "overlay.does_not_exist"}
+            )
+        )
+        config = _resolver({"h-dcn": overlay}).resolve("h-dcn")
+        assert config.analytics.field_roles[AnalyticsRole.CLUBBLAD_DIGITAL] == "overlay.does_not_exist"
