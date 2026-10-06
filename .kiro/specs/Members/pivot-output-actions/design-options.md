@@ -27,6 +27,39 @@ The questions this note answers:
 
 ---
 
+## Where the data lives (SAM / DynamoDB) — and the computation wrinkle
+
+Two different "data" things are in play, in different places:
+
+1. **The saved pivot / analytics-set *definitions*** → **SAM → DynamoDB.** Stored
+   by the Members SAM Lambda in its DynamoDB table (`sam-members` prod /
+   `sam-members-test`) as items with sort key `analyticsset#<set_id>` inside the
+   tenant partition. Shape = `AnalyticsSetEntry`
+   (`sam/members/domain/analytics_set.py`):
+   `{ tenant_id, set_id, name, kind, definition, origin, created_by, timestamps }`,
+   where `definition` is the snake_case `PivotConfig`. Reached via
+   `GET/POST/PUT/DELETE /members/analytics-sets` — **not** the old Flask
+   `/api/pivot/models` MySQL store (the F-012 migration: the Members module owns
+   its own data on its own plane).
+
+2. **The member *rows* the pivot computes over** → also from the Members SAM
+   module (DynamoDB), served by `GET /members`. **But the pivot does NOT run
+   server-side against the table.** Execute calls
+   `executeMemberPivot(processedData, config, fieldConfig)` — a **client-side**
+   adapter. `processedData` is the already-loaded, scope-authorized member rows
+   the Members overview fetched for the current user. So the records originate in
+   DynamoDB, but the aggregation / listing happens **in the browser**, over the
+   rows already loaded for that user's scope — it is not a DynamoDB-side query.
+
+**Why this matters for scheduling (below):** today the pivot is scope-correct
+*because* it runs in the browser over rows a logged-in user already pulled. A
+scheduled, user-less run cannot rely on that — it would have to **re-fetch member
+rows server-side** (from DynamoDB, in the Members Lambda) under a service
+principal, which forces the explicit "whose scope?" decision called out in the
+Scheduled-execution section.
+
+---
+
 ## What exists today (so the gaps are concrete)
 
 - **Mail route** (`POST /api/members/mail-set`, `backend/src/routes/members_mail.py`):
