@@ -18,6 +18,93 @@ unchanged filter/sort hooks, a preferred-list-shaped DynamoDB record).
   → pure helpers → persistence (mirror the preferred-list) → UI → wire filter/sort
   → verify.
 
+## Task Dependency Graph
+
+Waves run in order; tasks within a wave may proceed in parallel. A task's
+`dependsOn` names the tasks that must complete first.
+
+```json
+{
+  "waves": [
+    {
+      "wave": 1,
+      "tasks": [
+        { "id": "0.1", "dependsOn": [] }
+      ]
+    },
+    {
+      "wave": 2,
+      "tasks": [
+        { "id": "0.2", "dependsOn": ["0.1"] },
+        { "id": "1.1", "dependsOn": ["0.1"] },
+        { "id": "2.1", "dependsOn": ["0.1"] },
+        { "id": "2.2", "dependsOn": ["0.1"] },
+        { "id": "2.5.1", "dependsOn": ["0.1"] }
+      ]
+    },
+    {
+      "wave": 3,
+      "tasks": [
+        { "id": "1.2", "dependsOn": ["1.1"] },
+        { "id": "2.5.2", "dependsOn": ["2.5.1"] }
+      ]
+    },
+    {
+      "wave": 4,
+      "tasks": [
+        { "id": "1.3", "dependsOn": ["1.2"] },
+        { "id": "3.1", "dependsOn": ["1.1"] },
+        { "id": "2.5.3", "dependsOn": ["2.5.2"] }
+      ]
+    },
+    {
+      "wave": 5,
+      "tasks": [
+        { "id": "3.2", "dependsOn": ["3.1"] },
+        { "id": "2.5.4", "dependsOn": ["2.5.3"] }
+      ]
+    },
+    {
+      "wave": 6,
+      "tasks": [
+        { "id": "2.5.5", "dependsOn": ["2.5.4"] }
+      ]
+    },
+    {
+      "wave": 7,
+      "tasks": [
+        { "id": "4.1", "dependsOn": ["2.5.5", "3.1"] },
+        { "id": "4.2", "dependsOn": ["2.1", "2.2", "3.1"] }
+      ]
+    },
+    {
+      "wave": 8,
+      "tasks": [
+        { "id": "4.3", "dependsOn": ["4.1", "4.2"] },
+        { "id": "4.4", "dependsOn": ["4.2"] }
+      ]
+    },
+    {
+      "wave": 9,
+      "tasks": [
+        { "id": "5.1", "dependsOn": ["4.1", "4.2", "4.3", "4.4"] }
+      ]
+    },
+    {
+      "wave": 10,
+      "tasks": [
+        { "id": "5.2", "dependsOn": ["1.3", "2.5.5", "3.2", "5.1"] },
+        { "id": "5.3", "dependsOn": ["5.2"] }
+      ]
+    }
+  ]
+}
+```
+
+Critical path: 0.1 → 1.1 → 1.2 → (persistence 2.5.1→2.5.5) → 4.1 → 4.2/4.3/4.4 →
+5.1 → 5.2 → 5.3. The checklist (1.x), helpers (2.x), and persistence (2.5.x)
+tracks are independent after 0.1 and can proceed in parallel.
+
 ## Tasks
 
 ### Phase 0 — Decisions + i18n
