@@ -106,9 +106,9 @@ calculated field that lives only in a nested bucket (`membership.*`,
    (and its key is absent from the fixed `INITIAL_FILTERS` set).
 
 So the dividing line is **flat-key vs nested**, NOT fixed vs overlay. This is the
-same "flat `row[key]` misses a nested value" root cause as findings F-003 / F-005
-(explained at the end of this section) — those were already fixed in the analytics
-stats/distributions; the overview filter/sort is where the pattern still bites.
+same "flat `row[key]` misses a nested value" root cause that was already fixed in
+the analytics stats/distributions (findings F-003 / F-005, via `valueFor`); the
+overview filter/sort is the remaining place the pattern bites.
 
 ### Why pivot result tables filter on EVERY column (the proof-of-concept)
 
@@ -253,31 +253,6 @@ nested fields — turning the Option-2 feature into a general fix. That is sligh
 more rows×fields work but still client-side and low-risk. Option 1, by contrast,
 reads values only via `valueFor` to narrow rows and sidesteps the flat-key engine
 entirely, which is why it stays the genuine quick win.
-
-### What were F-003 / F-005? (context for the "flat-key" problem)
-
-These are two entries in `member-analytics/findings.md`, and they are the **same
-root cause** as the overview filter gap — which is why they keep coming up:
-
-- **F-003** — the Member Analytics **Overview** showed the member *count* but the
-  "average age" and "average years-member" cards were blank.
-- **F-005** — the Analytics **Distributions** (the age / years-member violin
-  charts) showed "Not enough data" even though every member had a calculated age
-  and years-member.
-- **Root cause (both):** the code read the value with a **flat** `row['age']` /
-  `row[metricKey]`, but `age` and `years_member` are **calculated fields that live
-  in nested buckets** (`personal.age`, `membership.years_member`). So every read
-  returned `undefined` → the averages had nothing to average, and the
-  distributions had zero valid points.
-- **Fix (both, already shipped — marked done in findings):** read via the
-  nested-aware accessor `valueFor(row, groupForKey(fieldConfig, key), key)`
-  instead of the flat key.
-
-So F-003/F-005 were the analytics-stats version of the exact bug the overview
-*columns* still have for nested fields: **flat `row[key]` misses a nested value.**
-They are already fixed in the stats/distributions; the overview filter/sort is the
-remaining place the same pattern bites, and the on-the-fly flatten above is the
-column-table equivalent of the `valueFor` fix they used.
 
 ## Option 3 — Analytics filtered-list pivot (already built)
 
