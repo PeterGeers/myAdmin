@@ -43,6 +43,8 @@ const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
 const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
+const mockGetColumnPreferences = vi.mocked(membersApiService.getColumnPreferences);
+const mockSaveColumnPreferences = vi.mocked(membersApiService.saveColumnPreferences);
 
 // A few FLAT members (as `listMembers` already flattens them), spanning regions.
 const mockMembers: Member[] = [
@@ -149,6 +151,12 @@ describe('MembersPage (Leden Overzicht)', () => {
     // The membership-type catalog feed (R5.8) — the page fetches it for the modals'
     // dropdown; an empty active list keeps these table-focused tests unaffected.
     mockListMembershipTypes.mockResolvedValue([] as never);
+    // Column preferences (session-columns C8): a first-time user with no saved
+    // columns → empty set, so these table-focused tests see the default columns.
+    // Deterministic mocks avoid the C8 load effect hanging on an auto-mocked
+    // undefined return.
+    mockGetColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
+    mockSaveColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
   });
 
   describe('renders mocked rows (R7.5, R8.7)', () => {
@@ -297,26 +305,41 @@ describe('MembersPage (Leden Overzicht)', () => {
     });
   });
 
-  describe('compact/full view switch (R7.6, driven by field config)', () => {
-    it('reveals the overlay column in full view and hides it again in compact', async () => {
+  // The compact/full toggle was removed (findings): overlay columns are now
+  // surfaced on demand via the ColumnChooser instead of a two-state switch.
+  describe('surfacing an overlay column via the ColumnChooser', () => {
+    it('shows the overlay column after it is checked, and hides it when unchecked', async () => {
       render(<MembersPage />);
       await waitForRows();
 
-      // Compact (default): the overlay header is absent.
+      // Default (compact) view: the overlay header is absent.
       expect(screen.queryByText(OVERLAY_HEADER)).not.toBeInTheDocument();
 
-      // Switch to full view: the overlay column header appears.
-      fireEvent.click(screen.getByText('view.full'));
+      // Open the chooser and check the overlay field (motor_type).
+      fireEvent.click(screen.getByTestId('members-column-chooser-button'));
       await waitFor(() => {
-        expect(screen.getByText(OVERLAY_HEADER)).toBeInTheDocument();
+        expect(screen.getByTestId('column-chooser')).toBeInTheDocument();
       });
-      // Overlay values render too.
-      expect(screen.getByText('BMW')).toBeInTheDocument();
+      const motorCheckbox = within(screen.getByTestId('column-chooser'))
+        .getByTestId('column-chooser-motor_type')
+        .querySelector('input[type="checkbox"]') as HTMLInputElement;
+      fireEvent.click(motorCheckbox);
 
-      // Back to compact: the overlay column header disappears again.
-      fireEvent.click(screen.getByText('view.compact'));
+      // The overlay column header + value now render. (The value "BMW" is a table
+      // cell, so it is unambiguous even with the chooser open — the header label
+      // "Motorfiets" also appears as the chooser checkbox label, so assert on the
+      // VALUE for presence.)
       await waitFor(() => {
-        expect(screen.queryByText(OVERLAY_HEADER)).not.toBeInTheDocument();
+        expect(screen.getByText('BMW')).toBeInTheDocument();
+      });
+
+      // Uncheck it again → the column is removed. Close the chooser first so the
+      // chooser's own "Motorfiets" checkbox label can't satisfy the query; then
+      // the only possible "BMW" would be a table cell, which must be gone.
+      fireEvent.click(motorCheckbox);
+      fireEvent.click(screen.getByTestId('column-chooser-close'));
+      await waitFor(() => {
+        expect(screen.queryByText('BMW')).not.toBeInTheDocument();
       });
     });
   });
@@ -448,7 +471,11 @@ describe('MembersPage (Leden Overzicht)', () => {
       await waitForRows();
 
       // Baseline: the stats strip is present and reports the full scoped set.
-      expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
+      // Wrapped in waitFor — the strip renders under `!loading`, which can settle
+      // a tick after the row names appear.
+      await waitFor(() => {
+        expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
+      });
 
       const search = screen.getByTestId('members-global-search') as HTMLInputElement;
       fireEvent.change(search, { target: { value: 'honda' } });

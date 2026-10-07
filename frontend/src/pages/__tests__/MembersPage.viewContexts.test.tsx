@@ -330,8 +330,9 @@ describe('MembersPage — view contexts (task 3.3)', () => {
 
     it('surfaces calculated columns in the default/full context too (R5.2)', async () => {
       currentRoles = [];
-      // No authored contexts → synthesized default; full view reveals non-compact
-      // fields, which includes the calculated + overlay columns.
+      // No authored contexts → synthesized default; the user surfaces non-compact
+      // (calculated + overlay) fields via the ColumnChooser (the compact/full
+      // toggle was removed).
       mockGetFieldConfig.mockResolvedValue(({ fields: RICH_FIELDS }) as never);
 
       render(<MembersPage />);
@@ -344,10 +345,22 @@ describe('MembersPage — view contexts (task 3.3)', () => {
       // Compact view hides the non-compact columns.
       expect(screen.queryByText('Korte naam')).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByText('view.full'));
+      // Surface the calculated + overlay fields via the chooser.
+      fireEvent.click(screen.getByTestId('members-column-chooser-button'));
+      await waitFor(() => {
+        expect(screen.getByTestId('column-chooser')).toBeInTheDocument();
+      });
+      const chooser = within(screen.getByTestId('column-chooser'));
+      for (const key of ['display_name', 'years_member', 'field_a']) {
+        const cb = chooser
+          .getByTestId(`column-chooser-${key}`)
+          .querySelector('input[type="checkbox"]') as HTMLInputElement;
+        fireEvent.click(cb);
+      }
+
       await waitFor(() => {
         // Calculated + overlay columns appear as read-only columns; the hidden
-        // field stays out even in full view.
+        // field is never offered in the chooser nor rendered.
         expect(screen.getByText('Korte naam')).toBeInTheDocument();
         expect(screen.getByText('Jaren lid')).toBeInTheDocument();
         expect(screen.getByText('Veld A')).toBeInTheDocument();
@@ -357,7 +370,7 @@ describe('MembersPage — view contexts (task 3.3)', () => {
   });
 
   describe('(d) default/empty context shows all visible fields', () => {
-    it('synthesizes a single default context (empty columns) → compact/full switch + fixed columns', async () => {
+    it('synthesizes a single default context (empty columns) → Columns chooser + fixed columns', async () => {
       currentRoles = [];
       // Module returns exactly one default context with EMPTY columns.
       mockGetFieldConfig.mockResolvedValue(
@@ -368,10 +381,10 @@ describe('MembersPage — view contexts (task 3.3)', () => {
       await waitForRows();
 
       // No dropdown (single default context) but the all-visible-fields behavior:
-      // the compact/full switch is present and the fixed columns render.
+      // the Columns chooser button is present (the compact/full toggle was
+      // removed) and the fixed columns render.
       expect(screen.queryByLabelText('viewContext.label')).not.toBeInTheDocument();
-      expect(screen.getByText('view.compact')).toBeInTheDocument();
-      expect(screen.getByText('view.full')).toBeInTheDocument();
+      expect(screen.getByTestId('members-column-chooser-button')).toBeInTheDocument();
 
       // Fixed compact columns + region cell render (today's default behavior).
       // "Noord" appears as a plain table cell (<td>) — the purple Badge was
@@ -382,8 +395,18 @@ describe('MembersPage — view contexts (task 3.3)', () => {
         screen.getAllByText('Noord').some((el) => el.tagName.toLowerCase() === 'td'),
       ).toBe(true);
 
-      // Full view reveals the overlay columns (iban/payment_method) by label.
-      fireEvent.click(screen.getByText('view.full'));
+      // Surfacing the overlay columns (iban/payment_method) via the chooser.
+      fireEvent.click(screen.getByTestId('members-column-chooser-button'));
+      await waitFor(() => {
+        expect(screen.getByTestId('column-chooser')).toBeInTheDocument();
+      });
+      const chooser = within(screen.getByTestId('column-chooser'));
+      for (const key of ['iban', 'payment_method']) {
+        const cb = chooser
+          .getByTestId(`column-chooser-${key}`)
+          .querySelector('input[type="checkbox"]') as HTMLInputElement;
+        fireEvent.click(cb);
+      }
       await waitFor(() => {
         expect(screen.getByText('IBAN')).toBeInTheDocument();
         expect(screen.getByText('Betaalwijze')).toBeInTheDocument();
@@ -399,7 +422,7 @@ describe('MembersPage — view contexts (task 3.3)', () => {
 
       // No authored contexts → synthesized default; page renders normally.
       expect(screen.queryByLabelText('viewContext.label')).not.toBeInTheDocument();
-      expect(screen.getByText('view.compact')).toBeInTheDocument();
+      expect(screen.getByTestId('members-column-chooser-button')).toBeInTheDocument();
       expect(screen.getByText('jan@h-dcn.example')).toBeInTheDocument();
     });
   });

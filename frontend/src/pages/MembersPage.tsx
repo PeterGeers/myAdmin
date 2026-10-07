@@ -37,7 +37,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Flex, Button, Text, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, HStack, ButtonGroup, Checkbox, Select, useDisclosure,
+  Table, Thead, Tbody, Tr, Th, Td, HStack, Checkbox, Select, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalCloseButton, ModalFooter, VStack,
   Input, InputGroup, InputLeftElement, InputRightElement, IconButton,
@@ -164,9 +164,6 @@ const MembersPage: React.FC = () => {
   // active-only types; the domain re-validates the chosen type authoritatively.
   const [membershipTypes, setMembershipTypes] = useState<MembershipType[] | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Compact/full view switch (driven by field config: fixed ⊕ overlay columns).
-  const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
 
   // Global all-fields search (member-field-search Option 1). A single free-text
   // query matched against EVERY candidate field of each row — including nested
@@ -300,20 +297,10 @@ const MembersPage: React.FC = () => {
       .catch(() => setMembershipTypes(null));
   }, []);
 
-  // Overlay (full-view-only) columns from the resolved field config: any field
-  // that is not one of the fixed compact keys and is not the region dimension.
-  // This is where PARAMETER-DRIVEN (overlay, origin `variable`) AND CALCULATED
-  // (origin `calculated`, read-only — R5.2) fields become first-class column
-  // candidates in the full/default view: the page renders whatever the field
-  // config lists, uniformly. Field-level `visible === false` removes a field
-  // from the candidate set (R5.1) — a hidden field is never a column.
-  const overlayFields: FieldConfigField[] = useMemo(() => {
-    const fixed = new Set<string>([...COMPACT_FIELD_KEYS, 'region', 'member_id', 'member_number']);
-    const fields = fieldConfig?.fields ?? [];
-    return fields
-      .filter(f => !fixed.has(f.key) && isColumnCandidate(f))
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [fieldConfig]);
+  // (The former `overlayFields` memo was removed with the compact/full toggle:
+  // overlay + calculated fields are now surfaced on demand via the ColumnChooser,
+  // which lists every candidate field directly from the field config, so the page
+  // no longer precomputes a full-view overlay set.)
 
   // ── Scope / region dimension resolution (task 4.2, design C-SCOPE; R5.3) ──────
   // The scope column (`region`) is surfaced as a plain field value in the row
@@ -443,21 +430,21 @@ const MembersPage: React.FC = () => {
 
   // The admin default/compact column KEYS a FIRST-TIME user (empty `chosenKeys`)
   // sees (R6.4 / OQ-A → (a)): when the active context has no explicit `columns`,
-  // the hardcoded compact set + `region` + (in full view) the overlay fields;
+  // the hardcoded COMPACT set + `region` (the compact/full toggle was removed —
+  // a first-time user starts compact and surfaces more fields via the chooser);
   // when the context DOES define `columns`, exactly those context keys. Once the
   // user saves a selection their own list is authoritative and this is unused.
   const defaultColumnKeys: string[] = useMemo(() => {
     if (hasExplicitColumns) {
       return contextColumns.map(f => f.key);
     }
-    const overlayKeys = viewMode === 'full' ? overlayFields.map(f => f.key) : [];
     // The compact set carries member_number first; it is prepended separately by
     // the model below, so drop it here to avoid a duplicate. `region` is a
     // dimension-backed column (no field descriptor needed) surfaced after the
     // compact fixed fields, exactly as the legacy compact path did.
     const compact = COMPACT_FIELD_KEYS.filter(k => k !== MEMBER_NUMBER_KEY);
-    return [...compact, 'region', ...overlayKeys];
-  }, [hasExplicitColumns, contextColumns, viewMode, overlayFields]);
+    return [...compact, 'region'];
+  }, [hasExplicitColumns, contextColumns]);
 
   // The user's effective chosen keys: THEIR saved list when non-empty, else the
   // first-time admin default (above). A context switch does NOT rebuild a saved
@@ -842,7 +829,6 @@ const MembersPage: React.FC = () => {
   // an explicit-columns context defines its own column set, so the switch is
   // hidden for it. The context dropdown is shown whenever ≥2 contexts are
   // selectable (a single/default-only context needs no picker).
-  const showViewSwitch = !hasExplicitColumns;
   const showContextDropdown = availableContexts.length > 1;
 
   return (
@@ -871,24 +857,46 @@ const MembersPage: React.FC = () => {
               ))}
             </Select>
           )}
-          {/* Compact/full view switch (default/all-visible-fields context only) */}
-          {showViewSwitch && (
-            <ButtonGroup size="sm" isAttached variant="outline">
-              <Button
-                colorScheme={viewMode === 'compact' ? 'orange' : 'gray'}
-                variant={viewMode === 'compact' ? 'solid' : 'ghost'}
-                onClick={() => setViewMode('compact')}
-              >
-                {t('view.compact')}
-              </Button>
-              <Button
-                colorScheme={viewMode === 'full' ? 'orange' : 'gray'}
-                variant={viewMode === 'full' ? 'solid' : 'ghost'}
-                onClick={() => setViewMode('full')}
-              >
-                {t('view.full')}
-              </Button>
-            </ButtonGroup>
+          {/* The former compact/full view switch was removed (findings): the
+              user now defines their own columns via the Columns chooser, which
+              fully supersedes the two-state toggle. A first-time user still gets
+              the compact set as the default (defaultColumnKeys). */}
+          {/* Global all-fields search (member-field-search Option 1), now INLINE
+              in the toolbar row alongside Columns / Export / Add (findings). It
+              narrows rows across EVERY candidate field (incl. non-visible
+              overlay/calculated) before the per-column filter/sort toolkit, so
+              the stats strip + table follow automatically. */}
+          {!loading && (
+            <InputGroup size="sm" w="auto" minW="14rem">
+              <InputLeftElement pointerEvents="none">
+                <SearchIcon color="gray.400" boxSize="12px" />
+              </InputLeftElement>
+              <Input
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                placeholder={t('search.placeholder')}
+                aria-label={t('search.ariaLabel')}
+                bg="gray.700"
+                color="white"
+                _placeholder={{ color: 'gray.400' }}
+                borderColor="gray.600"
+                autoComplete="off"
+                data-testid="members-global-search"
+              />
+              {globalSearch !== '' && (
+                <InputRightElement>
+                  <IconButton
+                    size="xs"
+                    variant="ghost"
+                    colorScheme="orange"
+                    aria-label={t('search.clear')}
+                    icon={<CloseIcon boxSize="8px" />}
+                    onClick={() => setGlobalSearch('')}
+                    data-testid="members-global-search-clear"
+                  />
+                </InputRightElement>
+              )}
+            </InputGroup>
           )}
           {/* Bulk transition action (task 20.4, R8.6) — appears only when ≥1 row
               is selected; opens the bulk-transition modal over the selection. */}
@@ -916,16 +924,21 @@ const MembersPage: React.FC = () => {
           >
             {t('columnChooser.button')}
           </Button>
-          {/* Export action (task 20.2, R8.4) — right-aligned, ZZP header pattern. */}
-          <Button
-            size="sm"
-            leftIcon={<DownloadIcon />}
-            colorScheme="orange"
-            variant="ghost"
-            onClick={() => { void handleExport(); }}
-          >
-            {t('actions.export')}
-          </Button>
+          {/* Export action (task 20.2, R8.4) — gated to Tenant Admin / SysAdmin
+              only (findings): the full-dataset CSV export duplicates the richer,
+              filtered pivot/analytics export for ordinary users, so it is reserved
+              for admins who occasionally need the raw dump. */}
+          {hasAnyRole(['Tenant_Admin', 'SysAdmin']) && (
+            <Button
+              size="sm"
+              leftIcon={<DownloadIcon />}
+              colorScheme="orange"
+              variant="ghost"
+              onClick={() => { void handleExport(); }}
+            >
+              {t('actions.export')}
+            </Button>
+          )}
           {/* Primary action: add / application (task 20.1, R8.3) — orange, header-right. */}
           <Button
             size="sm"
@@ -937,45 +950,6 @@ const MembersPage: React.FC = () => {
           </Button>
         </HStack>
       </Flex>
-
-      {/* Global all-fields search (member-field-search Option 1). Narrows the
-          rows across EVERY candidate field (incl. non-visible overlay/calculated
-          fields) before the per-column filter/sort toolkit, so the stats strip
-          and table below follow automatically. */}
-      {!loading && (
-        <Box mb={4} maxW="md">
-          <InputGroup size="sm">
-            <InputLeftElement pointerEvents="none">
-              <SearchIcon color="gray.400" boxSize="12px" />
-            </InputLeftElement>
-            <Input
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder={t('search.placeholder')}
-              aria-label={t('search.ariaLabel')}
-              bg="gray.800"
-              color="white"
-              _placeholder={{ color: 'gray.400' }}
-              borderColor="gray.600"
-              autoComplete="off"
-              data-testid="members-global-search"
-            />
-            {globalSearch !== '' && (
-              <InputRightElement>
-                <IconButton
-                  size="xs"
-                  variant="ghost"
-                  colorScheme="orange"
-                  aria-label={t('search.clear')}
-                  icon={<CloseIcon boxSize="8px" />}
-                  onClick={() => setGlobalSearch('')}
-                  data-testid="members-global-search-clear"
-                />
-              </InputRightElement>
-            )}
-          </InputGroup>
-        </Box>
-      )}
 
       {/* Live statistics strip (task 4.3, design C-SURFACE; R5.4) — reuses the
           shared stats-strip convention (steering 32; `bg="gray.800"` cards, same
@@ -1215,7 +1189,12 @@ const MembersPage: React.FC = () => {
         isOpen={isColumnChooserOpen}
         onClose={onColumnChooserClose}
         fieldConfig={fieldConfig}
-        selectedKeys={chosenKeys}
+        // Flag the columns ACTUALLY shown (findings): `effectiveChosenKeys` is the
+        // user's saved list when they have one, else the first-time default/compact
+        // set — so opening the chooser on a default view shows those columns
+        // checked, and the first toggle seeds the list from that visible set
+        // rather than from an empty `chosenKeys`.
+        selectedKeys={effectiveChosenKeys}
         language={lang}
         onChange={handleColumnsChange}
       />
