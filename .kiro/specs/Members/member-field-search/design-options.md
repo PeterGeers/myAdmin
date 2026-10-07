@@ -124,26 +124,85 @@ sound.
 
 ### What the build actually involves
 
-1. **Nested-aware filter + sort** — the dominant cost. Either pre-flatten the
-   chosen session fields onto the rows **on the fly** (a client-side memo — see
-   the recommended mechanism below), so the existing flat-key filter/sort engine
-   just works. No need to teach `useColumnFilters` / `useTableSort` about nesting.
-2. **Dynamic filter key set** — `INITIAL_FILTERS` is a fixed 6-key allow-list; the
-   hook already reconciles on a changing key signature (findings F-007), so this
-   is wiring, not a rewrite.
-3. **Filter wiring on added headers** — the overlay header map passes no
-   `filterValue` / `onFilterChange` today; added columns need that.
-4. **A column-chooser UI** — a modal of checkboxes over
-   `fields.filter(isColumnCandidate)`. The analytics `MemberFieldPicker` is a
-   near-perfect pattern to copy (grouped, bilingual, keyboard-accessible), but it
-   is NOT imported by `MembersPage` today — so a copy, not a reuse.
-5. **Render-path handling** — there are two separate paths (hardcoded default vs
-   `contextColumns.map`); added columns must target the active one.
-6. **`filterable_columns` exemption** — in a context that defines a filterable
-   allow-list, an added key must be exempted or it won't get a filter input.
-7. **Session state + tests** — session state is trivial local state; existing
-   MembersPage / useFilterableTable / FilterableHeader / fieldValue tests must stay
-   green and gain coverage for the surfaced-field filter/sort.
+Each item is tagged by how it should be structured: **[shared]** = a reusable
+component/util/hook that more than one surface consumes; **[local]** = page-specific
+state. Nothing here is "copy-paste" by necessity — the two things that read like
+copies today (the field picker and the render path) are better done as shared code,
+see the "Shared-component view" below.
+
+1. **Nested-aware filter + sort — [shared util].** Pre-flatten the chosen fields
+   onto the rows **on the fly** (a client-side memo — see the recommended
+   mechanism below) so the existing flat-key filter/sort engine just works. The
+   per-field resolution is already the shared `valueFor` / `groupForKey`; the only
+   new piece is a small shared `flattenFields(rows, fields)` util (plus a
+   `coerceByType` for type-correct sort). No change to `useColumnFilters` /
+   `useTableSort`.
+2. **Dynamic filter key set — [shared hook, already done].** `INITIAL_FILTERS`
+   is a fixed 6-key allow-list, but `useColumnFilters` already reconciles on a
+   changing key signature (findings F-007) — the same shared hook the pivot table
+   relies on. So this is wiring (hand it the enriched key set), not a change to
+   shared code.
+3. **Filter wiring on added headers — [shared component, already exists].**
+   `FilterableHeader` is already the shared header. The gap is only that the
+   overview's overlay headers are rendered without `filterValue` / `onFilterChange`
+   today; a unified render path (item 5) wires every column the same way, so this
+   stops being a special case.
+4. **A column-chooser UI — [shared component, to extract].** The reusable core is
+   the grouped, bilingual, keyboard-accessible checklist built from
+   `fields.filter(isColumnCandidate)` + `sectionFields()` (functional-group
+   sections, alpha within). Today that lives *inside* the analytics
+   `MemberFieldPicker`, which is a PIVOT BUILDER (it returns a `PivotConfig`), so
+   it cannot be reused as-is for a column chooser (which wants `string[]` of keys).
+   **Extract a shared `FieldChecklist` component** that both the pivot picker and
+   the column chooser consume. This is the right refactor — a shared widget with
+   two thin wrappers — not a copy.
+5. **Unify the two render paths — [shared column model].** `MembersPage` has two
+   paths today for historical reasons, not necessity: a hand-written default
+   (fixed six + region + `overlayColumns.map`, each wired differently) and a
+   uniform `contextColumns.map`. **Collapse them into ONE** `columns:
+   FieldDescriptor[]` list rendered by a single `columns.map(header)` +
+   `columns.map(cell)`. Then every column — fixed, context, or user-surfaced — flows
+   through identical wiring, and "add a session column" is just appending to that
+   list. This unification is what makes items 1/3/6 fall out cleanly, and it is the
+   soundest structure, but it rewrites the core of the highest-traffic member
+   screen (see trade-off below).
+6. **`filterable_columns` exemption — [local].** In a context that defines a
+   filterable allow-list, a user-surfaced key must be exempted or it gets no
+   filter input. Page-level policy, trivial once the render path is unified.
+7. **Session state + tests — [local].** The surfaced-column set is trivial local
+   state; existing MembersPage / useFilterableTable / FilterableHeader / fieldValue
+   tests must stay green and gain coverage for the surfaced-field filter/sort.
+
+### Shared-component view (direct answer to "why can't these be shared?")
+
+They can — and should. The split is:
+
+- **Already shared (no new code):** `valueFor` / `groupForKey` (value resolution),
+  `useColumnFilters` / `useTableSort` (the filter/sort engine, with the F-007
+  dynamic-key reconcile), and `FilterableHeader` (the header widget). The pivot
+  result table already consumes all of these, which is why its columns filter
+  correctly — the proof that the shared layer is sufficient.
+- **To make shared (two refactors):**
+  1. **`FieldChecklist`** — extract the checkbox-tree core out of
+     `MemberFieldPicker` so the pivot picker and the new column chooser share one
+     widget (different output contracts: `PivotConfig` vs `string[]`).
+  2. **One column model + one render loop** in `MembersPage` — replace the two
+     paths with a single `FieldDescriptor[]` → `map`, so fixed / context / session
+     columns are wired identically.
+- **Stays local (not shared):** the surfaced-column session state and the
+  per-context `filterable_columns` policy — these are page concerns, not reusable
+  units.
+
+**Trade-off (why the note first said "copy, not reuse").** Both refactors enlarge
+Option 2's blast radius onto working, committed code: `FieldChecklist` touches
+`MemberFieldPicker` + its tests, and the render-path unification rewrites the core
+of the busiest member screen (must keep the compact/full, region-filter, and
+explicit-context tests green). They are the RIGHT engineering and pay off the
+moment nested filtering is wanted for *all* columns — but they turn Option 2 from
+"bolt a feature beside the existing paths" into "unify the column model, then add
+the feature." Recommended sequence if built: (a) unify the render path behind the
+existing tests, (b) extract `FieldChecklist`, (c) add the session-column feature on
+top.
 
 ### Recommended mechanism — on-the-fly flattening (no backend, no hook rewrite)
 
@@ -248,9 +307,9 @@ The Member Analytics "list" pivot already produces a saved / shareable
 - Ship **Option 1** first — lowest risk, directly solves "find a value in a
   hidden field," no new config surface.
 - Follow with **Option 2** for precise, per-field filtering when the user knows
-  the field they care about — budgeting ~1–2 days, using the on-the-fly
-  `valueFor` flatten (no backend change, no filter-engine rewrite), plus the
-  column-chooser UI.
+  the field they care about — budgeting ~2–4 days, since it requires making the
+  filter/sort engine nested-aware (which also fixes the existing F-003/F-005
+  defect), not just adding a column picker.
 - Keep **Option 3** as the persistent/shareable reporting path, and separately
   resolve the open edit-from-row decision before changing that behaviour.
 
