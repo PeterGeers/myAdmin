@@ -81,6 +81,17 @@ def handler(event, context=None):
 5. **The repository is the only DynamoDB touch-point**, and it is where **tenant scoping is
    enforced** (`tenant_id` partition key + IAM `dynamodb:LeadingKeys`) — so the layers
    above cannot cross tenants even by mistake.
+5a. **A SAM module's data is NEVER persisted via another plane's storage endpoint — not even to
+   reuse an existing table.** A SAM module's data — including its *feature/config* data such as
+   saved analytics sets, saved views, or user preferences — is persisted by its **own repository**
+   in its **own DynamoDB table** (`tenant_id` tenancy) and reached through its **own Lambda**. It
+   MUST NEVER be stored via a **Flask/MySQL endpoint** (e.g. the `pivot_models` store) to piggy-back
+   on an existing table: that crosses the plane boundary, mixes tenancy models (`administration`
+   column vs. `tenant_id` + `LeadingKeys`), and couples the module to a store built for a different
+   plane. **Reuse the client/engine CODE across planes if useful; never reuse the other plane's
+   STORAGE.** (This is the anti-pattern finding F-012 corrected — a SAM-module feature persisting
+   through the Flask pivot CRUD. The React frontend of a SAM module talks to that module's own
+   Lambda for its data, never to another plane's store.)
 6. **SAM-plane tables are per-ENVIRONMENT, with the environment as a `test_` PREFIX.**
    Each module owns its own table(s), resolved from a per-module env var (fail-fast, e.g.
    `MEMBERS_TABLE`) — **never hardcoded/synthesized**. PRODUCTION tables are unprefixed
@@ -129,6 +140,25 @@ Only the **application/domain service** is app-specific. The **frontend contract
 tenancy** are platform-standard. Migrating the next app is therefore "write its domain
 services + repository; reuse the edge and tenancy" — which is exactly what the Members
 Go/No-Go pilot (`.kiro/specs/multi-tenant/s5-members-first-migration/`) is meant to prove.
+
+### Shared SAM application-capability pattern (CODE shared, DATA stays per-module)
+
+Beyond the edge/tenancy toolkit (`sam/shared` for auth/entitlement), a generic **application
+capability** that several modules want — e.g. **analytics** (the saved-set shape, the saved-set
+CRUD service/repo pattern, the client-side pivot/list adapter, the result/export) — MAY have its
+**CODE** shared via a `sam/shared/<capability>/` library. The hard constraint:
+
+- **Each module owns its DATA.** A shared capability still persists into **each module's own
+  DynamoDB table**, under that module's `tenant_id` tenancy. There is **NO** single shared
+  cross-module table with a module discriminator column — that would recreate exactly the
+  cross-cutting coupling rule 5a forbids. Share the *mechanism*, never the *store*.
+- **Build per-module first; extract on the SECOND consumer (rule of three).** Do not build the
+  `sam/shared/<capability>/` abstraction while there is one consumer. Write the first module's
+  implementation in **module-agnostic files with a clean seam** (no module-specific logic in the
+  adapter / set CRUD / result / export), so the second module that needs it (e.g.
+  events/webshop for analytics) triggers the **extraction** into the shared library, with both
+  modules then consuming it. Member Analytics is the first such consumer; the shared analytics
+  library is NOT built until the second.
 
 ## References
 

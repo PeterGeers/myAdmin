@@ -162,6 +162,128 @@
             "label_nl": "Volgorde"
           }
         ]
+      },
+      {
+        "key": "analytics",
+        "type": "object",
+        "label_en": "Analytics",
+        "label_nl": "Analyse",
+        "description_en": "Tenant analytics semantics read by the Member Analytics surface (member-analytics R9): the jubilee rule, the analytics field-role mapping, and the address-label field mapping. All optional; an unauthored block falls back to documented defaults.",
+        "description_nl": "Tenant-analysesemantiek die door de ledenanalyse wordt gelezen (member-analytics R9): de jubileumregel, de koppeling van analyse-veldrollen en de veldkoppeling voor adreslabels. Alles optioneel; een niet-ingevuld blok valt terug op gedocumenteerde standaarden.",
+        "object_fields": [
+          {
+            "key": "jubilee_rule",
+            "type": "object",
+            "label_en": "Jubilee Rule",
+            "label_nl": "Jubileumregel",
+            "description_en": "What counts as a jubilee year of years-member: either a configured set of years, or a multiple-of-N rule. Author at most one; when both are empty the default is multiples of 5.",
+            "description_nl": "Wat telt als jubileumjaar van lidjaren: een ingestelde reeks jaren, of een veelvoud-van-N-regel. Vul er hooguit één in; als beide leeg zijn geldt standaard veelvouden van 5.",
+            "object_fields": [
+              {
+                "key": "years",
+                "type": "string[]",
+                "label_en": "Jubilee Years",
+                "label_nl": "Jubileumjaren",
+                "description_en": "An explicit set of jubilee years (e.g. 25, 40, 50).",
+                "description_nl": "Een expliciete reeks jubileumjaren (bijv. 25, 40, 50)."
+              },
+              {
+                "key": "multiple_of",
+                "type": "number",
+                "label_en": "Every Nth year",
+                "label_nl": "Elk Nde jaar",
+                "description_en": "Treat every Nth year as a jubilee (e.g. 5 → 5, 10, 15, …).",
+                "description_nl": "Beschouw elk Nde jaar als jubileum (bijv. 5 → 5, 10, 15, …)."
+              }
+            ]
+          },
+          {
+            "key": "field_roles",
+            "type": "object",
+            "label_en": "Analytics Field Roles",
+            "label_nl": "Analyse-veldrollen",
+            "description_en": "Map each generic analytics role to one of your resolvable field keys. A role left unmapped simply hides its set (graceful degradation).",
+            "description_nl": "Koppel elke generieke analyse-rol aan een van je oplosbare veldsleutels. Een niet-gekoppelde rol verbergt eenvoudigweg de bijbehorende set (nette degradatie).",
+            "object_fields": [
+              {
+                "key": "cancellation_date",
+                "type": "string",
+                "label_en": "Cancellation date field",
+                "label_nl": "Veld opzegdatum"
+              },
+              {
+                "key": "referral_source",
+                "type": "string",
+                "label_en": "Referral source field",
+                "label_nl": "Veld aanmeldbron"
+              },
+              {
+                "key": "clubblad_paper",
+                "type": "string",
+                "label_en": "Clubblad paper field",
+                "label_nl": "Veld clubblad papier"
+              },
+              {
+                "key": "clubblad_digital",
+                "type": "string",
+                "label_en": "Clubblad digital field",
+                "label_nl": "Veld clubblad digitaal"
+              },
+              {
+                "key": "country_detail",
+                "type": "string",
+                "label_en": "Country detail field",
+                "label_nl": "Veld landdetail"
+              }
+            ]
+          },
+          {
+            "key": "address_mapping",
+            "type": "object",
+            "label_en": "Address Label Mapping",
+            "label_nl": "Adreslabelkoppeling",
+            "description_en": "Which resolvable field keys fill each line of a printed address label. Absent a mapping, PDF address labels are unavailable (CSV export always works).",
+            "description_nl": "Welke oplosbare veldsleutels elke regel van een gedrukt adreslabel vullen. Zonder koppeling zijn pdf-adreslabels niet beschikbaar (csv-export werkt altijd).",
+            "object_fields": [
+              {
+                "key": "name",
+                "type": "string",
+                "label_en": "Name field",
+                "label_nl": "Veld naam"
+              },
+              {
+                "key": "street",
+                "type": "string",
+                "label_en": "Street field",
+                "label_nl": "Veld straat"
+              },
+              {
+                "key": "postcode",
+                "type": "string",
+                "label_en": "Postcode field",
+                "label_nl": "Veld postcode"
+              },
+              {
+                "key": "city",
+                "type": "string",
+                "label_en": "City field",
+                "label_nl": "Veld plaats"
+              },
+              {
+                "key": "country",
+                "type": "string",
+                "label_en": "Country field",
+                "label_nl": "Veld land"
+              },
+              {
+                "key": "region",
+                "type": "string",
+                "label_en": "Region field",
+                "label_nl": "Veld regio"
+              }
+            ]
+          }
+        ]
       }
     ]
   },

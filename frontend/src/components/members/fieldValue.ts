@@ -23,11 +23,36 @@
  * that so both render paths agree.
  */
 
-import type { FieldConfigField, Member } from '../../types/members';
+import type { FieldConfig, FieldConfigField, Member } from '../../types/members';
 import { formatDate } from '../../utils/formatting';
 
 /** The read-only placeholder shown for an absent/blank value. */
 export const EMPTY_CELL = '-';
+
+/**
+ * Resolve the STORAGE group (`personal` / `membership` / `overlay`) for a field
+ * `key` from the resolved field config, so a caller can read a value with
+ * {@link valueFor}(row, groupForKey(fieldConfig, key), key).
+ *
+ * Calculated fields (`age`, `years_member`, ...) are enriched onto the member
+ * record under their storage bucket (e.g. `personal.age`,
+ * `membership.years_member`), NOT promoted to a flat top-level alias — so a flat
+ * `row[key]` read misses them (findings F-003 / F-005). Resolving the group here
+ * and reading via `valueFor` (nested-first) is the single correct accessor, the
+ * same one the table cells use.
+ *
+ * Returns `undefined` when the key is absent from the config, in which case
+ * `valueFor` falls back to the flat key — so an un-configured key still resolves
+ * if it happens to be a top-level alias.
+ */
+export function groupForKey(
+  fieldConfig: FieldConfig | null | undefined,
+  key: string,
+): string | undefined {
+  const fields = fieldConfig?.fields;
+  if (!Array.isArray(fields)) return undefined;
+  return fields.find((field) => field?.key === key)?.group;
+}
 
 /**
  * Read a member value by its STORAGE group then bare key — the single accessor

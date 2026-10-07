@@ -194,8 +194,9 @@ def test_birthday_missing_group_returns_none():
 
 
 def test_birth_day_returns_day_of_month():
+    # Zero-padded so a substring filter for "04" never matches 14/24 (findings).
     rec = _record(personal={"birth_date": "1980-05-04"})
-    assert _derive_birth_day(rec) == "4"
+    assert _derive_birth_day(rec) == "04"
 
 
 def test_birth_day_end_of_month():
@@ -204,13 +205,24 @@ def test_birth_day_end_of_month():
 
 
 def test_birth_month_returns_month():
+    # Zero-padded so a substring filter for "05" never matches 15/05-vs-5 ambiguity (findings).
     rec = _record(personal={"birth_date": "1980-05-04"})
-    assert _derive_birth_month(rec) == "5"
+    assert _derive_birth_month(rec) == "05"
 
 
 def test_birth_month_december():
     rec = _record(personal={"birth_date": "1999-12-31"})
     assert _derive_birth_month(rec) == "12"
+
+
+def test_birth_day_and_month_are_two_char_zero_padded():
+    # Regression (findings): single-digit day/month must be zero-padded so a substring
+    # column filter is unambiguous (filtering "01" must not also match 10/11/21/31).
+    jan_sep = _record(personal={"birth_date": "1966-09-01"})
+    assert _derive_birth_day(jan_sep) == "01"
+    assert _derive_birth_month(jan_sep) == "09"
+    assert len(_derive_birth_day(jan_sep)) == 2
+    assert len(_derive_birth_month(jan_sep)) == 2
 
 
 def test_birth_year_returns_full_year():
@@ -238,7 +250,7 @@ def test_birth_quarter_maps_month_to_quarter(birth_date, expected):
 def test_birth_fields_accept_datetime_prefixed_string():
     rec = _record(personal={"birth_date": "1990-08-15T10:00:00"})
     assert _derive_birth_day(rec) == "15"
-    assert _derive_birth_month(rec) == "8"
+    assert _derive_birth_month(rec) == "08"
     assert _derive_birth_year(rec) == "1990"
     assert _derive_birth_quarter(rec) == "3"
 
@@ -346,7 +358,7 @@ def test_compute_calculated_fields_returns_every_key_and_never_raises():
     assert result["personal.display_name"] == "Jan van Dijk"
     assert result["personal.birthday"] == "06-15"
     assert result["personal.birth_day"] == "15"
-    assert result["personal.birth_month"] == "6"
+    assert result["personal.birth_month"] == "06"
     assert result["personal.birth_year"] == "1990"
     assert result["personal.birth_quarter"] == "2"
     assert result["membership.application_year"] == 2015

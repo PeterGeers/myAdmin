@@ -105,7 +105,8 @@ class RegionCanonicalizer:
 
     The canonical vocabulary is **TENANT DATA**, injected — it is NOT sourced from any core
     constant (the generic core ships no tenant's regions). Onboarding passes the same value
-    set it authors into ``members.scope_dimensions`` (from ``scripts/aws/h-dcn/members_config.json``)
+    set it authors into ``members.scope_dimensions`` (from
+    ``scripts/onboarding/members/h-dcn/members_config.json``)
     so the importer and enforcement share ONE vocabulary (Property 4, no drift).
 
     Two-step match (S5d R9.2/D5):
@@ -212,7 +213,7 @@ def _base_header(column: str) -> str:
 # ── Source-column contract: the SINGLE authored mapping is the CSV (R0.1/R0.2/D0) ─────
 #
 # s5m single-source-of-truth cleanup (R0.1/R0.4): the source→target mapping is authored in ONE
-# place — ``scripts/aws/h-dcn/members_source_mapping.csv`` (parsed into a ``MappingContract`` by
+# place — ``scripts/onboarding/members/h-dcn/members_source_mapping.csv`` (parsed into a ``MappingContract`` by
 # ``members_mapping_loader``). There is NO second hand-maintained Python dict that can drift from
 # (or contradict) the CSV. The old module-level ``FIXED_SOURCE_COLUMNS`` / ``OVERLAY_SOURCE_
 # COLUMNS`` dicts (and the source-column-name constants ``_SIGNED_DATE_COLUMN`` /
@@ -801,17 +802,18 @@ def _split_iban_or_payment(raw: Any) -> tuple[str | None, str | None]:
 
 #: The parsed default mapping contract, lazily loaded + cached (the transform's default when a
 #: caller passes no explicit ``contract``). Loading is deferred to first use because the loader
-#: (``scripts/aws/h-dcn/members_mapping_loader.py``) is NOT on the normal import path — importing
-#: ``hdcn_backfill`` in the SAM Lambda runtime must never require the onboarding scripts dir.
+#: (``scripts/onboarding/members/h-dcn/members_mapping_loader.py``) is NOT on the normal import
+#: path — importing ``hdcn_backfill`` in the SAM Lambda runtime must never require the onboarding
+#: scripts dir.
 _DEFAULT_CONTRACT_CACHE: Any = None
 
 
 def _load_default_contract() -> Any:
     """Load + cache the authored default :class:`MappingContract` (spec D0), lazily by path.
 
-    The loader + CSV live under ``scripts/aws/h-dcn/`` (not a Python package), so this imports
-    the module BY PATH (mirroring how the runner loads ``members_config_loader``) and caches the
-    result. ``map_hdcn_row`` calls this only when its caller supplies no explicit ``contract`` —
+    The loader + CSV live under ``scripts/onboarding/members/h-dcn/`` (not a Python package), so
+    this imports the module BY PATH (mirroring how the runner loads ``members_config_loader``) and
+    caches the result. ``map_hdcn_row`` calls this only when its caller supplies no explicit ``contract`` —
     the runner (task 6) will pass the already-loaded contract, avoiding the re-load.
     """
     global _DEFAULT_CONTRACT_CACHE
@@ -821,7 +823,8 @@ def _load_default_contract() -> Any:
         _hdcn_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
             "scripts",
-            "aws",
+            "onboarding",
+            "members",
             "h-dcn",
         )
         _loader_path = os.path.join(_hdcn_dir, "members_mapping_loader.py")
@@ -881,7 +884,7 @@ def map_hdcn_row(
     column's disposition come from the loaded :class:`MappingContract` (task 2's
     ``members_mapping_loader.load_mapping_contract``) — NOT hardcoded dicts. Pass an explicit
     ``contract`` (the runner does, once per batch) or leave it ``None`` to lazily load + cache
-    the authored default (``scripts/aws/h-dcn/members_source_mapping.csv``). Each column is
+    the authored default (``scripts/onboarding/members/h-dcn/members_source_mapping.csv``). Each column is
     resolved in this order (design D2b): **FIXED → OVERLAY → CALCULATED (skip) → EXCLUDED (skip)
     → additional_info** (anything mapped nowhere, kept, is concatenated into
     ``overlay.additional_info``).

@@ -129,6 +129,11 @@ export const FilterableHeader: React.FC<FilterableHeaderProps> = ({
               placeholder={placeholder || 'Filter...'}
               bg="gray.600"
               color="white"
+              // Readable placeholder on the dark header bg — the default Chakra
+              // placeholder is near-black on gray.600 (contrast finding). This
+              // component is only ever used inside dark (gray.700/800) table
+              // headers, so a light placeholder is always correct here.
+              _placeholder={{ color: 'gray.300' }}
               pl="24px"
               aria-label={`Filter by ${label}`}
               autoComplete="off"

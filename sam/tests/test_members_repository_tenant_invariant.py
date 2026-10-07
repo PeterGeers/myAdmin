@@ -45,6 +45,9 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
+from sam.members.domain.analytics_set import AnalyticsSetEntry
+from sam.members.domain.column_preferences import ColumnPreferences
+from sam.members.domain.preferred_list import PreferredList
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.repository import members_repository as repo_mod
 from sam.members.repository import table_design as td
@@ -161,6 +164,36 @@ def _mtype(type_code: str) -> MembershipTypeEntry:
     )
 
 
+def _aset(set_id: str) -> AnalyticsSetEntry:
+    return AnalyticsSetEntry(
+        tenant_id=TENANT,
+        set_id=set_id,
+        name="A set",
+        kind="list",
+        definition={"data_source": "members", "group_columns": [], "aggregate_measures": []},
+        created_at="2024-01-01T00:00:00+00:00",
+        updated_at="2024-01-01T00:00:00+00:00",
+    )
+
+
+def _pref(sub: str) -> PreferredList:
+    return PreferredList(
+        tenant_id=TENANT,
+        sub=sub,
+        refs=["preset:jubilees"],
+        updated_at="2024-01-01T00:00:00+00:00",
+    )
+
+
+def _colprefs(sub: str) -> ColumnPreferences:
+    return ColumnPreferences(
+        tenant_id=TENANT,
+        sub=sub,
+        columns=["years_member"],
+        updated_at="2024-01-01T00:00:00+00:00",
+    )
+
+
 # Every read/write path on the public repository surface, as a callable driven with a fixed
 # tenant. Keeping this list exhaustive is the point: if a new method is added it should be
 # added here too (see the completeness test below, which fails on an untested public method).
@@ -185,6 +218,16 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
         "deactivate_membership_type": lambda: (
             repo.save_membership_type(TENANT, _mtype("erelid")),
             repo.deactivate_membership_type(TENANT, "erelid"),
+        ),
+        "get_analytics_set": lambda: repo.get_analytics_set(TENANT, "set-1"),
+        "list_analytics_sets": lambda: repo.list_analytics_sets(TENANT),
+        "save_analytics_set": lambda: repo.save_analytics_set(TENANT, _aset("set-1")),
+        "delete_analytics_set": lambda: repo.delete_analytics_set(TENANT, "set-1"),
+        "get_preferred_list": lambda: repo.get_preferred_list(TENANT, "sub-1"),
+        "save_preferred_list": lambda: repo.save_preferred_list(TENANT, _pref("sub-1")),
+        "get_column_preferences": lambda: repo.get_column_preferences(TENANT, "sub-1"),
+        "save_column_preferences": lambda: repo.save_column_preferences(
+            TENANT, _colprefs("sub-1")
         ),
     }
 
@@ -213,6 +256,14 @@ class TestEveryOperationPinsTheTenantPartition:
             "get_membership_type",
             "save_membership_type",
             "deactivate_membership_type",
+            "get_analytics_set",
+            "list_analytics_sets",
+            "save_analytics_set",
+            "delete_analytics_set",
+            "get_preferred_list",
+            "save_preferred_list",
+            "get_column_preferences",
+            "save_column_preferences",
         ],
     )
     def test_operation_only_touches_the_callers_tenant_partition(self, repo, table, op_name):

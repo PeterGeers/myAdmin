@@ -53,11 +53,14 @@ service never learns where the data lives.
 
 from __future__ import annotations
 
+from sam.members.domain._membership_analytics import AnalyticsSetsMixin
 from sam.members.domain._membership_catalog import CatalogMixin
 from sam.members.domain._membership_errors import (
     DEFAULT_SCOPE_DIMENSION_KEY,
     MEMBERSHIP_STATUS_FIELD_KEY,
     MEMBERSHIP_TYPE_FIELD_KEY,
+    AnalyticsSetConflict,
+    AnalyticsSetNotFound,
     MemberNotFound,
     MembershipTypeConflict,
     MembershipTypeNotFound,
@@ -95,6 +98,8 @@ __all__ = [
     "DEFAULT_SCOPE_DIMENSION_KEY",
     "MEMBERSHIP_STATUS_FIELD_KEY",
     "MEMBERSHIP_TYPE_FIELD_KEY",
+    "AnalyticsSetConflict",
+    "AnalyticsSetNotFound",
     "MemberNotFound",
     "MemberValidationError",
     "MembershipService",
@@ -106,7 +111,7 @@ __all__ = [
 ]
 
 
-class MembershipService(ReadsMixin, LifecycleMixin, WritesMixin, CatalogMixin):
+class MembershipService(ReadsMixin, LifecycleMixin, WritesMixin, CatalogMixin, AnalyticsSetsMixin):
     """The generic membership engine — READ surface (design C2) + lifecycle state machine.
 
     Storage-agnostic + tenant-agnostic. Holds a :class:`MembersRepository` (injected), and

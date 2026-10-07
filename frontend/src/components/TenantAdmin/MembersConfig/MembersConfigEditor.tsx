@@ -2,17 +2,19 @@
  * Members typed authoring UI — parent (s5c tasks 2.5/2.6, C-EDITOR).
  *
  * A structured, bilingual, no-raw-JSON editor for the three `members.*` params, reachable
- * from the Tenant-Admin area for a Members-enabled tenant. It hosts four sub-editors:
+ * from the Tenant-Admin area for a Members-enabled tenant. It hosts five sub-editors:
  *
  *   1. Functional-group catalog  — field_overlay.functional_groups (list<object>)
  *   2. Field overlay             — field_overlay.fields (map<field_def>) + fixed_overrides
  *   3. Scope dimensions          — scope_dimensions (list<object>)
  *   4. View contexts             — view_contexts (list<object>)
+ *   5. Analytics                 — field_overlay.analytics (object: jubilee_rule / field_roles /
+ *                                  address_mapping) — member-analytics R9, C-CONFIG
  *
- * Sub-editors 1 + 2 both edit the single `field_overlay` param object; each still commits
+ * Sub-editors 1, 2 + 5 all edit the single `field_overlay` param object; each still commits
  * the WHOLE object in one PUT (save-once, Property 8). Pickers offer only defined
  * functional groups / resolvable field keys (Property 7 authoring-time help); the backend
- * validates on Save.
+ * validates on Save (R9.4 reference validation for the analytics role/address keys).
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -139,7 +141,7 @@ export const MembersConfigEditor: React.FC<Props> = ({
 
   useEffect(() => {
     load();
-     
+
   }, [tenant]);
 
   const defByKey = useMemo(() => {
@@ -208,6 +210,9 @@ export const MembersConfigEditor: React.FC<Props> = ({
           <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
             {lang === 'nl' ? 'Weergavecontexten' : 'View Contexts'}
           </Tab>
+          <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+            {lang === 'nl' ? 'Analyse' : 'Analytics'}
+          </Tab>
         </TabList>
 
         <TabPanels>
@@ -264,6 +269,26 @@ export const MembersConfigEditor: React.FC<Props> = ({
                 existing={rows.view_contexts}
                 ctx={ctx}
                 onSaved={load}
+              />
+            )}
+          </TabPanel>
+
+          {/* 5. Analytics config — a slice of field_overlay (member-analytics R9, C-CONFIG).
+              Authored here as `analytics` beside functional_groups/fields/fixed_overrides, still
+              committed WHOLE-object in one PUT (save-once, Property 8). The jubilee-rule set /
+              multiple-of, the analytics field roles, and the address-label mapping are authored
+              via the shared typed renderer; role/address keys use the resolvable-field-key picker
+              (offer-only-resolvable, reference-validated — backend authoritative on Save, R9.4). */}
+          <TabPanel>
+            {overlayDef && (
+              <MembersParamSubEditor
+                paramKey="field_overlay"
+                def={overlayDef}
+                existing={rows.field_overlay}
+                ctx={ctx}
+                onValueChange={setOverlayValue}
+                onSaved={load}
+                sliceKey="analytics"
               />
             )}
           </TabPanel>

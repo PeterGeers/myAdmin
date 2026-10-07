@@ -37,18 +37,21 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Flex, Button, Text, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, HStack, ButtonGroup, Checkbox, Select, useDisclosure,
+  Table, Thead, Tbody, Tr, Th, Td, HStack, Checkbox, Select, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalCloseButton, ModalFooter, VStack,
+  Input, InputGroup, InputLeftElement, InputRightElement, IconButton,
 } from '@chakra-ui/react';
-import { AddIcon, DownloadIcon, RepeatIcon } from '@chakra-ui/icons';
+import { AddIcon, DownloadIcon, RepeatIcon, SearchIcon, CloseIcon, SettingsIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { useAuth } from '../context/AuthContext';
 import { FilterableHeader } from '../components/filters/FilterableHeader';
 import { useFilterableTable } from '../hooks/useFilterableTable';
 import {
   listMembers, getMember, getFieldConfig, exportMembers, listMembershipTypes,
+  getColumnPreferences, saveColumnPreferences,
 } from '../services/membersApiService';
+import ColumnChooser, { ALWAYS_ON_COLUMN_KEY } from '../components/members/ColumnChooser';
 import { MembersAddModal } from '../components/members/MembersAddModal';
 import { MembersEditModal } from '../components/members/MembersEditModal';
 import { MembersDeleteConfirm } from '../components/members/MembersDeleteConfirm';
@@ -57,6 +60,7 @@ import { MembersTransitionModal } from '../components/members/MembersTransitionM
 import { MembersBulkTransitionModal } from '../components/members/MembersBulkTransitionModal';
 import { generateCsv, downloadCsv } from '../utils/csvExport';
 import { renderFieldValue, isColumnCandidate, valueFor } from '../components/members/fieldValue';
+import { coerceByType, shouldFlatten } from '../components/members/columnValue';
 import { formFields, groupFieldsBySection } from '../components/members/fieldForm';
 import type {
   Member, MemberRow, FieldConfig, FieldConfigField, LocalizedLabel, ViewContext, ScopeDimension,
@@ -66,6 +70,28 @@ import type {
 /** The always-visible (compact) fixed columns, in display order. Lidnummer (member_number)
  *  leads — it is the member's human-facing identifier (M00000…), NOT the internal member_id UUID. */
 const COMPACT_FIELD_KEYS = ['member_number', 'name', 'email', 'status', 'membership_type'] as const;
+
+/** The leading, always-present fixed column (session-columns R7.1). Pinned first
+ *  by the unified column model (design C3) and never removable. */
+const MEMBER_NUMBER_KEY = 'member_number';
+
+/**
+ * Legacy per-column label i18n keys for the fixed compact columns + region
+ * (session-columns C3). The pre-unification render paths labeled these specific
+ * keys from the `members` namespace (`columns.*` / `filters.*`) rather than the
+ * field-config label, and the existing suites assert on those exact labels (e.g.
+ * `Filter by filters.region`, `Sort by columns.name`). The unified column model
+ * preserves them: a fixed key resolves to its legacy i18n label, every other
+ * column to its field-config `resolveLabel`.
+ */
+const FIXED_COLUMN_LABEL_KEYS: Record<string, string> = {
+  member_number: 'columns.memberNumber',
+  name: 'columns.name',
+  email: 'columns.email',
+  status: 'filters.status',
+  membership_type: 'filters.type',
+  region: 'filters.region',
+};
 
 /** Column filter keys — region/status/type plus the compact fixed fields. */
 const INITIAL_FILTERS: Record<string, string> = {
@@ -90,6 +116,14 @@ function resolveLabel(
 
 /** The stable key of the synthesized default (empty-columns = all visible fields) context. */
 const DEFAULT_CONTEXT_KEY = '__default__';
+
+/**
+ * One column in the unified column model (session-columns design C3). A thin
+ * wrapper over a resolved `FieldConfigField` in render order — the single shape
+ * the one header map + one cell map iterate, so fixed / context / session
+ * columns all flow through identical FilterableHeader wiring (OQ-2).
+ */
+type OverviewColumn = { field: FieldConfigField };
 
 /**
  * Normalize the field-config `view_contexts` (design C-VIEW) to a NON-EMPTY list:
@@ -131,8 +165,14 @@ const MembersPage: React.FC = () => {
   const [membershipTypes, setMembershipTypes] = useState<MembershipType[] | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Compact/full view switch (driven by field config: fixed ⊕ overlay columns).
-  const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
+  // Global all-fields search (member-field-search Option 1). A single free-text
+  // query matched against EVERY candidate field of each row — including nested
+  // overlay / calculated fields the overview does not surface as columns — so a
+  // user can find a value in a non-visible field without knowing which column it
+  // lives in. Narrows the rows BEFORE the per-column filter/sort toolkit, so
+  // stats, column filters, sort, selection and export all follow automatically.
+  // Scope-safe: it only ever narrows the already scope-authorized row set.
+  const [globalSearch, setGlobalSearch] = useState('');
 
   // Selected view context (design C-VIEW). Defaults to the first AVAILABLE
   // context once the field config resolves (see the effect below).
@@ -162,6 +202,20 @@ const MembersPage: React.FC = () => {
     isOpen: isBulkOpen, onOpen: onBulkOpen, onClose: onBulkClose,
   } = useDisclosure();
 
+  // Column chooser modal (session-columns task 4.1, design C2/C8) — opened from a
+  // toolbar button; lets the user pick which candidate fields show as columns.
+  const {
+    isOpen: isColumnChooserOpen, onOpen: onColumnChooserOpen, onClose: onColumnChooserClose,
+  } = useDisclosure();
+
+  // The user's own ordered chosen-column keys (session-columns R3.1). This is the
+  // single source of which non-fixed columns show; member_number is implied +
+  // pinned first by the model (R7), so it is never part of this list. Seeded on
+  // mount from the persisted `getColumnPreferences()` once the field config
+  // resolves (C8) — empty for a first-time user (R6.4). The unified column model
+  // + flatten that CONSUME this list are tasks 4.2/4.3/4.4.
+  const [chosenKeys, setChosenKeys] = useState<string[]>([]);
+
   // Row selection for bulk actions (task 20.4): the set of selected member_ids.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -186,6 +240,54 @@ const MembersPage: React.FC = () => {
       .catch(() => setFieldConfig(null));
   }, []);
 
+  // ── Seed the chosen-column list from the persisted preferences (C8 load) ──────
+  // Once the field config resolves, fetch the user's saved column keys and seed
+  // `chosenKeys`, resolving each key against the field config and SKIPPING any
+  // that no longer resolves (dangling — field removed/hidden, R6.6) or is
+  // `member_number` (implied + always-on, never stored, R7.3). An empty / unset
+  // response leaves the list empty — the first-time default (R6.4; the admin
+  // default overlay itself is applied by the unified column model in task 4.2).
+  // A failed GET is non-fatal: the user simply starts from an empty chosen set.
+  useEffect(() => {
+    if (!fieldConfig) return;
+    let cancelled = false;
+    const resolvable = new Set(
+      (fieldConfig.fields ?? [])
+        .filter(f => !!f && typeof f.key === 'string' && f.key !== '')
+        .map(f => f.key),
+    );
+    // `Promise.resolve(...)` wraps the call so a test auto-mock that returns a
+    // bare value (not a promise) is tolerated — the same defensive pattern the
+    // membership-type load above uses.
+    Promise.resolve(getColumnPreferences())
+      .then(prefs => {
+        if (cancelled || !prefs) return;
+        const seeded = (prefs.columns ?? []).filter(
+          key => key !== ALWAYS_ON_COLUMN_KEY && resolvable.has(key),
+        );
+        setChosenKeys(seeded);
+      })
+      .catch(() => {
+        // Non-fatal: keep the empty first-time default; the user can still choose.
+      });
+    return () => { cancelled = true; };
+  }, [fieldConfig]);
+
+  // ── Apply + persist a chooser change (C8 save) ───────────────────────────────
+  // The chooser emits the FULL ordered chosen-key list (never member_number).
+  // We update local state OPTIMISTICALLY so the view changes immediately, then
+  // persist the full list via `saveColumnPreferences()` (full replace, R6.5). A
+  // failed save shows a NON-BLOCKING toast and KEEPS the optimistic local change
+  // — the user never loses their working column set (design C8 error handling).
+  const handleColumnsChange = useCallback((nextKeys: string[]) => {
+    setChosenKeys(nextKeys);
+    // `Promise.resolve(...)` tolerates a non-promise mock return in tests while
+    // keeping the real wrapper's rejection path (→ non-blocking toast) intact.
+    Promise.resolve(saveColumnPreferences(nextKeys)).catch(() => {
+      toast({ title: t('columnChooser.toast.saveError'), status: 'error' });
+    });
+  }, [toast, t]);
+
   // Load the ACTIVE membership-type catalog (R5.8) once — GET /membership-types?active_only=true.
   // The add/edit modals render the membership_type dropdown from these active-only entries; a
   // failed load leaves it null (the modals then fall back to the field-config embedded options).
@@ -195,20 +297,10 @@ const MembersPage: React.FC = () => {
       .catch(() => setMembershipTypes(null));
   }, []);
 
-  // Overlay (full-view-only) columns from the resolved field config: any field
-  // that is not one of the fixed compact keys and is not the region dimension.
-  // This is where PARAMETER-DRIVEN (overlay, origin `variable`) AND CALCULATED
-  // (origin `calculated`, read-only — R5.2) fields become first-class column
-  // candidates in the full/default view: the page renders whatever the field
-  // config lists, uniformly. Field-level `visible === false` removes a field
-  // from the candidate set (R5.1) — a hidden field is never a column.
-  const overlayFields: FieldConfigField[] = useMemo(() => {
-    const fixed = new Set<string>([...COMPACT_FIELD_KEYS, 'region', 'member_id', 'member_number']);
-    const fields = fieldConfig?.fields ?? [];
-    return fields
-      .filter(f => !fixed.has(f.key) && isColumnCandidate(f))
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [fieldConfig]);
+  // (The former `overlayFields` memo was removed with the compact/full toggle:
+  // overlay + calculated fields are now surfaced on demand via the ColumnChooser,
+  // which lists every candidate field directly from the field config, so the page
+  // no longer precomputes a full-view overlay set.)
 
   // ── Scope / region dimension resolution (task 4.2, design C-SCOPE; R5.3) ──────
   // The scope column (`region`) is surfaced as a plain field value in the row
@@ -297,9 +389,18 @@ const MembersPage: React.FC = () => {
     return fc && fc.length > 0 ? new Set(fc) : null;
   }, [selectedContext]);
 
+  // The RAW user-chosen column keys (session-columns C6). A key the user
+  // explicitly surfaced via the chooser is treated as filterable even when the
+  // active context defines a `filterable_columns` allow-list that omits it — the
+  // user asked to work with it (R2.1). Built from `chosenKeys` (the raw user
+  // selection), NOT `effectiveChosenKeys`/the first-time default, so only the
+  // user's OWN picks earn the exemption; member_number stays filterable as today.
+  const chosenKeySet = useMemo(() => new Set(chosenKeys), [chosenKeys]);
+
   const isFilterable = useCallback(
-    (key: string): boolean => (filterableSet ? filterableSet.has(key) : true),
-    [filterableSet],
+    (key: string): boolean =>
+      (filterableSet ? filterableSet.has(key) || chosenKeySet.has(key) : true),
+    [filterableSet, chosenKeySet],
   );
 
   // Build flat rows; promote the region display value for the region column + stats.
@@ -310,6 +411,186 @@ const MembersPage: React.FC = () => {
     })),
     [members],
   );
+
+  // ── Unified column model (session-columns task 4.2, design C3; R1.2, R1.3, ────
+  //    R4.4, R7.1, R7.3) ─────────────────────────────────────────────────────────
+  // One ordered column model replaces BOTH legacy render paths (the explicit-
+  // columns `contextColumns` path AND the compact/full `COMPACT_FIELD_KEYS` +
+  // overlay path). `columns = [member_number] ⊕ chosenColumns`, rendered by a
+  // single header map + a single cell map, so every column flows through
+  // identical FilterableHeader wiring (full unification, OQ-2).
+  //
+  // Fast lookup of every resolved field descriptor by key.
+  const fieldByKey = useMemo(
+    () => new Map<string, FieldConfigField>(
+      (fieldConfig?.fields ?? []).map(f => [f.key, f]),
+    ),
+    [fieldConfig],
+  );
+
+  // The admin default/compact column KEYS a FIRST-TIME user (empty `chosenKeys`)
+  // sees (R6.4 / OQ-A → (a)): when the active context has no explicit `columns`,
+  // the hardcoded COMPACT set + `region` (the compact/full toggle was removed —
+  // a first-time user starts compact and surfaces more fields via the chooser);
+  // when the context DOES define `columns`, exactly those context keys. Once the
+  // user saves a selection their own list is authoritative and this is unused.
+  const defaultColumnKeys: string[] = useMemo(() => {
+    if (hasExplicitColumns) {
+      return contextColumns.map(f => f.key);
+    }
+    // The compact set carries member_number first; it is prepended separately by
+    // the model below, so drop it here to avoid a duplicate. `region` is a
+    // dimension-backed column (no field descriptor needed) surfaced after the
+    // compact fixed fields, exactly as the legacy compact path did.
+    const compact = COMPACT_FIELD_KEYS.filter(k => k !== MEMBER_NUMBER_KEY);
+    return [...compact, 'region'];
+  }, [hasExplicitColumns, contextColumns]);
+
+  // The user's effective chosen keys: THEIR saved list when non-empty, else the
+  // first-time admin default (above). A context switch does NOT rebuild a saved
+  // user's list (OQ-1) — `chosenKeys` is owned by the user; the context only
+  // feeds the default when the user has none, plus default_sort / filterable_
+  // columns / page_size elsewhere.
+  const effectiveChosenKeys: string[] = useMemo(
+    () => (chosenKeys.length > 0 ? chosenKeys : defaultColumnKeys),
+    [chosenKeys, defaultColumnKeys],
+  );
+
+  // Resolve the member_number descriptor (R7.1). Prefer the field-config
+  // descriptor; fall back to a synthesized one so the leading column always
+  // renders even when the config omits member_number (the legacy compact path
+  // hardcoded it). It is pinned first + never removable, so it never appears in
+  // the chosen list (R7.3).
+  const memberNumberColumn: OverviewColumn = useMemo(
+    () => ({ field: fieldByKey.get(MEMBER_NUMBER_KEY) ?? { key: MEMBER_NUMBER_KEY } }),
+    [fieldByKey],
+  );
+
+  // `chosenColumns` — `effectiveChosenKeys` resolved to column descriptors,
+  // de-duped, with member_number excluded (it is prepended separately, R7.3).
+  // A key with a field descriptor that is NOT a candidate (visible === false) is
+  // skipped (R5.1). `region` has no field descriptor but is still a valid column
+  // (dimension-backed): a key with no descriptor is kept with a synthesized
+  // descriptor so it renders (its value resolves via region_display / valueFor).
+  const chosenColumns: OverviewColumn[] = useMemo(() => {
+    const seen = new Set<string>([MEMBER_NUMBER_KEY]);
+    const resolved: OverviewColumn[] = [];
+    for (const key of effectiveChosenKeys) {
+      if (!key || seen.has(key)) continue;
+      const field = fieldByKey.get(key);
+      // A configured field that is explicitly not a candidate is dropped.
+      if (field && !isColumnCandidate(field)) continue;
+      seen.add(key);
+      resolved.push({ field: field ?? { key } });
+    }
+    return resolved;
+  }, [effectiveChosenKeys, fieldByKey]);
+
+  // The final ordered column model: member_number ALWAYS first (R7.1), then the
+  // chosen columns. ONE source of truth for both the header map + the cell map.
+  const columns: OverviewColumn[] = useMemo(
+    () => [memberNumberColumn, ...chosenColumns],
+    [memberNumberColumn, chosenColumns],
+  );
+
+  // Resolve a column's header label (session-columns C3). member_number keeps
+  // its legacy i18n label unconditionally (it is the pinned fixed column). The
+  // other fixed compact keys (name/email/status/membership_type/region) keep
+  // their legacy i18n label ONLY in the default/compact path — matching the
+  // pre-unification compact render path; in an EXPLICIT-columns context those
+  // keys resolve through the field-config label exactly as the legacy explicit
+  // path did (so e.g. `email` renders "E-mail", `region` renders "Regio"). Every
+  // other column always uses its field-config `resolveLabel`.
+  const columnLabel = useCallback(
+    (field: FieldConfigField): string => {
+      if (field.key === MEMBER_NUMBER_KEY) {
+        return t(FIXED_COLUMN_LABEL_KEYS[MEMBER_NUMBER_KEY]);
+      }
+      const legacyKey = FIXED_COLUMN_LABEL_KEYS[field.key];
+      if (legacyKey && !hasExplicitColumns) return t(legacyKey);
+      // In an explicit context, `region` has a field descriptor; the compact
+      // default's dimension-backed `region` has none — fall back to its legacy
+      // i18n label so it is never a bare key.
+      if (field.key === 'region' && !fieldByKey.has('region')) {
+        return t(FIXED_COLUMN_LABEL_KEYS.region);
+      }
+      return resolveLabel(field.label, lang, field.key);
+    },
+    [t, lang, hasExplicitColumns, fieldByKey],
+  );
+
+  // Resolve a column's cell value for a row. member_number + region keep their
+  // legacy accessors (the flat alias / dimension display); every other column
+  // renders through the shared nested-aware accessor + presenter (valueFor +
+  // renderFieldValue), identical to the legacy explicit-columns path.
+  const renderCell = useCallback(
+    (field: FieldConfigField, row: MemberRow): React.ReactNode => {
+      if (field.key === MEMBER_NUMBER_KEY) return (row.member_number as string) || '-';
+      if (field.key === 'region') return row.region_display || '-';
+      return renderFieldValue(field, valueFor(row, field.group, field.key), lang);
+    },
+    [lang],
+  );
+
+  // Every candidate field (visible !== false) the global search scans — the fixed
+  // base ⊕ overlay ⊕ calculated union, resolved from the field config. The value
+  // of each is read with the nested-aware `valueFor` accessor, so a nested
+  // overlay / calculated field (e.g. a derived membership duration) is searchable
+  // even though the overview never renders it as a flat column.
+  const searchableFields: FieldConfigField[] = useMemo(
+    () => (fieldConfig?.fields ?? []).filter(isColumnCandidate),
+    [fieldConfig],
+  );
+
+  // Narrow the rows by the global search BEFORE the per-column filter/sort
+  // toolkit. A row matches when ANY candidate field's resolved value contains the
+  // query (case-insensitive substring). An empty query is a pass-through (no
+  // allocation of a new array content beyond the memo). Scope is never widened —
+  // this only ever removes rows from the already-authorized set.
+  const searchedRows: MemberRow[] = useMemo(() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (q === '') return memberRows;
+    return memberRows.filter(row =>
+      searchableFields.some(f => {
+        const value = valueFor(row, f.group, f.key);
+        if (value === null || value === undefined) return false;
+        return String(value).toLowerCase().includes(q);
+      }),
+    );
+  }, [memberRows, searchableFields, globalSearch]);
+
+  // ── On-the-fly flatten (session-columns task 4.3, design C4; R2.2, R2.3, ──────
+  //    R2.5, R3.4) ───────────────────────────────────────────────────────────────
+  // Promote each chosen NON-ALIAS column key to a flat top-level property on the
+  // row — the flat-key rule (see `valueFor`): a column filters/sorts iff its key
+  // is a flat `row[key]`. The chosen field's RESOLVED value (nested-aware
+  // `valueFor`) is coerced by the field `type` (`coerceByType`) so the sort
+  // compares a real number / chronological date rather than a lexical string
+  // (R2.3); the filter engine still stringifies for its case-insensitive match.
+  //
+  // Flat aliases (`member_number, name, email, status, membership_type, region,
+  // membership_id`) are SKIPPED via `shouldFlatten` so a chosen key that happens
+  // to be one of `flattenMember`'s carefully-mapped aliases is never clobbered
+  // (R3.4). region is a flat alias, so a chosen `region` is left as-is.
+  //
+  // COMPOSITION (R2.5): this maps over `searchedRows` — the global search runs
+  // FIRST, then the surviving rows are flattened — and the ENRICHED result (not
+  // `searchedRows`) feeds `useFilterableTable`. Both are pure row transforms;
+  // search-then-flatten minimizes per-keystroke work. Presentation-only: it only
+  // adds flat keys to already scope-authorized rows, never widening scope.
+  const enrichedRows: MemberRow[] = useMemo(() => {
+    const promotable = chosenColumns
+      .map(c => c.field)
+      .filter(f => shouldFlatten(f.key));
+    if (promotable.length === 0) return searchedRows;
+    return searchedRows.map(row => {
+      const extra: Record<string, unknown> = {};
+      for (const f of promotable) {
+        extra[f.key] = coerceByType(f, valueFor(row, f.group, f.key));
+      }
+      return { ...row, ...extra };
+    });
+  }, [searchedRows, chosenColumns]);
 
   // Feed the selected context's `default_sort` to the EXISTING toolkit; fall
   // back to today's default (name asc) when the context specifies none. The
@@ -324,6 +605,28 @@ const MembersPage: React.FC = () => {
     [contextDefaultSort],
   );
 
+  // ── Dynamic filter key set (session-columns task 4.4, design C5; R2.1, ────────
+  //    R2.4, R4.3) ────────────────────────────────────────────────────────────
+  // `useFilterableTable` is handed `initialFilters` = the fixed keys PLUS each
+  // chosen column key (empty string each), so every shown column has a filter
+  // slot. member_number is already in INITIAL_FILTERS; the rest of `columns`
+  // (i.e. `chosenColumns`) each add their key. We RELY on `useColumnFilters`
+  // reconciling on the key-set signature (findings F-007): when the user adds /
+  // removes a column the key set changes, so its filter input is added / its
+  // value dropped automatically — no hook change, no manual cleanup. The memo's
+  // dependency is the chosen column KEY LIST, so a changed set rebuilds the
+  // object (and shifts the key-set signature the hook watches).
+  const dynamicInitialFilters = useMemo(() => {
+    const next: Record<string, string> = { ...INITIAL_FILTERS };
+    for (const { field } of chosenColumns) {
+      if (!(field.key in next)) next[field.key] = '';
+    }
+    return next;
+    // Keyed on the chosen column keys so the memo only rebuilds when the set
+    // of shown columns actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosenColumns.map(c => c.field.key).join('\u241F')]);
+
   const {
     filters,
     setFilter,
@@ -331,8 +634,8 @@ const MembersPage: React.FC = () => {
     sortField,
     sortDirection,
     processedData,
-  } = useFilterableTable<MemberRow>(memberRows, {
-    initialFilters: INITIAL_FILTERS,
+  } = useFilterableTable<MemberRow>(enrichedRows, {
+    initialFilters: dynamicInitialFilters,
     defaultSort,
   });
 
@@ -517,21 +820,15 @@ const MembersPage: React.FC = () => {
     }
   }, [fieldConfig, lang, t, toast]);
 
-  // Total column count (fixed compact + region + overlay when in full view + the
-  // trailing selection column).
-  const overlayColumns = viewMode === 'full' ? overlayFields : [];
-  // For the default (all-visible-fields) context the header set is the fixed
-  // compact columns + region + full-view overlay; for an explicit-columns
-  // context it is exactly the resolved `contextColumns`. Either way a trailing
-  // selection column is appended.
-  const defaultColumnCount = COMPACT_FIELD_KEYS.length + 1 + overlayColumns.length;
-  const colSpan = (hasExplicitColumns ? contextColumns.length : defaultColumnCount) + 1;
+  // Total column count = the unified column model (member_number ⊕ chosen) + the
+  // trailing selection column. One source now that both legacy paths collapse
+  // into `columns` (design C3).
+  const colSpan = columns.length + 1;
 
   // Only the default (all-visible-fields) context uses the compact/full switch;
   // an explicit-columns context defines its own column set, so the switch is
   // hidden for it. The context dropdown is shown whenever ≥2 contexts are
   // selectable (a single/default-only context needs no picker).
-  const showViewSwitch = !hasExplicitColumns;
   const showContextDropdown = availableContexts.length > 1;
 
   return (
@@ -560,24 +857,46 @@ const MembersPage: React.FC = () => {
               ))}
             </Select>
           )}
-          {/* Compact/full view switch (default/all-visible-fields context only) */}
-          {showViewSwitch && (
-            <ButtonGroup size="sm" isAttached variant="outline">
-              <Button
-                colorScheme={viewMode === 'compact' ? 'orange' : 'gray'}
-                variant={viewMode === 'compact' ? 'solid' : 'ghost'}
-                onClick={() => setViewMode('compact')}
-              >
-                {t('view.compact')}
-              </Button>
-              <Button
-                colorScheme={viewMode === 'full' ? 'orange' : 'gray'}
-                variant={viewMode === 'full' ? 'solid' : 'ghost'}
-                onClick={() => setViewMode('full')}
-              >
-                {t('view.full')}
-              </Button>
-            </ButtonGroup>
+          {/* The former compact/full view switch was removed (findings): the
+              user now defines their own columns via the Columns chooser, which
+              fully supersedes the two-state toggle. A first-time user still gets
+              the compact set as the default (defaultColumnKeys). */}
+          {/* Global all-fields search (member-field-search Option 1), now INLINE
+              in the toolbar row alongside Columns / Export / Add (findings). It
+              narrows rows across EVERY candidate field (incl. non-visible
+              overlay/calculated) before the per-column filter/sort toolkit, so
+              the stats strip + table follow automatically. */}
+          {!loading && (
+            <InputGroup size="sm" w="auto" minW="14rem">
+              <InputLeftElement pointerEvents="none">
+                <SearchIcon color="gray.400" boxSize="12px" />
+              </InputLeftElement>
+              <Input
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                placeholder={t('search.placeholder')}
+                aria-label={t('search.ariaLabel')}
+                bg="gray.700"
+                color="white"
+                _placeholder={{ color: 'gray.400' }}
+                borderColor="gray.600"
+                autoComplete="off"
+                data-testid="members-global-search"
+              />
+              {globalSearch !== '' && (
+                <InputRightElement>
+                  <IconButton
+                    size="xs"
+                    variant="ghost"
+                    colorScheme="orange"
+                    aria-label={t('search.clear')}
+                    icon={<CloseIcon boxSize="8px" />}
+                    onClick={() => setGlobalSearch('')}
+                    data-testid="members-global-search-clear"
+                  />
+                </InputRightElement>
+              )}
+            </InputGroup>
           )}
           {/* Bulk transition action (task 20.4, R8.6) — appears only when ≥1 row
               is selected; opens the bulk-transition modal over the selection. */}
@@ -592,16 +911,34 @@ const MembersPage: React.FC = () => {
               {t('bulkTransition.barLabel', { count: selectedIds.size })}
             </Button>
           )}
-          {/* Export action (task 20.2, R8.4) — right-aligned, ZZP header pattern. */}
+          {/* Column chooser action (session-columns task 4.1, R1/C2) — opens the
+              ColumnChooser modal; the user picks which candidate fields show as
+              columns. Right-aligned, ghost, same header pattern as Export. */}
           <Button
             size="sm"
-            leftIcon={<DownloadIcon />}
+            leftIcon={<SettingsIcon />}
             colorScheme="orange"
             variant="ghost"
-            onClick={() => { void handleExport(); }}
+            onClick={onColumnChooserOpen}
+            data-testid="members-column-chooser-button"
           >
-            {t('actions.export')}
+            {t('columnChooser.button')}
           </Button>
+          {/* Export action (task 20.2, R8.4) — gated to Tenant Admin / SysAdmin
+              only (findings): the full-dataset CSV export duplicates the richer,
+              filtered pivot/analytics export for ordinary users, so it is reserved
+              for admins who occasionally need the raw dump. */}
+          {hasAnyRole(['Tenant_Admin', 'SysAdmin']) && (
+            <Button
+              size="sm"
+              leftIcon={<DownloadIcon />}
+              colorScheme="orange"
+              variant="ghost"
+              onClick={() => { void handleExport(); }}
+            >
+              {t('actions.export')}
+            </Button>
+          )}
           {/* Primary action: add / application (task 20.1, R8.3) — orange, header-right. */}
           <Button
             size="sm"
@@ -664,95 +1001,25 @@ const MembersPage: React.FC = () => {
           <Table variant="simple" size="sm" bg="gray.800" color="white">
             <Thead>
               <Tr>
-                {hasExplicitColumns ? (
-                  // Explicit-columns context (design C-VIEW): render exactly the
-                  // resolved `contextColumns` in context order. `filterable_columns`
-                  // gates which headers carry a filter input.
-                  contextColumns.map(f => (
-                    <FilterableHeader
-                      key={f.key}
-                      label={resolveLabel(f.label, lang, f.key)}
-                      filterValue={isFilterable(f.key) ? (filters[f.key] ?? '') : undefined}
-                      onFilterChange={
-                        isFilterable(f.key) ? (v) => setFilter(f.key, v) : undefined
-                      }
-                      placeholder={t('filters.placeholder')}
-                      sortable
-                      sortDirection={columnSortDirection(f.key)}
-                      onSort={() => handleSort(f.key)}
-                    />
-                  ))
-                ) : (
-                  <>
-                    <FilterableHeader
-                      label={t('columns.memberNumber')}
-                      filterValue={isFilterable('member_number') ? filters.member_number : undefined}
-                      onFilterChange={
-                        isFilterable('member_number') ? (v) => setFilter('member_number', v) : undefined
-                      }
-                      placeholder={t('filters.placeholder')}
-                      sortable
-                      sortDirection={columnSortDirection('member_number')}
-                      onSort={() => handleSort('member_number')}
-                    />
-                    <FilterableHeader
-                      label={t('columns.name')}
-                      filterValue={isFilterable('name') ? filters.name : undefined}
-                      onFilterChange={isFilterable('name') ? (v) => setFilter('name', v) : undefined}
-                      placeholder={t('filters.placeholder')}
-                      sortable
-                      sortDirection={columnSortDirection('name')}
-                      onSort={() => handleSort('name')}
-                    />
-                    <FilterableHeader
-                      label={t('columns.email')}
-                      filterValue={isFilterable('email') ? filters.email : undefined}
-                      onFilterChange={isFilterable('email') ? (v) => setFilter('email', v) : undefined}
-                      placeholder={t('filters.placeholder')}
-                      sortable
-                      sortDirection={columnSortDirection('email')}
-                      onSort={() => handleSort('email')}
-                    />
-                    <FilterableHeader
-                      label={t('filters.status')}
-                      filterValue={isFilterable('status') ? filters.status : undefined}
-                      onFilterChange={isFilterable('status') ? (v) => setFilter('status', v) : undefined}
-                      placeholder={t('filters.placeholder')}
-                      sortable
-                      sortDirection={columnSortDirection('status')}
-                      onSort={() => handleSort('status')}
-                    />
-                    <FilterableHeader
-                      label={t('filters.type')}
-                      filterValue={isFilterable('membership_type') ? filters.membership_type : undefined}
-                      onFilterChange={
-                        isFilterable('membership_type') ? (v) => setFilter('membership_type', v) : undefined
-                      }
-                      placeholder={t('filters.placeholder')}
-                      sortable
-                      sortDirection={columnSortDirection('membership_type')}
-                      onSort={() => handleSort('membership_type')}
-                    />
-                    <FilterableHeader
-                      label={t('filters.region')}
-                      filterValue={isFilterable('region') ? filters.region : undefined}
-                      onFilterChange={isFilterable('region') ? (v) => setFilter('region', v) : undefined}
-                      placeholder={t('filters.placeholder')}
-                      sortable
-                      sortDirection={columnSortDirection('region')}
-                      onSort={() => handleSort('region')}
-                    />
-                    {overlayColumns.map(f => (
-                      <FilterableHeader
-                        key={f.key}
-                        label={resolveLabel(f.label, lang, f.key)}
-                        sortable
-                        sortDirection={columnSortDirection(f.key)}
-                        onSort={() => handleSort(f.key)}
-                      />
-                    ))}
-                  </>
-                )}
+                {/* Unified column model (design C3): ONE header map over
+                    `columns = [member_number] ⊕ chosenColumns`. member_number
+                    always leads (R7.1). Every column gets identical
+                    FilterableHeader wiring (filter + sort), the filter input
+                    gated by `isFilterable` (context `filterable_columns`, C6). */}
+                {columns.map(({ field }) => (
+                  <FilterableHeader
+                    key={field.key}
+                    label={columnLabel(field)}
+                    filterValue={isFilterable(field.key) ? (filters[field.key] ?? '') : undefined}
+                    onFilterChange={
+                      isFilterable(field.key) ? (v) => setFilter(field.key, v) : undefined
+                    }
+                    placeholder={t('filters.placeholder')}
+                    sortable
+                    sortDirection={columnSortDirection(field.key)}
+                    onSort={() => handleSort(field.key)}
+                  />
+                ))}
                 {/* Selection column (task 20.4) — LAST so the existing column
                     order (name first) is preserved. Header carries select-all. */}
                 <Th textAlign="center">
@@ -773,29 +1040,13 @@ const MembersPage: React.FC = () => {
                   _hover={{ bg: 'gray.700', cursor: 'pointer' }}
                   onClick={() => handleRowClick(row)}
                 >
-                  {hasExplicitColumns ? (
-                    // Explicit-columns context: one cell per resolved column. `region` renders
-                    // as a plain field value (same layout as every other column) — no badge.
-                    contextColumns.map(f => (
-                      <Td key={f.key}>
-                        {f.key === 'region'
-                          ? (row.region_display || '-')
-                          : renderFieldValue(f, valueFor(row, f.group, f.key), lang)}
-                      </Td>
-                    ))
-                  ) : (
-                    <>
-                      <Td>{(row.member_number as string) || '-'}</Td>
-                      <Td>{row.name || '-'}</Td>
-                      <Td>{row.email || '-'}</Td>
-                      <Td>{row.status || '-'}</Td>
-                      <Td>{(row.membership_type as string) || '-'}</Td>
-                      <Td>{row.region_display || '-'}</Td>
-                      {overlayColumns.map(f => (
-                        <Td key={f.key}>{renderFieldValue(f, valueFor(row, f.group, f.key), lang)}</Td>
-                      ))}
-                    </>
-                  )}
+                  {/* Unified column model (design C3): ONE cell map over the same
+                      `columns`, in the same order as the header map. member_number
+                      + region keep their legacy accessors; every other column
+                      renders through the shared valueFor + renderFieldValue. */}
+                  {columns.map(({ field }) => (
+                    <Td key={field.key}>{renderCell(field, row)}</Td>
+                  ))}
                   {/* Per-row selection checkbox (task 20.4). Stop propagation so
                       toggling selection never opens the row-click view modal. */}
                   <Td
@@ -927,6 +1178,25 @@ const MembersPage: React.FC = () => {
         memberIds={selectedIdList}
         fieldConfig={fieldConfig}
         onDone={handleBulkDone}
+      />
+
+      {/* Column chooser modal (session-columns task 4.1, design C2/C8). Renders
+          every candidate field via the shared FieldChecklist; the user's picks
+          (minus the always-on member_number) drive `chosenKeys`. Each change is
+          applied optimistically AND persisted (handleColumnsChange). The column
+          model that CONSUMES `chosenKeys` is task 4.2. */}
+      <ColumnChooser
+        isOpen={isColumnChooserOpen}
+        onClose={onColumnChooserClose}
+        fieldConfig={fieldConfig}
+        // Flag the columns ACTUALLY shown (findings): `effectiveChosenKeys` is the
+        // user's saved list when they have one, else the first-time default/compact
+        // set — so opening the chooser on a default view shows those columns
+        // checked, and the first toggle seeds the list from that visible set
+        // rather than from an empty `chosenKeys`.
+        selectedKeys={effectiveChosenKeys}
+        language={lang}
+        onChange={handleColumnsChange}
       />
     </Box>
   );

@@ -97,15 +97,24 @@ def _derive_birthday(record: Mapping[str, Any]) -> str | None:
 
 
 def _derive_birth_day(record: Mapping[str, Any]) -> str | None:
-    """Day-of-month of ``birth_date`` (``1``–``31``) as text, else None."""
+    """Day-of-month of ``birth_date`` as zero-padded text (``01``–``31``), else None.
+
+    Zero-padded (not ``1``–``31``) so a substring column filter is unambiguous: filtering
+    ``01`` matches only the 1st, never 10/11/21/31. Mirrors the already-padded ``birthday``
+    (``MM-DD``). Still a two-char text value — the field type stays STRING.
+    """
     born = _parse_iso_date(_personal(record).get("birth_date"))
-    return str(born.day) if born is not None else None
+    return f"{born.day:02d}" if born is not None else None
 
 
 def _derive_birth_month(record: Mapping[str, Any]) -> str | None:
-    """Month of ``birth_date`` (``1``–``12``) as text, else None."""
+    """Month of ``birth_date`` as zero-padded text (``01``–``12``), else None.
+
+    Zero-padded (not ``1``–``12``) so a substring column filter is unambiguous: filtering
+    ``01`` matches only January, never 10/11/12. Mirrors the already-padded ``birthday``.
+    """
     born = _parse_iso_date(_personal(record).get("birth_date"))
-    return str(born.month) if born is not None else None
+    return f"{born.month:02d}" if born is not None else None
 
 
 def _derive_birth_year(record: Mapping[str, Any]) -> str | None:

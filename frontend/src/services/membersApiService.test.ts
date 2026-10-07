@@ -22,6 +22,8 @@ import {
   createMembership,
   transitionMembership,
   bulkTransition,
+  getColumnPreferences,
+  saveColumnPreferences,
 } from './membersApiService';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
@@ -420,5 +422,144 @@ describe('membersApiService — 401 refresh + retry-once (task 16.4)', () => {
     );
 
     await expect(getFieldConfig()).rejects.toThrow('Internal failure');
+  });
+});
+
+// ============================================================================
+// Task 2.5.5 — column-preferences client wrappers (Session Columns, R6)
+//
+// A 1:1 mirror of the preferred-list wrappers (`columns` ↔ `refs`). We assert
+// the same seam behaviour as the sibling suites: the `{ data }` envelope is
+// unwrapped, `columns` is coerced to a clean `string[]` (non-string/empty
+// dropped), an unset list defaults to `[]`, and the PUT sends a `{ columns }`
+// body to the LITERAL `/members/column-preferences` path (matching the
+// server-side routes declared in task 2.5.4).
+// ============================================================================
+
+describe('membersApiService — column preferences (task 2.5.5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('VITE_MEMBERS_API_BASE_URL', BASE);
+    mockGetTokens.mockResolvedValue({ idToken: 'tok', accessToken: 'acc' } as never);
+    global.fetch = vi.fn();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  describe('getColumnPreferences', () => {
+    // Validates: Requirements 6.1
+    it('unwraps the {data} envelope and maps { sub, columns, updated_at }', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: {
+            data: {
+              sub: 'user-sub-1',
+              columns: ['years_member', 'region', 'status'],
+              updated_at: '2026-01-02T03:04:05Z',
+            },
+          },
+        }),
+      );
+
+      await expect(getColumnPreferences()).resolves.toEqual({
+        sub: 'user-sub-1',
+        columns: ['years_member', 'region', 'status'],
+        updated_at: '2026-01-02T03:04:05Z',
+      });
+    });
+
+    // Validates: Requirements 4.5, 5.2
+    it('GET /members/column-preferences (literal path, no path param)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { columns: [] } } }),
+      );
+      await getColumnPreferences();
+      const [url, init] = fetchCall();
+      expect(init.method).toBe('GET');
+      expect(url).toBe(`${BASE}/members/column-preferences`);
+    });
+
+    // Validates: Requirements 6.6
+    it('drops non-string / empty entries from columns', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: {
+            data: {
+              sub: 'user-sub-1',
+              columns: ['years_member', '', 42, null, 'region', undefined],
+              updated_at: '2026-01-02T03:04:05Z',
+            },
+          },
+        }),
+      );
+
+      const prefs = await getColumnPreferences();
+      expect(prefs.columns).toEqual(['years_member', 'region']);
+    });
+
+    // Validates: Requirements 6.4
+    it('defaults to empty columns when the list is unset', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { sub: 'user-sub-1', columns: [] } } }),
+      );
+      const prefs = await getColumnPreferences();
+      expect(prefs.columns).toEqual([]);
+      expect(prefs.sub).toBe('user-sub-1');
+      expect(prefs.updated_at).toBe('');
+    });
+
+    // Validates: Requirements 6.4
+    it('defaults columns to [] when the backend omits the field entirely', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: {} } }),
+      );
+      const prefs = await getColumnPreferences();
+      expect(prefs).toEqual({ sub: '', columns: [], updated_at: '' });
+    });
+  });
+
+  describe('saveColumnPreferences', () => {
+    // Validates: Requirements 4.5, 5.2
+    it('PUT /members/column-preferences with a { columns } body', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: {
+            data: {
+              sub: 'user-sub-1',
+              columns: ['years_member', 'region'],
+              updated_at: '2026-02-02T00:00:00Z',
+            },
+          },
+        }),
+      );
+
+      const result = await saveColumnPreferences(['years_member', 'region']);
+
+      const [url, init] = fetchCall();
+      expect(init.method).toBe('PUT');
+      expect(url).toBe(`${BASE}/members/column-preferences`);
+      expect(init.body).toBe(JSON.stringify({ columns: ['years_member', 'region'] }));
+      // The reply is unwrapped + mapped the same way as the GET.
+      expect(result).toEqual({
+        sub: 'user-sub-1',
+        columns: ['years_member', 'region'],
+        updated_at: '2026-02-02T00:00:00Z',
+      });
+    });
+
+    // Validates: Requirements 6.4
+    it('sends an empty { columns: [] } body to clear the list', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { sub: 'user-sub-1', columns: [] } } }),
+      );
+      await saveColumnPreferences([]);
+      const [, init] = fetchCall();
+      expect(init.body).toBe(JSON.stringify({ columns: [] }));
+    });
   });
 });
