@@ -144,6 +144,12 @@ class FakeMembersRepository:
     def save_preferred_list(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
+    def get_column_preferences(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def save_column_preferences(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
 
 def _member(
     member_id, *, region=None, age_group=None, name="Alex", contact=None, sub=None
