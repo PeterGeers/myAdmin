@@ -83,6 +83,10 @@ const mockFieldConfig: FieldConfig = {
     // `email` is a resolved field so the (now parameter-driven) read-only view modal
     // surfaces it (s5c task 4.4 — the view is sectioned over the resolved field set).
     { key: 'email', group: 'personal', label: 'E-mail', type: 'string', order: 2 },
+    // `membership_type` + `status` are resolved fields too, so the global search
+    // (which scans every candidate field) can match on them.
+    { key: 'membership_type', label: 'Type', type: 'string', order: 3 },
+    { key: 'status', label: 'Status', type: 'string', order: 4 },
     { key: 'motor_type', label: 'Motorfiets', type: 'string', order: 10 },
   ],
   dimensions: [
@@ -402,6 +406,98 @@ describe('MembersPage (Leden Overzicht)', () => {
         expect(screen.getByTestId('stat-filtered')).toHaveTextContent('1');
       });
       expect(screen.getByTestId('stat-regions')).toHaveTextContent('1');
+    });
+  });
+
+  // ── Global all-fields search (member-field-search Option 1) ──────────────────
+  describe('global all-fields search (Option 1)', () => {
+    it('narrows the rows by a visible field value (case-insensitive)', async () => {
+      render(<MembersPage />);
+      await waitForRows();
+
+      const search = screen.getByTestId('members-global-search') as HTMLInputElement;
+      fireEvent.change(search, { target: { value: 'piet' } });
+
+      await waitFor(() => {
+        expect(screen.getByText('Piet')).toBeInTheDocument();
+        expect(screen.queryByText('Jan')).not.toBeInTheDocument();
+        expect(screen.queryByText('Marie')).not.toBeInTheDocument();
+      });
+    });
+
+    it('matches a NON-visible field (overlay motor_type) in compact view — the hidden-field case', async () => {
+      render(<MembersPage />);
+      await waitForRows();
+
+      // Compact view: the motor_type column is NOT rendered, yet searching its
+      // value still narrows the rows — Option 1 scans every candidate field.
+      expect(screen.queryByText(OVERLAY_HEADER)).not.toBeInTheDocument();
+
+      const search = screen.getByTestId('members-global-search') as HTMLInputElement;
+      fireEvent.change(search, { target: { value: 'yamaha' } });
+
+      await waitFor(() => {
+        expect(screen.getByText('Marie')).toBeInTheDocument(); // the Yamaha rider
+        expect(screen.queryByText('Jan')).not.toBeInTheDocument();
+        expect(screen.queryByText('Piet')).not.toBeInTheDocument();
+      });
+    });
+
+    it('drives the stats strip (total stays full, filtered follows the search)', async () => {
+      render(<MembersPage />);
+      await waitForRows();
+
+      // Baseline: the stats strip is present and reports the full scoped set.
+      expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
+
+      const search = screen.getByTestId('members-global-search') as HTMLInputElement;
+      fireEvent.change(search, { target: { value: 'honda' } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('stat-filtered')).toHaveTextContent('1');
+      });
+      // Total stays the full scoped set; only the filtered figure narrows.
+      expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
+    });
+
+    it('clear button restores all rows', async () => {
+      render(<MembersPage />);
+      await waitForRows();
+
+      const search = screen.getByTestId('members-global-search') as HTMLInputElement;
+      fireEvent.change(search, { target: { value: 'yamaha' } });
+      await waitFor(() => {
+        expect(screen.queryByText('Jan')).not.toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('members-global-search-clear'));
+      await waitFor(() => {
+        expect(screen.getByText('Jan')).toBeInTheDocument();
+        expect(screen.getByText('Piet')).toBeInTheDocument();
+        expect(screen.getByText('Marie')).toBeInTheDocument();
+      });
+    });
+
+    it('combines with a per-column filter (AND semantics)', async () => {
+      render(<MembersPage />);
+      await waitForRows();
+
+      // Search narrows to the two 'regulier' riders by matching their shared
+      // membership_type, then a region column filter narrows further.
+      const search = screen.getByTestId('members-global-search') as HTMLInputElement;
+      fireEvent.change(search, { target: { value: 'regulier' } });
+      await waitFor(() => {
+        expect(screen.getByText('Jan')).toBeInTheDocument();
+        expect(screen.getByText('Marie')).toBeInTheDocument();
+        expect(screen.queryByText('Piet')).not.toBeInTheDocument(); // erelid
+      });
+
+      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
+      fireEvent.change(regionFilter, { target: { value: 'West' } });
+      await waitFor(() => {
+        expect(screen.getByText('Marie')).toBeInTheDocument();
+        expect(screen.queryByText('Jan')).not.toBeInTheDocument();
+      });
     });
   });
 

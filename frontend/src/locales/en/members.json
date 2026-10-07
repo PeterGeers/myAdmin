@@ -253,6 +253,11 @@
     "type": "Type",
     "placeholder": "Filter..."
   },
+  "search": {
+    "placeholder": "Search all fields...",
+    "ariaLabel": "Search members across all fields",
+    "clear": "Clear search"
+  },
   "table": {
     "loading": "Loading members...",
     "empty": "No members found"
