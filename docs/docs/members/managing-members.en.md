@@ -25,31 +25,28 @@ The view dialog is read-only. To change something, use **Edit** (see below).
 
 1. Go to **Member Administration** → **Overview**
 2. Click **New member** in the top right
-3. Fill in the application/add form:
-
-| Field           | Required | Description                                        |
-| --------------- | -------- | -------------------------------------------------- |
-| Name            | Yes      | Full name of the member                            |
-| Email           | Yes      | Email address of the member                        |
-| Membership type | Yes      | Choose a type from the dropdown                    |
-| Region          | Yes      | The region/subgroup the member belongs to          |
-
+3. Fill in the form. Which fields you see is determined by your tenant's **field configuration** — the form is not fixed, but built from the fields your Tenant Admin set up. The fields are grouped into sections (for example *Personal details*, *Membership*).
 4. Click **Save**
 
+Common fields are name, email, the membership type, and the region/subgroup. The required fields and the exact set depend on your tenant.
+
 !!! info
-The **Membership type** dropdown shows only the **active** types. Deactivated types do not appear, so you cannot create members on an expired type.
+The form is parameter-driven. Some fields only appear once you make a certain choice (conditional fields), and **calculated fields** are filled in automatically and cannot be edited. The system checks required fields and the member number format on save.
+
+!!! info
+The **Membership type** dropdown shows only the **active** types from [Membership types](membership-types.md). Deactivated types do not appear, so you cannot create members on an expired type.
 
 ## Editing a member
 
 1. Go to **Member Administration** → **Overview**
-2. Open the member and click **Edit** (or use the edit action)
-3. Adjust the fields you want in the form
+2. Open the member and click **Edit**
+3. Adjust the fields you want in the form (the same sections and fields as when adding)
 4. Click **Save**
 
 The changes are immediately visible in the table.
 
 !!! tip
-When editing, the **Membership type** dropdown also shows only active types.
+When editing, the **Membership type** dropdown also shows only active types, and calculated fields stay read-only.
 
 ## Deleting a member
 
@@ -73,5 +70,5 @@ Creating *users* (accounts that log in) and assigning roles and region scope is 
 | Problem                          | Cause                                | Solution                                            |
 | -------------------------------- | ------------------------------------ | --------------------------------------------------- |
 | **New member** button is missing | You do not have the `Members_CRUD` permission | Ask your Tenant Admin for the right permission |
-| Desired membership type is missing | The type is not active             | Ask your Tenant Admin to activate the type          |
+| Desired membership type is missing | The type is not active             | Activate the type in [Membership types](membership-types.md) (or ask your Tenant Admin) |
 | Member cannot be edited          | Read-only (`Members_Read`)           | Ask your Tenant Admin for `Members_CRUD`            |

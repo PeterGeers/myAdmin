@@ -4,7 +4,7 @@
 
 ## Overview
 
-The Member Administration module lets you manage your organization's members in one clear table — the **Members Overview**. You see the key details per member, filter and sort the list, add or edit members, change the membership status, and export the displayed rows to CSV.
+The Member Administration module lets you manage your organization's members in one clear table — the **Members Overview**. You see the key details per member, search and filter the list, choose which columns to show, add or edit members, change the membership status, and export the members to CSV.
 
 What you see in the table depends on the **region scope** assigned to your account. A user scoped to a single region (for example Noord) sees only the members of that region; a user with full access sees all members. This filtering is applied by the system based on your assigned role — not by a setting on this page.
 
@@ -13,38 +13,53 @@ The Member Administration module must be enabled for your tenant by your SysAdmi
 
 ## What can you do here?
 
-| Task                                          | Description                                                    |
+| Task                                          | Description                                                   |
 | --------------------------------------------- | ------------------------------------------------------------- |
-| [Filters & views](filters-and-views.md)       | Filter and sort columns, switch between compact and full view |
+| [Filters & views](filters-and-views.md)       | Search, filter, sort, and choose your own columns             |
 | [Managing members](managing-members.md)       | View, add, edit, and delete a member                          |
 | [Status & transitions](transitions.md)        | Move one member or several members at once to another status  |
-| [Export](export.md)                           | Export the displayed members to CSV                           |
+| [Membership types](membership-types.md)       | Manage your tenant's membership types (Lidmaatschap Beheer)   |
+| [Export](export.md)                           | Export the members to CSV                                     |
 
 ## The members table
 
-The Members Overview shows your members in a table with the following default columns:
+The Members Overview shows your members in a table. By default (for anyone who has not yet chosen their own columns) these core columns appear:
 
-| Column          | Description                                          |
-| --------------- | ---------------------------------------------------- |
-| Name            | Full name of the member                              |
-| Email           | Email address of the member                          |
-| Status          | Current membership status (e.g. Active, Applied)     |
-| Membership type | The member's membership type                         |
-| Region          | The region/subgroup the member belongs to (as badge) |
+| Column            | Description                                                |
+| ----------------- | ---------------------------------------------------------- |
+| Member number     | The readable member number (e.g. M00001) — always first and cannot be hidden |
+| Name              | Full name of the member                                    |
+| Email             | Email address of the member                                |
+| Status            | Current membership status (e.g. Active, Applied)           |
+| Membership type   | The member's membership type                               |
 
-Each row shows the region as a **badge**, so you can see at a glance which subgroup a member belongs to.
+You can add extra columns yourself (such as **Region** and other fields from your tenant's field configuration) through the **Columns** chooser. See [Filters & views](filters-and-views.md).
 
 !!! tip
 Click a row to view a member's details in a read-only dialog. See [Managing members](managing-members.md).
 
-## Compact and full view
+## The toolbar above the table
 
-Above the table is a switch between **compact** and **full** view:
+Above the table you find the tools to tailor the list:
 
-- **Compact** — shows only the core columns (Name, Email, Status, Membership type, Region).
-- **Full** — additionally shows the extra columns configured through your tenant's field configuration.
+| Element           | Behavior                                                                |
+| ----------------- | ----------------------------------------------------------------------- |
+| **Search**        | A single search box that searches across *all* member fields — including fields that are not shown as columns |
+| **Columns**       | Choose which fields appear as columns; your choice is remembered per user |
+| **View**          | A dropdown with preset views (column set + sorting), if your tenant configured them |
+| **Export**        | Export the members to CSV (only visible to Tenant Admin / SysAdmin)     |
+| **New member**    | Add a new member                                                        |
 
-Which extra fields appear in the full view is determined by your Tenant Admin through the field configuration. See [Filters & views](filters-and-views.md).
+### Statistics strip
+
+Directly above the table is a strip of four live counters that move with your search and filters:
+
+| Counter   | Meaning                                                          |
+| --------- | ---------------------------------------------------------------- |
+| Total     | All members within your region scope                             |
+| Filtered  | The number of rows currently shown (after search/filter)         |
+| Active    | Number of members with status *Active*                           |
+| Regions   | Number of distinct regions in the shown rows                     |
 
 ## Region scope: what you see
 
@@ -62,9 +77,12 @@ The region scope is enforced by the system, server-side. An export also contains
 
 | Permission       | What the user can do                             |
 | ---------------- | ------------------------------------------------ |
-| `Members_Read`   | View members (table, filters, read-only dialog)  |
-| `Members_CRUD`   | Create, edit, delete, and change the status of members |
+| `Members_Read`   | View members (table, search, filters, read-only dialog) |
+| `Members_CRUD`   | Create, edit, delete, change status, and manage membership types |
 | `Members_Export` | Export members to CSV                            |
+
+!!! info
+The export button in the Members Overview is additionally only visible to **Tenant Admin** and **SysAdmin**. Ordinary users produce richer, filtered exports through the reporting/pivot views. See [Export](export.md).
 
 !!! warning
 Which permissions are available depends on the modules the SysAdmin enabled for your tenant and the roles your Tenant Admin assigns. Without a Members role, Member Administration is not visible.
