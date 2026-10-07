@@ -6,6 +6,10 @@
 - Origin: `.kiro/specs/Members/member-field-search/design-options.md` → **Option 2**
   (promoted to a proper spec). Option 1 (global all-fields search) is already built
   (commit on `test`); this is the precise, per-field complement.
+- Scope note: originally framed as frontend-only (session columns). Extended at the
+  stakeholder's request to **persist the chosen columns per user**, mirroring the
+  analytics preferred-list — so this now also touches the Members SAM module
+  (DynamoDB) + the `membersApiService` CRUD. See R6/R7 and Design C7/C8.
 - Parent / reuse (do NOT rebuild): the Members overview as built in
   `.kiro/specs/Members/s5c-members-runnable-in-spa/` (its C-FIELDS / C-VIEW /
   C-SURFACE field + view-context model) and the Member Analytics spec
@@ -49,6 +53,19 @@ columns, without changing the admin-authored view contexts.
 - Field catalog: `GET /members/field-config` → `FieldConfig` (`fields`,
   `functional_groups`, `view_contexts`); `FieldConfigField` carries `key`,
   `group`, `label`, `type`, `order`, `visible`, `functional_group`.
+- **Persistence precedent to MIRROR (per-user, tenant-scoped, DynamoDB):** the
+  analytics preferred-list.
+  - Entity: `sam/members/domain/preferred_list.py` (`PreferredList` — frozen
+    dataclass `{ tenant_id, sub, refs, updated_at }`, `validate` / `to_item` /
+    `from_item`, keyed by Cognito `sub`, user ≠ member R11.1).
+  - Storage: `sam/members/repository/table_design.py` (`pref_list_sk(sub)` →
+    `preflist#<sub>`, `build_pref_list_item`) + `members_repository.py`
+    (`get_preferred_list` / `save_preferred_list`).
+  - Routes: `sam/members/handler/routes.py` — `GET /members/analytics-sets/preferred`
+    (members:read) + `PUT …/preferred` (members:write OR members:export), keyed by
+    the verified `sub` at the edge, NOT a path param.
+  - Client: `frontend/src/services/membersApiService.ts` `getPreferredList` /
+    `savePreferredList` (`{ sub, refs, updated_at }`, `{ data }` envelope).
 
 ### The core technical fact driving these requirements
 
@@ -105,20 +122,69 @@ and sort on it just like the built-in columns.
    it only adds a column over the already scope-authorized rows (row scope stays
    server-enforced).
 
-### R3 — Session-scoped, non-persistent, non-destructive
+### R3 — Per-user, non-destructive
 
-**User story:** As a user, my temporary columns should be mine for this session
-and never alter what other users or the admin configuration see.
+**User story:** As a user, my chosen columns should be mine and never alter what
+other users or the admin configuration see.
 
 #### Acceptance Criteria
-1. The surfaced-column set SHALL be local session state (no backend write, no
-   persisted config); it resets on reload.
-2. Surfacing columns SHALL NOT modify `view_contexts` or any tenant parameter.
+1. The surfaced-column set SHALL be the calling user's own working set, applied as
+   client state in-session and persisted per user (R6); it SHALL default to empty
+   (no surfaced columns) for a user who has never chosen any.
+2. Surfacing columns SHALL NOT modify `view_contexts` or any tenant parameter, and
+   SHALL NOT be visible to any other user (private to the owning `sub`).
 3. WHEN the user switches view context THEN the system SHALL apply a documented,
    consistent rule for surfaced columns (see Design open-question OQ-1) — either
    cleared or retained — chosen deliberately, not incidentally.
 4. A surfaced column's key SHALL NOT collide with or overwrite an existing flat
    alias (`membership_type`, `region`, …); only non-flat keys are promoted.
+
+### R6 — Persist the chosen columns per user (mirrors the preferred-list)
+
+**User story:** As a member administrator, I want the columns I add to be
+remembered the next time I open the overview, so I do not re-pick them every
+session — exactly like my preferred pivot list.
+
+#### Acceptance Criteria
+1. The system SHALL persist each user's chosen columns as a PRIVATE, per-user,
+   tenant-scoped record keyed by the authenticated Cognito `sub` (user ≠ member,
+   R11.1) — one record per user — storing an **ordered list of field keys**,
+   mirroring the preferred-list entity (`refs` → `columns`).
+2. The record SHALL be stored on the Members module's own DynamoDB plane
+   (a new sort key `colprefs#<sub>` in the tenant partition), NOT in any tenant
+   config and NOT in a view context.
+3. The system SHALL expose a `GET` (members:read) + `PUT` (members:write OR
+   members:export) route pair keyed by the verified `sub` at the edge — never a
+   client-supplied sub or path param — mirroring
+   `GET/PUT /members/analytics-sets/preferred`. Proposed path:
+   `GET/PUT /members/column-preferences`.
+4. WHEN a user has never saved column preferences THEN the GET SHALL return an
+   empty set (empty is valid, not an error — mirrors R11.2), and the overview
+   SHALL show only its default/context columns + the fixed member_number (R7).
+5. WHEN the user adds/removes a column THEN the system SHALL persist the full
+   updated ordered list (a replace, exactly one record per user), stamping
+   `updated_at`; the write SHALL drop blank/duplicate keys and keys that are not
+   candidate fields, defensively.
+6. The persisted list SHALL store **field keys only** (references into the field
+   config), never copies of field metadata or member data — mirroring the
+   preferred-list's reference-not-copy rule; a stored key that no longer resolves
+   (field removed / hidden) SHALL be skipped on read, never an error.
+7. Persistence SHALL NOT widen scope: it stores which columns to show, never any
+   row data; row scope stays server-enforced on `GET /members`.
+
+### R7 — member_number is an always-present fixed column
+
+**User story:** As a user, whatever columns I choose, I always want the member
+number present so every row is identifiable.
+
+#### Acceptance Criteria
+1. The `member_number` column SHALL always be shown as the leading column,
+   regardless of the user's chosen columns or the selected view context.
+2. The column chooser SHALL present `member_number` as always-on (not removable);
+   it SHALL NOT appear as a toggleable candidate the user can uncheck.
+3. The persisted column list SHALL NOT need to include `member_number` (it is
+   implied); if a stored list omits or includes it, the overview SHALL still render
+   it exactly once, first.
 
 ### R4 — Reuse, not rebuild (shared components)
 
@@ -136,6 +202,13 @@ pivot picker and the overview do not drift into two near-identical widgets.
    `useColumnFilters` / `useTableSort` / `FilterableHeader` with no change to
    their public contract (the F-007 key-set reconcile already supports a dynamic
    key set).
+5. The persistence (R6) SHALL be built by MIRRORING the preferred-list end to end
+   — a `ColumnPreferences` entity + `to_item`/`from_item` modeled on
+   `PreferredList`, a `colprefs#<sub>` sort key + item builder modeled on
+   `pref_list_sk` / `build_pref_list_item`, repository `get/save` methods, a
+   route pair modeled on the preferred-list routes, and `getColumnPreferences` /
+   `saveColumnPreferences` client wrappers modeled on `getPreferredList` /
+   `savePreferredList`. No new storage pattern is invented.
 4. The two overview render paths SHOULD be unified into a single column model so
    fixed / context / session columns flow through identical wiring (see Design
    C3); IF unification is deferred, session columns SHALL still land correctly in
@@ -149,18 +222,24 @@ pivot picker and the overview do not drift into two near-identical widgets.
    suites green.
 2. New tests SHALL cover: surfacing a nested field makes it filter + sort
    correctly; type-coerced sort (number/date); no key collision with a flat
-   alias; session-only (not persisted); AND-composition with a column filter and
-   with the global search.
-3. `tsc --noEmit` SHALL pass; no new hardcoded English; frontend-only (no backend
-   or SAM change).
+   alias; member_number always present + not removable (R7); AND-composition with
+   a column filter and with the global search; the persistence round-trip
+   (save → reload → same columns) and the empty-default + dangling-key-skip cases.
+3. The persistence SHALL have SAM unit tests mirroring the preferred-list suites
+   (entity validation, `to_item`/`from_item`, repository get/save, route
+   gating + sub-from-edge) and the client wrappers SHALL have service tests.
+4. `tsc --noEmit` + the SAM test suite SHALL pass; no new hardcoded English;
+   tenant isolation + `sub`-from-edge preserved (no cross-tenant / cross-user
+   read or write).
 
 ---
 
 ## Out of scope
 
-- Persisting a user's chosen columns across sessions (would need a per-user store;
-  a separate follow-up — the preferred-list DynamoDB store is the nearest
-  precedent but is a different concept).
+- Sharing a column set between users or promoting one to a tenant view context
+  (a user's columns are private; authoring shared contexts stays the admin's
+  config path).
+- Per-column width / ordering-by-drag persistence beyond the stored key order.
 - Fixing nested filter/sort for **all** overlay columns globally (the same
   technique can later be generalized; this spec scopes it to user-surfaced
   columns — see Design "Strategic note").
