@@ -239,6 +239,21 @@
     "compact": "Compact",
     "full": "Full"
   },
+  "columnChooser": {
+    "button": "Columns",
+    "title": "Choose columns",
+    "description": "Pick which member fields show as columns. Your selection is saved and only you see it.",
+    "filterPlaceholder": "Find a field…",
+    "empty": "No fields match your search.",
+    "alreadyShown": "Already shown",
+    "add": "Add column",
+    "remove": "Remove column",
+    "memberNumberLocked": "Always shown",
+    "cancel": "Cancel",
+    "toast": {
+      "saveError": "Failed to save your columns"
+    }
+  },
   "columns": {
     "memberNumber": "Member no.",
     "name": "Name",

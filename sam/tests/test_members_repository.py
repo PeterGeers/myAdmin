@@ -39,6 +39,7 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
+from sam.members.domain.column_preferences import ColumnPreferences
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.repository import table_design as td
 from sam.members.repository.members_repository import (
@@ -274,6 +275,15 @@ class TestTableDesign:
         assert td.delegates_sk("M-1") == "member#M-1#delegates"
         assert td.payment_sk("M-1", "P-3") == "member#M-1#payment#P-3"
 
+    def test_column_prefs_sk_uses_the_documented_shape(self):
+        # Session-columns R6.2: colprefs#<sub>, mirroring preflist#<sub>.
+        assert td.column_prefs_sk("c2559464-user-sub") == "colprefs#c2559464-user-sub"
+        assert td.RECORD_TYPE_COLUMN_PREFS == "colprefs"
+
+    def test_column_prefs_sk_rejects_a_blank_sub(self):
+        with pytest.raises(ValueError):
+            td.column_prefs_sk("")
+
     def test_split_sort_key_is_inverse_of_build(self):
         assert td.split_sort_key(td.membership_sk("M-1", "MS-9")) == (
             "member",
@@ -305,6 +315,29 @@ class TestTableDesign:
         payload = {**_member("M-1", "1001"), td.PARTITION_KEY_ATTR: "evil-tenant"}
         item = td.build_member_item("h-dcn", "M-1", payload)
         assert item[td.PARTITION_KEY_ATTR] == "h-dcn"
+
+    def test_build_column_prefs_item_stamps_authoritative_tenant_and_key(self):
+        # Session-columns R6.2: the tenant PK + colprefs#<sub> SK are stamped, sub stays
+        # addressable (mirrors build_pref_list_item).
+        entry = {
+            "columns": ["years_member", "membership.region"],
+            "updated_at": "2024-01-01T00:00:00+00:00",
+        }
+        item = td.build_column_prefs_item("h-dcn", "user-sub", entry)
+        assert item[td.PARTITION_KEY_ATTR] == "h-dcn"
+        assert item[td.SORT_KEY_ATTR] == "colprefs#user-sub"
+        assert item["sub"] == "user-sub"
+        assert item["columns"] == ["years_member", "membership.region"]
+
+    def test_build_column_prefs_item_overwrites_a_payload_tenant_id(self):
+        # A payload carrying the WRONG tenant cannot land in another partition (Property 8).
+        payload = {"columns": [], td.PARTITION_KEY_ATTR: "evil-tenant"}
+        item = td.build_column_prefs_item("h-dcn", "user-sub", payload)
+        assert item[td.PARTITION_KEY_ATTR] == "h-dcn"
+
+    def test_build_column_prefs_item_refuses_a_blank_sub(self):
+        with pytest.raises(ValueError):
+            td.build_column_prefs_item("h-dcn", "", {"columns": []})
 
     def test_resolve_table_name_fails_fast_when_env_missing(self, monkeypatch):
         monkeypatch.delenv(td.MEMBERS_TABLE_ENV_VAR, raising=False)
@@ -560,6 +593,99 @@ class TestMembershipTypeCatalog:
         # A catalog entry shares the tenant partition but must not surface as a member.
         repo.save_member("h-dcn", _member("M-1", "1001"))
         repo.save_membership_type("h-dcn", _mtype("erelid"))
+        assert [m["member_id"] for m in repo.list_members("h-dcn")] == ["M-1"]
+
+
+# ---------------------------------------------------------------------------
+# Column preferences (per-user overview columns, session-columns R6) — mirrors
+# the preferred-list repository get/save: tenant-match guard, full replace,
+# validate-before-persist, empty-when-unset, tenant + cross-user isolation.
+# ---------------------------------------------------------------------------
+
+
+def _colprefs(sub: str, columns, *, tenant_id="h-dcn", updated_at="2024-01-01T00:00:00+00:00"):
+    return ColumnPreferences(
+        tenant_id=tenant_id, sub=sub, columns=columns, updated_at=updated_at
+    )
+
+
+class TestColumnPreferences:
+    def test_get_when_unset_returns_none(self, repo):
+        # Empty-is-valid (R6.4): a user with no saved columns reads as absent (→ None); the
+        # domain treats that as an empty set.
+        assert repo.get_column_preferences("h-dcn", "sub-1") is None
+
+    def test_get_with_blank_sub_returns_none(self, repo):
+        assert repo.get_column_preferences("h-dcn", "") is None
+
+    def test_save_then_get_round_trips_columns(self, repo):
+        repo.save_column_preferences(
+            "h-dcn", _colprefs("sub-1", ["years_member", "membership.region"])
+        )
+        got = repo.get_column_preferences("h-dcn", "sub-1")
+        assert got is not None
+        assert got.sub == "sub-1"
+        assert list(got.columns) == ["years_member", "membership.region"]
+        assert got.updated_at == "2024-01-01T00:00:00+00:00"
+
+    def test_save_replaces_the_whole_list(self, repo):
+        # A full PutItem replace — exactly one record per user (R6.5).
+        repo.save_column_preferences("h-dcn", _colprefs("sub-1", ["a", "b"]))
+        repo.save_column_preferences("h-dcn", _colprefs("sub-1", ["c"]))
+        got = repo.get_column_preferences("h-dcn", "sub-1")
+        assert list(got.columns) == ["c"]
+
+    def test_empty_columns_is_valid_clears_preferences(self, repo):
+        repo.save_column_preferences("h-dcn", _colprefs("sub-1", ["a"]))
+        repo.save_column_preferences("h-dcn", _colprefs("sub-1", []))
+        got = repo.get_column_preferences("h-dcn", "sub-1")
+        assert list(got.columns) == []
+
+    def test_save_binds_entry_to_the_caller_tenant_when_unset(self, repo):
+        # A blank-tenant entry is bound to the caller's tenant on save.
+        saved = repo.save_column_preferences(
+            "h-dcn", _colprefs("sub-1", ["a"], tenant_id="")
+        )
+        assert saved.tenant_id == "h-dcn"
+        assert repo.get_column_preferences("h-dcn", "sub-1") is not None
+
+    def test_save_refuses_a_cross_tenant_entry(self, repo):
+        # An entry naming a DIFFERENT tenant may not be written under this tenant (Property 8).
+        with pytest.raises(ValueError):
+            repo.save_column_preferences("h-dcn", _colprefs("sub-1", ["a"], tenant_id="other"))
+
+    def test_save_refuses_a_blank_tenant(self, repo):
+        with pytest.raises(ValueError):
+            repo.save_column_preferences("", _colprefs("sub-1", ["a"]))
+
+    def test_get_refuses_a_blank_tenant(self, repo):
+        with pytest.raises(ValueError):
+            repo.get_column_preferences("", "sub-1")
+
+    def test_save_validates_before_persist(self, repo):
+        # Validate-before-persist: a malformed entry (blank sub) never lands in the store.
+        with pytest.raises(Exception):
+            repo.save_column_preferences("h-dcn", _colprefs("", ["a"]))
+        # Nothing was written for the empty sub.
+        assert repo.get_column_preferences("h-dcn", "") is None
+
+    def test_preferences_are_isolated_per_tenant(self, repo):
+        repo.save_column_preferences(
+            "tenant-a", _colprefs("sub-1", ["a"], tenant_id="tenant-a")
+        )
+        # Another tenant's partition → not visible.
+        assert repo.get_column_preferences("tenant-b", "sub-1") is None
+
+    def test_preferences_are_isolated_per_user_by_sub(self, repo):
+        repo.save_column_preferences("h-dcn", _colprefs("sub-1", ["one"]))
+        repo.save_column_preferences("h-dcn", _colprefs("sub-2", ["two"]))
+        assert list(repo.get_column_preferences("h-dcn", "sub-1").columns) == ["one"]
+        assert list(repo.get_column_preferences("h-dcn", "sub-2").columns) == ["two"]
+
+    def test_preferences_do_not_leak_into_member_listing(self, repo):
+        # A colprefs item shares the tenant partition but must not surface as a member.
+        repo.save_member("h-dcn", _member("M-1", "1001"))
+        repo.save_column_preferences("h-dcn", _colprefs("sub-1", ["a"]))
         assert [m["member_id"] for m in repo.list_members("h-dcn")] == ["M-1"]
 
 

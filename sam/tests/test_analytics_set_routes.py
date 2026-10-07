@@ -773,3 +773,247 @@ class TestPreferredListEdge:
             )
         )
         assert resp["statusCode"] == 200
+
+
+# =====================================================================================
+# Column preferences (session-columns R6) — per-user, keyed by the verified sub
+# (user ≠ member). Mirrors the preferred-list suites: gating, sub-from-edge,
+# empty-when-unset, cross-tenant / cross-user isolation, non-candidate cleaning.
+# =====================================================================================
+
+# Real candidate field keys of the default (no-overlay) h-dcn field config — the bare
+# ``key`` of a VISIBLE resolved field (what the chooser stores). A key not among the
+# tenant's candidates (R6.5) is dropped server-side.
+_CANDIDATE_A = "email"
+_CANDIDATE_B = "first_name"
+_CANDIDATE_C = "status"
+_NON_CANDIDATE = "__not_a_field__"
+
+
+class TestColumnPreferencesDomain:
+    def test_get_is_empty_when_unset(self, service):
+        out = service.get_column_preferences("h-dcn", "sub-1")
+        assert out["sub"] == "sub-1"
+        assert out["columns"] == []
+
+    def test_save_then_get_round_trips_columns(self, service, repo):
+        service.save_column_preferences(
+            "h-dcn", "sub-1", {"columns": [_CANDIDATE_A, _CANDIDATE_B]}
+        )
+        out = service.get_column_preferences("h-dcn", "sub-1")
+        assert out["columns"] == [_CANDIDATE_A, _CANDIDATE_B]
+        assert out["updated_at"]
+
+    def test_save_replaces_the_whole_list(self, service):
+        service.save_column_preferences(
+            "h-dcn", "sub-1", {"columns": [_CANDIDATE_A, _CANDIDATE_B]}
+        )
+        service.save_column_preferences("h-dcn", "sub-1", {"columns": [_CANDIDATE_C]})
+        assert service.get_column_preferences("h-dcn", "sub-1")["columns"] == [
+            _CANDIDATE_C
+        ]
+
+    def test_save_drops_blank_and_non_string_keys(self, service):
+        service.save_column_preferences(
+            "h-dcn",
+            "sub-1",
+            {"columns": [_CANDIDATE_A, "", "  ", 42, None, _CANDIDATE_B]},
+        )
+        assert service.get_column_preferences("h-dcn", "sub-1")["columns"] == [
+            _CANDIDATE_A,
+            _CANDIDATE_B,
+        ]
+
+    def test_save_drops_duplicate_keys_preserving_order(self, service):
+        # First occurrence wins; order preserved (R6.5 de-dupe).
+        service.save_column_preferences(
+            "h-dcn",
+            "sub-1",
+            {"columns": [_CANDIDATE_A, _CANDIDATE_B, _CANDIDATE_A, _CANDIDATE_B]},
+        )
+        assert service.get_column_preferences("h-dcn", "sub-1")["columns"] == [
+            _CANDIDATE_A,
+            _CANDIDATE_B,
+        ]
+
+    def test_save_drops_non_candidate_keys(self, service):
+        # A key that is not a candidate field of the tenant's resolved config is dropped
+        # server-side (R6.5), the write still succeeds with the cleaned list.
+        service.save_column_preferences(
+            "h-dcn", "sub-1", {"columns": [_CANDIDATE_A, _NON_CANDIDATE, _CANDIDATE_B]}
+        )
+        assert service.get_column_preferences("h-dcn", "sub-1")["columns"] == [
+            _CANDIDATE_A,
+            _CANDIDATE_B,
+        ]
+
+    def test_empty_columns_is_valid_clears_preferences(self, service):
+        service.save_column_preferences("h-dcn", "sub-1", {"columns": [_CANDIDATE_A]})
+        service.save_column_preferences("h-dcn", "sub-1", {"columns": []})
+        assert service.get_column_preferences("h-dcn", "sub-1")["columns"] == []
+
+    def test_preferences_are_isolated_per_user(self, service):
+        service.save_column_preferences("h-dcn", "sub-1", {"columns": [_CANDIDATE_A]})
+        service.save_column_preferences("h-dcn", "sub-2", {"columns": [_CANDIDATE_B]})
+        assert service.get_column_preferences("h-dcn", "sub-1")["columns"] == [
+            _CANDIDATE_A
+        ]
+        assert service.get_column_preferences("h-dcn", "sub-2")["columns"] == [
+            _CANDIDATE_B
+        ]
+
+
+class TestColumnPreferencesEdge:
+    def test_get_empty_returns_200_with_empty_columns(self):
+        resp = app.handler(
+            _event("GET", "/members/column-preferences", sub="webmaster-sub")
+        )
+        assert resp["statusCode"] == 200
+        data = _data(resp)
+        assert data["sub"] == "webmaster-sub"
+        assert data["columns"] == []
+
+    def test_put_then_get_round_trips_for_the_same_sub(self):
+        put = app.handler(
+            _event(
+                "PUT",
+                "/members/column-preferences",
+                sub="sub-x",
+                body={"columns": [_CANDIDATE_A, _CANDIDATE_B]},
+            )
+        )
+        assert put["statusCode"] == 200
+        got = app.handler(_event("GET", "/members/column-preferences", sub="sub-x"))
+        assert _data(got)["columns"] == [_CANDIDATE_A, _CANDIDATE_B]
+
+    def test_put_owner_is_the_verified_sub_not_a_body_value(self):
+        # The stored/returned owner is ctx.sub (the verified edge principal), NEVER a
+        # client-supplied sub in the body (R6.3 — sub-from-edge).
+        put = app.handler(
+            _event(
+                "PUT",
+                "/members/column-preferences",
+                sub="verified-sub",
+                body={"columns": [_CANDIDATE_A], "sub": "spoofed-sub"},
+            )
+        )
+        assert put["statusCode"] == 200
+        assert _data(put)["sub"] == "verified-sub"
+        # The spoofed sub owns nothing.
+        other = app.handler(
+            _event("GET", "/members/column-preferences", sub="spoofed-sub")
+        )
+        assert _data(other)["columns"] == []
+
+    def test_put_drops_non_candidate_keys_end_to_end(self):
+        put = app.handler(
+            _event(
+                "PUT",
+                "/members/column-preferences",
+                sub="sub-nc",
+                body={"columns": [_CANDIDATE_A, _NON_CANDIDATE, _CANDIDATE_A]},
+            )
+        )
+        assert put["statusCode"] == 200
+        # Non-candidate dropped + duplicate de-duped (R6.5).
+        assert _data(put)["columns"] == [_CANDIDATE_A]
+
+    def test_column_preferences_are_private_per_user(self):
+        app.handler(
+            _event(
+                "PUT",
+                "/members/column-preferences",
+                sub="sub-a",
+                body={"columns": [_CANDIDATE_A]},
+            )
+        )
+        # A DIFFERENT user's GET must not see sub-a's list (keyed by the verified sub).
+        other = app.handler(
+            _event("GET", "/members/column-preferences", sub="sub-b")
+        )
+        assert _data(other)["columns"] == []
+
+    def test_column_preferences_are_isolated_per_tenant(self, monkeypatch):
+        # A write under h-dcn must not surface for a DIFFERENT tenant (PK pinned to tenant_id).
+        from sam.tests.conftest import FakeScopeGrantsReader
+
+        app.handler(
+            _event(
+                "PUT",
+                "/members/column-preferences",
+                sub="sub-t",
+                body={"columns": [_CANDIDATE_A]},
+            )
+        )
+        # Point the scope reader at a second tenant and query it with the same sub.
+        monkeypatch.setattr(
+            app,
+            "_SCOPE_GRANTS_READER_OVERRIDE",
+            FakeScopeGrantsReader({("other-tenant", _EMAIL_ALL): {"region": ["*"]}}),
+        )
+        other = app.handler(
+            _event("GET", "/members/column-preferences", tenant="other-tenant", sub="sub-t")
+        )
+        assert _data(other)["columns"] == []
+
+    def test_literal_wins_over_member_id_route(self):
+        # GET /members/column-preferences must resolve to the column-preferences route, NOT be
+        # swallowed by GET /members/{member_id} (declaration order). A 200 with a `columns` key
+        # (not a member shape / 404) proves the literal won.
+        resp = app.handler(
+            _event("GET", "/members/column-preferences", sub="sub-q")
+        )
+        assert resp["statusCode"] == 200
+        assert "columns" in _data(resp)
+
+    def test_put_gate_export_or_write(self):
+        # Export-only can save column preferences (R6.3 — export OR write).
+        assert (
+            app.handler(
+                _event(
+                    "PUT",
+                    "/members/column-preferences",
+                    sub="s1",
+                    capabilities=("members:read", "members:export"),
+                    body={"columns": [_CANDIDATE_A]},
+                )
+            )["statusCode"]
+            == 200
+        )
+        # Write-only can too.
+        assert (
+            app.handler(
+                _event(
+                    "PUT",
+                    "/members/column-preferences",
+                    sub="s1",
+                    capabilities=("members:read", "members:write"),
+                    body={"columns": [_CANDIDATE_A]},
+                )
+            )["statusCode"]
+            == 200
+        )
+        # Read-only is refused the PUT.
+        assert (
+            app.handler(
+                _event(
+                    "PUT",
+                    "/members/column-preferences",
+                    sub="s1",
+                    capabilities=("members:read",),
+                    body={"columns": [_CANDIDATE_A]},
+                )
+            )["statusCode"]
+            == 403
+        )
+
+    def test_get_requires_only_read(self):
+        resp = app.handler(
+            _event(
+                "GET",
+                "/members/column-preferences",
+                sub="s1",
+                capabilities=("members:read",),
+            )
+        )
+        assert resp["statusCode"] == 200

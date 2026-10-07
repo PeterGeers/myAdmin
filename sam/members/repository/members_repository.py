@@ -33,6 +33,7 @@ from dataclasses import replace
 from typing import Any, Protocol, runtime_checkable
 
 from sam.members.domain.analytics_set import AnalyticsSetEntry
+from sam.members.domain.column_preferences import ColumnPreferences
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.domain.preferred_list import PreferredList
 from sam.members.repository import table_design as td
@@ -208,6 +209,20 @@ class MembersRepository(Protocol):
         """Create or replace user ``sub``'s preferred list (validated before persist)."""
         ...
 
+    # ── Column preferences (per-user overview columns, session-columns R6) ──────────
+
+    def get_column_preferences(
+        self, tenant_id: str, sub: str
+    ) -> ColumnPreferences | None:
+        """Return user ``sub``'s column preferences for ``tenant_id``, or ``None`` if unset."""
+        ...
+
+    def save_column_preferences(
+        self, tenant_id: str, entry: ColumnPreferences
+    ) -> ColumnPreferences:
+        """Create or replace user ``sub``'s column preferences (validated before persist)."""
+        ...
+
 
 class _StubMembersRepository:
     """A do-nothing repository whose every method raises :class:`NotImplementedError`.
@@ -281,6 +296,12 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def save_preferred_list(self, tenant_id: str, entry):
+        raise NotImplementedError(self._PENDING)
+
+    def get_column_preferences(self, tenant_id: str, sub: str):
+        raise NotImplementedError(self._PENDING)
+
+    def save_column_preferences(self, tenant_id: str, entry):
         raise NotImplementedError(self._PENDING)
 
 
@@ -699,5 +720,52 @@ class DynamoDbMembersRepository:
         )
         payload = bound.to_item()
         item = td.build_pref_list_item(tenant_id, bound.sub, payload)
+        self.table.put_item(Item=item)
+        return bound
+
+    # ── Column preferences (per-user overview columns, session-columns R6) ──────────
+
+    def get_column_preferences(
+        self, tenant_id: str, sub: str
+    ) -> ColumnPreferences | None:
+        """Return user ``sub``'s column preferences for ``tenant_id``, or ``None`` if unset.
+
+        A single ``get_item`` on ``colprefs#<sub>`` within the tenant partition (isolation is
+        structural — the partition key is pinned to ``tenant_id``). A missing item → ``None``
+        (the domain treats that as an empty column set — empty-is-valid, R6.4).
+        """
+        self._require_tenant(tenant_id)
+        if not sub:
+            return None
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.column_prefs_sk(sub))
+        )
+        item = response.get("Item")
+        return ColumnPreferences.from_item(item) if item is not None else None
+
+    def save_column_preferences(
+        self, tenant_id: str, entry: ColumnPreferences
+    ) -> ColumnPreferences:
+        """Create or REPLACE user ``sub``'s column preferences, validated before persist.
+
+        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
+        write, Property 8). A plain ``PutItem`` replaces the whole list (there is exactly one
+        per user — R6.5). :meth:`ColumnPreferences.to_item` validates the shape and
+        :func:`table_design.build_column_prefs_item` stamps the authoritative primary key, so a
+        malformed or misplaced entry can never be written.
+        """
+        self._require_tenant(tenant_id)
+        if entry.tenant_id and entry.tenant_id != tenant_id:
+            raise ValueError(
+                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
+                f"{tenant_id!r} (no cross-tenant write, Property 8)"
+            )
+        bound = (
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
+        )
+        payload = bound.to_item()
+        item = td.build_column_prefs_item(tenant_id, bound.sub, payload)
         self.table.put_item(Item=item)
         return bound

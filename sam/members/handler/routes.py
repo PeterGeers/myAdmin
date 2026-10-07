@@ -187,6 +187,40 @@ ROUTES: tuple[RouteSpec, ...] = (
             "membership_type dropdown = the tenant's active catalog entries."
         ),
     ),
+    # ── Column preferences — per-user overview columns (session-columns R6) ──────────
+    #
+    # The per-user chosen-column list for the Members overview, mirroring the preferred-list
+    # route pair end to end. Keyed by the verified ``sub`` at the edge (NOT a path param, NOT a
+    # body owner — user ≠ member, R11.1). DECLARED BEFORE the ``/members/{member_id}`` routes so
+    # the LITERAL ``column-preferences`` segment wins over the ``{member_id}`` placeholder (the
+    # router returns the first matching route in declaration order for a method); the literal
+    # path is also disjoint from the ``/members/analytics-sets...`` and other ``/members/...``
+    # literal routes. GET = members:read; PUT = members:export OR members:write (R6.3 — any user
+    # who can run/export sets may curate their own columns).
+    RouteSpec(
+        name="get_column_preferences",
+        method=HttpMethod.GET,
+        path="/members/column-preferences",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_READ,
+        self_service=False,
+        summary=(
+            "Get the calling user's chosen overview columns (empty when unset, R6.4)."
+        ),
+    ),
+    RouteSpec(
+        name="save_column_preferences",
+        method=HttpMethod.PUT,
+        path="/members/column-preferences",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Replace the calling user's chosen overview columns (ordered field keys, R6.5). "
+            "Gate: members:export OR members:write."
+        ),
+    ),
     # ── Analytics-sets — CRUD (5), F-012 ───────────────────────────────────────────
     #
     # Tenant-scoped member analytics-sets: saved pivot/list definitions owned by the Members

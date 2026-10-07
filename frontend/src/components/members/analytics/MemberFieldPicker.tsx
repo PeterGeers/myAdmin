@@ -76,7 +76,6 @@ import {
   Text,
   VStack,
   HStack,
-  Checkbox,
   FormControl,
   FormLabel,
   Input,
@@ -89,7 +88,6 @@ import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import type {
   FieldConfig,
   FieldConfigField,
-  FunctionalGroup,
   LocalizedLabel,
 } from '../../../types/members';
 import type {
@@ -99,6 +97,7 @@ import type {
 } from '../../../types/pivot';
 import { saveAnalyticsSet, updateAnalyticsSet } from '../../../services/membersApiService';
 import { MEMBER_PIVOT_DATA_SOURCE, type MemberPivotPreset } from './memberPivotPresets';
+import FieldChecklist from '../FieldChecklist';
 
 /** The aggregate functions the framework supports (mirrors `AggregateFunction`). */
 const AGGREGATE_FUNCTIONS: readonly AggregateFunction[] = [
@@ -308,69 +307,6 @@ function pickableFields(fieldConfig: FieldConfig | null): FieldConfigField[] {
   );
 }
 
-/** The fallback section key for fields with no (or a dangling) functional group. */
-const DEFAULT_FG_SECTION_KEY = '__ungrouped__';
-
-/** A resolved, display-ready section: a functional-group heading + its fields. */
-interface FieldPickerSection {
-  /** The functional-group key, or {@link DEFAULT_FG_SECTION_KEY} for the fallback. */
-  key: string;
-  /** The section heading (localized), or `undefined` for the ungrouped fallback. */
-  label?: LocalizedLabel;
-  /** The section's fields, sorted alphabetically by their resolved label. */
-  fields: FieldConfigField[];
-}
-
-/**
- * Bucket the pickable fields into ordered SECTIONS by functional group, then
- * sort alphabetically WITHIN each section by the resolved (active-language)
- * label. Section order follows the tenant's `functional_groups` catalog `order`
- * (R4.9); a field with no group — or one not in the catalog — falls into a
- * single "ungrouped" section appended last (never a crash). Empty sections are
- * dropped. Mirrors the Members modals' `groupFieldsBySection`, kept local so the
- * analytics surface has no cross-module form import (R4.5 / R6.1).
- */
-function sectionFields(
-  fields: FieldConfigField[],
-  catalog: FunctionalGroup[] | undefined,
-  lang: string,
-): FieldPickerSection[] {
-  const catalogByKey = new Map<string, FunctionalGroup>();
-  (catalog ?? []).forEach((g) => catalogByKey.set(g.key, g));
-
-  const buckets = new Map<string, FieldConfigField[]>();
-  for (const f of fields) {
-    const g = f.functional_group;
-    const key = g && catalogByKey.has(g) ? g : DEFAULT_FG_SECTION_KEY;
-    if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key)!.push(f);
-  }
-
-  const byLabel = (a: FieldConfigField, b: FieldConfigField) =>
-    resolveLabel(a.label, lang, a.key).localeCompare(
-      resolveLabel(b.label, lang, b.key),
-      lang,
-      { sensitivity: 'base' },
-    );
-
-  const orderedCatalog = (catalog ?? [])
-    .slice()
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-  const sections: FieldPickerSection[] = [];
-  for (const g of orderedCatalog) {
-    const bucket = buckets.get(g.key);
-    if (bucket && bucket.length > 0) {
-      sections.push({ key: g.key, label: g.label, fields: bucket.slice().sort(byLabel) });
-    }
-  }
-  const fallback = buckets.get(DEFAULT_FG_SECTION_KEY);
-  if (fallback && fallback.length > 0) {
-    sections.push({ key: DEFAULT_FG_SECTION_KEY, fields: fallback.slice().sort(byLabel) });
-  }
-  return sections;
-}
-
 export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
   isOpen,
   onClose,
@@ -385,13 +321,10 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
 
   const lang = (language || 'nl').slice(0, 2);
   const fields = useMemo(() => pickableFields(fieldConfig), [fieldConfig]);
-  // Both field lists (Group by + List columns) render grouped by functional
-  // group (catalog order) and alphabetical WITHIN each group, so a long field
-  // set is scannable rather than a flat wall of checkboxes.
-  const sections = useMemo(
-    () => sectionFields(fields, fieldConfig?.functional_groups, lang),
-    [fields, fieldConfig, lang],
-  );
+  // Both field lists (Group by + List columns) render THROUGH the shared
+  // FieldChecklist (session-columns C1 / R4.1), which owns the functional-group
+  // sectioning (catalog order, alphabetical within) so this picker and the
+  // column chooser never drift into two near-identical checklists.
 
   const [name, setName] = useState('');
   const [groupColumns, setGroupColumns] = useState<string[]>([]);
@@ -616,38 +549,14 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
                       {t(`${T}.noFields`)}
                     </Text>
                   ) : (
-                    <VStack align="stretch" spacing={3} data-testid="field-picker-list-fields">
-                      {sections.map((section) => (
-                        <VStack
-                          key={section.key}
-                          align="stretch"
-                          spacing={1}
-                          data-testid={`field-picker-list-section-${section.key}`}
-                        >
-                          {section.label && (
-                            <Text
-                              fontSize="xs"
-                              fontWeight="semibold"
-                              textTransform="uppercase"
-                              color="orange.300"
-                            >
-                              {resolveLabel(section.label, lang, section.key)}
-                            </Text>
-                          )}
-                          {section.fields.map((f) => (
-                            <Checkbox
-                              key={f.key}
-                              isChecked={listColumns.includes(f.key)}
-                              onChange={() => toggleListColumn(f.key)}
-                              colorScheme="orange"
-                              data-testid={`field-picker-list-${f.key}`}
-                            >
-                              {resolveLabel(f.label, lang, f.key)}
-                            </Checkbox>
-                          ))}
-                        </VStack>
-                      ))}
-                    </VStack>
+                    <FieldChecklist
+                      fields={fields}
+                      selectedKeys={listColumns}
+                      functionalGroups={fieldConfig?.functional_groups}
+                      lang={lang}
+                      onToggle={toggleListColumn}
+                      testIdPrefix="field-picker-list"
+                    />
                   )}
                 </FormControl>
 
@@ -666,38 +575,14 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
                   {t(`${T}.noFields`)}
                 </Text>
               ) : (
-                <VStack align="stretch" spacing={3} data-testid="field-picker-group-fields">
-                  {sections.map((section) => (
-                    <VStack
-                      key={section.key}
-                      align="stretch"
-                      spacing={1}
-                      data-testid={`field-picker-group-section-${section.key}`}
-                    >
-                      {section.label && (
-                        <Text
-                          fontSize="xs"
-                          fontWeight="semibold"
-                          textTransform="uppercase"
-                          color="orange.300"
-                        >
-                          {resolveLabel(section.label, lang, section.key)}
-                        </Text>
-                      )}
-                      {section.fields.map((f) => (
-                        <Checkbox
-                          key={f.key}
-                          isChecked={groupColumns.includes(f.key)}
-                          onChange={() => toggleGroupColumn(f.key)}
-                          colorScheme="orange"
-                          data-testid={`field-picker-group-${f.key}`}
-                        >
-                          {resolveLabel(f.label, lang, f.key)}
-                        </Checkbox>
-                      ))}
-                    </VStack>
-                  ))}
-                </VStack>
+                <FieldChecklist
+                  fields={fields}
+                  selectedKeys={groupColumns}
+                  functionalGroups={fieldConfig?.functional_groups}
+                  lang={lang}
+                  onToggle={toggleGroupColumn}
+                  testIdPrefix="field-picker-group"
+                />
               )}
             </FormControl>
 
