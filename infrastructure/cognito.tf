@@ -124,15 +124,11 @@ resource "aws_cognito_user_pool" "myadmin" {
   # NOTE: advanced_security_mode = "ENFORCED" was removed because it requires
   # Cognito Plus tier. If passkeys/WebAuthn are needed later, upgrade the tier first.
 
-  # NOTE: SignInPolicy.AllowedFirstAuthFactors (PASSWORD + WEB_AUTHN) is not yet
-  # supported by the Terraform AWS provider. It must be set via AWS CLI after apply:
-  #
-  #   aws cognito-idp update-user-pool \
-  #     --user-pool-id eu-west-1_Hdp40eWmu \
-  #     --region eu-west-1 \
-  #     --policies "SignInPolicy={AllowedFirstAuthFactors=[PASSWORD,WEB_AUTHN]}"
-  #
-  # This enables choice-based sign-in with passkey support.
+  # NOTE: SignInPolicy.AllowedFirstAuthFactors (PASSWORD + WEB_AUTHN) and the
+  # WebAuthn RelyingPartyId are not supported by the Terraform AWS provider yet.
+  # They are asserted via AWS CLI after apply by the
+  # null_resource.cognito_passkey_post_apply below (idempotent, re-runs on every
+  # apply), so they no longer need a manual step and can't silently revert.
 
   # Tags
   tags = {
@@ -140,6 +136,34 @@ resource "aws_cognito_user_pool" "myadmin" {
     Environment = "production"
     Project     = "myAdmin"
     ManagedBy   = "Terraform"
+  }
+
+  # Two parts of this pool are owned OUTSIDE Terraform — on purpose — so Terraform
+  # must NOT try to manage (and therefore DELETE) them. Without this block,
+  # `terraform plan` shows a destructive diff that would break production:
+  #
+  #   - lambda_config (Pre-Token-Generation trigger):
+  #       The V2 PreTokenGen trigger points at a Lambda in the DATA account
+  #       (nonprofit-deploy 506221081911), deployed by sam/pretokengen + CI. The
+  #       trigger is attached to the pool as a deliberate MANUAL, once-per-pool step
+  #       in the IDENTITY account (the SAM pipeline has no creds there). This is by
+  #       design — see sam/pretokengen/DEPLOY.md and spec s5e R5. Terraform never
+  #       sees it in config, so it would otherwise plan to detach it, stripping the
+  #       `custom:entitlements` claim from every token (platform-wide auth breakage).
+  #
+  #   - web_authn_configuration (passkey Relying Party ID):
+  #       Not exposed by the Terraform AWS provider; owned by
+  #       null_resource.cognito_passkey_post_apply below (set via AWS CLI). Without
+  #       ignoring it here, Terraform plans to null it out, reintroducing the
+  #       `RelyingPartyMismatch` passkey bug (backlog finding F-002).
+  #
+  # ignore_changes makes Terraform leave both untouched on refresh/plan/apply while
+  # still managing everything else about the pool.
+  lifecycle {
+    ignore_changes = [
+      lambda_config,
+      web_authn_configuration,
+    ]
   }
 }
 
@@ -216,6 +240,104 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
     "custom:role",
     "custom:tenants"
   ]
+}
+
+# ---------------------------------------------------------------------------
+# Post-apply Cognito CLI steps (NOT expressible in the Terraform AWS provider)
+# ---------------------------------------------------------------------------
+# Two pool settings the provider does not expose must be asserted via AWS CLI
+# after the pool exists. This null_resource re-runs them on every `terraform
+# apply` and whenever the pool, app client, or the RP ID input changes, so they
+# can no longer silently revert:
+#
+#   1. SignInPolicy.AllowedFirstAuthFactors = [PASSWORD, WEB_AUTHN]
+#      Enables choice-based sign-in (password + passkey).
+#
+#   2. WebAuthn RelyingPartyId = var.passkey_relying_party_id
+#      Without this, Cognito defaults the RP ID to the hosted-UI domain
+#      (myadmin-*.auth.<region>.amazoncognito.com). Because the app registers
+#      passkeys directly (Amplify associateWebAuthnCredential) from its own host,
+#      the browser then throws `RelyingPartyMismatch: Relying party does not match
+#      current domain`. See .kiro/specs/Common/Cognito/PassKey/tasks.md §1.4a and
+#      backlog finding F-002. UserVerification=preferred matches the app's
+#      CredentialCreationOptions.
+#
+# Both commands are idempotent (set-to-desired-state), so re-running is safe.
+#
+# ⚠️ CRITICAL — `update-user-pool` REPLACES THE WHOLE POOL CONFIG, not just the
+# flags you pass. In particular it REPLACES `LambdaConfig`. If you call it with
+# only `--policies` (no `--lambda-config`), it BLANKS the Pre-Token-Generation
+# trigger — detaching the data-account PreTokenGen Lambda and stripping the
+# `custom:entitlements` claim from every token (platform-wide auth breakage).
+# This exact mistake happened once (2026-10-07) and had to be recovered by
+# re-attaching the trigger. See sam/pretokengen/DEPLOY.md ("update-user-pool is
+# picky: include settings that must persist"). Therefore step 1 below READS the
+# current LambdaConfig and PASSES IT BACK UNCHANGED in the same call, so the
+# trigger is preserved whether or not SAM/manual has attached it.
+resource "null_resource" "cognito_passkey_post_apply" {
+  triggers = {
+    user_pool_id   = aws_cognito_user_pool.myadmin.id
+    app_client_id  = aws_cognito_user_pool_client.myadmin_client.id
+    relying_party  = var.passkey_relying_party_id
+    cli_profile    = var.cognito_cli_profile
+    aws_region     = var.aws_region
+    # bump to force a re-apply of the CLI steps without other changes
+    script_version = "2"
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+
+      POOL_ID="${aws_cognito_user_pool.myadmin.id}"
+      PROFILE="${var.cognito_cli_profile}"
+      REGION="${var.aws_region}"
+
+      # Preserve any externally-owned LambdaConfig (e.g. the PreTokenGen trigger,
+      # owned by sam/pretokengen + a manual identity-account attach). Read it now
+      # and pass it back UNCHANGED in the update below, so --policies does not
+      # blank it. Defaults to {} if the pool has no triggers.
+      CURRENT_LAMBDA_CONFIG="$(aws cognito-idp describe-user-pool \
+        --user-pool-id "$POOL_ID" --profile "$PROFILE" --region "$REGION" \
+        --query 'UserPool.LambdaConfig' --output json)"
+      if [ -z "$CURRENT_LAMBDA_CONFIG" ] || [ "$CURRENT_LAMBDA_CONFIG" = "null" ]; then
+        CURRENT_LAMBDA_CONFIG='{}'
+      fi
+      echo "Preserving LambdaConfig: $CURRENT_LAMBDA_CONFIG"
+
+      # 1) Choice-based first-auth factors (password + passkey).
+      #    MUST pass --lambda-config too, or update-user-pool blanks the trigger.
+      aws cognito-idp update-user-pool \
+        --user-pool-id "$POOL_ID" \
+        --policies 'SignInPolicy={AllowedFirstAuthFactors=[PASSWORD,WEB_AUTHN]}' \
+        --lambda-config "$CURRENT_LAMBDA_CONFIG" \
+        --profile "$PROFILE" \
+        --region "$REGION"
+
+      # 2) WebAuthn Relying Party ID — the recurring passkey fix (F-002).
+      #    set-user-pool-mfa-config only touches MFA/WebAuthn, never LambdaConfig,
+      #    so it is safe. mfa-configuration stays OFF (passkeys are inherently
+      #    multi-factor; Decision 1.1). UserVerification matches the app's options.
+      aws cognito-idp set-user-pool-mfa-config \
+        --user-pool-id "$POOL_ID" \
+        --mfa-configuration OFF \
+        --web-authn-configuration 'RelyingPartyId=${var.passkey_relying_party_id},UserVerification=preferred' \
+        --profile "$PROFILE" \
+        --region "$REGION"
+
+      # Verify the trigger survived (fail loud if it was lost).
+      AFTER="$(aws cognito-idp describe-user-pool \
+        --user-pool-id "$POOL_ID" --profile "$PROFILE" --region "$REGION" \
+        --query 'UserPool.LambdaConfig' --output json)"
+      if [ "$CURRENT_LAMBDA_CONFIG" != "{}" ] && ! echo "$AFTER" | grep -q 'PreTokenGeneration'; then
+        echo "ERROR: PreTokenGen trigger was lost by this step. LambdaConfig now: $AFTER" >&2
+        exit 1
+      fi
+
+      echo "Cognito passkey post-apply done: RP ID=${var.passkey_relying_party_id}; LambdaConfig preserved: $AFTER"
+    EOT
+  }
 }
 
 # User Pool Domain (for hosted UI)
