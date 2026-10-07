@@ -1,8 +1,11 @@
 # Design — Member Overview User Column Chooser (Session Columns)
 
 - Spec: `./requirements.md` (R1–R5). Origin: `../design-options.md` Option 2.
-- Scope: **frontend-only.** No backend, SAM, or API change. All data is already
-  loaded + scope-authorized; this is a presentation + client-filter concern.
+- Scope: **frontend + a per-user persistence record on the Members SAM plane**
+  (DynamoDB), modeled directly on the analytics preferred-list. The column
+  selection + filter/sort is a client concern (C1–C6); the persistence (C7/C8)
+  adds one small DynamoDB entity + a GET/PUT route pair + two client wrappers,
+  all mirroring existing code. No change to `GET /members` or the row scope.
 
 ## Design overview
 
@@ -70,10 +73,15 @@ type OverviewColumn = { field: FieldConfigField; source: 'base' | 'context' | 's
 - `sessionColumns` — the surfaced keys resolved to `FieldConfigField` via the field
   config, filtered to candidates, excluding any key already in the base/context set
   (R1.4, no duplicates) and any flat alias (R3.4).
-- `columns = [...baseOrContext, ...session]`, rendered by ONE
-  `columns.map(header)` + ONE `columns.map(cell)`. Every column — base, context,
-  session — gets identical `FilterableHeader` wiring (`filterValue` +
-  `onFilterChange` + `sortable` + `onSort`), gated by `isFilterable(key)`.
+- **member_number is always first (R7):** the column model prepends the
+  `member_number` field descriptor unconditionally and de-dupes it out of the rest,
+  so it leads every render regardless of context or user columns and can never be
+  removed. The chooser presents it as always-on, not a toggleable candidate.
+- `columns = [member_number, ...baseOrContext (minus member_number), ...session]`,
+  rendered by ONE `columns.map(header)` + ONE `columns.map(cell)`. Every column —
+  fixed, base, context, session — gets identical `FilterableHeader` wiring
+  (`filterValue` + `onFilterChange` + `sortable` + `onSort`), gated by
+  `isFilterable(key)`.
 - **R4.4 fallback:** if unifying the paths proves too large to land safely in one
   step, session columns are appended to whichever path is active and wired the same
   way; the trade-off (two code paths persist) is documented in `findings.md`. The
@@ -128,6 +136,67 @@ false for keys outside it. A user-surfaced key must be treated as filterable
 regardless (the user explicitly asked to work with it): `isFilterable` becomes
 `filterableSet ? (filterableSet.has(key) || sessionKeys.has(key)) : true` (R2.1).
 
+## C7 — `ColumnPreferences` persistence (mirror of the preferred-list, R6)
+
+A new per-user, tenant-scoped DynamoDB record, built end-to-end as a parallel of
+the analytics preferred-list — same shape, same `sub`-keyed privacy, same
+reference-not-copy rule. Every piece below has a 1:1 model in existing code.
+
+**Entity** — `sam/members/domain/column_preferences.py`, modeled on
+`preferred_list.py`:
+
+```python
+@dataclass(frozen=True)
+class ColumnPreferences:
+    tenant_id: str
+    sub: str                       # owning Cognito sub (user ≠ member, R11.1)
+    columns: Sequence[str] = ()    # ordered field keys (refs into the field config)
+    updated_at: str = ""
+    # validate(): non-blank tenant_id; non-blank sub w/o key separator;
+    #   columns is a list of non-blank strings (SHAPE only — a key that no
+    #   longer resolves is skipped on READ, R6.6, never a validation error).
+    # to_item() / from_item(): same pattern as PreferredList.
+```
+
+**Storage** — `sam/members/repository/table_design.py`: add
+`RECORD_TYPE_COLUMN_PREFS = "colprefs"`, `column_prefs_sk(sub)` →
+`colprefs#<sub>` (modeled on `pref_list_sk`), and `build_column_prefs_item`
+(modeled on `build_pref_list_item` — stamps the tenant PK + `colprefs#<sub>` SK,
+keeps `sub` addressable). Lives in the tenant partition like every other entity;
+isolation is structural (PK pinned to tenant_id).
+
+**Repository** — `members_repository.py`: `get_column_preferences(tenant_id, sub)`
+and `save_column_preferences(tenant_id, entry)` — copies of
+`get_preferred_list` / `save_preferred_list` (tenant-match guard, full replace,
+validated before persist).
+
+**Routes** — `sam/members/handler/routes.py`, in `RouteGroup` (reuse the analytics
+group or a small new one), declared with the LITERAL path so no `{id}` placeholder
+shadows it, keyed by the verified `sub` at the edge (NOT a path param):
+- `GET /members/column-preferences` — `members:read` — returns
+  `{ sub, columns, updated_at }` (empty `columns` when unset, R6.4).
+- `PUT /members/column-preferences` — `members:write` OR `members:export` —
+  replaces the list; drops blank/dupe/non-candidate keys (R6.5).
+
+**Client** — `frontend/src/services/membersApiService.ts`:
+`getColumnPreferences()` / `saveColumnPreferences(columns: string[])`, modeled on
+`getPreferredList` / `savePreferredList` (unwrap `{ data }`, map `{ sub, columns,
+updated_at }`). A `MemberColumnPreferences` type mirrors `MemberPreferredList`.
+
+## C8 — Load / save wiring on `MembersPage`
+
+- **Load:** on mount (after the field config resolves), call
+  `getColumnPreferences()`; seed `sessionColumns` from the returned `columns`,
+  resolving each key against the field config and skipping any that no longer
+  resolves or is `member_number` (always-on, R7.3). Empty on a first-time user.
+- **Save:** when the user adds/removes a column in the chooser, persist the full
+  ordered key list via `saveColumnPreferences(columns)` (full replace, R6.5).
+  Optimistically update local state; a failed save shows a non-blocking toast and
+  keeps the local change (never loses the user's working view). member_number is
+  never written (implied, R7.3).
+- The persisted list is **field keys only** — never member data — so this record
+  is PII-free and scope-neutral (R6.6/R6.7).
+
 ---
 
 ## Data flow (end to end)
@@ -150,10 +219,20 @@ regardless (the user explicitly asked to work with it): `isFilterable` becomes
 - **`ColumnChooser`** — lists candidates, excludes already-present, emits key set.
 - **`MembersPage`** — surface a nested field → filter narrows (nested value);
   sort is type-correct (number/date); AND-compose with a column filter and with
-  the Option-1 global search; no flat-alias collision; session-only (not
-  persisted across a remount); context-switch rule (OQ-1).
+  the Option-1 global search; no flat-alias collision; member_number always first
+  + not removable; context-switch rule (OQ-1); the persistence round-trip (mock
+  `getColumnPreferences` → seeds columns on load; a chooser change calls
+  `saveColumnPreferences` with the full list); empty-default + dangling-key-skip.
+- **SAM persistence (mirror the preferred-list suites):**
+  `column_preferences` entity validation + `to_item`/`from_item`;
+  `column_prefs_sk` / `build_column_prefs_item`; repository get/save (tenant match,
+  full replace); route gating (members:read GET, members:write|export PUT) +
+  `sub`-from-edge (never a client sub); empty-when-unset; cross-tenant / cross-user
+  isolation.
+- **Client wrappers** — `getColumnPreferences` / `saveColumnPreferences` service
+  tests (envelope unwrap, `columns` mapping, empty default).
 - Keep green: existing MembersPage / useFilterableTable / useColumnFilters /
-  FilterableHeader / fieldValue / MemberFieldPicker suites (R5.1).
+  FilterableHeader / fieldValue / MemberFieldPicker + preferred-list SAM suites.
 
 ## Open questions
 
