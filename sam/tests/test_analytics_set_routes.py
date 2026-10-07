@@ -863,6 +863,88 @@ class TestColumnPreferencesDomain:
         ]
 
 
+class TestColumnPreferencesScopeDimensionOverlay:
+    """Regression: a tenant whose overlay has a SCOPE-DIMENSION-BACKED choiceless enum
+    (h-dcn ``region``) must be able to save column preferences. Previously the save path's
+    ``_candidate_column_keys`` resolved the field config WITHOUT the scope vocabulary, so the
+    resolver rejected ``overlay.region`` ("an enum variable field must declare choices/options")
+    → unhandled ``OverlayError`` → 500. The fix passes ``_scope_vocab`` to ``resolve`` exactly
+    as ``get_field_config`` / the write validator do.
+    """
+
+    @pytest.fixture()
+    def scope_overlay_service(self, repo, hooks) -> MembershipService:
+        from sam.members.domain.field_resolver import (
+            OverlayField,
+            StaticOverlayProvider,
+            TenantOverlay,
+        )
+        from sam.members.domain.fixed_fields import FieldType
+        from sam.members.domain.scope_dimensions import (
+            ScopeDimension,
+            StaticScopeConfigProvider,
+        )
+
+        # An overlay enum field 'region' with NO inline choices — exactly h-dcn's
+        # scope-dimension-backed dropdown. Legitimate ONLY because the scope config
+        # below supplies its vocabulary (design D1a).
+        overlay = TenantOverlay(
+            fields={
+                "region": OverlayField(
+                    key="region",
+                    type=FieldType.ENUM,
+                    label={"nl": "Regio", "en": "Region"},
+                ),
+            },
+        )
+        # StaticScopeConfigProvider takes {tenant_id: [dimensions]} (it materializes the
+        # ScopeConfig itself). The enabled 'region' dimension binds to the 'region' field
+        # and declares the vocabulary that sources the overlay enum's choices.
+        region_dimensions = (
+            ScopeDimension(
+                key="region",
+                field="region",
+                label={"nl": "Regio", "en": "Region"},
+                enabled=True,
+                values=("Noord", "Zuid", "Oost", "West"),
+            ),
+        )
+        return MembershipService(
+            repo,
+            overlay_provider=StaticOverlayProvider({"h-dcn": overlay}),
+            lifecycle_provider=StaticLifecycleConfigProvider(
+                {"h-dcn": HDCN_LIFECYCLE_CONFIG}
+            ),
+            tenant_hooks=hooks,
+            scope_config_provider=StaticScopeConfigProvider(
+                {"h-dcn": region_dimensions}
+            ),
+        )
+
+    def test_save_succeeds_with_scope_dimension_backed_enum_overlay(
+        self, scope_overlay_service
+    ):
+        # The dimension-backed 'region' resolves as a candidate (its choices sourced from the
+        # scope vocab), so saving it does NOT raise OverlayError (the former 500).
+        scope_overlay_service.save_column_preferences(
+            "h-dcn", "sub-1", {"columns": ["region", _CANDIDATE_A]}
+        )
+        out = scope_overlay_service.get_column_preferences("h-dcn", "sub-1")
+        assert out["columns"] == ["region", _CANDIDATE_A]
+
+    def test_candidate_keys_include_the_dimension_backed_region(
+        self, scope_overlay_service
+    ):
+        # 'region' is a candidate column key (resolve succeeded with the scope vocab); a
+        # non-candidate is still dropped, proving the candidate filter ran (not bypassed).
+        scope_overlay_service.save_column_preferences(
+            "h-dcn", "sub-1", {"columns": ["region", _NON_CANDIDATE]}
+        )
+        assert scope_overlay_service.get_column_preferences("h-dcn", "sub-1")[
+            "columns"
+        ] == ["region"]
+
+
 class TestColumnPreferencesEdge:
     def test_get_empty_returns_200_with_empty_columns(self):
         resp = app.handler(

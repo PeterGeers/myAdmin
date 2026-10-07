@@ -268,8 +268,16 @@ class AnalyticsSetsMixin:
         authoritative field config the frontend renders (``FieldResolver.resolve`` ⊕ overlay,
         design C3). Keyed by the bare field ``key`` (what the chosen-column list stores — the
         frontend's ``f.key``), de-duped across storage buckets.
+
+        The resolve MUST pass the tenant's scope vocabulary (``_scope_vocab``) — exactly as
+        ``get_field_config`` and the write validator do — so a scope-dimension-backed overlay
+        ``enum`` with no inline choices (h-dcn ``region``) is treated as valid rather than
+        raising ``OverlayError`` (design D1a). Resolving bare here was a 500 on save for any
+        such tenant.
         """
-        config = self._field_resolver.resolve(tenant_id)
+        config = self._field_resolver.resolve(
+            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
+        )
         return {f.key for f in config.visible_fields()}
 
     # ── serialization helpers ───────────────────────────────────────────────────────
