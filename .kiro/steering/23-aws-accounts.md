@@ -70,6 +70,18 @@ The platform (myAdmin, evolved in place) spans two AWS accounts plus Railway.
   `Producten`, `StockMovements`, …) keep their existing names untouched.
 - Pool deletion is high-risk and irreversible — run manually, never from automation,
   and only after confirming no dependency.
+- **`cognito-idp update-user-pool` REPLACES the WHOLE pool config — never call it with a
+  partial config.** The API overwrites every block, including `LambdaConfig`. Calling it with
+  only (say) `--policies` and no `--lambda-config` BLANKS the Pre-Token-Generation trigger
+  (`pretokengen-prod`), stripping `custom:entitlements` from every token — platform-wide auth
+  breakage. The PreTokenGen trigger lives OUTSIDE Terraform/CFN (owned by `sam/pretokengen`
+  + a manual identity-account attach — see `sam/pretokengen/DEPLOY.md`), so nothing silently
+  re-adds it. Before any `update-user-pool`, READ the current config and PASS BACK UNCHANGED
+  every block you are not intentionally editing (`LambdaConfig` especially), then verify the
+  trigger survived. Prefer the NARROW APIs when they exist (`set-user-pool-mfa-config` touches
+  only MFA/WebAuthn and is safe). This bit once (2026-10-07) — see finding F-003; the fix is
+  codified in `null_resource.cognito_passkey_post_apply` + the pool `lifecycle.ignore_changes`
+  in `infrastructure/cognito.tf`.
 
 ## Tenant keys (per plane)
 
