@@ -52,12 +52,15 @@ Extract the reusable checklist core out of
 `frontend/src/components/members/ColumnChooser.tsx` — a Chakra modal opened from a
 toolbar button on `MembersPage`:
 
-- Lists `fields.filter(isColumnCandidate)` via `FieldChecklist`.
-- `disabledKeys` = the keys already shown by the active default/context column set
-  (checked + locked — R1.3/R1.4).
-- `selectedKeys` = the current session columns; toggling calls back to the page.
-- Output: the ordered `string[]` of surfaced keys. No `PivotConfig`, no save — pure
-  session selection (R3.1).
+- Lists `fields.filter(isColumnCandidate)` via `FieldChecklist` — every candidate
+  is selectable (OQ-3).
+- `selectedKeys` = the currently-shown columns (checked); every other candidate is
+  unchecked. Checking adds, unchecking removes — the user's selection fully
+  determines the shown set (R1.3).
+- `disabledKeys` = `['member_number']` only — the one always-on, non-toggleable
+  column (R7.2). Everything else is freely checkable/uncheckable.
+- Output: the ordered `string[]` of chosen keys. No `PivotConfig`. The page both
+  applies it live AND persists it (C8).
 
 ## C3 — Column model on `MembersPage` (unify the two render paths)
 
@@ -67,26 +70,34 @@ Replace the two divergent render paths with a single ordered column model:
 type OverviewColumn = { field: FieldConfigField; source: 'base' | 'context' | 'session' };
 ```
 
-- `baseOrContextColumns` — the existing logic: the hardcoded compact set (+ region
-  + full-view overlay) when the context has empty `columns`, else `contextColumns`.
-  Unchanged in meaning; just produced as a list rather than hand-written JSX.
-- `sessionColumns` — the surfaced keys resolved to `FieldConfigField` via the field
-  config, filtered to candidates, excluding any key already in the base/context set
-  (R1.4, no duplicates) and any flat alias (R3.4).
-- **member_number is always first (R7):** the column model prepends the
-  `member_number` field descriptor unconditionally and de-dupes it out of the rest,
-  so it leads every render regardless of context or user columns and can never be
-  removed. The chooser presents it as always-on, not a toggleable candidate.
-- `columns = [member_number, ...baseOrContext (minus member_number), ...session]`,
-  rendered by ONE `columns.map(header)` + ONE `columns.map(cell)`. Every column —
-  fixed, base, context, session — gets identical `FilterableHeader` wiring
-  (`filterValue` + `onFilterChange` + `sortable` + `onSort`), gated by
-  `isFilterable(key)`.
-- **R4.4 fallback:** if unifying the paths proves too large to land safely in one
-  step, session columns are appended to whichever path is active and wired the same
-  way; the trade-off (two code paths persist) is documented in `findings.md`. The
-  unified model is preferred because it also makes the base overlay columns
-  filterable as a side effect (debt paydown — see Strategic note).
+- **`chosenKeys`** — the user's own ordered list of column keys (from the persisted
+  `ColumnPreferences`, C7/C8). This is the single source of which columns show.
+- **First-time default (OQ-A → (a)):** when the user has NO saved columns,
+  `chosenKeys` is seeded from the admin default/compact set — the hardcoded compact
+  set (+ region + full-view overlay) when the context has empty `columns`, else the
+  context's `columns`. So a first-time user sees today's sensible default and can
+  then customize; once they save a selection, THEIR list is authoritative.
+- `chosenColumns` — `chosenKeys` resolved to `FieldConfigField` via the field
+  config, filtered to candidates, de-duped, excluding `member_number` (added
+  separately) and never promoting a flat alias twice (R3.4).
+- **member_number is always first (R7):** the model prepends the `member_number`
+  descriptor unconditionally and de-dupes it out of the rest, so it leads every
+  render regardless of the chosen list and can never be removed.
+- `columns = [member_number, ...chosenColumns]`, rendered by ONE
+  `columns.map(header)` + ONE `columns.map(cell)`. Every column gets identical
+  `FilterableHeader` wiring (`filterValue` + `onFilterChange` + `sortable` +
+  `onSort`), gated by `isFilterable(key)`.
+- **Context switch (OQ-1 resolved):** switching context does NOT rebuild
+  `chosenKeys` for a user who has a saved list — their columns are retained; the
+  context only continues to feed `default_sort` / `filterable_columns` /
+  `page_size`.
+- **Decision (OQ-2): full unification.** The two paths are collapsed into this one
+  column model — chosen deliberately so the pattern is reusable in new SAM-backed
+  tables, and because it makes the base overlay columns filterable as a side effect
+  (debt paydown — see Strategic note). The append-only fallback is NOT taken.
+- Because every column — base, context, user-chosen — now flows through the same
+  wiring, **all candidate fields become first-class filterable/sortable columns**
+  (OQ-3): there is no column class left that renders display-only.
 
 ## C4 — On-the-fly flatten (the real work)
 
@@ -202,7 +213,8 @@ updated_at }`). A `MemberColumnPreferences` type mirrors `MemberPreferredList`.
 ## Data flow (end to end)
 
 1. User opens `ColumnChooser` → checks `years_member` (a nested calculated field).
-2. `sessionColumns` gains the `years_member` descriptor.
+2. The user's chosen-column list gains `years_member`; it is persisted (C8 save)
+   and the resolved column descriptor enters the column model.
 3. `enrichedRows` memo adds `row.years_member = coerceByType(field,
    valueFor(row, 'membership', 'years_member'))` to every row.
 4. `useFilterableTable` is handed the key set including `years_member` → its
@@ -216,13 +228,16 @@ updated_at }`). A `MemberColumnPreferences` type mirrors `MemberPreferredList`.
 
 - **`FieldChecklist`** — extract test from `MemberFieldPicker` behaviour; grouping
   + alpha order + disabled/already-present rendering.
-- **`ColumnChooser`** — lists candidates, excludes already-present, emits key set.
+- **`ColumnChooser`** — lists every candidate; currently-shown ones checked;
+  member_number always-on/locked; check adds + uncheck removes; emits the ordered
+  key set.
 - **`MembersPage`** — surface a nested field → filter narrows (nested value);
   sort is type-correct (number/date); AND-compose with a column filter and with
   the Option-1 global search; no flat-alias collision; member_number always first
-  + not removable; context-switch rule (OQ-1); the persistence round-trip (mock
-  `getColumnPreferences` → seeds columns on load; a chooser change calls
-  `saveColumnPreferences` with the full list); empty-default + dangling-key-skip.
+  + not removable; chosen columns retained across a context switch (OQ-1); the
+  persistence round-trip (mock `getColumnPreferences` → seeds columns on load; a
+  chooser change calls `saveColumnPreferences` with the full list); first-time
+  default (OQ-A) + dangling-key-skip.
 - **SAM persistence (mirror the preferred-list suites):**
   `column_preferences` entity validation + `to_item`/`from_item`;
   `column_prefs_sk` / `build_column_prefs_item`; repository get/save (tenant match,
@@ -234,22 +249,39 @@ updated_at }`). A `MemberColumnPreferences` type mirrors `MemberPreferredList`.
 - Keep green: existing MembersPage / useFilterableTable / useColumnFilters /
   FilterableHeader / fieldValue / MemberFieldPicker + preferred-list SAM suites.
 
-## Open questions
+## Resolved decisions (stakeholder sign-off)
 
-- **OQ-1 — context switch behaviour.** When the user switches view context, do
-  surfaced session columns persist or clear? Proposal: **retain** them (they are
-  the user's working set, independent of the admin context), excluding any that
-  the newly-selected context already shows. Confirm before implementing R3.3.
-- **OQ-2 — render-path unification scope.** Do C3 as a full unification (preferred,
-  larger diff on the busiest member screen) or the append-only fallback (smaller,
-  leaves two paths)? Decide at design sign-off; affects task sizing.
-- **OQ-3 — generalize to all overlay columns?** Out of scope here, but C4 makes it
-  trivial later (flatten every candidate, not only surfaced). Flag if wanted.
+- **OQ-1 — RESOLVED. There is ONE user-owned column set; the question dissolves.**
+  The chooser shows the current columns with the already-shown ones checked; the
+  user checks/unchecks to change their view. The user's persisted list IS the
+  column set (plus the always-on member_number). On a context switch the user's
+  chosen columns are **retained** — once a user has their own list, the admin view
+  context stops *driving* the column set (it still drives `default_sort` /
+  `filterable_columns` / `page_size`). No separate "session vs context" state.
+- **OQ-2 — RESOLVED: full unification (C3).** One column model + one render loop.
+  This is the chosen approach (not the append-only fallback) so the pattern is
+  reusable in new SAM apps. Larger diff on the busiest member screen, carried by
+  the existing MembersPage tests as the safety net.
+- **OQ-3 — RESOLVED: ALL candidate fields are selectable + fully filterable/
+  sortable. This is a CORE requirement, not deferred.** With C3 (full unification)
+  + C4 (on-the-fly flatten), every column flows through the same
+  flatten-and-register path, so every candidate field a user surfaces is a
+  first-class filterable/sortable column. There is nothing left to defer.
+
+- **OQ-A — RESOLVED: option (a).** A user with NO saved columns defaults to the
+  admin default/compact column set + the always-on member_number; they customize
+  from there, and their saved list then becomes authoritative. (Not option (b),
+  member_number only.)
+
+_All open questions are resolved — the spec is Ready for implementation._
 
 ## Strategic note
 
 C4 is the same "flat `row[key]` misses a nested value" fix already shipped in the
-analytics stats/distributions (findings F-003/F-005, via `valueFor`). Doing it for
-session columns — and, if C3 is unified, for the base overlay columns too — pays
-down that latent defect on the overview rather than adding more of it. Option 1
+analytics stats/distributions (findings F-003/F-005, via `valueFor`). With the
+full unification (C3) every column — base, context, and user-chosen — flows
+through the flatten-and-register path, so this **fixes the latent nested
+filter/sort defect for the whole overview**, not just added columns. Option 1
 (global search) stays independent and already shipped; this spec is additive to it.
+This column model + flatten pattern is deliberately generic so new SAM-backed
+tables can reuse it.

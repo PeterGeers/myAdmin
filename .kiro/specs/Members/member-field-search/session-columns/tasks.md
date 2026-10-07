@@ -9,7 +9,7 @@ user** (mirroring the analytics preferred-list), with `member_number` always
 shown first. Built from shared pieces (an extracted `FieldChecklist`, the
 unchanged filter/sort hooks, a preferred-list-shaped DynamoDB record).
 
-- Spec: `./requirements.md` (R1–R7), `./design.md` (C1–C8 + OQ-1..3).
+- Spec: `./requirements.md` (R1–R7), `./design.md` (C1–C8; all OQ resolved).
 - Convention: each task is small, testable, leaves the app building; Requirement +
   Design refs in parentheses. Follow steering 32 (frontend), 33/34 (testing),
   35 (SAM module), 41 (shell/WSL). Touches the Members SAM plane (persistence) +
@@ -22,11 +22,12 @@ unchanged filter/sort hooks, a preferred-list-shaped DynamoDB record).
 
 ### Phase 0 — Decisions + i18n
 
-- [ ] 0.1 Resolve design open questions with the stakeholder: OQ-1 (context-switch
-  retain vs clear), OQ-2 (full render-path unification vs append-only fallback),
-  OQ-3 (generalize to all overlay columns — default: no, scope to surfaced).
-  Record the decisions in this spec before coding.
-  - _Requirements: R3.3, R4.4 | Design: OQ-1, OQ-2, OQ-3_
+- [x] 0.1 Open questions resolved with the stakeholder: OQ-1 (one user-owned
+  column set, retained across context switch), OQ-2 (full render-path
+  unification), OQ-3 (ALL candidate fields selectable + filterable — core),
+  OQ-A (first-time default = admin default/compact set + member_number). No open
+  design questions remain.
+  - _Requirements: R6.4 | Design: "Resolved decisions"_
 
 - [ ] 0.2 Add bilingual (`nl`/`en`) i18n keys to the `members` namespace for the
   column chooser: button label ("Columns" / "Kolommen"), modal title, filter/empty
@@ -100,10 +101,11 @@ unchanged filter/sort hooks, a preferred-list-shaped DynamoDB record).
 ### Phase 3 — `ColumnChooser` modal
 
 - [ ] 3.1 Build `frontend/src/components/members/ColumnChooser.tsx`: a Chakra modal
-  over `fields.filter(isColumnCandidate)` via `FieldChecklist`, with
-  `disabledKeys` = already-shown columns and `selectedKeys` = chosen columns;
-  emits the ordered chosen-key `string[]`. `member_number` is presented as
-  always-on (not a toggleable candidate — R7.2). Keyboard accessible.
+  over `fields.filter(isColumnCandidate)` via `FieldChecklist`, with `selectedKeys`
+  = the currently-shown columns (checked) and every other candidate unchecked;
+  checking/unchecking adds/removes a column (user's selection fully determines the
+  shown set). `member_number` is the only `disabledKeys` entry — always-on, not
+  toggleable (R7.2). Emits the ordered chosen-key `string[]`. Keyboard accessible.
   - _Requirements: R1.1, R1.2, R1.3, R1.4, R1.5, R7.2 | Design: C2_
 
 - [ ] 3.2 Component-test `ColumnChooser`: lists candidates, excludes/locks
@@ -120,11 +122,13 @@ unchanged filter/sort hooks, a preferred-list-shaped DynamoDB record).
   keep local change).
   - _Requirements: R3.1, R3.2, R6.4, R6.5, C8 | Design: C8_
 
-- [ ] 4.2 Build the unified column model (C3): `columns = [member_number] ⊕
-  base/context (minus member_number) ⊕ chosen`, excluding duplicates + flat
-  aliases, rendered by a single header map + cell map (or, per OQ-2, the
-  append-only fallback). member_number always leads and is never removable (R7.1).
-  Every column gets identical `FilterableHeader` wiring.
+- [ ] 4.2 Build the unified column model (C3 — full unification, OQ-2 resolved):
+  `columns = [member_number] ⊕ chosenColumns`, where `chosenColumns` is the user's
+  saved list (or the admin default/compact set for a first-time user, OQ-A),
+  resolved to candidates, de-duped, excluding member_number + flat aliases.
+  Replace BOTH legacy render paths with a single header map + cell map;
+  member_number always leads and is never removable (R7.1). Every column gets
+  identical `FilterableHeader` wiring.
   - _Requirements: R1.2, R1.3, R4.4, R7.1, R7.3 | Design: C3_
 
 - [ ] 4.3 Add the on-the-fly flatten memo (C4): promote chosen non-alias keys to
@@ -170,6 +174,6 @@ unchanged filter/sort hooks, a preferred-list-shaped DynamoDB record).
 - Builds additively on the already-shipped Option 1 global search; the two compose.
 - The persistence is a deliberate MIRROR of the analytics preferred-list — reuse
   its code as the template at every layer rather than inventing a new store.
-- If OQ-2 chooses the append-only fallback, task 4.2 shrinks but leaves the two
-  render paths — record that trade-off in `findings.md` and keep the full
-  unification as a follow-up.
+- OQ-2 is resolved to FULL unification: task 4.2 replaces both legacy render paths
+  with one column model (the larger diff on the busiest member screen, carried by
+  the existing MembersPage tests). No append-only fallback.
