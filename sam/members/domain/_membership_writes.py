@@ -30,6 +30,7 @@ from sam.members.domain.field_resolver import (
     evaluate_show_when,
 )
 from sam.members.domain.field_resolver import (
+    AnalyticsConfig,
     FieldConfig as ResolvedFieldConfig,
 )
 from sam.members.domain.fixed_fields import (
@@ -1005,7 +1006,63 @@ class WritesMixin:
             # transition and answers 409 with reasons on a denial). Presentation-only: the SPA
             # renders the candidate list off this; enforcement stays here.
             "lifecycle": self._serialize_lifecycle(tenant_id),
+            # The tenant's analytics config (member-analytics R9, C-CONFIG), projected one-
+            # directionally from the `members.*` overlay slice (ODI-2) onto `FieldConfig.analytics`
+            # and served here as `analytics`. Three additive, all-optional blocks the Member
+            # Analytics surface reads as read-only tenant config: `jubilee_rule` (what a jubilee
+            # year is, R9.2), `field_roles` (generic analytics role -> tenant field key, R9.3),
+            # `address_mapping` (which keys fill a printed label line, R9.4). `None` when the
+            # tenant authored none → the SPA applies the documented defaults (jubilee multiples-
+            # of-5; unmapped roles -> their sets hidden; no address mapping -> PDF labels
+            # unavailable, R9.5). Presentation-only: the module serves it, enforces nothing off it
+            # (mirrors view_contexts / lifecycle).
+            "analytics": self._serialize_analytics(config.analytics),
         }
+
+    @staticmethod
+    def _serialize_analytics(analytics: AnalyticsConfig | None) -> dict[str, Any] | None:
+        """Project a :class:`AnalyticsConfig` into the SPA's `analytics` shape (R9, C-CONFIG).
+
+        Returns ``None`` when the tenant authored no analytics config (empty-is-valid → the SPA
+        applies the documented R9.5 defaults). Otherwise a pure-JSON dict carrying only the
+        sub-blocks the tenant actually authored (an absent sub-block is omitted, so the served
+        shape mirrors what was authored and `json.dumps` never sees an enum/dataclass):
+
+          - ``jubilee_rule``: ``{years?: [int], multiple_of?: int}`` (R9.2);
+          - ``field_roles``: ``{role_value: field_key}`` keyed by the generic role (R9.3);
+          - ``address_mapping``: ``{name?,street?,postcode?,city?,country?,region?}`` of field
+            keys (R9.4).
+        """
+        if analytics is None or analytics.is_empty():
+            return None
+
+        payload: dict[str, Any] = {}
+
+        rule = analytics.jubilee_rule
+        if rule is not None and not rule.is_empty():
+            jubilee: dict[str, Any] = {}
+            if rule.years:
+                jubilee["years"] = [int(y) for y in rule.years]
+            if rule.multiple_of is not None:
+                jubilee["multiple_of"] = int(rule.multiple_of)
+            payload["jubilee_rule"] = jubilee
+
+        if analytics.field_roles:
+            # Keyed by the role's string value so the payload is pure JSON (never the enum).
+            payload["field_roles"] = {
+                role.value: key for role, key in analytics.field_roles.items()
+            }
+
+        mapping = analytics.address_mapping
+        if mapping is not None and not mapping.is_empty():
+            address = {
+                line: getattr(mapping, line)
+                for line in ("name", "street", "postcode", "city", "country", "region")
+                if getattr(mapping, line) is not None
+            }
+            payload["address_mapping"] = address
+
+        return payload or None
 
     def _serialize_lifecycle(self, tenant_id: str) -> dict[str, Any] | None:
         """Project the tenant's :class:`LifecycleConfig` into the SPA's `lifecycle` shape (C2).

@@ -108,6 +108,52 @@ const DEFS: MembersParamDefinition[] = [
           { key: 'functional_group', type: 'string', label_en: 'Functional Group', label_nl: 'Functionele groep' },
         ],
       },
+      // Analytics slice (member-analytics R9, C-CONFIG) — authored beside the overlay slices.
+      {
+        key: 'analytics',
+        type: 'object',
+        label_en: 'Analytics',
+        label_nl: 'Analyse',
+        object_fields: [
+          {
+            key: 'jubilee_rule',
+            type: 'object',
+            label_en: 'Jubilee Rule',
+            label_nl: 'Jubileumregel',
+            object_fields: [
+              { key: 'years', type: 'string[]', label_en: 'Jubilee Years', label_nl: 'Jubileumjaren' },
+              { key: 'multiple_of', type: 'number', label_en: 'Every Nth year', label_nl: 'Elk Nde jaar' },
+            ],
+          },
+          {
+            key: 'field_roles',
+            type: 'object',
+            label_en: 'Analytics Field Roles',
+            label_nl: 'Analyse-veldrollen',
+            object_fields: [
+              { key: 'cancellation_date', type: 'string', label_en: 'Cancellation date field', label_nl: 'Veld opzegdatum' },
+              { key: 'referral_source', type: 'string', label_en: 'Referral source field', label_nl: 'Veld aanmeldbron' },
+              { key: 'clubblad_paper', type: 'string', label_en: 'Clubblad paper field', label_nl: 'Veld clubblad papier' },
+              { key: 'clubblad_digital', type: 'string', label_en: 'Clubblad digital field', label_nl: 'Veld clubblad digitaal' },
+              { key: 'country_detail', type: 'string', label_en: 'Country detail field', label_nl: 'Veld landdetail' },
+            ],
+          },
+          {
+            key: 'address_mapping',
+            type: 'object',
+            label_en: 'Address Label Mapping',
+            label_nl: 'Adreslabelkoppeling',
+            object_fields: [
+              { key: 'name', type: 'string', label_en: 'Name field', label_nl: 'Veld naam' },
+              { key: 'street', type: 'string', label_en: 'Street field', label_nl: 'Veld straat' },
+              { key: 'postcode', type: 'string', label_en: 'Postcode field', label_nl: 'Veld postcode' },
+              { key: 'city', type: 'string', label_en: 'City field', label_nl: 'Veld plaats' },
+              { key: 'country', type: 'string', label_en: 'Country field', label_nl: 'Veld land' },
+              { key: 'region', type: 'string', label_en: 'Region field', label_nl: 'Veld regio' },
+            ],
+          },
+        ],
+      },
     ],
   },
   {
@@ -350,6 +396,73 @@ describe('MembersConfigEditor', () => {
       expect(choices).toEqual([
         { value: 'harley', label: { nl: 'Harley', en: 'Harley' }, roles: ['Members_CRUD'] },
       ]);
+    });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Analytics config slice (member-analytics R9, C-CONFIG, task 6.3) */
+  /* ---------------------------------------------------------------- */
+  describe('analytics config slice (R9 / C-CONFIG)', () => {
+    it('renders the Analytics sub-editor as a slice of field_overlay', async () => {
+      await renderEditor();
+      // The fifth tab is backed by its own field_overlay slice sub-editor.
+      expect(
+        screen.getByTestId('sub-editor-field_overlay-analytics'),
+      ).toBeInTheDocument();
+    });
+
+    it('renders the jubilee rule, field-role, and address-mapping controls', async () => {
+      await renderEditor();
+      const analytics = screen.getByTestId('sub-editor-field_overlay-analytics');
+      // jubilee_rule: a multiple-of number input + a years list editor
+      expect(within(analytics).getByLabelText('Every Nth year')).toBeInTheDocument();
+      // field_roles: each role is a resolvable-field-key picker
+      expect(within(analytics).getByLabelText('Cancellation date field')).toBeInTheDocument();
+      expect(within(analytics).getByLabelText('Clubblad paper field')).toBeInTheDocument();
+      // address_mapping: each label line is a resolvable-field-key picker
+      expect(within(analytics).getByLabelText('Name field')).toBeInTheDocument();
+      expect(within(analytics).getByLabelText('Postcode field')).toBeInTheDocument();
+    });
+
+    it('a field-role picker offers ONLY resolvable field keys (R9.4 reference help)', async () => {
+      await renderEditor();
+      const analytics = screen.getByTestId('sub-editor-field_overlay-analytics');
+      const roleSelect = within(analytics).getByLabelText(
+        'Cancellation date field',
+      ) as HTMLSelectElement;
+      const values = Array.from(roleSelect.options)
+        .map((o) => o.value)
+        .filter(Boolean);
+      // Resolvable set = overlay field (motor_brand) + scope dim key (region); nothing else.
+      expect(values).toContain('motor_brand');
+      expect(values).toContain('region');
+      expect(values).not.toContain('nonexistent_field');
+    });
+
+    it('authoring a role mapping + saving commits the WHOLE field_overlay in one PUT', async () => {
+      await renderEditor();
+      const analytics = screen.getByTestId('sub-editor-field_overlay-analytics');
+
+      // Map the cancellation_date role to a resolvable field key.
+      const roleSelect = within(analytics).getByLabelText(
+        'Cancellation date field',
+      ) as HTMLSelectElement;
+      fireEvent.change(roleSelect, { target: { value: 'motor_brand' } });
+
+      const saveBtn = within(analytics).getByRole('button', { name: 'Save' });
+      await waitFor(() => expect(saveBtn).not.toBeDisabled());
+      fireEvent.click(saveBtn);
+
+      // Save-once: exactly one request, routed to update (existing field_overlay row).
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+      expect(mockCreate).not.toHaveBeenCalled();
+
+      const savedValue = mockUpdate.mock.calls[0][1].value as any;
+      // The analytics slice serializes to the backend-read shape (field_roles keyed by role).
+      expect(savedValue.analytics.field_roles.cancellation_date).toBe('motor_brand');
+      // The sibling overlay slices are preserved in the same whole-object commit.
+      expect(savedValue.fields.motor_brand).toBeTruthy();
+      expect(savedValue.functional_groups).toHaveLength(2);
     });
   });
 });

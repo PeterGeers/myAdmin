@@ -51,6 +51,8 @@ from routes.folder_routes import folder_bp
 from routes.invoice_routes import invoice_bp
 from routes.landing_page_routes import landing_page_bp
 from routes.media_asset_routes import media_asset_bp
+from routes.members_analytics_audit import members_analytics_audit_bp
+from routes.members_mail import members_mail_bp
 from routes.missing_invoices_routes import missing_invoices_bp
 from routes.parameter_admin_routes import parameter_admin_bp
 from routes.pdf_validation_routes import pdf_validation_bp
@@ -171,6 +173,10 @@ app.register_blueprint(tenant_admin_templates_bp)
 app.register_blueprint(tenant_admin_template_ai_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
+app.register_blueprint(members_mail_bp)  # Member analytics SES mail (members:export)
+app.register_blueprint(
+    members_analytics_audit_bp
+)  # Member analytics client-side export/PDF audit (members:export)
 app.register_blueprint(verification_bp)  # SES email verification management
 app.register_blueprint(parameter_admin_bp)  # Parameter-driven config admin
 app.register_blueprint(tax_rate_admin_bp)  # Tax rate admin

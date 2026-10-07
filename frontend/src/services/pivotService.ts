@@ -60,6 +60,11 @@ export function toBackendConfig(config: PivotConfig): Record<string, any> {
     column_nest_levels: config.columnNestLevels,
     include_rollup: config.includeRollup ?? false,
     display_mode: config.displayMode ?? 'flat',
+    // Member Analytics filtered-list column keys (F-006/F-009) — carried through
+    // so a saved list set reruns with its curated columns. Omitted when empty.
+    ...(config.listColumns && config.listColumns.length > 0
+      ? { list_columns: config.listColumns }
+      : {}),
   };
 }
 
@@ -77,6 +82,7 @@ export function fromBackendConfig(def: Record<string, unknown>): PivotConfig {
     columnNestLevels: (def.column_nest_levels ?? def.columnNestLevels ?? []) as string[],
     displayMode: (def.display_mode ?? def.displayMode ?? 'flat') as DisplayMode,
     includeRollup: (def.include_rollup ?? def.includeRollup ?? false) as boolean,
+    listColumns: (def.list_columns ?? def.listColumns ?? undefined) as string[] | undefined,
   };
 }
 

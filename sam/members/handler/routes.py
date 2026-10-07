@@ -67,11 +67,12 @@ class RouteGroup(str, Enum):
     the writes) are grouped together.
     """
 
-    MEMBER = "member"                 # member CRUD
-    MEMBERSHIP = "membership"         # membership lifecycle
-    DELEGATE = "delegate"             # delegates
-    PAYMENT = "payment"               # member-scoped payments
-    CATALOG = "catalog"               # Lidmaatschap Beheer membership-type catalog (C8)
+    MEMBER = "member"  # member CRUD
+    MEMBERSHIP = "membership"  # membership lifecycle
+    DELEGATE = "delegate"  # delegates
+    PAYMENT = "payment"  # member-scoped payments
+    CATALOG = "catalog"  # Lidmaatschap Beheer membership-type catalog (C8)
+    ANALYTICS = "analytics"  # member analytics-sets (F-012)
 
 
 # The capability names the entitlement gate (task 3.0, C7) checks. Declared here as
@@ -95,7 +96,16 @@ class RouteSpec:
             ``/members/{member_id}``). The router extracts the named params.
         group: The behaviour group (member / membership / delegate / payment).
         capability: The entitlement capability the handler edge will require (task 3.0).
-            ``None`` only for a route gated purely by self-service (see ``self_service``).
+            ``None`` only for a route gated purely by self-service (see ``self_service``)
+            OR by ``capabilities_any`` (an any-of gate).
+        capabilities_any: An OPTIONAL any-of capability set (R11.3). When non-empty, the edge
+            authorizes the route when the caller holds **ANY** listed capability (e.g.
+            ``("members:export", "members:write")`` — an export-only OR a CRUD user both pass).
+            Mutually complementary with ``capability``: a route uses EITHER the single
+            ``capability`` (the common case) OR ``capabilities_any`` (never relies on both).
+            Empty tuple (the default) means "no any-of gate" so existing single-capability
+            routes are unchanged. The scope decision (if any) still runs after the capability
+            check, same as for a single-capability route.
         self_service: True when a member may call it for **their own** record without the
             admin capability (e.g. ``get-self``); the domain layer enforces the ownership
             check. Metadata only at this step.
@@ -109,6 +119,7 @@ class RouteSpec:
     capability: str | None
     self_service: bool
     summary: str
+    capabilities_any: tuple[str, ...] = ()
 
 
 # ── The route map: union of h-dcn's ~18 handler behaviours (stubs only) ───────────────
@@ -174,6 +185,140 @@ ROUTES: tuple[RouteSpec, ...] = (
         summary=(
             "Resolved field config (fixed ⊕ overlay) for the current tenant, incl. the "
             "membership_type dropdown = the tenant's active catalog entries."
+        ),
+    ),
+    # ── Column preferences — per-user overview columns (session-columns R6) ──────────
+    #
+    # The per-user chosen-column list for the Members overview, mirroring the preferred-list
+    # route pair end to end. Keyed by the verified ``sub`` at the edge (NOT a path param, NOT a
+    # body owner — user ≠ member, R11.1). DECLARED BEFORE the ``/members/{member_id}`` routes so
+    # the LITERAL ``column-preferences`` segment wins over the ``{member_id}`` placeholder (the
+    # router returns the first matching route in declaration order for a method); the literal
+    # path is also disjoint from the ``/members/analytics-sets...`` and other ``/members/...``
+    # literal routes. GET = members:read; PUT = members:export OR members:write (R6.3 — any user
+    # who can run/export sets may curate their own columns).
+    RouteSpec(
+        name="get_column_preferences",
+        method=HttpMethod.GET,
+        path="/members/column-preferences",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_READ,
+        self_service=False,
+        summary=(
+            "Get the calling user's chosen overview columns (empty when unset, R6.4)."
+        ),
+    ),
+    RouteSpec(
+        name="save_column_preferences",
+        method=HttpMethod.PUT,
+        path="/members/column-preferences",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Replace the calling user's chosen overview columns (ordered field keys, R6.5). "
+            "Gate: members:export OR members:write."
+        ),
+    ),
+    # ── Analytics-sets — CRUD (5), F-012 ───────────────────────────────────────────
+    #
+    # Tenant-scoped member analytics-sets: saved pivot/list definitions owned by the Members
+    # module (DynamoDB), replacing the Flask /api/pivot/models store. The literal
+    # `/members/analytics-sets` prefix is disjoint from `/members/{member_id}` and the other
+    # `/members/...` literal routes (field-config, export, me, search) so no (method, path)
+    # collision or shadowing. DECLARED BEFORE the `{member_id}` routes so the literal prefix
+    # matches FIRST (the router returns the first matching route in declaration order for a
+    # method).
+    #
+    # Gates (R11.3 — any-of): the analytics-set surface is NOT admin-only. Reads use
+    # `members:read`. CREATE is allowed for an EXPORT user OR a CRUD/write user
+    # (`members:export` | `members:write`). EDIT/DELETE of a (shared) set is allowed for a
+    # CRUD/write user OR a tenant admin (`members:write` | `members:admin`) — not restricted to
+    # the set's creator (`created_by` is attribution only). A predefined (code) preset has no
+    # stored item and is never a DELETE/UPDATE target.
+    RouteSpec(
+        name="create_analytics_set",
+        method=HttpMethod.POST,
+        path="/members/analytics-sets",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Create a member analytics-set (saved pivot/list definition, F-012). "
+            "Gate: members:export OR members:write (R11.3)."
+        ),
+    ),
+    RouteSpec(
+        name="list_analytics_sets",
+        method=HttpMethod.GET,
+        path="/members/analytics-sets",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_READ,
+        self_service=False,
+        summary="List the tenant's member analytics-sets (the shared library).",
+    ),
+    # Per-user PREFERRED LIST (R11.2 layer 2). Keyed by the verified sub at the edge (NOT a
+    # path param). DECLARED BEFORE the `/{set_id}` routes so the LITERAL `preferred` segment
+    # wins over the `{set_id}` placeholder (the router returns the first matching route in
+    # declaration order for a method). GET = members:read; PUT = members:export OR members:write
+    # (R11.3 — any user who can run/create sets may curate their own preferred list).
+    RouteSpec(
+        name="get_preferred_list",
+        method=HttpMethod.GET,
+        path="/members/analytics-sets/preferred",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_READ,
+        self_service=False,
+        summary="Get the calling user's preferred analytics-set list (empty when unset, R11.2).",
+    ),
+    RouteSpec(
+        name="save_preferred_list",
+        method=HttpMethod.PUT,
+        path="/members/analytics-sets/preferred",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Replace the calling user's preferred analytics-set list (ordered tagged refs, "
+            "R11.2). Gate: members:export OR members:write."
+        ),
+    ),
+    RouteSpec(
+        name="get_analytics_set",
+        method=HttpMethod.GET,
+        path="/members/analytics-sets/{set_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_READ,
+        self_service=False,
+        summary="Get a single member analytics-set by its set_id (404 if absent).",
+    ),
+    RouteSpec(
+        name="update_analytics_set",
+        method=HttpMethod.PUT,
+        path="/members/analytics-sets/{set_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_WRITE, CAP_MEMBERS_ADMIN),
+        self_service=False,
+        summary=(
+            "Update a member analytics-set by its set_id (404 if absent). "
+            "Gate: members:write OR members:admin (R11.3)."
+        ),
+    ),
+    RouteSpec(
+        name="delete_analytics_set",
+        method=HttpMethod.DELETE,
+        path="/members/analytics-sets/{set_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_WRITE, CAP_MEMBERS_ADMIN),
+        self_service=False,
+        summary=(
+            "Delete a member analytics-set (hard delete; 404 if absent). "
+            "Gate: members:write OR members:admin (R11.3)."
         ),
     ),
     RouteSpec(
@@ -384,14 +529,24 @@ def _assert_route_map_is_consistent() -> None:
     for spec in ROUTES:
         endpoint = (spec.method.value, spec.path)
         if endpoint in seen_endpoints:
-            raise ValueError(f"duplicate route endpoint: {spec.method.value} {spec.path}")
+            raise ValueError(
+                f"duplicate route endpoint: {spec.method.value} {spec.path}"
+            )
         seen_endpoints.add(endpoint)
         if spec.name in seen_names:
             raise ValueError(f"duplicate route name: {spec.name}")
         seen_names.add(spec.name)
-        # A route must be gated by a capability, self-service, or both — never nothing.
-        if spec.capability is None and not spec.self_service:
-            raise ValueError(f"route {spec.name} has neither a capability nor self-service")
+        # A route must be gated by a capability, an any-of capability set, self-service, or a
+        # combination — never nothing.
+        if (
+            spec.capability is None
+            and not spec.capabilities_any
+            and not spec.self_service
+        ):
+            raise ValueError(
+                f"route {spec.name} has no gate "
+                "(needs a capability, capabilities_any, or self_service)"
+            )
 
 
 _assert_route_map_is_consistent()

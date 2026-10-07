@@ -57,6 +57,18 @@ __all__ = [
     "MEMBERSHIP_TYPE_ORDER",
     "MEMBERSHIP_TYPE_UNKNOWN_REFERENCE",
     "MEMBERSHIP_TYPE_RETIRED",
+    "ANALYTICS_SET_TENANT",
+    "ANALYTICS_SET_ID",
+    "ANALYTICS_SET_NAME",
+    "ANALYTICS_SET_KIND",
+    "ANALYTICS_SET_DEFINITION",
+    "ANALYTICS_SET_ORIGIN",
+    "PREF_LIST_TENANT",
+    "PREF_LIST_SUB",
+    "PREF_LIST_REFS",
+    "COLUMN_PREFS_TENANT",
+    "COLUMN_PREFS_SUB",
+    "COLUMN_PREFS_COLUMNS",
 ]
 
 
@@ -162,3 +174,55 @@ MEMBERSHIP_TYPE_UNKNOWN_REFERENCE = "errors.membershiptype.unknownReference"
 #: A member references a ``membership_type`` that exists but is retired (``active=false``).
 #: ``params`` carries ``{"type_code": ...}``.
 MEMBERSHIP_TYPE_RETIRED = "errors.membershiptype.retired"
+
+
+# ── Analytics-set field-level domain codes — keys in the EXISTING ``errors.*`` namespace ──
+#
+# Analytics-set (member saved-set) validation codes. Mirror the membership-type catalog block:
+# one code per validated field. A set's ``definition`` is a mapping (the frontend ``PivotConfig``
+# in snake_case); group_columns and aggregate_measures may be EMPTY (a filtered-list set, F-011).
+
+#: An analytics-set entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard).
+ANALYTICS_SET_TENANT = "errors.analyticsset.tenant"
+
+#: An analytics-set entry has an invalid/blank ``set_id``.
+ANALYTICS_SET_ID = "errors.analyticsset.id"
+
+#: An analytics-set entry has an invalid/blank ``name``.
+ANALYTICS_SET_NAME = "errors.analyticsset.name"
+
+#: An analytics-set entry has an invalid ``kind`` (must be ``'count'`` or ``'list'``).
+ANALYTICS_SET_KIND = "errors.analyticsset.kind"
+
+#: An analytics-set entry has an invalid ``definition`` (must be a mapping).
+ANALYTICS_SET_DEFINITION = "errors.analyticsset.definition"
+
+#: An analytics-set entry has an invalid ``origin`` (must be ``'user'`` or ``'predefined'``).
+ANALYTICS_SET_ORIGIN = "errors.analyticsset.origin"
+
+
+# ── Preferred-list field-level domain codes (R11.2 — per-user analytics-set preferred list) ──
+
+#: A preferred-list entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard).
+PREF_LIST_TENANT = "errors.preflist.tenant"
+
+#: A preferred-list entry has an invalid/blank ``sub`` (the owning user principal).
+PREF_LIST_SUB = "errors.preflist.sub"
+
+#: A preferred-list entry has invalid ``refs`` (must be a list of non-blank reference strings).
+PREF_LIST_REFS = "errors.preflist.refs"
+
+
+# ── Column-preferences field-level domain codes (session-columns R6 — per-user column set) ──
+#
+# Mirror the preferred-list block 1:1 (``columns`` ↔ ``refs``). A column-preferences record is a
+# user's PRIVATE, per-user, tenant-scoped ordered list of field-config column keys.
+
+#: A column-preferences entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard).
+COLUMN_PREFS_TENANT = "errors.colprefs.tenant"
+
+#: A column-preferences entry has an invalid/blank ``sub`` (the owning user principal).
+COLUMN_PREFS_SUB = "errors.colprefs.sub"
+
+#: A column-preferences entry has invalid ``columns`` (must be a list of non-blank field keys).
+COLUMN_PREFS_COLUMNS = "errors.colprefs.columns"

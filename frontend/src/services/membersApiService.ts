@@ -41,8 +41,16 @@
  */
 
 import { apiErrorFromResponse } from '../shared/api/ApiError';
-import type { Member } from '../types/members';
+import type {
+  Member,
+  MemberAnalyticsSet,
+  MemberAnalyticsSetSummary,
+  MemberPreferredList,
+  MemberColumnPreferences,
+} from '../types/members';
+import type { PivotConfig } from '../types/pivot';
 import { getCurrentAuthTokens } from './authService';
+import { fromBackendConfig, toBackendConfig } from './pivotService';
 
 // ============================================================================
 // Fail-fast base URL resolution (R7.3)
@@ -499,4 +507,207 @@ export async function transitionMembership<T = unknown>(
 /** POST /memberships/transition — bulk transition over multiple memberships. */
 export async function bulkTransition<T = unknown>(body: unknown): Promise<T> {
   return unwrapData<T>(await postJson<unknown>('/memberships/transition', body));
+}
+
+// ============================================================================
+// Member analytics-sets (saved pivot/list definitions, F-012)
+//
+// The Members module OWNS member saved-sets in DynamoDB now, replacing the Flask
+// `/api/pivot/models` (MySQL) store for the member saved-set path (F-012). These
+// wrappers unwrap the `{ data }` envelope and convert the backend snake_case
+// `definition` <-> the camelCase `PivotConfig` via `toBackendConfig` /
+// `fromBackendConfig` (reused from `pivotService`). The backend `set_id` is a
+// STRING (server-chosen uuid4 hex), mapped to the summary/full shape's `id`.
+// ============================================================================
+
+/** The raw backend analytics-set shape (snake_case `definition`, string `set_id`). */
+interface RawAnalyticsSet {
+  set_id: string;
+  name: string;
+  kind: 'count' | 'list';
+  definition: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Map a raw backend analytics-set to the full `MemberAnalyticsSet` (camelCase config). */
+function mapAnalyticsSet(raw: RawAnalyticsSet): MemberAnalyticsSet {
+  return {
+    id: raw.set_id,
+    name: raw.name,
+    kind: raw.kind,
+    definition: fromBackendConfig(raw.definition ?? {}),
+    created_at: raw.created_at,
+    updated_at: raw.updated_at,
+  };
+}
+
+/**
+ * GET /members/analytics-sets — list the tenant's member analytics-sets.
+ *
+ * Unwraps the `{ data: [...] }` envelope and maps each raw entry's
+ * `{ set_id, name, kind }` to the summary `{ id, name, kind }` shape. The list is
+ * already member-only + tenant-scoped by the Lambda (no client-side filter).
+ */
+export async function listAnalyticsSets(): Promise<MemberAnalyticsSetSummary[]> {
+  const payload = await getJson<unknown>('/members/analytics-sets');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? (rows as RawAnalyticsSet[]) : [];
+  return list.map((raw) => ({ id: raw.set_id, name: raw.name, kind: raw.kind }));
+}
+
+/** GET /members/analytics-sets/{id} — a single analytics-set (full definition). */
+export async function getAnalyticsSet(id: string): Promise<MemberAnalyticsSet> {
+  const payload = await getJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}`
+  );
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/** POST /members/analytics-sets — create a new analytics-set. */
+export async function saveAnalyticsSet(
+  name: string,
+  config: PivotConfig,
+  kind: 'count' | 'list'
+): Promise<MemberAnalyticsSet> {
+  const payload = await postJson<unknown>('/members/analytics-sets', {
+    name,
+    kind,
+    definition: toBackendConfig(config),
+  });
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/** PUT /members/analytics-sets/{id} — update an existing analytics-set. */
+export async function updateAnalyticsSet(
+  id: string,
+  name: string,
+  config: PivotConfig,
+  kind: 'count' | 'list'
+): Promise<MemberAnalyticsSet> {
+  const payload = await putJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}`,
+    { name, kind, definition: toBackendConfig(config) }
+  );
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/** DELETE /members/analytics-sets/{id} — delete an analytics-set. */
+export async function deleteAnalyticsSet(id: string): Promise<void> {
+  await deleteJson<unknown>(`/members/analytics-sets/${encodeURIComponent(id)}`);
+}
+
+// ============================================================================
+// Preferred list (per-user, R11.2 layer 2)
+//
+// One ordered list of TAGGED references per user, keyed server-side by the
+// authenticated Cognito `sub` (user ≠ member — R11.1; the client never sends a
+// `sub`). `preset:<key>` references a predefined preset (code), `set:<id>` a
+// tenant-shared analytics-set. The backend returns `{ sub, refs, updated_at }`
+// wrapped in the `{ data }` envelope; an unset list comes back with `refs: []`.
+// ============================================================================
+
+/** The raw backend preferred-list shape (`refs` ordered tagged references). */
+interface RawPreferredList {
+  sub?: string;
+  refs?: unknown;
+  updated_at?: string;
+}
+
+/** Coerce a raw backend preferred-list into the typed `MemberPreferredList`. */
+function mapPreferredList(raw: RawPreferredList): MemberPreferredList {
+  const refs = Array.isArray(raw.refs)
+    ? raw.refs.filter((r): r is string => typeof r === 'string' && r.length > 0)
+    : [];
+  return {
+    sub: typeof raw.sub === 'string' ? raw.sub : '',
+    refs,
+    updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+  };
+}
+
+/**
+ * GET /members/analytics-sets/preferred — the current user's preferred list.
+ *
+ * Keyed server-side on the authenticated `sub`; returns `refs: []` when the user
+ * has never saved a preferred list (empty is valid, not an error — R11.2).
+ */
+export async function getPreferredList(): Promise<MemberPreferredList> {
+  const payload = await getJson<unknown>('/members/analytics-sets/preferred');
+  return mapPreferredList(unwrapData<RawPreferredList>(payload));
+}
+
+/**
+ * PUT /members/analytics-sets/preferred — replace the current user's preferred
+ * list with `refs` (a FULL replace — exactly one list per user). Pass `[]` to
+ * clear. The backend drops blank/non-string entries and stamps `updated_at`.
+ */
+export async function savePreferredList(
+  refs: string[]
+): Promise<MemberPreferredList> {
+  const payload = await putJson<unknown>('/members/analytics-sets/preferred', {
+    refs,
+  });
+  return mapPreferredList(unwrapData<RawPreferredList>(payload));
+}
+
+// ============================================================================
+// Column preferences (Session Columns, R6) — a 1:1 mirror of the preferred-list
+// above (`columns` ↔ `refs`). One ordered list of field-config KEYS per user,
+// keyed server-side by the authenticated Cognito `sub` (user ≠ member — R11.1;
+// the client never sends a `sub`). The backend returns `{ sub, columns,
+// updated_at }` wrapped in the `{ data }` envelope; an unset list comes back
+// with `columns: []` (empty is valid, not an error — R6.4). The persisted list
+// holds field keys only (never member data — R6.6/R6.7); `member_number` is
+// implied/always-first and need not be stored (R7.3).
+// ============================================================================
+
+/** The raw backend column-preferences shape (`columns` ordered field keys). */
+interface RawColumnPreferences {
+  sub?: string;
+  columns?: unknown;
+  updated_at?: string;
+}
+
+/** Coerce a raw backend record into the typed `MemberColumnPreferences`. */
+function mapColumnPreferences(
+  raw: RawColumnPreferences
+): MemberColumnPreferences {
+  const columns = Array.isArray(raw.columns)
+    ? raw.columns.filter(
+      (c): c is string => typeof c === 'string' && c.length > 0
+    )
+    : [];
+  return {
+    sub: typeof raw.sub === 'string' ? raw.sub : '',
+    columns,
+    updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+  };
+}
+
+/**
+ * GET /members/column-preferences — the current user's chosen overview columns.
+ *
+ * Keyed server-side on the authenticated `sub`; returns `columns: []` when the
+ * user has never saved column preferences (empty is valid, not an error — the
+ * page falls back to the admin default, R6.4).
+ */
+export async function getColumnPreferences(): Promise<MemberColumnPreferences> {
+  const payload = await getJson<unknown>('/members/column-preferences');
+  return mapColumnPreferences(unwrapData<RawColumnPreferences>(payload));
+}
+
+/**
+ * PUT /members/column-preferences — replace the current user's chosen columns
+ * with `columns` (a FULL replace — exactly one list per user, R6.5). Pass `[]`
+ * to clear. The backend drops blank/duplicate/non-candidate keys and stamps
+ * `updated_at`.
+ */
+export async function saveColumnPreferences(
+  columns: string[]
+): Promise<MemberColumnPreferences> {
+  const payload = await putJson<unknown>('/members/column-preferences', {
+    columns,
+  });
+  return mapColumnPreferences(unwrapData<RawColumnPreferences>(payload));
 }

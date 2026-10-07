@@ -74,6 +74,30 @@ const description = (def: MembersParamDefinition, lang: 'nl' | 'en') =>
 const FIELD_KEY_PICKER_KEYS = new Set(['columns', 'filterable_columns']);
 
 /**
+ * Keys whose `string` control is a single resolvable-field-key picker (offer-only-resolvable
+ * reference help, Property 7 / member-analytics R9.4). `field` is the view-context default_sort
+ * field; the rest are the member-analytics config slice (C-CONFIG): the five analytics field
+ * roles (field_roles → tenant key) and the six address-label lines (address_mapping → tenant key).
+ * The backend remains authoritative on Save; the picker just prevents most dangling references.
+ */
+const FIELD_KEY_SELECT_KEYS = new Set([
+  'field',
+  // analytics field_roles (R9.3)
+  'cancellation_date',
+  'referral_source',
+  'clubblad_paper',
+  'clubblad_digital',
+  'country_detail',
+  // analytics address_mapping lines (R9.4)
+  'name',
+  'street',
+  'postcode',
+  'city',
+  'country',
+  'region',
+]);
+
+/**
  * The recursive renderer. Renders a single definition node against its current value.
  */
 export const MembersTypedField: React.FC<Props> = ({
@@ -164,14 +188,16 @@ export const MembersTypedField: React.FC<Props> = ({
         </Select>,
       );
     }
-    // default_sort.field → offer only resolvable field keys
-    if (def.key === 'field') {
+    // default_sort.field + analytics field_roles / address_mapping lines (C-CONFIG, R9.3/R9.4)
+    // → offer only resolvable field keys (an already-authored unresolvable key stays selectable).
+    if (FIELD_KEY_SELECT_KEYS.has(def.key)) {
+      const current = (value as string) ?? '';
       return wrap(
         <Select
           bg="gray.700"
           color="white"
           borderColor="gray.600"
-          value={(value as string) ?? ''}
+          value={current}
           onChange={(e) => onChange(e.target.value)}
           aria-label={fieldLabel}
         >
@@ -181,6 +207,9 @@ export const MembersTypedField: React.FC<Props> = ({
               {k}
             </option>
           ))}
+          {current && !ctx.resolvableFieldKeys.includes(current) && (
+            <option value={current}>{current} (unresolved)</option>
+          )}
         </Select>,
       );
     }

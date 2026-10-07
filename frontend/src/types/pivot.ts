@@ -107,6 +107,15 @@ export interface PivotConfig {
   includeRollup?: boolean;
   /** Preferred display mode */
   displayMode: DisplayMode;
+  /**
+   * Member Analytics filtered-LIST column keys (findings F-006/F-009). For a
+   * filtered-list set (`groupColumns` empty), these are the curated member field
+   * keys the result projects — one column per key, read via the nested-or-flat
+   * `valueFor` accessor by the client adapter. Absent/empty on an aggregate set.
+   * Carried through the saved-set round-trip so a saved list set reruns with the
+   * same columns. (Member-analytics-specific; the SQL framework ignores it.)
+   */
+  listColumns?: string[];
 }
 
 // ---------------------------------------------------------------------------

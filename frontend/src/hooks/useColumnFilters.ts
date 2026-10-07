@@ -83,6 +83,37 @@ export function useColumnFilters<T extends Record<string, any>>(
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Re-sync the filterable KEY SET when `initialFilters`'s keys change (findings
+  // F-007). The state above is seeded by a one-time lazy initializer, so when the
+  // SAME hook instance is reused with a different set of columns — e.g. the
+  // Member Analytics `PivotResultTable` stays mounted while the user Executes a
+  // different set with different columns — the stale `filters` keeps the old
+  // keys. A column absent from `filters` gets `filterValue === undefined`, so its
+  // `FilterableHeader` renders NO filter input (the "only one column has a
+  // filter" symptom). Reconcile on the key set: add new keys (empty value),
+  // drop removed keys, and PRESERVE existing values so active filters survive a
+  // re-render that doesn't change the columns. Keyed on the sorted key string so
+  // this only fires when the set of columns actually changes, not on every
+  // render (a fresh `initialFilters` object identity each render would otherwise
+  // loop).
+  const initialKeySignature = Object.keys(initialFilters).sort().join('\u241F');
+  useEffect(() => {
+    const nextKeys = initialKeySignature === '' ? [] : initialKeySignature.split('\u241F');
+    const reconcile = (prev: Record<string, string>): Record<string, string> => {
+      const prevKeys = Object.keys(prev);
+      const sameKeys =
+        prevKeys.length === nextKeys.length && nextKeys.every((k) => k in prev);
+      if (sameKeys) {
+        return prev; // no key change → keep the exact state (and its values)
+      }
+      // Preserve any existing value for a key that survives; new keys start empty.
+      return Object.fromEntries(nextKeys.map((key) => [key, prev[key] ?? '']));
+    };
+    setFilters(reconcile);
+    setDebouncedFilters(reconcile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialKeySignature]);
+
   // Set a single filter value: update immediately, debounce the data filtering
   const setFilter = useCallback(
     (key: string, value: string) => {

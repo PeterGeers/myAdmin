@@ -440,22 +440,33 @@ export async function getCurrentUserTenants(): Promise<string[]> {
         console.log('[Tenants] After unescaping:', tenantsValue);
       }
 
-      // Now try to parse the JSON
+      // A plain single-tenant value (e.g. "h-dcn") is NOT JSON and is a valid,
+      // expected shape — only a value that LOOKS like a JSON array/object should
+      // be parsed. Parsing a bare string throws, and the old catch logged a noisy
+      // `console.warn` on every load for single-tenant users (finding F-001).
+      // Gate the parse on the JSON-looking shape so the normal single-tenant case
+      // takes the quiet fast path; a genuinely malformed JSON-looking value still
+      // warns (that IS worth surfacing).
+      const trimmed = tenantsValue.trim();
+      const looksLikeJson = trimmed.startsWith('[') || trimmed.startsWith('{');
+      if (!looksLikeJson) {
+        // Plain single-tenant string — the common case. No warning.
+        return [tenantsValue];
+      }
+
+      // Now try to parse the JSON (the value looked like an array/object).
       try {
         const parsed = JSON.parse(tenantsValue);
-        console.log('[Tenants] Parse result:', parsed, 'Type:', typeof parsed);
 
         // Return array or wrap in array
         if (Array.isArray(parsed)) {
-          console.log('[Tenants] Final result (array):', parsed);
           return parsed;
-        } else {
-          console.log('[Tenants] Not an array, wrapping:', [parsed]);
-          return [String(parsed)];
         }
+        return [String(parsed)];
       } catch (parseError) {
-        // If parsing fails, treat as single tenant
-        console.warn('[Tenants] Failed to parse as JSON, treating as single tenant:', parseError);
+        // A value that LOOKED like JSON but did not parse is a genuine anomaly
+        // worth surfacing (unlike a plain single-tenant string handled above).
+        console.warn('[Tenants] Failed to parse JSON-looking tenant value, treating as single tenant:', parseError);
         return [tenantsValue];
       }
     }
