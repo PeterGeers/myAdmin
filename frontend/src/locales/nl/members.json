@@ -253,6 +253,11 @@
     "type": "Type",
     "placeholder": "Filteren..."
   },
+  "search": {
+    "placeholder": "Zoek in alle velden...",
+    "ariaLabel": "Zoek leden in alle velden",
+    "clear": "Zoekopdracht wissen"
+  },
   "table": {
     "loading": "Leden laden...",
     "empty": "Geen leden gevonden"

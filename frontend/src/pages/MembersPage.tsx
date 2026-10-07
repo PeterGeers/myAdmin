@@ -40,8 +40,9 @@ import {
   Table, Thead, Tbody, Tr, Th, Td, HStack, ButtonGroup, Checkbox, Select, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalCloseButton, ModalFooter, VStack,
+  Input, InputGroup, InputLeftElement, InputRightElement, IconButton,
 } from '@chakra-ui/react';
-import { AddIcon, DownloadIcon, RepeatIcon } from '@chakra-ui/icons';
+import { AddIcon, DownloadIcon, RepeatIcon, SearchIcon, CloseIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { useAuth } from '../context/AuthContext';
 import { FilterableHeader } from '../components/filters/FilterableHeader';
@@ -133,6 +134,15 @@ const MembersPage: React.FC = () => {
 
   // Compact/full view switch (driven by field config: fixed ⊕ overlay columns).
   const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
+
+  // Global all-fields search (member-field-search Option 1). A single free-text
+  // query matched against EVERY candidate field of each row — including nested
+  // overlay / calculated fields the overview does not surface as columns — so a
+  // user can find a value in a non-visible field without knowing which column it
+  // lives in. Narrows the rows BEFORE the per-column filter/sort toolkit, so
+  // stats, column filters, sort, selection and export all follow automatically.
+  // Scope-safe: it only ever narrows the already scope-authorized row set.
+  const [globalSearch, setGlobalSearch] = useState('');
 
   // Selected view context (design C-VIEW). Defaults to the first AVAILABLE
   // context once the field config resolves (see the effect below).
@@ -311,6 +321,33 @@ const MembersPage: React.FC = () => {
     [members],
   );
 
+  // Every candidate field (visible !== false) the global search scans — the fixed
+  // base ⊕ overlay ⊕ calculated union, resolved from the field config. The value
+  // of each is read with the nested-aware `valueFor` accessor, so a nested
+  // overlay / calculated field (e.g. a derived membership duration) is searchable
+  // even though the overview never renders it as a flat column.
+  const searchableFields: FieldConfigField[] = useMemo(
+    () => (fieldConfig?.fields ?? []).filter(isColumnCandidate),
+    [fieldConfig],
+  );
+
+  // Narrow the rows by the global search BEFORE the per-column filter/sort
+  // toolkit. A row matches when ANY candidate field's resolved value contains the
+  // query (case-insensitive substring). An empty query is a pass-through (no
+  // allocation of a new array content beyond the memo). Scope is never widened —
+  // this only ever removes rows from the already-authorized set.
+  const searchedRows: MemberRow[] = useMemo(() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (q === '') return memberRows;
+    return memberRows.filter(row =>
+      searchableFields.some(f => {
+        const value = valueFor(row, f.group, f.key);
+        if (value === null || value === undefined) return false;
+        return String(value).toLowerCase().includes(q);
+      }),
+    );
+  }, [memberRows, searchableFields, globalSearch]);
+
   // Feed the selected context's `default_sort` to the EXISTING toolkit; fall
   // back to today's default (name asc) when the context specifies none. The
   // context's `{field, direction}` shape matches `useFilterableTable`'s
@@ -331,7 +368,7 @@ const MembersPage: React.FC = () => {
     sortField,
     sortDirection,
     processedData,
-  } = useFilterableTable<MemberRow>(memberRows, {
+  } = useFilterableTable<MemberRow>(searchedRows, {
     initialFilters: INITIAL_FILTERS,
     defaultSort,
   });
@@ -613,6 +650,45 @@ const MembersPage: React.FC = () => {
           </Button>
         </HStack>
       </Flex>
+
+      {/* Global all-fields search (member-field-search Option 1). Narrows the
+          rows across EVERY candidate field (incl. non-visible overlay/calculated
+          fields) before the per-column filter/sort toolkit, so the stats strip
+          and table below follow automatically. */}
+      {!loading && (
+        <Box mb={4} maxW="md">
+          <InputGroup size="sm">
+            <InputLeftElement pointerEvents="none">
+              <SearchIcon color="gray.400" boxSize="12px" />
+            </InputLeftElement>
+            <Input
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder={t('search.placeholder')}
+              aria-label={t('search.ariaLabel')}
+              bg="gray.800"
+              color="white"
+              _placeholder={{ color: 'gray.400' }}
+              borderColor="gray.600"
+              autoComplete="off"
+              data-testid="members-global-search"
+            />
+            {globalSearch !== '' && (
+              <InputRightElement>
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="orange"
+                  aria-label={t('search.clear')}
+                  icon={<CloseIcon boxSize="8px" />}
+                  onClick={() => setGlobalSearch('')}
+                  data-testid="members-global-search-clear"
+                />
+              </InputRightElement>
+            )}
+          </InputGroup>
+        </Box>
+      )}
 
       {/* Live statistics strip (task 4.3, design C-SURFACE; R5.4) — reuses the
           shared stats-strip convention (steering 32; `bg="gray.800"` cards, same
