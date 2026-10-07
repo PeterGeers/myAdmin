@@ -239,6 +239,21 @@
     "compact": "Compact",
     "full": "Volledig"
   },
+  "columnChooser": {
+    "button": "Kolommen",
+    "title": "Kolommen kiezen",
+    "description": "Kies welke ledenvelden als kolommen worden getoond. Je keuze wordt opgeslagen en alleen jij ziet deze.",
+    "filterPlaceholder": "Zoek een veld…",
+    "empty": "Geen velden gevonden voor je zoekopdracht.",
+    "alreadyShown": "Al getoond",
+    "add": "Kolom toevoegen",
+    "remove": "Kolom verwijderen",
+    "memberNumberLocked": "Altijd getoond",
+    "cancel": "Annuleren",
+    "toast": {
+      "saveError": "Opslaan van je kolommen is mislukt"
+    }
+  },
   "columns": {
     "memberNumber": "Lidnummer",
     "name": "Naam",

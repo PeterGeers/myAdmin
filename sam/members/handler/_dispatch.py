@@ -261,6 +261,18 @@ def dispatch_route(
         # context (never the body). refs is the ordered tagged-reference list.
         return service.save_preferred_list(tenant_id, ctx.sub, _write_body(request))
 
+    if name == "get_column_preferences":
+        # The caller's OWN chosen overview columns, keyed by the verified sub (user ≠ member,
+        # R11.1 — NOT a path param, NOT a body owner). Empty when the user has none (R6.4
+        # empty-is-valid — the first-time default is applied client-side).
+        return service.get_column_preferences(tenant_id, ctx.sub)
+
+    if name == "save_column_preferences":
+        # Replace the caller's OWN chosen overview columns; sub is authoritative from the
+        # verified context (never the body). columns is the ordered field-key list; the service
+        # drops blank/dupe/non-candidate keys (R6.5).
+        return service.save_column_preferences(tenant_id, ctx.sub, _write_body(request))
+
     # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
     if name == "create_member":
         return service.create_member(

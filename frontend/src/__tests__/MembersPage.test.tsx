@@ -492,7 +492,11 @@ describe('MembersPage (Leden Overzicht)', () => {
         expect(screen.queryByText('Piet')).not.toBeInTheDocument(); // erelid
       });
 
-      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
+      // Resolve the region filter asynchronously (findBy retries) so a transient
+      // re-render after the global-search step cannot flake the query — same
+      // intent, just tolerant of the post-search render settling.
+      const regionFilter =
+        (await screen.findByLabelText('Filter by filters.region')) as HTMLInputElement;
       fireEvent.change(regionFilter, { target: { value: 'West' } });
       await waitFor(() => {
         expect(screen.getByText('Marie')).toBeInTheDocument();

@@ -66,6 +66,9 @@ __all__ = [
     "PREF_LIST_TENANT",
     "PREF_LIST_SUB",
     "PREF_LIST_REFS",
+    "COLUMN_PREFS_TENANT",
+    "COLUMN_PREFS_SUB",
+    "COLUMN_PREFS_COLUMNS",
 ]
 
 
@@ -208,3 +211,18 @@ PREF_LIST_SUB = "errors.preflist.sub"
 
 #: A preferred-list entry has invalid ``refs`` (must be a list of non-blank reference strings).
 PREF_LIST_REFS = "errors.preflist.refs"
+
+
+# ── Column-preferences field-level domain codes (session-columns R6 — per-user column set) ──
+#
+# Mirror the preferred-list block 1:1 (``columns`` ↔ ``refs``). A column-preferences record is a
+# user's PRIVATE, per-user, tenant-scoped ordered list of field-config column keys.
+
+#: A column-preferences entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard).
+COLUMN_PREFS_TENANT = "errors.colprefs.tenant"
+
+#: A column-preferences entry has an invalid/blank ``sub`` (the owning user principal).
+COLUMN_PREFS_SUB = "errors.colprefs.sub"
+
+#: A column-preferences entry has invalid ``columns`` (must be a list of non-blank field keys).
+COLUMN_PREFS_COLUMNS = "errors.colprefs.columns"

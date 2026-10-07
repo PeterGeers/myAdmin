@@ -17,6 +17,9 @@ from sam.members.domain._membership_errors import (
 from sam.members.domain.analytics_set import (
     AnalyticsSetEntry,
 )
+from sam.members.domain.column_preferences import (
+    ColumnPreferences,
+)
 from sam.members.domain.preferred_list import (
     PreferredList,
 )
@@ -190,6 +193,85 @@ class AnalyticsSetsMixin:
         saved = self._repo.save_preferred_list(tenant_id, entry)
         return self._serialize_preferred_list(saved)
 
+    # ── column preferences (per-user overview columns, session-columns R6) ───────────
+
+    def get_column_preferences(self, tenant_id: str, sub: str) -> dict[str, Any]:
+        """Return user ``sub``'s chosen overview columns (empty when the user has none).
+
+        Keyed by the authenticated ``sub`` (user ≠ member — R11.1); the column set is private
+        to that principal. A user who has not chosen any columns yet gets an EMPTY list
+        (empty-is-valid, R6.4 — the first-time default is applied client-side) — never a 404.
+        Returns the JSON-friendly serialized shape ``{ sub, columns, updated_at }``.
+        """
+        entry = self._repo.get_column_preferences(tenant_id, sub)
+        if entry is None:
+            entry = ColumnPreferences.empty(tenant_id, sub)
+        return self._serialize_column_preferences(entry)
+
+    def save_column_preferences(
+        self, tenant_id: str, sub: str, body: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Create or REPLACE user ``sub``'s chosen overview columns from the body (R6.5).
+
+        ``tenant_id`` and ``sub`` are AUTHORITATIVE (the verified principal — never trusted
+        from the body). Reads ``columns`` (the ordered field-key list) from the body and
+        cleans it defensively (R6.5): drops blank/non-string keys, de-dupes (first occurrence
+        wins, order preserved), and drops keys that are not candidate fields of the tenant's
+        resolved field config. Stamps ``updated_at = now(UTC) ISO``, validates, persists (a
+        full replace — exactly one record per user), and returns the serialized shape. An
+        empty / absent ``columns`` is valid (the user clears their chosen columns).
+        """
+        payload = dict(body) if isinstance(body, Mapping) else {}
+        now = datetime.now(timezone.utc).isoformat()
+        raw_columns = payload.get("columns")
+        columns = self._clean_column_keys(tenant_id, raw_columns)
+        entry = ColumnPreferences(
+            tenant_id=tenant_id,  # authoritative — never the body
+            sub=sub,  # authoritative — the verified principal, never the body (R11.1)
+            columns=columns,
+            updated_at=now,
+        )
+        entry.validate()
+        saved = self._repo.save_column_preferences(tenant_id, entry)
+        return self._serialize_column_preferences(saved)
+
+    def _clean_column_keys(self, tenant_id: str, raw_columns: Any) -> list[str]:
+        """Drop blank/dupe/non-candidate keys from a submitted column list (R6.5).
+
+        Order-preserving: a key survives iff it is a non-blank string, it has not already been
+        kept (first occurrence wins — no duplicates), and it is a CANDIDATE field key of the
+        tenant's resolved field config (``visible`` — mirrors the frontend ``isColumnCandidate``:
+        a field is a candidate unless hidden). ``member_number`` is a candidate like any other;
+        it need not be stored (always-on + implied, R7.3) but is not stripped here if the client
+        sends it. Mirrors the preferred-list PUT's string-coerce/blank-drop, extended with the
+        de-dupe + candidate filter this spec requires.
+        """
+        if not isinstance(raw_columns, (list, tuple)):
+            return []
+        candidates = self._candidate_column_keys(tenant_id)
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for col in raw_columns:
+            if not isinstance(col, str):
+                continue
+            key = col.strip()
+            if not key or key in seen or key not in candidates:
+                continue
+            seen.add(key)
+            cleaned.append(key)
+        return cleaned
+
+    def _candidate_column_keys(self, tenant_id: str) -> set[str]:
+        """The tenant's candidate column keys — the ``key`` of each VISIBLE resolved field.
+
+        Mirrors the frontend ``isColumnCandidate`` (``visible !== false``) over the SAME
+        authoritative field config the frontend renders (``FieldResolver.resolve`` ⊕ overlay,
+        design C3). Keyed by the bare field ``key`` (what the chosen-column list stores — the
+        frontend's ``f.key``), de-duped across storage buckets.
+        """
+        config = self._field_resolver.resolve(tenant_id)
+        return {f.key for f in config.visible_fields()}
+
     # ── serialization helpers ───────────────────────────────────────────────────────
 
     @staticmethod
@@ -202,6 +284,20 @@ class AnalyticsSetsMixin:
         return {
             "sub": entry.sub,
             "refs": list(entry.refs),
+            "updated_at": entry.updated_at,
+        }
+
+    @staticmethod
+    def _serialize_column_preferences(entry: ColumnPreferences) -> dict[str, Any]:
+        """Project a column-preferences entry to the JSON-friendly shape the handler returns.
+
+        Carries ``sub`` (owner), ``columns`` (ordered field keys), ``updated_at``.
+        ``tenant_id`` is omitted (the caller already knows the tenant context) — mirrors
+        :meth:`_serialize_preferred_list`.
+        """
+        return {
+            "sub": entry.sub,
+            "columns": list(entry.columns),
             "updated_at": entry.updated_at,
         }
 

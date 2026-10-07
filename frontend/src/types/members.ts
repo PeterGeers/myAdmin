@@ -144,6 +144,25 @@ export interface MemberPreferredList {
 }
 
 /**
+ * A user's chosen overview columns (R6 — Session Columns). Mirrors
+ * {@link MemberPreferredList} 1:1 (`columns` ↔ `refs`): a PRIVATE, per-user,
+ * tenant-scoped record keyed server-side by the authenticated Cognito `sub`
+ * (user ≠ member, R11.1 — the client never sends a `sub`), storing an ORDERED
+ * list of field-config KEYS (references, never copies of field/member data —
+ * R6.6). `member_number` is implied/always-first and need not be stored (R7.3).
+ * A key that no longer resolves (field removed/hidden) is skipped on read by
+ * the UI, not an error. An unset list comes back empty (`columns: []`, R6.4).
+ */
+export interface MemberColumnPreferences {
+  /** The owning user's Cognito `sub` (echoed by the backend; informational). */
+  sub: string;
+  /** Ordered field-config keys the user chose to show as columns. */
+  columns: string[];
+  /** ISO-8601 UTC last-update timestamp (empty string when never saved). */
+  updated_at: string;
+}
+
+/**
  * Where a resolved field came from (mirrors the module's `FieldOrigin`, design
  * C-FIELDS): the platform fixed base, a tenant overlay (parameter-driven), or a
  * derivation (calculated, read-only, never stored — R4.4). The frontend renders

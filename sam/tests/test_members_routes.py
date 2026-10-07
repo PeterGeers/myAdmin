@@ -46,21 +46,22 @@ def test_route_map_covers_eighteen_behaviours_total():
     # READ routes (task 3.4, R2.4 — list + get) = 21, plus the three catalog WRITE routes
     # (task 5.3, R2.4/R1.4 — create + update + soft-delete) = 24, plus the five member
     # analytics-set CRUD routes (F-012 — create + list + get + update + delete) = 29, plus
-    # the two preferred-list routes (R11.2 — get + save) = 31.
-    assert len(ROUTES) == 31
+    # the two preferred-list routes (R11.2 — get + save) = 31, plus the two per-user
+    # column-preferences routes (session-columns R6 — get + save) = 33.
+    assert len(ROUTES) == 33
 
 
 def test_route_map_groups_match_the_design_c1_counts():
     # Member CRUD 8 + field-config 1 · membership lifecycle 7 · delegates 2 · payments 1 ·
     # catalog reads 2 (list + get, task 3.4) + catalog writes 3 (create + update + delete,
-    # task 5.3) = 5 · analytics 7 (sets: create+list+get+update+delete, F-012; preferred list:
-    # get+save, R11.2).
+    # task 5.3) = 5 · analytics 9 (sets: create+list+get+update+delete, F-012; preferred list:
+    # get+save, R11.2; column preferences: get+save, session-columns R6).
     assert len(routes_by_group(RouteGroup.MEMBER)) == 9
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 7
     assert len(routes_by_group(RouteGroup.DELEGATE)) == 2
     assert len(routes_by_group(RouteGroup.PAYMENT)) == 1
     assert len(routes_by_group(RouteGroup.CATALOG)) == 5
-    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 7
+    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 9
 
 
 def test_route_map_includes_each_named_behaviour():
@@ -104,6 +105,9 @@ def test_route_map_includes_each_named_behaviour():
         # Per-user preferred list (R11.2)
         "get_preferred_list",
         "save_preferred_list",
+        # Per-user overview column preferences (session-columns R6)
+        "get_column_preferences",
+        "save_column_preferences",
     }
     assert set(route_names()) == expected
 
