@@ -2,7 +2,8 @@
 
 ## Member Overview — User Column Chooser (Session Columns)
 
-- Status: **Draft** (requirements phase — check in before design).
+- Status: **Ready** (requirements + design + tasks complete; all open questions
+  resolved with the stakeholder — see Design "Resolved decisions").
 - Origin: `.kiro/specs/Members/member-field-search/design-options.md` → **Option 2**
   (promoted to a proper spec). Option 1 (global all-fields search) is already built
   (commit on `test`); this is the precise, per-field complement.
@@ -80,25 +81,29 @@ what the pivot adapter does for its results), then register its key.
 
 ## Requirements
 
-### R1 — Surface any candidate field as a session column
+### R1 — Choose which columns to show (ALL candidate fields are selectable)
 
-**User story:** As a member administrator, I want to add any available member
-field as a column to the overview table for my current session, so I can see data
-that the default columns omit without an admin changing the view configuration.
+**User story:** As a member administrator, I want to pick exactly which member
+fields are shown as columns — adding any field the default view omits and
+removing ones I don't need — so the overview matches how I work, without an admin
+changing the view configuration.
 
 #### Acceptance Criteria
-1. WHEN the user opens the column chooser THEN the system SHALL list every
-   candidate field (`fields.filter(isColumnCandidate)`), grouped by functional
-   group in catalog order and alphabetical within each group (reusing the
-   `MemberFieldPicker` sectioning), with bilingual labels.
-2. WHEN the user checks a field that is not already a column THEN the system SHALL
-   add it as a visible column for the session.
-3. WHEN the user unchecks a surfaced field THEN the system SHALL remove that
-   column; fields that belong to the active view context / default set SHALL NOT
-   be removable via this chooser (it only adds, never strips admin columns).
-4. WHEN the chooser lists fields THEN fields already shown (default/context
-   columns) SHALL be indicated as already-present (checked + not re-addable),
-   never duplicated.
+1. WHEN the user opens the column chooser THEN the system SHALL list **every**
+   candidate field (`fields.filter(isColumnCandidate)`) as a selectable option —
+   fixed, overlay, and calculated alike (OQ-3: all columns are selectable is a
+   core requirement) — grouped by functional group in catalog order and
+   alphabetical within each group (reusing the `MemberFieldPicker` sectioning),
+   with bilingual labels.
+2. WHEN the chooser opens THEN the currently-shown columns SHALL be flagged
+   (checked); every other candidate SHALL be unchecked. member_number is shown
+   always-on and NOT toggleable (R7).
+3. WHEN the user checks a field THEN it SHALL be added as a column; WHEN the user
+   unchecks a currently-shown field THEN it SHALL be removed — the user's
+   selection fully determines the shown columns (the only non-removable column is
+   member_number). Columns are never duplicated.
+4. The user's selection SHALL change the column view immediately (and be persisted
+   per R6).
 5. The chooser SHALL be keyboard-accessible and resolve all labels from the
    `members` i18n namespace (no hardcoded English).
 
@@ -108,9 +113,11 @@ that the default columns omit without an admin changing the view configuration.
 and sort on it just like the built-in columns.
 
 #### Acceptance Criteria
-1. WHEN a session column is surfaced THEN its header SHALL render a filter input
-   AND be sortable, identical to a fixed column.
-2. WHEN the user types in a surfaced column's filter THEN the rows SHALL narrow by
+1. EVERY shown column (fixed, overlay, calculated, user-chosen) SHALL render a
+   filter input AND be sortable — there SHALL be no display-only column class
+   (OQ-3). A newly chosen column SHALL be filterable/sortable identically to a
+   fixed one.
+2. WHEN the user types in a column's filter THEN the rows SHALL narrow by
    that field's **resolved** value (nested-aware via `valueFor`), case-insensitive
    substring — including for fields stored in nested buckets.
 3. WHEN the user sorts on a surfaced column THEN the ordering SHALL use the field's
@@ -133,9 +140,11 @@ other users or the admin configuration see.
    (no surfaced columns) for a user who has never chosen any.
 2. Surfacing columns SHALL NOT modify `view_contexts` or any tenant parameter, and
    SHALL NOT be visible to any other user (private to the owning `sub`).
-3. WHEN the user switches view context THEN the system SHALL apply a documented,
-   consistent rule for surfaced columns (see Design open-question OQ-1) — either
-   cleared or retained — chosen deliberately, not incidentally.
+3. There SHALL be ONE user-owned column set. The chooser shows the current columns
+   with the already-shown ones checked; the user checks/unchecks to change their
+   view. WHEN the user switches view context THEN their chosen columns SHALL be
+   **retained** (the context no longer drives the column set once a user has their
+   own list; it still drives `default_sort` / `filterable_columns` / `page_size`).
 4. A surfaced column's key SHALL NOT collide with or overwrite an existing flat
    alias (`membership_type`, `region`, …); only non-flat keys are promoted.
 
@@ -160,7 +169,8 @@ session — exactly like my preferred pivot list.
    `GET/PUT /members/column-preferences`.
 4. WHEN a user has never saved column preferences THEN the GET SHALL return an
    empty set (empty is valid, not an error — mirrors R11.2), and the overview
-   SHALL show only its default/context columns + the fixed member_number (R7).
+   SHALL show the first-time default: the admin default/compact set + the fixed
+   member_number (OQ-A resolved to option (a)).
 5. WHEN the user adds/removes a column THEN the system SHALL persist the full
    updated ordered list (a replace, exactly one record per user), stamping
    `updated_at`; the write SHALL drop blank/duplicate keys and keys that are not
@@ -240,9 +250,6 @@ pivot picker and the overview do not drift into two near-identical widgets.
   (a user's columns are private; authoring shared contexts stays the admin's
   config path).
 - Per-column width / ordering-by-drag persistence beyond the stored key order.
-- Fixing nested filter/sort for **all** overlay columns globally (the same
-  technique can later be generalized; this spec scopes it to user-surfaced
-  columns — see Design "Strategic note").
 - Server-side search / column projection for very large row sets (client-side over
   the scoped subset only).
 - Edit-from-column or any mutation of member data from the overview.
