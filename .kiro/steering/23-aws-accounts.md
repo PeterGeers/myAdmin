@@ -79,8 +79,9 @@ The platform (myAdmin, evolved in place) spans two AWS accounts plus Railway.
   re-adds it. Before any `update-user-pool`, READ the current config and PASS BACK UNCHANGED
   every block you are not intentionally editing (`LambdaConfig` especially), then verify the
   trigger survived. Prefer the NARROW APIs when they exist (`set-user-pool-mfa-config` touches
-  only MFA/WebAuthn and is safe). This bit once (2026-10-07) — see finding F-003; the fix is
-  codified in `null_resource.cognito_passkey_post_apply` + the pool `lifecycle.ignore_changes`
+  only MFA/WebAuthn and is safe). This bit once (2026-10-07) — see
+  `.kiro/specs/Common/Cognito/PassKey/findings.md` F-003; the fix is codified in
+  `null_resource.cognito_passkey_post_apply` + the pool `lifecycle.ignore_changes`
   in `infrastructure/cognito.tf`.
 
 ## Tenant keys (per plane)

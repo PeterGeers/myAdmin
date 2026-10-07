@@ -73,7 +73,7 @@ Rationale:
 > `https://petergeers.github.io/myAdmin/` — NOT from the hosted UI — the browser then
 > throws `RelyingPartyMismatch: Relying party does not match current domain`.
 > This is the recurring passkey failure (see `h-dcn_cognito_request.md` §2 "Dynamic RP
-> ID based on environment", and backlog findings F-002). It silently reverts whenever
+> ID based on environment", and `findings.md` F-002). It silently reverts whenever
 > the pool MFA/WebAuthn config is touched, so treat it as a required post-apply step.
 
 - [x] Set the WebAuthn RP ID to the app's serving host (`petergeers.github.io` — the full
