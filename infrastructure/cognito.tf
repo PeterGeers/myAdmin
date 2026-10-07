@@ -155,7 +155,8 @@ resource "aws_cognito_user_pool" "myadmin" {
   #       Not exposed by the Terraform AWS provider; owned by
   #       null_resource.cognito_passkey_post_apply below (set via AWS CLI). Without
   #       ignoring it here, Terraform plans to null it out, reintroducing the
-  #       `RelyingPartyMismatch` passkey bug (backlog finding F-002).
+  #       `RelyingPartyMismatch` passkey bug (see
+  #       .kiro/specs/Common/Cognito/PassKey/findings.md F-002).
   #
   # ignore_changes makes Terraform leave both untouched on refresh/plan/apply while
   # still managing everything else about the pool.
@@ -259,8 +260,8 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
 #      passkeys directly (Amplify associateWebAuthnCredential) from its own host,
 #      the browser then throws `RelyingPartyMismatch: Relying party does not match
 #      current domain`. See .kiro/specs/Common/Cognito/PassKey/tasks.md §1.4a and
-#      backlog finding F-002. UserVerification=preferred matches the app's
-#      CredentialCreationOptions.
+#      .kiro/specs/Common/Cognito/PassKey/findings.md F-002. UserVerification=preferred
+#      matches the app's CredentialCreationOptions.
 #
 # Both commands are idempotent (set-to-desired-state), so re-running is safe.
 #
@@ -270,10 +271,11 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
 # trigger — detaching the data-account PreTokenGen Lambda and stripping the
 # `custom:entitlements` claim from every token (platform-wide auth breakage).
 # This exact mistake happened once (2026-10-07) and had to be recovered by
-# re-attaching the trigger. See sam/pretokengen/DEPLOY.md ("update-user-pool is
-# picky: include settings that must persist"). Therefore step 1 below READS the
-# current LambdaConfig and PASSES IT BACK UNCHANGED in the same call, so the
-# trigger is preserved whether or not SAM/manual has attached it.
+# re-attaching the trigger (see .kiro/specs/Common/Cognito/PassKey/findings.md
+# F-003, and sam/pretokengen/DEPLOY.md "update-user-pool is picky: include
+# settings that must persist"). Therefore step 1 below READS the current
+# LambdaConfig and PASSES IT BACK UNCHANGED in the same call, so the trigger is
+# preserved whether or not SAM/manual has attached it.
 resource "null_resource" "cognito_passkey_post_apply" {
   triggers = {
     user_pool_id   = aws_cognito_user_pool.myadmin.id
