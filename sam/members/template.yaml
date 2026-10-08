@@ -159,11 +159,12 @@ Parameters:
     Description: >-
       OpenRouter API key for the Members AI-improve adapter (R2). Secret — supply per
       environment at deploy time; never commit it or place it in CI config (steering
-      43). No default: a missing key must fail the deploy loudly (steering 23).
-    AllowedPattern: "^sk-or-v1-.+$"
+      43). Empty default: when unset, AI-improve is unavailable (adapter fail-closed), the rest of the module deploys and runs normally.
+    Default: ""
+    AllowedPattern: "^(sk-or-v1-.+)?$"
     ConstraintDescription: >-
-      Must be a real OpenRouter key beginning `sk-or-v1-`. Supplied per-env at deploy
-      time (never committed / never in CI).
+      Either empty (AI-improve unavailable) or a real OpenRouter key beginning `sk-or-v1-`,
+      supplied per-env at deploy time (never committed / never in CI).
 
   # The configured AI model (config-selects-strategy, steering 36). Defaults to the
   # free router; the adapter REFUSES any value outside its free-model allow-list
