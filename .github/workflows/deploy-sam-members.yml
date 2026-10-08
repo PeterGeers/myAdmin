@@ -102,6 +102,14 @@ jobs:
       # registry, etc.) — the test/prod split lives entirely in samconfig, not here.
       - name: SAM Deploy
         working-directory: sam/members
+        # OpenRouterApiKey (R2) is optional: pass it ONLY when the env secret is set,
+        # so a deploy without the secret leaves the template's empty default (AI-improve
+        # fail-closed). Never committed / never in samconfig (steering 43).
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: sam deploy --config-env ${{ steps.env.outputs.config_env }} --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "OpenRouterApiKey=${OPENROUTER_API_KEY}"
+        run: |
+          OVERRIDE=""
+          if [ -n "$OPENROUTER_API_KEY" ]; then
+            OVERRIDE="--parameter-overrides OpenRouterApiKey=$OPENROUTER_API_KEY"
+          fi
+          sam deploy --config-env ${{ steps.env.outputs.config_env }} --no-confirm-changeset --no-fail-on-empty-changeset $OVERRIDE
