@@ -553,7 +553,8 @@ class TestParameterSchemaEndpointMembersGating:
         return resp
 
     def test_schema_members_tenant_permits_members_namespace(self):
-        """MEMBERS-enabled tenant -> schema includes members with three json params."""
+        """MEMBERS-enabled tenant -> schema includes members: three json params
+        plus the mail_enabled boolean gate (pivot-output-actions R0 task 0.4)."""
         resp = self._call_schema(['MEMBERS'])
         data = resp.get_json()
 
@@ -564,10 +565,12 @@ class TestParameterSchemaEndpointMembersGating:
 
         params = data['schema']['members']['params']
         assert set(params.keys()) == {
-            'field_overlay', 'scope_dimensions', 'view_contexts'
+            'field_overlay', 'scope_dimensions', 'view_contexts', 'mail_enabled'
         }
-        for param_def in params.values():
-            assert param_def['type'] == 'json'
+        # The three config overlays are json; mail_enabled is the boolean send-gate.
+        for key in ('field_overlay', 'scope_dimensions', 'view_contexts'):
+            assert params[key]['type'] == 'json'
+        assert params['mail_enabled']['type'] == 'boolean'
 
     def test_schema_non_members_tenant_excludes_members_namespace(self):
         """Tenant without MEMBERS -> schema omits the members namespace."""
