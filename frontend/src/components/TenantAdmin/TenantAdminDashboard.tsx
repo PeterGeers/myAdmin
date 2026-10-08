@@ -15,6 +15,7 @@ import StorageTab from './StorageTab';
 import FinancialTab from './FinancialTab';
 import TenantInfoTab from './TenantInfoTab';
 import SenderSettingsTab from './SenderSettingsTab';
+import MemberSenderIdentitiesTab from './MemberSenderIdentitiesTab';
 import AdvancedTab from './AdvancedTab';
 import FunctionsTab from './FunctionsTab';
 import { LandingPageEditor } from './LandingPage';
@@ -50,7 +51,7 @@ export function TenantAdminDashboard() {
     if (currentTenant) {
       loadTenantModules();
     }
-     
+
   }, [currentTenant]);
 
   const loadTenantModules = async () => {
@@ -224,6 +225,11 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               ✉️ {t('tenantAdmin.tabs.senderSettings')}
             </Tab>
+            {hasMembers && (
+              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+                📧 {t('tenantAdmin.tabs.memberSenderIdentities')}
+              </Tab>
+            )}
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               📊 {t('tenantAdmin.tabs.pivotViews')}
             </Tab>
@@ -269,6 +275,11 @@ export function TenantAdminDashboard() {
             <TabPanel>
               <SenderSettingsTab tenant={currentTenant} />
             </TabPanel>
+            {hasMembers && (
+              <TabPanel>
+                <MemberSenderIdentitiesTab tenant={currentTenant} />
+              </TabPanel>
+            )}
             <TabPanel>
               <PivotBuilderWithPreview />
             </TabPanel>

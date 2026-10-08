@@ -562,4 +562,384 @@ describe('membersApiService — column preferences (task 2.5.5)', () => {
       expect(init.body).toBe(JSON.stringify({ columns: [] }));
     });
   });
+
+  // ==========================================================================
+  // Task 3.4 — the dedicated delivery route (PUT/DELETE), R3, design §3.
+  //
+  // The create/update set bodies deliberately do NOT carry delivery; the stored
+  // delivery is written/cleared ONLY via `/members/analytics-sets/{id}/delivery`.
+  // `putAnalyticsSetDelivery` maps the camelCase MemberDelivery to the stored
+  // snake_case block (via deliveryToBackend) and PUTs it; `deleteAnalyticsSetDelivery`
+  // DELETEs the same path.
+  // ==========================================================================
+  describe('analytics-set delivery route (task 3.4)', () => {
+    // Validates: Requirements 3 (R3)
+    it('PUT /delivery maps the body via deliveryToBackend and returns the mapped set', async () => {
+      const { putAnalyticsSetDelivery } = await import('./membersApiService');
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: {
+            data: {
+              set_id: 'set-1',
+              name: 'Jubilees',
+              kind: 'list',
+              definition: {},
+              delivery: {
+                mode: 'to_fixed',
+                template_id: null,
+                attachment: 'csv',
+                recipients: ['agent@example.com'],
+                label_options: null,
+              },
+              created_at: '2026-01-01T00:00:00Z',
+              updated_at: '2026-01-02T00:00:00Z',
+            },
+          },
+        }),
+      );
+
+      const result = await putAnalyticsSetDelivery('set-1', {
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      });
+
+      const [url, init] = fetchCall();
+      expect(init.method).toBe('PUT');
+      expect(url).toBe(`${BASE}/members/analytics-sets/set-1/delivery`);
+      // The body carries ONLY the snake_case delivery block (no name/kind/definition).
+      expect(JSON.parse(init.body as string)).toEqual({
+        delivery: {
+          mode: 'to_fixed',
+          template_id: null,
+          attachment: 'csv',
+          recipients: ['agent@example.com'],
+          label_options: null,
+        },
+      });
+      // The reply is unwrapped + mapped back to the camelCase set (with delivery).
+      expect(result.id).toBe('set-1');
+      expect(result.delivery).toEqual({
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      });
+    });
+
+    // Validates: Requirements 3 (R3)
+    it('DELETE /delivery targets the dedicated delivery path', async () => {
+      const { deleteAnalyticsSetDelivery } = await import('./membersApiService');
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { ok: true } } }),
+      );
+
+      await deleteAnalyticsSetDelivery('set-1');
+
+      const [url, init] = fetchCall();
+      expect(init.method).toBe('DELETE');
+      expect(url).toBe(`${BASE}/members/analytics-sets/set-1/delivery`);
+    });
+  });
+});
+
+// ============================================================================
+// Task 3.2 — delivery block mappers (R3, design §2.1)
+//
+// `deliveryToBackend` / `deliveryFromBackend` are the frontend ↔ backend set
+// mappers' delivery half: they convert the camelCase `MemberDelivery` to/from the
+// stored snake_case block (`{ mode, template_id, attachment, recipients,
+// label_options }`), using the shared label-options model's `toStored`/`fromStored`
+// for the `label_options` sub-block (one label-options model with R6 — task 6.3).
+// These tests round-trip BOTH modes so the camelCase ↔ snake_case mapping (incl.
+// the numeric label_options) is proven lossless.
+// ============================================================================
+
+describe('membersApiService — delivery block mappers (task 3.2)', () => {
+  // Validates: Requirements 3 (R3)
+  it('round-trips a per_recipient delivery (template, no recipients, no labels)', async () => {
+    const { deliveryToBackend, deliveryFromBackend } = await import('./membersApiService');
+
+    const delivery = {
+      mode: 'per_recipient' as const,
+      templateId: 'template#t-1',
+      attachment: 'csv' as const,
+      recipients: [],
+      labelOptions: null,
+    };
+
+    const stored = deliveryToBackend(delivery);
+    // per_recipient stores NO recipient addresses (resolved from the dataset at run time).
+    expect(stored.mode).toBe('per_recipient');
+    expect(stored.template_id).toBe('template#t-1');
+    expect(stored.attachment).toBe('csv');
+    expect(stored.recipients).toEqual([]);
+    expect(stored.label_options).toBeNull();
+
+    // Rebuild from the stored block → the original camelCase shape.
+    expect(deliveryFromBackend(stored)).toEqual(delivery);
+  });
+
+  // Validates: Requirements 3 (R3)
+  it('round-trips a to_fixed delivery with pdf_labels (numeric label_options survive)', async () => {
+    const { deliveryToBackend, deliveryFromBackend } = await import('./membersApiService');
+    const { normalizeLabelOptions } = await import(
+      '../components/members/analytics/labelOptions'
+    );
+
+    const labelOptions = normalizeLabelOptions({
+      format: 'L7160',
+      sortOrder: 'postcode',
+      fontSize: 11,
+      alignment: 'center',
+      showBorder: true,
+      showCountry: false,
+      startPosition: 4,
+    });
+    const delivery = {
+      mode: 'to_fixed' as const,
+      templateId: null,
+      attachment: 'pdf_labels' as const,
+      recipients: ['agent@example.com', 'back@example.com'],
+      labelOptions,
+    };
+
+    const stored = deliveryToBackend(delivery);
+    expect(stored.mode).toBe('to_fixed');
+    expect(stored.recipients).toEqual(['agent@example.com', 'back@example.com']);
+    // label_options serialized to the snake_case stored block with numeric fields intact.
+    expect(stored.label_options).toEqual({
+      format: 'L7160',
+      sort: 'postcode',
+      font_size: 11,
+      alignment: 'center',
+      border: true,
+      country: false,
+      start: 4,
+    });
+
+    // Full round-trip rebuilds the camelCase delivery (labelOptions normalized identically).
+    expect(deliveryFromBackend(stored)).toEqual(delivery);
+  });
+
+  // Validates: Requirements 3 (R3)
+  it('maps an absent / null stored block to undefined (a set with no delivery)', async () => {
+    const { deliveryFromBackend } = await import('./membersApiService');
+    expect(deliveryFromBackend(null)).toBeUndefined();
+    expect(deliveryFromBackend(undefined)).toBeUndefined();
+  });
+
+  // Validates: Requirements 3 (R3)
+  it('a to_fixed non-pdf_labels delivery carries no label_options', async () => {
+    const { deliveryToBackend, deliveryFromBackend } = await import('./membersApiService');
+
+    const delivery = {
+      mode: 'to_fixed' as const,
+      templateId: null,
+      attachment: 'csv' as const,
+      recipients: ['agent@example.com'],
+      labelOptions: null,
+    };
+
+    const stored = deliveryToBackend(delivery);
+    expect(stored.label_options).toBeNull();
+    expect(deliveryFromBackend(stored)).toEqual(delivery);
+  });
+});
+
+// ============================================================================
+// Task 5.4 — schedule route + cadence↔cron mapping (R5, design §2.3/§3/§5)
+//
+// `GET/POST/PUT/DELETE /members/schedules[/{id}]`. A schedule carries
+// `{ schedule_id, set_id, cron, enabled, created_by, created_at, updated_at }`.
+// The UI edits a FRIENDLY cadence (monthly/weekly) which maps to a concrete cron
+// via `cadenceToCron`; an existing schedule's cron maps back via `cronToCadence`.
+// ============================================================================
+
+describe('membersApiService — schedules (task 5.4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('VITE_MEMBERS_API_BASE_URL', 'http://members.test/api');
+    mockGetTokens.mockResolvedValue({ idToken: 'tok', accessToken: 'acc' } as never);
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  const SBASE = 'http://members.test/api';
+
+  // Validates: Requirements 5 (R5)
+  it('cadenceToCron maps each friendly cadence to its backend cron (design §5)', async () => {
+    const { cadenceToCron, CADENCE_CRON } = await import('./membersApiService');
+    expect(cadenceToCron('monthly')).toBe('cron(0 8 1 * ? *)');
+    expect(cadenceToCron('weekly')).toBe('cron(0 8 ? * MON *)');
+    // The forward map is the single source of truth.
+    expect(cadenceToCron('monthly')).toBe(CADENCE_CRON.monthly);
+    expect(cadenceToCron('weekly')).toBe(CADENCE_CRON.weekly);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('cronToCadence recovers the cadence, falling back to monthly for an unknown cron', async () => {
+    const { cronToCadence } = await import('./membersApiService');
+    expect(cronToCadence('cron(0 8 1 * ? *)')).toBe('monthly');
+    expect(cronToCadence('cron(0 8 ? * MON *)')).toBe('weekly');
+    // Round-trip stability.
+    expect(cronToCadence('cron(0 8 1 * ? *)')).toBe('monthly');
+    // An unrecognized expression → monthly (the editor still opens).
+    expect(cronToCadence('rate(13 hours)')).toBe('monthly');
+    expect(cronToCadence('')).toBe('monthly');
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('listSchedulesForSet GETs /members/schedules and returns only the set\'s schedules', async () => {
+    const { listSchedulesForSet } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: [
+            {
+              schedule_id: 'sch-1',
+              set_id: 'set-1',
+              cron: 'cron(0 8 1 * ? *)',
+              enabled: true,
+              created_by: 'sub-1',
+              created_at: '2026-01-01T00:00:00Z',
+              updated_at: '2026-01-01T00:00:00Z',
+            },
+            { schedule_id: 'sch-2', set_id: 'OTHER', cron: 'cron(0 8 ? * MON *)', enabled: false },
+          ],
+        },
+      }),
+    );
+
+    const result = await listSchedulesForSet('set-1');
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('GET');
+    expect(url).toBe(`${SBASE}/members/schedules`);
+    // Only the schedules for set-1 survive the filter, mapped to camelCase.
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      scheduleId: 'sch-1',
+      setId: 'set-1',
+      cron: 'cron(0 8 1 * ? *)',
+      enabled: true,
+      createdBy: 'sub-1',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('createSchedule POSTs /members/schedules with the mapped cron (no tenant/created_by in body)', async () => {
+    const { createSchedule } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: {
+            schedule_id: 'sch-1',
+            set_id: 'set-1',
+            cron: 'cron(0 8 1 * ? *)',
+            enabled: true,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        },
+      }),
+    );
+
+    const result = await createSchedule('set-1', 'monthly', true);
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('POST');
+    expect(url).toBe(`${SBASE}/members/schedules`);
+    // Body carries only domain fields; the cadence is mapped to a cron.
+    expect(JSON.parse(init.body as string)).toEqual({
+      set_id: 'set-1',
+      cron: 'cron(0 8 1 * ? *)',
+      enabled: true,
+    });
+    expect(result.scheduleId).toBe('sch-1');
+    expect(result.enabled).toBe(true);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('updateSchedule PUTs /members/schedules/{id} with the mapped cron + enabled toggle', async () => {
+    const { updateSchedule } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: {
+            schedule_id: 'sch-1',
+            set_id: 'set-1',
+            cron: 'cron(0 8 ? * MON *)',
+            enabled: false,
+          },
+        },
+      }),
+    );
+
+    const result = await updateSchedule('sch-1', 'weekly', false);
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('PUT');
+    expect(url).toBe(`${SBASE}/members/schedules/sch-1`);
+    expect(JSON.parse(init.body as string)).toEqual({
+      cron: 'cron(0 8 ? * MON *)',
+      enabled: false,
+    });
+    // The disabled toggle round-trips.
+    expect(result.enabled).toBe(false);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('deleteSchedule DELETEs /members/schedules/{id} (id url-encoded)', async () => {
+    const { deleteSchedule } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({ body: { data: { ok: true } } }),
+    );
+
+    await deleteSchedule('sch/9');
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('DELETE');
+    expect(url).toBe(`${SBASE}/members/schedules/sch%2F9`);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('listAnalyticsSets surfaces hasDelivery so the UI can gate the Schedule action', async () => {
+    const { listAnalyticsSets } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: [
+            {
+              set_id: 'with-delivery',
+              name: 'Has delivery',
+              kind: 'list',
+              definition: {},
+              delivery: {
+                mode: 'to_fixed',
+                template_id: null,
+                attachment: 'csv',
+                recipients: ['a@b.com'],
+                label_options: null,
+              },
+            },
+            { set_id: 'no-delivery', name: 'Bare', kind: 'count', definition: {} },
+          ],
+        },
+      }),
+    );
+
+    const sets = await listAnalyticsSets();
+    expect(sets.find((s) => s.id === 'with-delivery')?.hasDelivery).toBe(true);
+    expect(sets.find((s) => s.id === 'no-delivery')?.hasDelivery).toBe(false);
+  });
 });

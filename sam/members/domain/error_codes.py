@@ -63,6 +63,18 @@ __all__ = [
     "ANALYTICS_SET_KIND",
     "ANALYTICS_SET_DEFINITION",
     "ANALYTICS_SET_ORIGIN",
+    "ANALYTICS_SET_DELIVERY",
+    "TEMPLATE_TENANT",
+    "TEMPLATE_ID",
+    "TEMPLATE_NAME",
+    "TEMPLATE_LANGUAGES",
+    "TEMPLATE_MERGE_FIELDS",
+    "TEMPLATE_ORIGIN",
+    "SCHEDULE_TENANT",
+    "SCHEDULE_ID",
+    "SCHEDULE_SET",
+    "SCHEDULE_CRON",
+    "SCHEDULE_ENABLED",
     "PREF_LIST_TENANT",
     "PREF_LIST_SUB",
     "PREF_LIST_REFS",
@@ -199,6 +211,68 @@ ANALYTICS_SET_DEFINITION = "errors.analyticsset.definition"
 
 #: An analytics-set entry has an invalid ``origin`` (must be ``'user'`` or ``'predefined'``).
 ANALYTICS_SET_ORIGIN = "errors.analyticsset.origin"
+
+#: An analytics-set entry has an invalid optional ``delivery`` block (R3): a bad ``mode``, a
+#: ``to_fixed`` mode missing its ``recipients`` list, a ``per_recipient`` mode carrying stored
+#: recipients, or a malformed shape. ``params`` may carry ``{"allowed": [...]}`` for a bad mode.
+ANALYTICS_SET_DELIVERY = "errors.analyticsset.delivery"
+
+
+# ── Template field-level domain codes (R2 — stored mail templates, on-plane) ──────────────
+#
+# Mail-template (R2) validation codes. Mirror the analytics-set block: one code per validated
+# field. A template's metadata lives on-plane (``template#<id>``); its body HTML + logo binaries
+# live in S3 (never inline — 400 KB + binary). The entity is written module-agnostic (no
+# member-specific logic) so it can extract to ``sam/shared/templates/`` on a second consumer
+# (steering 35 rule of three) — hence a neutral ``errors.template.*`` namespace, NOT
+# ``errors.member*``.
+
+#: A template entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard).
+TEMPLATE_TENANT = "errors.template.tenant"
+
+#: A template entry has an invalid/blank ``template_id`` (also a sort-key id segment).
+TEMPLATE_ID = "errors.template.id"
+
+#: A template entry has an invalid/blank ``name``.
+TEMPLATE_NAME = "errors.template.name"
+
+#: A template entry has invalid ``languages`` (must be a mapping of lang → {subject, body key},
+#: with at least one language present and each entry carrying a non-blank subject + body key).
+TEMPLATE_LANGUAGES = "errors.template.languages"
+
+#: A template entry has invalid ``merge_fields`` (must be a list of non-blank field-key strings).
+TEMPLATE_MERGE_FIELDS = "errors.template.mergeFields"
+
+#: A template entry has an invalid ``origin`` (must be ``'user'`` or ``'preset'``).
+TEMPLATE_ORIGIN = "errors.template.origin"
+
+
+# ── Schedule field-level domain codes (R5 — scheduled execution of a set + delivery) ──────
+#
+# Scheduled-run (R5) validation codes. Mirror the analytics-set / template blocks: one code
+# per validated field. A schedule's metadata lives on-plane (``schedule#<id>``) and names the
+# analytics-set to run on a cron/rate expression. The entity is STORAGE-ONLY — the "only
+# schedulable if the set has a delivery block" rule is a SERVICE/route gate (task 5.2), not an
+# entity concern — so a neutral ``errors.schedule.*`` namespace (no member-specific logic),
+# mirroring the analyticsset/template namespaces.
+
+#: A schedule entry has an invalid/blank ``tenant_id`` (tenant-isolation hazard). The tenant is
+#: PINNED in the schedule (R5 — an unattended run has no interactive user).
+SCHEDULE_TENANT = "errors.schedule.tenant"
+
+#: A schedule entry has an invalid/blank ``schedule_id`` (also a sort-key id segment).
+SCHEDULE_ID = "errors.schedule.id"
+
+#: A schedule entry has an invalid/blank ``set_id`` (the analytics-set the schedule runs).
+SCHEDULE_SET = "errors.schedule.set"
+
+#: A schedule entry has an invalid/blank ``cron`` (the EventBridge Scheduler schedule
+#: expression — a ``cron(...)`` / ``rate(...)`` / ``at(...)`` expression; validated as a
+#: non-blank string here, the exact grammar is enforced by the scheduler at task 5.3).
+SCHEDULE_CRON = "errors.schedule.cron"
+
+#: A schedule entry has an invalid ``enabled`` (must be a bool).
+SCHEDULE_ENABLED = "errors.schedule.enabled"
 
 
 # ── Preferred-list field-level domain codes (R11.2 — per-user analytics-set preferred list) ──

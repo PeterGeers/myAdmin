@@ -146,6 +146,136 @@ Parameters:
     Description: Human-readable label for the myAdmin pool (diagnostics).
     Default: ""
 
+  # --- Secret: the OpenRouter API key for the Members AI-improve adapter (R2, task 2.4) ---
+  # Supplied PER ENVIRONMENT at deploy time (NOT stored in this template, NOT in CI
+  # config — OIDC-only deploys, steering 43 "no secrets in CI"). `NoEcho` keeps it out
+  # of CloudFormation console/CLI output. NO default and `AllowedPattern` forces a real
+  # `sk-or-v1-...` key, so a deploy that forgets the key fails LOUDLY rather than wiring
+  # a blank secret (steering 23 no-dangerous-fallback); the adapter itself also reads it
+  # fail-fast at runtime (`domain/ai_improve.require_env`).
+  OpenRouterApiKey:
+    Type: String
+    NoEcho: true
+    Description: >-
+      OpenRouter API key for the Members AI-improve adapter (R2). Secret — supply per
+      environment at deploy time; never commit it or place it in CI config (steering
+      43). No default: a missing key must fail the deploy loudly (steering 23).
+    AllowedPattern: "^sk-or-v1-.+$"
+    ConstraintDescription: >-
+      Must be a real OpenRouter key beginning `sk-or-v1-`. Supplied per-env at deploy
+      time (never committed / never in CI).
+
+  # The configured AI model (config-selects-strategy, steering 36). Defaults to the
+  # free router; the adapter REFUSES any value outside its free-model allow-list
+  # (fail-closed cost guard, R2) — so this can never select a costly model.
+  MembersAiModel:
+    Type: String
+    Description: >-
+      The OpenRouter model id the AI-improve adapter uses (R2). Config, not hardcoded
+      (steering 36). Must be a free-tier id on the adapter's allow-list; a disallowed
+      value is REFUSED fail-closed at runtime (cost guard).
+    Default: "openrouter/free"
+
+  # --- SES config: the verified sender + the configuration set (R0, task 0.5) ---
+  # SES is a nonprofit-deploy service (`506221081911`/`eu-west-1`, steering 23). These
+  # supply the Members send-path with WHO it sends `From` and WHICH SES configuration set
+  # publishes bounce/complaint events (see the spec's myNotes.md: today `SES_CONFIGURATION_SET`
+  # is only a loose env var on the Flask side — this makes the per-env wiring explicit IaC).
+  # Per env via samconfig.toml; the IAM send statement below is CONDITION-scoped to this
+  # exact sender address (`ses:FromAddress`) so the role can only send AS the verified
+  # identity — no wildcard sender. The names mirror the Flask `ses_email_service.py` env
+  # vars (SES_SENDER_EMAIL / SES_CONFIGURATION_SET) so both planes read the same contract.
+  SesSenderEmail:
+    Type: String
+    Description: >-
+      The verified SES sender address the Members send-path mails `From` (R0, task 0.5).
+      Must be a verified identity in nonprofit-deploy (`506221081911`/`eu-west-1`). Supplied
+      per env via samconfig.toml; the SES send IAM statement is Condition-scoped to exactly
+      this address (`ses:FromAddress`). No default — fail-fast (23-aws-accounts.md): a blank
+      sender must break the deploy, never send from an unintended address.
+    AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+    ConstraintDescription: >-
+      Must be a single email address (e.g. support@jabaki.nl) that is a VERIFIED SES
+      identity in the nonprofit-deploy account / eu-west-1.
+
+  SesConfigurationSet:
+    Type: String
+    Description: >-
+      Name of the SES configuration set applied on every send (R0, task 0.5). This is what
+      publishes bounce/complaint/delivery events (to SNS → the webhook) so the send-path can
+      honour suppression. Config, not hardcoded (steering 36); supplied per env via
+      samconfig.toml. May be empty where no config set is wired yet — the send-path only
+      attaches it when non-blank (mirrors the Flask `SES_CONFIGURATION_SET` behaviour).
+    Default: ""
+
+  # --- SQS mail-send queue name (R4, pivot-output-actions task 4.2) ---
+  # The queued send path (R4, design §4.2): the `deliver` route (and the R5 scheduler) ENQUEUE
+  # send jobs here; a worker Lambda (task 4.4 — the CONSUMER side, declared on top of this by
+  # 4.4, not here) drains the queue at the SES rate so the request never blocks on the send.
+  # Per-env name following the existing naming discipline (same shape as the `test_` table
+  # prefix): `members-mail-send` (prod) / `members-mail-send-test` (test). NO default —
+  # fail-fast (23-aws-accounts.md): a blank queue name must break the deploy, never create an
+  # unnamed/wrong queue. Supplied per env via samconfig.toml (prod/test). The queue + its DLQ
+  # are NEW infra owned by this spec (R0: infra is in scope); SQS is a nonprofit-deploy service
+  # (506221081911 / eu-west-1, steering 23), same account as the rest of this stack.
+  MailSendQueueName:
+    Type: String
+    Description: >-
+      Name of the SQS mail-send queue (R4). Per environment: `members-mail-send` (prod),
+      `members-mail-send-test` (test). No default — fail-fast (23-aws-accounts.md). The DLQ is
+      derived as `<MailSendQueueName>-dlq`. The Members function env var `MAIL_SEND_QUEUE_URL`
+      + the `sqs:SendMessage` IAM grant are scoped to exactly THIS queue (no wildcard).
+    AllowedPattern: "^members-mail-send(-test)?$"
+    ConstraintDescription: >-
+      Must be `members-mail-send` (prod) or `members-mail-send-test` (TEST) — the per-env
+      send-queue name following the existing naming discipline.
+
+  # --- Worker drain concurrency knob (R4, task 4.4 — the CONSUMER side) -------
+  # The worker Lambda drains `members-mail-send` → SES. SES is rate-limited (the granted
+  # send rate is 14 msg/s today, design §6.4), so the worker's concurrency is BOUNDED — if
+  # it scaled freely, N per-recipient jobs would fan out past the SES rate and trip the
+  # throttle (distinct 429) → needless retries/DLQ. This is the SQS event-source
+  # `ScalingConfig.MaximumConcurrency`: the max number of concurrent worker invocations SQS
+  # will drive. Default 10 (comfortably UNDER the 14/s grant assuming ~1 send ≈ 1s per
+  # invocation at BatchSize 1 — leaves headroom for the SES burst allowance and for the
+  # Flask-plane prod SES that shares the account). It is a per-env knob (config, steering 36
+  # / 43) so TEST can drain slower and the value can be re-tuned once production SES access
+  # lands without a code change (design §12 open item). Min 2 is the SQS floor for
+  # MaximumConcurrency.
+  MailWorkerMaxConcurrency:
+    Type: Number
+    Description: >-
+      Max concurrent mail-worker invocations SQS drives (R4). BOUNDED so the drain rate
+      stays under the granted SES send rate (14/s, design §6.4) — otherwise per-recipient
+      fan-out would trip the SES throttle. Per-env knob (samconfig.toml); default 10.
+    Default: 10
+    MinValue: 2
+    MaxValue: 100
+
+  # --- EventBridge Scheduler schedule-group name (R5, pivot-output-actions task 5.3) ---
+  # The scheduled send path (R5, design §4.3/§5): schedules are DYNAMIC — one EventBridge
+  # Scheduler SCHEDULE per stored `schedule#<id>` record, created at RUNTIME by the schedule
+  # CRUD path (task 5.2) via the Scheduler API, NOT declared statically (they are tenant/user
+  # data, an unknown growing set). This parameter names the per-env schedule GROUP those
+  # runtime schedules live in, so (a) a tenant's schedules are bucketed in one named group and
+  # (b) the Members function's `scheduler:*` IAM grant can be scoped to exactly this group's
+  # ARN pattern (no account-wide `scheduler:*`). Per environment following the existing naming
+  # discipline: `members-schedules` (prod) / `members-schedules-test` (test). No default —
+  # fail-fast (23-aws-accounts.md): a blank group name must break the deploy, never create
+  # runtime schedules in the account `default` group by accident. EventBridge Scheduler is a
+  # nonprofit-deploy service (506221081911 / eu-west-1, steering 23), same account as the stack.
+  SchedulerGroupName:
+    Type: String
+    Description: >-
+      Name of the EventBridge Scheduler schedule-group the runtime per-schedule schedules live
+      in (R5). Per environment: `members-schedules` (prod), `members-schedules-test` (test). No
+      default — fail-fast. The Members function's `scheduler:*` grant is scoped to this group's
+      ARN pattern; the schedules themselves are created at runtime by the task-5.2 CRUD path.
+    AllowedPattern: "^members-schedules(-test)?$"
+    ConstraintDescription: >-
+      Must be `members-schedules` (prod) or `members-schedules-test` (TEST) — the per-env
+      scheduler schedule-group name following the existing naming discipline.
+
 # Stage -> APP_ENV: the deploy stage is the single environment knob; APP_ENV is
 # DERIVED from it so the two cannot drift. `local` and `test` both resolve to the
 # TEST environment (APP_ENV=test); only `prod` is production. This mirrors the
@@ -183,6 +313,38 @@ Resources:
       CompatibleRuntimes:
         - python3.11
       RetentionPolicy: Retain
+
+  # --- SQS mail-send DLQ (R4, task 4.2) --------------------------------------
+  # The dead-letter queue the send queue redrives to after N failed receives. A message that
+  # cannot be processed (e.g. a persistent SES failure the worker surfaces as retryable) is
+  # retried via the main queue and, after `maxReceiveCount` receives, moved HERE so it is an
+  # operational signal (an alarm target), NOT a silent drop (design §4.2/§9). Declared BEFORE
+  # the main queue because the main queue's RedrivePolicy references its ARN. 14-day retention
+  # (the SQS max) so a dead-lettered send is retained long enough to inspect/replay.
+  MailSendDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${MailSendQueueName}-dlq"
+      MessageRetentionPeriod: 1209600 # 14 days (SQS max) — keep dead-lettered sends to inspect
+
+  # --- SQS mail-send queue (R4, task 4.2) ------------------------------------
+  # The queued send path (R4, design §4.2): the `deliver` route + the R5 scheduler ENQUEUE send
+  # jobs here; a worker Lambda (task 4.4 — the CONSUMER side + its event-source mapping are added
+  # ON TOP of this by 4.4, NOT here) drains it at the SES rate. VisibilityTimeout 300s gives the
+  # (future) worker ample time to render + send one job before the message becomes visible again
+  # (it must be >= the worker's timeout; sized generously now, tuned with the worker in 4.4).
+  # RedrivePolicy: after `maxReceiveCount` (5) failed receives a message is moved to the DLQ —
+  # a sane default (design §4.2/§6: "dead-letter after N attempts"), enough retries to ride out a
+  # transient SES throttle/outage without hammering a poison message forever. 14-day retention.
+  MailSendQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref MailSendQueueName
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600 # 14 days (SQS max)
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MailSendDeadLetterQueue.Arn
+        maxReceiveCount: 5
 
   # --- The one Members Lambda: the verified-auth edge ------------------------
   MembersFunction:
@@ -245,6 +407,88 @@ Resources:
               Resource:
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}"
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
+            # --- SES: send-only, scoped to the verified sender identity (R0, task 0.5) ---
+            # The Members send-path (R1–R5, mail compose + the queued worker) needs the SES
+            # send actions. `ses:SendEmail` covers the simple compose path; `ses:SendRawEmail`
+            # covers MIME messages with attachments (CSV / PDF labels, section 4). We do NOT
+            # grant `ses:SendBulkEmail` — the design fans per-recipient merge out into
+            # individual queued sends (section 4.2), it does not use SES bulk templates, so
+            # bulk-send stays out of the grant (least privilege).
+            #
+            # SCOPING (steering 23 exact-scope, mirrors the DynamoDB statements above):
+            #   * Resource is the exact verified SENDER-IDENTITY ARN for this account/region
+            #     — the `identity/<address>` ARN, NOT a wildcard. SES authorizes a send
+            #     against the identity resource, so this already bars sending as any other
+            #     identity.
+            #   * A `Condition` on `ses:FromAddress` pins the From header to exactly the
+            #     configured sender — belt-and-suspenders over the resource scope, and the
+            #     exact-ARN discipline this template already follows for DynamoDB.
+            # SES is a nonprofit-deploy service (`506221081911`/`eu-west-1`, steering 23); the
+            # identity is managed outside this stack (verified operationally / per tenant via
+            # the sender-identities path, task 0.2) — this only grants send ACCESS to it.
+            - Sid: MembersSendViaSes
+              Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource:
+                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${SesSenderEmail}"
+              Condition:
+                StringEquals:
+                  "ses:FromAddress": !Ref SesSenderEmail
+            # --- SQS: send-only, scoped to the exact mail-send queue ARN (R4, task 4.2) ---
+            # The queued send path (R4, design §4.2): the Members function ENQUEUES send jobs to
+            # the `members-mail-send[-test]` queue — the `deliver` route and the R5 scheduler
+            # both go through it. The function is the PRODUCER only; it does NOT consume/delete
+            # (that is the worker — task 4.4, which adds the consumer-side grant on top), so this
+            # grant is `sqs:SendMessage` ONLY (least privilege — no Receive/Delete/GetQueueUrl).
+            #
+            # SCOPING (steering 23 exact-scope, mirrors the DynamoDB + SES statements above): the
+            # Resource is the EXACT queue ARN (`!GetAtt MailSendQueue.Arn`) in this account/region
+            # — NOT a wildcard, NOT the DLQ (the producer never writes to the DLQ; only the
+            # redrive policy does). SQS is a nonprofit-deploy service (506221081911 / eu-west-1,
+            # steering 23), same account as the rest of this stack.
+            - Sid: MembersEnqueueMailSend
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt MailSendQueue.Arn
+            # --- EventBridge Scheduler: manage the runtime per-schedule schedules (R5, task 5.3) ---
+            # The schedule CRUD path (task 5.2) runs IN this function and materializes/updates/
+            # removes ONE EventBridge schedule per stored `schedule#<id>` record via the Scheduler
+            # API (repository/scheduler_api). It therefore needs Create/Update/Delete/GetSchedule,
+            # SCOPED (steering 23 exact-ARN, mirroring the DynamoDB/SES/SQS statements) to schedules
+            # INSIDE this stack's own schedule-group ONLY — the Resource is the group's
+            # `schedule/<group>/*` ARN pattern, NOT account-wide `scheduler:*`. GetSchedule is
+            # included so an update/delete can read-before-write; ListSchedules is NOT granted
+            # (the record store is DynamoDB, the system of record — EventBridge is its shadow).
+            - Sid: MembersManageSchedules
+              Effect: Allow
+              Action:
+                - scheduler:CreateSchedule
+                - scheduler:UpdateSchedule
+                - scheduler:DeleteSchedule
+                - scheduler:GetSchedule
+              Resource:
+                - !Sub "arn:aws:scheduler:${Region}:${AWS::AccountId}:schedule/${SchedulerGroupName}/*"
+            # --- iam:PassRole: pass EXACTLY the scheduler-execution-role (R5, task 5.3) --------
+            # Creating a schedule with a Lambda target requires passing the role EventBridge
+            # Scheduler assumes to invoke it. `iam:PassRole` is a privilege-escalation-sensitive
+            # action, so it is scoped to EXACTLY the one `MembersSchedulerExecutionRole` ARN (no
+            # wildcard) AND conditioned to the `scheduler.amazonaws.com` service (the role can only
+            # be passed TO EventBridge Scheduler, never anywhere else). This is the exact-ARN,
+            # least-privilege discipline (steering 23): the task-5.2 CRUD path can pass this one
+            # role to this one service, nothing more.
+            - Sid: MembersPassSchedulerExecutionRole
+              Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource:
+                - !GetAtt MembersSchedulerExecutionRole.Arn
+              Condition:
+                StringEquals:
+                  "iam:PassedToService": scheduler.amazonaws.com
       Environment:
         Variables:
           # APP_ENV — the environment selector, DERIVED from the Stage parameter via
@@ -270,6 +514,47 @@ Resources:
           MYADMIN_COGNITO_JWKS_URI: !Ref MyAdminCognitoJwksUri
           MYADMIN_COGNITO_CLIENT_ID: !Ref MyAdminCognitoClientId
           MYADMIN_COGNITO_POOL_LABEL: !Ref MyAdminCognitoPoolLabel
+          # --- AI-improve adapter (R2, task 2.4) ---
+          # OPENROUTER_API_KEY: the secret, wired PER ENV from the NoEcho parameter
+          #   (never committed, never in CI — steering 43). The adapter reads it
+          #   fail-fast (`domain/ai_improve.require_env`); a blank value is impossible
+          #   because the parameter has no default + an `sk-or-v1-` AllowedPattern.
+          # MEMBERS_AI_MODEL: the configured model (steering 36). The adapter enforces
+          #   its free-model allow-list fail-closed, so this cannot select a costly model.
+          OPENROUTER_API_KEY: !Ref OpenRouterApiKey
+          MEMBERS_AI_MODEL: !Ref MembersAiModel
+          # --- SES send config (R0, task 0.5) ---
+          # SES_SENDER_EMAIL: the verified From address the send-path mails as; the IAM
+          #   SES statement above is Condition-scoped to exactly this value, so the env var
+          #   and the grant cannot disagree. Fail-fast (no default on the parameter).
+          # SES_CONFIGURATION_SET: the config set that publishes bounce/complaint events;
+          #   attached per send only when non-blank. Names mirror the Flask
+          #   `ses_email_service.py` contract so both planes read the same config.
+          SES_SENDER_EMAIL: !Ref SesSenderEmail
+          SES_CONFIGURATION_SET: !Ref SesConfigurationSet
+          # --- SQS mail-send queue (R4, task 4.2) ---
+          # MAIL_SEND_QUEUE_URL: the REAL queue URL the enqueue port
+          #   (`repository/mail_send_queue.SqsMailSendQueue`) sends to; resolved fail-fast at
+          #   runtime (`resolve_mail_send_queue_url` → require_env), so a blank value is impossible
+          #   (the queue is a stack resource, its URL is always available). The IAM
+          #   `MembersEnqueueMailSend` grant above is scoped to this same queue's ARN, so the env
+          #   var and the grant cannot disagree. The worker/consumer side (task 4.4) is NOT wired
+          #   here — only the producer env var + grant.
+          MAIL_SEND_QUEUE_URL: !Ref MailSendQueue
+          # --- EventBridge Scheduler wiring for the task-5.2 CRUD path (R5, task 5.3) ---
+          # The schedule CRUD path (task 5.2 — runs in THIS function) materializes one
+          # EventBridge schedule per `schedule#<id>` record via the Scheduler API
+          # (repository/scheduler_api). It resolves three pieces of wiring fail-fast from the env:
+          #   SCHEDULER_TARGET_FUNCTION_ARN — the ARN each schedule invokes: the dedicated
+          #     trigger function (NOT this HTTP function). `!GetAtt ...TriggerFunction.Arn`.
+          #   SCHEDULER_EXECUTION_ROLE_ARN — the role EventBridge Scheduler assumes to invoke the
+          #     trigger; the `iam:PassRole` grant above is scoped to EXACTLY this ARN, so env +
+          #     grant cannot disagree.
+          #   SCHEDULER_GROUP_NAME — the schedule-group the runtime schedules are created in; the
+          #     `scheduler:*` grant above is scoped to this group's ARN pattern.
+          SCHEDULER_TARGET_FUNCTION_ARN: !GetAtt MembersSchedulerTriggerFunction.Arn
+          SCHEDULER_EXECUTION_ROLE_ARN: !GetAtt MembersSchedulerExecutionRole.Arn
+          SCHEDULER_GROUP_NAME: !Ref SchedulerGroupName
           # NOTE: NO MEMBERS_LOCAL_TENANT_ID — the local-dev tenant fallback was removed in
           #       s5c (R6.2, C-UNWIND). Tenant context resolves SOLELY from the verified
           #       entitlement (custom:entitlements); a token with no usable tenant denies
@@ -298,6 +583,278 @@ Resources:
             RestApiId: !Ref MembersApi
             Path: /
             Method: ANY
+
+  # --- The mail-send worker Lambda: the queue CONSUMER (R4, task 4.4) --------
+  # The CONSUMER side of the R4 queued send path (design §4.2/§4.3). The `deliver` route +
+  # the R5 scheduler are the PRODUCER (they enqueue to MailSendQueue via MembersFunction's
+  # `sqs:SendMessage` grant); THIS function drains the queue and does the actual SES send so
+  # the request never blocks on it:
+  #   render (mail-merge per recipient / attach for to_fixed) → SES send → metadata-only
+  #   audit (log_analytics_output / ses_mail) → idempotent on redelivery (stable job id).
+  # The HANDLER CODE is task 4.3 (NOT this task); this task declares the function RESOURCE so
+  # the event-source mapping below has a target. The Handler points at the intended 4.3
+  # entrypoint `sam.members.worker.app.handler`, resolved from the SAME vendored MembersLayer
+  # (one layer for the module — the worker shares the repository, SES send-path, projection
+  # reader, and auth toolkit the edge uses; no second layer).
+  MailWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "members-mail-worker-${Stage}"
+      # Same empty-package-over-layer pattern as MembersFunction: the module ships in the
+      # layer, so CodeUri is the empty `function/` dir and the handler resolves from the
+      # layer's `python/sam/members/worker/app.py` (added by task 4.3).
+      CodeUri: function/
+      Handler: sam.members.worker.app.handler
+      Layers:
+        - !Ref MembersLayer
+      # Match the queue's VisibilityTimeout headroom: VisibilityTimeout (300s) on
+      # MailSendQueue must be >= this timeout so a message is not re-driven while a send is
+      # still in flight. 120s is ample for one render+SES send and well under the 300s.
+      Timeout: 120
+      # --- IAM: least-privilege, mirroring MembersFunction's exact-ARN discipline --------
+      # The worker's role is DISTINCT from the producer's: it CONSUMES the queue (Receive/
+      # Delete/GetQueueAttributes — NOT SendMessage; it never enqueues), SENDS via SES (it is
+      # the thing that actually mails), and READS the DynamoDB tables it needs to render +
+      # audit. Every Resource is an exact ARN in THIS account/region — no wildcard table, no
+      # cross-account (steering 23).
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            # --- SQS consume: Receive/Delete/GetQueueAttributes on the EXACT queue ARN -----
+            # The consumer grant (distinct from the producer's SendMessage on MembersFunction).
+            # Lambda's SQS event-source poller needs exactly these three actions to receive a
+            # batch, delete it on success, and read queue attributes. Scoped to
+            # `!GetAtt MailSendQueue.Arn` — NOT the DLQ: a message lands in the DLQ purely via
+            # the queue's RedrivePolicy (task 4.2) after maxReceiveCount failed receives, so the
+            # worker needs NO SendMessage to the DLQ (SQS redrive moves it). On a worker failure
+            # the batch is simply not deleted → it becomes visible again → retried → DLQ after N.
+            - Sid: MailWorkerConsumeQueue
+              Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource:
+                - !GetAtt MailSendQueue.Arn
+            # --- SES send: same scope + Condition as MembersFunction's MembersSendViaSes -----
+            # The worker is what actually calls SES, so the send grant lives HERE too (the
+            # producer's copy covers the compose path; both are Condition-scoped identically so
+            # neither can send as another identity). SendEmail (simple) + SendRawEmail (MIME with
+            # CSV/PDF-label attachments, design §4). NO SendBulkEmail (per-recipient fan-out is
+            # individual sends, not SES bulk templates — least privilege). Resource = the exact
+            # verified sender-identity ARN; Condition pins `ses:FromAddress` to the configured
+            # sender. SES is nonprofit-deploy (506221081911 / eu-west-1, steering 23).
+            - Sid: MailWorkerSendViaSes
+              Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource:
+                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${SesSenderEmail}"
+              Condition:
+                StringEquals:
+                  "ses:FromAddress": !Ref SesSenderEmail
+            # --- DynamoDB read: the projection + the members table, exact ARNs --------------
+            # The worker re-reads to render + audit: the governance projection (config#mail gate,
+            # sender resolution) and the members table (member rows for per-recipient merge, and
+            # the metadata-only audit writes `log_analytics_output` / `ses_mail`). Grant Query/
+            # GetItem/BatchGetItem on BOTH (+ the members index), plus the audit WRITE actions on
+            # the members table ONLY (the projection stays READ-ONLY — one-way projection, ADR
+            # 0005, enforced by the stack-contract test). Resource ARNs are `!Sub`-on-table-name
+            # (same as MembersFunction) so TEST (`test_*`) can never touch PROD tables.
+            - Sid: MailWorkerReadGovernanceProjection
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
+            - Sid: MailWorkerMembersTable
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+                - dynamodb:BatchGetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}"
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
+      Environment:
+        Variables:
+          # Same fail-fast env wiring as MembersFunction (no dangerous defaults) — APP_ENV is
+          # DERIVED from Stage so the worker can never drift from the edge within a stack.
+          APP_ENV: !FindInMap [StageToAppEnv, !Ref Stage, AppEnv]
+          MEMBERS_TABLE: !Ref MembersTableName
+          GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
+          # Local-only DynamoDB endpoint override (empty in prod; the client only overrides
+          # when non-blank). Declared so `sam local`/tests can inject it, same as the edge.
+          AWS_ENDPOINT_URL_DYNAMODB: !Ref DynamoDbEndpointUrl
+          # SES send config — the worker is the SES caller, so it needs the sender + config set.
+          # SES_SENDER_EMAIL matches the Condition the SES IAM statement above is scoped to, so
+          # env var and grant cannot disagree. SES_CONFIGURATION_SET is attached per send only
+          # when non-blank (same contract as the Flask `ses_email_service.py`).
+          SES_SENDER_EMAIL: !Ref SesSenderEmail
+          SES_CONFIGURATION_SET: !Ref SesConfigurationSet
+          # NOTE: no MAIL_SEND_QUEUE_URL here — the worker CONSUMES via the event-source
+          #       mapping below (SQS pushes to it), it does not enqueue.
+          # NOTE: AWS_REGION is Lambda-reserved (auto-populated from the deploy region); the
+          #       fail-fast require_env("AWS_REGION") in dynamodb_client.py is satisfied without
+          #       (and cannot carry) an explicit declaration — same as MembersFunction.
+      Events:
+        # --- Event-source mapping: drain MailSendQueue, BOUNDED concurrency ---------------
+        # Wires the worker to consume MailSendQueue (design §4.2 "SQS event source, bounded
+        # concurrency"). SAM turns this into an AWS::Lambda::EventSourceMapping targeting the
+        # worker.
+        #   * BatchSize 1 — one job per invocation. The design fans per_recipient out to one
+        #     job PER member, so a 1-message batch keeps the idempotency/dedupe (stable job id)
+        #     and the per-send SES-throttle handling simple: a failed send fails exactly its own
+        #     message (no partial-batch bookkeeping), and that single message retries → DLQ.
+        #   * ScalingConfig.MaximumConcurrency — the BOUNDED drain: SQS drives at most
+        #     `MailWorkerMaxConcurrency` (default 10) concurrent invocations, holding the drain
+        #     rate under the granted SES send rate (14/s, design §6.4) so per-recipient fan-out
+        #     cannot trip the SES throttle. Re-tunable per env without code (design §12).
+        MailSendQueueSource:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt MailSendQueue.Arn
+            BatchSize: 1
+            ScalingConfig:
+              MaximumConcurrency: !Ref MailWorkerMaxConcurrency
+
+  # ===========================================================================
+  # EventBridge Scheduler plumbing (R5, pivot-output-actions task 5.3) ---------
+  # ===========================================================================
+  # The scheduled send path (R5, design §4.3/§5): a saved set + delivery runs on a schedule,
+  # REUSING the R4 execute-and-deliver path so there is ONE send path for interactive +
+  # scheduled. Schedules are DYNAMIC — one EventBridge Scheduler schedule per stored
+  # `schedule#<id>` record, created at RUNTIME by the task-5.2 CRUD path via the Scheduler API
+  # (repository/scheduler_api.EventBridgeSchedulerApi). They CANNOT be declared statically here
+  # (tenant/user data, an unknown growing set), so this template declares only the FIXED
+  # plumbing those runtime schedules need:
+  #   * MembersScheduleGroup — the per-env schedule GROUP the runtime schedules are created in.
+  #   * MembersSchedulerTriggerFunction — the dedicated trigger entrypoint EventBridge invokes
+  #     when a schedule fires (a DISTINCT event shape from the API-GW proxy event — a dedicated
+  #     Lambda keeps each entrypoint thin, steering 35).
+  #   * MembersSchedulerExecutionRole — the role EventBridge Scheduler assumes to invoke that
+  #     trigger (scheduler-to-Lambda invoke permission, exact-ARN).
+  #   * the MembersFunction `scheduler:*` + `iam:PassRole` grant (added to its policy above) so
+  #     the task-5.2 CRUD path (which runs IN MembersFunction) can create/update/delete the
+  #     runtime schedules in the group and pass the execution role.
+  # EventBridge Scheduler is a nonprofit-deploy service (506221081911 / eu-west-1, steering 23).
+
+  # --- The schedule-group the runtime per-schedule schedules live in (R5) ----
+  # A named bucket so (a) a tenant's runtime schedules are grouped per env and (b) the Members
+  # function's `scheduler:*` grant scopes to exactly this group's ARN (schedules created inside
+  # it), never account-wide. The group itself is static infra; the schedules inside it are
+  # created at runtime by task 5.2.
+  MembersScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: !Ref SchedulerGroupName
+
+  # --- The scheduler-trigger Lambda: the firing ENTRYPOINT (R5, task 5.3) ----
+  # EventBridge Scheduler invokes THIS function (not the HTTP MembersFunction) when a schedule
+  # fires, with the static JSON payload `{source: members.schedule, tenant_id, schedule_id}`
+  # (repository/scheduler_api.build_schedule_target_input). The handler resolves the record,
+  # confirms it is enabled, audits the UNATTENDED run, and reuses the SAME execute-and-deliver
+  # service the `deliver` route uses — enqueuing to the SAME MailSendQueue. A DEDICATED
+  # entrypoint (distinct from the HTTP handler) keeps both thin (steering 35); it ships in the
+  # SAME vendored MembersLayer (one layer for the module — it shares the repository, the
+  # execute-and-deliver service, and the audit sink). As the PRODUCER of send jobs it needs the
+  # SAME `sqs:SendMessage` + DynamoDB (read set/rows, read schedule record) grants the HTTP edge
+  # has; it does NOT send via SES (the worker does) and does NOT manage schedules (task 5.2 in
+  # the HTTP edge does), so NO ses:* / scheduler:* here — least privilege.
+  MembersSchedulerTriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "members-scheduler-trigger-${Stage}"
+      # Same empty-package-over-layer pattern as MembersFunction / MailWorkerFunction: the module
+      # ships in the layer, so CodeUri is the empty `function/` dir and the handler resolves from
+      # the layer's `python/sam/members/handler/scheduler_app.py`.
+      CodeUri: function/
+      Handler: sam.members.handler.scheduler_app.handler
+      Layers:
+        - !Ref MembersLayer
+      # The trigger resolves the schedule, re-fetches the tenant's rows, runs the pivot, and
+      # ENQUEUES send jobs — the SAME work the `deliver` route does, so it needs the SAME
+      # producer-side grants: DynamoDB read on the members table (schedule record + member rows)
+      # and SQS send on the exact queue. Every Resource is an exact ARN in THIS account/region
+      # (steering 23) — no wildcard table, no cross-account.
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            # DynamoDB read: the members table (the schedule#<id> record + the member rows for
+            # the re-fetch) + its index. No projection read needed (the run is tenant-wide — the
+            # create-time gate owns scope, R5 — so no scope-grant lookup at fire time). !Sub on
+            # the table-name param (same env-isolation guarantee as the edge/worker).
+            - Sid: SchedulerTriggerReadMembersTable
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+                - dynamodb:BatchGetItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}"
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
+            # SQS send: enqueue to the EXACT MailSendQueue ARN (the PRODUCER grant, same as the
+            # HTTP edge's MembersEnqueueMailSend — the scheduled run and the interactive deliver
+            # share one queue, R4/R5). SendMessage only (never Receive/Delete — that is the
+            # worker); not the DLQ.
+            - Sid: SchedulerTriggerEnqueueMailSend
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt MailSendQueue.Arn
+      Environment:
+        Variables:
+          # Same fail-fast env wiring as the edge/worker — APP_ENV derived from Stage (no drift).
+          APP_ENV: !FindInMap [StageToAppEnv, !Ref Stage, AppEnv]
+          MEMBERS_TABLE: !Ref MembersTableName
+          GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
+          AWS_ENDPOINT_URL_DYNAMODB: !Ref DynamoDbEndpointUrl
+          # The trigger enqueues to the SAME queue as the deliver route (R4/R5) — it needs the
+          # queue URL for the producer path (resolve_mail_send_queue_url → require_env). The
+          # `sqs:SendMessage` grant above is scoped to this same queue's ARN, so env + grant
+          # cannot disagree.
+          MAIL_SEND_QUEUE_URL: !Ref MailSendQueue
+          # NOTE: no SES / scheduler env here — the trigger neither sends via SES (the worker
+          #       does) nor manages schedules (the HTTP edge's task-5.2 path does).
+
+  # --- The role EventBridge Scheduler assumes to invoke the trigger (R5) -----
+  # EventBridge Scheduler needs a role it can assume (`scheduler.amazonaws.com`) to invoke the
+  # target. Scoped exactly: the trust policy allows ONLY the scheduler service principal (with a
+  # SourceAccount condition so only THIS account's scheduler can assume it — the AWS-recommended
+  # confused-deputy guard), and the single inline permission is `lambda:InvokeFunction` on EXACTLY
+  # the trigger function ARN (no wildcard). The MembersFunction's `iam:PassRole` grant below is
+  # scoped to exactly THIS role's ARN, so the task-5.2 CRUD path can only ever pass this one role
+  # when it creates a schedule.
+  MembersSchedulerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "members-scheduler-exec-${Stage}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      Policies:
+        - PolicyName: InvokeSchedulerTrigger
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: InvokeMembersSchedulerTrigger
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt MembersSchedulerTriggerFunction.Arn
 
   # --- The API Gateway --------------------------------------------------------
   # ANY /{proxy+} + ANY /. The API declares a Cognito authorizer as its
@@ -339,6 +896,12 @@ Outputs:
     Description: ARN of the Members Lambda.
     Value: !GetAtt MembersFunction.Arn
 
+  MailWorkerFunctionArn:
+    Description: >-
+      ARN of the mail-send worker Lambda (R4) — the queue CONSUMER wired to MailSendQueue via
+      the event-source mapping, draining at bounded concurrency under the SES rate.
+    Value: !GetAtt MailWorkerFunction.Arn
+
   MembersLayerArn:
     Description: ARN of the Members runtime layer.
     Value: !Ref MembersLayer
@@ -348,3 +911,36 @@ Outputs:
       Base URL of the Members API (feeds the SPA's MEMBERS_API_BASE_URL). Locally
       `sam local start-api` serves on http://127.0.0.1:3000 regardless of this output.
     Value: !Sub "https://${MembersApi}.execute-api.${Region}.amazonaws.com/${Stage}"
+
+  MailSendQueueUrl:
+    Description: >-
+      URL of the SQS mail-send queue (R4) — the value wired into the Members function as
+      MAIL_SEND_QUEUE_URL. The worker/event-source mapping (task 4.4) consumes this same queue.
+    Value: !Ref MailSendQueue
+
+  MailSendQueueArn:
+    Description: ARN of the SQS mail-send queue (R4) — the IAM send grant is scoped to exactly this.
+    Value: !GetAtt MailSendQueue.Arn
+
+  MailSendDeadLetterQueueArn:
+    Description: ARN of the SQS mail-send DLQ (R4) — redrive target after maxReceiveCount receives.
+    Value: !GetAtt MailSendDeadLetterQueue.Arn
+
+  MembersSchedulerTriggerFunctionArn:
+    Description: >-
+      ARN of the scheduler-trigger Lambda (R5) — the firing entrypoint EventBridge Scheduler
+      invokes per schedule; wired into the Members function as SCHEDULER_TARGET_FUNCTION_ARN.
+    Value: !GetAtt MembersSchedulerTriggerFunction.Arn
+
+  MembersSchedulerExecutionRoleArn:
+    Description: >-
+      ARN of the role EventBridge Scheduler assumes to invoke the trigger (R5) — the Members
+      function's iam:PassRole grant is scoped to exactly this, and it is wired in as
+      SCHEDULER_EXECUTION_ROLE_ARN.
+    Value: !GetAtt MembersSchedulerExecutionRole.Arn
+
+  MembersScheduleGroupName:
+    Description: >-
+      Name of the EventBridge Scheduler schedule-group the runtime per-schedule schedules (R5)
+      are created in — the Members function's scheduler:* grant is scoped to this group's ARN.
+    Value: !Ref MembersScheduleGroup

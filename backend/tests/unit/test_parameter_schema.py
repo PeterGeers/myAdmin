@@ -204,16 +204,25 @@ class TestMembersNamespaceGating:
         assert 'members' not in get_schema_for_tenant([])
         assert 'members' not in get_schema_for_tenant(['STR', 'ZZP', 'FIN'])
 
-    def test_members_namespace_declares_three_json_params(self):
-        """`members` declares field_overlay, scope_dimensions, view_contexts as json."""
+    def test_members_namespace_declares_expected_params(self):
+        """`members` declares the three json config params + the mail-enabled gate.
+
+        field_overlay / scope_dimensions / view_contexts are json; mail_enabled is the
+        boolean per-tenant "mail-enabled / SES-certified" gate (pivot-output-actions R0,
+        projected as config#mail) that fails closed to False.
+        """
         result = get_schema_for_tenant(['MEMBERS'])
         params = result['members']['params']
 
         assert set(params.keys()) == {
-            'field_overlay', 'scope_dimensions', 'view_contexts'
+            'field_overlay', 'scope_dimensions', 'view_contexts', 'mail_enabled'
         }
-        for key, param_def in params.items():
-            assert param_def['type'] == 'json', f"{key} must be a json param"
+        for key in ('field_overlay', 'scope_dimensions', 'view_contexts'):
+            assert params[key]['type'] == 'json', f"{key} must be a json param"
+
+        mail = params['mail_enabled']
+        assert mail['type'] == 'boolean'
+        assert mail['default'] is False  # fail-closed: the gate opens only on explicit True
 
     def test_members_namespace_gated_by_members_module(self):
         """The namespace's module gate is exactly 'MEMBERS'."""

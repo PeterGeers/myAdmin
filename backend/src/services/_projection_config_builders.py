@@ -65,6 +65,16 @@ _FIELD_OVERLAY_PARAM_KEY = "field_overlay"
 #: READS whatever value exists (Property 1, one-directional).
 _VIEW_CONTEXTS_PARAM_KEY = "view_contexts"
 
+#: The single tenant-scope parameter key that holds the per-tenant "mail-enabled /
+#: SES-certified" onboarding gate flag as a boolean (pivot-output-actions R0,
+#: task 0.4). Authored by the tenant-admin module (``members.mail_enabled``, same
+#: ``/api/tenant-admin/parameters`` surface as ``scope_dimensions`` etc.); read
+#: here and shaped into the ``config#mail`` row's ``mail_enabled`` attribute — the
+#: shape the SAM-plane projection reader (``projection_config_reader.is_mail_enabled``)
+#: consumes. This builder only READS whatever value exists (Property 1,
+#: one-directional).
+_MAIL_ENABLED_PARAM_KEY = "mail_enabled"
+
 #: The fields a single projected dimension entry carries — the exact shape
 #: ``ScopeDimension`` consumes (design.md "New governance projection rows",
 #: ``config#scope``). Each is mapped from the authored parameter dict with a
@@ -516,11 +526,85 @@ def build_config_views_row(
     )
 
 
+# --- R0 config#mail builder (pivot-output-actions R0, design §6.3, task 0.4) --
+
+
+def build_config_mail_row(
+    tenant: Mapping[str, Any],
+    parameter_service: Any,
+) -> ProjectionItem | None:
+    """Build the tenant-level ``config#mail`` projection item (R0, design §6.3).
+
+    Reads the tenant's per-tenant "mail-enabled / SES-certified" onboarding gate
+    flag from the tenant-scope parameter system (``ParameterService.get_param`` on
+    the ``members`` namespace, key ``mail_enabled``) and shapes it into the
+    ``config#mail`` row's single ``mail_enabled`` boolean attribute — the shape the
+    SAM-plane projection reader (``MembersProjectionReader.is_mail_enabled``)
+    consumes. The Members edge reads this projected row at request time to decide
+    whether to offer the mail output actions (R1–R5); it NEVER queries MySQL
+    (ADR 0005/0006).
+
+    One-directional discipline (Property 1): this builder issues **zero** MySQL
+    writes and does **not** write the projection itself — it only READS via
+    ``ParameterService`` (which resolves the tenant-scope row read-only) and
+    RETURNS the item for :class:`ProjectionSync` (the sole writer), mirroring the
+    sibling ``config#scope`` / ``config#fields`` / ``config#views`` builders.
+
+    Fail-closed default (R0): a tenant that has authored no ``members.mail_enabled``
+    parameter — or a malformed (non-boolean) value — yields a row with
+    ``mail_enabled`` = ``False``. A tenant is cleared to send only by an explicit,
+    well-formed ``True`` flag; the absence of the gate NEVER opens it. Returning the
+    row (rather than ``None``) keeps the projection self-describing — a present-but-
+    disabled gate is distinct from "not yet projected".
+
+    Args:
+        tenant: The tenant row. Must carry ``administration`` (or ``tenant_id``)
+            — the partition key / tenancy boundary (R5.4).
+        parameter_service: A ``ParameterService`` (or anything exposing
+            ``get_param(namespace, key, tenant=...)``). Read-only.
+
+    Returns:
+        The ``config#mail`` :class:`ProjectionItem` for this tenant. ``None`` is
+        never returned for a present tenant — an un-configured tenant still gets a
+        well-formed ``mail_enabled`` = ``False`` row (fail-closed).
+
+    Raises:
+        ValueError: The tenant is missing its ``administration``/``tenant_id`` key.
+    """
+    tenant_id = tenant.get("administration") or tenant.get(schema.PARTITION_KEY_ATTR)
+    if not tenant_id:
+        raise ValueError(
+            "tenant is missing its 'administration'/'tenant_id' key — a blank "
+            "partition key is a cross-tenant hazard (R5.4)"
+        )
+
+    raw_flag = parameter_service.get_param(
+        _MEMBERS_PARAM_NAMESPACE,
+        _MAIL_ENABLED_PARAM_KEY,
+        tenant=tenant_id,
+    )
+
+    # Fail-closed: only an explicit boolean ``True`` enables the gate. Any other
+    # value — absent (None), a stray string, a number — collapses to False, so a
+    # malformed/absent gate can never silently permit sending.
+    mail_enabled = raw_flag is True
+
+    return ProjectionItem(
+        tenant_id=tenant_id,
+        sort_key=schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL
+        ),
+        version=_scope_config_version(tenant),
+        attributes={"mail_enabled": mail_enabled},
+    )
+
+
 __all__ = [
     "_DIMENSION_DEFAULTS",
     "_FIELD_OVERLAY_PARAM_KEY",
     "_FIXED_OVERRIDE_FIELDS",
     "_FUNCTIONAL_GROUP_FIELDS",
+    "_MAIL_ENABLED_PARAM_KEY",
     "_MEMBERS_PARAM_NAMESPACE",
     "_OVERLAY_FIELD_DEFAULTS",
     "_SCOPE_DIMENSIONS_PARAM_KEY",
@@ -534,6 +618,7 @@ __all__ = [
     "_map_view_context",
     "_scope_config_version",
     "build_config_fields_row",
+    "build_config_mail_row",
     "build_config_scope_row",
     "build_config_views_row",
 ]

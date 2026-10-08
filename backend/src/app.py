@@ -53,6 +53,7 @@ from routes.landing_page_routes import landing_page_bp
 from routes.media_asset_routes import media_asset_bp
 from routes.members_analytics_audit import members_analytics_audit_bp
 from routes.members_mail import members_mail_bp
+from routes.members_sender_identity_routes import members_sender_identity_bp
 from routes.missing_invoices_routes import missing_invoices_bp
 from routes.parameter_admin_routes import parameter_admin_bp
 from routes.pdf_validation_routes import pdf_validation_bp
@@ -174,6 +175,9 @@ app.register_blueprint(tenant_admin_template_ai_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
 app.register_blueprint(members_mail_bp)  # Member analytics SES mail (members:export)
+app.register_blueprint(
+    members_sender_identity_bp
+)  # Members tenant sender identity verify/activate (members:admin, R0 §6.2)
 app.register_blueprint(
     members_analytics_audit_bp
 )  # Member analytics client-side export/PDF audit (members:export)

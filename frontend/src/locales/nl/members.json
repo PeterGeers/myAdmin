@@ -169,7 +169,67 @@
       "mail": "E-mailen",
       "empty": "Geen gegevens om te exporteren"
     },
+    "delivery": {
+      "action": "Bezorging",
+      "title": "Bezorging voor \"{{name}}\"",
+      "intro": "Onthoud wat er met het resultaat van deze set moet gebeuren, zodat uitvoeren of inplannen de verzending herhaalt zonder alles opnieuw in te voeren.",
+      "mode": "Modus",
+      "modes": {
+        "per_recipient": "Elk lid afzonderlijk e-mailen",
+        "to_fixed": "Naar een vaste adreslijst sturen"
+      },
+      "modeHint": {
+        "per_recipient": "Voegt een opgeslagen sjabloon samen en e-mailt elk lid in het resultaat. Adressen komen uit de gegevens en worden niet opgeslagen.",
+        "to_fixed": "Stuurt het resultaat als bijlage naar de adressen die je hieronder invoert (bijv. een verwerkingsbureau)."
+      },
+      "template": "Sjabloon",
+      "templatePlaceholder": "Geen sjabloon (gewoon bericht)",
+      "recipients": "Ontvangers",
+      "recipientsPlaceholder": "bureau@voorbeeld.nl, kantoor@voorbeeld.nl",
+      "recipientsInvalid": "Ongeldig e-mailadres(sen): {{addresses}}",
+      "recipientsRequired": "Voer minstens één ontvangeradres in",
+      "attachment": "Bijlage",
+      "attachments": {
+        "none": "Geen bijlage",
+        "csv": "CSV van het resultaat",
+        "pdf_labels": "PDF-adreslabels"
+      },
+      "labelOptions": "Labelopties",
+      "save": "Bezorging opslaan",
+      "clear": "Bezorging wissen",
+      "cancel": "Annuleren",
+      "saved": "Bezorging opgeslagen",
+      "cleared": "Bezorging gewist",
+      "saveError": "Opslaan van de bezorging mislukt",
+      "clearError": "Wissen van de bezorging mislukt"
+    },
+    "schedule": {
+      "action": "Inplannen",
+      "needsDelivery": "Stel eerst een bezorging in voor deze set; een planning herhaalt de opgeslagen bezorging.",
+      "title": "Planning voor \"{{name}}\"",
+      "intro": "Voer deze set en de bezorging automatisch uit met een terugkerende frequentie. Elke uitvoering gebruikt de opgeslagen bezorging opnieuw.",
+      "noDelivery": "Deze set heeft nog geen bezorging. Een planning kan alleen worden gekoppeld aan een set met een bezorgingsblok.",
+      "cadence": "Frequentie",
+      "cadences": {
+        "monthly": "Maandelijks",
+        "weekly": "Wekelijks"
+      },
+      "cadenceHint": {
+        "monthly": "Wordt uitgevoerd op de 1e van elke maand.",
+        "weekly": "Wordt elke maandag uitgevoerd."
+      },
+      "enabled": "Planning ingeschakeld",
+      "save": "Planning opslaan",
+      "delete": "Planning verwijderen",
+      "cancel": "Annuleren",
+      "saved": "Planning opgeslagen",
+      "deleted": "Planning verwijderd",
+      "saveError": "Opslaan van de planning mislukt",
+      "deleteError": "Verwijderen van de planning mislukt"
+    },
     "labels": {
+      "action": "Adreslabels genereren",
+      "modalTitle": "Adreslabels genereren",
       "format": "Labelformaat",
       "sortOrder": "Sorteervolgorde",
       "sort": {
@@ -199,6 +259,9 @@
       "bodyTemplate": "Beste lid,\n\n\n\nMet vriendelijke groet,\nHet bestuur",
       "attachCsv": "CSV bijvoegen",
       "attachPdf": "PDF-labels bijvoegen",
+      "externalRecipients": "Externe ontvangers",
+      "externalRecipientsPlaceholder": "agent@voorbeeld.nl, kantoor@voorbeeld.org",
+      "externalRecipientsInvalid": "Ongeldig e-mailadres(sen): {{addresses}}",
       "recipientCount": "{{count}} ontvangers",
       "recipientCountZero": "Geen ontvangers met een herleidbaar e-mailadres",
       "confirm": "U staat op het punt {{count}} ontvangers te e-mailen (als BCC). Doorgaan?",
@@ -209,6 +272,45 @@
         "success": "E-mail verstuurd",
         "error": "Versturen van e-mail mislukt",
         "rateLimited": "Verzendlimiet bereikt. Probeer het later opnieuw."
+      },
+      "templates": {
+        "pickerLabel": "Sjabloon",
+        "pickerPlaceholder": "Kies een opgeslagen sjabloon…",
+        "pickerHint": "Een sjabloon vult het onderwerp en bericht in; u kunt deze daarna nog aanpassen.",
+        "manage": "Sjablonen beheren",
+        "loadError": "Laden van het sjabloon mislukt",
+        "title": "E-mailsjablonen",
+        "listTitle": "Opgeslagen sjablonen",
+        "new": "Nieuw sjabloon",
+        "newTitle": "Nieuw sjabloon",
+        "editTitle": "Sjabloon bewerken",
+        "loading": "Sjablonen laden…",
+        "empty": "Nog geen opgeslagen sjablonen",
+        "edit": "Bewerken",
+        "delete": "Verwijderen",
+        "name": "Naam",
+        "subject": "Onderwerp",
+        "body": "Berichttekst",
+        "upload": "Bestand uploaden",
+        "mergeHint": "Gebruik {{merge_field}}-plaatshouders (bijv. {{first_name}}); deze worden per ontvanger ingevuld bij het verzenden.",
+        "lang": {
+          "nl": "Nederlands",
+          "en": "Engels"
+        },
+        "improveLabel": "Verbeteren met AI",
+        "improvePlaceholder": "bijv. maak het warmer en korter",
+        "improve": "Verbeteren",
+        "improveSaveFirst": "Sla het sjabloon eerst op om het met AI te verbeteren.",
+        "close": "Sluiten",
+        "save": "Opslaan",
+        "saved": "Sjabloon opgeslagen",
+        "saveError": "Opslaan van het sjabloon mislukt",
+        "deleted": "Sjabloon verwijderd",
+        "deleteError": "Verwijderen van het sjabloon mislukt",
+        "uploaded": "Bestand in de berichttekst geladen",
+        "uploadError": "Lezen van het bestand mislukt",
+        "improved": "Sjabloon verbeterd",
+        "improveError": "Kon het sjabloon niet verbeteren; uw tekst is behouden"
       }
     },
     "states": {
@@ -221,7 +323,8 @@
       "noConfig": "Geen analyseconfiguratie ingesteld; configuratie-afhankelijke sets zijn niet beschikbaar",
       "roleUnmapped": "Deze set is niet beschikbaar: het veld is niet geconfigureerd voor deze organisatie",
       "fieldAbsent": "Deze set is niet beschikbaar: het benodigde veld ontbreekt",
-      "addressMappingAbsent": "Adreslabels zijn niet beschikbaar: adresvelden zijn niet geconfigureerd"
+      "addressMappingAbsent": "Adreslabels zijn niet beschikbaar: adresvelden zijn niet geconfigureerd",
+      "mailNotEnabled": "E-mailen is niet beschikbaar: e-mail is nog niet geactiveerd voor deze organisatie"
     },
     "overLimit": {
       "warning": "De gegevensset nadert de maximale grootte; resultaten kunnen onvolledig zijn",

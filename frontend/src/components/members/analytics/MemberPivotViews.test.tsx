@@ -41,6 +41,14 @@ const updateAnalyticsSet = vi.fn();
 const deleteAnalyticsSet = vi.fn();
 const getPreferredList = vi.fn();
 const savePreferredList = vi.fn();
+// Delivery + schedule route wrappers (R3 / R5). The Delivery/Schedule lifecycle
+// actions call these from their handlers; stubbed so no network is hit.
+const putAnalyticsSetDelivery = vi.fn();
+const deleteAnalyticsSetDelivery = vi.fn();
+const listSchedulesForSet = vi.fn();
+const createSchedule = vi.fn();
+const updateSchedule = vi.fn();
+const deleteSchedule = vi.fn();
 vi.mock('../../../services/membersApiService', () => ({
   listAnalyticsSets: (...args: unknown[]) => listAnalyticsSets(...args),
   getAnalyticsSet: (...args: unknown[]) => getAnalyticsSet(...args),
@@ -49,6 +57,16 @@ vi.mock('../../../services/membersApiService', () => ({
   deleteAnalyticsSet: (...args: unknown[]) => deleteAnalyticsSet(...args),
   getPreferredList: (...args: unknown[]) => getPreferredList(...args),
   savePreferredList: (...args: unknown[]) => savePreferredList(...args),
+  putAnalyticsSetDelivery: (...args: unknown[]) => putAnalyticsSetDelivery(...args),
+  deleteAnalyticsSetDelivery: (...args: unknown[]) => deleteAnalyticsSetDelivery(...args),
+  listSchedulesForSet: (...args: unknown[]) => listSchedulesForSet(...args),
+  createSchedule: (...args: unknown[]) => createSchedule(...args),
+  updateSchedule: (...args: unknown[]) => updateSchedule(...args),
+  deleteSchedule: (...args: unknown[]) => deleteSchedule(...args),
+  // Constants the real MemberScheduleEditor imports (cadence picker + cron map).
+  SCHEDULE_CADENCES: ['monthly', 'weekly'],
+  cronToCadence: (cron: string) =>
+    cron === 'cron(0 8 ? * MON *)' ? 'weekly' : 'monthly',
 }));
 
 // --- Mock the reused PivotResultTable with a lightweight recorder. ------------
@@ -118,6 +136,39 @@ vi.mock('../../../services/memberAnalyticsAuditService', () => ({
   recordAnalyticsOutput: (...args: unknown[]) => recordAnalyticsOutput(...args),
 }));
 
+// --- Mock the reused AddressLabelGenerator (task 6.1 / R6) so the "Generate
+// address labels" action in the result-actions slot can be asserted without
+// driving the real jsPDF options UI. The mock records the props it receives
+// (rows / fieldConfig / canExport / setKey) so a test proves the slot passes the
+// CURRENT result rows + the caller's export capability straight through to the
+// generator, which itself reuses addressLabelService.generateAddressLabelPdf. --
+const addressLabelGeneratorCalls: Array<{
+  rows: unknown[];
+  canExport: boolean;
+  setKey?: string;
+}> = [];
+vi.mock('./AddressLabelGenerator', () => ({
+  default: function MockAddressLabelGenerator(props: {
+    rows: unknown[];
+    canExport: boolean;
+    setKey?: string;
+  }) {
+    addressLabelGeneratorCalls.push({
+      rows: props.rows,
+      canExport: props.canExport,
+      setKey: props.setKey,
+    });
+    return (
+      <div
+        data-testid="mock-address-label-generator"
+        data-row-count={props.rows.length}
+        data-can-export={String(props.canExport)}
+        data-set-key={props.setKey ?? ''}
+      />
+    );
+  },
+}));
+
 // Echo i18n keys so assertions are locale-independent (no hardcoded English).
 vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({ t: (key: string) => key }),
@@ -127,7 +178,7 @@ import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import MemberPivotViews from './MemberPivotViews';
 import { MemberPivotViews as FromBarrel } from './index';
 import type { FieldConfig } from '../../../types/members';
-import type { MemberAnalyticsAreaProps } from './areas/types';
+import type { MemberAnalyticsAreaProps, MemberAnalyticsCapabilities } from './areas/types';
 
 /**
  * A field config that exposes the fixed/calculated keys the always-available
@@ -143,6 +194,11 @@ const fieldConfig = {
     { key: 'joined_date', origin: 'fixed', label: { en: 'Joined' } },
     { key: 'country', origin: 'fixed', label: { en: 'Country' } },
   ],
+  // Mail-enabled by default (pivot-output-actions R0/R1 task 1.3) so the existing
+  // Mail / compose tests exercise the capability (canExport) gate, not the mail
+  // gate; the mail-enabled gate's hidden-when-not-enabled paths are covered in
+  // their own describe block below (mail_enabled false / absent).
+  mail_enabled: true,
 } as unknown as FieldConfig;
 
 const processedData = [
@@ -213,6 +269,17 @@ beforeEach(() => {
   generateCsvFromObjects.mockReturnValue('col\nval');
   recordAnalyticsOutput.mockReset();
   recordAnalyticsOutput.mockResolvedValue(true);
+  addressLabelGeneratorCalls.length = 0;
+  putAnalyticsSetDelivery.mockReset();
+  deleteAnalyticsSetDelivery.mockReset();
+  listSchedulesForSet.mockReset();
+  createSchedule.mockReset();
+  updateSchedule.mockReset();
+  deleteSchedule.mockReset();
+  listSchedulesForSet.mockResolvedValue([]);
+  createSchedule.mockResolvedValue(undefined);
+  updateSchedule.mockResolvedValue(undefined);
+  deleteSchedule.mockResolvedValue(undefined);
 });
 
 describe('MemberPivotViews', () => {
@@ -1235,6 +1302,317 @@ describe('MemberPivotViews', () => {
       fireEvent.click(screen.getByTestId('member-pivot-mail'));
       expect(await screen.findByTestId('member-mail-compose')).toBeInTheDocument();
     });
+
+    // --- Task 1.3 (pivot-output-actions R0/R1): the mail-enabled gate. --------
+    // The Mail output action (compose / send path) is OFFERED only when the
+    // tenant is mail-enabled — the R0 `config#mail` flag surfaced on the field
+    // config as `mail_enabled`. When NOT enabled the action is HIDDEN and the
+    // shared degradation reason explains why. Fail-closed: an ABSENT flag means
+    // not enabled. These tests exercise an export-capable caller (so the slot
+    // renders) and vary ONLY `fieldConfig.mail_enabled` to isolate the gate.
+    describe('mail-enabled gate (task 1.3, R0/R1)', () => {
+      const mailProps = (mail_enabled?: boolean) =>
+        makeProps({
+          capabilities: { canExport: true },
+          fieldConfig: { ...fieldConfig, mail_enabled } as unknown as FieldConfig,
+        });
+
+      it('HIDES the Mail action and shows the degradation reason when NOT mail-enabled', async () => {
+        render(<MemberPivotViews {...mailProps(false)} />);
+        await executeAggregate();
+
+        // The Mail button is gone; the shared degradation notice is shown in its
+        // place (the surrounding export slot still renders — CSV stays available).
+        expect(screen.queryByTestId('member-pivot-mail')).not.toBeInTheDocument();
+        const notice = screen.getByTestId('member-pivot-mail-unavailable');
+        expect(notice).toBeInTheDocument();
+        expect(notice).toHaveTextContent('analytics.degradation.mailNotEnabled');
+        // CSV is unaffected (the gate is a tenant gate, not a capability gate).
+        expect(screen.getByTestId('member-pivot-export-csv')).toBeInTheDocument();
+      });
+
+      it('HIDES the Mail action when the mail-enabled flag is ABSENT (fail-closed)', async () => {
+        render(<MemberPivotViews {...mailProps(undefined)} />);
+        await executeAggregate();
+
+        expect(screen.queryByTestId('member-pivot-mail')).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId('member-pivot-mail-unavailable'),
+        ).toBeInTheDocument();
+      });
+
+      it('OFFERS the Mail action (and no degradation notice) when mail-enabled', async () => {
+        render(<MemberPivotViews {...mailProps(true)} />);
+        await executeAggregate();
+
+        expect(screen.getByTestId('member-pivot-mail')).toBeInTheDocument();
+        expect(
+          screen.queryByTestId('member-pivot-mail-unavailable'),
+        ).not.toBeInTheDocument();
+      });
+
+      it('does NOT open the compose modal when NOT mail-enabled (the action is hidden)', async () => {
+        render(<MemberPivotViews {...mailProps(false)} />);
+        await executeAggregate();
+
+        // No Mail button to click, and the modal is never mounted.
+        expect(screen.queryByTestId('member-pivot-mail')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('member-mail-compose')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // --- Task 6.1: the "Generate address labels" action in the slot (R6). ------
+  describe('Generate address labels button (task 6.1, R6)', () => {
+    // A field config whose `analytics.address_mapping` resolves at least one slot
+    // (the `name` slot → the present `membership_type` field) so
+    // `resolveAddressMapping` returns a non-empty mapping. The task 6.2
+    // availability gate offers the labels action only when a mapping resolves AND
+    // the caller holds members:export; these task 6.1 tests assert the mounted
+    // action, so they run with a resolvable mapping. (The gate's hidden paths —
+    // no mapping / no export — are covered in the task 6.2 describe below.)
+    const fieldConfigWithMapping = {
+      ...fieldConfig,
+      analytics: { address_mapping: { name: 'membership_type' } },
+    } as unknown as FieldConfig;
+
+    /**
+     * Props for the labels-action tests: a resolvable address mapping so the
+     * action is OFFERED, plus whatever capability override the test needs.
+     */
+    const labelsProps = (capabilities: MemberAnalyticsCapabilities) =>
+      makeProps({ capabilities, fieldConfig: fieldConfigWithMapping });
+
+    // Seed membership-types as preferred so the aggregate path can select it
+    // from the dropdown (new contract: dropdown = preferred + selector presets).
+    beforeEach(() => {
+      getPreferredList.mockResolvedValue({
+        sub: 'u1',
+        refs: ['preset:membership-types'],
+        updated_at: '',
+      });
+    });
+
+    /** Select the membership-types preset and Execute → a result renders. */
+    async function executeAggregate() {
+      await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+      await waitFor(() => {
+        const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+        const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+        expect(values).toContain('preset:membership-types');
+      });
+      fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+        target: { value: 'preset:membership-types' },
+      });
+      fireEvent.click(screen.getByTestId('member-pivot-execute'));
+      await screen.findByTestId('mock-pivot-result-table');
+    }
+
+    it('does NOT render the labels action without canExport (members:export)', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: false })} />);
+      await executeAggregate();
+      // The whole capability-gated actions slot is absent for a non-exporter, so
+      // the labels action is too.
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+    });
+
+    it('renders the labels action in the result-actions slot only when canExport, beside CSV / Mail', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+
+      // Nothing before Execute — the slot lives inside the produced result.
+      await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+
+      await executeAggregate();
+
+      // The labels action sits in the SAME result-actions slot as CSV + Mail.
+      const slot = screen.getByTestId('pivot-result-actions');
+      const labelsButton = screen.getByTestId('member-pivot-labels');
+      expect(slot).toContainElement(labelsButton);
+      // Bilingual label from the members namespace (no hardcoded English).
+      expect(labelsButton).toHaveTextContent('analytics.labels.action');
+    });
+
+    it('opens a modal hosting the AddressLabelGenerator options UI when clicked', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+      await executeAggregate();
+
+      // The generator is not mounted until the action is clicked (the modal is
+      // closed, so its body — and the generator — is not rendered yet).
+      expect(screen.queryByTestId('mock-address-label-generator')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('member-pivot-labels'));
+
+      // The modal opens with the bilingual title and the hosted generator.
+      expect(await screen.findByTestId('member-pivot-labels-modal')).toBeInTheDocument();
+      expect(screen.getByText('analytics.labels.modalTitle')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-address-label-generator')).toBeInTheDocument();
+    });
+
+    it('passes the CURRENT result rows + export capability through to the generator', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+      await executeAggregate();
+      const produced = tableCalls[tableCalls.length - 1];
+
+      fireEvent.click(screen.getByTestId('member-pivot-labels'));
+      await screen.findByTestId('mock-address-label-generator');
+
+      // The generator received the produced result rows (the same `exportRows`
+      // CSV / Mail use) + the caller's members:export capability + the selected
+      // set key for the audit label — proving the slot wires straight through to
+      // the reused generator (which itself reuses generateAddressLabelPdf).
+      const lastCall = addressLabelGeneratorCalls[addressLabelGeneratorCalls.length - 1];
+      expect(lastCall.rows).toEqual(produced.data);
+      expect(lastCall.canExport).toBe(true);
+      expect(lastCall.setKey).toBe('preset:membership-types');
+    });
+
+    it('labels ONLY the table-filtered subset, not the full result (findings: table filters limit the output)', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+      await executeAggregate();
+
+      const produced = tableCalls[tableCalls.length - 1];
+      // The aggregate result has more than one row, so a filter to one row is a
+      // real subset.
+      expect(produced.data.length).toBeGreaterThan(1);
+
+      // Simulate the user filtering the result table down to the first row.
+      fireEvent.click(screen.getByTestId('mock-table-filter-to-first-row'));
+
+      fireEvent.click(screen.getByTestId('member-pivot-labels'));
+      await screen.findByTestId('mock-address-label-generator');
+
+      // The generator is handed the FILTERED subset (one row), not the full set.
+      const lastCall = addressLabelGeneratorCalls[addressLabelGeneratorCalls.length - 1];
+      expect(lastCall.rows).toEqual(produced.data.slice(0, 1));
+    });
+  });
+
+  // --- Task 6.2: the "Generate address labels" availability gate (R6). -------
+  // The action is OFFERED only when there is a resolvable `address_mapping` AND
+  // the caller holds `members:export`; otherwise it is HIDDEN with the EXISTING
+  // degradation reason (`analytics.degradation.addressMappingAbsent`) — a
+  // config/capability gate, NOT a tenant gate (CSV + Mail stay available). Three
+  // states: available / hidden-when-no-mapping / hidden-when-no-export.
+  describe('Generate address labels availability gate (task 6.2, R6)', () => {
+    // A resolvable mapping: the `name` slot → the present `membership_type` field
+    // (so `resolveAddressMapping` returns a non-empty mapping).
+    const fieldConfigWithMapping = {
+      ...fieldConfig,
+      analytics: { address_mapping: { name: 'membership_type' } },
+    } as unknown as FieldConfig;
+
+    // No analytics block at all → `resolveAddressMapping` returns {} → no mapping.
+    const fieldConfigNoMapping = fieldConfig;
+
+    beforeEach(() => {
+      getPreferredList.mockResolvedValue({
+        sub: 'u1',
+        refs: ['preset:membership-types'],
+        updated_at: '',
+      });
+    });
+
+    /** Select the membership-types preset and Execute → a result renders. */
+    async function executeAggregate() {
+      await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+      await waitFor(() => {
+        const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+        const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+        expect(values).toContain('preset:membership-types');
+      });
+      fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+        target: { value: 'preset:membership-types' },
+      });
+      fireEvent.click(screen.getByTestId('member-pivot-execute'));
+      await screen.findByTestId('mock-pivot-result-table');
+    }
+
+    it('OFFERS the labels action when a mapping resolves AND the caller may export', async () => {
+      render(
+        <MemberPivotViews
+          {...makeProps({
+            capabilities: { canExport: true },
+            fieldConfig: fieldConfigWithMapping,
+          })}
+        />,
+      );
+      await executeAggregate();
+
+      // The action is shown; the degradation notice is NOT.
+      expect(screen.getByTestId('member-pivot-labels')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('member-pivot-labels-unavailable'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('HIDES the labels action with the degradation reason when NO address mapping resolves', async () => {
+      render(
+        <MemberPivotViews
+          {...makeProps({
+            capabilities: { canExport: true },
+            fieldConfig: fieldConfigNoMapping,
+          })}
+        />,
+      );
+      await executeAggregate();
+
+      // The action is hidden; the SHARED degradation reason explains why (the
+      // SAME i18n key the PDF-labels mail attachment uses, R4.10).
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      const notice = screen.getByTestId('member-pivot-labels-unavailable');
+      expect(notice).toBeInTheDocument();
+      expect(notice).toHaveTextContent('analytics.degradation.addressMappingAbsent');
+      // It is a degradation (not an empty / error state) — same mechanism as the
+      // other analytics degradations.
+      expect(notice).toHaveAttribute('data-notice-kind', 'degradation');
+
+      // Config/capability gate — NOT a tenant gate: CSV + Mail stay available.
+      expect(screen.getByTestId('member-pivot-export-csv')).toBeInTheDocument();
+      expect(screen.getByTestId('member-pivot-mail')).toBeInTheDocument();
+    });
+
+    it('HIDES the labels action (and the whole slot) when the caller lacks members:export', async () => {
+      // Even with a resolvable mapping, no export → the whole result-actions slot
+      // is absent, so neither the action nor its degradation notice renders (the
+      // caller cannot export at all — there is nothing to degrade to).
+      render(
+        <MemberPivotViews
+          {...makeProps({
+            capabilities: { canExport: false },
+            fieldConfig: fieldConfigWithMapping,
+          })}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('pivot-result-actions')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('member-pivot-labels-unavailable'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does NOT open the labels modal when the gate is closed (no mapping)', async () => {
+      // The modal mount is gated on `canGenerateLabels`, so even if some other
+      // path tried to open it, a tenant without a mapping can never reach the
+      // generator. With no action button there is no way to open it; assert the
+      // modal / generator are absent after execute.
+      render(
+        <MemberPivotViews
+          {...makeProps({
+            capabilities: { canExport: true },
+            fieldConfig: fieldConfigNoMapping,
+          })}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('member-pivot-labels-modal')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('mock-address-label-generator'),
+      ).not.toBeInTheDocument();
+    });
   });
 });
 
@@ -1908,5 +2286,129 @@ describe('MemberPivotViews — shared-set capability gating (R11)', () => {
     expect(
       savedRow.querySelector('[data-testid="member-pivot-library-delete"]'),
     ).toBeTruthy();
+  });
+});
+
+// ===========================================================================
+// Task 5.4 (R5) — the "Schedule" lifecycle action: gated on the selected set
+// having a delivery block AND on the caller's scheduling capability.
+// ===========================================================================
+describe('MemberPivotViews — schedule action gating (task 5.4 / R5)', () => {
+  /**
+   * Render with a single saved set (optionally carrying a delivery block) made
+   * preferred so `model:<id>` is a selectable dropdown option, then select it.
+   */
+  async function renderWithSavedSet(
+    opts: {
+      hasDelivery: boolean;
+      capabilities?: MemberAnalyticsCapabilities;
+    },
+  ) {
+    listAnalyticsSets.mockResolvedValue([
+      { id: 'set-7', name: 'Active seniors', kind: 'count', hasDelivery: opts.hasDelivery },
+    ]);
+    getPreferredList.mockResolvedValue({
+      sub: 'u1',
+      refs: ['set:set-7'],
+      updated_at: '',
+    });
+    render(
+      <MemberPivotViews
+        {...makeProps({
+          capabilities: opts.capabilities ?? { canExport: true, canWrite: true, isAdmin: true },
+        })}
+      />,
+    );
+    await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+    await waitFor(() => {
+      const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+      const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+      expect(values).toContain('model:set-7');
+    });
+    fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+      target: { value: 'model:set-7' },
+    });
+  }
+
+  it('DISABLES the Schedule action for a selected set with NO delivery block (R5)', async () => {
+    await renderWithSavedSet({ hasDelivery: false });
+
+    const schedule = screen.getByTestId('member-pivot-schedule') as HTMLButtonElement;
+    // Offered (the caller can schedule) but disabled: a schedule needs a delivery.
+    expect(schedule).toBeInTheDocument();
+    expect(schedule).toBeDisabled();
+    // Clicking the disabled action never fetches the set / opens the editor.
+    fireEvent.click(schedule);
+    await waitFor(() => expect(getAnalyticsSet).not.toHaveBeenCalled());
+    expect(screen.queryByTestId('member-schedule-editor')).not.toBeInTheDocument();
+  });
+
+  it('ENABLES the Schedule action + opens the editor for a set WITH a delivery block (R5)', async () => {
+    getAnalyticsSet.mockResolvedValue({
+      id: 'set-7',
+      name: 'Active seniors',
+      kind: 'count',
+      definition: { groupColumns: [], aggregations: [], filters: {} },
+      delivery: {
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      },
+      created_at: '',
+      updated_at: '',
+    });
+    await renderWithSavedSet({ hasDelivery: true });
+
+    const schedule = screen.getByTestId('member-pivot-schedule') as HTMLButtonElement;
+    expect(schedule).not.toBeDisabled();
+
+    fireEvent.click(schedule);
+    // It loads the full set + lists the set's schedules, then opens the editor.
+    await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(listSchedulesForSet).toHaveBeenCalledWith('set-7'));
+    expect(await screen.findByTestId('member-schedule-editor')).toBeInTheDocument();
+  });
+
+  it('HIDES the Schedule action for a region-narrowed write caller (R5 access gate)', async () => {
+    // members:write WITHOUT the all-regions grant → isAdmin false → not offered.
+    await renderWithSavedSet({
+      hasDelivery: true,
+      capabilities: { canExport: true, canWrite: true, isAdmin: false },
+    });
+
+    expect(screen.queryByTestId('member-pivot-schedule')).not.toBeInTheDocument();
+    // But the create/edit actions for a write caller are still present.
+    expect(screen.getByTestId('member-pivot-update')).toBeInTheDocument();
+  });
+
+  it('creating a schedule from the editor calls createSchedule (POST)', async () => {
+    getAnalyticsSet.mockResolvedValue({
+      id: 'set-7',
+      name: 'Active seniors',
+      kind: 'count',
+      definition: { groupColumns: [], aggregations: [], filters: {} },
+      delivery: {
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      },
+      created_at: '',
+      updated_at: '',
+    });
+    listSchedulesForSet.mockResolvedValue([]); // no existing schedule → POST path
+    await renderWithSavedSet({ hasDelivery: true });
+
+    fireEvent.click(screen.getByTestId('member-pivot-schedule'));
+    await screen.findByTestId('member-schedule-editor');
+
+    fireEvent.click(screen.getByTestId('member-schedule-save'));
+    await waitFor(() => expect(createSchedule).toHaveBeenCalledTimes(1));
+    // Bound to the open set id, with the default cadence + enabled.
+    expect(createSchedule).toHaveBeenCalledWith('set-7', 'monthly', true);
+    expect(updateSchedule).not.toHaveBeenCalled();
   });
 });

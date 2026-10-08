@@ -142,6 +142,25 @@ class AnalyticsSetConflict(Exception):
         )
 
 
+class ScheduleNotFound(Exception):
+    """Raised when a schedule entry does not exist for the tenant (→ 404).
+
+    The schedule ``get`` / ``update`` / ``delete`` (R5, pivot-output-actions task 5.2) are
+    tenant-scoped by the verified ``tenant_id`` (Property 1); an absent ``schedule_id`` — or
+    one that exists only for another tenant — is an ordinary not-found the edge maps to a
+    ``404`` (mirroring :class:`AnalyticsSetNotFound` → 404). Cross-tenant isolation is
+    structural: the repository was only ever asked within ``tenant_id``, so a schedule in
+    another tenant's partition is simply "not found" here.
+    """
+
+    def __init__(self, tenant_id: str, schedule_id: str):
+        self.tenant_id = tenant_id
+        self.schedule_id = schedule_id
+        super().__init__(
+            f"schedule {schedule_id!r} not found for tenant {tenant_id!r}"
+        )
+
+
 class TransitionDenied(Exception):
     """Raised when a membership transition is not permitted (design C2 — never a silent allow).
 

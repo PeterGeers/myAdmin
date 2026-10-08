@@ -81,6 +81,11 @@ RECORD_TYPE_ROLE = "role"
 #:   * ``config#fields`` — the tenant's ``TenantOverlay`` (variable fields +
 #:     fixed-field overrides).
 #:   * ``config#views``  — the tenant's ``members.view_contexts`` (S5c task 3.1).
+#:   * ``config#mail``   — the tenant's per-tenant "mail-enabled / SES-certified"
+#:     onboarding gate flag (pivot-output-actions R0, task 0.4). Authored on the
+#:     Flask plane as ``members.mail_enabled`` by the tenant-admin module; the
+#:     Members edge reads it via the projection reader (NO live MySQL at request
+#:     time) to decide whether to offer the mail output actions (R1–R5).
 #:
 #: **S5c task 3.1 — ``view_contexts`` projection shape DECISION (settled).**
 #: The design left open (Open Design Item 1) whether the tenant's view contexts
@@ -110,6 +115,7 @@ RECORD_TYPE_CONFIG = "config"
 CONFIG_ID_SCOPE = "scope"
 CONFIG_ID_FIELDS = "fields"
 CONFIG_ID_VIEWS = "views"
+CONFIG_ID_MAIL = "mail"
 
 #: Per-user scope-grant rows (S5b design.md C1 "New projected record types").
 #: Two id parts, ``<email>`` then ``<dimension>`` (per-user, so an email segment

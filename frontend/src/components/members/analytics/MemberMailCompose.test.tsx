@@ -28,6 +28,21 @@ vi.mock('../../../services/memberMailService', () => ({
   mailMembersSet: (...args: unknown[]) => mailMembersSet(...args),
 }));
 
+// --- Mock the template service so the R2 picker + manager run with no network. ---
+// The picker lists templates (async) and seeds subject/body on a pick via get-by-id;
+// the manager (mounted inside the compose modal) also lists on open. Default both to
+// an empty library; individual tests override via the per-test spies below.
+const listMemberTemplates = vi.fn();
+const getMemberTemplate = vi.fn();
+vi.mock('../../../services/memberTemplateService', () => ({
+  listMemberTemplates: (...args: unknown[]) => listMemberTemplates(...args),
+  getMemberTemplate: (...args: unknown[]) => getMemberTemplate(...args),
+  createMemberTemplate: vi.fn(),
+  updateMemberTemplate: vi.fn(),
+  deleteMemberTemplate: vi.fn(),
+  aiImproveMemberTemplate: vi.fn(),
+}));
+
 // --- Spy on Chakra's useToast while keeping the rest of the library real. -----
 // Lets the rate-limit test assert the DEDICATED toast title fires (task 9.3).
 const toastSpy = vi.fn();
@@ -42,9 +57,17 @@ vi.mock('@chakra-ui/react', async () => {
 vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     // Echo the key, appending a count when the caller interpolates one so the
-    // recipient-count assertions can see the number.
-    t: (key: string, opts?: { count?: number }) =>
-      opts && typeof opts.count === 'number' ? `${key}:${opts.count}` : key,
+    // recipient-count assertions can see the number; echo the `addresses`
+    // interpolation for the external-recipients validation message.
+    t: (key: string, opts?: { count?: number; addresses?: string }) => {
+      if (opts && typeof opts.count === 'number') {
+        return `${key}:${opts.count}`;
+      }
+      if (opts && typeof opts.addresses === 'string') {
+        return `${key}:${opts.addresses}`;
+      }
+      return key;
+    },
   }),
 }));
 
@@ -98,6 +121,11 @@ beforeEach(() => {
   mailMembersSet.mockReset();
   mailMembersSet.mockResolvedValue({ success: true, status: 200, recipientCount: 3 });
   toastSpy.mockReset();
+  // Default: an empty template library (the picker renders, lists nothing).
+  listMemberTemplates.mockReset();
+  listMemberTemplates.mockResolvedValue({ ok: true, data: [] });
+  getMemberTemplate.mockReset();
+  getMemberTemplate.mockResolvedValue({ ok: false, status: 404, error: 'not found' });
 });
 
 describe('MemberMailCompose', () => {
@@ -169,7 +197,9 @@ describe('MemberMailCompose', () => {
     const req = mailMembersSet.mock.calls[0][0];
     expect(req.subject).toBe('Hello members');
     expect(req.body).toBe('The body');
-    expect(req.recipients).toBe(recipients);
+    // With no external recipients entered, the outgoing list is exactly the
+    // member rows (R1 appends nothing).
+    expect(req.recipients).toEqual(recipients);
     // The recipient email field is resolved from fieldConfig (R4.12), not hardcoded.
     expect(req.email_field).toBe('email');
     expect(req.set_key).toBe('members-per-type');
@@ -213,6 +243,185 @@ describe('MemberMailCompose', () => {
       'analytics.mail.noEmailField',
     );
     expect(screen.getByTestId('member-mail-send')).toBeDisabled();
+  });
+
+  // --- R1 (pivot-output-actions): external recipients ------------------------
+  describe('external recipients (R1)', () => {
+    it('renders the external-recipients field', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      expect(screen.getByTestId('member-mail-external')).toBeInTheDocument();
+    });
+
+    it('adds valid external addresses to the confirmed count (3 members + 2 external = 5)', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-external'), {
+        target: { value: 'agent@example.com, office@example.org' },
+      });
+      expect(screen.getByTestId('member-mail-recipient-count')).toHaveTextContent(
+        'analytics.mail.recipientCount:5',
+      );
+      // No validation error for well-formed addresses.
+      expect(
+        screen.queryByTestId('member-mail-external-invalid'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('splits on comma, semicolon, newline, and whitespace', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-external'), {
+        target: { value: 'a@x.com, b@x.com; c@x.com\nd@x.com e@x.com' },
+      });
+      // 3 members + 5 external = 8.
+      expect(screen.getByTestId('member-mail-recipient-count')).toHaveTextContent(
+        'analytics.mail.recipientCount:8',
+      );
+    });
+
+    it('de-duplicates external addresses against each other and the member emails', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-external'), {
+        // bob@ already appears in the member rows; AGENT@ listed twice (case-insensitive).
+        target: { value: 'BOB@example.com, AGENT@example.com, agent@example.com' },
+      });
+      // 3 members + only 1 new unique external (agent@) = 4.
+      expect(screen.getByTestId('member-mail-recipient-count')).toHaveTextContent(
+        'analytics.mail.recipientCount:4',
+      );
+    });
+
+    it('surfaces a validation reason and disables Send on an invalid address', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-external'), {
+        target: { value: 'good@example.com, not-an-email, also@bad@x' },
+      });
+      const invalid = screen.getByTestId('member-mail-external-invalid');
+      expect(invalid).toHaveTextContent('analytics.mail.externalRecipientsInvalid');
+      expect(invalid).toHaveTextContent('not-an-email');
+      expect(invalid).toHaveTextContent('also@bad@x');
+      // An invalid token blocks the send even though valid members exist.
+      expect(screen.getByTestId('member-mail-send')).toBeDisabled();
+    });
+
+    it('sends external addresses as plain strings in recipients (R1), no backend change', async () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-subject'), {
+        target: { value: 'Hi' },
+      });
+      fireEvent.change(screen.getByTestId('member-mail-body'), {
+        target: { value: 'Body' },
+      });
+      fireEvent.change(screen.getByTestId('member-mail-external'), {
+        target: { value: 'agent@example.com' },
+      });
+
+      fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
+      fireEvent.click(screen.getByTestId('member-mail-send')); // send
+      await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
+
+      const req = mailMembersSet.mock.calls[0][0];
+      // Member rows followed by the external address as a plain string.
+      expect(req.recipients).toEqual([...recipients, 'agent@example.com']);
+      expect(req.email_field).toBe('email');
+    });
+
+    it('allows an external-only send when no email field is configured', async () => {
+      const noEmail = {
+        fields: [{ key: 'display_name', origin: 'calculated', label: { en: 'Name' } }],
+      } as unknown as FieldConfig;
+      render(<MemberMailCompose {...makeProps({ fieldConfig: noEmail })} />);
+
+      fireEvent.change(screen.getByTestId('member-mail-subject'), {
+        target: { value: 'Hi' },
+      });
+      fireEvent.change(screen.getByTestId('member-mail-body'), {
+        target: { value: 'Body' },
+      });
+      fireEvent.change(screen.getByTestId('member-mail-external'), {
+        target: { value: 'agent@example.com' },
+      });
+
+      // Send is now enabled on the strength of the external address alone.
+      expect(screen.getByTestId('member-mail-send')).not.toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
+      fireEvent.click(screen.getByTestId('member-mail-send')); // send
+      await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
+
+      const req = mailMembersSet.mock.calls[0][0];
+      // Only the external address is sent; email_field is omitted (none resolved).
+      expect(req.recipients).toEqual([...recipients, 'agent@example.com']);
+      expect(req.email_field).toBeUndefined();
+    });
+  });
+
+  // --- R2 (pivot-output-actions): stored-template picker ---------------------
+  describe('template picker (R2)', () => {
+    it('renders the template picker and a Manage templates button by default', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      expect(
+        screen.getByTestId('member-mail-template-control'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('member-mail-manage-templates'),
+      ).toBeInTheDocument();
+    });
+
+    it('hides the picker when templates are disabled', () => {
+      render(<MemberMailCompose {...makeProps({ enableTemplates: false })} />);
+      expect(
+        screen.queryByTestId('member-mail-template-control'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('seeds the (still-editable) subject + body from a picked template for the active language', async () => {
+      listMemberTemplates.mockResolvedValue({
+        ok: true,
+        data: [{ template_id: 'tpl-1', name: 'Welcome' }],
+      });
+      getMemberTemplate.mockResolvedValue({
+        ok: true,
+        data: {
+          template_id: 'tpl-1',
+          name: 'Welcome',
+          languages: {
+            nl: { subject: 'NL onderwerp', body_html: 'NL body' },
+            en: { subject: 'EN subject', body_html: 'EN body' },
+          },
+          merge_fields: [],
+          logo_asset_ref: null,
+          origin: 'user',
+          created_by: '',
+          created_at: '',
+          updated_at: '',
+        },
+      });
+
+      render(<MemberMailCompose {...makeProps({ language: 'en' })} />);
+
+      // Open the picker (LazySelect combobox) and pick the template.
+      fireEvent.click(screen.getByRole('combobox'));
+      const option = await screen.findByText('Welcome');
+      fireEvent.mouseDown(option);
+
+      // The active language (en) seeds the subject + body, and they remain editable.
+      const subject = screen.getByTestId('member-mail-subject') as HTMLInputElement;
+      const body = screen.getByTestId('member-mail-body') as HTMLTextAreaElement;
+      await waitFor(() => expect(subject.value).toBe('EN subject'));
+      expect(body.value).toBe('EN body');
+
+      // Still editable after seeding.
+      fireEvent.change(subject, { target: { value: 'Edited' } });
+      expect(subject.value).toBe('Edited');
+      expect(getMemberTemplate).toHaveBeenCalledWith('tpl-1');
+    });
+
+    it('opens the template-management surface from the Manage templates button', async () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.click(screen.getByTestId('member-mail-manage-templates'));
+      expect(
+        await screen.findByTestId('member-template-manager'),
+      ).toBeInTheDocument();
+    });
   });
 
   it('keeps the modal open on a failed send (set result not lost)', async () => {

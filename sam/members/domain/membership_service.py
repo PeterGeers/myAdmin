@@ -53,6 +53,8 @@ service never learns where the data lives.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sam.members.domain._membership_analytics import AnalyticsSetsMixin
 from sam.members.domain._membership_catalog import CatalogMixin
 from sam.members.domain._membership_errors import (
@@ -65,12 +67,14 @@ from sam.members.domain._membership_errors import (
     MembershipTypeConflict,
     MembershipTypeNotFound,
     MemberValidationError,
+    ScheduleNotFound,
     ScopeDenied,
     TransitionDenied,
     TransitionResult,
 )
 from sam.members.domain._membership_lifecycle import LifecycleMixin
 from sam.members.domain._membership_reads import ReadsMixin
+from sam.members.domain._membership_schedules import SchedulesMixin
 from sam.members.domain._membership_writes import WritesMixin
 from sam.members.domain.field_resolver import (
     FieldResolver,
@@ -84,6 +88,10 @@ from sam.members.domain.lifecycle_config import (
 from sam.members.domain.scope_dimensions import (
     ScopeConfigProvider,
 )
+from sam.members.domain.mail_gate import (
+    MailGateProvider,
+    StaticMailGateProvider,
+)
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.transition_hooks import TransitionHookRegistry
 from sam.members.domain.view_contexts import (
@@ -93,6 +101,9 @@ from sam.members.domain.view_contexts import (
 from sam.members.repository.members_repository import (
     MembersRepository,
 )
+
+if TYPE_CHECKING:  # type-only — keeps the domain import-light (no boto3 at import)
+    from sam.members.repository.scheduler_api import SchedulerApiPort
 
 __all__ = [
     "DEFAULT_SCOPE_DIMENSION_KEY",
@@ -105,13 +116,21 @@ __all__ = [
     "MembershipService",
     "MembershipTypeConflict",
     "MembershipTypeNotFound",
+    "ScheduleNotFound",
     "ScopeDenied",
     "TransitionDenied",
     "TransitionResult",
 ]
 
 
-class MembershipService(ReadsMixin, LifecycleMixin, WritesMixin, CatalogMixin, AnalyticsSetsMixin):
+class MembershipService(
+    ReadsMixin,
+    LifecycleMixin,
+    WritesMixin,
+    CatalogMixin,
+    AnalyticsSetsMixin,
+    SchedulesMixin,
+):
     """The generic membership engine — READ surface (design C2) + lifecycle state machine.
 
     Storage-agnostic + tenant-agnostic. Holds a :class:`MembersRepository` (injected), and
@@ -151,6 +170,20 @@ class MembershipService(ReadsMixin, LifecycleMixin, WritesMixin, CatalogMixin, A
             ``on_transition`` through its ``transition_registry()`` view — so one registry
             wires every hook. ``transition_hooks`` (the 5.0 seam) is honoured for backwards
             compatibility when ``tenant_hooks`` is omitted.
+        mail_gate_provider: Supplies each tenant's mail-enabled gate flag (pivot-output-
+            actions R0/R1, design §6.3), resolved by ``tenant_id``. ``get_field_config``
+            surfaces it as ``mail_enabled`` so the SPA offers the mail output actions
+            (R1–R5) only when the tenant is cleared to send. Defaults to the empty,
+            FAIL-CLOSED :class:`~sam.members.domain.mail_gate.StaticMailGateProvider` (every
+            tenant resolves to ``False`` — mail not offered until the flag is projected).
+        scheduler_port: The EventBridge-Scheduler management port the schedule CRUD surface
+            (:class:`~sam.members.domain._membership_schedules.SchedulesMixin`) uses to
+            materialize / update / delete the ONE EventBridge schedule behind each stored
+            ``schedule#<id>`` record (R5, task 5.3). Storage-agnostic — only the
+            :class:`~sam.members.repository.scheduler_api.SchedulerApiPort` shape is depended
+            on; the production boto3 impl is injected at the edge, a fake in tests. Defaults to
+            ``None`` (no EventBridge wiring — the schedule CRUD persists records only), so a
+            pure-domain unit test need not supply one.
     """
 
     def __init__(
@@ -162,8 +195,19 @@ class MembershipService(ReadsMixin, LifecycleMixin, WritesMixin, CatalogMixin, A
         tenant_hooks: TenantHookRegistry | None = None,
         view_contexts_provider: ViewContextsProvider | None = None,
         scope_config_provider: ScopeConfigProvider | None = None,
+        mail_gate_provider: MailGateProvider | None = None,
+        scheduler_port: "SchedulerApiPort | None" = None,
     ):
         self._repo = repository
+        # The EventBridge-Scheduler management port the SchedulesMixin uses to materialize /
+        # update / delete the ONE EventBridge schedule behind each schedule#<id> record (R5,
+        # task 5.3). Storage-agnostic — the service depends only on the SchedulerApiPort shape,
+        # never on boto3 / EventBridge. The production boto3 impl
+        # (repository.scheduler_api.EventBridgeSchedulerApi) is injected at the edge
+        # (handler.app._get_membership_service); a fake in tests. Defaults to None, which means
+        # "no EventBridge wiring" — the schedule CRUD then persists records only (preserving the
+        # pure-domain / pre-5.3 behaviour), so a unit test of the CRUD need not supply one.
+        self._scheduler: SchedulerApiPort | None = scheduler_port
         self._field_resolver = FieldResolver(
             overlay_provider if overlay_provider is not None else StaticOverlayProvider()
         )
@@ -182,6 +226,17 @@ class MembershipService(ReadsMixin, LifecycleMixin, WritesMixin, CatalogMixin, A
             view_contexts_provider
             if view_contexts_provider is not None
             else StaticViewContextsProvider()
+        )
+        # The mail-enabled gate seam (pivot-output-actions R0/R1 task 1.3, design §6.3).
+        # Mirrors the view-contexts/scope provider injection: the service depends only on the
+        # MailGateProvider Protocol, never on where the per-tenant flag lives. Defaults to the
+        # empty, FAIL-CLOSED StaticMailGateProvider — a service built without a provider
+        # reports mail-enabled=False for every tenant (the mail output actions are not offered
+        # until the flag is explicitly projected), matching the reader's fail-closed behavior.
+        self._mail_gate_provider: MailGateProvider = (
+            mail_gate_provider
+            if mail_gate_provider is not None
+            else StaticMailGateProvider()
         )
         self._lifecycle_provider: LifecycleConfigProvider = (
             lifecycle_provider
