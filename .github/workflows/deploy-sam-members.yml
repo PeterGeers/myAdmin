@@ -102,4 +102,6 @@ jobs:
       # registry, etc.) — the test/prod split lives entirely in samconfig, not here.
       - name: SAM Deploy
         working-directory: sam/members
-        run: sam deploy --config-env ${{ steps.env.outputs.config_env }} --no-confirm-changeset --no-fail-on-empty-changeset
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: sam deploy --config-env ${{ steps.env.outputs.config_env }} --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "OpenRouterApiKey=${OPENROUTER_API_KEY}"

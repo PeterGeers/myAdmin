@@ -73,6 +73,26 @@ def _parse_request(event: Mapping[str, Any]) -> ParsedRequest:
     )
 
 
+# ── Accepted (202) result marker — the queued/enqueued send path (R4, task 4.2) ──────
+
+
+@dataclass(frozen=True)
+class AcceptedResult:
+    """A domain result the edge must shape as a 202 Accepted (enqueued, not yet done).
+
+    Most routes return a plain value the edge shapes as a 200 (the work is complete). The
+    ``deliver`` route (R4) is different: it ENQUEUES the send and returns immediately — the
+    actual SES send happens later in the worker — so the honest HTTP status is **202 Accepted**
+    ("the request is accepted for processing"), not 200 ("done"). The dispatch wraps the
+    service's accepted payload in this marker; :func:`sam.members.handler.app.handler` unwraps
+    it and emits a 202 with the SAME ``{success:true, data}`` envelope every other 2xx uses
+    (``success`` is True because 202 is in the 2xx range). Keeping it a thin marker (not a new
+    response path) means the edge stays uniform — only the status code differs.
+    """
+
+    data: Any
+
+
 # ── Response shaping (handler-layer adapter concern) ──────────────────────────────────
 
 
@@ -189,6 +209,7 @@ def _reasons_array(reasons: Any) -> list[dict[str, Any]]:
 
 __all__ = [
     "_CORS_HEADERS",
+    "AcceptedResult",
     "ParsedRequest",
     "_error",
     "_field_errors_array",

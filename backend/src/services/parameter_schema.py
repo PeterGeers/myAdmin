@@ -320,6 +320,19 @@ PARAMETER_SCHEMA = {
                     "which fields show together (single list value)"
                 ),
             },
+            "mail_enabled": {
+                "label": "Mail Enabled (SES certified)",
+                "label_nl": "E-mail ingeschakeld (SES-gecertificeerd)",
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "Per-tenant onboarding gate: whether the tenant is cleared to "
+                    "send mail (production SES access + a verified sender). The "
+                    "Members plane reads this (projected as config#mail) to decide "
+                    "whether to offer the mail output actions. Set only once the "
+                    "tenant's sender is verified and SES is production."
+                ),
+            },
         },
     },
 }

@@ -59,8 +59,8 @@ Internal layout (code-quality split M2 — a pure structural refactor, no behavi
 change). This module is the **stable facade**: its full public import surface
 (``ProjectionSync`` / ``SyncResult`` / ``TenantSource`` / ``SourceProvider`` /
 ``DatabaseSourceProvider`` / ``build_config_scope_row`` / ``build_config_fields_row`` /
-``build_config_views_row`` / ``build_scopegrant_rows`` / ``_supersedes`` /
-``_SCOPEGRANT_MODULE`` …) is preserved and re-exported here. The pure, read-only
+``build_config_views_row`` / ``build_config_mail_row`` / ``build_scopegrant_rows`` /
+``_supersedes`` / ``_SCOPEGRANT_MODULE`` …) is preserved and re-exported here. The pure, read-only
 builders and the source seam live in cohesive sub-modules:
 
 - :mod:`services._projection_config_builders` — the tenant-level ``config#*`` row
@@ -92,6 +92,7 @@ from services import projection_schema as schema
 # functions are part of this facade's import surface.)
 from services._projection_config_builders import (
     build_config_fields_row,
+    build_config_mail_row,
     build_config_scope_row,
     build_config_views_row,
 )
@@ -267,8 +268,8 @@ class ProjectionSync:
         3. **Only when the tenant has something to project** (base items
            non-empty, i.e. the SAM/MEMBERS module is enabled) also build the S5b
            C2 Members rows — ``config#scope``, ``config#fields``, ``config#views``
-           (S5c) and the per-user ``scopegrant#…`` grants — by READING the
-           tenant-scope ``members.*``
+           (S5c), ``config#mail`` (pivot-output-actions R0) and the per-user
+           ``scopegrant#…`` grants — by READING the tenant-scope ``members.*``
            config through the read-only :attr:`parameter_service`. A non-SAM
            tenant (empty base items) emits **no** C2 rows either, matching the
            existing early-return (nothing to project). One-directional: the C2
@@ -317,6 +318,12 @@ class ProjectionSync:
         config_views = build_config_views_row(source.tenant, param_svc)
         if config_views is not None:
             items.append(config_views)
+        # R0 (pivot-output-actions, design §6.3): the per-tenant mail-enabled gate.
+        # Projected as config#mail so the Members edge reads the flag via the
+        # projection reader (no live MySQL at request time); fail-closed to False.
+        config_mail = build_config_mail_row(source.tenant, param_svc)
+        if config_mail is not None:
+            items.append(config_mail)
         # The scopegrant rows are the DESIRED per-user grant set for this tenant.
         # Kept in a named list (not just extended into ``items``) so the ODx4b
         # diff-and-delete reconcile below can compute which STORED ``scopegrant#…``
@@ -516,6 +523,7 @@ __all__ = [
     "TenantSource",
     "_supersedes",
     "build_config_fields_row",
+    "build_config_mail_row",
     "build_config_scope_row",
     "build_config_views_row",
     "build_scopegrant_rows",

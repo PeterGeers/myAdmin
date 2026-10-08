@@ -1,0 +1,10 @@
+{
+    "MailType": "MARKETING",
+    "WebsiteURL": "https://portal.h-dcn.nl",
+    "ContactLanguage": "EN",
+    "UseCaseDescription": "H-DCN (Harley-Davidson Club Nederland) runs a multi-tenant membership-administration portal. We email our own registered members ONLY -- never purchased, rented, or scraped lists. Two kinds of mail: (1) TRANSACTIONAL member administration -- membership application confirmations, payment requests, renewal notices, welcome and account notifications; (2) MARKETING / BULK -- a monthly member newsletter (the club 'clubblad') sent to current members. CORRECTION TO PRIOR REQUEST (denied, case 178525018600435): that request declared TRANSACTIONAL only and stated 'we do not send marketing emails'. That was inaccurate -- we send a monthly bulk newsletter, so this request correctly declares MARKETING. CONSENT: every recipient is a member whose email we hold as part of their membership relationship, entered/confirmed by the member via the portal. VOLUME: average about 30 emails/day; peak on a newsletter send day about 500/day; largest single newsletter batch about 1200 recipients; newsletter cadence monthly. BOUNCES/COMPLAINTS: SES account-level suppression for BOUNCE and COMPLAINT is enabled, and an SES configuration set publishes bounce/complaint/delivery events via SNS to an application webhook that records per-recipient delivery status. OPT-OUT: a one-click unsubscribe for the bulk newsletter is being implemented (List-Unsubscribe header plus an in-newsletter unsubscribe link); opted-out and hard-bounced members are excluded from future bulk sends and are not re-added automatically. SENDING DISCIPLINE: we send from verified sender identities, and the application rate-paces bulk sends through an SQS queue and worker so we stay within the granted send rate and daily quota.",
+    "AdditionalContactEmailAddresses": [
+        "webmaster@h-dcn.nl"
+    ],
+    "ProductionAccessEnabled": true
+}

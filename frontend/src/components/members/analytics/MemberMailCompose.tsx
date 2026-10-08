@@ -11,6 +11,14 @@
  *     (`members:analytics.mail.subjectTemplate` / `bodyTemplate`, task 0.3) — the
  *     user edits before sending. No hardcoded English (every label resolves from
  *     the `members` namespace, bilingual via the active language).
+ *   - **Stored-template picker (R2, pivot-output-actions):** an optional
+ *     {@link LazySelect} lists the tenant's stored mail templates
+ *     (`GET /members/templates`). Picking one fetches it by id
+ *     (`GET /members/templates/{id}`) and SEEDS the subject + body for the active
+ *     language (falling back to the other language), leaving BOTH fully editable —
+ *     the picker never locks the fields. A "Manage templates" button opens the
+ *     {@link MemberTemplateManager} surface (CRUD + upload + improve-with-AI). The
+ *     picker is purely additive to the R1 external-recipients + attachment flow.
  *   - **Optional attachments**: "Attach CSV" (of the current result) and "Attach
  *     PDF labels" (only offered when the tenant's `address_mapping` resolves, so
  *     a tenant without address fields never sees a dead toggle). Both produce
@@ -20,6 +28,14 @@
  *     `fieldConfig` / `analytics.field_roles` via {@link resolveEmailField}
  *     (R4.12), NOT hardcoded. The recipient list is the result rows that carry a
  *     resolvable, de-duplicated email.
+ *   - **External recipients (R1, pivot-output-actions):** an optional free-text
+ *     field for addresses that are NOT in the dataset (e.g. a handling agent).
+ *     Entries are split on comma / semicolon / newline / whitespace, validated
+ *     client-side, de-duplicated against each other AND the member emails, and
+ *     sent as plain-string entries in `recipients` (`recipients: ["addr", ...]`).
+ *     The mail route already accepts plain addresses, so there is NO backend
+ *     change. A tenant with no email field configured can still send purely to
+ *     external addresses.
  *   - **Recipient COUNT for confirmation before send** (R8.4): the modal shows
  *     the count and sends via a confirmed action — never a fire-and-forget click.
  *     BCC is the default (the backend BCCs every recipient).
@@ -52,6 +68,7 @@ import {
   Checkbox,
   FormControl,
   FormLabel,
+  HStack,
   Input,
   Textarea,
   Text,
@@ -65,9 +82,82 @@ import {
   mailMembersSet,
   type MailAttachment,
 } from '../../../services/memberMailService';
+import {
+  listMemberTemplates,
+  getMemberTemplate,
+  type MemberTemplateDto,
+} from '../../../services/memberTemplateService';
+import LazySelect from '../../common/LazySelect';
+import type { LazyOption } from '../../common/lazySelect.types';
+import MemberTemplateManager from './MemberTemplateManager';
 
 /** `members`-namespace i18n key prefix for every label this modal renders. */
 const T = 'analytics.mail';
+
+/**
+ * A pragmatic client-side email check (R1): one `@`, a non-empty local part, a
+ * dotted domain, no whitespace. This is a client-side guard against obvious
+ * typos — the backend/SES remains the authority on deliverability. Deliberately
+ * simple (RFC 5322 in full is not worth the complexity for a UI guard).
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Whether a trimmed token looks like a valid email address (R1). */
+export function isValidEmail(address: string): boolean {
+  return EMAIL_RE.test(address.trim());
+}
+
+/**
+ * Split a free-text external-recipients field into individual tokens on comma,
+ * semicolon, newline, or any whitespace, dropping blanks. Order is preserved and
+ * duplicates are NOT removed here (the caller de-dupes case-insensitively).
+ */
+export function parseExternalRecipients(raw: string): string[] {
+  return raw
+    .split(/[\s,;]+/)
+    .map((tok) => tok.trim())
+    .filter((tok) => tok.length > 0);
+}
+
+/** The subject + body a picked template seeds into the (still-editable) compose fields. */
+export interface TemplateSeed {
+  subject: string;
+  body: string;
+}
+
+/**
+ * Resolve the subject + body a stored template should SEED for the active language (R2).
+ *
+ * Prefers the active `language`'s variant; falls back to any other language that carries usable
+ * text so a template authored in only one language still seeds something. The body is taken from
+ * the resolved `body_html` (returned by GET-by-id); when the body text is not available the
+ * subject still seeds and the body is left blank for the user to fill. Returns `null` when the
+ * template has no usable language at all (nothing to seed) so the caller leaves the fields as-is.
+ */
+export function resolveTemplateSeed(
+  template: MemberTemplateDto,
+  language: string,
+): TemplateSeed | null {
+  const languages = template.languages ?? {};
+  const order = [language, 'nl', 'en', ...Object.keys(languages)];
+  const seen = new Set<string>();
+  for (const lang of order) {
+    if (seen.has(lang)) {
+      continue;
+    }
+    seen.add(lang);
+    const variant = languages[lang];
+    if (!variant) {
+      continue;
+    }
+    const subject = (variant.subject ?? '').trim();
+    const body = (variant.body_html ?? '').trim();
+    if (subject || body) {
+      return { subject: variant.subject ?? '', body: variant.body_html ?? '' };
+    }
+  }
+  return null;
+}
 
 export interface MemberMailComposeProps {
   /** Whether the modal is open. */
@@ -100,6 +190,21 @@ export interface MemberMailComposeProps {
   buildPdfBase64?: () => string | null;
   /** Optional audit label for the set being mailed (metadata only, R8.1). */
   setKey?: string;
+  /**
+   * Whether the stored-template picker is offered (R2). Defaults to `true`. The panel may hide
+   * it (e.g. when the tenant is not mail-enabled per R0, or templates are not applicable).
+   */
+  enableTemplates?: boolean;
+  /**
+   * List the tenant's templates (metadata). Injectable for tests; defaults to the authenticated
+   * {@link listMemberTemplates} service. Returning a non-ok result surfaces an empty picker.
+   */
+  listTemplates?: typeof listMemberTemplates;
+  /**
+   * Fetch one template by id (resolves per-language body for seeding). Injectable for tests;
+   * defaults to the authenticated {@link getMemberTemplate} service.
+   */
+  getTemplate?: typeof getMemberTemplate;
 }
 
 /**
@@ -116,6 +221,9 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
   buildCsvBase64,
   buildPdfBase64,
   setKey,
+  enableTemplates = true,
+  listTemplates = listMemberTemplates,
+  getTemplate = getMemberTemplate,
 }) => {
   const { t } = useTypedTranslation('members');
   const toast = useToast();
@@ -152,7 +260,38 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     return out;
   }, [recipients, emailField]);
 
-  const recipientCount = recipientEmails.length;
+  // Free-text external recipients (R1) — addresses NOT in the dataset. Parsed,
+  // validated, and de-duplicated below; sent as plain-string entries alongside
+  // the member rows (the mail route already accepts plain addresses).
+  const [externalRaw, setExternalRaw] = useState('');
+
+  // Split the free-text field into tokens, then partition into valid addresses
+  // (de-duplicated case-insensitively against each other AND the member emails)
+  // and invalid tokens (surfaced as a client-side validation reason, R1).
+  const { externalEmails, invalidExternal } = useMemo<{
+    externalEmails: string[];
+    invalidExternal: string[];
+  }>(() => {
+    const seen = new Set<string>(recipientEmails);
+    const valid: string[] = [];
+    const invalid: string[] = [];
+    for (const token of parseExternalRecipients(externalRaw)) {
+      if (!isValidEmail(token)) {
+        invalid.push(token);
+        continue;
+      }
+      const normalized = token.trim().toLowerCase();
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        valid.push(normalized);
+      }
+    }
+    return { externalEmails: valid, invalidExternal: invalid };
+  }, [externalRaw, recipientEmails]);
+
+  // The total recipient count surfaced for confirmation (R8.4): de-duplicated
+  // member emails PLUS the valid, de-duplicated external addresses (R1).
+  const recipientCount = recipientEmails.length + externalEmails.length;
 
   // Whether PDF-label attachment is offered: the tenant must have a resolvable
   // address mapping AND the panel must supply a PDF builder (R4.10).
@@ -173,6 +312,16 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
   // (showing the recipient count); the second actually sends.
   const [confirming, setConfirming] = useState(false);
 
+  // The stored-template picker (R2): the currently picked template id, whether a seed fetch is
+  // in flight, and whether the management surface is open. A pick seeds subject/body but never
+  // locks them — the picker is additive to the R1 external-recipients + attachment flow.
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [seeding, setSeeding] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
+  // Bumped to force the LazySelect to re-resolve its (async) option list after the manager
+  // creates/edits/deletes a template, so the picker reflects the latest library.
+  const [templatesVersion, setTemplatesVersion] = useState(0);
+
   // Seed the subject/body from the bilingual template each time the modal opens,
   // and reset the attach toggles + confirm step. Keyed on open only so re-renders
   // never clobber the user's edits mid-compose.
@@ -184,19 +333,74 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     setBody(t(`${T}.bodyTemplate`));
     setAttachCsv(false);
     setAttachPdf(false);
+    setExternalRaw('');
     setConfirming(false);
     setSending(false);
+    setSelectedTemplateId('');
+    setSeeding(false);
+    setManagerOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // The (async) option source for the template picker: list the tenant's templates and map each
+  // to a LazyOption keyed by template_id, labelled by name. A non-ok list (or a thrown error)
+  // yields an empty picker rather than a crash — the user can still compose/send without one.
+  const loadTemplateOptions = useMemo(
+    () => async (): Promise<LazyOption[]> => {
+      const result = await listTemplates();
+      if (!result.ok) {
+        return [];
+      }
+      return result.data.map((tpl) => ({ value: tpl.template_id, label: tpl.name }));
+    },
+    [listTemplates],
+  );
+
+  // Picking a template fetches it by id, resolves the seed for the active language, and SEEDS
+  // the (still-editable) subject + body (R2). A failed fetch surfaces a toast and leaves the
+  // composed text untouched. Any pick clears a pending confirmation.
+  const handlePickTemplate = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    resetConfirm();
+    if (!templateId) {
+      return;
+    }
+    setSeeding(true);
+    try {
+      const result = await getTemplate(templateId);
+      if (!result.ok) {
+        toast({ title: t(`${T}.templates.loadError`), status: 'error' });
+        return;
+      }
+      const seed = resolveTemplateSeed(result.data, language);
+      if (seed) {
+        setSubject(seed.subject);
+        setBody(seed.body);
+      }
+    } catch {
+      toast({ title: t(`${T}.templates.loadError`), status: 'error' });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  // After the manager mutates the library, re-resolve the picker options and (if the selected
+  // template was deleted) the caller can re-pick. We just bump the dep key.
+  const handleTemplatesChanged = () => setTemplatesVersion((v) => v + 1);
 
   // Any change to the composed mail cancels a pending confirmation, so the user
   // always confirms the exact mail they are about to send.
   const resetConfirm = () => setConfirming(false);
 
   const trimmedSubject = subject.trim();
+  // Send is allowed when at least one recipient resolves (member emails via the
+  // resolved field OR valid external addresses, R1), there are NO invalid
+  // external tokens, and the subject/body are non-empty. Note: external-only
+  // sends do not need an `emailField` (the externals carry their own address),
+  // so the gate is on `recipientCount`, not on `emailField`.
   const canSend =
-    !!emailField &&
     recipientCount > 0 &&
+    invalidExternal.length === 0 &&
     trimmedSubject !== '' &&
     body.trim() !== '' &&
     !sending;
@@ -219,7 +423,7 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
   };
 
   const handleSend = async () => {
-    if (!canSend || !emailField) {
+    if (!canSend) {
       return;
     }
     // First press → confirm (show the recipient count, R8.4). Second → send.
@@ -234,12 +438,20 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     // `finally` below — on success OR failure — so a bulk mail never leaves the
     // generated member-data buffers lingering in memory.
     let attachments: MailAttachment[] = buildAttachments();
+    // Combine the member rows with the validated external addresses (R1): the
+    // externals go as plain-string entries (`recipients: ["addr", ...]`), which
+    // the mail route already accepts — no backend change. `email_field` is only
+    // sent when it resolved; an external-only send omits it.
+    const outgoingRecipients: Array<Record<string, unknown> | string> = [
+      ...(recipients ?? []),
+      ...externalEmails,
+    ];
     try {
       const result = await mailMembersSet({
-        recipients: recipients ?? [],
+        recipients: outgoingRecipients,
         subject: trimmedSubject,
         body,
-        email_field: emailField,
+        email_field: emailField ?? undefined,
         attachments,
         set_key: setKey,
       });
@@ -300,6 +512,41 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
               </Text>
             )}
 
+            {/* Stored-template picker (R2): seeds the (still-editable) subject + body, and a
+                button to open the template-management surface. Purely additive. */}
+            {enableTemplates && (
+              <FormControl data-testid="member-mail-template-control">
+                <FormLabel htmlFor="member-mail-template">
+                  {t(`${T}.templates.pickerLabel`)}
+                </FormLabel>
+                <HStack align="start" spacing={2}>
+                  <LazySelect
+                    name="member-mail-template"
+                    label={t(`${T}.templates.pickerLabel`)}
+                    placeholder={t(`${T}.templates.pickerPlaceholder`)}
+                    value={selectedTemplateId}
+                    onChange={handlePickTemplate}
+                    options={loadTemplateOptions}
+                    optionsDepKey={`member-templates-${templatesVersion}`}
+                    isDisabled={seeding}
+                    width="100%"
+                  />
+                  <Button
+                    variant="outline"
+                    colorScheme="orange"
+                    flexShrink={0}
+                    onClick={() => setManagerOpen(true)}
+                    data-testid="member-mail-manage-templates"
+                  >
+                    {t(`${T}.templates.manage`)}
+                  </Button>
+                </HStack>
+                <Text fontSize="xs" color="gray.400" mt={1}>
+                  {t(`${T}.templates.pickerHint`)}
+                </Text>
+              </FormControl>
+            )}
+
             {/* Editable subject (seeded from the bilingual template). */}
             <FormControl isRequired>
               <FormLabel htmlFor="member-mail-subject">{t(`${T}.subject`)}</FormLabel>
@@ -329,6 +576,40 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
                 rows={8}
                 bg="gray.900"
               />
+            </FormControl>
+
+            {/* Optional external recipients (R1): addresses NOT in the dataset,
+                e.g. a handling agent. Free text split on comma / semicolon /
+                newline / whitespace; validated client-side; sent as plain-string
+                entries in `recipients`. */}
+            <FormControl isInvalid={invalidExternal.length > 0}>
+              <FormLabel htmlFor="member-mail-external">
+                {t(`${T}.externalRecipients`)}
+              </FormLabel>
+              <Textarea
+                id="member-mail-external"
+                data-testid="member-mail-external"
+                value={externalRaw}
+                onChange={(e) => {
+                  setExternalRaw(e.target.value);
+                  resetConfirm();
+                }}
+                placeholder={t(`${T}.externalRecipientsPlaceholder`)}
+                rows={2}
+                bg="gray.900"
+              />
+              {invalidExternal.length > 0 && (
+                <Text
+                  fontSize="sm"
+                  color="red.300"
+                  mt={1}
+                  data-testid="member-mail-external-invalid"
+                >
+                  {t(`${T}.externalRecipientsInvalid`, {
+                    addresses: invalidExternal.join(', '),
+                  })}
+                </Text>
+              )}
             </FormControl>
 
             {/* Optional attachments — CSV always (if the panel supplies a
@@ -383,6 +664,17 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
           </Button>
         </ModalFooter>
       </ModalContent>
+
+      {/* Template-management surface (R2): CRUD + upload + improve-with-AI. Opened from the
+          "Manage templates" button; re-resolves the picker options on any change. */}
+      {enableTemplates && (
+        <MemberTemplateManager
+          isOpen={managerOpen}
+          onClose={() => setManagerOpen(false)}
+          language={language}
+          onTemplatesChanged={handleTemplatesChanged}
+        />
+      )}
     </Modal>
   );
 };

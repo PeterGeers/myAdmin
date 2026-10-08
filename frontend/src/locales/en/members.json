@@ -169,7 +169,67 @@
       "mail": "Mail",
       "empty": "No data to export"
     },
+    "delivery": {
+      "action": "Delivery",
+      "title": "Delivery for \"{{name}}\"",
+      "intro": "Remember what to do with this set's result, so running or scheduling it repeats the send without re-entering everything.",
+      "mode": "Mode",
+      "modes": {
+        "per_recipient": "Mail each member individually",
+        "to_fixed": "Send to a fixed address list"
+      },
+      "modeHint": {
+        "per_recipient": "Mail-merges a stored template and mails each member in the result. Addresses come from the data and are not stored.",
+        "to_fixed": "Sends the result as an attachment to the addresses you enter below (e.g. a handling agent)."
+      },
+      "template": "Template",
+      "templatePlaceholder": "No template (plain message)",
+      "recipients": "Recipients",
+      "recipientsPlaceholder": "agent@example.com, office@example.org",
+      "recipientsInvalid": "Invalid email address(es): {{addresses}}",
+      "recipientsRequired": "Enter at least one recipient address",
+      "attachment": "Attachment",
+      "attachments": {
+        "none": "No attachment",
+        "csv": "CSV of the result",
+        "pdf_labels": "PDF address labels"
+      },
+      "labelOptions": "Label options",
+      "save": "Save delivery",
+      "clear": "Clear delivery",
+      "cancel": "Cancel",
+      "saved": "Delivery saved",
+      "cleared": "Delivery cleared",
+      "saveError": "Failed to save the delivery",
+      "clearError": "Failed to clear the delivery"
+    },
+    "schedule": {
+      "action": "Schedule",
+      "needsDelivery": "Set up a delivery for this set first; a schedule reruns the stored delivery.",
+      "title": "Schedule for \"{{name}}\"",
+      "intro": "Run this set and its delivery automatically on a recurring cadence. Each run reuses the stored delivery.",
+      "noDelivery": "This set has no delivery yet. A schedule can only be attached to a set with a delivery block.",
+      "cadence": "Cadence",
+      "cadences": {
+        "monthly": "Monthly",
+        "weekly": "Weekly"
+      },
+      "cadenceHint": {
+        "monthly": "Runs on the 1st of every month.",
+        "weekly": "Runs every Monday."
+      },
+      "enabled": "Schedule enabled",
+      "save": "Save schedule",
+      "delete": "Delete schedule",
+      "cancel": "Cancel",
+      "saved": "Schedule saved",
+      "deleted": "Schedule deleted",
+      "saveError": "Failed to save the schedule",
+      "deleteError": "Failed to delete the schedule"
+    },
     "labels": {
+      "action": "Generate address labels",
+      "modalTitle": "Generate address labels",
       "format": "Label format",
       "sortOrder": "Sort order",
       "sort": {
@@ -199,6 +259,9 @@
       "bodyTemplate": "Dear member,\n\n\n\nKind regards,\nThe board",
       "attachCsv": "Attach CSV",
       "attachPdf": "Attach PDF labels",
+      "externalRecipients": "External recipients",
+      "externalRecipientsPlaceholder": "agent@example.com, office@example.org",
+      "externalRecipientsInvalid": "Invalid email address(es): {{addresses}}",
       "recipientCount": "{{count}} recipients",
       "recipientCountZero": "No recipients with a resolvable email address",
       "confirm": "You are about to email {{count}} recipients (as BCC). Continue?",
@@ -209,6 +272,45 @@
         "success": "Mail sent",
         "error": "Failed to send mail",
         "rateLimited": "Send rate limit reached. Please try again later."
+      },
+      "templates": {
+        "pickerLabel": "Template",
+        "pickerPlaceholder": "Pick a stored template…",
+        "pickerHint": "Picking a template fills the subject and message; you can still edit them.",
+        "manage": "Manage templates",
+        "loadError": "Failed to load the template",
+        "title": "Mail templates",
+        "listTitle": "Stored templates",
+        "new": "New template",
+        "newTitle": "New template",
+        "editTitle": "Edit template",
+        "loading": "Loading templates…",
+        "empty": "No stored templates yet",
+        "edit": "Edit",
+        "delete": "Delete",
+        "name": "Name",
+        "subject": "Subject",
+        "body": "Message body",
+        "upload": "Upload file",
+        "mergeHint": "Use {{merge_field}} placeholders (e.g. {{first_name}}); they are filled per recipient at send time.",
+        "lang": {
+          "nl": "Dutch",
+          "en": "English"
+        },
+        "improveLabel": "Improve with AI",
+        "improvePlaceholder": "e.g. make it warmer and shorter",
+        "improve": "Improve",
+        "improveSaveFirst": "Save the template first to improve it with AI.",
+        "close": "Close",
+        "save": "Save",
+        "saved": "Template saved",
+        "saveError": "Failed to save the template",
+        "deleted": "Template deleted",
+        "deleteError": "Failed to delete the template",
+        "uploaded": "File loaded into the message body",
+        "uploadError": "Failed to read the file",
+        "improved": "Template improved",
+        "improveError": "Could not improve the template; your text was kept"
       }
     },
     "states": {
@@ -221,7 +323,8 @@
       "noConfig": "No analytics config set; config-dependent sets are unavailable",
       "roleUnmapped": "This set is unavailable: the field is not configured for this organization",
       "fieldAbsent": "This set is unavailable: the required field is missing",
-      "addressMappingAbsent": "Address labels are unavailable: address fields are not configured"
+      "addressMappingAbsent": "Address labels are unavailable: address fields are not configured",
+      "mailNotEnabled": "Mailing is unavailable: email is not yet enabled for this organization"
     },
     "overLimit": {
       "warning": "The dataset is nearing the maximum size; results may be incomplete",

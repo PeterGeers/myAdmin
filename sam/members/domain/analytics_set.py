@@ -33,6 +33,7 @@ from typing import Any
 
 from sam.members.domain.error_codes import (
     ANALYTICS_SET_DEFINITION,
+    ANALYTICS_SET_DELIVERY,
     ANALYTICS_SET_ID,
     ANALYTICS_SET_KIND,
     ANALYTICS_SET_NAME,
@@ -44,6 +45,10 @@ from sam.members.domain.error_codes import (
 __all__ = [
     "ANALYTICS_SET_KINDS",
     "ANALYTICS_SET_ORIGINS",
+    "DELIVERY_ATTACHMENTS",
+    "DELIVERY_MODES",
+    "DELIVERY_MODE_PER_RECIPIENT",
+    "DELIVERY_MODE_TO_FIXED",
     "SORT_KEY_SEPARATOR",
     "AnalyticsSetEntry",
     "AnalyticsSetValidationError",
@@ -59,6 +64,26 @@ ANALYTICS_SET_KINDS: tuple[str, ...] = ("count", "list")
 #: shared library is self-describing and a future ``predefined`` origin (if presets are ever
 #: promoted to stored items) needs no shape change. Default: ``user``.
 ANALYTICS_SET_ORIGINS: tuple[str, ...] = ("user", "predefined")
+
+#: The two delivery MODES a saved set's optional ``delivery`` block may carry (R3, design §2.1):
+#:
+#: - ``per_recipient`` — mail each member in the result individually with real mail-merge (the
+#:   template's merge fields are filled from each member's row). Recipient addresses come from
+#:   the dataset at run time and are therefore NEVER stored on the block.
+#: - ``to_fixed`` — send the result as an attachment to an explicit, stored ``recipients`` list
+#:   (often one address, e.g. a handling agent outside the dataset).
+#:
+#: Kept as a constant so the entity, the delivery routes (task 3.3), and the send engine (R4)
+#: agree on one discriminator vocabulary.
+DELIVERY_MODE_PER_RECIPIENT = "per_recipient"
+DELIVERY_MODE_TO_FIXED = "to_fixed"
+DELIVERY_MODES: tuple[str, ...] = (DELIVERY_MODE_PER_RECIPIENT, DELIVERY_MODE_TO_FIXED)
+
+#: The optional ``attachment`` kinds a delivery may produce (design §2.1). ``None`` is also
+#: valid (no attachment). ``pdf_labels`` carries the shared snake_case ``label_options`` block
+#: (``{format, sort, font_size, alignment, border, country, start}`` — one model with R6,
+#: task 6.3); ``csv`` is the plain export attachment.
+DELIVERY_ATTACHMENTS: tuple[str, ...] = ("csv", "pdf_labels")
 
 #: Mirrors ``table_design.SORT_KEY_SEPARATOR`` — a ``set_id`` may not contain it, since the id
 #: becomes a sort-key segment. Duplicated here (not imported) to keep the domain layer free of
@@ -105,6 +130,24 @@ class AnalyticsSetEntry:
       edit/delete a shared set regardless of ``created_by``). Independent of membership (user ≠
       member, R11.1) — it is a user principal, not a ``member_id``. Optional (older items / an
       unauthenticated-context create leave it blank).
+    - ``delivery`` — the OPTIONAL stored "what to do with the result" block (R3), or ``None`` on
+      a set with no delivery (the default; a legacy set written before the field existed loads
+      as ``None`` and keeps working). It is an additive field added the EXPLICIT way (declared
+      here, validated here, defaulted in :meth:`from_item`) — a generic additive-field
+      serializer is deliberately NOT built for one entity (steering 35 rule of three; see
+      ``myBacklog/backlog.md``). The block is a mapping::
+
+          { "mode": "per_recipient" | "to_fixed",   # the discriminator
+            "template_id": "<template#<id>>" | None, # a template ref (R2); None for a bare set
+            "attachment": "csv" | "pdf_labels" | None,
+            "recipients": ["agent@example.com", ...], # to_fixed ONLY; absent/empty for per_recipient
+            "label_options": {format, sort, font_size, alignment, border, country, start} | None }
+
+      Mode rules (enforced in :meth:`validate`): ``to_fixed`` REQUIRES a non-empty
+      ``recipients`` list (it is the fixed-address send); ``per_recipient`` stores NO recipients
+      (addresses are resolved from the dataset at run time — a stored recipients list on a
+      ``per_recipient`` block is a shape error). ``label_options`` is the SAME shared snake_case
+      shape R6 uses interactively (one model, not two — task 6.3).
     - ``created_at`` / ``updated_at`` — ISO-8601 UTC timestamp strings stamped by the domain.
     """
 
@@ -115,6 +158,7 @@ class AnalyticsSetEntry:
     definition: Mapping[str, Any] = field(default_factory=dict)
     origin: str = "user"
     created_by: str = ""
+    delivery: Mapping[str, Any] | None = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -177,8 +221,98 @@ class AnalyticsSetEntry:
         # `created_by` is attribution-only (R11.3) — optional and un-gated; a non-string is
         # simply ignored rather than a validation error (never blocks a save).
 
+        # `delivery` (R3) is optional — None/absent is a valid set with no delivery. When
+        # present it must be a well-formed, mode-discriminated block (checked below).
+        delivery_error = self._validate_delivery()
+        if delivery_error is not None:
+            errors["delivery"] = delivery_error
+
         if errors:
             raise AnalyticsSetValidationError(errors)
+
+    def _validate_delivery(self) -> FieldError | None:
+        """Validate the optional ``delivery`` block (R3), returning a :class:`FieldError` or None.
+
+        ``None`` delivery is valid (a set with no delivery). A present block must be a mapping
+        carrying a ``mode`` in :data:`DELIVERY_MODES`; the mode then discriminates:
+
+        - ``to_fixed`` — REQUIRES a non-empty ``recipients`` list of non-blank address strings
+          (the fixed-address send; design §2.1).
+        - ``per_recipient`` — stores NO recipients (addresses are resolved from the dataset at
+          run time); a non-empty stored ``recipients`` list is a shape error.
+
+        ``template_id`` (when present) must be a string; ``attachment`` (when present) must be
+        one of :data:`DELIVERY_ATTACHMENTS`; ``label_options`` (when present) must be a mapping
+        (the shared snake_case block — its numeric fields are DynamoDB-coerced by the item
+        builder, so this layer only checks the shape, not each scalar). Returns None when valid.
+        """
+        if self.delivery is None:
+            return None
+
+        if not isinstance(self.delivery, Mapping):
+            return FieldError(
+                code=ANALYTICS_SET_DELIVERY,
+                detail="must be a mapping (the delivery block) or null",
+            )
+
+        mode = self.delivery.get("mode")
+        if mode not in DELIVERY_MODES:
+            return FieldError(
+                code=ANALYTICS_SET_DELIVERY,
+                detail=f"mode must be one of: {', '.join(DELIVERY_MODES)}",
+                params={"allowed": list(DELIVERY_MODES)},
+            )
+
+        recipients = self.delivery.get("recipients")
+        if recipients is not None and not isinstance(recipients, (list, tuple)):
+            return FieldError(
+                code=ANALYTICS_SET_DELIVERY,
+                detail="recipients must be a list of address strings",
+            )
+        recipient_list = list(recipients) if isinstance(recipients, (list, tuple)) else []
+
+        if mode == DELIVERY_MODE_TO_FIXED:
+            if not recipient_list:
+                return FieldError(
+                    code=ANALYTICS_SET_DELIVERY,
+                    detail="a 'to_fixed' delivery requires a non-empty recipients list",
+                )
+            if any(not isinstance(r, str) or not r.strip() for r in recipient_list):
+                return FieldError(
+                    code=ANALYTICS_SET_DELIVERY,
+                    detail="every 'to_fixed' recipient must be a non-blank address string",
+                )
+        elif mode == DELIVERY_MODE_PER_RECIPIENT and recipient_list:
+            # per_recipient resolves addresses from the dataset at run time — it must NOT carry
+            # stored recipients (design §2.1).
+            return FieldError(
+                code=ANALYTICS_SET_DELIVERY,
+                detail="a 'per_recipient' delivery must not store recipient addresses",
+            )
+
+        template_id = self.delivery.get("template_id")
+        if template_id is not None and not isinstance(template_id, str):
+            return FieldError(
+                code=ANALYTICS_SET_DELIVERY,
+                detail="template_id must be a string or null",
+            )
+
+        attachment = self.delivery.get("attachment")
+        if attachment is not None and attachment not in DELIVERY_ATTACHMENTS:
+            return FieldError(
+                code=ANALYTICS_SET_DELIVERY,
+                detail=f"attachment must be null or one of: {', '.join(DELIVERY_ATTACHMENTS)}",
+                params={"allowed": list(DELIVERY_ATTACHMENTS)},
+            )
+
+        label_options = self.delivery.get("label_options")
+        if label_options is not None and not isinstance(label_options, Mapping):
+            return FieldError(
+                code=ANALYTICS_SET_DELIVERY,
+                detail="label_options must be a mapping (the shared snake_case block) or null",
+            )
+
+        return None
 
     # ── storage-shape mapping (used by the repository; storage-agnostic here) ─────────
 
@@ -186,9 +320,12 @@ class AnalyticsSetEntry:
         """Serialize to the plain dict the repository persists (validated first).
 
         The dict carries the domain-facing attributes only (``tenant_id`` / ``set_id`` /
-        ``name`` / ``kind`` / ``definition`` / ``created_at`` / ``updated_at``); the repository
-        stamps the physical primary-key attributes (partition/sort key) on top. Validates before
-        serializing so a malformed entry can never be written.
+        ``name`` / ``kind`` / ``definition`` / ``origin`` / ``created_by`` / the optional
+        ``delivery`` block / ``created_at`` / ``updated_at``); the repository stamps the physical
+        primary-key attributes (partition/sort key) on top. Validates before serializing so a
+        malformed entry can never be written. ``delivery`` is serialized explicitly (the proven
+        additive-field path — steering 35): a present block is emitted as a plain dict, and an
+        absent block is written as ``None`` so :meth:`from_item` round-trips it unchanged.
         """
         self.validate()
         return {
@@ -199,6 +336,7 @@ class AnalyticsSetEntry:
             "definition": dict(self.definition),
             "origin": self.origin,
             "created_by": self.created_by,
+            "delivery": dict(self.delivery) if self.delivery is not None else None,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -225,6 +363,10 @@ class AnalyticsSetEntry:
         # items carry no attribution).
         origin = item.get("origin")
         created_by = item.get("created_by")
+        # `delivery` (R3) defaults to None for a legacy set written before the field existed
+        # (and for any set that stores no delivery) — such a set must still load unchanged. A
+        # present block is read as a plain dict; a non-mapping stored value degrades to None.
+        delivery = item.get("delivery")
         return cls(
             tenant_id=item.get("tenant_id", ""),
             set_id=item.get("set_id", ""),
@@ -233,6 +375,7 @@ class AnalyticsSetEntry:
             definition=dict(definition) if isinstance(definition, Mapping) else {},
             origin=origin if isinstance(origin, str) and origin else "user",
             created_by=created_by if isinstance(created_by, str) else "",
+            delivery=dict(delivery) if isinstance(delivery, Mapping) else None,
             created_at=item.get("created_at", ""),
             updated_at=item.get("updated_at", ""),
         )

@@ -37,12 +37,51 @@
       "templates": "Sjablonen",
       "tenantInfo": "Tenantinfo",
       "senderSettings": "Factuur E-mail",
+      "memberSenderIdentities": "Afzenderadressen",
       "advanced": "Geavanceerd",
       "emailLog": "E-maillog",
       "pivotViews": "Draaitabelweergaven",
       "functions": "Functies",
       "landingPage": "Landingspagina",
       "mediaAssets": "Media Assets"
+    },
+    "memberSenderIdentities": {
+      "title": "Afzenderadressen",
+      "description": "Voeg de e-mailadressen toe waarmee uw tenant ledenmail verstuurt en verifieer ze. Mail wordt verzonden vanaf een geverifieerd adres.",
+      "loading": "Afzenderadressen laden...",
+      "empty": "Nog geen afzenderadressen. Voeg er hieronder een toe om de verificatie te starten.",
+      "columns": {
+        "email": "E-mail",
+        "status": "Status",
+        "actions": "Acties"
+      },
+      "status": {
+        "pending": "In afwachting",
+        "verified": "Geverifieerd",
+        "failed": "Mislukt",
+        "expired": "Verlopen"
+      },
+      "addTitle": "Afzenderadres toevoegen",
+      "add": "Adres toevoegen",
+      "adding": "Toevoegen...",
+      "emailPlaceholder": "afzender@voorbeeld.nl",
+      "addHint": "Bij het toevoegen van een adres wordt een AWS SES-verificatiemail verstuurd. Klik op de link in die mail om het te verifiëren.",
+      "resend": "Opnieuw versturen",
+      "resending": "Versturen...",
+      "resendTooltip": "Verstuur de SES-verificatiemail opnieuw",
+      "addSuccess": "Verificatiemail verstuurd",
+      "addSuccessDesc": "Controleer de inbox voor de AWS SES-verificatiemail.",
+      "addError": "Afzenderadres kon niet worden toegevoegd",
+      "resendSuccess": "Verificatiemail opnieuw verstuurd",
+      "resendSuccessDesc": "Controleer de inbox voor de AWS SES-verificatiemail.",
+      "resendError": "Verificatie kon niet opnieuw worden verstuurd",
+      "loadError": "Afzenderadressen laden mislukt",
+      "tryAgain": "Probeer het later opnieuw.",
+      "unknownError": "Onbekende fout",
+      "validation": {
+        "required": "E-mailadres is verplicht",
+        "invalid": "Voer een geldig e-mailadres in"
+      }
     },
     "parameters": {
       "title": "Parameters",

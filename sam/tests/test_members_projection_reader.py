@@ -668,3 +668,106 @@ class TestGetViewContexts:
 
         assert [c.key for c in a] == ["overview"]
         assert [c.key for c in b] == [DEFAULT_CONTEXT_KEY]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# pivot-output-actions Task 0.4 — is_mail_enabled (the config#mail gate row).
+#
+# Feature: pivot-output-actions, R0 / design §6.3 (the mail-enabled gate, cross-plane READ).
+# Validates: Requirements R0
+#
+# The per-tenant "mail-enabled / SES-certified" flag is authored on the Flask plane and
+# projected as a config#mail row. The Members edge resolves the flag from THIS projection
+# at request time — NO live MySQL call (ADR 0005/0006). The reader is FAIL-CLOSED: a
+# missing row, a missing attribute, or any non-boolean-True value resolves to False.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def _config_mail_item(tenant_id, mail_enabled, version=1):
+    """A config#mail row (the shape build_config_mail_row produces on the Flask plane)."""
+    return {
+        schema.PARTITION_KEY_ATTR: tenant_id,
+        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail"),
+        "mail_enabled": mail_enabled,
+        schema.VERSION_ATTR: version,
+    }
+
+
+class TestIsMailEnabled:
+    def test_is_mail_enabled_true_flag_resolves_true_from_projection(self):
+        """An explicit projected mail_enabled=True → the gate is open (R0)."""
+        table = FakeTable()
+        table.put(_config_mail_item("h-dcn", True))
+
+        assert MembersProjectionReader(table=table).is_mail_enabled("h-dcn") is True
+
+    def test_is_mail_enabled_false_flag_resolves_false(self):
+        """A present-but-disabled gate (mail_enabled=False) → the gate is closed."""
+        table = FakeTable()
+        table.put(_config_mail_item("h-dcn", False))
+
+        assert MembersProjectionReader(table=table).is_mail_enabled("h-dcn") is False
+
+    def test_is_mail_enabled_missing_row_fails_closed_to_false(self):
+        """Fail-closed (R0): no config#mail row at all → False, never raises."""
+        table = FakeTable()  # nothing seeded for this tenant
+        assert MembersProjectionReader(table=table).is_mail_enabled("unconfigured") is False
+
+    def test_is_mail_enabled_missing_attribute_fails_closed_to_false(self):
+        """A config#mail row with no mail_enabled attribute → False (fail-closed)."""
+        table = FakeTable()
+        row = _config_mail_item("h-dcn", True)
+        del row["mail_enabled"]
+        table.put(row)
+
+        assert MembersProjectionReader(table=table).is_mail_enabled("h-dcn") is False
+
+    def test_is_mail_enabled_non_boolean_true_values_fail_closed(self):
+        """Any non-boolean-True value never opens the gate (R0): only True enables it."""
+        for raw in ("true", "True", 1, "yes", [], {}, None):
+            table = FakeTable()
+            table.put(_config_mail_item("h-dcn", raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.is_mail_enabled("h-dcn") is False, f"raw={raw!r} must fail closed"
+
+    def test_is_mail_enabled_reads_projection_not_mysql(self):
+        """The flag resolves purely from the DynamoDB projection — no MySQL seam exists.
+
+        The reader is constructed with ONLY an in-memory projection table (no DB handle,
+        no connection); it answers from the seeded config#mail row via a single partition
+        Query. This pins the R0 mechanism: the Members edge reads the gate from the
+        projection, never a live cross-plane MySQL call.
+        """
+        table = FakeTable()
+        table.put(_config_mail_item("h-dcn", True))
+
+        reader = MembersProjectionReader(table=table)
+        result = reader.is_mail_enabled("h-dcn")
+
+        assert result is True
+        # Exactly one partition Query answered the gate — the projection is the sole source.
+        assert table.query_counts["h-dcn"] == 1
+
+    def test_is_mail_enabled_tenant_isolation(self):
+        """Each tenant's gate answers only from its own partition — no cross-tenant bleed."""
+        table = FakeTable()
+        table.put(_config_mail_item("tenant-a", True))
+        table.put(_config_mail_item("tenant-b", False))
+
+        reader = MembersProjectionReader(table=table)
+
+        assert reader.is_mail_enabled("tenant-a") is True
+        assert reader.is_mail_enabled("tenant-b") is False
+        assert table.query_counts == {"tenant-a": 1, "tenant-b": 1}
+
+    def test_is_mail_enabled_shares_partition_cache_with_other_reads(self):
+        """The gate read shares the per-invocation partition cache (one Query per tenant)."""
+        table = FakeTable()
+        table.put(_config_mail_item("h-dcn", True))
+        table.put(_config_scope_item("h-dcn", [_region_dimension_dict()]))
+
+        reader = MembersProjectionReader(table=table)
+        reader.get_scope_config("h-dcn")
+        reader.is_mail_enabled("h-dcn")
+
+        assert table.query_counts["h-dcn"] == 1
