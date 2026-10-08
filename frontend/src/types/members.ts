@@ -14,6 +14,7 @@
  */
 
 import type { PivotConfig } from './pivot';
+import type { LabelOptions } from '../components/members/analytics/labelOptions';
 
 /** A localized label ({ nl, en }) as emitted by the projection/field-config. */
 export interface LocalizedLabel {
@@ -103,6 +104,58 @@ export interface MemberAnalyticsSetSummary {
   name: string;
   /** `'count'` (aggregate) or `'list'` (filtered list). */
   kind: 'count' | 'list';
+  /**
+   * Whether the set carries a stored {@link MemberDelivery} block (R3). Surfaced
+   * on the list feed so the UI can gate the "Schedule" action (R5 — a schedule
+   * can only be attached to a set that HAS a delivery) without fetching the full
+   * set. Absent on a legacy feed → treated as `false` (no delivery known).
+   */
+  hasDelivery?: boolean;
+}
+
+/**
+ * The two delivery MODES a saved set's optional {@link MemberDelivery} block may
+ * carry (R3, design §2.1), mirroring the SAM entity's `DELIVERY_MODES`:
+ *
+ * - `per_recipient` — mail each member in the result individually with mail-merge;
+ *   recipient addresses are resolved from the dataset at run time and are therefore
+ *   NEVER stored on the block (`recipients` is absent/empty).
+ * - `to_fixed` — send the result as an attachment to an explicit, stored
+ *   `recipients` list (e.g. a handling agent outside the dataset).
+ */
+export type MemberDeliveryMode = 'per_recipient' | 'to_fixed';
+
+/** The optional attachment a delivery produces (R3, design §2.1); `null`/absent = none. */
+export type MemberDeliveryAttachment = 'csv' | 'pdf_labels';
+
+/**
+ * The OPTIONAL stored "what to do with the result" block (R3, design §2.1) on a
+ * saved set — the camelCase frontend mirror of the SAM entity's snake_case
+ * `delivery` block. Absent/`undefined` on a set with no delivery (a legacy set
+ * written before the field existed loads without it and keeps working).
+ *
+ * The mapper (`membersApiService`) converts to/from the stored snake_case block
+ * (`{ mode, template_id, attachment, recipients, label_options }`), using the
+ * shared label-options model's `toStored`/`fromStored` for the `label_options`
+ * sub-block (one label-options model with R6 — task 6.3, no fork).
+ *
+ * Mode rules (enforced server-side in the SAM entity's `validate()`): `to_fixed`
+ * requires a non-empty `recipients` list; `per_recipient` stores no recipients.
+ */
+export interface MemberDelivery {
+  /** The delivery mode discriminator. */
+  mode: MemberDeliveryMode;
+  /** A stored template ref (`template#<id>`, R2), or `null` for a bare set. */
+  templateId: string | null;
+  /** The attachment to produce, or `null` for none. */
+  attachment: MemberDeliveryAttachment | null;
+  /** `to_fixed` ONLY — the explicit recipient addresses; empty for `per_recipient`. */
+  recipients: string[];
+  /**
+   * The shared (camelCase) label-options model — present only for `pdf_labels`,
+   * `null` otherwise. The SAME `LabelOptions` R6 uses interactively (task 6.3).
+   */
+  labelOptions: LabelOptions | null;
 }
 
 /**
@@ -120,10 +173,49 @@ export interface MemberAnalyticsSet {
   kind: 'count' | 'list';
   /** The pivot/list definition (camelCase `PivotConfig`). */
   definition: PivotConfig;
+  /**
+   * The OPTIONAL stored delivery block (R3), or `undefined` on a set with no
+   * delivery (the default; a legacy set loads without it).
+   */
+  delivery?: MemberDelivery;
   /** ISO-8601 UTC create timestamp. */
   created_at: string;
   /** ISO-8601 UTC last-update timestamp. */
   updated_at: string;
+}
+
+/**
+ * The friendly cadence choices the schedule editor offers (R5, design §5). A
+ * cadence maps to a concrete backend cron/rate expression via
+ * `cadenceToCron`/`cronToCadence` in `membersApiService` — the UI never shows a
+ * raw cron. `monthly` runs on the 1st of each month; `weekly` runs every Monday.
+ */
+export type MemberScheduleCadence = 'monthly' | 'weekly';
+
+/**
+ * A schedule attached to a saved set that HAS a delivery block (R5, design §2.3
+ * / §3), the camelCase frontend mirror of the SAM `schedule#<schedule_id>`
+ * record. A schedule can only be attached to a set with a stored `delivery` (the
+ * editor is gated on it); the scheduled run reuses the R4 execute-and-deliver
+ * path. Scheduling is gated to a tenant-wide-capable caller (`members:admin` OR
+ * `members:write` + the all-regions grant) — the backend is authoritative, the
+ * client only avoids offering a dead action.
+ */
+export interface MemberSchedule {
+  /** The backend `schedule_id` (string, server-chosen opaque id). */
+  scheduleId: string;
+  /** The saved set this schedule runs (the set must have a delivery block). */
+  setId: string;
+  /** The EventBridge schedule expression (cron/rate) the backend persists. */
+  cron: string;
+  /** Whether the schedule is active; a disabled schedule does not fire. */
+  enabled: boolean;
+  /** Cognito `sub` of the creator (echoed by the backend; informational). */
+  createdBy: string;
+  /** ISO-8601 UTC create timestamp. */
+  createdAt: string;
+  /** ISO-8601 UTC last-update timestamp. */
+  updatedAt: string;
 }
 
 /**
@@ -373,6 +465,16 @@ export interface FieldConfig {
    * backend-served shape (task 6.1).
    */
   analytics?: MemberAnalyticsConfig;
+  /**
+   * The tenant's mail-enabled gate flag (pivot-output-actions R0/R1, design §6.3). `true`
+   * when the tenant is cleared to send mail (the per-tenant "mail-enabled / SES-certified"
+   * onboarding gate the tenant-admin module owns, projected one-directionally and read by
+   * the Members edge). The pivot result's Mail output action is OFFERED only when this is
+   * `true`; otherwise the action is hidden with a degradation reason. FAIL-CLOSED: a
+   * missing/absent value means NOT enabled (treated as `false`). Presentation-only — the
+   * send path re-checks the gate server-side regardless.
+   */
+  mail_enabled?: boolean;
 }
 
 /**

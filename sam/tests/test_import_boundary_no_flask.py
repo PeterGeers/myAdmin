@@ -34,6 +34,7 @@ _LAMBDA_IMPORT_SURFACE = (
     "import auth.entitlement_claim_codec",
     "import auth.entitlement_resolver",
     "import sam.pretokengen.handler",
+    "import sam.members.worker.app",
 )
 
 

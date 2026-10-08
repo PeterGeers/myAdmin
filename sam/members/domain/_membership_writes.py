@@ -1017,6 +1017,19 @@ class WritesMixin:
             # unavailable, R9.5). Presentation-only: the module serves it, enforces nothing off it
             # (mirrors view_contexts / lifecycle).
             "analytics": self._serialize_analytics(config.analytics),
+            # The tenant's mail-enabled gate flag (pivot-output-actions R0/R1 task 1.3, design
+            # §6.3). Sourced from the injected MailGateProvider — in production the projection
+            # reader's `config#mail` row (the per-tenant "mail-enabled / SES-certified"
+            # onboarding gate the tenant-admin module writes to MySQL `parameters` and projects
+            # one-directionally; a Lambda NEVER queries MySQL for it, ADR 0005/0006), a
+            # StaticMailGateProvider in tests. FAIL-CLOSED (R0): `False` when no provider is
+            # wired, the row is absent, or the flag is not explicitly projected `True`. The SPA
+            # reads it to decide whether to OFFER the mail output actions (R1–R5) — the Mail
+            # compose action / send path is only offered when `mail_enabled` is true; otherwise
+            # the action is hidden with the shared degradation reason (mirrors how `canExport`
+            # gates the result-actions slot). Presentation-only: the module serves it; the
+            # worker/send path re-checks the gate server-side regardless (design §9).
+            "mail_enabled": self._mail_gate_provider.is_mail_enabled(tenant_id),
         }
 
     @staticmethod

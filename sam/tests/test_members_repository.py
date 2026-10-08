@@ -748,3 +748,206 @@ class TestFloatToDecimalCoercion:
         item = td.build_membership_type_item("h-dcn", "gewoon_lid", {"fee": 12.5})
         assert item["fee"] == Decimal("12.5")
         assert isinstance(item["fee"], Decimal)
+
+
+# ---------------------------------------------------------------------------
+# Delivery block (R3) threads through the item builder as DynamoDB-safe Decimals
+# ---------------------------------------------------------------------------
+
+
+class TestAnalyticsSetDeliveryItemBuilder:
+    """The optional ``delivery`` block (R3) survives the repository item builder.
+
+    Task 3.2 threads ``delivery`` through the storage path. ``build_analytics_set_item`` already
+    deep-coerces the WHOLE entry dict via ``floats_to_decimal(dict(entry))``, so the nested
+    ``delivery.label_options`` numeric fields (``font_size`` / ``start``, design §2.1) are
+    covered with no additional code — these tests PROVE that invariant end to end:
+
+    - the item builder stamps the delivery block and turns every nested float into a
+      ``Decimal`` (DynamoDB refuses Python ``float``), and
+    - a full ``save_analytics_set`` → ``get_analytics_set`` round-trip rebuilds the block with
+      its numeric ``label_options`` intact.
+
+    A legacy set with NO delivery still round-trips as ``None`` (additive-field safety).
+    """
+
+    def _entry_with_pdf_labels(self):
+        from sam.members.domain.analytics_set import AnalyticsSetEntry
+
+        return AnalyticsSetEntry(
+            tenant_id="h-dcn",
+            set_id="set-delivery-1",
+            name="Paper clubblad",
+            kind="list",
+            definition={
+                "data_source": "members",
+                "group_columns": [],
+                "aggregate_measures": [],
+            },
+            delivery={
+                "mode": "to_fixed",
+                "template_id": "template#t-9",
+                "attachment": "pdf_labels",
+                "recipients": ["agent@example.com"],
+                # label_options carries the numeric fields that MUST become Decimals.
+                "label_options": {
+                    "format": "L7160",
+                    "sort": "name",
+                    "font_size": 10.5,
+                    "alignment": "left",
+                    "border": False,
+                    "country": True,
+                    "start": 3,
+                },
+            },
+            created_at="2024-01-01T00:00:00+00:00",
+            updated_at="2024-01-01T00:00:00+00:00",
+        )
+
+    def test_build_item_coerces_label_options_numbers_to_decimal(self):
+        from decimal import Decimal
+
+        entry = self._entry_with_pdf_labels()
+        item = td.build_analytics_set_item("h-dcn", entry.set_id, entry.to_item())
+
+        label_options = item["delivery"]["label_options"]
+        # font_size was a float → must be a Decimal (DynamoDB rejects float).
+        assert label_options["font_size"] == Decimal("10.5")
+        assert isinstance(label_options["font_size"], Decimal)
+        # start was an int → stays an int (int is DynamoDB-safe; never float-coerced).
+        assert label_options["start"] == 3
+        assert isinstance(label_options["start"], int)
+        # Non-numeric fields pass through untouched.
+        assert label_options["format"] == "L7160"
+        assert label_options["border"] is False
+        assert item["delivery"]["mode"] == "to_fixed"
+        assert item["delivery"]["recipients"] == ["agent@example.com"]
+
+    def test_save_then_get_round_trips_delivery_with_numeric_label_options(self, repo):
+        from decimal import Decimal
+
+        entry = self._entry_with_pdf_labels()
+        # Must not raise "Float types are not supported" on the write path.
+        repo.save_analytics_set("h-dcn", entry)
+
+        got = repo.get_analytics_set("h-dcn", "set-delivery-1")
+        assert got is not None
+        assert got.delivery is not None
+        assert got.delivery["mode"] == "to_fixed"
+        assert got.delivery["attachment"] == "pdf_labels"
+        assert got.delivery["recipients"] == ["agent@example.com"]
+        # The numeric label_options survive storage as Decimals and rebuild correctly.
+        label_options = got.delivery["label_options"]
+        assert label_options["font_size"] == Decimal("10.5")
+        assert label_options["start"] == 3
+        assert label_options["format"] == "L7160"
+
+    def test_legacy_set_without_delivery_round_trips_as_none(self, repo):
+        from sam.members.domain.analytics_set import AnalyticsSetEntry
+
+        entry = AnalyticsSetEntry(
+            tenant_id="h-dcn",
+            set_id="set-legacy-1",
+            name="Legacy",
+            kind="list",
+            definition={"data_source": "members", "group_columns": []},
+            created_at="2024-01-01T00:00:00+00:00",
+            updated_at="2024-01-01T00:00:00+00:00",
+        )
+        repo.save_analytics_set("h-dcn", entry)
+
+        got = repo.get_analytics_set("h-dcn", "set-legacy-1")
+        assert got is not None
+        assert got.delivery is None
+
+
+# ---------------------------------------------------------------------------
+# Schedules (R5) — a repository round-trip of the `schedule#` record type +
+# tenant isolation + the no-cross-tenant-write guard, mirroring the
+# analytics-set / template repository tests.
+# ---------------------------------------------------------------------------
+
+
+def _schedule(schedule_id: str, *, tenant_id="h-dcn", set_id="set-9", enabled=True):
+    from sam.members.domain.schedule import ScheduleEntry
+
+    return ScheduleEntry(
+        tenant_id=tenant_id,
+        schedule_id=schedule_id,
+        set_id=set_id,
+        cron="cron(0 8 1 * ? *)",
+        created_by="sub-1",
+        enabled=enabled,
+        created_at="2024-01-01T00:00:00+00:00",
+        updated_at="2024-01-01T00:00:00+00:00",
+    )
+
+
+class TestScheduleRecordType:
+    def test_save_then_get_round_trips_the_schedule(self, repo):
+        repo.save_schedule("h-dcn", _schedule("sch-1"))
+        got = repo.get_schedule("h-dcn", "sch-1")
+        assert got is not None
+        assert got.schedule_id == "sch-1"
+        assert got.set_id == "set-9"
+        assert got.cron == "cron(0 8 1 * ? *)"
+        assert got.created_by == "sub-1"
+        assert got.enabled is True
+
+    def test_get_missing_schedule_returns_none(self, repo):
+        assert repo.get_schedule("h-dcn", "nope") is None
+
+    def test_disabled_flag_round_trips(self, repo):
+        repo.save_schedule("h-dcn", _schedule("sch-1", enabled=False))
+        got = repo.get_schedule("h-dcn", "sch-1")
+        assert got is not None and got.enabled is False
+
+    def test_item_lands_under_the_schedule_sort_key(self, repo, table):
+        repo.save_schedule("h-dcn", _schedule("sch-1"))
+        stored = table.store[("h-dcn", td.schedule_sk("sch-1"))]
+        assert stored[td.SORT_KEY_ATTR] == "schedule#sch-1"
+        assert stored["schedule_id"] == "sch-1"
+
+    def test_list_returns_entries_ordered_by_set_then_schedule(self, repo):
+        repo.save_schedule("h-dcn", _schedule("sch-b", set_id="set-2"))
+        repo.save_schedule("h-dcn", _schedule("sch-a", set_id="set-1"))
+        repo.save_schedule("h-dcn", _schedule("sch-c", set_id="set-1"))
+        listed = repo.list_schedules("h-dcn")
+        # (set_id, schedule_id) asc.
+        assert [(e.set_id, e.schedule_id) for e in listed] == [
+            ("set-1", "sch-a"),
+            ("set-1", "sch-c"),
+            ("set-2", "sch-b"),
+        ]
+
+    def test_empty_lists_empty(self, repo):
+        assert repo.list_schedules("h-dcn") == []
+
+    def test_delete_removes_the_schedule(self, repo):
+        repo.save_schedule("h-dcn", _schedule("sch-1"))
+        repo.delete_schedule("h-dcn", "sch-1")
+        assert repo.get_schedule("h-dcn", "sch-1") is None
+
+    def test_schedules_are_isolated_per_tenant(self, repo):
+        repo.save_schedule("tenant-a", _schedule("sch-1", tenant_id="tenant-a"))
+        # Another tenant's partition → not visible.
+        assert repo.get_schedule("tenant-b", "sch-1") is None
+        assert repo.list_schedules("tenant-b") == []
+
+    def test_save_binds_entry_to_the_caller_tenant_when_unset(self, repo):
+        repo.save_schedule("h-dcn", _schedule("sch-1", tenant_id=""))
+        got = repo.get_schedule("h-dcn", "sch-1")
+        assert got is not None and got.tenant_id == "h-dcn"
+
+    def test_save_refuses_a_cross_tenant_entry(self, repo):
+        with pytest.raises(ValueError):
+            repo.save_schedule("h-dcn", _schedule("sch-1", tenant_id="other"))
+
+    def test_save_refuses_a_blank_tenant(self, repo):
+        with pytest.raises(ValueError):
+            repo.save_schedule("", _schedule("sch-1"))
+
+    def test_schedules_do_not_leak_into_member_listing(self, repo):
+        repo.save_member("h-dcn", _member("M-1", "1001"))
+        repo.save_schedule("h-dcn", _schedule("sch-1"))
+        assert [m["member_id"] for m in repo.list_members("h-dcn")] == ["M-1"]

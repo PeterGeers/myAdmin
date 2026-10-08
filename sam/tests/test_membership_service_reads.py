@@ -138,6 +138,30 @@ class FakeMembersRepository:
     def delete_analytics_set(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
+    def get_template(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_templates(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def save_template(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def delete_template(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def get_schedule(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_schedules(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def save_schedule(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def delete_schedule(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
     def get_preferred_list(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
