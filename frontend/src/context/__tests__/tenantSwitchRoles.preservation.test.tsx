@@ -228,7 +228,10 @@ function renderApp(opts: { flags?: FlagOverrides; onSwitch?: string } = {}) {
 // Accessible-name regexes (labels carry an emoji prefix + are split across
 // text nodes, so match on the button's accessible name via regex).
 const tenantAdminRe = /Tenant Administration/;
-const membersRe = /Members Overview/;
+// The Members entry renders as a group header ("\ud83d\udc65 Members") plus an
+// "\ud83d\udc65 Overview" button (the menu groups Members, unlike the flat Admin
+// entries). Match the button's real accessible name, not the old "Members Overview".
+const membersRe = /\ud83d\udc65 Overview/;
 const sysAdminRe = /System Administration/;
 
 beforeEach(() => {
