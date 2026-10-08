@@ -78,6 +78,24 @@ export { default as MemberPivotViews } from './MemberPivotViews';
 // C6 — the SES mail compose modal for a member set (task 9.2).
 export { default as MemberMailCompose } from './MemberMailCompose';
 export type { MemberMailComposeProps } from './MemberMailCompose';
+export { resolveTemplateSeed } from './MemberMailCompose';
+export type { TemplateSeed } from './MemberMailCompose';
+
+// R2 (pivot-output-actions) — the stored mail-template management surface
+// (CRUD + upload + improve-with-AI).
+export { default as MemberTemplateManager } from './MemberTemplateManager';
+export type { MemberTemplateManagerProps } from './MemberTemplateManager';
+
+// R3 (pivot-output-actions, task 3.4) — the stored-delivery editor on a saved
+// set (mode, template, attachment, to_fixed recipients, shared label_options).
+export { default as MemberDeliveryEditor, hasValidFixedRecipients } from './MemberDeliveryEditor';
+export type { MemberDeliveryEditorProps } from './MemberDeliveryEditor';
+
+// R5 (pivot-output-actions, task 5.4) — attach/manage a recurring schedule on a
+// saved set that HAS a delivery block (cadence picker, enable/disable, POST/PUT/
+// DELETE the schedule route).
+export { default as MemberScheduleEditor } from './MemberScheduleEditor';
+export type { MemberScheduleEditorProps } from './MemberScheduleEditor';
 
 // C8 — the data-volume guard: measure the GET /members payload against the
 // 6 MiB Lambda ceiling → warning (≥80%) / exceeded (≥100%) states (task 10.2).
@@ -128,3 +146,21 @@ export type {
     ComposeResult,
     GenerateResult,
 } from './addressLabelService';
+
+// R6 + R3 (pivot-output-actions, task 6.3) — the ONE shared label-options model
+// used by both the interactive "Generate address labels" action (R6) and the
+// stored `to_fixed` + `pdf_labels` delivery (R3). Built on the service's
+// LabelStyleOptions/LabelFormat — not a parallel shape.
+export {
+    DEFAULT_LABEL_FONT_SIZE,
+    DEFAULT_LABEL_ALIGNMENT,
+    DEFAULT_LABEL_SORT_ORDER,
+    defaultLabelOptions,
+    normalizeLabelOptions,
+    isValidFormatKey,
+    toStyleOptions,
+    resolveLabelFormat,
+    toStored,
+    fromStored,
+} from './labelOptions';
+export type { LabelOptions, StoredLabelOptions } from './labelOptions';

@@ -25,14 +25,193 @@ from sam.members.domain.fixed_fields import MembershipStatus
 from sam.members.domain.membership_service import (
     MemberValidationError,
 )
-from sam.members.handler._http import ParsedRequest
+from sam.members.handler._http import AcceptedResult, ParsedRequest
 from sam.members.handler.routes import RouteSpec
 
 if (
     TYPE_CHECKING
 ):  # pragma: no cover - typing only, avoids an app<->_dispatch import cycle
     from sam.members.domain.membership_service import MembershipService
+    from sam.members.domain.template_service import TemplateService
     from sam.members.handler.app import RequestContext
+
+
+# ── Template service seam (R2 — pivot-output-actions task 2.3) ─────────────────────────
+#
+# The template CRUD routes are backed by the standalone
+# :class:`~sam.members.domain.template_service.TemplateService` (not the MembershipService).
+# It is resolved lazily once (warm-reuse) over the production repository (which structurally
+# satisfies the service's metadata-store port) + the S3-backed body store, mirroring
+# :func:`sam.members.handler.app._get_membership_service`. A test replaces :data:`_TEMPLATE_SERVICE`
+# (or patches :func:`get_template_service`) with a service over in-memory fakes, so no AWS is
+# touched. Kept HERE (not on the ``app`` facade) because the template dispatch lives here; the
+# accessor is module-global so warm invocations reuse one service.
+
+#: The module-global template service, built once at cold start (``None`` until first use).
+_TEMPLATE_SERVICE: TemplateService | None = None
+
+
+def get_template_service() -> TemplateService:
+    """Return the module-global :class:`TemplateService`, building it once at cold start.
+
+    Wires the template service (R2) over the tenant-scoped
+    :class:`~sam.members.repository.members_repository.DynamoDbMembersRepository` (its four
+    ``*_template`` methods structurally satisfy the service's ``TemplateMetadataStore`` port)
+    and the S3-backed
+    :class:`~sam.members.repository.template_body_store.S3TemplateBodyStore`. Both the table and
+    the bucket resolve lazily + fail-fast on first use, so importing the module (and the
+    auth-only tests) never touches AWS. Tests patch this accessor (or set ``_TEMPLATE_SERVICE``)
+    to inject a service over in-memory fakes.
+    """
+    global _TEMPLATE_SERVICE
+    if _TEMPLATE_SERVICE is None:
+        from sam.members.domain.template_service import TemplateService
+        from sam.members.repository.members_repository import DynamoDbMembersRepository
+        from sam.members.repository.template_body_store import S3TemplateBodyStore
+
+        _TEMPLATE_SERVICE = TemplateService(
+            DynamoDbMembersRepository(), S3TemplateBodyStore()
+        )
+    return _TEMPLATE_SERVICE
+
+
+# ── Execute-and-deliver service seam (R4 — pivot-output-actions task 4.2) ──────────────
+#
+# The `deliver` route (`POST /members/analytics-sets/{set_id}/deliver`) is backed by the
+# standalone :class:`~sam.members.domain.execute_and_deliver.ExecuteAndDeliverService` (task
+# 4.1 — NOT the MembershipService). It is resolved lazily once (warm-reuse), mirroring
+# :func:`get_template_service` / :func:`app._get_membership_service`. A test replaces
+# :data:`_EXECUTE_AND_DELIVER_SERVICE` (or patches :func:`get_execute_and_deliver_service`) with
+# a service over an in-memory fake repo + a FAKE queue, so no AWS/SQS is touched. Kept HERE (not
+# on the ``app`` facade) because the deliver dispatch lives here; the accessor is module-global
+# so warm invocations reuse one service.
+#
+# The task-4.1 service takes THREE injected ports — ``(repo, pivot_runner, queue)`` — and the
+# ``MailQueue`` port it enqueues through is ``enqueue(MailJob) -> None``. Two thin production
+# shims bridge that service to this stack's existing adapters:
+#   * ``_PassThroughPivotRunner`` — the pivot/list engine is not built on the SAM plane yet
+#     (design §4.2: today the pivot runs frontend/Flask-side), so the production runner passes
+#     the re-fetched member rows through as the result rows. It satisfies the service's
+#     ``PivotRunner`` Protocol; when the real engine lands it drops in unchanged.
+#   * ``_SqsMailQueueAdapter`` — the production ``SqsMailSendQueue`` enqueues a plain JSON
+#     mapping (``enqueue(Mapping) -> str``); the service hands it a frozen ``MailJob`` and
+#     expects ``enqueue(MailJob) -> None``. This adapter converts the job to the JSON send-job
+#     envelope the worker (task 4.3) consumes and forwards it, satisfying the ``MailQueue`` port.
+
+#: The module-global execute-and-deliver service, built once at cold start (``None`` until first use).
+_EXECUTE_AND_DELIVER_SERVICE: Any = None
+
+
+class _PassThroughPivotRunner:
+    """Production ``PivotRunner`` shim — returns the re-fetched member rows as the result rows.
+
+    The pivot/list computation is not yet built on the SAM plane (design §4.2 — it runs
+    frontend/Flask-side today), but the ``deliver`` route must still resolve the set, re-fetch
+    the tenant's rows, and fan them out into send jobs. For both delivery modes the result rows
+    ARE the member rows (``per_recipient`` mails each; ``to_fixed`` attaches the set), so a
+    faithful pass-through is the honest interim runner. It satisfies the service's ``PivotRunner``
+    Protocol, so when the real pivot engine lands it replaces this shim with no service change.
+    """
+
+    def run(self, tenant_id: str, definition: Mapping[str, Any], rows: Any) -> list[Any]:
+        return list(rows)
+
+
+class _SqsMailQueueAdapter:
+    """Bridge the task-4.1 ``MailQueue`` port (``enqueue(MailJob)``) onto ``SqsMailSendQueue``.
+
+    The service builds frozen :class:`~sam.members.domain.execute_and_deliver.MailJob` records
+    and enqueues them through the ``MailQueue`` Protocol (``enqueue(job) -> None``). The
+    production :class:`~sam.members.repository.mail_send_queue.SqsMailSendQueue` instead takes a
+    plain JSON-serializable mapping (``enqueue(Mapping) -> str``) — the send-job envelope the
+    worker (task 4.3) consumes. This adapter flattens a ``MailJob`` into that envelope and
+    forwards it, so the domain service stays storage-agnostic and the SQS adapter stays
+    shape-agnostic (neither learns about the other).
+    """
+
+    def __init__(self, sqs_queue: Any):
+        self._queue = sqs_queue
+
+    def enqueue(self, job: Any) -> None:
+        self._queue.enqueue(_mail_job_to_envelope(job))
+
+
+def _mail_job_to_envelope(job: Any) -> dict[str, Any]:
+    """Flatten a frozen ``MailJob`` into the JSON send-job envelope the worker consumes (task 4.3)."""
+    return {
+        "job_id": job.job_id,
+        "tenant_id": job.tenant_id,
+        "set_id": job.set_id,
+        "run_id": job.run_id,
+        "mode": job.mode,
+        "recipients": list(job.recipients),
+        "template_id": job.template_id,
+        "merge_values": dict(job.merge_values),
+        "attachment": dict(job.attachment) if job.attachment is not None else None,
+        "rows": [dict(r) for r in job.rows],
+    }
+
+
+def get_execute_and_deliver_service() -> Any:
+    """Return the module-global execute-and-deliver service, building it once at cold start (R4).
+
+    Wires the task-4.1 service over its THREE ports:
+      * the tenant-scoped :class:`~sam.members.repository.members_repository.DynamoDbMembersRepository`
+        (its ``get_analytics_set`` + ``list_members`` pin ``tenant_id`` — Property 1);
+      * :class:`_PassThroughPivotRunner` (the interim production pivot runner — design §4.2);
+      * :class:`_SqsMailQueueAdapter` over the SQS-backed
+        :class:`~sam.members.repository.mail_send_queue.SqsMailSendQueue`.
+
+    The table and the queue resolve lazily + fail-fast on first use, so importing the module
+    (and the auth-only tests) never touches AWS. Tests patch this accessor (or set
+    ``_EXECUTE_AND_DELIVER_SERVICE``) to inject a service over an in-memory fake repo + a fake
+    queue.
+    """
+    global _EXECUTE_AND_DELIVER_SERVICE
+    if _EXECUTE_AND_DELIVER_SERVICE is None:
+        from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+        from sam.members.repository.mail_send_queue import SqsMailSendQueue
+        from sam.members.repository.members_repository import DynamoDbMembersRepository
+
+        _EXECUTE_AND_DELIVER_SERVICE = ExecuteAndDeliverService(
+            DynamoDbMembersRepository(),
+            _PassThroughPivotRunner(),
+            _SqsMailQueueAdapter(SqsMailSendQueue()),
+        )
+    return _EXECUTE_AND_DELIVER_SERVICE
+
+
+def _new_run_id(tenant_id: str, set_id: str, requested_by: str | None) -> str:
+    """Mint a ``run_id`` for one interactive deliver run (audit attribution + idempotency, R4).
+
+    The service folds ``run_id`` into every job's stable idempotency id (design §4.2), so one
+    logical run gets one id across the whole fan-out while two distinct runs never collide. For
+    the interactive route each click is a fresh run, so the id combines the set, the verified
+    caller (``requested_by`` — attribution, never a gate), and a UTC timestamp. The scheduler
+    (R5, task 5.3) supplies its own run id the same way.
+    """
+    from datetime import datetime, timezone
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    who = requested_by or "anon"
+    return f"deliver:{set_id}:{who}:{stamp}"
+
+
+def _delivery_outcome_to_dict(outcome: Any) -> dict[str, Any]:
+    """Shape the service's frozen ``DeliveryOutcome`` into the JSON receipt the 202 echoes.
+
+    The edge's JSON encoder (``_http._json_default``) only knows how to serialize Decimals, so
+    the dataclass is flattened here into a plain mapping — the enqueued-send receipt (how many
+    jobs went on the queue, how many rows were skipped for want of an address, the stable job
+    ids) the SPA can surface after a deliver.
+    """
+    return {
+        "run_id": outcome.run_id,
+        "mode": outcome.mode,
+        "enqueued": outcome.enqueued,
+        "skipped_no_address": outcome.skipped_no_address,
+        "job_ids": list(outcome.job_ids),
+    }
 
 
 class RouteNotImplemented(NotImplementedError):
@@ -251,6 +430,70 @@ def dispatch_route(
         set_id = _require_path_param(ctx, "set_id")
         return service.delete_analytics_set(tenant_id, set_id)
 
+    if name == "set_analytics_set_delivery":
+        # Set/replace a saved set's stored delivery block (R3). The request body IS the
+        # delivery block; `tenant_id` + the path `set_id` are authoritative (never the body —
+        # verify-before-trust). The service re-validates the whole entry, so a malformed block
+        # surfaces the entity's FieldError array (→ 422) and an absent set is a 404. Gate =
+        # the route's members:export + existing scope (no new permission, no audit-on-save).
+        set_id = _require_path_param(ctx, "set_id")
+        return service.set_analytics_set_delivery(
+            tenant_id, set_id, _write_body(request)
+        )
+
+    if name == "clear_analytics_set_delivery":
+        # Clear a saved set's stored delivery block (back to None, R3). 404 for an absent set.
+        set_id = _require_path_param(ctx, "set_id")
+        return service.clear_analytics_set_delivery(tenant_id, set_id)
+
+    # ── Group ANALYTICS (schedules — R5, pivot-output-actions task 5.2) ──────────────
+    #
+    # Tenant-scoped recurring runs of a saved set + delivery. Backed by the MembershipService
+    # (the SchedulesMixin) over the repository's schedule CRUD (task 5.1). `tenant_id` is
+    # authoritative + PINNED from the verified context (never a body); `created_by` is the
+    # verified caller sub (attribution only — the R5 gate is enforced at the edge). The service
+    # raises ScheduleNotFound (→ 404) and DeliveryNotConfigured (→ 422, when the referenced set
+    # has no delivery block). The GATE (members:admin OR members:write + ['*'] all-regions) runs
+    # at the edge BEFORE dispatch — a region-narrowed CRUD caller never reaches here.
+    if name == "create_schedule":
+        return service.create_schedule(
+            tenant_id, _write_body(request), created_by=ctx.sub
+        )
+
+    if name == "list_schedules":
+        return service.list_schedules(tenant_id)
+
+    if name == "get_schedule":
+        schedule_id = _require_path_param(ctx, "schedule_id")
+        return service.get_schedule(tenant_id, schedule_id)
+
+    if name == "update_schedule":
+        schedule_id = _require_path_param(ctx, "schedule_id")
+        return service.update_schedule(tenant_id, schedule_id, _write_body(request))
+
+    if name == "delete_schedule":
+        schedule_id = _require_path_param(ctx, "schedule_id")
+        return service.delete_schedule(tenant_id, schedule_id)
+
+    if name == "deliver_analytics_set":
+        # Run a saved set's stored delivery NOW (R4) — the THIN enqueue route. Delegates to the
+        # standalone execute-and-deliver service (task 4.1), which resolves the set, builds the
+        # send job(s), and ENQUEUES them to SQS; a worker (task 4.3/4.4) performs the actual SES
+        # send. The route NEVER blocks on the send — it returns an ACCEPTED (202-style) result,
+        # wrapped in `AcceptedResult` so the edge shapes a 202 (enqueued, not done). `tenant_id`
+        # is authoritative; the caller sub seeds the `run_id` for audit attribution (R4 — never a
+        # gate; the gate is the route's members:export + existing scope). An absent set raises
+        # AnalyticsSetNotFound (→ 404); a set with no delivery block raises DeliveryNotConfigured
+        # (→ 422) — both mapped at the edge.
+        set_id = _require_path_param(ctx, "set_id")
+        run_id = _new_run_id(tenant_id, set_id, ctx.sub)
+        deliver_service = get_execute_and_deliver_service()
+        outcome = deliver_service.execute_and_deliver(tenant_id, set_id, run_id)
+        # The service returns a frozen `DeliveryOutcome` dataclass; the edge's JSON encoder only
+        # knows Decimals, so shape it into a plain dict here (the enqueued-send receipt the SPA
+        # echoes). `AcceptedResult` makes the edge emit a 202, not a 200 (enqueued, not done).
+        return AcceptedResult(_delivery_outcome_to_dict(outcome))
+
     if name == "get_preferred_list":
         # The caller's OWN preferred list, keyed by the verified sub (user ≠ member, R11.1 —
         # NOT a path param, NOT a body owner). Empty when the user has none (R11 empty-is-valid).
@@ -396,6 +639,43 @@ def dispatch_route(
             self_service=spec.self_service,
         )
 
+    # ── Group TEMPLATES (stored mail templates, R2 — pivot-output-actions task 2.3) ──
+    #
+    # The template CRUD surface is backed by the standalone TemplateService (NOT the
+    # MembershipService) — a template carries no member/scope concern, so it lives behind a
+    # module-agnostic seam (steering 35, rule of three). The service is resolved lazily via
+    # `get_template_service()` (patchable test seam), mirroring `app._get_membership_service`.
+    # `tenant_id` is authoritative from the verified context (never a body); `created_by` is
+    # the verified caller sub (attribution only — the gate is the route capability, R2). The
+    # service raises TemplateNotFound (→ 404) / TemplateValidationError (→ 422), mapped at the
+    # edge to the API error standard v1.0.
+    if name in {
+        "create_template",
+        "list_templates",
+        "get_template",
+        "update_template",
+        "delete_template",
+    }:
+        template_service = get_template_service()
+
+        if name == "create_template":
+            return template_service.create_template(
+                tenant_id, _write_body(request), created_by=ctx.sub
+            )
+        if name == "list_templates":
+            return template_service.list_templates(tenant_id)
+        if name == "get_template":
+            template_id = _require_path_param(ctx, "template_id")
+            return template_service.get_template(tenant_id, template_id)
+        if name == "update_template":
+            template_id = _require_path_param(ctx, "template_id")
+            return template_service.update_template(
+                tenant_id, template_id, _write_body(request)
+            )
+        if name == "delete_template":
+            template_id = _require_path_param(ctx, "template_id")
+            return template_service.delete_template(tenant_id, template_id)
+
     # ── Group CATALOG (Lidmaatschap Beheer writes, design C8 — task 5.3) ─────────────
     if name == "create_membership_type":
         # Create a catalog entry; a duplicate type_code is a 409 (never a silent overwrite).
@@ -425,4 +705,6 @@ __all__ = [
     "_transition_context",
     "_write_body",
     "dispatch_route",
+    "get_execute_and_deliver_service",
+    "get_template_service",
 ]

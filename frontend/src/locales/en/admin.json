@@ -37,12 +37,51 @@
       "templates": "Templates",
       "tenantInfo": "Tenant Info",
       "senderSettings": "Invoice Email",
+      "memberSenderIdentities": "Sender Addresses",
       "advanced": "Advanced",
       "emailLog": "Email Log",
       "pivotViews": "Pivot Views",
       "functions": "Functions",
       "landingPage": "Landing Page",
       "mediaAssets": "Media Assets"
+    },
+    "memberSenderIdentities": {
+      "title": "Sender Addresses",
+      "description": "Add and verify the email addresses your tenant sends member mail from. Mail is sent from a verified address.",
+      "loading": "Loading sender addresses...",
+      "empty": "No sender addresses yet. Add one below to start verification.",
+      "columns": {
+        "email": "Email",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "status": {
+        "pending": "Pending",
+        "verified": "Verified",
+        "failed": "Failed",
+        "expired": "Expired"
+      },
+      "addTitle": "Add Sender Address",
+      "add": "Add Address",
+      "adding": "Adding...",
+      "emailPlaceholder": "sender@example.com",
+      "addHint": "Adding an address sends an AWS SES verification email. Click the link in that email to verify it.",
+      "resend": "Resend",
+      "resending": "Sending...",
+      "resendTooltip": "Resend the SES verification email",
+      "addSuccess": "Verification email sent",
+      "addSuccessDesc": "Check the inbox for the AWS SES verification email.",
+      "addError": "Could not add sender address",
+      "resendSuccess": "Verification email resent",
+      "resendSuccessDesc": "Check the inbox for the AWS SES verification email.",
+      "resendError": "Could not resend verification",
+      "loadError": "Failed to load sender addresses",
+      "tryAgain": "Please try again later.",
+      "unknownError": "Unknown error",
+      "validation": {
+        "required": "Email address is required",
+        "invalid": "Please enter a valid email address"
+      }
     },
     "parameters": {
       "title": "Parameters",

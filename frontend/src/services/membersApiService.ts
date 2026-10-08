@@ -41,12 +41,20 @@
  */
 
 import { apiErrorFromResponse } from '../shared/api/ApiError';
+import {
+  fromStored as labelOptionsFromStored,
+  toStored as labelOptionsToStored,
+} from '../components/members/analytics/labelOptions';
+import type { StoredLabelOptions } from '../components/members/analytics/labelOptions';
 import type {
   Member,
   MemberAnalyticsSet,
   MemberAnalyticsSetSummary,
+  MemberDelivery,
   MemberPreferredList,
   MemberColumnPreferences,
+  MemberSchedule,
+  MemberScheduleCadence,
 } from '../types/members';
 import type { PivotConfig } from '../types/pivot';
 import { getCurrentAuthTokens } from './authService';
@@ -520,23 +528,91 @@ export async function bulkTransition<T = unknown>(body: unknown): Promise<T> {
 // STRING (server-chosen uuid4 hex), mapped to the summary/full shape's `id`.
 // ============================================================================
 
+/**
+ * The raw backend `delivery` block (R3, design §2.1) — the snake_case STORED/wire
+ * form the SAM entity persists: `{ mode, template_id, attachment, recipients,
+ * label_options }`. `label_options` is the shared snake_case {@link StoredLabelOptions}
+ * (one label-options model with R6 — task 6.3). Absent/`null` on a set with no
+ * delivery (a legacy set).
+ */
+interface RawDelivery {
+  mode: 'per_recipient' | 'to_fixed';
+  template_id?: string | null;
+  attachment?: 'csv' | 'pdf_labels' | null;
+  recipients?: string[] | null;
+  label_options?: Partial<StoredLabelOptions> | null;
+}
+
 /** The raw backend analytics-set shape (snake_case `definition`, string `set_id`). */
 interface RawAnalyticsSet {
   set_id: string;
   name: string;
   kind: 'count' | 'list';
   definition: Record<string, unknown>;
+  delivery?: RawDelivery | null;
   created_at: string;
   updated_at: string;
 }
 
+/**
+ * Map a stored (snake_case) `delivery` block to the camelCase {@link MemberDelivery},
+ * the frontend ↔ backend set mapper's delivery half (R3, design §2.1). Returns
+ * `undefined` for an absent/`null` block (a set with no delivery) so the field is
+ * simply omitted on the resolved set.
+ *
+ * The `label_options` sub-block is loaded via the shared model's
+ * {@link labelOptionsFromStored} — the SAME label-options model R6 uses, never a
+ * fork (task 6.3). It is carried only when the attachment is `pdf_labels`.
+ */
+export function deliveryFromBackend(raw?: RawDelivery | null): MemberDelivery | undefined {
+  if (!raw || (raw.mode !== 'per_recipient' && raw.mode !== 'to_fixed')) {
+    return undefined;
+  }
+  const attachment = raw.attachment ?? null;
+  return {
+    mode: raw.mode,
+    templateId: raw.template_id ?? null,
+    attachment,
+    recipients: Array.isArray(raw.recipients) ? raw.recipients : [],
+    labelOptions:
+      attachment === 'pdf_labels'
+        ? labelOptionsFromStored(raw.label_options ?? null)
+        : null,
+  };
+}
+
+/**
+ * Map a camelCase {@link MemberDelivery} to the stored (snake_case) `delivery`
+ * block the backend persists (R3, design §2.1) — the inverse of
+ * {@link deliveryFromBackend}, used when writing a set's delivery (task 3.3/3.4).
+ *
+ * `per_recipient` stores NO recipients (addresses resolve from the dataset at run
+ * time — design §2.1); `to_fixed` stores the explicit list. `label_options` is
+ * emitted (via the shared model's {@link labelOptionsToStored}) only for the
+ * `pdf_labels` attachment, `null` otherwise.
+ */
+export function deliveryToBackend(delivery: MemberDelivery): RawDelivery {
+  return {
+    mode: delivery.mode,
+    template_id: delivery.templateId ?? null,
+    attachment: delivery.attachment ?? null,
+    recipients: delivery.mode === 'to_fixed' ? delivery.recipients : [],
+    label_options:
+      delivery.attachment === 'pdf_labels' && delivery.labelOptions
+        ? labelOptionsToStored(delivery.labelOptions)
+        : null,
+  };
+}
+
 /** Map a raw backend analytics-set to the full `MemberAnalyticsSet` (camelCase config). */
 function mapAnalyticsSet(raw: RawAnalyticsSet): MemberAnalyticsSet {
+  const delivery = deliveryFromBackend(raw.delivery);
   return {
     id: raw.set_id,
     name: raw.name,
     kind: raw.kind,
     definition: fromBackendConfig(raw.definition ?? {}),
+    ...(delivery ? { delivery } : {}),
     created_at: raw.created_at,
     updated_at: raw.updated_at,
   };
@@ -553,7 +629,14 @@ export async function listAnalyticsSets(): Promise<MemberAnalyticsSetSummary[]> 
   const payload = await getJson<unknown>('/members/analytics-sets');
   const rows = unwrapData<unknown>(payload);
   const list = Array.isArray(rows) ? (rows as RawAnalyticsSet[]) : [];
-  return list.map((raw) => ({ id: raw.set_id, name: raw.name, kind: raw.kind }));
+  return list.map((raw) => ({
+    id: raw.set_id,
+    name: raw.name,
+    kind: raw.kind,
+    // Surface whether the set has a stored delivery block (R3) so the UI can gate
+    // the Schedule action (R5) off the list feed — a schedule needs a delivery.
+    hasDelivery: deliveryFromBackend(raw.delivery) !== undefined,
+  }));
 }
 
 /** GET /members/analytics-sets/{id} — a single analytics-set (full definition). */
@@ -595,6 +678,186 @@ export async function updateAnalyticsSet(
 /** DELETE /members/analytics-sets/{id} — delete an analytics-set. */
 export async function deleteAnalyticsSet(id: string): Promise<void> {
   await deleteJson<unknown>(`/members/analytics-sets/${encodeURIComponent(id)}`);
+}
+
+/**
+ * PUT /members/analytics-sets/{id}/delivery — set/replace a saved set's optional
+ * `delivery` block (R3, design §3; route built concurrently in task 3.3). This is
+ * the DEDICATED delivery route: the create/update set bodies (`saveAnalyticsSet`/
+ * `updateAnalyticsSet`) deliberately do NOT carry delivery — only this route
+ * writes it. The gate is `members:export` + the existing scope (a stored delivery
+ * can send only what the user could already export — no new permission).
+ *
+ * The camelCase {@link MemberDelivery} is mapped to the stored snake_case block
+ * via {@link deliveryToBackend} (which also projects the shared `label_options`
+ * for a `pdf_labels` attachment and stores NO recipients for `per_recipient`).
+ * Returns the updated set with its resolved delivery block.
+ */
+export async function putAnalyticsSetDelivery(
+  id: string,
+  delivery: MemberDelivery
+): Promise<MemberAnalyticsSet> {
+  const payload = await putJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}/delivery`,
+    { delivery: deliveryToBackend(delivery) }
+  );
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/**
+ * DELETE /members/analytics-sets/{id}/delivery — clear a saved set's `delivery`
+ * block (R3, design §3). Same gate as the PUT. The set itself is kept; only the
+ * optional delivery instruction is removed (the set reverts to no stored delivery
+ * and loads like a legacy set).
+ */
+export async function deleteAnalyticsSetDelivery(id: string): Promise<void> {
+  await deleteJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}/delivery`
+  );
+}
+
+// ============================================================================
+// Schedules (R5, design §2.3 / §3) — attach a recurring run to a set that HAS a
+// delivery block. The Members module OWNS `schedule#<schedule_id>` records in
+// DynamoDB (tenant-pinned); EventBridge Scheduler fires each schedule's cron and
+// reuses the R4 execute-and-deliver path (task 5.2/5.3, built concurrently).
+//
+// The route contract is `GET/POST/PUT/DELETE /members/schedules[/{id}]`; a
+// schedule carries `{ schedule_id, set_id, cron, enabled, created_by,
+// created_at, updated_at }`. These wrappers unwrap the `{ data }` envelope and
+// map the snake_case wire form to the camelCase `MemberSchedule`.
+//
+// Cadence ↔ cron: the editor offers a FRIENDLY cadence (monthly/weekly, design
+// §5) and never shows a raw cron. `cadenceToCron` maps a cadence to the concrete
+// EventBridge expression the backend stores; `cronToCadence` recovers the
+// cadence for the editor when loading an existing schedule (an unrecognized cron
+// falls back to `monthly` so the editor still opens).
+// ============================================================================
+
+/**
+ * The concrete EventBridge cron expression each friendly cadence maps to (design
+ * §5). `monthly` runs at 08:00 UTC on the 1st of every month; `weekly` runs at
+ * 08:00 UTC every Monday. Kept as a single table so the forward and reverse
+ * mappings (and the test) stay in lock-step.
+ */
+export const CADENCE_CRON: Record<MemberScheduleCadence, string> = {
+  monthly: 'cron(0 8 1 * ? *)',
+  weekly: 'cron(0 8 ? * MON *)',
+};
+
+/** The cadences offered, in display order (keeps the picker + mapping aligned). */
+export const SCHEDULE_CADENCES: readonly MemberScheduleCadence[] = [
+  'monthly',
+  'weekly',
+];
+
+/**
+ * Map a friendly {@link MemberScheduleCadence} to the backend cron expression
+ * (design §5). The UI edits a cadence; this is the ONLY place a cron string is
+ * produced for the wire.
+ */
+export function cadenceToCron(cadence: MemberScheduleCadence): string {
+  return CADENCE_CRON[cadence];
+}
+
+/**
+ * Recover the friendly {@link MemberScheduleCadence} from a stored cron
+ * expression so the editor can seed its picker from an existing schedule. An
+ * unrecognized expression falls back to `monthly` (the editor still opens; the
+ * user can re-pick a cadence and save).
+ */
+export function cronToCadence(cron: string): MemberScheduleCadence {
+  const normalized = (cron ?? '').trim();
+  for (const cadence of SCHEDULE_CADENCES) {
+    if (CADENCE_CRON[cadence] === normalized) {
+      return cadence;
+    }
+  }
+  return 'monthly';
+}
+
+/** The raw backend schedule shape (snake_case wire form, string ids). */
+interface RawSchedule {
+  schedule_id: string;
+  set_id: string;
+  cron: string;
+  enabled?: boolean;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Map a raw backend schedule to the camelCase {@link MemberSchedule}. */
+function mapSchedule(raw: RawSchedule): MemberSchedule {
+  return {
+    scheduleId: raw.schedule_id,
+    setId: raw.set_id,
+    cron: raw.cron,
+    enabled: raw.enabled !== false,
+    createdBy: typeof raw.created_by === 'string' ? raw.created_by : '',
+    createdAt: typeof raw.created_at === 'string' ? raw.created_at : '',
+    updatedAt: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+  };
+}
+
+/**
+ * GET /members/schedules — list the tenant's schedules, narrowed to one set.
+ *
+ * The route returns ALL of the tenant's schedules; a saved set has at most one
+ * schedule in this UI, so callers pass the `setId` and this returns only the
+ * schedules for that set. Unwraps the `{ data: [...] }` envelope and maps each
+ * entry. Tenant-scoped by the Lambda.
+ */
+export async function listSchedulesForSet(setId: string): Promise<MemberSchedule[]> {
+  const payload = await getJson<unknown>('/members/schedules');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? (rows as RawSchedule[]) : [];
+  return list
+    .filter((raw) => raw && raw.set_id === setId)
+    .map(mapSchedule);
+}
+
+/**
+ * POST /members/schedules — create a schedule for a set (R5). The body carries
+ * only domain fields (`set_id`, `cron`, `enabled`); `tenant_id`/`created_by`
+ * come from the verified token server-side (design §3), never the body. The gate
+ * is `members:admin` OR (`members:write` + all-regions) — the backend is
+ * authoritative; the UI only offers the action to a capable caller.
+ */
+export async function createSchedule(
+  setId: string,
+  cadence: MemberScheduleCadence,
+  enabled: boolean
+): Promise<MemberSchedule> {
+  const payload = await postJson<unknown>('/members/schedules', {
+    set_id: setId,
+    cron: cadenceToCron(cadence),
+    enabled,
+  });
+  return mapSchedule(unwrapData<RawSchedule>(payload));
+}
+
+/**
+ * PUT /members/schedules/{id} — update an existing schedule's cadence/enabled
+ * state (R5). Same gate as create.
+ */
+export async function updateSchedule(
+  scheduleId: string,
+  cadence: MemberScheduleCadence,
+  enabled: boolean
+): Promise<MemberSchedule> {
+  const payload = await putJson<unknown>(
+    `/members/schedules/${encodeURIComponent(scheduleId)}`,
+    { cron: cadenceToCron(cadence), enabled }
+  );
+  return mapSchedule(unwrapData<RawSchedule>(payload));
+}
+
+/** DELETE /members/schedules/{id} — remove a schedule (R5). Same gate. */
+export async function deleteSchedule(scheduleId: string): Promise<void> {
+  await deleteJson<unknown>(
+    `/members/schedules/${encodeURIComponent(scheduleId)}`
+  );
 }
 
 // ============================================================================

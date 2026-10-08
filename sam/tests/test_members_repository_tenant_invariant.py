@@ -47,8 +47,10 @@ if _BACKEND_SRC not in sys.path:
 
 from sam.members.domain.analytics_set import AnalyticsSetEntry
 from sam.members.domain.column_preferences import ColumnPreferences
-from sam.members.domain.preferred_list import PreferredList
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
+from sam.members.domain.preferred_list import PreferredList
+from sam.members.domain.schedule import ScheduleEntry
+from sam.members.domain.template import TemplateEntry, TemplateLanguage
 from sam.members.repository import members_repository as repo_mod
 from sam.members.repository import table_design as td
 from sam.members.repository.members_repository import DynamoDbMembersRepository
@@ -194,6 +196,36 @@ def _colprefs(sub: str) -> ColumnPreferences:
     )
 
 
+def _schedule(schedule_id: str) -> ScheduleEntry:
+    return ScheduleEntry(
+        tenant_id=TENANT,
+        schedule_id=schedule_id,
+        set_id="set-1",
+        cron="cron(0 8 1 * ? *)",
+        created_by="sub-1",
+        enabled=True,
+        created_at="2024-01-01T00:00:00+00:00",
+        updated_at="2024-01-01T00:00:00+00:00",
+    )
+
+
+def _template(template_id: str) -> TemplateEntry:
+    return TemplateEntry(
+        tenant_id=TENANT,
+        template_id=template_id,
+        name="A template",
+        languages={
+            "nl": TemplateLanguage(
+                subject="Dag {{first_name}}",
+                s3_body_key=f"{TENANT}/templates/{template_id}/nl.html",
+            )
+        },
+        merge_fields=["first_name"],
+        created_at="2024-01-01T00:00:00+00:00",
+        updated_at="2024-01-01T00:00:00+00:00",
+    )
+
+
 # Every read/write path on the public repository surface, as a callable driven with a fixed
 # tenant. Keeping this list exhaustive is the point: if a new method is added it should be
 # added here too (see the completeness test below, which fails on an untested public method).
@@ -223,6 +255,14 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
         "list_analytics_sets": lambda: repo.list_analytics_sets(TENANT),
         "save_analytics_set": lambda: repo.save_analytics_set(TENANT, _aset("set-1")),
         "delete_analytics_set": lambda: repo.delete_analytics_set(TENANT, "set-1"),
+        "get_template": lambda: repo.get_template(TENANT, "t-1"),
+        "list_templates": lambda: repo.list_templates(TENANT),
+        "save_template": lambda: repo.save_template(TENANT, _template("t-1")),
+        "delete_template": lambda: repo.delete_template(TENANT, "t-1"),
+        "get_schedule": lambda: repo.get_schedule(TENANT, "sch-1"),
+        "list_schedules": lambda: repo.list_schedules(TENANT),
+        "save_schedule": lambda: repo.save_schedule(TENANT, _schedule("sch-1")),
+        "delete_schedule": lambda: repo.delete_schedule(TENANT, "sch-1"),
         "get_preferred_list": lambda: repo.get_preferred_list(TENANT, "sub-1"),
         "save_preferred_list": lambda: repo.save_preferred_list(TENANT, _pref("sub-1")),
         "get_column_preferences": lambda: repo.get_column_preferences(TENANT, "sub-1"),
@@ -260,6 +300,14 @@ class TestEveryOperationPinsTheTenantPartition:
             "list_analytics_sets",
             "save_analytics_set",
             "delete_analytics_set",
+            "get_template",
+            "list_templates",
+            "save_template",
+            "delete_template",
+            "get_schedule",
+            "list_schedules",
+            "save_schedule",
+            "delete_schedule",
             "get_preferred_list",
             "save_preferred_list",
             "get_column_preferences",

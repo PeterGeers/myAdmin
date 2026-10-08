@@ -83,6 +83,7 @@ __all__ = ["MembersProjectionReader"]
 _CONFIG_ID_SCOPE = schema.CONFIG_ID_SCOPE
 _CONFIG_ID_FIELDS = schema.CONFIG_ID_FIELDS
 _CONFIG_ID_VIEWS = schema.CONFIG_ID_VIEWS
+_CONFIG_ID_MAIL = schema.CONFIG_ID_MAIL
 
 
 class MembersProjectionReader:
@@ -96,6 +97,9 @@ class MembersProjectionReader:
       (``sam.members.domain.field_resolver``);
     - :meth:`get_view_contexts` → :class:`ViewContextsProvider`
       (``sam.members.domain.view_contexts``, S5c task 3.1 — the ``config#views`` sibling row);
+    - :meth:`is_mail_enabled` → the tenant's mail-enabled gate flag from the ``config#mail``
+      row (pivot-output-actions R0, design §6.3 — the Members edge reads it at request time,
+      NO live MySQL);
     - :meth:`get_scope_grants` → the caller's projected scope grants (consumed by the edge's
       ``resolve_scope_access`` wiring, task 8.3).
 
@@ -509,6 +513,38 @@ class MembersProjectionReader:
             default_sort=dict(default_sort) if default_sort is not None else None,
             page_size=page_size,
         )
+
+    # ── Mail-enabled gate (pivot-output-actions R0, design §6.3) ───────────────────────
+
+    def is_mail_enabled(self, tenant_id: str) -> bool:
+        """Return whether the tenant is cleared to send mail, from ``config#mail`` (R0).
+
+        Reads the tenant partition, finds the ``config#mail`` row (the per-tenant
+        "mail-enabled / SES-certified" onboarding gate authored on the Flask plane
+        as ``members.mail_enabled`` and projected by ``build_config_mail_row``), and
+        returns its ``mail_enabled`` boolean. The Members edge calls this at request
+        time to decide whether to offer the mail output actions (R1–R5) — a Lambda
+        NEVER queries MySQL for the flag (ADR 0005/0006); it reads only this
+        projected row.
+
+        Fail-closed (R0): a **missing** ``config#mail`` row, a missing
+        ``mail_enabled`` attribute, or any non-boolean-``True`` value all resolve to
+        ``False``. The gate opens only on an explicit projected ``True`` — the
+        absence of the projection never permits sending. Never raises on
+        missing/empty data (empty-is-valid, same discipline as the sibling config
+        readers).
+
+        Args:
+            tenant_id: The tenant (partition key) whose mail gate to resolve.
+
+        Returns:
+            ``True`` iff the tenant's projected ``config#mail`` row carries
+            ``mail_enabled`` == ``True``; ``False`` otherwise (fail-closed).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return False
+        return row.get("mail_enabled") is True
 
     # ── Scope grants (consumed by the edge, task 8.3) ──────────────────────────────────
 

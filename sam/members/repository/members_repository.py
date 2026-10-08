@@ -36,6 +36,8 @@ from sam.members.domain.analytics_set import AnalyticsSetEntry
 from sam.members.domain.column_preferences import ColumnPreferences
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.domain.preferred_list import PreferredList
+from sam.members.domain.schedule import ScheduleEntry
+from sam.members.domain.template import TemplateEntry
 from sam.members.repository import table_design as td
 
 __all__ = [
@@ -197,6 +199,42 @@ class MembersRepository(Protocol):
         """Delete an analytics-set for ``tenant_id``."""
         ...
 
+    # ── Mail templates (on-plane metadata, R2) ──────────────────────────────────────
+
+    def get_template(self, tenant_id: str, template_id: str) -> TemplateEntry | None:
+        """Return the template ``template_id`` for ``tenant_id``, or ``None`` if absent."""
+        ...
+
+    def list_templates(self, tenant_id: str) -> Sequence[TemplateEntry]:
+        """List a tenant's template entries, sorted by ``(name, template_id)``."""
+        ...
+
+    def save_template(self, tenant_id: str, entry: TemplateEntry) -> TemplateEntry:
+        """Create or update a template for ``tenant_id`` (validated before persist)."""
+        ...
+
+    def delete_template(self, tenant_id: str, template_id: str) -> None:
+        """Delete a template for ``tenant_id``."""
+        ...
+
+    # ── Schedules (recurring run of a set + delivery, R5) ───────────────────────────
+
+    def get_schedule(self, tenant_id: str, schedule_id: str) -> ScheduleEntry | None:
+        """Return the schedule ``schedule_id`` for ``tenant_id``, or ``None`` if absent."""
+        ...
+
+    def list_schedules(self, tenant_id: str) -> Sequence[ScheduleEntry]:
+        """List a tenant's schedule entries, sorted by ``(set_id, schedule_id)``."""
+        ...
+
+    def save_schedule(self, tenant_id: str, entry: ScheduleEntry) -> ScheduleEntry:
+        """Create or update a schedule for ``tenant_id`` (validated before persist)."""
+        ...
+
+    def delete_schedule(self, tenant_id: str, schedule_id: str) -> None:
+        """Delete a schedule for ``tenant_id``."""
+        ...
+
     # ── Preferred lists (per-user, R11.2) ──────────────────────────────────────────
 
     def get_preferred_list(self, tenant_id: str, sub: str) -> PreferredList | None:
@@ -290,6 +328,30 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def delete_analytics_set(self, tenant_id: str, set_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def get_template(self, tenant_id: str, template_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def list_templates(self, tenant_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def save_template(self, tenant_id: str, entry):
+        raise NotImplementedError(self._PENDING)
+
+    def delete_template(self, tenant_id: str, template_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def get_schedule(self, tenant_id: str, schedule_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def list_schedules(self, tenant_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def save_schedule(self, tenant_id: str, entry):
+        raise NotImplementedError(self._PENDING)
+
+    def delete_schedule(self, tenant_id: str, schedule_id: str):
         raise NotImplementedError(self._PENDING)
 
     def get_preferred_list(self, tenant_id: str, sub: str):
@@ -677,6 +739,140 @@ class DynamoDbMembersRepository:
         """Hard-delete an analytics-set (F-012 — no referencing records to orphan)."""
         self._require_tenant(tenant_id)
         self.table.delete_item(Key=td.build_key(tenant_id, td.analytics_set_sk(set_id)))
+
+    # ── Mail templates (on-plane metadata, R2) ──────────────────────────────────────
+
+    def get_template(self, tenant_id: str, template_id: str) -> TemplateEntry | None:
+        """Return the template ``template_id`` for ``tenant_id``, or ``None`` if absent.
+
+        A single ``get_item`` on ``template#<template_id>`` within the tenant partition
+        (isolation is structural — the partition key is pinned to ``tenant_id``).
+        """
+        self._require_tenant(tenant_id)
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.template_sk(template_id))
+        )
+        item = response.get("Item")
+        return TemplateEntry.from_item(item) if item is not None else None
+
+    def list_templates(self, tenant_id: str) -> Sequence[TemplateEntry]:
+        """List the tenant's template entries, sorted by ``(name, template_id)``.
+
+        Queries the ``template#`` sub-tree of the tenant partition (isolation is structural —
+        the partition key is pinned to ``tenant_id``), rebuilds each stored item into a
+        :class:`TemplateEntry`, and sorts by ``(name, template_id)`` so the list renders
+        deterministically.
+        """
+        self._require_tenant(tenant_id)
+        prefix = td.RECORD_TYPE_TEMPLATE + td.SORT_KEY_SEPARATOR
+        entries = [
+            TemplateEntry.from_item(item)
+            for item in self._query_prefix(tenant_id, prefix)
+        ]
+        entries.sort(key=lambda e: e.sort_order_key())
+        return entries
+
+    def save_template(self, tenant_id: str, entry: TemplateEntry) -> TemplateEntry:
+        """Create or update a template, validated before persist.
+
+        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
+        write, Property 1). :meth:`TemplateEntry.to_item` validates the shape, and
+        :func:`table_design.build_template_item` stamps the authoritative primary key, so a
+        malformed or misplaced entry can never be written. Only the METADATA is persisted here;
+        the body HTML / logo binary live in S3 and are written through the service's body-store
+        seam.
+        """
+        self._require_tenant(tenant_id)
+        if entry.tenant_id and entry.tenant_id != tenant_id:
+            raise ValueError(
+                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
+                f"{tenant_id!r} (no cross-tenant write, Property 1)"
+            )
+        bound = (
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
+        )
+        payload = bound.to_item()
+        item = td.build_template_item(tenant_id, bound.template_id, payload)
+        self.table.put_item(Item=item)
+        return bound
+
+    def delete_template(self, tenant_id: str, template_id: str) -> None:
+        """Hard-delete a template's metadata item for ``tenant_id``.
+
+        Deletes only the ``template#<template_id>`` metadata item; the service is responsible
+        for cleaning up the template's S3 body/logo objects through its body-store seam.
+        """
+        self._require_tenant(tenant_id)
+        self.table.delete_item(
+            Key=td.build_key(tenant_id, td.template_sk(template_id))
+        )
+
+    # ── Schedules (recurring run of a set + delivery, R5) ───────────────────────────
+
+    def get_schedule(self, tenant_id: str, schedule_id: str) -> ScheduleEntry | None:
+        """Return the schedule ``schedule_id`` for ``tenant_id``, or ``None`` if absent.
+
+        A single ``get_item`` on ``schedule#<schedule_id>`` within the tenant partition
+        (isolation is structural — the partition key is pinned to ``tenant_id``).
+        """
+        self._require_tenant(tenant_id)
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.schedule_sk(schedule_id))
+        )
+        item = response.get("Item")
+        return ScheduleEntry.from_item(item) if item is not None else None
+
+    def list_schedules(self, tenant_id: str) -> Sequence[ScheduleEntry]:
+        """List the tenant's schedule entries, sorted by ``(set_id, schedule_id)``.
+
+        Queries the ``schedule#`` sub-tree of the tenant partition (isolation is structural —
+        the partition key is pinned to ``tenant_id``), rebuilds each stored item into a
+        :class:`ScheduleEntry`, and sorts by ``(set_id, schedule_id)`` so the list renders
+        deterministically.
+        """
+        self._require_tenant(tenant_id)
+        prefix = td.RECORD_TYPE_SCHEDULE + td.SORT_KEY_SEPARATOR
+        entries = [
+            ScheduleEntry.from_item(item)
+            for item in self._query_prefix(tenant_id, prefix)
+        ]
+        entries.sort(key=lambda e: e.sort_order_key())
+        return entries
+
+    def save_schedule(self, tenant_id: str, entry: ScheduleEntry) -> ScheduleEntry:
+        """Create or update a schedule, validated before persist.
+
+        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
+        write, Property 1). :meth:`ScheduleEntry.to_item` validates the shape, and
+        :func:`table_design.build_schedule_item` stamps the authoritative primary key, so a
+        malformed or misplaced entry can never be written. The tenant is PINNED in the schedule
+        (an unattended run has no interactive user — R5); the "set must have a delivery block"
+        rule (R5) is a SERVICE/route gate (task 5.2), NOT enforced here (storage-only entity).
+        """
+        self._require_tenant(tenant_id)
+        if entry.tenant_id and entry.tenant_id != tenant_id:
+            raise ValueError(
+                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
+                f"{tenant_id!r} (no cross-tenant write, Property 1)"
+            )
+        bound = (
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
+        )
+        payload = bound.to_item()
+        item = td.build_schedule_item(tenant_id, bound.schedule_id, payload)
+        self.table.put_item(Item=item)
+        return bound
+
+    def delete_schedule(self, tenant_id: str, schedule_id: str) -> None:
+        """Hard-delete a schedule for ``tenant_id`` (no referencing records to orphan)."""
+        self._require_tenant(tenant_id)
+        self.table.delete_item(
+            Key=td.build_key(tenant_id, td.schedule_sk(schedule_id))
+        )
 
     # ── Preferred lists (per-user, R11.2) ──────────────────────────────────────────
 

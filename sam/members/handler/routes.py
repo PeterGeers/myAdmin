@@ -110,6 +110,15 @@ class RouteSpec:
             admin capability (e.g. ``get-self``); the domain layer enforces the ownership
             check. Metadata only at this step.
         summary: One-line description of the behaviour (for docs / parity audit).
+        schedule_gate: True ONLY for the schedule CRUD routes (R5). Marks the SPECIAL
+            combined capability+scope gate the edge enforces for scheduling: ``members:admin``
+            OR (``members:write`` AND the ``["*"]`` all-regions scope grant). This is NOT a
+            plain any-of capability gate — a region-narrowed ``members:write`` caller must be
+            rejected (403) because an unattended scheduled run must never replay a partial
+            regional slice (R5). When set, the edge's :func:`app._authorize_schedule_route`
+            runs instead of the ordinary capability-any-of + scope seam. ``capabilities_any``
+            still lists the capabilities involved (``members:admin``/``members:write``) so the
+            route is never "ungated" and the integrity check passes.
     """
 
     name: str
@@ -120,6 +129,7 @@ class RouteSpec:
     self_service: bool
     summary: str
     capabilities_any: tuple[str, ...] = ()
+    schedule_gate: bool = False
 
 
 # ── The route map: union of h-dcn's ~18 handler behaviours (stubs only) ───────────────
@@ -319,6 +329,248 @@ ROUTES: tuple[RouteSpec, ...] = (
         summary=(
             "Delete a member analytics-set (hard delete; 404 if absent). "
             "Gate: members:write OR members:admin (R11.3)."
+        ),
+    ),
+    # ── Analytics-set DELIVERY block — set/clear (2), R3 (pivot-output-actions 3.3) ──
+    #
+    # The optional stored "what to do with the result" block on a saved set (design §2.1/§3).
+    # Two routes set / clear it on an EXISTING set (the delivery block is an additive field on
+    # the `analyticsset#<set_id>` item — task 3.1/3.2 — not a new record type). The literal
+    # `/delivery` sub-path carries an EXTRA segment past `/{set_id}`, so it can never collide
+    # with (or be shadowed by) the `/{set_id}` CRUD routes; it is also disjoint from the
+    # `preferred` literal. Declared right after the set CRUD for cohesion.
+    #
+    # Gate (R3, design §3/§8): `members:export` + the EXISTING scope — the SAME gate the
+    # analytics-set surface already carries. A stored delivery can only send what the user
+    # could already export within their scope, so it introduces NO new permission and NO
+    # audit-on-save (normal send-time auditing per R4 still applies, elsewhere). This is the
+    # single-capability `members:export` gate (not an any-of), distinct from the create
+    # (export OR write) / edit (write OR admin) gates: storing a delivery is an export-class
+    # action, so export alone is both necessary and sufficient.
+    RouteSpec(
+        name="set_analytics_set_delivery",
+        method=HttpMethod.PUT,
+        path="/members/analytics-sets/{set_id}/delivery",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_EXPORT,
+        self_service=False,
+        summary=(
+            "Set/replace a saved set's stored delivery block (R3; 404 if the set is absent, "
+            "422 on an invalid block). Gate: members:export + existing scope."
+        ),
+    ),
+    RouteSpec(
+        name="clear_analytics_set_delivery",
+        method=HttpMethod.DELETE,
+        path="/members/analytics-sets/{set_id}/delivery",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_EXPORT,
+        self_service=False,
+        summary=(
+            "Clear a saved set's stored delivery block (set delivery back to None, R3; "
+            "404 if the set is absent). Gate: members:export + existing scope."
+        ),
+    ),
+    # ── Analytics-set DELIVER — run execute-and-deliver NOW (1), R4 (task 4.2) ───────
+    #
+    # The interactive "run this set's stored delivery now" action (design §3/§4). It invokes
+    # the execute-and-deliver service (task 4.1), which resolves the set, builds the send
+    # job(s), and ENQUEUES them to the SQS send queue (`members-mail-send[-test]`); a worker
+    # Lambda (task 4.3/4.4 — the consumer side) drains the queue and performs the actual SES
+    # send. The route is THIN (steering 35): it never blocks on the send — it returns an
+    # ACCEPTED (202-style, enqueued) result, so a long per-recipient run cannot time out the
+    # request (R4: queued, not synchronous).
+    #
+    # The literal `/deliver` sub-path carries an EXTRA segment past `/{set_id}` (exactly like
+    # `/delivery`), so it can never collide with or be shadowed by the `/{set_id}` CRUD routes;
+    # it is disjoint from the `preferred` + `delivery` literals. Declared right after the
+    # delivery set/clear routes for cohesion.
+    #
+    # Gate (R4, design §3/§8): `members:export` + the EXISTING scope — the SAME gate the
+    # stored delivery (set/clear, task 3.3) carries. A send can only dispatch what the user
+    # could already export within their scope, so it introduces NO new permission (normal
+    # send-time auditing per R4 happens in the worker). Single-capability `members:export`,
+    # matching the delivery set/clear gate.
+    RouteSpec(
+        name="deliver_analytics_set",
+        method=HttpMethod.POST,
+        path="/members/analytics-sets/{set_id}/deliver",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_EXPORT,
+        self_service=False,
+        summary=(
+            "Run a saved set's stored delivery NOW — enqueues the send job(s) and returns an "
+            "ACCEPTED (202) result (R4; 404 if the set is absent, 422 if it has no delivery "
+            "block). Gate: members:export + existing scope."
+        ),
+    ),
+    # ── Templates — CRUD (5), R2 (pivot-output-actions task 2.3) ────────────────────
+    #
+    # Tenant-scoped stored mail templates (metadata on-plane `template#<id>`; body HTML +
+    # logo binaries in S3 `myadmin-shared`, task 2.1/2.2). The literal `/members/templates`
+    # prefix is disjoint from `/members/{member_id}` and the other `/members/...` literal
+    # routes (analytics-sets, field-config, export, me, search, column-preferences) so there
+    # is no (method, path) collision or shadowing. DECLARED BEFORE the `{member_id}` routes
+    # so the literal prefix matches FIRST (the router returns the first matching route in
+    # declaration order for a method).
+    #
+    # Gate (design §3 / R2): the template CRUD surface is gated `members:export` OR
+    # `members:write` (an any-of gate, same shape as the analytics-set create gate) — an
+    # export user OR a CRUD/write user may manage templates. The AI-improve route (task 2.4)
+    # carries its own stricter gate and is NOT part of this task. A server-generated uuid4
+    # `template_id` means a create never collides; `{template_id}` addresses one template.
+    RouteSpec(
+        name="create_template",
+        method=HttpMethod.POST,
+        path="/members/templates",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Create a stored mail template (R2). Gate: members:export OR members:write."
+        ),
+    ),
+    RouteSpec(
+        name="list_templates",
+        method=HttpMethod.GET,
+        path="/members/templates",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "List the tenant's stored mail templates (metadata only, R2). "
+            "Gate: members:export OR members:write."
+        ),
+    ),
+    RouteSpec(
+        name="get_template",
+        method=HttpMethod.GET,
+        path="/members/templates/{template_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Get a single stored mail template by its template_id (404 if absent, R2). "
+            "Gate: members:export OR members:write."
+        ),
+    ),
+    RouteSpec(
+        name="update_template",
+        method=HttpMethod.PUT,
+        path="/members/templates/{template_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Update a stored mail template by its template_id (404 if absent, R2). "
+            "Gate: members:export OR members:write."
+        ),
+    ),
+    RouteSpec(
+        name="delete_template",
+        method=HttpMethod.DELETE,
+        path="/members/templates/{template_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_EXPORT, CAP_MEMBERS_WRITE),
+        self_service=False,
+        summary=(
+            "Delete a stored mail template (metadata + bodies; 404 if absent, R2). "
+            "Gate: members:export OR members:write."
+        ),
+    ),
+    # ── Schedules — CRUD (4), R5 (pivot-output-actions task 5.2) ─────────────────────
+    #
+    # Tenant-scoped recurring runs of a saved set + delivery (metadata on-plane
+    # `schedule#<id>`, task 5.1). A schedule runs a set's stored delivery on a cron/rate
+    # expression (EventBridge Scheduler wiring is task 5.3). The literal `/members/schedules`
+    # prefix is disjoint from `/members/{member_id}` and the other `/members/...` literal
+    # routes (analytics-sets, templates, field-config, export, me, search, column-preferences)
+    # so there is no (method, path) collision or shadowing. DECLARED BEFORE the `{member_id}`
+    # routes so the literal prefix matches FIRST (the router returns the first matching route
+    # in declaration order for a method). A server-generated uuid4 `schedule_id` means a
+    # create never collides; `{schedule_id}` addresses one schedule.
+    #
+    # GATE (R5, design §3/§8 — the CRITICAL rule): `members:admin` OR (`members:write` AND the
+    # `["*"]` all-regions scope grant). A region-NARROWED members:write caller (e.g. region
+    # ["Oost"]) must be REJECTED (403) — an unattended scheduled run must never replay a
+    # partial regional slice. This is NOT a plain capability any-of; it needs a SCOPE check, so
+    # it is marked `schedule_gate=True` and the edge's `_authorize_schedule_route` enforces the
+    # combined capability+scope gate. `capabilities_any` lists the two involved capabilities so
+    # the route is never "ungated" (the import-time integrity check passes), but the edge does
+    # NOT treat it as a plain any-of for a schedule_gate route.
+    RouteSpec(
+        name="create_schedule",
+        method=HttpMethod.POST,
+        path="/members/schedules",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_ADMIN, CAP_MEMBERS_WRITE),
+        schedule_gate=True,
+        self_service=False,
+        summary=(
+            "Create a schedule for a saved set + delivery (R5; 422 if the set has no delivery "
+            "block). Gate: members:admin OR (members:write + the ['*'] all-regions grant)."
+        ),
+    ),
+    RouteSpec(
+        name="list_schedules",
+        method=HttpMethod.GET,
+        path="/members/schedules",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_ADMIN, CAP_MEMBERS_WRITE),
+        schedule_gate=True,
+        self_service=False,
+        summary=(
+            "List the tenant's schedules (R5). Gate: members:admin OR (members:write + the "
+            "['*'] all-regions grant)."
+        ),
+    ),
+    RouteSpec(
+        name="get_schedule",
+        method=HttpMethod.GET,
+        path="/members/schedules/{schedule_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_ADMIN, CAP_MEMBERS_WRITE),
+        schedule_gate=True,
+        self_service=False,
+        summary=(
+            "Get a single schedule by its schedule_id (404 if absent, R5). Gate: members:admin "
+            "OR (members:write + the ['*'] all-regions grant)."
+        ),
+    ),
+    RouteSpec(
+        name="update_schedule",
+        method=HttpMethod.PUT,
+        path="/members/schedules/{schedule_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_ADMIN, CAP_MEMBERS_WRITE),
+        schedule_gate=True,
+        self_service=False,
+        summary=(
+            "Update a schedule by its schedule_id (404 if absent; 422 if a new set_id has no "
+            "delivery block, R5). Gate: members:admin OR (members:write + ['*'] all-regions)."
+        ),
+    ),
+    RouteSpec(
+        name="delete_schedule",
+        method=HttpMethod.DELETE,
+        path="/members/schedules/{schedule_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=None,
+        capabilities_any=(CAP_MEMBERS_ADMIN, CAP_MEMBERS_WRITE),
+        schedule_gate=True,
+        self_service=False,
+        summary=(
+            "Delete a schedule (hard delete; 404 if absent, R5). Gate: members:admin OR "
+            "(members:write + the ['*'] all-regions grant)."
         ),
     ),
     RouteSpec(
