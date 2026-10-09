@@ -113,11 +113,25 @@ class TestTemplateServiceCrud:
         assert tid in nl_key and "templates" in nl_key
         assert "Beste {{first_name}}" in body_store.get_body(nl_key)
 
-    def test_get_returns_metadata_without_body(self, service):
+    def test_get_resolves_body_html_for_the_compose_picker(self, service):
+        # GET-by-id MUST resolve each language's body HTML from the body store so the compose
+        # picker can seed the editable subject + body (R2). (Returning metadata-only was the
+        # bug that left the compose body empty + the send button disabled.)
         tid = service.create_template("h-dcn", _create_body())["template_id"]
         got = service.get_template("h-dcn", tid)
         assert got["template_id"] == tid
-        assert "body_html" not in got["languages"]["nl"]  # only subject + key
+        nl = got["languages"]["nl"]
+        assert nl["subject"] == "Dag {{first_name}}"
+        assert "s3_body_key" in nl
+        assert "Beste {{first_name}}" in nl["body_html"]  # body resolved, not just the key
+
+    def test_list_stays_metadata_only_no_body(self, service):
+        # list_templates is the cheap metadata path (picker labels only) — it must NOT load
+        # bodies from the store. Only GET-by-id resolves body_html.
+        service.create_template("h-dcn", _create_body())
+        listed = service.list_templates("h-dcn")
+        assert listed, "expected at least one template"
+        assert "body_html" not in listed[0]["languages"]["nl"]
 
     def test_get_absent_raises_not_found(self, service):
         with pytest.raises(TemplateNotFound):

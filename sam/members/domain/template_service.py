@@ -238,7 +238,9 @@ class TemplateService:
                     seen.append(key)
         return seen
 
-    def _serialize(self, entry: TemplateEntry) -> dict[str, Any]:
+    def _serialize(
+        self, entry: TemplateEntry, *, include_bodies: bool = False
+    ) -> dict[str, Any]:
         """Project a template entry to the JSON-friendly shape the handler returns.
 
         Carries the metadata only (``template_id`` / ``name`` / ``languages`` /
@@ -246,11 +248,19 @@ class TemplateService:
         ``tenant_id`` is omitted (the caller already knows the tenant context). Body HTML is
         NOT included — it is loaded on demand via :meth:`render_for_recipient`.
         """
+        def _variant_dict(variant: Any) -> dict[str, Any]:
+            d = dict(variant.to_dict())
+            if include_bodies:
+                # Resolve the stored body HTML (None -> empty string; the picker leaves the
+                # body blank and the user fills it). Loaded only on GET-by-id, not on list.
+                d["body_html"] = self._bodies.get_body(variant.s3_body_key) or ""
+            return d
+
         return {
             "template_id": entry.template_id,
             "name": entry.name,
             "languages": {
-                lang: variant.to_dict() for lang, variant in entry.languages.items()
+                lang: _variant_dict(variant) for lang, variant in entry.languages.items()
             },
             "merge_fields": list(entry.merge_fields),
             "logo_asset_ref": entry.logo_asset_ref,
@@ -295,7 +305,9 @@ class TemplateService:
         entry = self._meta.get_template(tenant_id, template_id)
         if entry is None:
             raise TemplateNotFound(tenant_id, template_id)
-        return self._serialize(entry)
+        # GET-by-id resolves each language's body HTML from the body store so the compose
+        # picker can SEED the editable subject + body (R2). list_templates stays metadata-only.
+        return self._serialize(entry, include_bodies=True)
 
     # ── create / update / delete ──────────────────────────────────────────────────────
 
