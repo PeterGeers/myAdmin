@@ -54,7 +54,8 @@
     "denied": "Deze statuswijziging is niet toegestaan."
   },
   "mail": {
-    "notCertified": "De e-mailafzender van je organisatie is nog niet gecertificeerd, dus deze bezorging is niet verzonden. Neem contact op met je beheerder om het e-maildomein te certificeren."
+    "notCertified": "De e-mailafzender van je organisatie is nog niet gecertificeerd, dus deze bezorging is niet verzonden. Neem contact op met je beheerder om het e-maildomein te certificeren.",
+    "adHocInvalid": "Voor een verzending per ontvanger is een sjabloon vereist. Kies eerst een sjabloon voordat je verzendt."
   },
   "analyticsset": {
     "delivery": {

@@ -54,7 +54,8 @@
     "denied": "This status change is not allowed."
   },
   "mail": {
-    "notCertified": "Your organisation's mail sender is not certified yet, so this delivery was not sent. Please contact your administrator to certify the mail domain."
+    "notCertified": "Your organisation's mail sender is not certified yet, so this delivery was not sent. Please contact your administrator to certify the mail domain.",
+    "adHocInvalid": "A template is required for a per-recipient send. Please pick a template before sending."
   },
   "analyticsset": {
     "delivery": {

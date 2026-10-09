@@ -167,7 +167,17 @@
       "csv": "Export to CSV",
       "pdfLabels": "Address labels (PDF)",
       "mail": "Mail",
-      "empty": "No data to export"
+      "empty": "No data to export",
+      "csvDownload": "Save locally",
+      "csvEmail": "Email CSV",
+      "csvMail": {
+        "title": "Email the CSV",
+        "summary": "Send the current result ({{count}} rows) as a CSV attachment.",
+        "toLabel": "To (email address(es))",
+        "toPlaceholder": "name@example.com",
+        "send": "Send",
+        "queued": "CSV emailed ({{count}})"
+      }
     },
     "delivery": {
       "action": "Delivery",
@@ -317,7 +327,11 @@
         "uploadError": "Failed to read the file",
         "improved": "Template improved",
         "improveError": "Could not improve the template; your text was kept"
-      }
+      },
+      "previewLabel": "Preview (first row merged)",
+      "confirmTitle": "Confirm sending the email",
+      "confirmSummary": "You are about to email {{count}} recipient(s) from {{sender}}. This cannot be undone.",
+      "confirmSend": "Send now to {{count}}"
     },
     "mailRuns": {
       "action": "Mail status",
