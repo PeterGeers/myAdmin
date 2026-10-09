@@ -211,7 +211,10 @@ const MemberDeliveryEditor: React.FC<MemberDeliveryEditorProps> = ({
     void listTemplates()
       .then((res) => {
         if (active && res.ok) {
-          setTemplates(res.data);
+          // Defensive: the service guarantees an array, but guard here too so a
+          // malformed payload degrades to an empty picker instead of crashing the
+          // SPA on `templates.map` (never a crash — design §2.1).
+          setTemplates(Array.isArray(res.data) ? res.data : []);
         } else if (active) {
           setTemplates([]);
         }
