@@ -71,14 +71,21 @@ from sam.members.domain.analytics_set import (
     DELIVERY_MODE_PER_RECIPIENT,
     DELIVERY_MODE_TO_FIXED,
 )
+from sam.members.domain.mail_sender_resolver import (
+    MailSenderResolver,
+    NotCertifiedReason,
+)
 from sam.members.repository.members_repository import MembersRepository
 
 __all__ = [
     "DEFAULT_RECIPIENT_FIELD",
+    "AdHocMailBody",
+    "AdHocMailInvalid",
     "DeliveryNotConfigured",
     "ExecuteAndDeliverService",
     "MailJob",
     "MailQueue",
+    "MailNotCertified",
     "PivotRunner",
     "DeliveryOutcome",
 ]
@@ -107,6 +114,47 @@ class DeliveryNotConfigured(Exception):
             f"analytics set {set_id!r} has no delivery block for tenant {tenant_id!r} "
             "(configure a delivery before running it)"
         )
+
+
+class MailNotCertified(Exception):
+    """Raised when the active tenant has no usable verified From — refuse BEFORE enqueue (R4.2/R5.2).
+
+    The pre-send certification gate (:class:`~sam.members.domain.mail_sender_resolver.
+    MailSenderResolver`) runs SYNCHRONOUSLY on the enqueue path, before any job is placed on the
+    queue. When it refuses — mail not enabled, tenant not certified, or no mail domain projected —
+    this is raised carrying the TYPED :class:`~sam.members.domain.mail_sender_resolver.
+    NotCertifiedReason` so the edge maps it to a clear bilingual 4xx + action (Property 6 — never a
+    silent drop). NOTHING is enqueued and NO substitute sender is ever used (R4.2 — the ``jabaki.nl``
+    foreign-sender regression stays dead; Property 2/4). The ``run_id`` is carried for the edge's
+    attribution/trace.
+    """
+
+    def __init__(self, tenant_id: str, set_id: str, reason: NotCertifiedReason):
+        self.tenant_id = tenant_id
+        self.set_id = set_id
+        self.reason = reason
+        super().__init__(
+            f"tenant {tenant_id!r} cannot send mail for set {set_id!r}: "
+            f"{reason.value} (refused before enqueue — no send, no substitute sender)"
+        )
+
+
+class AdHocMailInvalid(Exception):
+    """Raised when an AD-HOC compose body is malformed (a client bug → 422 at the edge).
+
+    The ad-hoc send (``POST /members/mail/send``, mail-spec task 2.1) carries the compose body
+    itself — the current result rows, the typed recipients / template / attachment — rather than
+    a saved set + stored delivery. There is NO entity ``validate()`` behind it (unlike a saved
+    set), so this service validates the body's SHAPE before building any job: an unknown ``mode``,
+    a ``per_recipient`` body with no result rows to mail, or a ``to_fixed`` body with no explicit
+    recipients. The edge maps this to a clear 422 rather than silently enqueuing nothing (Property
+    6 — never a silent drop). The gate is validated BEFORE the pre-send certification check only
+    for shape; nothing is enqueued when it raises.
+    """
+
+    def __init__(self, detail: str):
+        self.detail = detail
+        super().__init__(f"ad-hoc mail body is invalid: {detail}")
 
 
 # ── Ports (the storage-agnostic seams this task owns / depends on) ──────────────────────
@@ -164,6 +212,14 @@ class MailJob:
     - ``run_id`` — the caller-supplied id for ONE logical run (shared by every job of a
       ``per_recipient`` fan-out, so a run can be traced/deduped as a whole).
     - ``mode`` — ``per_recipient`` or ``to_fixed`` (the worker renders accordingly).
+    - ``from_address`` — the RESOLVED tenant From (``noreply@<tenant-domain>``) this job sends
+      FROM (mail-spec task 1.3; design "MailJob (EXTENDED): carries resolved from_address").
+      Resolved ONCE at enqueue time by the pre-send :class:`~sam.members.domain.
+      mail_sender_resolver.MailSenderResolver` and STAMPED onto every job (both modes), so the
+      worker FORWARDS it to SES without re-resolving (Property 2 — one correct sender, never a
+      substitute). Always a non-empty verified From here (a refusal raises before any job is built).
+    - ``reply_to`` — the triggering user's verified email the replies go to (R4.3), stamped from
+      the edge's verified JWT. ``None`` for an unattended (scheduled) run with no triggering user.
     - ``recipients`` — the address(es) this job sends to: exactly one for a ``per_recipient``
       job (resolved from the member's row), or the fixed list for a ``to_fixed`` job.
     - ``template_id`` — the template ref to render (``per_recipient`` merge / the body of a
@@ -182,10 +238,76 @@ class MailJob:
     run_id: str
     mode: str
     recipients: tuple[str, ...]
+    from_address: str = ""
+    reply_to: str | None = None
     template_id: str | None = None
     merge_values: Mapping[str, Any] = field(default_factory=dict)
     attachment: Mapping[str, Any] | None = None
     rows: tuple[Mapping[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class AdHocMailBody:
+    """The AD-HOC compose body a stateless ``POST /members/mail/send`` carries (mail-spec task 2.2).
+
+    The ad-hoc interactive send is DIFFERENT from the saved-set deliver: it carries the compose's
+    OWN inputs — the current result rows + the typed recipients / template / attachment — not an
+    ``analyticsset#<id>`` + a stored ``delivery`` block (design "What to ADD" #1 / "Resolved
+    implementation choices"). So this frozen body is the ad-hoc analogue of a saved set's
+    ``(delivery, result_rows)`` pair: it feeds the SAME fan-out helpers (``_deliver_per_recipient``
+    / ``_deliver_to_fixed``) and therefore produces the SAME :class:`MailJob` shape and runs the
+    SAME pre-send gate. There is no saved set, so :attr:`set_id` is a free-form LABEL for audit /
+    the stable job id, not an entity key — the body carries no DynamoDB identity and the service
+    does NO repository re-fetch for an ad-hoc send (the rows arrive on the body).
+
+    - ``mode`` — ``per_recipient`` or ``to_fixed`` (the same discriminator a saved delivery uses).
+    - ``result_rows`` — the CURRENT result rows the compose is sending (already computed
+      client/pivot-side). For ``per_recipient`` the per-member address is resolved from each row
+      exactly as the saved path does; for ``to_fixed`` the whole set ships once as the attachment
+      source.
+    - ``recipients`` — the fixed recipient list for ``to_fixed`` (ignored for ``per_recipient``,
+      whose addresses come from the rows). Non-empty for ``to_fixed``.
+    - ``template_id`` — the template to render (``per_recipient`` merge / ``to_fixed`` covering
+      mail body); ``None`` when the compose carries none.
+    - ``attachment`` — the ``to_fixed`` attachment kind (``"csv"`` / ``"pdf_labels"``) or ``None``.
+    - ``label_options`` — the ``pdf_labels`` options mapping, when the attachment is labels.
+    - ``recipient_field`` — the dotted path that resolves a ``per_recipient`` address, defaulting
+      to :data:`DEFAULT_RECIPIENT_FIELD` (``personal.email``) — same override seam as a saved block.
+    - ``set_id`` — a free-form LABEL (default ``"adhoc"``) folded into the audit + the stable job
+      id; NOT a saved-set key (an ad-hoc send has no set).
+    """
+
+    mode: str
+    result_rows: tuple[Mapping[str, Any], ...] = ()
+    recipients: tuple[str, ...] = ()
+    template_id: str | None = None
+    attachment: str | None = None
+    label_options: Mapping[str, Any] | None = None
+    recipient_field: str | None = None
+    set_id: str = "adhoc"
+
+    def as_delivery(self) -> dict[str, Any]:
+        """Project this ad-hoc body into the SAME ``delivery``-mapping shape the fan-out reads.
+
+        The fan-out helpers (``_deliver_per_recipient`` / ``_deliver_to_fixed``) read a
+        ``delivery`` mapping (``mode`` / ``recipients`` / ``template_id`` / ``attachment`` /
+        ``label_options`` / ``recipient_field``). Projecting the ad-hoc body into that exact shape
+        is what lets BOTH routes share ONE send path with ZERO branching in the helpers — the
+        helpers never learn whether their ``delivery`` came from a stored set or an ad-hoc compose
+        (design "two thin routes, ONE shared send service").
+        """
+        delivery: dict[str, Any] = {"mode": self.mode}
+        if self.recipients:
+            delivery["recipients"] = list(self.recipients)
+        if self.template_id:
+            delivery["template_id"] = self.template_id
+        if self.attachment is not None:
+            delivery["attachment"] = self.attachment
+        if self.label_options is not None:
+            delivery["label_options"] = dict(self.label_options)
+        if self.recipient_field:
+            delivery["recipient_field"] = self.recipient_field
+        return delivery
 
 
 @dataclass(frozen=True)
@@ -212,9 +334,26 @@ class ExecuteAndDeliverService:
 
     Storage-agnostic: depends only on the injected :class:`MembersRepository` (the tenant-
     pinned re-fetch — the sole DynamoDB touch-point), the :class:`PivotRunner` port (the
-    pivot/list computation), and the :class:`MailQueue` port (the enqueue seam). It owns the
-    FAN-OUT: ``per_recipient`` → one job per member; ``to_fixed`` → one job. ``tenant_id`` is
-    authoritative on every call.
+    pivot/list computation), the :class:`MailQueue` port (the enqueue seam), and the
+    :class:`~sam.members.domain.mail_sender_resolver.MailSenderResolver` (the SYNCHRONOUS pre-send
+    certification gate — mail-spec task 1.3). It owns the FAN-OUT: ``per_recipient`` → one job per
+    member; ``to_fixed`` → one job. ``tenant_id`` is authoritative on every call.
+
+    Pre-send certification + sender stamping (mail-spec task 1.3, R4/R5; design "What to CHANGE"
+    #1/#4): BEFORE any job is built, the resolver resolves the tenant From
+    (``noreply@<tenant-domain>``) or REFUSES with a typed reason. On a refusal the service raises
+    :class:`MailNotCertified` and enqueues NOTHING (no send, no substitute sender — Property 2/4).
+    On success the resolved From + the triggering user's Reply-To are STAMPED onto EVERY job (both
+    modes) so the worker FORWARDS them to SES without re-resolving.
+
+    Two entry points, ONE send path (mail-spec task 2.2; design "two thin routes, ONE shared send
+    service"): :meth:`execute_and_deliver` runs a SAVED set + its stored ``delivery`` (resolving +
+    re-fetching from the repository), while :meth:`send_ad_hoc` runs an AD-HOC compose body
+    (:class:`AdHocMailBody` — current result rows + typed recipients / template / attachment, NO
+    stored delivery, NO re-fetch). BOTH converge on the SAME pre-send gate, the SAME fan-out
+    helpers (``_deliver_per_recipient`` / ``_deliver_to_fixed``), the SAME :class:`MailJob` shape,
+    and the SAME :class:`MailQueue`. The id-vs-no-id branch is WHICH method the thin route calls,
+    not a sentinel inside one method — DRY logic, honest routes.
     """
 
     def __init__(
@@ -222,17 +361,23 @@ class ExecuteAndDeliverService:
         repo: MembersRepository,
         pivot_runner: PivotRunner,
         queue: MailQueue,
+        sender_resolver: MailSenderResolver,
     ):
         self._repo = repo
         self._pivot = pivot_runner
         self._queue = queue
+        self._sender = sender_resolver
 
     # ── public entry point ────────────────────────────────────────────────────────────
 
     def execute_and_deliver(
-        self, tenant_id: str, set_id: str, run_id: str
+        self,
+        tenant_id: str,
+        set_id: str,
+        run_id: str,
+        reply_to: str | None = None,
     ) -> DeliveryOutcome:
-        """Resolve the set, re-fetch rows (tenant-pinned), run the pivot, and enqueue job(s).
+        """Resolve the set, gate on certification, re-fetch rows, run the pivot, and enqueue job(s).
 
         Args:
             tenant_id: the AUTHORITATIVE tenant (never a body value — Property 1/2). Every
@@ -244,9 +389,17 @@ class ExecuteAndDeliverService:
             run_id: the caller's id for ONE logical run (the deliver route / the scheduler
                 supplies it). Shared by every job of a fan-out and folded into the stable
                 job id, so re-enqueuing the same run is idempotent downstream.
+            reply_to: the TRIGGERING USER's verified email (R4.3), stamped onto every job as the
+                Reply-To so replies reach the real sender. ``None`` for an unattended (scheduled)
+                run with no triggering user — the From still carries the tenant identity.
 
         Returns:
             A :class:`DeliveryOutcome` describing what was enqueued.
+
+        Raises:
+            MailNotCertified: the tenant has no usable verified From (mail disabled / not
+                certified / no domain) — refused SYNCHRONOUSLY before any job is enqueued
+                (R4.2/R5.2; Property 2/4). Nothing is placed on the queue.
         """
         # 1. Resolve the set + its delivery block (tenant pinned — Property 1).
         entry = self._repo.get_analytics_set(tenant_id, set_id)
@@ -262,25 +415,124 @@ class ExecuteAndDeliverService:
 
         mode = delivery.get("mode")
 
-        # 2. Re-fetch the member rows FRESH through the repository (tenant pinned — Property 1;
+        # 2. PRE-SEND certification gate (mail-spec task 1.3, R4/R5): resolve the tenant From
+        #    SYNCHRONOUSLY before touching the queue. A refusal (mail disabled / not certified /
+        #    no domain) raises MailNotCertified carrying the TYPED reason and enqueues NOTHING —
+        #    never a substitute sender (R4.2 — the jabaki.nl regression stays dead; Property 2/4).
+        resolution = self._sender.resolve(tenant_id)
+        if not resolution.ok:
+            raise MailNotCertified(tenant_id, set_id, resolution.reason)
+        from_address = resolution.from_address
+
+        # 3. Re-fetch the member rows FRESH through the repository (tenant pinned — Property 1;
         #    this is list_members keyed by tenant_id, NEVER a .scan()).
         rows = list(self._repo.list_members(tenant_id))
 
-        # 3. Run the pivot/list over the re-fetched rows to get the result rows.
+        # 4. Run the pivot/list over the re-fetched rows to get the result rows.
         result_rows = list(self._pivot.run(tenant_id, entry.definition, rows))
 
-        # 4. Fan out into enqueue job(s) per the delivery mode.
+        # 5. Fan out into enqueue job(s) per the delivery mode, STAMPING the resolved From +
+        #    the user's Reply-To onto every job (both modes) so the worker forwards them.
         if mode == DELIVERY_MODE_PER_RECIPIENT:
             return self._deliver_per_recipient(
-                tenant_id, set_id, run_id, delivery, result_rows
+                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
             )
         if mode == DELIVERY_MODE_TO_FIXED:
             return self._deliver_to_fixed(
-                tenant_id, set_id, run_id, delivery, result_rows
+                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
             )
         # The entity validates the mode at save time, so an unknown mode here is a stored-data
         # fault; refuse it loudly rather than enqueue nothing silently.
         raise DeliveryNotConfigured(tenant_id, set_id)
+
+    # ── ad-hoc send (the SHARED entry for POST /members/mail/send, mail-spec task 2.2) ──
+
+    def send_ad_hoc(
+        self,
+        tenant_id: str,
+        body: AdHocMailBody,
+        run_id: str,
+        reply_to: str | None = None,
+    ) -> DeliveryOutcome:
+        """Send an AD-HOC compose (recipients/template/attachment + current rows) — no saved set.
+
+        This is the SIBLING entry to :meth:`execute_and_deliver` and the point of mail-spec task
+        2.2: the stateless ``POST /members/mail/send`` route delegates HERE, while the saved-set
+        ``.../deliver`` route delegates to :meth:`execute_and_deliver`. BOTH converge on the SAME
+        pre-send gate, the SAME fan-out helpers, the SAME :class:`MailJob` shape, and the SAME
+        :class:`MailQueue` — ONE send path, two thin routes (design "Resolved implementation
+        choices"). The ONLY difference is the INPUT: this takes the compose body + its already-
+        computed ``result_rows`` directly, so there is NO set resolution and NO repository
+        re-fetch (the ad-hoc compose carries no DynamoDB identity).
+
+        Order of operations (identical gate to the saved path, Property 2/4/6):
+
+        1. Validate the body SHAPE (:class:`AdHocMailInvalid`) — unknown mode, a ``to_fixed`` with
+           no recipients, a ``per_recipient`` with no rows. No entity ``validate()`` stands behind
+           an ad-hoc body, so this service owns that check.
+        2. Run the SAME synchronous pre-send :class:`MailSenderResolver` — refuse with the typed
+           :class:`MailNotCertified` BEFORE enqueue if the tenant is not certified (no substitute
+           sender, R4.2). Nothing is enqueued on a refusal.
+        3. Fan out via the SAME ``_deliver_per_recipient`` / ``_deliver_to_fixed`` helpers,
+           STAMPING the resolved tenant From + the user's Reply-To onto every job.
+
+        Args:
+            tenant_id: the AUTHORITATIVE active tenant (never a body value — Property 3). The
+                pre-send gate reads the projected config for THIS tenant; the stamped From is
+                this tenant's ``noreply@<tenant-domain>``.
+            body: the ad-hoc compose (:class:`AdHocMailBody`) — mode + result rows + the typed
+                recipients / template / attachment.
+            run_id: the caller's id for ONE logical run (the edge mints it), folded into every
+                job's stable id so an at-least-once redelivery is idempotent.
+            reply_to: the triggering user's verified email (R4.3), stamped as the Reply-To.
+
+        Returns:
+            A :class:`DeliveryOutcome` describing what was enqueued (same shape as the saved path).
+
+        Raises:
+            AdHocMailInvalid: the compose body is malformed (→ 422). Nothing is enqueued.
+            MailNotCertified: the tenant has no usable verified From — refused SYNCHRONOUSLY
+                before any job is enqueued (R4.2/R5.2; Property 2/4). Nothing is enqueued.
+        """
+        set_id = body.set_id or "adhoc"
+
+        # 1. Shape-validate the ad-hoc body (no entity validate() stands behind it).
+        if body.mode == DELIVERY_MODE_PER_RECIPIENT:
+            if not body.result_rows:
+                raise AdHocMailInvalid(
+                    "per_recipient send carries no result rows to mail"
+                )
+        elif body.mode == DELIVERY_MODE_TO_FIXED:
+            has_recipient = any(
+                isinstance(r, str) and r.strip() for r in body.recipients
+            )
+            if not has_recipient:
+                raise AdHocMailInvalid(
+                    "to_fixed send requires a non-empty recipients list"
+                )
+        else:
+            raise AdHocMailInvalid(f"unknown delivery mode {body.mode!r}")
+
+        # 2. PRE-SEND certification gate — the SAME resolver, SAME typed refusal as the saved
+        #    path (R4.2/R5.2). A refusal raises MailNotCertified and enqueues NOTHING (no
+        #    substitute sender — the jabaki.nl regression stays dead; Property 2/4).
+        resolution = self._sender.resolve(tenant_id)
+        if not resolution.ok:
+            raise MailNotCertified(tenant_id, set_id, resolution.reason)
+        from_address = resolution.from_address
+
+        # 3. Fan out via the SAME helpers, projecting the body into the delivery shape they read
+        #    and passing the body's own (already-computed) result rows — no repository re-fetch.
+        delivery = body.as_delivery()
+        result_rows = list(body.result_rows)
+
+        if body.mode == DELIVERY_MODE_PER_RECIPIENT:
+            return self._deliver_per_recipient(
+                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
+            )
+        return self._deliver_to_fixed(
+            tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
+        )
 
     # ── per_recipient: one job PER member (merge values + template ref) ─────────────────
 
@@ -291,6 +543,8 @@ class ExecuteAndDeliverService:
         run_id: str,
         delivery: Mapping[str, Any],
         result_rows: Sequence[Mapping[str, Any]],
+        from_address: str,
+        reply_to: str | None,
     ) -> DeliveryOutcome:
         """Enqueue ONE job per result row, each with that member's merge values + the template.
 
@@ -322,6 +576,8 @@ class ExecuteAndDeliverService:
                 run_id=run_id,
                 mode=DELIVERY_MODE_PER_RECIPIENT,
                 recipients=(address,),
+                from_address=from_address,
+                reply_to=reply_to,
                 template_id=template_ref,
                 merge_values=merge_values,
             )
@@ -345,6 +601,8 @@ class ExecuteAndDeliverService:
         run_id: str,
         delivery: Mapping[str, Any],
         result_rows: Sequence[Mapping[str, Any]],
+        from_address: str,
+        reply_to: str | None,
     ) -> DeliveryOutcome:
         """Enqueue ONE job carrying the fixed recipients + the attachment descriptor.
 
@@ -388,6 +646,8 @@ class ExecuteAndDeliverService:
             run_id=run_id,
             mode=DELIVERY_MODE_TO_FIXED,
             recipients=recipients,
+            from_address=from_address,
+            reply_to=reply_to,
             template_id=template_ref,
             attachment=attachment,
             rows=tuple(dict(r) for r in result_rows),

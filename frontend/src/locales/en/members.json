@@ -201,7 +201,12 @@
       "saved": "Delivery saved",
       "cleared": "Delivery cleared",
       "saveError": "Failed to save the delivery",
-      "clearError": "Failed to clear the delivery"
+      "clearError": "Failed to clear the delivery",
+      "deliverNow": "Deliver now",
+      "deliverNowHint": "Send this set's result to its fixed recipient list now.",
+      "deliverNowNeedsFixed": "Deliver now is available for a set that sends to a fixed address list. Set up a fixed-address delivery first.",
+      "deliverNowQueued": "Delivery queued — {{count}} send(s) on their way.",
+      "deliverNowError": "Could not start the delivery."
     },
     "schedule": {
       "action": "Schedule",
@@ -270,6 +275,7 @@
       "cancel": "Cancel",
       "toast": {
         "success": "Mail sent",
+        "queued": "Queued — {{count}} message(s) will be sent",
         "error": "Failed to send mail",
         "rateLimited": "Send rate limit reached. Please try again later."
       },
@@ -311,6 +317,52 @@
         "uploadError": "Failed to read the file",
         "improved": "Template improved",
         "improveError": "Could not improve the template; your text was kept"
+      }
+    },
+    "mailRuns": {
+      "action": "Mail status",
+      "title": "Mail status & history",
+      "intro": "What happened to each background send — queued, sent, or failed. Open a run to see which recipients failed.",
+      "refresh": "Refresh",
+      "loading": "Loading send history…",
+      "loadError": "Failed to load the send history",
+      "empty": "No sends yet",
+      "tally": "{{sent}} sent, {{failed}} failed",
+      "recipientCount": "{{count}} recipients",
+      "status": {
+        "queued": "Queued",
+        "sending": "Sending",
+        "completed": "Completed"
+      },
+      "mode": {
+        "per_recipient": "Per member",
+        "to_fixed": "Fixed address list"
+      },
+      "sentMeaning": "\"Sent\" means accepted by SES — not confirmed delivered to the inbox.",
+      "viewFailures": "View failures",
+      "hideFailures": "Hide failures",
+      "noFailures": "No failures for this run",
+      "failuresTitle": "Failed recipients",
+      "failureStatus": {
+        "failed": "Failed",
+        "bounced": "Bounced",
+        "complaint": "Complaint"
+      },
+      "failure": {
+        "address": "Recipient",
+        "status": "Outcome",
+        "reason": "Reason",
+        "noReason": "No reason recorded"
+      },
+      "loadRunError": "Failed to load this run's details",
+      "delete": {
+        "action": "Delete",
+        "confirmTitle": "Delete this send record?",
+        "confirmBody": "This permanently removes the run and its failure details. This cannot be undone.",
+        "confirmCancel": "Cancel",
+        "confirmConfirm": "Delete",
+        "deleted": "Send record deleted",
+        "deleteError": "Failed to delete the send record"
       }
     },
     "states": {

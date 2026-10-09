@@ -21,12 +21,14 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+from sam.members.domain.execute_and_deliver import AdHocMailBody
 from sam.members.domain.fixed_fields import MembershipStatus
 from sam.members.domain.membership_service import (
     MemberValidationError,
 )
 from sam.members.handler._http import AcceptedResult, ParsedRequest
-from sam.members.handler.routes import RouteSpec
+from sam.members.handler.routes import CAP_MEMBERS_ADMIN, RouteSpec
+from sam.shared.auth_utils import has_capability
 
 if (
     TYPE_CHECKING
@@ -145,6 +147,10 @@ def _mail_job_to_envelope(job: Any) -> dict[str, Any]:
         "run_id": job.run_id,
         "mode": job.mode,
         "recipients": list(job.recipients),
+        # The resolved tenant From + the user's Reply-To, stamped at enqueue (mail-spec task 1.3)
+        # — the worker FORWARDS them to SES without re-resolving (Property 2).
+        "from_address": job.from_address,
+        "reply_to": job.reply_to,
         "template_id": job.template_id,
         "merge_values": dict(job.merge_values),
         "attachment": dict(job.attachment) if job.attachment is not None else None,
@@ -170,15 +176,112 @@ def get_execute_and_deliver_service() -> Any:
     global _EXECUTE_AND_DELIVER_SERVICE
     if _EXECUTE_AND_DELIVER_SERVICE is None:
         from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+        from sam.members.domain.mail_sender_resolver import MailSenderResolver
         from sam.members.repository.mail_send_queue import SqsMailSendQueue
         from sam.members.repository.members_repository import DynamoDbMembersRepository
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
 
+        # The pre-send certification resolver reads the PROJECTED config#mail flags (Option B —
+        # no live SES call on the send path); MembersProjectionReader satisfies its
+        # MailConfigReader seam by duck-typing. The table resolves lazily + fail-fast on first use.
         _EXECUTE_AND_DELIVER_SERVICE = ExecuteAndDeliverService(
             DynamoDbMembersRepository(),
             _PassThroughPivotRunner(),
             _SqsMailQueueAdapter(SqsMailSendQueue()),
+            MailSenderResolver(MembersProjectionReader()),
         )
     return _EXECUTE_AND_DELIVER_SERVICE
+
+
+# ── Send-run status read service seam (R9 — mail-spec task 3.2) ───────────────────────
+#
+# The two mail-run READ routes (`GET /members/mail-runs[/{run_id}]`) are backed by the
+# standalone :class:`~sam.members.domain.mail_run_status.MailRunStatusService` (NOT the
+# MembershipService) over the tenant-pinned repository's task-3.1 read methods
+# (`list_mail_runs` / `get_mail_run` / `list_mail_run_failures`). It is resolved lazily once
+# (warm-reuse), mirroring :func:`get_template_service` / :func:`get_execute_and_deliver_service`.
+# A test replaces :data:`_MAIL_RUN_STATUS_SERVICE` (or patches :func:`get_mail_run_status_service`)
+# with a service over an in-memory fake repo, so no AWS is touched. The user-vs-admin SCOPING
+# (R9.3) is resolved HERE in the dispatch (from the verified sub + the members:admin entitlement)
+# and handed to the service as a plain boolean — the service holds the scope rule, the edge holds
+# the auth fact (verify-before-trust).
+
+#: The module-global mail-run status service, built once at cold start (``None`` until first use).
+_MAIL_RUN_STATUS_SERVICE: Any = None
+
+
+class MailRunNotFound(Exception):
+    """Raised when a requested send-run is not visible to the caller (→ 404).
+
+    Either the run does not exist in the tenant, OR it exists but was triggered by ANOTHER
+    user and the caller is not a Tenant_Admin (R9.3). The two cases are deliberately
+    INDISTINGUISHABLE — a non-admin cannot tell "no such run" apart from "someone else's run",
+    so a scoped caller cannot probe for another user's runs (mirrors the member-read 404
+    not-found policy). The edge maps this to a 404.
+    """
+
+    def __init__(self, run_id: str):
+        self.run_id = run_id
+        super().__init__(f"mail run '{run_id}' not found or not visible")
+
+
+def get_mail_run_status_service() -> Any:
+    """Return the module-global mail-run status service, building it once at cold start (R9).
+
+    Wires the task-3.2 :class:`~sam.members.domain.mail_run_status.MailRunStatusService` over
+    the tenant-scoped
+    :class:`~sam.members.repository.members_repository.DynamoDbMembersRepository` (its
+    ``list_mail_runs`` / ``get_mail_run`` / ``list_mail_run_failures`` pin ``tenant_id`` —
+    Property 3). The table resolves lazily + fail-fast on first use, so importing the module
+    (and the auth-only tests) never touches AWS. Tests patch this accessor (or set
+    ``_MAIL_RUN_STATUS_SERVICE``) to inject a service over an in-memory fake repo.
+    """
+    global _MAIL_RUN_STATUS_SERVICE
+    if _MAIL_RUN_STATUS_SERVICE is None:
+        from sam.members.domain.mail_run_status import MailRunStatusService
+        from sam.members.repository.members_repository import DynamoDbMembersRepository
+
+        _MAIL_RUN_STATUS_SERVICE = MailRunStatusService(DynamoDbMembersRepository())
+    return _MAIL_RUN_STATUS_SERVICE
+
+
+def _caller_is_tenant_admin(ctx: RequestContext) -> bool:
+    """True when the verified caller holds ``members:admin`` for the active tenant (R9.3).
+
+    The R9.3 scope decision — a plain user sees only their OWN sends, a Tenant_Admin sees ALL
+    the tenant's — is an AUTHORIZATION fact, so it derives from the VERIFIED entitlement, never
+    a header/body (verify-before-trust, Property 3). Uses the three-state
+    :func:`~sam.shared.auth_utils.has_capability`: only an authoritative ``True`` grant counts
+    as admin; a ``False`` (token-backed denial) or ``None`` (the token does not answer) both
+    resolve to NOT-admin, so the caller is scoped to their own sends — fail-closed to the
+    narrower view, never a silent widening to the whole tenant.
+    """
+    return has_capability(ctx.claims, ctx.tenant_id, CAP_MEMBERS_ADMIN) is True
+
+
+def _mail_run_to_dict(run: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape a stored ``mailrun#`` tally into the JSON the status screen renders.
+
+    Drops the DynamoDB plumbing keys (the partition/sort key + the ``ttl`` epoch) that are
+    storage detail, not status the SPA needs, and passes the status fields through. The edge's
+    JSON encoder already turns DynamoDB ``Decimal`` counts into ints, so the tally's numeric
+    ``recipient_count`` / ``sent`` / ``failed`` serialize cleanly.
+    """
+    drop = {"tenant_id", "sk", "ttl"}
+    return {k: v for k, v in run.items() if k not in drop}
+
+
+def _mail_failure_to_dict(failure: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape a stored ``mailrecipient#`` FAILURE sub-record into the drill-down JSON.
+
+    Drops the DynamoDB plumbing keys (partition/sort key + ``ttl``), surfacing the per-failure
+    fields the screen shows — ``address`` / ``status`` / ``reason`` / ``message_id`` — as
+    metadata only (never member PII beyond the mailed address).
+    """
+    drop = {"tenant_id", "sk", "ttl"}
+    return {k: v for k, v in failure.items() if k not in drop}
 
 
 def _new_run_id(tenant_id: str, set_id: str, requested_by: str | None) -> str:
@@ -197,6 +300,21 @@ def _new_run_id(tenant_id: str, set_id: str, requested_by: str | None) -> str:
     return f"deliver:{set_id}:{who}:{stamp}"
 
 
+def _verified_email(ctx: RequestContext) -> str | None:
+    """The triggering user's VERIFIED email (the mail Reply-To, R4.3) — from the JWT claims only.
+
+    The Reply-To is the logged-in user's address so replies reach the real sender (R4.3). It is
+    read from the VERIFIED token claims (``email``) the edge already decoded — never a header or
+    body value (verify-before-trust, Property 3). Returns ``None`` when the token carries no email
+    claim; the send still proceeds (the From carries the tenant identity) with no Reply-To, rather
+    than guessing one.
+    """
+    email = ctx.claims.get("email") if isinstance(ctx.claims, Mapping) else None
+    if isinstance(email, str) and email.strip():
+        return email.strip()
+    return None
+
+
 def _delivery_outcome_to_dict(outcome: Any) -> dict[str, Any]:
     """Shape the service's frozen ``DeliveryOutcome`` into the JSON receipt the 202 echoes.
 
@@ -212,6 +330,76 @@ def _delivery_outcome_to_dict(outcome: Any) -> dict[str, Any]:
         "skipped_no_address": outcome.skipped_no_address,
         "job_ids": list(outcome.job_ids),
     }
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    """Coerce a JSON array value into a tuple of strings (empty when absent/not a list).
+
+    The ad-hoc body's ``recipients`` is a JSON array of addresses. API Gateway hands the body
+    through as parsed JSON, so a well-formed array is already a ``list``; a missing / non-list
+    value normalises to an empty tuple so the SERVICE'S shape validation surfaces the "to_fixed
+    requires recipients" 422 (:class:`AdHocMailInvalid`) rather than the edge guessing. Non-str
+    entries are dropped (the service's ``to_fixed`` guard already treats blank/absent as "no
+    recipient").
+    """
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(v for v in value if isinstance(v, str))
+
+
+def _row_tuple(value: Any) -> tuple[Mapping[str, Any], ...]:
+    """Coerce the body's ``result_rows`` JSON array into a tuple of row mappings.
+
+    The compose ships its CURRENT result rows (already computed client/pivot-side) on the body;
+    each row is a JSON object. A missing / non-list value normalises to an empty tuple so the
+    service's ``per_recipient`` guard surfaces the "no result rows to mail" 422; non-object
+    entries are dropped (a row that is not a mapping carries no resolvable address or merge
+    values anyway).
+    """
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(r for r in value if isinstance(r, Mapping))
+
+
+def _parse_ad_hoc_body(request: ParsedRequest) -> AdHocMailBody:
+    """Parse the ad-hoc send request body into an :class:`AdHocMailBody` (SHAPE only, R2).
+
+    The thin edge's whole job here is to lift the JSON compose body into the frozen
+    :class:`~sam.members.domain.execute_and_deliver.AdHocMailBody` the service consumes — it
+    does NOT validate it. The AUTHORITATIVE shape validation (unknown ``mode``, a ``to_fixed``
+    with no recipients, a ``per_recipient`` with no rows) lives in
+    :meth:`ExecuteAndDeliverService.send_ad_hoc` (raising :class:`AdHocMailInvalid` → 422 at the
+    edge), so a malformed body is surfaced by the service, never guessed here (verify-before-
+    trust: the handler never enriches the body; ``tenant_id`` + Reply-To are stamped by the
+    dispatch from the VERIFIED context, never read off the body).
+
+    A missing / non-object body normalises to an empty mapping, so an absent ``mode`` flows
+    through as ``None`` and the service rejects it with the "unknown delivery mode" 422 — the
+    honest "the body is malformed" answer rather than a silent no-op. ``set_id`` is a free-form
+    audit LABEL (default ``"adhoc"``), NOT a saved-set key.
+    """
+    body = request.body if isinstance(request.body, Mapping) else {}
+
+    attachment = body.get("attachment")
+    label_options = body.get("label_options")
+    recipient_field = body.get("recipient_field")
+    template_id = body.get("template_id")
+    set_id = body.get("set_id")
+
+    return AdHocMailBody(
+        mode=body.get("mode"),
+        result_rows=_row_tuple(body.get("result_rows")),
+        recipients=_str_tuple(body.get("recipients")),
+        template_id=template_id if isinstance(template_id, str) and template_id else None,
+        attachment=attachment if isinstance(attachment, str) and attachment else None,
+        label_options=label_options if isinstance(label_options, Mapping) else None,
+        recipient_field=(
+            recipient_field
+            if isinstance(recipient_field, str) and recipient_field
+            else None
+        ),
+        set_id=set_id if isinstance(set_id, str) and set_id else "adhoc",
+    )
 
 
 class RouteNotImplemented(NotImplementedError):
@@ -487,12 +675,106 @@ def dispatch_route(
         # (→ 422) — both mapped at the edge.
         set_id = _require_path_param(ctx, "set_id")
         run_id = _new_run_id(tenant_id, set_id, ctx.sub)
+        # Reply-To = the triggering user's VERIFIED email (R4.3) — from the verified JWT claims,
+        # never a body value (verify-before-trust). The service runs the SYNCHRONOUS pre-send
+        # certification gate and stamps the resolved tenant From + this Reply-To onto every job;
+        # a not-certified tenant raises MailNotCertified (→ mapped at the edge), no enqueue.
+        reply_to = _verified_email(ctx)
         deliver_service = get_execute_and_deliver_service()
-        outcome = deliver_service.execute_and_deliver(tenant_id, set_id, run_id)
+        outcome = deliver_service.execute_and_deliver(
+            tenant_id, set_id, run_id, reply_to=reply_to
+        )
         # The service returns a frozen `DeliveryOutcome` dataclass; the edge's JSON encoder only
         # knows Decimals, so shape it into a plain dict here (the enqueued-send receipt the SPA
         # echoes). `AcceptedResult` makes the edge emit a 202, not a 200 (enqueued, not done).
         return AcceptedResult(_delivery_outcome_to_dict(outcome))
+
+    if name == "send_ad_hoc_mail":
+        # The AD-HOC interactive send (mail-spec task 2.1) — the stateless SIBLING of
+        # `deliver_analytics_set`. The compose body IS the request body (the current result
+        # rows + the typed recipients / template / attachment), NOT a saved set + stored
+        # delivery; the edge parses it into an `AdHocMailBody` (shape only — the service owns
+        # the authoritative validation) and delegates to the ONE shared send service's
+        # `send_ad_hoc`, which runs the SAME synchronous pre-send certification gate, builds the
+        # SAME MailJob shape, and ENQUEUES on the SAME MailQueue (design "two thin routes, ONE
+        # shared send service"). The route stays THIN: no business logic here (the fan-out,
+        # the gate, the address resolution all live in the service).
+        #
+        # `tenant_id` is AUTHORITATIVE from the verified context (never a body value —
+        # verify-before-trust, Property 3). Reply-To = the triggering user's VERIFIED email
+        # (R4.3), from the JWT claims only. A fresh `run_id` is minted per click (one logical
+        # run, folded into every job's stable id for idempotent redelivery). A not-certified
+        # tenant raises MailNotCertified (→ 422 errors.mail.notCertified at the edge) with NO
+        # enqueue; a malformed body raises AdHocMailInvalid (→ 422 at the edge).
+        body = _parse_ad_hoc_body(request)
+        run_id = _new_run_id(tenant_id, body.set_id, ctx.sub)
+        reply_to = _verified_email(ctx)
+        send_service = get_execute_and_deliver_service()
+        outcome = send_service.send_ad_hoc(
+            tenant_id, body, run_id, reply_to=reply_to
+        )
+        return AcceptedResult(_delivery_outcome_to_dict(outcome))
+
+    # ── Group ANALYTICS (send-run STATUS reads — R9, mail-spec task 3.2) ─────────────
+    #
+    # The pull-model status/history SURFACE (R9.2/R9.6): read the send-run records (task 3.1)
+    # and render them. Backed by the standalone MailRunStatusService over the tenant-pinned
+    # repository (`tenant_id` is authoritative — Property 3, no cross-tenant read). The R9.3
+    # ROLE-SCOPING is resolved HERE from the VERIFIED context — a Tenant_Admin (holds
+    # `members:admin`) sees ALL the tenant's runs; a plain user sees only their OWN
+    # (`triggered_by == ctx.sub`). The admin fact comes from the three-state has_capability over
+    # the verified claims (never a header/body — verify-before-trust); `ctx.sub` is the verified
+    # caller id the run's `triggered_by` carries. The handler stays THIN: it hands the service
+    # the authoritative tenant + sub + the computed admin boolean, and the service applies the
+    # scope rule.
+    if name == "list_mail_runs":
+        status_service = get_mail_run_status_service()
+        admin = _caller_is_tenant_admin(ctx)
+        runs = status_service.list_runs(
+            tenant_id, requester_sub=ctx.sub, admin=admin
+        )
+        return [_mail_run_to_dict(r) for r in runs]
+
+    if name == "get_mail_run":
+        # One run's tally + its FAILURE drill-down, subject to the SAME scope: a plain user may
+        # drill only into a run they triggered (an existing-but-other-user run is reported as
+        # absent → MailRunNotFound → 404, so a scoped caller cannot probe for another user's
+        # runs); a Tenant_Admin may drill into any tenant run. A truly absent run is a 404 for
+        # everyone. The service returns None in both not-visible cases; the edge maps it to a 404.
+        run_id = _require_path_param(ctx, "run_id")
+        status_service = get_mail_run_status_service()
+        admin = _caller_is_tenant_admin(ctx)
+        view = status_service.get_run(
+            tenant_id, run_id, requester_sub=ctx.sub, admin=admin
+        )
+        if view is None:
+            raise MailRunNotFound(run_id)
+        return {
+            "run": _mail_run_to_dict(view.run),
+            "failures": [_mail_failure_to_dict(f) for f in view.failures],
+        }
+
+    if name == "delete_mail_run":
+        # Manually delete one send-run (R9.6 retention) — the thin DELETE half of the status
+        # surface. Subject to the SAME scope as `get_mail_run`: a plain user may delete only a
+        # run they triggered, a Tenant_Admin any tenant run. The admin fact comes from the
+        # three-state has_capability over the VERIFIED claims (never a header/body —
+        # verify-before-trust, Property 3); `ctx.sub` is the verified caller id the run's
+        # `triggered_by` carries. The service returns False in BOTH not-visible cases (truly
+        # absent, or an existing-but-other-user run for a non-admin), which the edge maps to a
+        # MailRunNotFound → 404 — deliberately indistinguishable so a scoped caller cannot probe
+        # for (or destroy) another user's runs. On a visible run the service deletes the tally +
+        # all FAILURE sub-records (tenant-pinned) and the edge returns an empty success (200
+        # `{success:true, data:{}}`), consistent with the module's other DELETE routes.
+        run_id = _require_path_param(ctx, "run_id")
+        status_service = get_mail_run_status_service()
+        admin = _caller_is_tenant_admin(ctx)
+        deleted = status_service.delete_run(
+            tenant_id, run_id, requester_sub=ctx.sub, admin=admin
+        )
+        if not deleted:
+            raise MailRunNotFound(run_id)
+        return {}
 
     if name == "get_preferred_list":
         # The caller's OWN preferred list, keyed by the verified sub (user ≠ member, R11.1 —
@@ -698,6 +980,7 @@ def dispatch_route(
 
 
 __all__ = [
+    "MailRunNotFound",
     "RouteNotImplemented",
     "_parse_to_state",
     "_query_flag",
@@ -706,5 +989,6 @@ __all__ = [
     "_write_body",
     "dispatch_route",
     "get_execute_and_deliver_service",
+    "get_mail_run_status_service",
     "get_template_service",
 ]

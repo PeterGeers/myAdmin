@@ -39,14 +39,28 @@
  *   - **Recipient COUNT for confirmation before send** (R8.4): the modal shows
  *     the count and sends via a confirmed action — never a fire-and-forget click.
  *     BCC is the default (the backend BCCs every recipient).
- *   - **POST** to `/api/members/mail-set` via the authenticated
- *     {@link mailMembersSet} service; a success / error toast follows. An SES
- *     RATE LIMIT (task 9.3, R4.12) is surfaced with the dedicated bilingual
- *     `toast.rateLimited` message rather than the generic error, and the composed
- *     set is kept (the modal stays open to retry); every other failure shows the
- *     generic error toast, also keeping the set.
- *   - **Transient artifact cleanup (R8.5):** the generated CSV/PDF attachment
- *     bytes are released from memory after the send completes (success OR
+ *   - **POST** to the SAM Members plane route `POST /members/mail/send` via the
+ *     authenticated {@link sendAdHocMail} service (mail-spec task 2.3) — NOT the
+ *     retired Flask `POST /api/members/mail-set` route that sent from the wrong
+ *     (`jabaki.nl`) sender (R1.1/R1.2: Members mail must flow on the SAM plane).
+ *     The send is a THIN enqueue: the route runs the synchronous pre-send
+ *     certification gate, builds the job(s) and ENQUEUES them (a worker performs
+ *     the actual SES send), returning a 202 ACCEPTED receipt
+ *     ({@link DeliveryRunResult}). The compose surfaces that as a "queued, N
+ *     recipient(s)" acknowledgment (`toast.queued`) and closes. A refusal — a
+ *     not-certified tenant (`errors.mail.notCertified`, R4.2/R5.2) or an invalid
+ *     body (422) — is surfaced via {@link applyApiError} (the typed code resolves
+ *     to the clear bilingual message); the composed set is NOT lost (the modal
+ *     stays open to act on it).
+ *   - **Mode (ad-hoc body):** a send carrying typed fixed recipients and/or an
+ *     attachment is a `to_fixed` send (one message to the fixed list, the worker
+ *     builds the attachment from the result rows on-plane); otherwise it is a
+ *     `per_recipient` fan-out mailing each result row individually. The frontend
+ *     only triggers + displays (steering 35) — it ships the result ROWS, never
+ *     base64 payload bytes; the SAM worker renders the body (from the template)
+ *     and any attachment.
+ *   - **Transient artifact cleanup (R8.5):** any locally generated CSV/PDF
+ *     preview bytes are released from memory after the send completes (success OR
  *     failure) — never silently accumulated across sends.
  *
  * Read-only w.r.t. member data: it only mails; it never mutates a member.
@@ -79,9 +93,10 @@ import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import type { FieldConfig, MemberRow } from '../../../types/members';
 import { resolveEmailField, resolveAddressMapping } from './analyticsConfig';
 import {
-  mailMembersSet,
-  type MailAttachment,
-} from '../../../services/memberMailService';
+  sendAdHocMail,
+  type AdHocMailBody,
+} from '../../../services/membersApiService';
+import { applyApiError } from '../../../shared/api/applyApiError';
 import {
   listMemberTemplates,
   getMemberTemplate,
@@ -405,21 +420,55 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     body.trim() !== '' &&
     !sending;
 
-  const buildAttachments = (): MailAttachment[] => {
-    const attachments: MailAttachment[] = [];
-    if (attachCsv && buildCsvBase64) {
-      const csv = buildCsvBase64();
-      if (csv) {
-        attachments.push({ kind: 'csv', content_base64: csv, filename: 'members.csv' });
-      }
+  /**
+   * Resolve the ad-hoc attachment KIND the compose carries (R3): the Avery-labels
+   * toggle maps to the SAM `pdf_labels` kind, the CSV toggle to `csv`. `null` when
+   * neither is toggled (or its builder/mapping is unavailable). The SAM worker
+   * builds the actual attachment bytes from the result rows on-plane — the
+   * frontend ships only the kind, never a base64 payload (steering 35).
+   */
+  const resolveAttachmentKind = (): AdHocMailBody['attachment'] => {
+    if (attachPdf && canAttachPdf) {
+      return 'pdf_labels';
     }
-    if (attachPdf && canAttachPdf && buildPdfBase64) {
-      const pdf = buildPdfBase64();
-      if (pdf) {
-        attachments.push({ kind: 'pdf', content_base64: pdf, filename: 'labels.pdf' });
-      }
+    if (attachCsv && canAttachCsv) {
+      return 'csv';
     }
-    return attachments;
+    return null;
+  };
+
+  /**
+   * Build the ad-hoc compose body for `POST /members/mail/send` (mail-spec task 2.3).
+   *
+   * Mode selection: a send carrying typed FIXED recipients and/or an attachment is a
+   * `to_fixed` send (one message to the fixed list, the worker builds the attachment
+   * from the rows); otherwise it is a `per_recipient` fan-out mailing each result row
+   * individually. `tenant_id` + Reply-To are NEVER sent — the route derives them from
+   * the verified JWT (verify-before-trust, R4.3).
+   */
+  const buildAdHocBody = (): AdHocMailBody => {
+    const attachment = resolveAttachmentKind();
+    const toFixed = externalEmails.length > 0 || attachment !== null;
+    const rows = (recipients ?? []) as Array<Record<string, unknown>>;
+    if (toFixed) {
+      return {
+        mode: 'to_fixed',
+        result_rows: rows,
+        recipients: externalEmails,
+        template_id: selectedTemplateId || null,
+        attachment,
+        ...(setKey ? { set_id: setKey } : {}),
+      };
+    }
+    return {
+      mode: 'per_recipient',
+      result_rows: rows,
+      template_id: selectedTemplateId || null,
+      // Carry the resolved email column as the per-recipient address path override
+      // only when it resolved; otherwise the route falls back to its default.
+      recipient_field: emailField ?? null,
+      ...(setKey ? { set_id: setKey } : {}),
+    };
   };
 
   const handleSend = async () => {
@@ -433,56 +482,26 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     }
 
     setSending(true);
-    // The transient CSV/PDF attachment bytes this send holds in memory (R8.5).
-    // Built once here, forwarded to the service, then explicitly released in the
-    // `finally` below — on success OR failure — so a bulk mail never leaves the
-    // generated member-data buffers lingering in memory.
-    let attachments: MailAttachment[] = buildAttachments();
-    // Combine the member rows with the validated external addresses (R1): the
-    // externals go as plain-string entries (`recipients: ["addr", ...]`), which
-    // the mail route already accepts — no backend change. `email_field` is only
-    // sent when it resolved; an external-only send omits it.
-    const outgoingRecipients: Array<Record<string, unknown> | string> = [
-      ...(recipients ?? []),
-      ...externalEmails,
-    ];
     try {
-      const result = await mailMembersSet({
-        recipients: outgoingRecipients,
-        subject: trimmedSubject,
-        body,
-        email_field: emailField ?? undefined,
-        attachments,
-        set_key: setKey,
+      // POST the ad-hoc compose body to the SAM plane route (R1/R2). The route
+      // enqueues and returns a 202 accepted receipt — it NEVER blocks on the SES
+      // send (a worker performs it). Surface the queued acknowledgment (R2.5/R3.5).
+      const result = await sendAdHocMail(buildAdHocBody());
+      toast({
+        title: t(`${T}.toast.queued`, { count: result.enqueued }),
+        status: 'success',
       });
-
-      if (result.success) {
-        toast({ title: t(`${T}.toast.success`), status: 'success' });
-        onClose();
-      } else if (result.rateLimited) {
-        // SES rate-limited the send (R4.12): show the DEDICATED bilingual message,
-        // NOT the generic error. The composed set is NOT lost — the modal stays
-        // open and the attach toggles are preserved so the user can retry.
-        toast({ title: t(`${T}.toast.rateLimited`), status: 'warning' });
-        setConfirming(false);
-      } else {
-        // Generic error toast for any other failure. The set result is NOT lost —
-        // the modal stays open.
-        toast({ title: t(`${T}.toast.error`), status: 'error' });
-        setConfirming(false);
-      }
-    } catch {
-      toast({ title: t(`${T}.toast.error`), status: 'error' });
+      onClose();
+    } catch (err) {
+      // Surface the typed refusal/validation reason (API standard v1.0): a
+      // not-certified tenant (`errors.mail.notCertified`, R4.2/R5.2) or an invalid
+      // body (422) resolves to the clear bilingual message; a network/unknown
+      // throw degrades to the shared server-error fallback. The composed set is
+      // NOT lost — the modal stays open so the user can act on the reason.
+      applyApiError(err, { toast, t });
       setConfirming(false);
     } finally {
       setSending(false);
-      // Release the in-memory attachment buffers regardless of outcome (R8.5):
-      // drop each descriptor's base64 payload, then the array itself, so the
-      // generated CSV/PDF bytes are not retained after the send completes.
-      for (const att of attachments) {
-        att.content_base64 = '';
-      }
-      attachments = [];
     }
   };
 

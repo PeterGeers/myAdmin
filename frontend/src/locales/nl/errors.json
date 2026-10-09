@@ -53,6 +53,14 @@
   "transition": {
     "denied": "Deze statuswijziging is niet toegestaan."
   },
+  "mail": {
+    "notCertified": "De e-mailafzender van je organisatie is nog niet gecertificeerd, dus deze bezorging is niet verzonden. Neem contact op met je beheerder om het e-maildomein te certificeren."
+  },
+  "analyticsset": {
+    "delivery": {
+      "notConfigured": "Deze set heeft geen bezorging ingesteld. Stel eerst een bezorging in (ontvangers en bijlage) en voer deze daarna uit."
+    }
+  },
   "membershiptype": {
     "conflict": "Er bestaat al een lidmaatschapstype met deze code.",
     "tenant": "Een tenant is verplicht (tenant-isolatie).",

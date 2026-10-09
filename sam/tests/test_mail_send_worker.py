@@ -61,13 +61,26 @@ class FakeSes:
         self.sends: list[dict] = []
         self._outcome = outcome
 
-    def send(self, *, recipients, subject, body_html, attachments=None):
+    def send(
+        self,
+        *,
+        from_address,
+        reply_to=None,
+        recipients,
+        subject,
+        body_html,
+        attachments=None,
+        tags=None,
+    ):
         self.sends.append(
             {
+                "from_address": from_address,
+                "reply_to": reply_to,
                 "recipients": list(recipients),
                 "subject": subject,
                 "body_html": body_html,
                 "attachments": list(attachments or []),
+                "tags": dict(tags or {}),
             }
         )
         if self._outcome is not None:
@@ -128,6 +141,12 @@ class CapturingAudit:
 # ── envelope builders (the shape _mail_job_to_envelope writes) ───────────────────────────
 
 
+#: The per-send From (active tenant's noreply@<tenant-domain>) + the user Reply-To ride on the
+#: envelope (mail-spec task 1.2/1.3); the worker forwards them to the SES port.
+FROM_ADDRESS = "noreply@h-dcn.nl"
+REPLY_TO = "webmaster@h-dcn.nl"
+
+
 def _per_recipient_envelope(job_id="job-1", address="ava@example.com"):
     return {
         "job_id": job_id,
@@ -135,6 +154,8 @@ def _per_recipient_envelope(job_id="job-1", address="ava@example.com"):
         "set_id": SET_ID,
         "run_id": RUN_ID,
         "mode": DELIVERY_MODE_PER_RECIPIENT,
+        "from_address": FROM_ADDRESS,
+        "reply_to": REPLY_TO,
         "recipients": [address],
         "template_id": "tpl-1",
         "merge_values": {"first_name": "Ava", "personal.email": address},
@@ -150,6 +171,8 @@ def _to_fixed_envelope(job_id="job-fixed", attachment_kind="csv"):
         "set_id": SET_ID,
         "run_id": RUN_ID,
         "mode": DELIVERY_MODE_TO_FIXED,
+        "from_address": FROM_ADDRESS,
+        "reply_to": REPLY_TO,
         "recipients": ["agent@example.com"],
         "template_id": None,
         "merge_values": {},
@@ -219,6 +242,31 @@ class TestPerRecipientSend:
         env["template_id"] = None
         with pytest.raises(MailSendPermanent):
             _worker().process(env)
+
+    def test_forwards_resolved_from_and_reply_to_to_the_ses_port(self):
+        # Property 2: the per-send From (tenant noreply@<domain>) + the user Reply-To ride on the
+        # envelope and are passed through to the SES port — never a global/substitute sender.
+        ses = FakeSes()
+        _worker(ses=ses).process(_per_recipient_envelope())
+        sent = ses.sends[0]
+        assert sent["from_address"] == FROM_ADDRESS
+        assert sent["reply_to"] == REPLY_TO
+
+    def test_stamps_ses_feedback_routing_tags(self):
+        # mail-spec task 5.2 (R9.5): the worker stamps the tenant_id + run_id as SES message tags
+        # (encoded) so the feedback event can be routed back to this run. The tags are encoded via
+        # the shared mail_feedback_tags codec; the ingestion handler decodes them back.
+        from sam.members.domain.mail_feedback_tags import (
+            SES_TAG_RUN_ID,
+            SES_TAG_TENANT_ID,
+            decode_ses_tag_value,
+        )
+
+        ses = FakeSes()
+        _worker(ses=ses).process(_per_recipient_envelope())
+        tags = ses.sends[0]["tags"]
+        assert decode_ses_tag_value(tags[SES_TAG_TENANT_ID]) == TENANT
+        assert decode_ses_tag_value(tags[SES_TAG_RUN_ID]) == RUN_ID
 
 
 # ── to_fixed render + send (CSV attachment) ──────────────────────────────────────────────

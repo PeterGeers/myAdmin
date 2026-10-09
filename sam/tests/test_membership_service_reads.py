@@ -174,6 +174,30 @@ class FakeMembersRepository:
     def save_column_preferences(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
+    def create_mail_run(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def update_mail_run_status(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def increment_mail_run_counts(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def record_mail_failure(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def get_mail_run(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_mail_run_failures(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_mail_runs(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def delete_mail_run(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
 
 def _member(
     member_id, *, region=None, age_group=None, name="Alex", contact=None, sub=None

@@ -771,3 +771,176 @@ class TestIsMailEnabled:
         reader.is_mail_enabled("h-dcn")
 
         assert table.query_counts["h-dcn"] == 1
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# mail spec Task 0.3 — per-tenant sender fields on the config#mail row.
+#
+# Feature: Members mail (SAM plane), R4/R5 (design Data Models + "Resolved choices" Option B).
+# Validates: Requirements R4, R5
+#
+# The SAME config#mail row that carries mail_enabled now also carries the per-tenant sender
+# fields the pre-send resolver (task 1.1) composes From from:
+#   From = <mail_local_part|noreply>@<mail_domain>;  the gate reads mail_certified.
+# Defaults (design Data Models):
+#   - mail_local_part → "noreply" when absent (optional, generic default);
+#   - mail_certified  → False (fail-closed) when absent/malformed — identical discipline
+#     to is_mail_enabled: only an explicit projected True opens the gate;
+#   - mail_domain     → None when absent (NO safe default — a guessed host would be the
+#     jabaki.nl foreign-sender regression, R4.2); the resolver refuses when None.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def _config_mail_item_full(
+    tenant_id,
+    *,
+    mail_enabled=True,
+    version=1,
+    **extra,
+):
+    """A config#mail row carrying the task-0.2-projected sender fields.
+
+    Only the attributes passed in ``extra`` (e.g. ``mail_domain=...``, ``mail_local_part=...``,
+    ``mail_certified=...``) are set, so a test can assert the ABSENCE of a field by simply not
+    passing it — mirroring how task 0.2's builder omits an unauthored attribute.
+    """
+    item = {
+        schema.PARTITION_KEY_ATTR: tenant_id,
+        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail"),
+        "mail_enabled": mail_enabled,
+        schema.VERSION_ATTR: version,
+    }
+    item.update(extra)
+    return item
+
+
+class TestGetMailDomain:
+    def test_get_mail_domain_returns_projected_domain(self):
+        """A projected mail_domain is returned verbatim (R4)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn", mail_domain="h-dcn.nl"))
+
+        assert MembersProjectionReader(table=table).get_mail_domain("h-dcn") == "h-dcn.nl"
+
+    def test_get_mail_domain_missing_row_returns_none(self):
+        """No config#mail row at all → None (no safe default), never raises."""
+        table = FakeTable()
+        assert MembersProjectionReader(table=table).get_mail_domain("unconfigured") is None
+
+    def test_get_mail_domain_missing_attribute_returns_none(self):
+        """A config#mail row without mail_domain → None (resolver refuses, R4.2 guard)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn"))  # no mail_domain authored
+
+        assert MembersProjectionReader(table=table).get_mail_domain("h-dcn") is None
+
+    def test_get_mail_domain_empty_or_non_string_returns_none(self):
+        """An empty string / non-string value is unusable → None, never a bad From host."""
+        for raw in ("", None, 123, [], {}):
+            table = FakeTable()
+            table.put(_config_mail_item_full("h-dcn", mail_domain=raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.get_mail_domain("h-dcn") is None, f"raw={raw!r} must be None"
+
+    def test_get_mail_domain_tenant_isolation(self):
+        """Each tenant's domain answers only from its own partition — no cross-tenant bleed."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("tenant-a", mail_domain="a.example"))
+        table.put(_config_mail_item_full("tenant-b", mail_domain="b.example"))
+
+        reader = MembersProjectionReader(table=table)
+
+        assert reader.get_mail_domain("tenant-a") == "a.example"
+        assert reader.get_mail_domain("tenant-b") == "b.example"
+
+
+class TestGetMailLocalPart:
+    def test_get_mail_local_part_returns_projected_value(self):
+        """A projected mail_local_part is returned verbatim (R4)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn", mail_local_part="info"))
+
+        assert MembersProjectionReader(table=table).get_mail_local_part("h-dcn") == "info"
+
+    def test_get_mail_local_part_missing_row_defaults_to_noreply(self):
+        """No config#mail row → the generic default 'noreply' (design Data Models)."""
+        table = FakeTable()
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_mail_local_part("unconfigured") == "noreply"
+
+    def test_get_mail_local_part_missing_attribute_defaults_to_noreply(self):
+        """A config#mail row without mail_local_part → 'noreply' (optional field default)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn"))  # no mail_local_part authored
+
+        assert MembersProjectionReader(table=table).get_mail_local_part("h-dcn") == "noreply"
+
+    def test_get_mail_local_part_empty_or_non_string_defaults_to_noreply(self):
+        """An empty / non-string value falls back to the 'noreply' default, never raises."""
+        for raw in ("", None, 42, [], {}):
+            table = FakeTable()
+            table.put(_config_mail_item_full("h-dcn", mail_local_part=raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.get_mail_local_part("h-dcn") == "noreply", f"raw={raw!r}"
+
+
+class TestIsMailCertified:
+    def test_is_mail_certified_true_flag_resolves_true(self):
+        """An explicit projected mail_certified=True → the gate is open (R5)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn", mail_certified=True))
+
+        assert MembersProjectionReader(table=table).is_mail_certified("h-dcn") is True
+
+    def test_is_mail_certified_false_flag_resolves_false(self):
+        """A present-but-false certified flag → the gate is closed."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn", mail_certified=False))
+
+        assert MembersProjectionReader(table=table).is_mail_certified("h-dcn") is False
+
+    def test_is_mail_certified_missing_row_fails_closed_to_false(self):
+        """Fail-closed (R5.2): no config#mail row at all → False, never raises."""
+        table = FakeTable()
+        assert MembersProjectionReader(table=table).is_mail_certified("unconfigured") is False
+
+    def test_is_mail_certified_missing_attribute_fails_closed_to_false(self):
+        """A config#mail row with no mail_certified attribute → False (fail-closed)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn"))  # mail_certified absent
+
+        assert MembersProjectionReader(table=table).is_mail_certified("h-dcn") is False
+
+    def test_is_mail_certified_non_boolean_true_values_fail_closed(self):
+        """Any non-boolean-True value never opens the certified gate (Property 4)."""
+        for raw in ("true", "True", 1, "yes", [], {}, None):
+            table = FakeTable()
+            table.put(_config_mail_item_full("h-dcn", mail_certified=raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.is_mail_certified("h-dcn") is False, f"raw={raw!r} must fail closed"
+
+
+class TestSenderFieldsSharePartitionCache:
+    def test_all_mail_fields_resolve_from_one_partition_query(self):
+        """is_mail_enabled + the three new accessors share the per-invocation cache.
+
+        All four fields live on the SAME config#mail row, so resolving them for one tenant
+        issues exactly ONE partition Query (the resolver reads them together at pre-send).
+        """
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                mail_enabled=True,
+                mail_domain="h-dcn.nl",
+                mail_local_part="info",
+                mail_certified=True,
+            )
+        )
+
+        reader = MembersProjectionReader(table=table)
+        assert reader.is_mail_enabled("h-dcn") is True
+        assert reader.get_mail_domain("h-dcn") == "h-dcn.nl"
+        assert reader.get_mail_local_part("h-dcn") == "info"
+        assert reader.is_mail_certified("h-dcn") is True
+
+        assert table.query_counts["h-dcn"] == 1

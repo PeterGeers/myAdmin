@@ -269,6 +269,37 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
         "save_column_preferences": lambda: repo.save_column_preferences(
             TENANT, _colprefs("sub-1")
         ),
+        "create_mail_run": lambda: repo.create_mail_run(
+            TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+        ),
+        "update_mail_run_status": lambda: (
+            repo.create_mail_run(
+                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+            ),
+            repo.update_mail_run_status(TENANT, "run-1", "sending"),
+        ),
+        "increment_mail_run_counts": lambda: (
+            repo.create_mail_run(
+                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+            ),
+            repo.increment_mail_run_counts(TENANT, "run-1", sent=1),
+        ),
+        "record_mail_failure": lambda: (
+            repo.create_mail_run(
+                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+            ),
+            repo.record_mail_failure(TENANT, "run-1", address="x@y.com", reason="MessageRejected"),
+        ),
+        "get_mail_run": lambda: repo.get_mail_run(TENANT, "run-1"),
+        "list_mail_run_failures": lambda: repo.list_mail_run_failures(TENANT, "run-1"),
+        "list_mail_runs": lambda: repo.list_mail_runs(TENANT),
+        "delete_mail_run": lambda: (
+            repo.create_mail_run(
+                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+            ),
+            repo.record_mail_failure(TENANT, "run-1", address="x@y.com"),
+            repo.delete_mail_run(TENANT, "run-1"),
+        ),
     }
 
 
@@ -312,6 +343,14 @@ class TestEveryOperationPinsTheTenantPartition:
             "save_preferred_list",
             "get_column_preferences",
             "save_column_preferences",
+            "create_mail_run",
+            "update_mail_run_status",
+            "increment_mail_run_counts",
+            "record_mail_failure",
+            "get_mail_run",
+            "list_mail_run_failures",
+            "list_mail_runs",
+            "delete_mail_run",
         ],
     )
     def test_operation_only_touches_the_callers_tenant_partition(self, repo, table, op_name):

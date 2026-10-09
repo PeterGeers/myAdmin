@@ -4,10 +4,12 @@ repository/adapter-layer implementations of the two seams the worker service dep
 
 - :class:`SesBotoSender` — the boto3 SES send port (``SesSender``). The sole SES touch-point:
   ``send_email`` for a simple message, ``send_raw_email`` (MIME) when the job carries an
-  attachment. Scoped to the verified sender identity (``SES_SENDER_EMAIL``) + the configuration
-  set (``SES_CONFIGURATION_SET``) resolved fail-fast from the env — the same contract the SAM
-  template IAM statement (``MailWorkerSendViaSes``) is Condition-scoped to, so env var and grant
-  cannot disagree. An SES business error is NOT raised here — it is reported on the
+  attachment. The verified From + Reply-To are supplied PER SEND (R4, mail-spec task 1.2) — the
+  caller (worker, task 1.3) resolves the active tenant's ``noreply@<tenant-domain>`` From and the
+  triggering user's Reply-To and passes them in; there is NO single global ``SES_SENDER_EMAIL``
+  source of truth (its removal kills the ``jabaki.nl`` substitute-sender leak). Only the
+  configuration set (``SES_CONFIGURATION_SET``) is still resolved fail-safe from the env. An SES
+  business error is NOT raised here — it is reported on the
   :class:`~sam.members.worker.mail_send_worker.SesSendOutcome` so the SERVICE decides
   retryable-vs-permanent (keeping the SES-limit policy in one place).
 
@@ -19,10 +21,10 @@ repository/adapter-layer implementations of the two seams the worker service dep
 
 Config + fail-fast (mirrors ``template_body_store`` / ``mail_send_queue``)
 --------------------------------------------------------------------------
-The sender/config-set env vars resolve fail-fast via :func:`services.dynamodb_client.require_env`
-(``SES_SENDER_EMAIL`` has no default — a missing var breaks loudly; ``SES_CONFIGURATION_SET`` is
-OPTIONAL and only attached when non-blank, mirroring the Flask ``ses_email_service.py``
-contract). The boto3 clients + the DynamoDB table resolve LAZILY on first use so importing this
+There is NO global sender env var any more (mail-spec task 1.2): the verified From + Reply-To are
+PER-SEND arguments, so the adapter never reads ``SES_SENDER_EMAIL`` and never falls back to a
+substitute sender. ``SES_CONFIGURATION_SET`` remains OPTIONAL and is only attached when non-blank
+(mirroring the Flask ``ses_email_service.py`` contract). The boto3 clients + the DynamoDB table resolve LAZILY on first use so importing this
 module (and the worker, and the test suite) touches NO AWS. Both clients/handles are injectable so
 tests supply fakes / a local emulator without an AWS round-trip (dependency inversion).
 """
@@ -47,16 +49,10 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "SES_CONFIGURATION_SET_ENV_VAR",
-    "SES_SENDER_EMAIL_ENV_VAR",
     "DynamoDbMailSentMarkerStore",
     "SesBotoSender",
     "resolve_ses_configuration_set",
-    "resolve_ses_sender_email",
 ]
-
-#: The verified From address the worker sends as (fail-fast — no default). The SAM template's
-#: SES IAM statement is Condition-scoped to exactly this value.
-SES_SENDER_EMAIL_ENV_VAR = "SES_SENDER_EMAIL"
 
 #: The SES configuration set that publishes bounce/complaint events. OPTIONAL — attached per
 #: send only when non-blank (mirrors the Flask ``ses_email_service.py`` behaviour).
@@ -67,11 +63,6 @@ SES_CONFIGURATION_SET_ENV_VAR = "SES_CONFIGURATION_SET"
 #: lapses the marker is no longer needed and DynamoDB TTL reclaims it (keeps the table from
 #: accumulating markers forever). TTL is best-effort cleanup, not a correctness guarantee.
 MAIL_SENT_MARKER_TTL_SECONDS = 14 * 24 * 60 * 60
-
-
-def resolve_ses_sender_email() -> str:
-    """Return the verified SES sender address from ``SES_SENDER_EMAIL``, or fail fast."""
-    return require_env(SES_SENDER_EMAIL_ENV_VAR)
 
 
 def resolve_ses_configuration_set() -> str:
@@ -90,15 +81,19 @@ class SesBotoSender:
     """The boto3-backed SES send port (``SesSender``) — the sole SES touch-point (R4).
 
     ``send_email`` for a simple (bodied) message; ``send_raw_email`` (MIME ``multipart/mixed``)
-    when the job carries an attachment. Scoped to the resolved verified sender + config set. An
-    SES ``ClientError`` is CAUGHT and reported on the outcome (``ok=False`` + the
+    when the job carries an attachment. The verified **From** and the **Reply-To** are supplied
+    PER SEND (mail-spec task 1.2): the caller resolves the active tenant's
+    ``noreply@<tenant-domain>`` From + the triggering user's Reply-To and passes them in. There is
+    NO global ``SES_SENDER_EMAIL`` source of truth and NO substitute-sender fallback — a send
+    without a resolved From is refused up front (Property 2; killing the ``jabaki.nl`` leak).
+
+    An SES ``ClientError`` is CAUGHT and reported on the outcome (``ok=False`` + the
     ``"<Code>: <Message>"`` error string) rather than raised, so the worker SERVICE applies the
-    retryable-vs-permanent policy. The client + sender/config resolve lazily + fail-fast on first
-    use; both are injectable for tests.
+    retryable-vs-permanent policy. The client + config set resolve lazily on first use; both are
+    injectable for tests.
 
     Args:
         client: an optional boto3 SES client (or a compatible fake); resolved lazily otherwise.
-        sender_email: an optional sender override; resolved lazily + fail-fast otherwise.
         configuration_set: an optional config-set override; resolved lazily otherwise.
     """
 
@@ -106,11 +101,9 @@ class SesBotoSender:
         self,
         *,
         client: Any = None,
-        sender_email: str | None = None,
         configuration_set: str | None = None,
     ):
         self._client = client
-        self._sender = sender_email
         self._config_set = configuration_set
 
     @property
@@ -123,12 +116,6 @@ class SesBotoSender:
         return self._client
 
     @property
-    def sender(self) -> str:
-        if self._sender is None:
-            self._sender = resolve_ses_sender_email()
-        return self._sender
-
-    @property
     def configuration_set(self) -> str:
         if self._config_set is None:
             self._config_set = resolve_ses_configuration_set()
@@ -137,34 +124,73 @@ class SesBotoSender:
     def send(
         self,
         *,
+        from_address: str,
+        reply_to: str | None = None,
         recipients: Sequence[str],
         subject: str,
         body_html: str,
         attachments: Sequence[Mapping[str, Any]] | None = None,
+        tags: Mapping[str, str] | None = None,
     ) -> SesSendOutcome:
-        """Send one message via SES; report the outcome (never raises for an SES business error)."""
+        """Send one message via SES from ``from_address`` (Reply-To ``reply_to``); report the outcome.
+
+        ``from_address`` is the per-send resolved tenant sender (``noreply@<tenant-domain>``) —
+        required, no fallback (Property 2). ``reply_to`` is the triggering user's address when
+        present. ``tags`` is the per-send SES MESSAGE TAGS the config set echoes back on every
+        feedback event (``mail.tags``) so the task-5.2 ingestion handler can ROUTE the
+        bounce/complaint/delivery back to the originating Members run (R9.5) — the caller (worker,
+        task 1.3) supplies ``{SES_TAG_TENANT_ID: <enc tenant>, SES_TAG_RUN_ID: <enc run>}`` already
+        encoded via :func:`encode_ses_tag_value`. Blank tag values are OMITTED (SES rejects an
+        empty value). Never raises for an SES business error — it is reported on the outcome so the
+        worker SERVICE classifies it retryable-vs-permanent.
+        """
+        sender = (from_address or "").strip()
+        if not sender:
+            # No resolved From → refuse rather than send from a substitute (Property 2 / R4.2).
+            return SesSendOutcome(
+                ok=False,
+                error="MessageRejected: no resolved sender (From) for this send",
+            )
+        reply = (reply_to or "").strip() or None
+        message_tags = _clean_message_tags(tags)
         try:
             if attachments:
-                return self._send_raw(recipients, subject, body_html, attachments)
-            return self._send_simple(recipients, subject, body_html)
+                return self._send_raw(
+                    sender, reply, recipients, subject, body_html, attachments, message_tags
+                )
+            return self._send_simple(
+                sender, reply, recipients, subject, body_html, message_tags
+            )
         except ClientError as exc:  # SES business error → report, let the service classify it
             error = _client_error_string(exc)
             logger.warning("SES send failed: %s", error)
             return SesSendOutcome(ok=False, error=error)
 
     def _send_simple(
-        self, recipients: Sequence[str], subject: str, body_html: str
+        self,
+        sender: str,
+        reply_to: str | None,
+        recipients: Sequence[str],
+        subject: str,
+        body_html: str,
+        message_tags: list[dict[str, str]],
     ) -> SesSendOutcome:
         kwargs: dict[str, Any] = {
-            "Source": self.sender,
+            "Source": sender,
             "Destination": {"ToAddresses": list(recipients)},
             "Message": {
                 "Subject": {"Data": subject, "Charset": "UTF-8"},
                 "Body": {"Html": {"Data": body_html or "", "Charset": "UTF-8"}},
             },
         }
+        if reply_to:
+            kwargs["ReplyToAddresses"] = [reply_to]
         if self.configuration_set:
             kwargs["ConfigurationSetName"] = self.configuration_set
+        # SES message tags (the feedback routing key, R9.5) — supplied via the SendEmail `Tags`
+        # parameter on the simple path (echoed back as `mail.tags` on every feedback event).
+        if message_tags:
+            kwargs["Tags"] = message_tags
         size = len(subject.encode("utf-8")) + len((body_html or "").encode("utf-8"))
         response = self.client.send_email(**kwargs)
         return SesSendOutcome(
@@ -173,15 +199,28 @@ class SesBotoSender:
 
     def _send_raw(
         self,
+        sender: str,
+        reply_to: str | None,
         recipients: Sequence[str],
         subject: str,
         body_html: str,
         attachments: Sequence[Mapping[str, Any]],
+        message_tags: list[dict[str, str]],
     ) -> SesSendOutcome:
         msg = MIMEMultipart("mixed")
         msg["Subject"] = subject
-        msg["From"] = self.sender
+        msg["From"] = sender
         msg["To"] = ", ".join(recipients)
+        if reply_to:
+            msg["Reply-To"] = reply_to
+        # SES message tags on the RAW (attachment) path cannot ride the SendRawEmail `Tags` of the
+        # simple path — SES reads them off the `X-SES-MESSAGE-TAGS` header instead (same key=value
+        # pairs, comma-separated), echoed back identically as `mail.tags` (R9.5). One mechanism,
+        # both send paths, so a to_fixed attachment send is routed back exactly like a per_recipient.
+        if message_tags:
+            msg["X-SES-MESSAGE-TAGS"] = ", ".join(
+                f"{t['Name']}={t['Value']}" for t in message_tags
+            )
         msg.attach(MIMEText(body_html or "", "html", "utf-8"))
         for att in attachments:
             content = att.get("content") or b""
@@ -197,7 +236,7 @@ class SesBotoSender:
 
         raw = msg.as_string()
         kwargs: dict[str, Any] = {
-            "Source": self.sender,
+            "Source": sender,
             "Destinations": list(recipients),
             "RawMessage": {"Data": raw},
         }
@@ -268,6 +307,22 @@ class DynamoDbMailSentMarkerStore:
             if code == "ConditionalCheckFailedException":
                 return False  # marker already present → redelivery → skip the send
             raise
+
+
+def _clean_message_tags(tags: Mapping[str, str] | None) -> list[dict[str, str]]:
+    """Normalise the per-send tag mapping into the SES ``[{Name, Value}]`` list, dropping blanks.
+
+    SES rejects an empty tag VALUE, so a tag whose (already-encoded) value is blank — e.g. a
+    scheduled run with no ``run_id`` would never happen, but a defensive guard — is OMITTED rather
+    than stamped empty. Both send paths (simple `Tags`, raw `X-SES-MESSAGE-TAGS`) consume this list.
+    """
+    if not tags:
+        return []
+    out: list[dict[str, str]] = []
+    for name, value in tags.items():
+        if name and value:
+            out.append({"Name": str(name), "Value": str(value)})
+    return out
 
 
 def _client_error_code(exc: Any) -> str:

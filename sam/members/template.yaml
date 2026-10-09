@@ -179,35 +179,103 @@ Parameters:
 
   # --- SES config: the verified sender + the configuration set (R0, task 0.5) ---
   # SES is a nonprofit-deploy service (`506221081911`/`eu-west-1`, steering 23). These
-  # supply the Members send-path with WHO it sends `From` and WHICH SES configuration set
-  # publishes bounce/complaint events (see the spec's myNotes.md: today `SES_CONFIGURATION_SET`
-  # is only a loose env var on the Flask side — this makes the per-env wiring explicit IaC).
-  # Per env via samconfig.toml; the IAM send statement below is CONDITION-scoped to this
-  # exact sender address (`ses:FromAddress`) so the role can only send AS the verified
-  # identity — no wildcard sender. The names mirror the Flask `ses_email_service.py` env
-  # vars (SES_SENDER_EMAIL / SES_CONFIGURATION_SET) so both planes read the same contract.
-  SesSenderEmail:
+  # supply the Members send-path with WHICH tenant mail DOMAIN it may send `From` and WHICH
+  # SES configuration set publishes bounce/complaint events (see the spec's myNotes.md: today
+  # `SES_CONFIGURATION_SET` is only a loose env var on the Flask side — this makes the per-env
+  # wiring explicit IaC).
+  #
+  # SENDER MODEL (mail-spec R4.1/R4.2, task 4.2) — PER-TENANT, no `jabaki.nl` substitute:
+  #   The envelope From is resolved AT SEND TIME, per tenant, as `noreply@<tenant-domain>` by
+  #   the pre-send resolver (`domain/mail_sender_resolver.py`) from the projected `config#mail`
+  #   row — it is NOT a single static address, and there is NO foreign/substitute-sender
+  #   fallback (the old `support@jabaki.nl` global sender is GONE from the code path, task 1.2).
+  #   The IAM send grant below must therefore authorize sending AS `noreply@<tenant-domain>`,
+  #   NOT as a single hardcoded address. SES authorizes a send against the IDENTITY resource,
+  #   and a verified DOMAIN identity (`identity/<domain>`) covers every `*@<domain>` address, so
+  #   the grant is scoped to the verified tenant DOMAIN identity + a `ses:FromAddress` Condition
+  #   that pins the local-part to `noreply@<domain>` (belt-and-suspenders — no arbitrary
+  #   address under the domain, and never a foreign domain).
+  #
+  # OPERATOR / MULTI-TENANT NOTE (deferred — see task 4.2 report + Phase 7): `MailSenderDomain`
+  #   names the ONE verified tenant mail domain this stack env is scoped to today (h-dcn.nl is
+  #   the first/only certified tenant). The grant is deliberately scoped to that single verified
+  #   domain identity rather than a broad `identity/*` wildcard (least privilege — a wildcard
+  #   would let the role send as ANY identity in the account, re-opening the foreign-sender
+  #   risk R4.2 guards against). When ADDITIONAL tenants are certified, broadening this grant to
+  #   their domain identities is an OPERATOR decision (which domains are actually SES-verified in
+  #   nonprofit-deploy is operational truth, not template-time truth) — handled by widening this
+  #   parameter to the additional verified domain(s), NOT by a wildcard. Do NOT silently widen.
+  MailSenderDomain:
     Type: String
     Description: >-
-      The verified SES sender address the Members send-path mails `From` (R0, task 0.5).
-      Must be a verified identity in nonprofit-deploy (`506221081911`/`eu-west-1`). Supplied
-      per env via samconfig.toml; the SES send IAM statement is Condition-scoped to exactly
-      this address (`ses:FromAddress`). No default — fail-fast (23-aws-accounts.md): a blank
-      sender must break the deploy, never send from an unintended address.
-    AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+      The VERIFIED tenant mail DOMAIN the Members send-path is authorized to send `From` as
+      `noreply@<domain>` (mail-spec R4.1/R4.2, task 4.2). Must be a VERIFIED SES domain identity
+      in nonprofit-deploy (`506221081911`/`eu-west-1`) — the tenant's own domain (e.g. `h-dcn.nl`),
+      NEVER `jabaki.nl`. Supplied per env via samconfig.toml; the SES send IAM statement is scoped
+      to this domain's `identity/<domain>` ARN and Condition-scoped to `ses:FromAddress =
+      noreply@<domain>`. No default — fail-fast (23-aws-accounts.md): a blank domain must break the
+      deploy, never send from an unintended/foreign domain.
+    AllowedPattern: "^[^@\\s.]+\\.[^@\\s]+$"
     ConstraintDescription: >-
-      Must be a single email address (e.g. support@jabaki.nl) that is a VERIFIED SES
-      identity in the nonprofit-deploy account / eu-west-1.
+      Must be a bare domain name (e.g. h-dcn.nl) that is a VERIFIED SES DOMAIN identity in the
+      nonprofit-deploy account / eu-west-1 — the tenant's own domain, never a single address and
+      never jabaki.nl.
 
+  # SesConfigurationSet — the SES configuration set the send-path attaches on EVERY send
+  # (R0 task 0.5), AND, as of mail-spec task 5.1 (R8.4/R9.5), the NAME of the config-set
+  # RESOURCE this stack now OWNS (the `MembersSesConfigurationSet` resource below) whose SNS
+  # event destination publishes bounce/complaint/delivery events for the task-5.2 ingestion
+  # handler. Historically this only MIRRORED the Flask-side `myadmin-emails` set declared in
+  # `infrastructure/ses.tf` — but that Terraform set lives in the PERSONAL account
+  # (344561557829), whereas the Members plane sends from nonprofit-deploy (506221081911). A
+  # config set is account+region scoped, so the Members plane needs its OWN set in
+  # nonprofit-deploy: this stack now creates it (per env) and the send-path attaches it by name.
+  #
+  # PER-ENV + fail-fast (steering 23/43): the name is `members-emails` (prod) /
+  # `members-emails-test` (test), supplied via samconfig.toml. NO default — a blank config-set
+  # name must break the deploy loudly, never create an unnamed/colliding set or silently stop
+  # publishing feedback. The resource's `Name` and this env var are BOTH `!Ref SesConfigurationSet`,
+  # so what the sender attaches and what owns the SNS event destination cannot disagree.
   SesConfigurationSet:
     Type: String
     Description: >-
-      Name of the SES configuration set applied on every send (R0, task 0.5). This is what
-      publishes bounce/complaint/delivery events (to SNS → the webhook) so the send-path can
-      honour suppression. Config, not hardcoded (steering 36); supplied per env via
-      samconfig.toml. May be empty where no config set is wired yet — the send-path only
-      attaches it when non-blank (mirrors the Flask `SES_CONFIGURATION_SET` behaviour).
-    Default: ""
+      Name of the SES configuration set applied on every send AND owned by this stack (mail-spec
+      task 5.1, R8.4/R9.5). Its SNS event destination (the `MembersSesEventDestination` resource)
+      publishes bounce/complaint/delivery events to the Members feedback SNS topic the task-5.2
+      ingestion handler consumes. Per environment: `members-emails` (prod) / `members-emails-test`
+      (test). No default — fail-fast (steering 23): a blank name must break the deploy, never a
+      silent/unnamed set. Config, not hardcoded (steering 36); supplied per env via samconfig.toml.
+      The send-path (`resolve_ses_configuration_set`) attaches it per send; the sender attaches the
+      SAME name the resource is created with (both `!Ref SesConfigurationSet`).
+    AllowedPattern: "^members-emails(-test)?$"
+    ConstraintDescription: >-
+      Must be `members-emails` (prod) or `members-emails-test` (TEST) — the per-env Members SES
+      configuration-set name this stack owns (mail task 5.1). NOT the Flask-side `myadmin-emails`
+      (that set lives in the PERSONAL account; the Members plane owns its own in nonprofit-deploy).
+
+  # --- SES feedback SNS topic name (R8.4/R9.5, mail task 5.1) ----------------
+  # Names the ONE account-level SNS sink the Members SES configuration set publishes
+  # bounce/complaint/delivery events to (the `MembersMailFeedbackTopic` resource below). SES
+  # has no module concept, so it publishes to ONE topic per config set; the task-5.2 ingestion
+  # handler subscribes to it and routes each event to the Members store by `run_id`/tag (R9.5).
+  # Per environment following the existing naming discipline (same `-test` shape as the send
+  # queue): `members-mail-feedback` (prod) / `members-mail-feedback-test` (test). NO default —
+  # fail-fast (steering 23): a blank topic name must break the deploy, never create an
+  # unnamed/colliding topic or silently drop feedback. SNS is a nonprofit-deploy service
+  # (506221081911 / eu-west-1, steering 23), same account as the rest of this stack. TEST and
+  # PROD are distinct stacks, so each owns its OWN topic (no cross-env sharing).
+  MailFeedbackTopicName:
+    Type: String
+    Description: >-
+      Name of the SNS topic the Members SES configuration set publishes bounce/complaint/delivery
+      events to (mail task 5.1, R8.4/R9.5). Per environment: `members-mail-feedback` (prod) /
+      `members-mail-feedback-test` (test). No default — fail-fast (steering 23). The task-5.2
+      ingestion handler subscribes to this topic's ARN (exposed as the `MailFeedbackTopicArn`
+      output) and routes each event to the Members store by run_id/message tag.
+    AllowedPattern: "^members-mail-feedback(-test)?$"
+    ConstraintDescription: >-
+      Must be `members-mail-feedback` (prod) or `members-mail-feedback-test` (TEST) — the per-env
+      Members SES-feedback SNS topic name following the existing naming discipline.
 
   # --- SQS mail-send queue name (R4, pivot-output-actions task 4.2) ---
   # The queued send path (R4, design §4.2): the `deliver` route (and the R5 scheduler) ENQUEUE
@@ -408,7 +476,7 @@ Resources:
               Resource:
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}"
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
-            # --- SES: send-only, scoped to the verified sender identity (R0, task 0.5) ---
+            # --- SES: send-only, scoped to the verified tenant DOMAIN identity (R4.1/R4.2, task 4.2) ---
             # The Members send-path (R1–R5, mail compose + the queued worker) needs the SES
             # send actions. `ses:SendEmail` covers the simple compose path; `ses:SendRawEmail`
             # covers MIME messages with attachments (CSV / PDF labels, section 4). We do NOT
@@ -416,27 +484,38 @@ Resources:
             # individual queued sends (section 4.2), it does not use SES bulk templates, so
             # bulk-send stays out of the grant (least privilege).
             #
+            # PER-TENANT SENDER (task 4.2 — the `jabaki.nl` substitute-sender fallback is GONE):
+            #   The From is `noreply@<tenant-domain>` resolved per send (never a single static
+            #   address, never a foreign/substitute sender — R4.2). SES authorizes a send against
+            #   the IDENTITY resource, and a verified DOMAIN identity (`identity/<domain>`) covers
+            #   every `*@<domain>` address, so the grant is scoped to the tenant's verified DOMAIN
+            #   identity — this is what lets the role send AS `noreply@<domain>`. (The old grant
+            #   scoped to `identity/support@jabaki.nl` + a `ses:FromAddress == support@jabaki.nl`
+            #   Condition would DENY the per-tenant `noreply@<domain>` send — that single-address
+            #   assumption is removed here.)
+            #
             # SCOPING (steering 23 exact-scope, mirrors the DynamoDB statements above):
-            #   * Resource is the exact verified SENDER-IDENTITY ARN for this account/region
-            #     — the `identity/<address>` ARN, NOT a wildcard. SES authorizes a send
-            #     against the identity resource, so this already bars sending as any other
-            #     identity.
-            #   * A `Condition` on `ses:FromAddress` pins the From header to exactly the
-            #     configured sender — belt-and-suspenders over the resource scope, and the
-            #     exact-ARN discipline this template already follows for DynamoDB.
+            #   * Resource is the exact verified tenant DOMAIN-identity ARN for this account/region
+            #     — the `identity/<domain>` ARN (from `MailSenderDomain`), NOT a wildcard. SES
+            #     authorizes a send against the identity resource, so this bars sending as any
+            #     OTHER domain/identity (no foreign-sender leak, R4.2).
+            #   * A `Condition` on `ses:FromAddress` pins the From local-part to EXACTLY
+            #     `noreply@<domain>` — belt-and-suspenders over the domain-identity scope: the
+            #     role can only send as the fixed-generic `noreply@` sender the resolver composes
+            #     (R4.1), not as an arbitrary address under the domain.
             # SES is a nonprofit-deploy service (`506221081911`/`eu-west-1`, steering 23); the
-            # identity is managed outside this stack (verified operationally / per tenant via
-            # the sender-identities path, task 0.2) — this only grants send ACCESS to it.
+            # domain identity is verified OPERATIONALLY per tenant at onboarding (mail-spec task
+            # 6.1 runbook) — this only grants send ACCESS to it.
             - Sid: MembersSendViaSes
               Effect: Allow
               Action:
                 - ses:SendEmail
                 - ses:SendRawEmail
               Resource:
-                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${SesSenderEmail}"
+                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${MailSenderDomain}"
               Condition:
                 StringEquals:
-                  "ses:FromAddress": !Ref SesSenderEmail
+                  "ses:FromAddress": !Sub "noreply@${MailSenderDomain}"
             # --- SQS: send-only, scoped to the exact mail-send queue ARN (R4, task 4.2) ---
             # The queued send path (R4, design §4.2): the Members function ENQUEUES send jobs to
             # the `members-mail-send[-test]` queue — the `deliver` route and the R5 scheduler
@@ -524,14 +603,18 @@ Resources:
           #   its free-model allow-list fail-closed, so this cannot select a costly model.
           OPENROUTER_API_KEY: !Ref OpenRouterApiKey
           MEMBERS_AI_MODEL: !Ref MembersAiModel
-          # --- SES send config (R0, task 0.5) ---
-          # SES_SENDER_EMAIL: the verified From address the send-path mails as; the IAM
-          #   SES statement above is Condition-scoped to exactly this value, so the env var
-          #   and the grant cannot disagree. Fail-fast (no default on the parameter).
-          # SES_CONFIGURATION_SET: the config set that publishes bounce/complaint events;
-          #   attached per send only when non-blank. Names mirror the Flask
-          #   `ses_email_service.py` contract so both planes read the same config.
-          SES_SENDER_EMAIL: !Ref SesSenderEmail
+          # --- SES send config (R4, task 4.2) ---
+          # NOTE: there is NO `SES_SENDER_EMAIL` env var any more (mail-spec task 1.2/4.2). The
+          #   From is `noreply@<tenant-domain>` resolved PER SEND by the pre-send resolver from
+          #   the projected `config#mail` row — the single global sender env var (and the
+          #   `jabaki.nl` substitute it carried) is GONE from the code path, so injecting it here
+          #   would be a dead/misleading var. WHO the role may send AS is enforced by the IAM
+          #   `MembersSendViaSes` grant above (scoped to the verified tenant DOMAIN identity +
+          #   `ses:FromAddress = noreply@<domain>`), not by an env var.
+          # SES_CONFIGURATION_SET: the ONLY SES env the adapter still reads
+          #   (`resolve_ses_configuration_set`) — the config set that publishes bounce/complaint
+          #   events; attached per send only when non-blank. Mirrors the Flask
+          #   `ses_email_service.py` contract.
           SES_CONFIGURATION_SET: !Ref SesConfigurationSet
           # --- SQS mail-send queue (R4, task 4.2) ---
           # MAIL_SEND_QUEUE_URL: the REAL queue URL the enqueue port
@@ -638,23 +721,28 @@ Resources:
               Resource:
                 - !GetAtt MailSendQueue.Arn
             # --- SES send: same scope + Condition as MembersFunction's MembersSendViaSes -----
-            # The worker is what actually calls SES, so the send grant lives HERE too (the
-            # producer's copy covers the compose path; both are Condition-scoped identically so
-            # neither can send as another identity). SendEmail (simple) + SendRawEmail (MIME with
-            # CSV/PDF-label attachments, design §4). NO SendBulkEmail (per-recipient fan-out is
-            # individual sends, not SES bulk templates — least privilege). Resource = the exact
-            # verified sender-identity ARN; Condition pins `ses:FromAddress` to the configured
-            # sender. SES is nonprofit-deploy (506221081911 / eu-west-1, steering 23).
+            # The worker is what ACTUALLY calls SES (it is the per-tenant sender, mail-spec task
+            # 1.3), so the send grant lives HERE too (the producer's copy covers the compose
+            # path; both are scoped identically so neither can send as another domain/identity).
+            # SendEmail (simple) + SendRawEmail (MIME with CSV/PDF-label attachments, design §4).
+            # NO SendBulkEmail (per-recipient fan-out is individual sends, not SES bulk templates
+            # — least privilege). PER-TENANT SENDER (task 4.2 — no `jabaki.nl` substitute): the
+            # From is `noreply@<tenant-domain>`, so the Resource is the verified tenant DOMAIN
+            # identity (`identity/<domain>` from `MailSenderDomain`, which covers `*@<domain>`),
+            # and the Condition pins `ses:FromAddress` to exactly `noreply@<domain>`. (The old
+            # single-address `identity/support@jabaki.nl` + `== support@jabaki.nl` scope would
+            # DENY the per-tenant send — removed here.) SES is nonprofit-deploy (506221081911 /
+            # eu-west-1, steering 23).
             - Sid: MailWorkerSendViaSes
               Effect: Allow
               Action:
                 - ses:SendEmail
                 - ses:SendRawEmail
               Resource:
-                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${SesSenderEmail}"
+                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${MailSenderDomain}"
               Condition:
                 StringEquals:
-                  "ses:FromAddress": !Ref SesSenderEmail
+                  "ses:FromAddress": !Sub "noreply@${MailSenderDomain}"
             # --- DynamoDB read: the projection + the members table, exact ARNs --------------
             # The worker re-reads to render + audit: the governance projection (config#mail gate,
             # sender resolution) and the members table (member rows for per-recipient merge, and
@@ -691,11 +779,14 @@ Resources:
           # Local-only DynamoDB endpoint override (empty in prod; the client only overrides
           # when non-blank). Declared so `sam local`/tests can inject it, same as the edge.
           AWS_ENDPOINT_URL_DYNAMODB: !Ref DynamoDbEndpointUrl
-          # SES send config — the worker is the SES caller, so it needs the sender + config set.
-          # SES_SENDER_EMAIL matches the Condition the SES IAM statement above is scoped to, so
-          # env var and grant cannot disagree. SES_CONFIGURATION_SET is attached per send only
-          # when non-blank (same contract as the Flask `ses_email_service.py`).
-          SES_SENDER_EMAIL: !Ref SesSenderEmail
+          # SES send config — the worker is the SES caller. There is NO `SES_SENDER_EMAIL` env
+          # var (mail-spec task 1.2/4.2): the From is `noreply@<tenant-domain>` resolved PER SEND
+          # and passed into the adapter (task 1.3), not read from the env — the single global
+          # sender (and its `jabaki.nl` substitute) is gone from the code path. WHO the worker may
+          # send AS is enforced by the IAM `MailWorkerSendViaSes` grant above (verified tenant
+          # DOMAIN identity + `ses:FromAddress = noreply@<domain>`). SES_CONFIGURATION_SET is the
+          # only SES env the adapter still reads; attached per send only when non-blank (same
+          # contract as the Flask `ses_email_service.py`).
           SES_CONFIGURATION_SET: !Ref SesConfigurationSet
           # NOTE: no MAIL_SEND_QUEUE_URL here — the worker CONSUMES via the event-source
           #       mapping below (SQS pushes to it), it does not enqueue.
@@ -722,6 +813,86 @@ Resources:
             BatchSize: 1
             ScalingConfig:
               MaximumConcurrency: !Ref MailWorkerMaxConcurrency
+
+  # --- The SES-feedback ingestion Lambda: the SNS CONSUMER (mail task 5.2, R8.4/R9.5) -------
+  # The CONSUMER side of the SES -> SNS feedback pipeline the task-5.1 infra wired (above):
+  # `MembersSesConfigurationSet`'s event destination publishes bounce/complaint/delivery events
+  # to `MembersMailFeedbackTopic`; THIS function is SUBSCRIBED to that topic and routes each
+  # event back to the Members store by the message tags the send-path stamps (ms_tenant/ms_run)
+  # — SES has no module/tenant/run concept (R9.5), so the tag is the matching key. A FAILURE
+  # (bounce/complaint) CREATES a FAILURE-ONLY `mailrecipient#` sub-record (a late bounce has none
+  # yet) + moves the `mailrun#` tally sent->failed; a delivery is informational (no-op, R9.4).
+  #
+  # Thin entrypoint `sam.members.worker.mail_feedback_app.handler` (task 5.2), resolved from the
+  # SAME vendored MembersLayer (one layer for the module — it shares the repository + domain).
+  # Its role is DISTINCT + least-privilege: it does NOT send via SES, does NOT touch SQS, does
+  # NOT read/manage schedules. It only WRITES the mailrun/mailrecipient status records on the
+  # members table (and reads them to compute the tally delta / failure sequence). The topic
+  # subscription (SNS event source) + the SNS->Lambda invoke permission are declared here (task
+  # 5.1 explicitly left the subscription of THIS handler to task 5.2).
+  MailFeedbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "members-mail-feedback-${Stage}"
+      # Same empty-package-over-layer pattern as MembersFunction / MailWorkerFunction.
+      CodeUri: function/
+      Handler: sam.members.worker.mail_feedback_app.handler
+      Layers:
+        - !Ref MembersLayer
+      # One SES notification per invocation is a quick read-modify-write of the tally + a
+      # sub-record put; 60s is ample (well under any SNS delivery concern).
+      Timeout: 60
+      # --- IAM: least-privilege, mirroring the worker's exact-ARN discipline ----------------
+      # The ingestion role WRITES the status records (mailrun#/mailrecipient#) and READS them to
+      # compute the tally delta — nothing else. It does NOT send SES, does NOT touch SQS, does
+      # NOT touch the projection. Every Resource is an exact ARN in THIS account/region.
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            # --- DynamoDB: READ + WRITE the mailrun/mailrecipient records on the members table --
+            # `record_mail_failure` does a GetItem (the current run tally, for the failure
+            # sequence + the sent->failed delta), a Query (existing failures when the tally is
+            # absent), and PutItem/UpdateItem (the new mailrecipient# sub-record + the adjusted
+            # mailrun# tally). Scoped to the EXACT members-table ARN (+ its index) via !Sub on the
+            # table-name param — no wildcard table, no cross-account, so a TEST feedback handler
+            # (resolved to `test_*`) can never touch PROD. NO projection access (the ingestion
+            # path needs no config#mail / sender resolution — the tenant rides on the SES tag).
+            - Sid: MailFeedbackWriteStatusRecords
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}"
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
+      Environment:
+        Variables:
+          # Same fail-fast env wiring as MembersFunction/MailWorkerFunction — APP_ENV DERIVED from
+          # Stage so the handler can never drift from the edge/worker within a stack.
+          APP_ENV: !FindInMap [StageToAppEnv, !Ref Stage, AppEnv]
+          MEMBERS_TABLE: !Ref MembersTableName
+          # Local-only DynamoDB endpoint override (empty in prod; the client only overrides when
+          # non-blank). Declared so `sam local`/tests can inject it, same as the edge/worker.
+          AWS_ENDPOINT_URL_DYNAMODB: !Ref DynamoDbEndpointUrl
+          # NOTE: NO GOVERNANCE_PROJECTION_TABLE / SES_* / MAIL_SEND_QUEUE_URL — the ingestion
+          #       path only writes the members-table status records; it reads the tenant/run from
+          #       the SES message tags on the event, not from the projection or any SES/SQS call.
+          # NOTE: AWS_REGION is Lambda-reserved (auto-populated from the deploy region); the
+          #       fail-fast require_env("AWS_REGION") in dynamodb_client.py is satisfied without
+          #       (and cannot carry) an explicit declaration — same as the other functions.
+      Events:
+        # --- SNS event source: subscribe to the Members SES-feedback topic (R8.4/R9.5) --------
+        # SAM turns this into an AWS::SNS::Subscription (Protocol lambda) on the task-5.1
+        # MembersMailFeedbackTopic PLUS the AWS::Lambda::Permission letting SNS invoke this
+        # function. This is the subscription task 5.1 explicitly deferred to task 5.2. SNS -> Lambda
+        # has NO partial-batch response — the handler surfaces an unroutable event in its return/log
+        # (never a silent drop) and lets a real store fault propagate so SNS retries.
+        MailFeedbackTopicSource:
+          Type: SNS
+          Properties:
+            Topic: !Ref MembersMailFeedbackTopic
 
   # ===========================================================================
   # EventBridge Scheduler plumbing (R5, pivot-output-actions task 5.3) ---------
@@ -857,6 +1028,116 @@ Resources:
                 Resource:
                   - !GetAtt MembersSchedulerTriggerFunction.Arn
 
+  # ===========================================================================
+  # SES feedback: configuration set -> SNS event destination (R8.4/R9.5, task 5.1)
+  # ===========================================================================
+  # POST-SEND outcome detection (R8.4): SES ACCEPTS a message (MessageId) but it can later
+  # BOUNCE or be marked a COMPLAINT — "sent OK but never arrived". That outcome is only
+  # observable via an SES CONFIGURATION SET whose EVENT DESTINATION publishes bounce/complaint/
+  # delivery events to a notification sink. This block is that infra for the MEMBERS plane:
+  #
+  #   MembersSesConfigurationSet       — the config set the send-path attaches per send
+  #                                      (its Name == !Ref SesConfigurationSet, the same value
+  #                                      the sender reads from SES_CONFIGURATION_SET).
+  #   MembersMailFeedbackTopic         — the ONE account-level SNS sink SES publishes to.
+  #   MembersMailFeedbackTopicPolicy   — lets SES (this account only) publish to that topic.
+  #   MembersSesEventDestination       — wires bounce/complaint/delivery -> the SNS topic.
+  #
+  # PLANE (R9.5, decided — rule 5a): SES has no module concept, so it publishes to ONE
+  # account-level SNS sink per config set. The task-5.2 ingestion handler (NOT built here —
+  # it SUBSCRIBES to `MembersMailFeedbackTopicArn`, see Outputs) routes each event to the
+  # Members' OWN DynamoDB table by matching back on `run_id` / message tag, recording the
+  # outcome against the Members `mailrun#`/`mailrecipient#` records. This is DISTINCT from the
+  # Flask-side `infrastructure/ses.tf` `myadmin-emails` set + `myadmin-ses-delivery` topic:
+  # that lives in the PERSONAL account and forwards to the Flask webhook for ZZP/invoice mail;
+  # the Members plane owns its OWN set + topic HERE in nonprofit-deploy (same PATTERN, own
+  # PLANE). A config set is account+region scoped, so there is no reuse across accounts.
+  #
+  # ACCOUNT (steering 23): SES/SNS are nonprofit-deploy services (506221081911 / eu-west-1),
+  # the SAME account as the rest of this stack. Per-env: TEST and PROD are distinct
+  # CloudFormation stacks, so each gets its OWN config set (`members-emails[-test]`) + topic
+  # (`members-mail-feedback[-test]`) — no cross-env sharing (mirrors the table/queue isolation).
+  #
+  # ============================= DEFERRED OPERATOR / DEPLOY (Phase 7.4) =======================
+  # This task writes the IaC ONLY — it does NOT deploy (steering 41/43: infra is operator-run,
+  # deploys happen on GitHub via OIDC, never local). The live wiring is mail-spec task 7.4
+  # ("If P5, wire the SES configuration set + SNS"):
+  #   1. The config set + topic + event destination come into existence on the TEST stack
+  #      deploy (task 7.1, `Deploy SAM Members` via OIDC) — not before.
+  #   2. SES only publishes feedback for a send that ATTACHES this config set — already wired:
+  #      the send-path attaches `SES_CONFIGURATION_SET` (= this set's name) per send.
+  #   3. The task-5.2 ingestion handler must SUBSCRIBE to `MembersMailFeedbackTopicArn` (its
+  #      SQS/Lambda subscription is added by task 5.2, NOT here) before events are consumed.
+  #   4. OPERATOR confirms feedback is live (task 7.9: a TEST bounce appears against the run).
+  # ===========================================================================================
+
+  # --- The SNS topic SES publishes bounce/complaint/delivery events to (R8.4) -
+  # ONE account-level sink per config set (R9.5). The task-5.2 handler subscribes to it; its
+  # ARN is a stack Output so 5.2 (and the operator) can discover it without a console lookup.
+  # Per-env name from the fail-fast `MailFeedbackTopicName` param (same discipline as the send
+  # queue's name): `members-mail-feedback` (prod) / `members-mail-feedback-test` (test), supplied
+  # per env via samconfig.toml so TEST and PROD each own a distinct topic (no cross-env sharing).
+  MembersMailFeedbackTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Ref MailFeedbackTopicName
+      DisplayName: !Sub "Members mail feedback (bounce/complaint/delivery) - ${Stage}"
+
+  # --- Topic policy: allow ONLY SES in THIS account to publish (least privilege) ------------
+  # SES needs SNS:Publish to deliver event notifications to the topic. Scoped to the
+  # `ses.amazonaws.com` service principal, this exact topic ARN, and an `AWS:SourceAccount`
+  # Condition pinning THIS account (the AWS-recommended confused-deputy guard, mirrors the
+  # Flask `aws_sns_topic_policy.ses_delivery_policy` in infrastructure/ses.tf). No other
+  # principal, no cross-account publish.
+  MembersMailFeedbackTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref MembersMailFeedbackTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowSESPublish
+            Effect: Allow
+            Principal:
+              Service: ses.amazonaws.com
+            Action: "sns:Publish"
+            Resource: !Ref MembersMailFeedbackTopic
+            Condition:
+              StringEquals:
+                "AWS:SourceAccount": !Ref "AWS::AccountId"
+
+  # --- The SES configuration set the send-path attaches per send (R8.4) -------
+  # Its Name is `!Ref SesConfigurationSet` — EXACTLY the value the sender attaches via the
+  # `SES_CONFIGURATION_SET` env var (both MembersFunction + MailWorkerFunction) — so "the set
+  # the sender names" and "the set that owns the SNS event destination" are the SAME set and
+  # cannot disagree. Account+region scoped (nonprofit-deploy / eu-west-1).
+  MembersSesConfigurationSet:
+    Type: AWS::SES::ConfigurationSet
+    Properties:
+      Name: !Ref SesConfigurationSet
+
+  # --- Event destination: publish bounce/complaint/delivery -> the SNS topic (R8.4) ---------
+  # The actual R8.4 wiring: the config set's event destination forwards exactly the three
+  # outcome event types the design calls for — BOUNCE, COMPLAINT, DELIVERY — to the Members
+  # feedback SNS topic. (We do NOT subscribe OPEN/CLICK/SEND/REJECT: the Members status model
+  # (R9.4) tracks SES-accepted at send time already; this layer adds only the true per-recipient
+  # delivered/bounced/complaint outcomes the core view cannot know — least surface.) `Enabled:
+  # true` so events flow as soon as the stack deploys (Phase 7.4) and a send attaches the set.
+  MembersSesEventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    Properties:
+      ConfigurationSetName: !Ref MembersSesConfigurationSet
+      EventDestination:
+        Name: members-mail-feedback
+        Enabled: true
+        MatchingEventTypes:
+          - bounce
+          - complaint
+          - delivery
+        SnsDestination:
+          TopicARN: !Ref MembersMailFeedbackTopic
+
   # --- The API Gateway --------------------------------------------------------
   # ANY /{proxy+} + ANY /. The API declares a Cognito authorizer as its
   # `DefaultAuthorizer`, which is the prod gate (R6.1 — Cognito authorizer in prod;
@@ -903,6 +1184,13 @@ Outputs:
       the event-source mapping, draining at bounded concurrency under the SES rate.
     Value: !GetAtt MailWorkerFunction.Arn
 
+  MailFeedbackFunctionArn:
+    Description: >-
+      ARN of the SES-feedback ingestion Lambda (mail task 5.2, R8.4/R9.5) — the SNS CONSUMER
+      subscribed to MembersMailFeedbackTopic that routes bounce/complaint/delivery events back to
+      the Members mailrun#/mailrecipient# records by the stamped ms_tenant/ms_run message tags.
+    Value: !GetAtt MailFeedbackFunction.Arn
+
   MembersLayerArn:
     Description: ARN of the Members runtime layer.
     Value: !Ref MembersLayer
@@ -945,3 +1233,18 @@ Outputs:
       Name of the EventBridge Scheduler schedule-group the runtime per-schedule schedules (R5)
       are created in — the Members function's scheduler:* grant is scoped to this group's ARN.
     Value: !Ref MembersScheduleGroup
+
+  SesConfigurationSetName:
+    Description: >-
+      Name of the Members SES configuration set this stack owns (mail task 5.1, R8.4) — the set
+      the send-path attaches per send (SES_CONFIGURATION_SET) and whose SNS event destination
+      publishes bounce/complaint/delivery events. Per env: members-emails[-test].
+    Value: !Ref MembersSesConfigurationSet
+
+  MailFeedbackTopicArn:
+    Description: >-
+      ARN of the SNS topic the Members SES configuration set publishes bounce/complaint/delivery
+      events to (mail task 5.1, R8.4/R9.5). DISCOVERABLE here so the task-5.2 ingestion handler
+      (NOT built in 5.1) can subscribe its handler — the subscription is added by task 5.2, not
+      here. The task-5.2 handler routes each event to the Members store by run_id/message tag.
+    Value: !Ref MembersMailFeedbackTopic
