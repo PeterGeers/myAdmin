@@ -502,6 +502,24 @@ class ExecuteAndDeliverService:
                 raise AdHocMailInvalid(
                     "per_recipient send carries no result rows to mail"
                 )
+            # A per_recipient send merges a stored template per member — a template is REQUIRED.
+            # Fail fast here (no enqueue, no mailrun) so the caller gets a clear 422 instead of a
+            # false "sent" that the worker would later dead-letter ("carries no template_id").
+            if not getattr(body, "template_id", None):
+                raise AdHocMailInvalid(
+                    "a template is required for a per-recipient send"
+                )
+            # A per_recipient fan-out renders each recipient's message from a stored template —
+            # it has NO other body source. A template-less per_recipient job is doomed: the
+            # worker's _render_per_recipient hard-rejects it ("carries no template_id") and
+            # dead-letters it AFTER a 202 "sent" was already returned (a false "sent"). Fail
+            # fast here instead so the caller gets a clear 422 before anything is enqueued or any
+            # mailrun is recorded. body.template_id is normalized to None-when-blank at the edge
+            # (_dispatch.py::_parse_ad_hoc_body), so `not body.template_id` covers None and blank.
+            if not body.template_id:
+                raise AdHocMailInvalid(
+                    "a template is required for a per-recipient send"
+                )
         elif body.mode == DELIVERY_MODE_TO_FIXED:
             has_recipient = any(
                 isinstance(r, str) and r.strip() for r in body.recipients

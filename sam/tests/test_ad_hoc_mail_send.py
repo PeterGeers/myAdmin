@@ -442,6 +442,63 @@ class TestAdHocBodyValidation:
             service.send_ad_hoc(TENANT, body, RUN_ID)
         assert queue.jobs == []
 
+    # ── bug: template-less per_recipient send (per-recipient-template-guard) ─────────────
+    #
+    # Property 1 (Bug Condition): a per_recipient send carrying result rows but NO template_id
+    # must FAIL FAST with AdHocMailInvalid before any enqueue — a per-recipient fan-out has no
+    # body source but a stored template, so a template-less job is doomed. On UNFIXED code the
+    # service wrongly ACCEPTS it (enqueues one job per row, returns a 202 "sent"), and the worker
+    # then dead-letters every job ("carries no template_id") — a false "sent": mail never arrives.
+
+    def test_per_recipient_with_no_template_id_raises(self, queue):
+        # The user's real flow: per_recipient + rows + template_id=None (the bug condition).
+        service = _service(queue)
+        body = AdHocMailBody(
+            mode=DELIVERY_MODE_PER_RECIPIENT,
+            result_rows=(_member("Ava", "ava@example.com"),),
+            template_id=None,
+        )
+
+        with pytest.raises(AdHocMailInvalid) as excinfo:
+            service.send_ad_hoc(TENANT, body, RUN_ID)
+        assert "a template is required for a per-recipient send" in str(
+            excinfo.value.detail
+        )
+        # ZERO jobs enqueued (no false "sent", no dead-letter-bound fan-out).
+        assert queue.jobs == []
+
+    def test_per_recipient_with_blank_template_id_raises(self, queue):
+        # A blank template id is normalized to None at the edge, but assert the service itself is
+        # robust to a blank slipping through (both None and "" are the bug condition).
+        service = _service(queue)
+        body = AdHocMailBody(
+            mode=DELIVERY_MODE_PER_RECIPIENT,
+            result_rows=(_member("Ava", "ava@example.com"),),
+            template_id="",
+        )
+
+        with pytest.raises(AdHocMailInvalid):
+            service.send_ad_hoc(TENANT, body, RUN_ID)
+        assert queue.jobs == []
+
+    def test_to_fixed_with_no_template_id_is_still_allowed(self, queue):
+        # Preservation: the template guard applies ONLY to per_recipient. A to_fixed send needs
+        # no template and must CONTINUE TO enqueue exactly one job with no template_id.
+        service = _service(queue)
+        body = AdHocMailBody(
+            mode=DELIVERY_MODE_TO_FIXED,
+            result_rows=(_member("Ava", "ava@example.com"),),
+            recipients=("agent@example.com",),
+            attachment="csv",
+            template_id=None,
+        )
+
+        outcome = service.send_ad_hoc(TENANT, body, RUN_ID)
+
+        assert outcome.enqueued == 1
+        assert len(queue.jobs) == 1
+        assert queue.jobs[0].template_id is None
+
     def test_to_fixed_with_no_recipients_raises(self, queue):
         service = _service(queue)
         body = AdHocMailBody(

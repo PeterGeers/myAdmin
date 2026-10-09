@@ -809,6 +809,10 @@ def build_mail_recipient_item(
 
 #: The fixed path segment under a tenant's prefix that groups all template objects. The full
 #: key is ``<tenant>/templates/<template_id>/...``.
+# Tenant-first key layout: <tenant>/<service-path>/templates/<id>/...
+# The service path namespaces the owning (sub)service so one shared bucket can hold many
+# services' assets without collision, migration-safe for the Flask->nonprofit consolidation.
+TEMPLATE_SERVICE_PATH = "members/mail"
 TEMPLATE_S3_PREFIX = "templates"
 
 
@@ -840,7 +844,7 @@ def template_s3_prefix(tenant: str, template_id: str) -> str:
     """
     _require_s3_segment("tenant", tenant)
     _require_s3_segment("template_id", template_id)
-    return f"{tenant}/{TEMPLATE_S3_PREFIX}/{template_id}"
+    return f"{tenant}/{TEMPLATE_SERVICE_PATH}/{TEMPLATE_S3_PREFIX}/{template_id}"
 
 
 def template_body_s3_key(tenant: str, template_id: str, lang: str) -> str:

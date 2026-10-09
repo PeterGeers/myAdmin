@@ -394,18 +394,24 @@ def _assert_ses_scoped_to_tenant_domain(stmt: dict) -> None:
     """
     assert set(_actions_list(stmt)) == {"ses:SendEmail", "ses:SendRawEmail"}
     assert "ses:SendBulkEmail" not in _actions_list(stmt)  # least privilege (no bulk)
-    # Resource = the verified tenant DOMAIN-identity ARN (from MailSenderDomain), not an address.
+    # Resources (mail-spec Phase 7 fix C2): a SendEmail/SendRawEmail call that names a
+    # ConfigurationSetName is authorized against BOTH the identity AND the config-set resource,
+    # so the grant lists both: the verified tenant DOMAIN-identity ARN (from MailSenderDomain)
+    # AND the config-set ARN (from SesConfigurationSet). NOT a single hardcoded address, never
+    # a wildcard identity.
     resources = stmt["Resource"]
     if not isinstance(resources, list):
         resources = [resources]
-    assert len(resources) == 1
-    res = resources[0]
-    assert isinstance(res, _CfnTag) and res.tag == "Sub"
-    assert "identity/${MailSenderDomain}" in res.value
-    assert "identity/*" not in res.value, "a wildcard identity would re-open the foreign-sender risk"
-    # Regression guard (R4.2): the old single-address jabaki.nl assumption must be gone.
-    assert "SesSenderEmail" not in res.value
-    assert "jabaki" not in res.value
+    values = [r.value for r in resources if isinstance(r, _CfnTag) and r.tag == "Sub"]
+    assert any("identity/${MailSenderDomain}" in v for v in values), "must grant the domain identity"
+    assert any("configuration-set/${SesConfigurationSet}" in v for v in values), (
+        "must ALSO grant the config-set resource — else SES AccessDenies the send (C2)"
+    )
+    for v in values:
+        assert "identity/*" not in v, "a wildcard identity would re-open the foreign-sender risk"
+        # Regression guard (R4.2): the old single-address jabaki.nl assumption must be gone.
+        assert "SesSenderEmail" not in v
+        assert "jabaki" not in v
     # Condition pins ses:FromAddress to EXACTLY noreply@<domain> (the fixed-generic R4.1 sender).
     from_addr = stmt["Condition"]["StringEquals"]["ses:FromAddress"]
     assert isinstance(from_addr, _CfnTag) and from_addr.tag == "Sub"
