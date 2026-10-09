@@ -516,4 +516,44 @@ describe('MemberMailCompose', () => {
     );
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('surfaces a per-recipient template-required 422 and keeps the compose open', async () => {
+    // The SAM route refuses a template-less per_recipient send BEFORE enqueue (the
+    // per-recipient-template-guard fix): AdHocMailInvalid → HTTP 422
+    // errors.mail.adHocInvalid carrying the clear detail. The compose surfaces it via
+    // applyApiError and keeps the modal open so the user can pick a template (compose
+    // not lost) — never a false "sent".
+    const { ApiError } = await import('../../../shared/api/ApiError');
+    sendAdHocMail.mockRejectedValue(
+      new ApiError(422, {
+        error: 'a template is required for a per-recipient send',
+        code: 'errors.mail.adHocInvalid',
+      }),
+    );
+    const onClose = vi.fn();
+    render(<MemberMailCompose {...makeProps({ onClose })} />);
+
+    fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
+    fireEvent.click(screen.getByTestId('member-mail-send')); // send
+
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
+
+    // applyApiError surfaces an error toast carrying the refusal message (the key-echo
+    // i18n env falls back to the backend English `error`), and the generic queued toast
+    // is NOT shown.
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'a template is required for a per-recipient send',
+          status: 'error',
+        }),
+      ),
+    );
+    expect(toastSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'analytics.mail.toast.queued:3' }),
+    );
+    // The composed message is NOT lost — the modal stays open to act on the reason.
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId('member-mail-send')).toBeInTheDocument();
+  });
 });
