@@ -31,13 +31,10 @@
  * @see .kiro/specs/Members/pivot-output-actions (design §3, §5; requirements R2)
  */
 
-import {
-  authenticatedGet,
-  authenticatedPost,
-  authenticatedPut,
-  authenticatedDelete,
-  buildEndpoint,
-} from './apiService';
+// Members templates live on the SAM Members API (NOT Flask), so these calls MUST go through
+// membersRequest (which prefixes VITE_MEMBERS_API_BASE_URL) — not the Flask apiService client,
+// whose relative paths hit the dev server and return index.html (empty picker bug).
+import { membersRequest } from './membersApiService';
 
 /** The base route for the Members template surface (design §3). */
 const TEMPLATES_ENDPOINT = '/members/templates';
@@ -178,7 +175,7 @@ async function parse<T>(res: Response): Promise<TemplateServiceResult<T>> {
 export async function listMemberTemplates(): Promise<
   TemplateServiceResult<MemberTemplateDto[]>
 > {
-  const res = await authenticatedGet(buildEndpoint(TEMPLATES_ENDPOINT));
+  const res = await membersRequest(TEMPLATES_ENDPOINT, { method: 'GET' });
   const result = await parse<MemberTemplateDto[]>(res);
   if (result.ok && !Array.isArray(result.data)) {
     return { ok: true, data: [] };
@@ -193,8 +190,9 @@ export async function listMemberTemplates(): Promise<
 export async function getMemberTemplate(
   templateId: string,
 ): Promise<TemplateServiceResult<MemberTemplateDto>> {
-  const res = await authenticatedGet(
-    buildEndpoint(`${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}`),
+  const res = await membersRequest(
+    `${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}`,
+    { method: 'GET' },
   );
   return parse<MemberTemplateDto>(res);
 }
@@ -203,7 +201,10 @@ export async function getMemberTemplate(
 export async function createMemberTemplate(
   input: MemberTemplateInput,
 ): Promise<TemplateServiceResult<MemberTemplateDto>> {
-  const res = await authenticatedPost(buildEndpoint(TEMPLATES_ENDPOINT), input);
+  const res = await membersRequest(TEMPLATES_ENDPOINT, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
   return parse<MemberTemplateDto>(res);
 }
 
@@ -212,9 +213,9 @@ export async function updateMemberTemplate(
   templateId: string,
   input: MemberTemplateInput,
 ): Promise<TemplateServiceResult<MemberTemplateDto>> {
-  const res = await authenticatedPut(
-    buildEndpoint(`${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}`),
-    input,
+  const res = await membersRequest(
+    `${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}`,
+    { method: 'PUT', body: JSON.stringify(input) },
   );
   return parse<MemberTemplateDto>(res);
 }
@@ -223,8 +224,9 @@ export async function updateMemberTemplate(
 export async function deleteMemberTemplate(
   templateId: string,
 ): Promise<TemplateServiceResult<MemberTemplateDto>> {
-  const res = await authenticatedDelete(
-    buildEndpoint(`${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}`),
+  const res = await membersRequest(
+    `${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}`,
+    { method: 'DELETE' },
   );
   return parse<MemberTemplateDto>(res);
 }
@@ -239,9 +241,9 @@ export async function aiImproveMemberTemplate(
   templateId: string,
   input: TemplateAiImproveInput,
 ): Promise<TemplateServiceResult<TemplateAiImproveResult>> {
-  const res = await authenticatedPost(
-    buildEndpoint(`${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}/ai-improve`),
-    input,
+  const res = await membersRequest(
+    `${TEMPLATES_ENDPOINT}/${encodeURIComponent(templateId)}/ai-improve`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
   return parse<TemplateAiImproveResult>(res);
 }

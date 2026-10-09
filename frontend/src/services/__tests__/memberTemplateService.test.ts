@@ -1,35 +1,24 @@
 /**
  * Unit tests for memberTemplateService (services/memberTemplateService.ts).
  *
- * Verifies task 2.5 (R2, pivot-output-actions): the authenticated client for the Members
- * mail-template routes codes against the design §3 contract + the API response & error standard
- * v1.0 (steering 37):
- *   - each function hits the right method + path (`/members/templates[/{id}]`, `.../ai-improve`);
- *   - a success envelope `{ success:true, data }` is unwrapped to `{ ok:true, data }`;
- *   - an error envelope `{ success:false, error, code }` (or a non-2xx status) becomes
- *     `{ ok:false, status, error, code }` — never a throw;
- *   - the id is URL-encoded in the path.
+ * Verifies the client for the Members mail-template routes codes against the design §3 contract
+ * + the API response & error standard v1.0 (steering 37). CRITICAL: the Members template routes
+ * live on the SAM Members API, so the service MUST call through `membersRequest`
+ * (VITE_MEMBERS_API_BASE_URL), NOT the Flask `apiService` client — the earlier bug sent bare
+ * `/members/templates` to the dev server (localhost:3000), which returned index.html and left
+ * the template picker empty. These tests pin that each function hits `membersRequest` with the
+ * right method + path.
  *
- * The apiService verbs are mocked (no network).
+ * `membersRequest` is mocked (no network).
  */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
-vi.mock('../apiService', () => ({
-  authenticatedGet: vi.fn(),
-  authenticatedPost: vi.fn(),
-  authenticatedPut: vi.fn(),
-  authenticatedDelete: vi.fn(),
-  // Pass-through builder (identity when no params) so path assertions are simple.
-  buildEndpoint: (endpoint: string) => endpoint,
+vi.mock('../membersApiService', () => ({
+  membersRequest: vi.fn(),
 }));
 
-import {
-  authenticatedGet,
-  authenticatedPost,
-  authenticatedPut,
-  authenticatedDelete,
-} from '../apiService';
+import { membersRequest } from '../membersApiService';
 import {
   listMemberTemplates,
   getMemberTemplate,
@@ -39,116 +28,109 @@ import {
   aiImproveMemberTemplate,
 } from '../memberTemplateService';
 
-const mGet = vi.mocked(authenticatedGet);
-const mPost = vi.mocked(authenticatedPost);
-const mPut = vi.mocked(authenticatedPut);
-const mDelete = vi.mocked(authenticatedDelete);
+const mReq = vi.mocked(membersRequest);
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('memberTemplateService', () => {
-  it('lists templates and unwraps the standard data envelope', async () => {
+describe('memberTemplateService (routes to the Members SAM API)', () => {
+  it('lists templates via GET and unwraps the standard data envelope', async () => {
     const data = [{ template_id: 't1', name: 'A' }];
-    mGet.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
 
     const result = await listMemberTemplates();
 
-    expect(mGet).toHaveBeenCalledWith('/members/templates');
+    expect(mReq).toHaveBeenCalledWith('/members/templates', { method: 'GET' });
     expect(result).toEqual({ ok: true, data });
   });
 
-  // Regression (white-page crash): the delivery-editor template picker calls
-  // `templates.map`, so the list endpoint MUST yield an array. A malformed success
-  // body (object / missing data / null) previously flowed straight through and crashed
-  // the SPA — now it is coerced to an empty array so the picker degrades gracefully.
+  // Regression (white-page crash): the picker calls `templates.map`, so the list endpoint MUST
+  // yield an array. A malformed success body is coerced to an empty array (graceful degrade).
   it('coerces a non-array `data` object on a success envelope to an empty array', async () => {
-    mGet.mockResolvedValue(
+    mReq.mockResolvedValue(
       createMockResponse({ body: { success: true, data: { templates: [] } } }),
     );
-
     const result = await listMemberTemplates();
-
     expect(result).toEqual({ ok: true, data: [] });
   });
 
   it('coerces a success envelope with NO `data` (envelope fallback) to an empty array', async () => {
-    mGet.mockResolvedValue(createMockResponse({ body: { success: true } }));
-
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true } }));
     const result = await listMemberTemplates();
-
     expect(result).toEqual({ ok: true, data: [] });
   });
 
   it('coerces a null `data` on a success envelope to an empty array', async () => {
-    mGet.mockResolvedValue(createMockResponse({ body: { success: true, data: null } }));
-
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true, data: null } }));
     const result = await listMemberTemplates();
-
     expect(result).toEqual({ ok: true, data: [] });
   });
 
-  it('gets a template by id (URL-encoded path)', async () => {
+  it('gets a template by id via GET (URL-encoded path)', async () => {
     const data = { template_id: 'a/b', name: 'X', languages: {} };
-    mGet.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
 
     const result = await getMemberTemplate('a/b');
 
-    expect(mGet).toHaveBeenCalledWith('/members/templates/a%2Fb');
+    expect(mReq).toHaveBeenCalledWith('/members/templates/a%2Fb', { method: 'GET' });
     expect(result).toEqual({ ok: true, data });
   });
 
-  it('creates a template via POST', async () => {
+  it('creates a template via POST (JSON body)', async () => {
     const data = { template_id: 'new', name: 'New' };
-    mPost.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
 
     const input = { name: 'New', languages: { en: { subject: 'S', body_html: 'B' } } };
     const result = await createMemberTemplate(input);
 
-    expect(mPost).toHaveBeenCalledWith('/members/templates', input);
+    expect(mReq).toHaveBeenCalledWith('/members/templates', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
     expect(result).toEqual({ ok: true, data });
   });
 
-  it('updates a template via PUT', async () => {
+  it('updates a template via PUT (JSON body)', async () => {
     const data = { template_id: 't1', name: 'Edited' };
-    mPut.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
 
     const input = { name: 'Edited', languages: { en: { subject: 'S', body_html: 'B' } } };
     const result = await updateMemberTemplate('t1', input);
 
-    expect(mPut).toHaveBeenCalledWith('/members/templates/t1', input);
+    expect(mReq).toHaveBeenCalledWith('/members/templates/t1', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
     expect(result).toEqual({ ok: true, data });
   });
 
   it('deletes a template via DELETE', async () => {
     const data = { template_id: 't1', name: 'Gone' };
-    mDelete.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
 
     const result = await deleteMemberTemplate('t1');
 
-    expect(mDelete).toHaveBeenCalledWith('/members/templates/t1');
+    expect(mReq).toHaveBeenCalledWith('/members/templates/t1', { method: 'DELETE' });
     expect(result).toEqual({ ok: true, data });
   });
 
   it('improves a template via POST to the ai-improve sub-path', async () => {
     const data = { lang: 'en', subject: 'S2', body_html: 'B2', model_used: 'x:free' };
-    mPost.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
+    mReq.mockResolvedValue(createMockResponse({ body: { success: true, data } }));
 
-    const result = await aiImproveMemberTemplate('t1', {
-      lang: 'en',
-      instruction: 'warmer',
-    });
+    const input = { lang: 'en', instruction: 'warmer' };
+    const result = await aiImproveMemberTemplate('t1', input);
 
-    expect(mPost).toHaveBeenCalledWith('/members/templates/t1/ai-improve', {
-      lang: 'en',
-      instruction: 'warmer',
+    expect(mReq).toHaveBeenCalledWith('/members/templates/t1/ai-improve', {
+      method: 'POST',
+      body: JSON.stringify(input),
     });
     expect(result).toEqual({ ok: true, data });
   });
 
   it('surfaces an error envelope as a typed failure (code preserved, no throw)', async () => {
-    mPost.mockResolvedValue(
+    mReq.mockResolvedValue(
       createMockResponse({
         ok: false,
         status: 422,
@@ -172,7 +154,7 @@ describe('memberTemplateService', () => {
   });
 
   it('treats a non-2xx with no explicit success flag as a failure', async () => {
-    mGet.mockResolvedValue(createMockResponse({ ok: false, status: 500, body: {} }));
+    mReq.mockResolvedValue(createMockResponse({ ok: false, status: 500, body: {} }));
 
     const result = await listMemberTemplates();
 
