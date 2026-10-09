@@ -201,15 +201,16 @@ describe('MemberMailCompose', () => {
       target: { value: 'The body' },
     });
 
-    // First press → confirmation prompt, no send yet.
+    // Clicking Send OPENS the confirmation dialog — nothing is sent yet (R8.4).
     fireEvent.click(screen.getByTestId('member-mail-send'));
-    expect(screen.getByTestId('member-mail-confirm')).toHaveTextContent(
-      'analytics.mail.confirm:3',
+    expect(screen.getByTestId('member-mail-confirm-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('member-mail-confirm-summary')).toHaveTextContent(
+      'analytics.mail.confirmSummary:3',
     );
     expect(sendAdHocMail).not.toHaveBeenCalled();
 
-    // Second press → the actual send, via the SAM `POST /members/mail/send` seam.
-    fireEvent.click(screen.getByTestId('member-mail-send'));
+    // Confirming in the dialog performs the actual send via the SAM `POST /members/mail/send` seam.
+    fireEvent.click(screen.getByTestId('member-mail-confirm-send'));
     await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
     const body = sendAdHocMail.mock.calls[0][0];
@@ -239,8 +240,8 @@ describe('MemberMailCompose', () => {
     // on-plane (steering 35: the frontend never produces/sends the payload).
     fireEvent.click(screen.getByTestId('member-mail-attach-pdf'));
 
-    fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
-    fireEvent.click(screen.getByTestId('member-mail-send')); // send
+    fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+    fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
 
     await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     const body = sendAdHocMail.mock.calls[0][0];
@@ -334,8 +335,8 @@ describe('MemberMailCompose', () => {
         target: { value: 'agent@example.com' },
       });
 
-      fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
-      fireEvent.click(screen.getByTestId('member-mail-send')); // send
+      fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+      fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
       await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
       const body = sendAdHocMail.mock.calls[0][0];
@@ -365,8 +366,8 @@ describe('MemberMailCompose', () => {
       // Send is now enabled on the strength of the external address alone.
       expect(screen.getByTestId('member-mail-send')).not.toBeDisabled();
 
-      fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
-      fireEvent.click(screen.getByTestId('member-mail-send')); // send
+      fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+      fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
       await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
       const body = sendAdHocMail.mock.calls[0][0];
@@ -451,8 +452,8 @@ describe('MemberMailCompose', () => {
     const onClose = vi.fn();
     render(<MemberMailCompose {...makeProps({ onClose })} />);
 
-    fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
-    fireEvent.click(screen.getByTestId('member-mail-send')); // send
+    fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+    fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
 
     await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     expect(onClose).not.toHaveBeenCalled();
@@ -473,8 +474,8 @@ describe('MemberMailCompose', () => {
     const onClose = vi.fn();
     render(<MemberMailCompose {...makeProps({ onClose })} />);
 
-    fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
-    fireEvent.click(screen.getByTestId('member-mail-send')); // send
+    fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+    fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
 
     await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
@@ -505,8 +506,8 @@ describe('MemberMailCompose', () => {
     const onClose = vi.fn();
     render(<MemberMailCompose {...makeProps({ onClose })} />);
 
-    fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
-    fireEvent.click(screen.getByTestId('member-mail-send')); // send
+    fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+    fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
 
     await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -533,8 +534,8 @@ describe('MemberMailCompose', () => {
     const onClose = vi.fn();
     render(<MemberMailCompose {...makeProps({ onClose })} />);
 
-    fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
-    fireEvent.click(screen.getByTestId('member-mail-send')); // send
+    fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+    fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
 
     await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 

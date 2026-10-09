@@ -167,7 +167,17 @@
       "csv": "Exporteren naar CSV",
       "pdfLabels": "Adreslabels (PDF)",
       "mail": "E-mailen",
-      "empty": "Geen gegevens om te exporteren"
+      "empty": "Geen gegevens om te exporteren",
+      "csvDownload": "Lokaal opslaan",
+      "csvEmail": "CSV e-mailen",
+      "csvMail": {
+        "title": "CSV e-mailen",
+        "summary": "Verstuur het huidige resultaat ({{count}} rijen) als CSV-bijlage.",
+        "toLabel": "Naar (e-mailadres(sen))",
+        "toPlaceholder": "naam@voorbeeld.nl",
+        "send": "Versturen",
+        "queued": "CSV gemaild ({{count}})"
+      }
     },
     "delivery": {
       "action": "Bezorging",
@@ -317,7 +327,11 @@
         "uploadError": "Lezen van het bestand mislukt",
         "improved": "Sjabloon verbeterd",
         "improveError": "Kon het sjabloon niet verbeteren; uw tekst is behouden"
-      }
+      },
+      "previewLabel": "Voorbeeld (eerste rij samengevoegd)",
+      "confirmTitle": "E-mail versturen bevestigen",
+      "confirmSummary": "Je staat op het punt {{count}} ontvanger(s) te mailen vanaf {{sender}}. Dit kan niet ongedaan worden gemaakt.",
+      "confirmSend": "Nu versturen naar {{count}}"
     },
     "mailRuns": {
       "action": "Verzendstatus",

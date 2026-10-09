@@ -883,6 +883,7 @@ describe('MemberPivotViews', () => {
       const produced = tableCalls[tableCalls.length - 1];
 
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [columns, rows] = generateCsvFromObjects.mock.calls[0];
@@ -952,6 +953,7 @@ describe('MemberPivotViews', () => {
       expect(produced.data).toHaveLength(processedData.length);
 
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [columns, rows] = generateCsvFromObjects.mock.calls[0];
@@ -981,6 +983,7 @@ describe('MemberPivotViews', () => {
       fireEvent.click(screen.getByTestId('mock-table-filter-to-first-row'));
 
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [, rows] = generateCsvFromObjects.mock.calls[0];
@@ -1000,6 +1003,7 @@ describe('MemberPivotViews', () => {
 
       // No filter simulated → export the whole result (default behavior).
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
       const [, rows] = generateCsvFromObjects.mock.calls[0];
       expect(rows).toBe(produced.data);
     });
