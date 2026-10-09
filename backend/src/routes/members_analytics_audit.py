@@ -4,9 +4,9 @@ Member Analytics — client-side output audit route (member-analytics task 10.1,
 Two of the three audited analytics outputs happen **entirely in the browser**: the CSV
 export (``csvExport.ts``) and the PDF address-label generate (jsPDF, ``addressLabelService``).
 They never touch the server, so C7 calls for a **small audit signal from the client** —
-a lightweight POST that records the same metadata-only audit record the server-side SES
-mail send writes directly. (The SES send audits itself inside ``routes/members_mail.py``;
-it does NOT use this route.)
+a lightweight POST that records a metadata-only audit record. (The interactive Members SES
+mail send is no longer a Flask route — it was retired to the SAM plane per the mail spec,
+task 4.1 — and audits itself on the SAM plane; it does NOT use this route.)
 
 This route is deliberately thin: it validates the ``output_kind`` is a client-side one
 (``csv_export`` / ``pdf_labels``), resolves the tenant from the verified auth context

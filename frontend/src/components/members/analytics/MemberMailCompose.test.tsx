@@ -9,10 +9,19 @@
  *     (`resolveEmailField`, R4.12) — not hardcoded;
  *   - the optional attach-CSV / attach-PDF toggles appear per the supplied
  *     builders + the tenant's address mapping, and flow into the send;
- *   - Send is a CONFIRMED action (first press confirms, second sends) and calls
- *     the authenticated `mailMembersSet` service with the subject/body/recipients/
- *     attachments (R8.4); the service is mocked (no network);
  *   - when no email field resolves, the send is blocked with a bilingual reason.
+ *
+ * Plane repoint (mail-spec tasks 2.3 + 4.1, R1.1/R1.2): the compose POSTs to the
+ * SAM Members route `POST /members/mail/send` via `sendAdHocMail`. The old Flask
+ * `POST /api/members/mail-set` route (`mailMembersSet`) has since been RETIRED and
+ * deleted (task 4.1), so there is no longer a Flask seam to mock or guard against.
+ * These tests verify:
+ *   - Send is a CONFIRMED action (first press confirms, second sends) and calls
+ *     `sendAdHocMail` with the ad-hoc body (mode + result rows + template /
+ *     recipients / attachment);
+ *   - the 202 queued receipt surfaces as the "queued, N" acknowledgment;
+ *   - a not-certified / invalid-body 422 is surfaced via `applyApiError` and the
+ *     composed set is kept (the modal stays open).
  *
  * The Mail button's `canExport` gating lives with the Pivot Views slot
  * (MemberPivotViews.test.tsx) where the button is mounted; this file verifies the
@@ -22,10 +31,12 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
 import type { FieldConfig, MemberRow } from '../../../types/members';
 
-// --- Mock the authenticated mail service (no network). -----------------------
-const mailMembersSet = vi.fn();
-vi.mock('../../../services/memberMailService', () => ({
-  mailMembersSet: (...args: unknown[]) => mailMembersSet(...args),
+// --- Mock the SAM Members API service (no network). --------------------------
+// The compose POSTs the ad-hoc body to `POST /members/mail/send` via `sendAdHocMail`
+// (mail-spec task 2.3). The old Flask `memberMailService` seam is gone (task 4.1).
+const sendAdHocMail = vi.fn();
+vi.mock('../../../services/membersApiService', () => ({
+  sendAdHocMail: (...args: unknown[]) => sendAdHocMail(...args),
 }));
 
 // --- Mock the template service so the R2 picker + manager run with no network. ---
@@ -118,8 +129,15 @@ function makeProps(overrides: Partial<MemberMailComposeProps> = {}): MemberMailC
 }
 
 beforeEach(() => {
-  mailMembersSet.mockReset();
-  mailMembersSet.mockResolvedValue({ success: true, status: 200, recipientCount: 3 });
+  sendAdHocMail.mockReset();
+  // The 202 accepted receipt (DeliveryRunResult) the SAM route returns.
+  sendAdHocMail.mockResolvedValue({
+    runId: 'run-1',
+    mode: 'per_recipient',
+    enqueued: 3,
+    skippedNoAddress: 0,
+    jobIds: ['job-1', 'job-2', 'job-3'],
+  });
   toastSpy.mockReset();
   // Default: an empty template library (the picker renders, lists nothing).
   listMemberTemplates.mockReset();
@@ -173,7 +191,7 @@ describe('MemberMailCompose', () => {
     expect(screen.queryByTestId('member-mail-attach-csv')).not.toBeInTheDocument();
   });
 
-  it('confirms before sending, then calls the service with subject/body/recipients (R8.4)', async () => {
+  it('confirms before sending, then POSTs the ad-hoc body to the SAM route — NOT Flask (R1/R8.4)', async () => {
     render(<MemberMailCompose {...makeProps()} />);
 
     fireEvent.change(screen.getByTestId('member-mail-subject'), {
@@ -188,49 +206,51 @@ describe('MemberMailCompose', () => {
     expect(screen.getByTestId('member-mail-confirm')).toHaveTextContent(
       'analytics.mail.confirm:3',
     );
-    expect(mailMembersSet).not.toHaveBeenCalled();
+    expect(sendAdHocMail).not.toHaveBeenCalled();
 
-    // Second press → the actual send.
+    // Second press → the actual send, via the SAM `POST /members/mail/send` seam.
     fireEvent.click(screen.getByTestId('member-mail-send'));
-    await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
-    const req = mailMembersSet.mock.calls[0][0];
-    expect(req.subject).toBe('Hello members');
-    expect(req.body).toBe('The body');
-    // With no external recipients entered, the outgoing list is exactly the
-    // member rows (R1 appends nothing).
-    expect(req.recipients).toEqual(recipients);
-    // The recipient email field is resolved from fieldConfig (R4.12), not hardcoded.
-    expect(req.email_field).toBe('email');
-    expect(req.set_key).toBe('members-per-type');
-    // No attachments were toggled.
-    expect(req.attachments).toEqual([]);
+    const body = sendAdHocMail.mock.calls[0][0];
+    // No external recipients + no attachment → a per_recipient fan-out carrying
+    // the current result rows (the member-list mailing).
+    expect(body.mode).toBe('per_recipient');
+    expect(body.result_rows).toEqual(recipients);
+    // The per-recipient address column is the field resolved from fieldConfig
+    // (R4.12), carried as the recipient_field override — not hardcoded.
+    expect(body.recipient_field).toBe('email');
+    // The audit label rides along as set_id (metadata only, R8.1).
+    expect(body.set_id).toBe('members-per-type');
+
+    // The 202 queued receipt surfaces as the "queued, N" acknowledgment.
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'analytics.mail.toast.queued:3' }),
+      ),
+    );
   });
 
-  it('includes toggled CSV + PDF attachments in the send', async () => {
-    // Snapshot the attachments AT CALL TIME: the component releases the base64
-    // buffers after the send (R8.5, task 9.3) by clearing the same descriptors it
-    // forwarded, so inspecting the recorded call afterwards would see them empty.
-    let sentAttachments: unknown;
-    mailMembersSet.mockImplementation((req: { attachments?: unknown[] }) => {
-      sentAttachments = (req.attachments ?? []).map((a) => ({ ...(a as object) }));
-      return Promise.resolve({ success: true, status: 200, recipientCount: 3 });
-    });
-
+  it('sends to_fixed with the attachment KIND when CSV/PDF is toggled (worker builds the bytes)', async () => {
     render(<MemberMailCompose {...makeProps()} />);
 
-    fireEvent.click(screen.getByTestId('member-mail-attach-csv'));
+    // Toggling an attachment makes this a to_fixed send; the frontend ships only
+    // the attachment KIND + the result rows — the SAM worker renders the bytes
+    // on-plane (steering 35: the frontend never produces/sends the payload).
     fireEvent.click(screen.getByTestId('member-mail-attach-pdf'));
 
-    // Confirm + send.
-    fireEvent.click(screen.getByTestId('member-mail-send'));
-    fireEvent.click(screen.getByTestId('member-mail-send'));
+    fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
+    fireEvent.click(screen.getByTestId('member-mail-send')); // send
 
-    await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
-    expect(sentAttachments).toEqual([
-      { kind: 'csv', content_base64: 'Y3N2', filename: 'members.csv' },
-      { kind: 'pdf', content_base64: 'cGRm', filename: 'labels.pdf' },
-    ]);
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
+    const body = sendAdHocMail.mock.calls[0][0];
+    expect(body.mode).toBe('to_fixed');
+    // The Avery-labels toggle maps to the SAM `pdf_labels` attachment kind.
+    expect(body.attachment).toBe('pdf_labels');
+    expect(body.result_rows).toEqual(recipients);
+    // No base64 payload is ever shipped on the ad-hoc body.
+    expect(body).not.toHaveProperty('content_base64');
+    expect(body).not.toHaveProperty('attachments');
   });
 
   it('blocks the send and shows a reason when no email field resolves (R4.12)', () => {
@@ -302,7 +322,7 @@ describe('MemberMailCompose', () => {
       expect(screen.getByTestId('member-mail-send')).toBeDisabled();
     });
 
-    it('sends external addresses as plain strings in recipients (R1), no backend change', async () => {
+    it('sends typed external addresses as a to_fixed recipient list (R1), on the SAM plane', async () => {
       render(<MemberMailCompose {...makeProps()} />);
       fireEvent.change(screen.getByTestId('member-mail-subject'), {
         target: { value: 'Hi' },
@@ -316,12 +336,14 @@ describe('MemberMailCompose', () => {
 
       fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
       fireEvent.click(screen.getByTestId('member-mail-send')); // send
-      await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
-      const req = mailMembersSet.mock.calls[0][0];
-      // Member rows followed by the external address as a plain string.
-      expect(req.recipients).toEqual([...recipients, 'agent@example.com']);
-      expect(req.email_field).toBe('email');
+      const body = sendAdHocMail.mock.calls[0][0];
+      // Typed fixed recipients → a to_fixed send: the typed list is the fixed
+      // recipients; the member rows ride along as the result_rows source.
+      expect(body.mode).toBe('to_fixed');
+      expect(body.recipients).toEqual(['agent@example.com']);
+      expect(body.result_rows).toEqual(recipients);
     });
 
     it('allows an external-only send when no email field is configured', async () => {
@@ -345,12 +367,12 @@ describe('MemberMailCompose', () => {
 
       fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
       fireEvent.click(screen.getByTestId('member-mail-send')); // send
-      await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
-      const req = mailMembersSet.mock.calls[0][0];
-      // Only the external address is sent; email_field is omitted (none resolved).
-      expect(req.recipients).toEqual([...recipients, 'agent@example.com']);
-      expect(req.email_field).toBeUndefined();
+      const body = sendAdHocMail.mock.calls[0][0];
+      // Only the external address is the fixed recipient list.
+      expect(body.mode).toBe('to_fixed');
+      expect(body.recipients).toEqual(['agent@example.com']);
     });
   });
 
@@ -425,70 +447,73 @@ describe('MemberMailCompose', () => {
   });
 
   it('keeps the modal open on a failed send (set result not lost)', async () => {
-    mailMembersSet.mockResolvedValue({ success: false, status: 502, error: 'boom' });
+    sendAdHocMail.mockRejectedValue(new Error('network boom'));
     const onClose = vi.fn();
     render(<MemberMailCompose {...makeProps({ onClose })} />);
 
     fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
     fireEvent.click(screen.getByTestId('member-mail-send')); // send
 
-    await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     expect(onClose).not.toHaveBeenCalled();
+    // The composed set is NOT lost — the send control is still mounted.
+    expect(screen.getByTestId('member-mail-send')).toBeInTheDocument();
   });
 
-  it('shows the dedicated rate-limited message and keeps the set (R4.12, task 9.3)', async () => {
-    // SES rate-limited the send: the service flags `rateLimited`.
-    mailMembersSet.mockResolvedValue({
-      success: false,
-      status: 429,
-      rateLimited: true,
-      error: 'Email send rate limit reached',
-    });
+  it('surfaces the not-certified 422 via applyApiError and keeps the set (R4.2/R5.2)', async () => {
+    // The SAM route refuses BEFORE enqueue (pre-send certification gate): a typed
+    // ApiError the compose surfaces via applyApiError, never a silent drop.
+    const { ApiError } = await import('../../../shared/api/ApiError');
+    sendAdHocMail.mockRejectedValue(
+      new ApiError(422, {
+        error: 'The tenant mail sender is not certified',
+        code: 'errors.mail.notCertified',
+      }),
+    );
     const onClose = vi.fn();
     render(<MemberMailCompose {...makeProps({ onClose })} />);
 
     fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
     fireEvent.click(screen.getByTestId('member-mail-send')); // send
 
-    await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
 
-    // The DEDICATED bilingual rate-limited toast fires, not the generic error.
+    // applyApiError surfaces an error toast carrying the refusal reason (the
+    // key-echo i18n env falls back to the backend English `error`), and the
+    // generic success/queued toast is NOT shown.
     await waitFor(() =>
       expect(toastSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'analytics.mail.toast.rateLimited' }),
+        expect.objectContaining({
+          title: 'The tenant mail sender is not certified',
+          status: 'error',
+        }),
       ),
     );
     expect(toastSpy).not.toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'analytics.mail.toast.error' }),
+      expect.objectContaining({ title: 'analytics.mail.toast.queued:3' }),
     );
-    // The composed set is NOT lost — the modal stays open to retry.
+    // The composed set is NOT lost — the modal stays open to act on the reason.
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByTestId('member-mail-send')).toBeInTheDocument();
   });
 
-  it('clears the in-memory attachment buffers after a send completes (R8.5)', async () => {
-    // Capture the exact attachments array the component forwards to the service,
-    // so we can assert the component released its base64 buffers afterwards.
-    let forwarded: Array<{ content_base64: string }> | undefined;
-    mailMembersSet.mockImplementation((req: { attachments?: Array<{ content_base64: string }> }) => {
-      forwarded = req.attachments;
-      // The content is present at the moment of send.
-      expect(forwarded?.every((a) => a.content_base64 !== '')).toBe(true);
-      return Promise.resolve({ success: true, status: 200, recipientCount: 3 });
-    });
-
-    render(<MemberMailCompose {...makeProps()} />);
-    fireEvent.click(screen.getByTestId('member-mail-attach-csv'));
-    fireEvent.click(screen.getByTestId('member-mail-attach-pdf'));
+  it('surfaces an invalid-body 422 via applyApiError and keeps the set', async () => {
+    const { ApiError } = await import('../../../shared/api/ApiError');
+    sendAdHocMail.mockRejectedValue(
+      new ApiError(422, { error: 'per_recipient send carries no result rows to mail' }),
+    );
+    const onClose = vi.fn();
+    render(<MemberMailCompose {...makeProps({ onClose })} />);
 
     fireEvent.click(screen.getByTestId('member-mail-send')); // confirm
     fireEvent.click(screen.getByTestId('member-mail-send')); // send
 
-    await waitFor(() => expect(mailMembersSet).toHaveBeenCalledTimes(1));
-
-    // After the send, every forwarded descriptor's buffer is released (R8.5).
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(forwarded?.every((a) => a.content_base64 === '')).toBe(true),
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'error' }),
+      ),
     );
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

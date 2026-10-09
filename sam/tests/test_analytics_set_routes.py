@@ -1510,6 +1510,31 @@ class _FakeMailQueue:
         self.jobs.append(job)
 
 
+class _CertifiedMailConfig:
+    """A static MailConfigReader modelling a CERTIFIED tenant (mail-spec task 1.3 happy path).
+
+    Satisfies the resolver's :class:`~sam.members.domain.mail_sender_resolver.MailConfigReader`
+    seam by duck-typing so the deliver edge resolves a usable From (``noreply@h-dcn.nl``) with no
+    projection/DynamoDB round-trip. ``certified=False`` drives the pre-send refusal branch.
+    """
+
+    def __init__(self, *, certified=True, domain="h-dcn.nl"):
+        self._certified = certified
+        self._domain = domain
+
+    def is_mail_enabled(self, tenant_id):
+        return bool(tenant_id)
+
+    def is_mail_certified(self, tenant_id):
+        return bool(tenant_id) and self._certified
+
+    def get_mail_domain(self, tenant_id):
+        return self._domain if tenant_id else None
+
+    def get_mail_local_part(self, tenant_id):
+        return "noreply"
+
+
 def _member_record(member_id, first_name, email, *, membership_type="erelid"):
     """A persisted member record addressable by a stable id (seeded straight via the repo)."""
     return {
@@ -1536,9 +1561,19 @@ class TestDeliverRouteEdge:
         # via the CRUD/delivery routes is the one delivered) + the fake queue (never SQS). The
         # repo fixture backs the autouse membership service too, so both see the same table.
         from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+        from sam.members.domain.mail_sender_resolver import MailSenderResolver
         from sam.members.handler import _dispatch as dispatch_mod
 
-        deliver_service = ExecuteAndDeliverService(repo, _PassThroughPivot(), mail_queue)
+        # The deliver path now runs the SYNCHRONOUS pre-send certification gate (mail-spec task
+        # 1.3). These edge tests exercise the CERTIFIED happy path, so inject a resolver over a
+        # certified static reader (no projection round-trip) — a dedicated not-certified test
+        # drives the refusal branch below.
+        deliver_service = ExecuteAndDeliverService(
+            repo,
+            _PassThroughPivot(),
+            mail_queue,
+            MailSenderResolver(_CertifiedMailConfig()),
+        )
         monkeypatch.setattr(
             dispatch_mod,
             "get_execute_and_deliver_service",
@@ -1605,6 +1640,55 @@ class TestDeliverRouteEdge:
             "ava@example.com",
             "ben@example.com",
         ]
+
+    # ── mail-spec task 1.3: the resolved From + the user Reply-To ride on every job ──────
+    def test_deliver_stamps_resolved_from_and_user_reply_to_on_every_job(
+        self, repo, mail_queue
+    ):
+        # The edge resolves the tenant From (noreply@<domain>) via the pre-send resolver and
+        # stamps it + the triggering user's VERIFIED email (the JWT `email` claim) as Reply-To
+        # onto EVERY enqueued job — the worker forwards them to SES without re-resolving.
+        set_id = self._seed_set_with_delivery(_delivery_per_recipient())
+        repo.save_member("h-dcn", _member_record("m1", "Ava", "ava@example.com"))
+        repo.save_member("h-dcn", _member_record("m2", "Ben", "ben@example.com"))
+
+        resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
+
+        assert resp["statusCode"] == 202
+        assert len(mail_queue.jobs) == 2
+        for job in mail_queue.jobs:
+            assert job.from_address == "noreply@h-dcn.nl"
+            assert job.reply_to == _EMAIL_ALL  # the verified user, from the JWT claim
+
+    # ── mail-spec task 1.3: a NOT-CERTIFIED tenant is refused before enqueue (422, no job) ─
+    def test_deliver_not_certified_tenant_returns_422_and_enqueues_nothing(
+        self, monkeypatch, repo, mail_queue
+    ):
+        from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+        from sam.members.domain.mail_sender_resolver import MailSenderResolver
+        from sam.members.handler import _dispatch as dispatch_mod
+
+        set_id = self._seed_set_with_delivery(_delivery_to_fixed())
+        repo.save_member("h-dcn", _member_record("m1", "Ava", "ava@example.com"))
+
+        # Re-point the deliver seam at a service whose resolver refuses (tenant not certified).
+        uncertified = ExecuteAndDeliverService(
+            repo,
+            _PassThroughPivot(),
+            mail_queue,
+            MailSenderResolver(_CertifiedMailConfig(certified=False)),
+        )
+        monkeypatch.setattr(
+            dispatch_mod, "get_execute_and_deliver_service", lambda: uncertified
+        )
+
+        resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
+
+        assert resp["statusCode"] == 422
+        body = json.loads(resp["body"])
+        assert body["code"] == "errors.mail.notCertified"
+        assert body["reason"] == "not_certified"  # the TYPED machine reason
+        assert mail_queue.jobs == []  # nothing enqueued, no substitute sender
 
     # ── gate: members:export (403 without) ───────────────────────────────────────────────
     def test_deliver_without_export_is_403(self, repo):

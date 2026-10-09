@@ -47,10 +47,18 @@ import {
 } from '../components/members/analytics/labelOptions';
 import type { StoredLabelOptions } from '../components/members/analytics/labelOptions';
 import type {
+  DeliveryRunResult,
+  MailRunDetail,
+  MailRunFailure,
+  MailRunStatus,
+  MailFailureStatus,
+  MailRunSummary,
   Member,
   MemberAnalyticsSet,
   MemberAnalyticsSetSummary,
   MemberDelivery,
+  MemberDeliveryAttachment,
+  MemberDeliveryMode,
   MemberPreferredList,
   MemberColumnPreferences,
   MemberSchedule,
@@ -719,6 +727,273 @@ export async function deleteAnalyticsSetDelivery(id: string): Promise<void> {
   await deleteJson<unknown>(
     `/members/analytics-sets/${encodeURIComponent(id)}/delivery`
   );
+}
+
+/** The raw snake_case 202 receipt the SAM deliver route echoes (pre-camelCase map). */
+interface RawDeliveryRunResult {
+  run_id?: string;
+  mode?: MemberDeliveryMode;
+  enqueued?: number;
+  skipped_no_address?: number;
+  job_ids?: string[];
+}
+
+/**
+ * POST /members/analytics-sets/{id}/deliver — RUN a saved set's stored delivery
+ * NOW (mail-spec R3.1/R3.2). This is the interactive "deliver now" trigger: the
+ * gap it closes is that the SAM deliver route already existed but had NO frontend
+ * caller (R3.2). It is a THIN enqueue — the route resolves the set's stored
+ * delivery, runs the SYNCHRONOUS pre-send certification gate, builds the send
+ * job(s) and ENQUEUES them (a worker performs the actual SES send); it NEVER
+ * blocks on the send, returning a 202 ACCEPTED receipt (R3.5).
+ *
+ * The body is empty — the delivery to run is the set's STORED `delivery` block
+ * (recipients + optional CSV attachment), not an ad-hoc body (that is the
+ * separate `POST /members/mail/send` route). The gate is `members:export` + the
+ * existing scope (server-authoritative).
+ *
+ * Error contract (surfaced by the caller via `applyApiError`, API standard v1.0):
+ *   - 422 `errors.analyticsset.delivery.notConfigured` — the set has no stored
+ *     delivery to run (R3.4: a clear error, never a silent no-op);
+ *   - 422 `errors.mail.notCertified` (with a typed `reason`) — the tenant's mail
+ *     sender is not certified/enabled, refused BEFORE enqueue, no substitute
+ *     sender (R4.2/R5.2) — the caller shows the clear bilingual "contact your
+ *     administrator" message + action.
+ *
+ * @returns The accepted/queued receipt (run id, mode, enqueued count, skipped,
+ *   job ids) the UI surfaces as a "queued, N recipients" acknowledgment (R3.5).
+ */
+export async function deliverAnalyticsSet(id: string): Promise<DeliveryRunResult> {
+  // No request body: the deliver route runs the set's STORED delivery block.
+  const payload = await postJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}/deliver`
+  );
+  return mapDeliveryRunResult(payload);
+}
+
+/** Shared mapper: the snake_case 202 receipt → the camelCase {@link DeliveryRunResult}. */
+function mapDeliveryRunResult(payload: unknown): DeliveryRunResult {
+  const raw = unwrapData<RawDeliveryRunResult>(payload) ?? {};
+  return {
+    runId: raw.run_id ?? '',
+    mode: raw.mode ?? 'to_fixed',
+    enqueued: typeof raw.enqueued === 'number' ? raw.enqueued : 0,
+    skippedNoAddress:
+      typeof raw.skipped_no_address === 'number' ? raw.skipped_no_address : 0,
+    jobIds: Array.isArray(raw.job_ids) ? raw.job_ids : [],
+  };
+}
+
+/**
+ * The AD-HOC compose body for `POST /members/mail/send` (mail-spec R1/R2, design "two thin
+ * routes, ONE shared send service"). The camelCase mirror of the SAM `AdHocMailBody`
+ * (`sam/members/domain/execute_and_deliver.py`): the stateless interactive send carries the
+ * compose's OWN inputs — the current result rows + the typed recipients / template / attachment —
+ * rather than a saved set + stored delivery block.
+ *
+ * Field-by-field (what the route reads off the JSON body):
+ *   - `mode`         — `per_recipient` (mail each result row individually, address resolved from
+ *                      the row) or `to_fixed` (one message to the fixed `recipients` list).
+ *   - `result_rows`  — the CURRENT result rows the compose is sending (already pivoted
+ *                      client-side). Required for `per_recipient` (the per-member address resolves
+ *                      from each row); for `to_fixed` the rows are the attachment source.
+ *   - `recipients`   — the typed fixed recipient list (e.g. a handling agent). `to_fixed` ONLY;
+ *                      ignored for `per_recipient` (whose addresses come from the rows).
+ *   - `template_id`  — the selected stored template to render (merge body per recipient /
+ *                      covering mail body), or omitted when the compose carries none.
+ *   - `attachment`   — the `to_fixed` attachment kind (`csv` / `pdf_labels`) or omitted. The
+ *                      WORKER builds the attachment bytes from `result_rows` on the SAM plane —
+ *                      the frontend never ships base64 blobs (steering 35: the frontend only
+ *                      triggers + displays, never produces/sends the mail payload itself).
+ *   - `label_options`— the `pdf_labels` options block (snake_case stored shape), when the
+ *                      attachment is labels; omitted otherwise.
+ *   - `recipient_field` — an optional dotted path overriding the per-recipient address column
+ *                      (defaults server-side to `personal.email`).
+ *
+ * `tenant_id` + Reply-To are derived SERVER-SIDE from the verified JWT (verify-before-trust,
+ * R4.3/Property 3) — they are NEVER sent on this body.
+ */
+export interface AdHocMailBody {
+  mode: MemberDeliveryMode;
+  result_rows?: Array<Record<string, unknown>>;
+  recipients?: string[];
+  template_id?: string | null;
+  attachment?: MemberDeliveryAttachment | null;
+  label_options?: Partial<StoredLabelOptions> | null;
+  recipient_field?: string | null;
+  /**
+   * An optional free-form LABEL folded into the audit + the stable job id
+   * (defaults server-side to `"adhoc"`). NOT a saved-set key — an ad-hoc send has
+   * no set; this is only an audit tag (R8.1).
+   */
+  set_id?: string;
+}
+
+/**
+ * POST /members/mail/send — send an AD-HOC interactive compose NOW (mail-spec R1/R2). This is
+ * the core plane-correction of task 2.3: the interactive pivot "Mail" compose now flows on the
+ * SAM plane (`React → API Gateway → Members Lambda → SQS → worker → SES`) with per-tenant sender
+ * resolution, REPLACING the old Flask `POST /api/members/mail-set` route that sent from the wrong
+ * (`jabaki.nl`) sender (R1.1/R1.2 — Members mail must not touch Flask).
+ *
+ * Like {@link deliverAnalyticsSet} this is a THIN enqueue: the route runs the SYNCHRONOUS
+ * pre-send certification gate, builds the send job(s) and ENQUEUES them (a worker performs the
+ * actual SES send); it NEVER blocks on the send, returning a 202 ACCEPTED receipt
+ * (`DeliveryRunResult`) the UI surfaces as a "queued, N recipients" acknowledgment.
+ *
+ * Error contract (surfaced by the caller via `applyApiError`, API standard v1.0):
+ *   - 422 `errors.mail.notCertified` — the tenant's mail sender is not certified/enabled, refused
+ *     BEFORE enqueue, no substitute sender (R4.2/R5.2);
+ *   - 422 (invalid body) — a malformed compose body (e.g. a `per_recipient` send carrying no
+ *     result rows) is rejected at the edge.
+ *
+ * @param body - the ad-hoc compose body (see {@link AdHocMailBody}).
+ * @returns the accepted/queued receipt (run id, mode, enqueued count, skipped, job ids).
+ */
+export async function sendAdHocMail(body: AdHocMailBody): Promise<DeliveryRunResult> {
+  const payload = await postJson<unknown>('/members/mail/send', body);
+  return mapDeliveryRunResult(payload);
+}
+
+// ============================================================================
+// Send-run status / history (R9, mail-spec task 3.2/3.3)
+//
+// The pull-model status surface: READ the send-run records the enqueue + worker
+// write (R9.1/R9.6) and render them on a screen. Two routes, role-scoped
+// SERVER-SIDE (R9.3 — a plain user sees only their OWN runs, a Tenant_Admin sees
+// ALL the tenant's); the frontend never decides scope, it only displays what the
+// edge returns:
+//   - GET /members/mail-runs           → the tenant's run tallies, newest first
+//   - GET /members/mail-runs/{run_id}  → one run's tally + its FAILURE drill-down
+//
+// Both are enveloped `{ data: ... }`; the edge already strips the DynamoDB
+// plumbing keys (tenant_id / sk / ttl) and encodes Decimal counts as ints, so
+// these mappers only translate snake_case → camelCase. HONESTY OF STATUS (R9.4):
+// `sent` is "SES ACCEPTED", never "delivered" — the labelling lives in the
+// screen, not here.
+// ============================================================================
+
+/** The raw backend `mailrun#` tally (snake_case, plumbing keys already stripped). */
+interface RawMailRun {
+  run_id?: string;
+  mode?: MemberDeliveryMode;
+  triggered_by?: string | null;
+  recipient_count?: number;
+  status?: MailRunStatus;
+  sent?: number;
+  failed?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** The raw backend `mailrecipient#` FAILURE sub-record (snake_case). */
+interface RawMailRunFailure {
+  address?: string;
+  status?: MailFailureStatus;
+  reason?: string | null;
+  message_id?: string | null;
+}
+
+/** The raw backend single-run read: one tally + its FAILURE drill-down. */
+interface RawMailRunDetail {
+  run?: RawMailRun;
+  failures?: RawMailRunFailure[];
+}
+
+/** Coerce a value to a non-negative integer count (defensive; absent/NaN → 0). */
+function toCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** Map a raw backend run tally to the camelCase {@link MailRunSummary}. */
+function mapMailRun(raw: RawMailRun): MailRunSummary {
+  return {
+    runId: raw.run_id ?? '',
+    mode: raw.mode ?? 'per_recipient',
+    triggeredBy:
+      typeof raw.triggered_by === 'string' && raw.triggered_by
+        ? raw.triggered_by
+        : null,
+    recipientCount: toCount(raw.recipient_count),
+    status: raw.status ?? 'queued',
+    sent: toCount(raw.sent),
+    failed: toCount(raw.failed),
+    createdAt: typeof raw.created_at === 'string' ? raw.created_at : '',
+    updatedAt: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+  };
+}
+
+/** Map a raw backend FAILURE sub-record to the camelCase {@link MailRunFailure}. */
+function mapMailRunFailure(raw: RawMailRunFailure): MailRunFailure {
+  return {
+    address: typeof raw.address === 'string' ? raw.address : '',
+    status: raw.status ?? 'failed',
+    reason: typeof raw.reason === 'string' && raw.reason ? raw.reason : null,
+    messageId:
+      typeof raw.message_id === 'string' && raw.message_id
+        ? raw.message_id
+        : null,
+  };
+}
+
+/**
+ * GET /members/mail-runs — list the tenant's send-run tallies, newest first
+ * (mail-spec R9.2). The list feeds the status/history screen's run list; each
+ * row carries the aggregated outcome ("198 sent, 2 failed", R9.2) and is
+ * expandable into its FAILURE drill-down via {@link getMailRun}.
+ *
+ * ROLE-SCOPED SERVER-SIDE (R9.3): a plain user receives only the runs THEY
+ * triggered; a Tenant_Admin receives ALL the tenant's runs. The frontend never
+ * filters by owner — it renders exactly what the edge returns. Unwraps the
+ * `{ data: [...] }` envelope and maps each entry to {@link MailRunSummary}.
+ */
+export async function listMailRuns(): Promise<MailRunSummary[]> {
+  const payload = await getJson<unknown>('/members/mail-runs');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? (rows as RawMailRun[]) : [];
+  return list.map(mapMailRun);
+}
+
+/**
+ * GET /members/mail-runs/{runId} — one run's tally + its FAILURE drill-down
+ * (mail-spec R9.2). Backs the status screen's per-run expand: the aggregated
+ * tally plus the per-recipient FAILURES (only failures are stored — a success is
+ * counted in the tally, never listed, per the design's failure-only sub-records).
+ *
+ * ROLE-SCOPED SERVER-SIDE (R9.3): a plain user may drill ONLY into a run they
+ * triggered — a run owned by another user (or an absent run) comes back 404,
+ * surfaced to the caller via `handleResponse` → {@link ApiError}; a Tenant_Admin
+ * may drill into any tenant run. Unwraps the `{ data: { run, failures } }`
+ * envelope and maps both halves to camelCase.
+ */
+export async function getMailRun(runId: string): Promise<MailRunDetail> {
+  const payload = await getJson<unknown>(
+    `/members/mail-runs/${encodeURIComponent(runId)}`
+  );
+  const raw = unwrapData<RawMailRunDetail>(payload) ?? {};
+  return {
+    run: mapMailRun(raw.run ?? {}),
+    failures: Array.isArray(raw.failures)
+      ? raw.failures.map(mapMailRunFailure)
+      : [],
+  };
+}
+
+/**
+ * DELETE /members/mail-runs/{runId} — manually delete one send-run status record
+ * (mail-spec task 3.3, R9.6 retention). Removes the run tally AND all its FAILURE
+ * sub-records in one tenant-pinned op; the status/history screen offers this as a
+ * destructive action (behind an explicit confirm, steering 32) to purge a run
+ * before its 90-day TTL fires.
+ *
+ * ROLE-SCOPED SERVER-SIDE (R9.3): a plain user may delete ONLY a run they
+ * triggered — a run owned by another user (or an absent run) comes back 404,
+ * surfaced to the caller via `handleResponse` → {@link ApiError} (deliberately
+ * indistinguishable so a scoped caller cannot probe for another user's runs); a
+ * Tenant_Admin may delete any tenant run.
+ */
+export async function deleteMailRun(runId: string): Promise<void> {
+  await deleteJson<unknown>(`/members/mail-runs/${encodeURIComponent(runId)}`);
 }
 
 // ============================================================================

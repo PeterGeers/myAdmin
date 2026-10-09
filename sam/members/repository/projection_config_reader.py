@@ -546,6 +546,100 @@ class MembersProjectionReader:
             return False
         return row.get("mail_enabled") is True
 
+    # ── Per-tenant sender resolution fields (mail spec Task 0.3, R4/R5) ────────────────
+    #
+    # The same ``config#mail`` row that carries ``mail_enabled`` (task 0.2 extends
+    # ``build_config_mail_row`` to project these alongside it). The pre-send certification
+    # resolver (task 1.1) consumes these to compose From = ``<mail_local_part|noreply>@<mail_domain>``
+    # and to read the certified gate. Each accessor reads from the SAME projected partition
+    # as ``is_mail_enabled`` (one Query per tenant via the shared partition cache). Defaults
+    # mirror the design Data Models: ``mail_local_part`` → ``"noreply"`` when absent;
+    # ``mail_certified`` → ``False`` (fail-closed) when absent/malformed; ``mail_domain`` has
+    # no safe default (it is authored at onboarding) → ``None`` when absent, which the
+    # resolver treats as not-usable (no From can be composed).
+
+    #: The default From local-part when a tenant has not authored ``mail_local_part``.
+    _DEFAULT_MAIL_LOCAL_PART = "noreply"
+
+    def get_mail_domain(self, tenant_id: str) -> str | None:
+        """Return the tenant's projected ``mail_domain`` from ``config#mail`` (R4).
+
+        The tenant's own mail domain (e.g. ``h-dcn.nl``), authored at onboarding and
+        projected into the ``config#mail`` row. The pre-send resolver (task 1.1) uses it as
+        the host of the composed From (``<local_part>@<domain>``).
+
+        There is NO safe default for a domain — a wrong/guessed host would send from a
+        foreign domain (the ``jabaki.nl`` regression, R4.2). So an **absent** ``config#mail``
+        row, a missing attribute, or a non-string/empty value all resolve to ``None`` (not a
+        placeholder); the resolver then refuses the send (fail-closed, no From composable).
+        Never raises on missing/empty data (empty-is-valid, same discipline as the sibling
+        config readers).
+
+        Args:
+            tenant_id: The tenant (partition key) whose mail domain to resolve.
+
+        Returns:
+            The projected ``mail_domain`` string, or ``None`` when absent/unusable.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return None
+        domain = row.get("mail_domain")
+        if not isinstance(domain, str) or not domain:
+            return None
+        return domain
+
+    def get_mail_local_part(self, tenant_id: str) -> str:
+        """Return the tenant's projected ``mail_local_part`` from ``config#mail`` (R4).
+
+        The From local-part (e.g. ``info``, ``onderhoud``) the tenant optionally authored at
+        onboarding. **Default** ``"noreply"`` when the ``config#mail`` row is absent, the
+        attribute is missing, or the value is a non-string/empty (design Data Models: the
+        local-part is optional with a generic default, unlike the domain). The resolver
+        composes From = ``<local_part>@<domain>``.
+
+        Never raises on missing/empty data (empty-is-valid).
+
+        Args:
+            tenant_id: The tenant (partition key) whose From local-part to resolve.
+
+        Returns:
+            The projected ``mail_local_part`` string, or ``"noreply"`` when absent.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return self._DEFAULT_MAIL_LOCAL_PART
+        local_part = row.get("mail_local_part")
+        if not isinstance(local_part, str) or not local_part:
+            return self._DEFAULT_MAIL_LOCAL_PART
+        return local_part
+
+    def is_mail_certified(self, tenant_id: str) -> bool:
+        """Return the tenant's projected ``mail_certified`` gate from ``config#mail`` (R5).
+
+        The onboarding-recorded SES-verified flag (design "Option B"): the pre-send
+        certification check reads THIS projected boolean rather than making a live SES call
+        on the send path. (Option A — a live ``GetEmailIdentity`` at pre-send — is the noted
+        future alternative; see the resolver docstring, task 1.1.)
+
+        **Fail-closed** (R5.2/Property 4), identical discipline to ``is_mail_enabled``: a
+        **missing** ``config#mail`` row, a missing ``mail_certified`` attribute, or any
+        non-boolean-``True`` value (``"true"``, ``1``, ``"yes"``, …) all resolve to
+        ``False``. The gate opens only on an explicit projected ``True`` — the absence of the
+        projection never permits sending. Never raises on missing/empty data.
+
+        Args:
+            tenant_id: The tenant (partition key) whose certified gate to resolve.
+
+        Returns:
+            ``True`` iff the tenant's projected ``config#mail`` row carries
+            ``mail_certified`` == ``True``; ``False`` otherwise (fail-closed).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return False
+        return row.get("mail_certified") is True
+
     # ── Scope grants (consumed by the edge, task 8.3) ──────────────────────────────────
 
     def get_scope_grants(self, tenant_id: str, email: str) -> dict[str, list[str]]:

@@ -60,14 +60,31 @@ The platform (myAdmin, evolved in place) spans two AWS accounts plus Railway.
   move. Keep distinct data buckets separate; never cross them.
 - Critical env vars must fail fast (throw on missing) — no dangerous fallbacks.
 - DynamoDB tables use PAY_PER_REQUEST (on-demand) billing.
-- **SAM-module-plane DynamoDB table naming:** module-plane tables use a `sam-` name
-  prefix (e.g. `sam-members`) with the environment as a **suffix** (`sam-members-test`).
-  The `sam-` prefix stays at the *front* so module-plane IAM can scope to
-  `arn:aws:dynamodb:*:*:table/sam-*` (defense in depth over the `tenant_id` LeadingKeys) —
-  never put an env token in front of `sam-` (it would break the `sam-*` match). Names are
-  resolved from a per-module env var (fail-fast), never hardcoded. Legacy per-app tables
-  (`Members`, `Events`, `Carts`, `Counters`, `Payments`, `Memberships`, `Orders`,
+- **SAM-module-plane DynamoDB table naming:** module-plane tables carry a `sam-` name
+  (e.g. `sam-members`) chosen to NOT collide with the pre-existing single-tenant per-app
+  tables/stacks in the same account (notably `Members` / the h-dcn app). **PRODUCTION
+  tables are unprefixed (`sam-members`, `governance_projection`); the non-prod environment
+  uses a `test_` PREFIX (`test_sam-members`, `test_governance_projection`).** This matches
+  `35-sam-module-architecture-sam.md` rule 6 and the deployed `sam/members/samconfig.toml`.
+  Names are resolved from a per-module env var (fail-fast), never hardcoded. Legacy per-app
+  tables (`Members`, `Events`, `Carts`, `Counters`, `Payments`, `Memberships`, `Orders`,
   `Producten`, `StockMovements`, …) keep their existing names untouched.
+  - **Isolation boundary = per-stack exact-ARN IAM + distinct stack names, NOT a name
+    wildcard.** Each stack's execution role is scoped to the EXACT table ARN(s) its
+    parameters resolve to (`table/${MembersTableName}` → `table/sam-members` for prod,
+    `table/test_sam-members` for test — see `sam/members/template.yaml`), so a TEST stack
+    can only reach `test_*` tables and a PROD stack only the unprefixed ones. Distinct
+    CloudFormation stack names (`sam-members` vs. the h-dcn `h-dcn` stack; the TEST CFN
+    stack is `test-sam-members` with a hyphen since CFN forbids underscores, while the
+    TABLE stays `test_sam-members`) keep the stacks independent. This exact-ARN scoping is
+    STRONGER than a wildcard and is the defense-in-depth layer over `tenant_id`
+    `LeadingKeys`.
+  - **⚠️ Historical note (do not restore):** an earlier version of this guardrail required
+    the environment as a `-test` **suffix** so IAM could match `arn:…:table/sam-*`. That
+    `sam-*` WILDCARD policy was **never deployed** — the live IAM pins the exact resolved
+    table ARN per stack (above), and both the deployed tables and steering 35 use the
+    `test_` prefix. The suffix/wildcard rationale was stale and is retired here; do not
+    reintroduce it or rename the live `test_`-prefixed tables to chase it.
 - Pool deletion is high-risk and irreversible — run manually, never from automation,
   and only after confirming no dependency.
 - **`cognito-idp update-user-pool` REPLACES the WHOLE pool config — never call it with a

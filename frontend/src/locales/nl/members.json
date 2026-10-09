@@ -201,7 +201,12 @@
       "saved": "Bezorging opgeslagen",
       "cleared": "Bezorging gewist",
       "saveError": "Opslaan van de bezorging mislukt",
-      "clearError": "Wissen van de bezorging mislukt"
+      "clearError": "Wissen van de bezorging mislukt",
+      "deliverNow": "Nu versturen",
+      "deliverNowHint": "Verstuur het resultaat van deze set nu naar de vaste adreslijst.",
+      "deliverNowNeedsFixed": "Nu versturen is beschikbaar voor een set die naar een vaste adreslijst stuurt. Stel eerst een bezorging naar een vaste adreslijst in.",
+      "deliverNowQueued": "Bezorging in de wachtrij — {{count}} verzending(en) onderweg.",
+      "deliverNowError": "Kon de bezorging niet starten."
     },
     "schedule": {
       "action": "Inplannen",
@@ -270,6 +275,7 @@
       "cancel": "Annuleren",
       "toast": {
         "success": "E-mail verstuurd",
+        "queued": "In wachtrij — {{count}} bericht(en) worden verzonden",
         "error": "Versturen van e-mail mislukt",
         "rateLimited": "Verzendlimiet bereikt. Probeer het later opnieuw."
       },
@@ -311,6 +317,52 @@
         "uploadError": "Lezen van het bestand mislukt",
         "improved": "Sjabloon verbeterd",
         "improveError": "Kon het sjabloon niet verbeteren; uw tekst is behouden"
+      }
+    },
+    "mailRuns": {
+      "action": "Verzendstatus",
+      "title": "Verzendstatus & geschiedenis",
+      "intro": "Wat er met elke achtergrondverzending is gebeurd — in wachtrij, verzonden of mislukt. Open een verzending om te zien welke ontvangers zijn mislukt.",
+      "refresh": "Vernieuwen",
+      "loading": "Verzendgeschiedenis laden…",
+      "loadError": "Laden van de verzendgeschiedenis mislukt",
+      "empty": "Nog geen verzendingen",
+      "tally": "{{sent}} verzonden, {{failed}} mislukt",
+      "recipientCount": "{{count}} ontvangers",
+      "status": {
+        "queued": "In wachtrij",
+        "sending": "Bezig met verzenden",
+        "completed": "Voltooid"
+      },
+      "mode": {
+        "per_recipient": "Per lid",
+        "to_fixed": "Vaste adreslijst"
+      },
+      "sentMeaning": "\"Verzonden\" betekent geaccepteerd door SES — niet bevestigd afgeleverd in de inbox.",
+      "viewFailures": "Mislukkingen tonen",
+      "hideFailures": "Mislukkingen verbergen",
+      "noFailures": "Geen mislukkingen voor deze verzending",
+      "failuresTitle": "Mislukte ontvangers",
+      "failureStatus": {
+        "failed": "Mislukt",
+        "bounced": "Teruggestuurd",
+        "complaint": "Klacht"
+      },
+      "failure": {
+        "address": "Ontvanger",
+        "status": "Uitkomst",
+        "reason": "Reden",
+        "noReason": "Geen reden vastgelegd"
+      },
+      "loadRunError": "Laden van de details van deze verzending mislukt",
+      "delete": {
+        "action": "Verwijderen",
+        "confirmTitle": "Dit verzendrecord verwijderen?",
+        "confirmBody": "Dit verwijdert de verzending en de mislukkingsdetails definitief. Dit kan niet ongedaan worden gemaakt.",
+        "confirmCancel": "Annuleren",
+        "confirmConfirm": "Verwijderen",
+        "deleted": "Verzendrecord verwijderd",
+        "deleteError": "Verwijderen van het verzendrecord mislukt"
       }
     },
     "states": {
