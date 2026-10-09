@@ -83,6 +83,10 @@ import {
   HStack,
   IconButton,
   Input,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -119,6 +123,8 @@ import {
   createSchedule,
   updateSchedule,
   deleteSchedule,
+  sendAdHocMail,
+  type AdHocMailBody,
 } from '../../../services/membersApiService';
 import { applyApiError } from '../../../shared/api/applyApiError';
 import type { MemberAnalyticsAreaProps } from './areas/types';
@@ -1189,6 +1195,68 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     });
   }, [result, selectedSet, exportRows]);
 
+  // --- "Send CSV by email" (Export-CSV menu, pivot-output-actions C5) --------
+  // The Export action is a MENU: "Save locally" (handleExportCsv above) OR "Send CSV by email"
+  // — the latter mails the current result as a CSV attachment to one or more fixed addresses via
+  // the SAME proven SAM `to_fixed` + `attachment:'csv'` path the compose uses (the worker builds
+  // the CSV bytes on-plane; the frontend ships only the kind + rows). A small dialog collects the
+  // address(es) and confirms before sending (R8.4).
+  const [isCsvMailOpen, setIsCsvMailOpen] = useState(false);
+  const [csvMailTo, setCsvMailTo] = useState('');
+  const [csvMailSending, setCsvMailSending] = useState(false);
+  const csvMailCancelRef = useRef<HTMLButtonElement>(null);
+
+  const csvMailRecipients = useMemo(
+    () =>
+      csvMailTo
+        .split(/[\s,;]+/)
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0),
+    [csvMailTo],
+  );
+  const csvMailValid =
+    csvMailRecipients.length > 0 &&
+    csvMailRecipients.every((a) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a));
+
+  const handleOpenCsvMail = useCallback(() => {
+    setCsvMailTo('');
+    setIsCsvMailOpen(true);
+  }, []);
+
+  const handleSendCsvMail = useCallback(async () => {
+    if (!csvMailValid || csvMailSending) {
+      return;
+    }
+    setCsvMailSending(true);
+    try {
+      const body: AdHocMailBody = {
+        mode: 'to_fixed',
+        result_rows: exportRows as Array<Record<string, unknown>>,
+        recipients: csvMailRecipients,
+        template_id: null,
+        attachment: 'csv',
+        ...(selectedSet?.optionValue ? { set_id: selectedSet.optionValue } : {}),
+      };
+      const res = await sendAdHocMail(body);
+      toast({
+        title: t('analytics.export.csvMail.queued', { count: res.enqueued }),
+        status: 'success',
+      });
+      // Audit the output (C7 / R8.1): metadata only, mirroring the download path.
+      void recordAnalyticsOutput({
+        outputKind: 'csv_export',
+        setKey: selectedSet?.optionValue,
+        recordCount: exportRows.length,
+        filterSummary: { columns: result?.columns.length ?? 0, delivery: 'email' },
+      });
+      setIsCsvMailOpen(false);
+    } catch (err) {
+      applyApiError(err, { toast, t });
+    } finally {
+      setCsvMailSending(false);
+    }
+  }, [csvMailValid, csvMailSending, exportRows, csvMailRecipients, selectedSet, result, toast, t]);
+
   // Whether the tenant has a resolvable address mapping — gates the mail
   // compose's "attach PDF labels" toggle (R4.10). Memoized on the field config.
   const hasAddressMapping = useMemo(
@@ -1537,14 +1605,34 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
                 data-testid="pivot-result-actions"
                 aria-label={t('analytics.export.csv')}
               >
-                <Button
-                  variant="outline"
-                  colorScheme="orange"
-                  onClick={handleExportCsv}
-                  data-testid="member-pivot-export-csv"
-                >
-                  {t('analytics.export.csv')}
-                </Button>
+                <Menu>
+                  <MenuButton
+                    as={Button}
+                    variant="outline"
+                    colorScheme="orange"
+                    data-testid="member-pivot-export-csv"
+                  >
+                    {t('analytics.export.csv')}
+                  </MenuButton>
+                  <MenuList bg="gray.800" borderColor="gray.600">
+                    <MenuItem
+                      bg="gray.800"
+                      _hover={{ bg: 'gray.700' }}
+                      onClick={handleExportCsv}
+                      data-testid="member-pivot-export-csv-download"
+                    >
+                      {t('analytics.export.csvDownload')}
+                    </MenuItem>
+                    <MenuItem
+                      bg="gray.800"
+                      _hover={{ bg: 'gray.700' }}
+                      onClick={handleOpenCsvMail}
+                      data-testid="member-pivot-export-csv-email"
+                    >
+                      {t('analytics.export.csvEmail')}
+                    </MenuItem>
+                  </MenuList>
+                </Menu>
                 {/* Mail (R1 / pivot-output-actions task 1.3) — OFFERED only when the
                     tenant is mail-enabled (the R0 `config#mail` gate surfaced as
                     `fieldConfig.mail_enabled`). When enabled, the compose action /
@@ -1951,6 +2039,60 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
                 data-testid="member-pivot-delete-confirm"
               >
                 {t('analytics.pivotViews.lifecycle.confirmDeleteConfirm')}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Send CSV by email (Export-CSV menu, C5): collect fixed address(es) + confirm, then
+          mail the current result as a CSV attachment via the SAM to_fixed path. */}
+      <AlertDialog
+        isOpen={isCsvMailOpen}
+        leastDestructiveRef={csvMailCancelRef}
+        onClose={() => !csvMailSending && setIsCsvMailOpen(false)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.800" color="white" data-testid="member-pivot-csv-mail-dialog">
+            <AlertDialogHeader>{t('analytics.export.csvMail.title')}</AlertDialogHeader>
+            <AlertDialogBody>
+              <Text fontSize="sm" color="gray.300" mb={3}>
+                {t('analytics.export.csvMail.summary', { count: exportRows.length })}
+              </Text>
+              <FormControl isInvalid={csvMailTo.trim() !== '' && !csvMailValid}>
+                <FormLabel htmlFor="member-pivot-csv-mail-to">
+                  {t('analytics.export.csvMail.toLabel')}
+                </FormLabel>
+                <Input
+                  id="member-pivot-csv-mail-to"
+                  data-testid="member-pivot-csv-mail-to"
+                  value={csvMailTo}
+                  onChange={(e) => setCsvMailTo(e.target.value)}
+                  placeholder={t('analytics.export.csvMail.toPlaceholder')}
+                  bg="gray.900"
+                />
+              </FormControl>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={csvMailCancelRef}
+                variant="ghost"
+                onClick={() => setIsCsvMailOpen(false)}
+                isDisabled={csvMailSending}
+                data-testid="member-pivot-csv-mail-cancel"
+              >
+                {t('analytics.pivotViews.lifecycle.confirmDeleteCancel')}
+              </Button>
+              <Button
+                colorScheme="orange"
+                ml={3}
+                onClick={handleSendCsvMail}
+                isDisabled={!csvMailValid}
+                isLoading={csvMailSending}
+                data-testid="member-pivot-csv-mail-send"
+              >
+                {t('analytics.export.csvMail.send')}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
