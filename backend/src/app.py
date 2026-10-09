@@ -52,7 +52,6 @@ from routes.invoice_routes import invoice_bp
 from routes.landing_page_routes import landing_page_bp
 from routes.media_asset_routes import media_asset_bp
 from routes.members_analytics_audit import members_analytics_audit_bp
-from routes.members_mail import members_mail_bp
 from routes.members_sender_identity_routes import members_sender_identity_bp
 from routes.missing_invoices_routes import missing_invoices_bp
 from routes.parameter_admin_routes import parameter_admin_bp
@@ -174,7 +173,11 @@ app.register_blueprint(tenant_admin_templates_bp)
 app.register_blueprint(tenant_admin_template_ai_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
-app.register_blueprint(members_mail_bp)  # Member analytics SES mail (members:export)
+# NOTE: the Flask `members_mail_bp` (`POST /api/members/mail-set`) was RETIRED
+# (mail-spec task 4.1, R1): Members mail is a SAM module and sends on the SAM
+# plane (steering 35 rule 5a) via `POST /members/mail/send` → SQS → worker → SES.
+# The shared `SESEmailService` it used remains for the other Flask mail features
+# (tenant-admin email, ZZP invoice mail).
 app.register_blueprint(
     members_sender_identity_bp
 )  # Members tenant sender identity verify/activate (members:admin, R0 §6.2)

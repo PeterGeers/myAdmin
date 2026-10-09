@@ -159,6 +159,111 @@ export interface MemberDelivery {
 }
 
 /**
+ * The accepted/queued receipt the deliver route returns (mail-spec R3.2/R3.5),
+ * the camelCase mirror of the SAM `/deliver` 202 body
+ * (`{ run_id, mode, enqueued, skipped_no_address, job_ids }`). A deliver NEVER
+ * blocks on the SES send — the route resolves the set's stored delivery, runs
+ * the synchronous pre-send certification gate, builds the send job(s), and
+ * ENQUEUES them; a worker performs the actual send. This receipt lets the UI
+ * surface a clear "queued, N recipients" acknowledgment (R3.5) without waiting.
+ */
+export interface DeliveryRunResult {
+  /** The logical run id (audit attribution + status drill-down, R9). */
+  runId: string;
+  /** The delivery mode that ran (`per_recipient` fan-out or one `to_fixed` message). */
+  mode: MemberDeliveryMode;
+  /** How many send jobs went on the queue (one per `to_fixed`; one per member otherwise). */
+  enqueued: number;
+  /** `per_recipient` rows skipped for want of a resolvable address (0 for `to_fixed`). */
+  skippedNoAddress: number;
+  /** The stable job ids enqueued (idempotency / observability). */
+  jobIds: string[];
+}
+
+/**
+ * The lifecycle status of a send-run (R9.1), the camelCase mirror of the SAM
+ * `mailrun#` record's `status`: written `queued` at enqueue, advanced to
+ * `sending` then `completed` by the worker as it drains the run's jobs.
+ */
+export type MailRunStatus = 'queued' | 'sending' | 'completed';
+
+/**
+ * The status of a single FAILURE sub-record (R9.5), the camelCase mirror of the
+ * SAM `mailrecipient#` record's `status`: a send-time `failed`, or a late async
+ * `bounced` / `complaint` (R8.4, the layered SES-feedback statuses). A success is
+ * NEVER stored per-recipient — it is only counted in the run tally.
+ */
+export type MailFailureStatus = 'failed' | 'bounced' | 'complaint';
+
+/**
+ * One send-run TALLY as surfaced by `GET /members/mail-runs` (mail-spec R9.1/R9.2),
+ * the camelCase mirror of the SAM `mailrun#` record after the edge strips the
+ * DynamoDB plumbing keys (`tenant_id` / `sk` / `ttl`). This is the aggregated
+ * outcome the status/history list renders — "Newsletter — 198 sent, 2 failed"
+ * (R9.2) — one row per run, newest first (ordered server-side).
+ *
+ * HONESTY OF STATUS (R9.4): `sent` means "SES ACCEPTED the message (a MessageId
+ * was returned)", which is NOT the same as "delivered to the inbox". The screen
+ * MUST NOT claim "delivered" on the strength of this count alone — true
+ * delivered/bounced status is the separate, layered SES-feedback concern (R9.5).
+ */
+export interface MailRunSummary {
+  /** The logical run id (the drill-down key for `GET /members/mail-runs/{runId}`). */
+  runId: string;
+  /** Which mode produced the run (`per_recipient` fan-out or one `to_fixed` message). */
+  mode: MemberDeliveryMode;
+  /**
+   * The verified `sub` of the user who triggered the run (R9.1 attribution), or
+   * `null` when the record carries none (e.g. a scheduler-triggered run).
+   */
+  triggeredBy: string | null;
+  /** How many recipients the run targeted (the fan-out size). */
+  recipientCount: number;
+  /** The run's lifecycle status (`queued` → `sending` → `completed`, R9.1). */
+  status: MailRunStatus;
+  /** How many messages SES ACCEPTED — NOT "delivered to the inbox" (R9.4). */
+  sent: number;
+  /** How many recipients failed (send-time reject, no address, or late bounce/complaint). */
+  failed: number;
+  /** ISO-8601 timestamp the run was created (enqueued). */
+  createdAt: string;
+  /** ISO-8601 timestamp of the run's last update (last worker increment). */
+  updatedAt: string;
+}
+
+/**
+ * One per-recipient FAILURE in a run's drill-down (mail-spec R9.2/R9.5), the
+ * camelCase mirror of a SAM `mailrecipient#` sub-record (plumbing keys stripped).
+ * Only FAILURES are stored/returned — a successful recipient is counted in the
+ * run tally, never listed here (design "failure-only sub-records"). Metadata
+ * only: the mailed address + the failure reason, never member PII beyond that.
+ */
+export interface MailRunFailure {
+  /** The recipient address that failed. */
+  address: string;
+  /** The failure kind (`failed` at send, or a late `bounced` / `complaint`, R8.4). */
+  status: MailFailureStatus;
+  /** The captured failure reason (SES error code/message, etc.), or `null` when none. */
+  reason: string | null;
+  /** The SES MessageId when one was assigned before the failure, else `null`. */
+  messageId: string | null;
+}
+
+/**
+ * One run's TALLY plus its FAILURE drill-down, as returned by
+ * `GET /members/mail-runs/{runId}` (mail-spec R9.2) — the camelCase mirror of the
+ * SAM single-run read `{ run: {...tally}, failures: [...] }`. The status screen
+ * expands a run from the list into this detailed view: the same summary fields
+ * plus the per-recipient failure list (empty when the run had no failures).
+ */
+export interface MailRunDetail {
+  /** The run's aggregated tally (the same shape the list row carries). */
+  run: MailRunSummary;
+  /** The run's FAILURE sub-records (empty when every recipient succeeded). */
+  failures: MailRunFailure[];
+}
+
+/**
  * A full member analytics-set as returned by `GET /members/analytics-sets/{id}`
  * (and by create/update). Carries the resolved `PivotConfig` definition (the
  * service converts the backend snake_case `definition` to the camelCase

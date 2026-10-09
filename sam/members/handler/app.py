@@ -64,7 +64,11 @@ from typing import Any, Protocol
 
 from sam.members.domain.analytics_set import AnalyticsSetValidationError
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
-from sam.members.domain.execute_and_deliver import DeliveryNotConfigured
+from sam.members.domain.execute_and_deliver import (
+    AdHocMailInvalid,
+    DeliveryNotConfigured,
+    MailNotCertified,
+)
 from sam.members.domain.field_resolver import TenantOverlay, TenantOverlayProvider
 from sam.members.domain.fixed_fields import (
     MembershipStatus,  # noqa: F401 (surface compat)
@@ -101,9 +105,11 @@ from sam.members.domain.mail_gate import MailGateProvider
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
+    MailRunNotFound,
     RouteNotImplemented,
     dispatch_route,
     get_execute_and_deliver_service,  # noqa: F401 (surface compat: tests reach app.get_execute_and_deliver_service)
+    get_mail_run_status_service,  # noqa: F401 (surface compat: tests reach app.get_mail_run_status_service)
     get_template_service,  # noqa: F401 (surface compat: tests reach app.get_template_service)
 )
 
@@ -377,6 +383,7 @@ _TENANT_HOOKS = _build_tenant_hooks()
 
 __all__ = [
     "AuthorizationError",
+    "MailRunNotFound",
     "RouteNotImplemented",
     "TenantResolutionError",
     "handler",
@@ -1183,6 +1190,12 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         # Absent schedule for the tenant (R5) → 404, consistent with the analytics-set /
         # member / catalog not-found mappings (get/update/delete of an absent schedule_id).
         return _error(404, "Not found", code="errors.api.notFound")
+    except MailRunNotFound:
+        # A send-run (R9.2) that is absent in the tenant, OR exists but was triggered by
+        # ANOTHER user and the caller is not a Tenant_Admin (R9.3) → 404, deliberately
+        # indistinguishable so a scoped caller cannot probe for another user's runs (mirrors
+        # the member-read not-found policy).
+        return _error(404, "Not found", code="errors.api.notFound")
     except AnalyticsSetConflict:
         # Creating an analytics-set whose set_id already exists (F-012) → 409 Conflict. With a
         # server-generated uuid4 this is effectively unreachable; carried for symmetry.
@@ -1206,6 +1219,33 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             422,
             "The analytics set has no delivery block configured",
             code="errors.analyticsset.delivery.notConfigured",
+        )
+    except AdHocMailInvalid as exc:
+        # The ad-hoc send body (POST /members/mail/send, mail-spec task 2.1) is malformed — an
+        # unknown `mode`, a `to_fixed` with no recipients, or a `per_recipient` with no result
+        # rows. There is no entity validate() behind an ad-hoc compose (unlike a saved set), so
+        # the shared send service validates the body SHAPE and raises this; mapped to a 422 so
+        # the SPA can tell "fix the compose" apart from a not-certified refusal (Property 6 —
+        # never a silent enqueue-of-nothing). Carries the service's detail for the message.
+        return _error(
+            422,
+            "The mail compose is invalid",
+            code="errors.mail.adHocInvalid",
+            detail=exc.detail,
+        )
+    except MailNotCertified as exc:
+        # The pre-send certification gate (mail-spec task 1.3, R4.2/R5.2) refused BEFORE enqueue:
+        # the tenant's mail is not enabled / not certified / has no projected domain, so there is
+        # no usable verified From — NOTHING was queued and NO substitute sender was used (the
+        # jabaki.nl regression stays dead; Property 2/4/6). Mapped to a 422 carrying the TYPED
+        # machine reason so the SPA renders the right bilingual message + action (R8.1/R8.6a)
+        # rather than string-sniffing — "your tenant's mail is not certified — contact your
+        # administrator".
+        return _error(
+            422,
+            "The tenant mail sender is not certified",
+            code="errors.mail.notCertified",
+            reason=exc.reason.value,
         )
     except TemplateNotFound:
         # Absent stored mail template for the tenant (R2) → 404, consistent with the member /

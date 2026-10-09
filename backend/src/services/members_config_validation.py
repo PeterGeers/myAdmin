@@ -40,6 +40,7 @@ fail-fast with a descriptive :class:`MembersConfigError` (mirroring ``OverlayErr
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -49,6 +50,9 @@ __all__ = [
     "OVERLAY_GROUP",
     "MembersConfigError",
     "validate_field_overlay",
+    "validate_mail_certified",
+    "validate_mail_domain",
+    "validate_mail_local_part",
     "validate_members_param",
     "validate_view_contexts",
 ]
@@ -333,6 +337,103 @@ def validate_view_contexts(
         raise MembersConfigError(reasons)
 
 
+# ── mail config validation (R4 / §5f — per-tenant From + certification gate) ──────────
+#
+# These three params feed the config#mail projection (design Data Models): the Members send
+# path composes the envelope From as "<mail_local_part|noreply>@<mail_domain>" and reads
+# mail_certified as the fail-closed pre-send gate. We validate the AUTHORED shape here so a
+# malformed domain / local-part never reaches the projection (where it would silently produce
+# a broken sender). All three are OPTIONAL params: an unset/empty value is accepted (the From
+# simply cannot be composed until a domain is authored; mail_local_part defaults to "noreply"
+# in the schema; mail_certified is absent → the pre-send gate fails closed, no send).
+
+#: A bare DNS domain: one or more dot-separated labels, each 1–63 chars of letters/digits/
+#: hyphens (not leading/trailing a hyphen), with a final alphabetic TLD label. No scheme, no
+#: "@", no path, no whitespace — the From is composed from "<local_part>@<domain>".
+_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,63}$"
+)
+
+#: An email local-part token: letters/digits and the common unquoted-local-part punctuation,
+#: no "@" and no whitespace. Kept conservative on purpose (generic addresses like "noreply",
+#: "info", "onderhoud") — not the full RFC 5321 quoted-string grammar.
+_LOCAL_PART_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+$")
+
+
+def _is_blank(value: Any) -> bool:
+    """A None or empty/whitespace-only string counts as 'unset' for an optional mail param."""
+    return value is None or (isinstance(value, str) and value.strip() == "")
+
+
+def validate_mail_domain(value: Any) -> None:
+    """Fail fast if ``members.mail_domain`` is not a bare DNS domain (R4, §5f).
+
+    Accepts an unset/empty value (optional param). Otherwise the value must be a string that
+    is a bare domain (e.g. ``h-dcn.nl``) — no scheme, no ``@``, no path, no whitespace — since
+    the send path composes the From as ``<mail_local_part|noreply>@<mail_domain>`` and never
+    projects a literal address.
+
+    Raises :class:`MembersConfigError` (``{"mail_domain": reason}``) on any violation.
+    """
+    if _is_blank(value):
+        return
+    if not isinstance(value, str):
+        raise MembersConfigError({"mail_domain": "must be a string (a bare domain)"})
+    domain = value.strip()
+    if "@" in domain or "/" in domain or "://" in domain:
+        raise MembersConfigError(
+            {"mail_domain": "must be a bare domain (no '@', scheme or path)"}
+        )
+    if not _DOMAIN_RE.match(domain):
+        raise MembersConfigError(
+            {"mail_domain": f"{value!r} is not a valid domain (e.g. 'h-dcn.nl')"}
+        )
+
+
+def validate_mail_local_part(value: Any) -> None:
+    """Fail fast if ``members.mail_local_part`` is not a single local-part token (R4, §5f).
+
+    Accepts an unset/empty value (optional param — the schema default is ``noreply``).
+    Otherwise the value must be a string with no ``@`` and no whitespace (e.g. ``info``,
+    ``onderhoud``), since it becomes the part before ``@`` in the composed From.
+
+    Raises :class:`MembersConfigError` (``{"mail_local_part": reason}``) on any violation.
+    """
+    if _is_blank(value):
+        return
+    if not isinstance(value, str):
+        raise MembersConfigError({"mail_local_part": "must be a string"})
+    local = value.strip()
+    if "@" in local or any(ch.isspace() for ch in local):
+        raise MembersConfigError(
+            {"mail_local_part": "must be a single local-part token (no '@' or whitespace)"}
+        )
+    if not _LOCAL_PART_RE.match(local):
+        raise MembersConfigError(
+            {"mail_local_part": f"{value!r} is not a valid email local-part"}
+        )
+
+
+def validate_mail_certified(value: Any) -> None:
+    """Fail fast if ``members.mail_certified`` is not a boolean (R4, §5f, Option B).
+
+    Accepts an unset/None value (optional param → the pre-send gate fails closed, no send).
+    Otherwise the value must be a real ``bool`` — the fail-closed pre-send certification gate
+    reads it, so an ambiguous truthy string (``"false"``) must NOT be stored as if it were
+    certified.
+
+    Raises :class:`MembersConfigError` (``{"mail_certified": reason}``) on any violation.
+    """
+    if value is None:
+        return
+    if not isinstance(value, bool):
+        raise MembersConfigError(
+            {"mail_certified": "must be a boolean (true/false)"}
+        )
+
+
 # ── dispatch entry point used by the parameter save path ───────────────────────────────
 
 
@@ -346,9 +447,12 @@ def validate_members_param(
     """Validate one ``members.<key>`` value on save; no-op for keys with no save-time rule.
 
     Dispatches to the per-key validator:
-    - ``field_overlay``  → :func:`validate_field_overlay`
-    - ``view_contexts``  → :func:`validate_view_contexts` (widened by the tenant's sibling
+    - ``field_overlay``    → :func:`validate_field_overlay`
+    - ``view_contexts``    → :func:`validate_view_contexts` (widened by the tenant's sibling
       ``field_overlay`` / ``scope_dimensions`` so the tenant's own added fields resolve)
+    - ``mail_domain``      → :func:`validate_mail_domain`
+    - ``mail_local_part``  → :func:`validate_mail_local_part`
+    - ``mail_certified``   → :func:`validate_mail_certified`
 
     ``scope_dimensions`` has no cross-reference rule of its own here (its internal shape is
     validated by the SAM ``ScopeConfig`` on read); a PUT of it is accepted as-is. Raises
@@ -364,3 +468,9 @@ def validate_members_param(
             field_overlay=sibling_field_overlay,
             scope_dimensions=sibling_scope_dimensions,
         )
+    elif key == "mail_domain":
+        validate_mail_domain(value)
+    elif key == "mail_local_part":
+        validate_mail_local_part(value)
+    elif key == "mail_certified":
+        validate_mail_certified(value)

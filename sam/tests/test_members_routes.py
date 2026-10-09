@@ -53,8 +53,12 @@ def test_route_map_covers_eighteen_behaviours_total():
     # (pivot-output-actions R3 task 3.3 - set + clear) = 40, plus the analytics-set deliver
     # route (pivot-output-actions R4 task 4.2 — run a set's stored delivery now) = 41.
     # ...plus the five schedule CRUD routes (pivot-output-actions R5 task 5.2 — create + list
-    # + get + update + delete) = 46.
-    assert len(ROUTES) == 46
+    # + get + update + delete) = 46, plus the stateless ad-hoc send route
+    # (mail-spec task 2.1 — POST /members/mail/send) = 47, plus the two send-run STATUS read
+    # routes (mail-spec task 3.2 — GET /members/mail-runs list + GET /members/mail-runs/{run_id})
+    # = 49, plus the send-run manual-DELETE route (mail-spec task 3.3, R9.6 retention —
+    # DELETE /members/mail-runs/{run_id}) = 50.
+    assert len(ROUTES) == 50
 
 
 def test_route_map_groups_match_the_design_c1_counts():
@@ -73,8 +77,11 @@ def test_route_map_groups_match_the_design_c1_counts():
     # templates 5 (create+list+get+update+delete, pivot-output-actions R2 task 2.3); the two
     # analytics-set delivery routes (set+clear, pivot-output-actions R3 task 3.3); the
     # analytics-set deliver route (deliver, pivot-output-actions R4 task 4.2); the five
-    # schedule CRUD routes (create+list+get+update+delete, pivot-output-actions R5 task 5.2).
-    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 22
+    # schedule CRUD routes (create+list+get+update+delete, pivot-output-actions R5 task 5.2);
+    # the stateless ad-hoc send route (send_ad_hoc_mail, mail-spec task 2.1); the two send-run
+    # STATUS read routes (list_mail_runs + get_mail_run, mail-spec task 3.2); the send-run
+    # manual-DELETE route (delete_mail_run, mail-spec task 3.3, R9.6 retention).
+    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 26
 
 
 def test_route_map_includes_each_named_behaviour():
@@ -138,6 +145,13 @@ def test_route_map_includes_each_named_behaviour():
         "get_schedule",
         "update_schedule",
         "delete_schedule",
+        # Stateless ad-hoc send (mail-spec task 2.1 — POST /members/mail/send)
+        "send_ad_hoc_mail",
+        # Send-run STATUS reads (mail-spec task 3.2 — GET /members/mail-runs[/{run_id}])
+        "list_mail_runs",
+        "get_mail_run",
+        # Send-run manual DELETE (mail-spec task 3.3, R9.6 — DELETE /members/mail-runs/{run_id})
+        "delete_mail_run",
     }
     assert set(route_names()) == expected
 

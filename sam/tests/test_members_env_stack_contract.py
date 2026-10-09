@@ -373,24 +373,74 @@ def test_worker_consumes_queue_but_never_sends(template):
     assert res.value in ("MailSendQueue.Arn", ["MailSendQueue", "Arn"])
 
 
-def test_worker_ses_send_is_condition_scoped_to_the_sender(template):
-    """The worker's SES grant mirrors the edge: send-only, Condition-scoped to the sender."""
+def _ses_send_statement(statements: list) -> dict:
+    """Return the single SES send statement from a role's statement list."""
     ses_statements = [
-        s
-        for s in _worker_statements(template)
-        if any(a.startswith("ses:") for a in _actions_list(s))
+        s for s in statements if any(a.startswith("ses:") for a in _actions_list(s))
     ]
-    assert len(ses_statements) == 1
-    stmt = ses_statements[0]
+    assert len(ses_statements) == 1, "expected exactly one SES send statement on the role"
+    return ses_statements[0]
+
+
+def _assert_ses_scoped_to_tenant_domain(stmt: dict) -> None:
+    """Assert an SES send statement is scoped to the verified tenant DOMAIN identity + noreply@.
+
+    The per-tenant sender model (mail-spec R4.1/R4.2, task 4.2 — NO `jabaki.nl` substitute):
+    the From is `noreply@<tenant-domain>`, so the grant must be scoped to the verified tenant
+    DOMAIN identity (`identity/<domain>`, which SES authorizes `*@<domain>` against) and the
+    `ses:FromAddress` Condition must pin exactly `noreply@<domain>`. It must NOT be scoped to a
+    single hardcoded address identity (the removed `support@jabaki.nl` assumption), and never a
+    wildcard identity.
+    """
     assert set(_actions_list(stmt)) == {"ses:SendEmail", "ses:SendRawEmail"}
-    assert "ses:SendBulkEmail" not in _actions_list(stmt)
-    # Resource is the exact identity ARN; Condition pins ses:FromAddress to the sender param.
-    res = _worker_resources(stmt)[0]
+    assert "ses:SendBulkEmail" not in _actions_list(stmt)  # least privilege (no bulk)
+    # Resource = the verified tenant DOMAIN-identity ARN (from MailSenderDomain), not an address.
+    resources = stmt["Resource"]
+    if not isinstance(resources, list):
+        resources = [resources]
+    assert len(resources) == 1
+    res = resources[0]
     assert isinstance(res, _CfnTag) and res.tag == "Sub"
-    assert "identity/${SesSenderEmail}" in res.value
+    assert "identity/${MailSenderDomain}" in res.value
+    assert "identity/*" not in res.value, "a wildcard identity would re-open the foreign-sender risk"
+    # Regression guard (R4.2): the old single-address jabaki.nl assumption must be gone.
+    assert "SesSenderEmail" not in res.value
+    assert "jabaki" not in res.value
+    # Condition pins ses:FromAddress to EXACTLY noreply@<domain> (the fixed-generic R4.1 sender).
     from_addr = stmt["Condition"]["StringEquals"]["ses:FromAddress"]
-    assert isinstance(from_addr, _CfnTag) and from_addr.tag == "Ref"
-    assert from_addr.value == "SesSenderEmail"
+    assert isinstance(from_addr, _CfnTag) and from_addr.tag == "Sub"
+    assert from_addr.value == "noreply@${MailSenderDomain}"
+
+
+def test_edge_ses_send_is_scoped_to_the_tenant_domain(template):
+    """The edge (producer) SES grant sends as the per-tenant noreply@<tenant-domain>, not jabaki.nl."""
+    _assert_ses_scoped_to_tenant_domain(_ses_send_statement(_iam_statements(template)))
+
+
+def test_worker_ses_send_is_scoped_to_the_tenant_domain(template):
+    """The worker's SES grant mirrors the edge: send-only, scoped to the verified tenant domain."""
+    _assert_ses_scoped_to_tenant_domain(_ses_send_statement(_worker_statements(template)))
+
+
+def test_no_jabaki_substitute_sender_in_the_stack(template, samconfig):
+    """R4.2 regression guard: no `SesSenderEmail` param / `SES_SENDER_EMAIL` env / jabaki sender.
+
+    The per-tenant model composes `noreply@<tenant-domain>` at send time; the single global
+    sender (and the `support@jabaki.nl` substitute it carried) must be absent from both the
+    template parameters/env and the samconfig overrides.
+    """
+    assert "SesSenderEmail" not in template["Parameters"], "the single-address sender param is removed"
+    assert "MailSenderDomain" in template["Parameters"], "the per-tenant domain param replaces it"
+    # No Lambda injects the dead SES_SENDER_EMAIL env var any more.
+    for fn in ("MembersFunction", "MailWorkerFunction"):
+        env = template["Resources"][fn]["Properties"]["Environment"]["Variables"]
+        assert "SES_SENDER_EMAIL" not in env, f"{fn} must not inject the dead SES_SENDER_EMAIL"
+    # samconfig supplies the verified tenant domain, not a jabaki address.
+    for env_name in ("test", "prod"):
+        overrides = _override_map(samconfig, env_name)
+        assert "SesSenderEmail" not in overrides
+        assert overrides.get("MailSenderDomain", "").strip() != ""
+        assert "jabaki" not in overrides.get("MailSenderDomain", "")
 
 
 def test_worker_event_source_drains_queue_with_bounded_concurrency(template):
@@ -728,3 +778,254 @@ def test_test_and_prod_use_different_pools(samconfig):
     assert test_o["CognitoUserPoolArn"] != prod_o["CognitoUserPoolArn"]
     assert TEST_POOL_ID in test_o["CognitoUserPoolArn"]
     assert PROD_POOL_ID in prod_o["CognitoUserPoolArn"]
+
+
+# -----------------------------------------------------------------------------
+# Task 5.1 (mail spec, R8.4/R9.5) — SES configuration set -> SNS event destination
+# -----------------------------------------------------------------------------
+# POST-SEND outcome detection (R8.4): a message SES accepts can later bounce / be marked a
+# complaint. That outcome is only observable via an SES CONFIGURATION SET whose EVENT
+# DESTINATION publishes bounce/complaint/delivery events to a notification sink. The Members
+# plane OWNS its own config set + SNS topic in nonprofit-deploy (R9.5, rule 5a) — distinct
+# from the Flask `infrastructure/ses.tf` `myadmin-emails` set, which lives in the PERSONAL
+# account. These assertions pin that wiring statically (deploy-free) so the template and the
+# task-5.2 ingestion handler cannot drift:
+#   * the config set the send-path attaches is the SAME set that owns the event destination;
+#   * the event destination forwards exactly bounce/complaint/delivery to the SNS topic;
+#   * the topic policy lets ONLY SES in THIS account publish (confused-deputy guarded);
+#   * the topic ARN is a discoverable Output so task 5.2 can subscribe its handler;
+#   * the config-set / topic names are per-env (members-emails[-test] / feedback[-test]).
+
+
+def test_ses_configuration_set_name_is_the_attached_set(template):
+    """The owned config set's Name == !Ref SesConfigurationSet (the value the sender attaches).
+
+    "The set the sender attaches" (SES_CONFIGURATION_SET env var on both Lambdas) and "the set
+    that owns the SNS event destination" MUST be the same set, or feedback silently never flows.
+    """
+    cfg = template["Resources"]["MembersSesConfigurationSet"]
+    assert cfg["Type"] == "AWS::SES::ConfigurationSet"
+    name = cfg["Properties"]["Name"]
+    assert isinstance(name, _CfnTag) and name.tag == "Ref"
+    assert name.value == "SesConfigurationSet"
+    # Both Lambdas inject that SAME param as SES_CONFIGURATION_SET (sender attaches == owner).
+    for fn in ("MembersFunction", "MailWorkerFunction"):
+        env = template["Resources"][fn]["Properties"]["Environment"]["Variables"]
+        cfg_env = env["SES_CONFIGURATION_SET"]
+        assert isinstance(cfg_env, _CfnTag) and cfg_env.tag == "Ref"
+        assert cfg_env.value == "SesConfigurationSet"
+
+
+def test_ses_config_set_param_is_per_env_owned_not_the_flask_set(template, samconfig):
+    """SesConfigurationSet is the per-env OWNED name (members-emails[-test]), not jabaki/myadmin.
+
+    Regression guard: the Members plane owns its own set in nonprofit-deploy; it must NOT point
+    at the Flask-side `myadmin-emails` (a different account) any more.
+    """
+    import re
+
+    param = template["Parameters"]["SesConfigurationSet"]
+    pattern = param["AllowedPattern"]
+    assert re.match(pattern, "members-emails")
+    assert re.match(pattern, "members-emails-test")
+    assert not re.match(pattern, "myadmin-emails")
+    assert "Default" not in param, "no default — fail-fast per steering 23"
+    test_set = _override_map(samconfig, "test")["SesConfigurationSet"]
+    prod_set = _override_map(samconfig, "prod")["SesConfigurationSet"]
+    assert test_set == "members-emails-test"
+    assert prod_set == "members-emails"
+    for env_name in ("test", "prod"):
+        assert "myadmin-emails" not in _override_map(samconfig, env_name)["SesConfigurationSet"]
+
+
+def test_ses_event_destination_publishes_bounce_complaint_delivery_to_sns(template):
+    """The event destination forwards exactly bounce/complaint/delivery to the feedback topic."""
+    dest = template["Resources"]["MembersSesEventDestination"]
+    assert dest["Type"] == "AWS::SES::ConfigurationSetEventDestination"
+    props = dest["Properties"]
+    # Attached to the SAME config set resource (not a dangling name string).
+    cfg_name = props["ConfigurationSetName"]
+    assert isinstance(cfg_name, _CfnTag) and cfg_name.tag == "Ref"
+    assert cfg_name.value == "MembersSesConfigurationSet"
+    event = props["EventDestination"]
+    assert event["Enabled"] is True
+    # Exactly the three POST-SEND outcome types the design (R8.4/R9.5) records — least surface.
+    assert set(event["MatchingEventTypes"]) == {"bounce", "complaint", "delivery"}
+    # Published to the Members feedback SNS topic (the account-level sink, R9.5).
+    topic_arn = event["SnsDestination"]["TopicARN"]
+    assert isinstance(topic_arn, _CfnTag) and topic_arn.tag == "Ref"
+    assert topic_arn.value == "MembersMailFeedbackTopic"
+
+
+def test_feedback_topic_is_named_per_env(template, samconfig):
+    """The SNS feedback topic is named by the per-env MailFeedbackTopicName param (fail-fast)."""
+    import re
+
+    topic = template["Resources"]["MembersMailFeedbackTopic"]
+    assert topic["Type"] == "AWS::SNS::Topic"
+    name = topic["Properties"]["TopicName"]
+    assert isinstance(name, _CfnTag) and name.tag == "Ref"
+    assert name.value == "MailFeedbackTopicName"
+
+    param = template["Parameters"]["MailFeedbackTopicName"]
+    pattern = param["AllowedPattern"]
+    assert re.match(pattern, "members-mail-feedback")
+    assert re.match(pattern, "members-mail-feedback-test")
+    assert not re.match(pattern, "something-else")
+    assert "Default" not in param, "no default — fail-fast per steering 23"
+    assert _override_map(samconfig, "test")["MailFeedbackTopicName"] == "members-mail-feedback-test"
+    assert _override_map(samconfig, "prod")["MailFeedbackTopicName"] == "members-mail-feedback"
+
+
+def test_feedback_topic_policy_allows_only_ses_in_this_account(template):
+    """The topic policy grants sns:Publish to ONLY ses.amazonaws.com, SourceAccount-guarded."""
+    policy = template["Resources"]["MembersMailFeedbackTopicPolicy"]
+    assert policy["Type"] == "AWS::SNS::TopicPolicy"
+    # Scoped to exactly the feedback topic.
+    topics = policy["Properties"]["Topics"]
+    assert len(topics) == 1
+    assert isinstance(topics[0], _CfnTag) and topics[0].tag == "Ref"
+    assert topics[0].value == "MembersMailFeedbackTopic"
+    statements = policy["Properties"]["PolicyDocument"]["Statement"]
+    assert len(statements) == 1
+    stmt = statements[0]
+    assert stmt["Effect"] == "Allow"
+    assert stmt["Principal"]["Service"] == "ses.amazonaws.com"
+    assert set(_actions_list(stmt)) == {"sns:Publish"}
+    # Resource is the exact topic; publish is confined to the one topic.
+    res = stmt["Resource"]
+    assert isinstance(res, _CfnTag) and res.tag == "Ref"
+    assert res.value == "MembersMailFeedbackTopic"
+    # Confused-deputy guard: only THIS account's SES may publish.
+    source_account = stmt["Condition"]["StringEquals"]["AWS:SourceAccount"]
+    assert isinstance(source_account, _CfnTag) and source_account.tag == "Ref"
+    assert source_account.value == "AWS::AccountId"
+
+
+def test_feedback_topic_arn_is_a_discoverable_output(template):
+    """The feedback topic ARN is an Output so the task-5.2 handler can subscribe to it."""
+    out = template["Outputs"]["MailFeedbackTopicArn"]["Value"]
+    assert isinstance(out, _CfnTag) and out.tag == "Ref"
+    assert out.value == "MembersMailFeedbackTopic"
+    # The owned config-set name is also surfaced for operator/handler discovery.
+    cfg_out = template["Outputs"]["SesConfigurationSetName"]["Value"]
+    assert isinstance(cfg_out, _CfnTag) and cfg_out.tag == "Ref"
+    assert cfg_out.value == "MembersSesConfigurationSet"
+
+
+# -----------------------------------------------------------------------------
+# Task 5.2 (pivot-output-actions mail, R8.4/R9.5) — the SES-feedback ingestion Lambda
+# -----------------------------------------------------------------------------
+# The CONSUMER of the SES -> SNS feedback pipeline task 5.1 wired: MailFeedbackFunction is
+# SUBSCRIBED to MembersMailFeedbackTopic (the subscription task 5.1 explicitly left to 5.2) and
+# routes each bounce/complaint/delivery back to the Members store by the stamped ms_tenant/ms_run
+# message tags (R9.5). Its role is DISTINCT + least-privilege: it WRITES the mailrun/mailrecipient
+# status records on the members table (and reads them to compute the tally delta), and does NOT
+# send SES, touch SQS, read the projection, or manage schedules. These assertions pin that wiring.
+
+
+def _feedback_statements(template) -> list:
+    policies = template["Resources"]["MailFeedbackFunction"]["Properties"]["Policies"]
+    assert len(policies) == 1, "expected a single inline policy on the feedback function"
+    return policies[0]["Statement"]
+
+
+def test_feedback_function_is_named_per_stage(template):
+    """The ingestion Lambda follows the `members-<thing>-${Stage}` per-env naming precedent."""
+    fn = template["Resources"]["MailFeedbackFunction"]
+    assert fn["Type"] == "AWS::Serverless::Function"
+    name = fn["Properties"]["FunctionName"]
+    assert isinstance(name, _CfnTag) and name.tag == "Sub"
+    assert name.value == "members-mail-feedback-${Stage}"
+
+
+def test_feedback_function_reuses_the_members_layer(template):
+    """The ingestion Lambda reuses the single vendored MembersLayer (no second layer)."""
+    layers = template["Resources"]["MailFeedbackFunction"]["Properties"]["Layers"]
+    assert len(layers) == 1
+    assert isinstance(layers[0], _CfnTag) and layers[0].tag == "Ref"
+    assert layers[0].value == "MembersLayer"
+
+
+def test_feedback_function_handler_points_at_the_ingestion_entrypoint(template):
+    """The Handler is the dedicated task-5.2 SNS ingestion entrypoint."""
+    handler = template["Resources"]["MailFeedbackFunction"]["Properties"]["Handler"]
+    assert handler == "sam.members.worker.mail_feedback_app.handler"
+
+
+def test_feedback_function_app_env_is_derived_from_stage(template):
+    """APP_ENV is !FindInMap[StageToAppEnv, Stage, AppEnv] — no drift from the edge/worker."""
+    env_vars = template["Resources"]["MailFeedbackFunction"]["Properties"]["Environment"][
+        "Variables"
+    ]
+    app_env = env_vars["APP_ENV"]
+    assert isinstance(app_env, _CfnTag) and app_env.tag == "FindInMap"
+    assert app_env.value[0] == "StageToAppEnv"
+    assert isinstance(app_env.value[1], _CfnTag) and app_env.value[1].value == "Stage"
+    assert app_env.value[2] == "AppEnv"
+
+
+def test_feedback_function_subscribes_to_the_feedback_topic(template):
+    """The ingestion Lambda has an SNS event source on exactly the task-5.1 feedback topic.
+
+    SAM turns this into the AWS::SNS::Subscription (+ SNS invoke permission) task 5.1 deferred to
+    5.2 — the only consumer wired to MembersMailFeedbackTopic.
+    """
+    events = template["Resources"]["MailFeedbackFunction"]["Properties"]["Events"]
+    sns_events = [e for e in events.values() if e["Type"] == "SNS"]
+    assert len(sns_events) == 1, "expected exactly one SNS event source on the ingestion Lambda"
+    topic = sns_events[0]["Properties"]["Topic"]
+    assert isinstance(topic, _CfnTag) and topic.tag == "Ref"
+    assert topic.value == "MembersMailFeedbackTopic"
+
+
+def test_feedback_function_writes_status_records_scoped_to_the_members_table(template):
+    """The ingestion role's DynamoDB ARNs are !Sub-on-members-table — no wildcard, no cross-account.
+
+    It needs read+write ONLY on the members table (the mailrun#/mailrecipient# records): GetItem +
+    Query (the tally / existing failures) and PutItem/UpdateItem (the new sub-record + adjusted
+    tally). Same env-isolation guarantee the edge/worker have.
+    """
+    dynamodb_statements = [
+        s for s in _feedback_statements(template) if _is_dynamodb_statement(s)
+    ]
+    assert dynamodb_statements, "expected feedback DynamoDB-scoped IAM statement(s)"
+
+    referenced_params = set()
+    for stmt in dynamodb_statements:
+        for res in _worker_resources(stmt):
+            assert isinstance(res, _CfnTag) and res.tag == "Sub", (
+                "every feedback DynamoDB resource ARN must be a !Sub on a table-name param"
+            )
+            sub = res.value
+            assert "table/*" not in sub, "wildcard table ARN would break env isolation"
+            assert "${AWS::AccountId}" in sub
+            assert "${Region}" in sub
+            if "${MembersTableName}" in sub:
+                referenced_params.add("MembersTableName")
+            if "${GovernanceProjectionTableName}" in sub:
+                referenced_params.add("GovernanceProjectionTableName")
+    # ONLY the members table — the ingestion path reads tenant/run from the SES tag, not the
+    # projection, so the projection must NOT be in its grant (least privilege).
+    assert referenced_params == {"MembersTableName"}
+
+
+def test_feedback_function_has_no_ses_sqs_or_scheduler_grants(template):
+    """Least privilege: the ingestion role sends no SES, touches no SQS, manages no schedules."""
+    actions = {a for s in _feedback_statements(template) for a in _actions_list(s)}
+    assert not any(a.startswith("ses:") for a in actions), "ingestion must not send SES"
+    assert not any(a.startswith("sqs:") for a in actions), "ingestion must not touch SQS"
+    assert not any(a.startswith("scheduler:") for a in actions), "ingestion manages no schedules"
+    assert "iam:PassRole" not in actions
+    # And it never writes to (or reads) the projection.
+    for stmt in _feedback_statements(template):
+        for res in _worker_resources(stmt):
+            if isinstance(res, _CfnTag):
+                assert "${GovernanceProjectionTableName}" not in res.value
+
+
+def test_feedback_function_arn_is_a_discoverable_output(template):
+    """The ingestion Lambda ARN is surfaced as an Output (operator discovery)."""
+    out = template["Outputs"]["MailFeedbackFunctionArn"]["Value"]
+    assert isinstance(out, _CfnTag) and out.tag == "GetAtt"
+    assert out.value in ("MailFeedbackFunction.Arn", ["MailFeedbackFunction", "Arn"])

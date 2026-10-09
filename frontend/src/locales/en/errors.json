@@ -53,6 +53,14 @@
   "transition": {
     "denied": "This status change is not allowed."
   },
+  "mail": {
+    "notCertified": "Your organisation's mail sender is not certified yet, so this delivery was not sent. Please contact your administrator to certify the mail domain."
+  },
+  "analyticsset": {
+    "delivery": {
+      "notConfigured": "This set has no delivery configured. Set up a delivery (recipients and attachment) first, then run it."
+    }
+  },
   "membershiptype": {
     "conflict": "A membership type with this code already exists.",
     "tenant": "A tenant is required (tenant isolation).",

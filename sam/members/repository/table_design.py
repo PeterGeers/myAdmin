@@ -74,6 +74,8 @@ __all__ = [
     "RECORD_TYPE_MEMBERSHIP_TYPE",
     "RECORD_TYPE_COLUMN_PREFS",
     "RECORD_TYPE_MAIL_SENT",
+    "RECORD_TYPE_MAIL_RUN",
+    "RECORD_TYPE_MAIL_RECIPIENT",
     "RECORD_TYPE_PAYMENT",
     "RECORD_TYPE_PREF_LIST",
     "RECORD_TYPE_SCHEDULE",
@@ -102,6 +104,11 @@ __all__ = [
     "get_members_table_resource",
     "leading_keys_iam_policy_json",
     "mail_sent_marker_sk",
+    "mail_run_sk",
+    "mail_recipient_sk",
+    "mail_recipient_sk_prefix",
+    "build_mail_run_item",
+    "build_mail_recipient_item",
     "member_sk",
     "member_sk_prefix",
     "membership_sk",
@@ -203,6 +210,27 @@ RECORD_TYPE_COLUMN_PREFS = "colprefs"
 #: a TTL) — never message bodies or member PII. Lives in the tenant partition like every other
 #: entity (the PK is tenant_id — a marker can only ever match within its own tenant).
 RECORD_TYPE_MAIL_SENT = "mailsent"
+
+#: A **send-run status TALLY** (R9.1, mail-spec task 3.1). A ``mailrun#<run_id>`` item holds the
+#: AGGREGATED status of one logical send run — ``mode`` / ``triggered_by`` / ``recipient_count`` /
+#: ``status`` (``queued`` → ``sending`` → ``completed``) / ``sent`` / ``failed`` + timestamps. The
+#: enqueue path writes it at ``queued`` with the recipient count; the worker advances the status
+#: and increments ``sent`` / ``failed`` as it processes jobs. Successful recipients are only
+#: COUNTED here (no per-recipient row) — the design's "summary tally + FAILURE-ONLY sub-records"
+#: decision. Carries a ``ttl`` epoch attribute (DynamoDB TTL, default 90 days). Lives in the tenant
+#: partition like every other entity (the PK is tenant_id — a run only ever matches within its own
+#: tenant; Property 3).
+RECORD_TYPE_MAIL_RUN = "mailrun"
+
+#: A **FAILURE-ONLY per-recipient sub-record** (R9.1/R9.5, mail-spec task 3.1). A
+#: ``mailrecipient#<run_id>#<n>`` item is written ONLY for a FAILURE of a send run — a send-time
+#: reject / no-address / a LATE async bounce / complaint (R8.4). It carries ``run_id`` /
+#: ``address`` / ``status`` (``failed`` / ``bounced`` / ``complaint``) / ``reason`` /
+#: ``message_id`` / ``updated_at``. Successes are NOT stored (they are counted in the run tally).
+#: The ``<n>`` segment is a per-run FAILURE sequence / discriminator so two failures of a run never
+#: collide. Carries a ``ttl`` epoch attribute (default 90 days). Lives in the tenant partition like
+#: every other entity (the PK is tenant_id — Property 3).
+RECORD_TYPE_MAIL_RECIPIENT = "mailrecipient"
 
 
 # --- Sort-key composition / parsing ----------------------------------------
@@ -332,6 +360,39 @@ def mail_sent_marker_sk(job_id: str) -> str:
     service's SHA-256 hex id never does).
     """
     return build_sort_key(RECORD_TYPE_MAIL_SENT, job_id)
+
+
+def mail_run_sk(run_id: str) -> str:
+    """SK for a send-run status tally: ``mailrun#<run_id>`` (R9.1, mail-spec task 3.1).
+
+    ``run_id`` is the caller-supplied id for ONE logical send run (the deliver route / the
+    scheduler mints it; shared by every job of a ``per_recipient`` fan-out — see
+    ``execute_and_deliver.DeliveryOutcome.run_id``). It must be non-blank and contain no key
+    separator (a scheduled run id like ``schedule:<id>:<ts>`` would — so callers that fold a
+    composite into the SK must sanitize; the service's own run ids do not carry ``#``).
+    """
+    return build_sort_key(RECORD_TYPE_MAIL_RUN, run_id)
+
+
+def mail_recipient_sk(run_id: str, seq: str) -> str:
+    """SK for a FAILURE-ONLY per-recipient sub-record: ``mailrecipient#<run_id>#<seq>``.
+
+    (R9.1/R9.5, mail-spec task 3.1.) ``seq`` is a per-run FAILURE discriminator so two failures
+    of the same run never collide — the repository derives it from the failure count (or a late
+    bounce's own ordinal). Both segments must be non-blank and contain no key separator.
+    """
+    return build_sort_key(RECORD_TYPE_MAIL_RECIPIENT, run_id, seq)
+
+
+def mail_recipient_sk_prefix(run_id: str) -> str:
+    """The SK prefix that selects every FAILURE sub-record of one run (R9.1).
+
+    ``mailrecipient#<run_id>`` is a prefix of every ``mailrecipient#<run_id>#<seq>`` item, so a
+    single ``begins_with`` Query inside the tenant partition fetches all of a run's failures
+    (still tenant-scoped — the partition key is fixed; Property 3). ``run_id`` must be non-blank
+    and contain no key separator.
+    """
+    return build_sort_key(RECORD_TYPE_MAIL_RECIPIENT, run_id)
 
 
 def member_sk_prefix(member_id: str) -> str:
@@ -652,6 +713,79 @@ def build_column_prefs_item(
     item[SORT_KEY_ATTR] = column_prefs_sk(sub)
     # Keep the owner sub addressable without re-parsing the sort key.
     item["sub"] = sub
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
+def build_mail_run_item(
+    tenant_id: str, run_id: str, entry: Mapping[str, Any]
+) -> dict:
+    """Compose the stored DynamoDB item for a send-run status TALLY (R9.1, mail-spec task 3.1).
+
+    Stamps the tenant partition key and the ``mailrun#<run_id>`` sort key onto a copy of the
+    ``entry`` payload (``mode`` / ``triggered_by`` / ``recipient_count`` / ``status`` / ``sent`` /
+    ``failed`` / timestamps / ``ttl``). The caller's ``tenant_id`` and ``run_id`` are
+    authoritative — any values already on the payload are overwritten so a domain-layer mistake
+    can never land a run in the wrong partition or under the wrong id (Property 3). Only aggregate
+    metadata is stored — never message bodies or member PII.
+
+    Args:
+        tenant_id: The tenant (partition key).
+        run_id: The logical run id (sort-key id segment).
+        entry: The run-tally payload.
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + ``run_id`` attr.
+
+    Raises:
+        ValueError: ``tenant_id`` or ``run_id`` is empty.
+    """
+    if not run_id:
+        raise ValueError("run_id must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = mail_run_sk(run_id)
+    # Keep the id addressable without re-parsing the sort key.
+    item["run_id"] = run_id
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
+def build_mail_recipient_item(
+    tenant_id: str, run_id: str, seq: str, entry: Mapping[str, Any]
+) -> dict:
+    """Compose the stored DynamoDB item for a FAILURE-ONLY recipient sub-record (R9.1/R9.5).
+
+    (mail-spec task 3.1.) Stamps the tenant partition key and the
+    ``mailrecipient#<run_id>#<seq>`` sort key onto a copy of the ``entry`` payload (``address`` /
+    ``status`` / ``reason`` / ``message_id`` / ``updated_at``). The caller's ``tenant_id`` /
+    ``run_id`` / ``seq`` are authoritative — any values already on the payload are overwritten so
+    a domain-layer mistake can never land a record in the wrong partition or under the wrong id
+    (Property 3). Written ONLY for a failure — a success is counted in the run tally, not stored.
+
+    Args:
+        tenant_id: The tenant (partition key).
+        run_id: The logical run id (first sort-key id segment; also stored as ``run_id``).
+        seq: The per-run failure discriminator (second sort-key id segment).
+        entry: The failure payload.
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + ``run_id`` attr.
+
+    Raises:
+        ValueError: ``tenant_id`` / ``run_id`` / ``seq`` is empty.
+    """
+    if not run_id:
+        raise ValueError("run_id must be non-empty")
+    if not seq:
+        raise ValueError("seq must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = mail_recipient_sk(run_id, seq)
+    # Keep the run id addressable without re-parsing the sort key.
+    item["run_id"] = run_id
     # Fail-fast if the composed key would be invalid (blank tenant, etc.).
     build_key(tenant_id, item[SORT_KEY_ATTR])
     return item

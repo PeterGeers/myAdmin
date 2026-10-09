@@ -41,21 +41,40 @@ parameter_overrides = [
   "MyAdminCognitoJwksUri=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_Hdp40eWmu/.well-known/jwks.json",
   "MyAdminCognitoClientId=66tp0087h9tfbstggonnu5aghp",
   "MyAdminCognitoPoolLabel=myAdmin",
-  # --- SES send config (R0, task 0.5) — nonprofit-deploy (506221081911) / eu-west-1 ---
-  # SesSenderEmail: the verified From identity the Members send-path mails as. The template
-  #   parameter has NO default (fail-fast), so it MUST be supplied here or the deploy fails
-  #   loudly. The IAM `MembersSendViaSes` statement is Resource-scoped to this exact
-  #   `identity/<address>` ARN AND Condition-scoped on `ses:FromAddress`, so the grant and
-  #   this value cannot disagree — the role can only send AS this identity. `support@jabaki.nl`
-  #   is the established verified sender (matches the Flask `ses_email_service.py` default and
-  #   the `infrastructure/ses.tf` sender); it must be a VERIFIED identity in nonprofit-deploy.
-  "SesSenderEmail=support@jabaki.nl",
-  # SesConfigurationSet: the SES configuration set applied per send — it publishes
-  #   bounce/complaint/delivery events (→ SNS → the webhook) so the send-path can honour
-  #   suppression (spec myNotes.md gap #3). `myadmin-emails` mirrors the config set declared
-  #   in `infrastructure/ses.tf`. The send-path attaches it only when non-blank (same as the
-  #   Flask contract), so it is a non-fatal/optional knob — set here to wire event publishing.
-  "SesConfigurationSet=myadmin-emails",
+  # --- SES send config (R4.1/R4.2, mail task 4.2) — nonprofit-deploy (506221081911) / eu-west-1 ---
+  # MailSenderDomain: the VERIFIED tenant mail DOMAIN this stack env is authorized to send
+  #   `From` as `noreply@<domain>` (the per-tenant sender model — there is NO `jabaki.nl`
+  #   substitute sender any more, R4.2). The template parameter has NO default (fail-fast), so
+  #   it MUST be supplied here or the deploy fails loudly. The IAM `MembersSendViaSes` /
+  #   `MailWorkerSendViaSes` statements are Resource-scoped to this domain's `identity/<domain>`
+  #   ARN AND Condition-scoped on `ses:FromAddress = noreply@<domain>`, so the grant and this
+  #   value cannot disagree — the role can only send AS `noreply@<this-domain>`.
+  #   `h-dcn.nl` is the first/only certified tenant domain today.
+  #   OPERATOR (deferred — task 4.2 report + Phase 7): the domain named here MUST be a VERIFIED
+  #   SES DOMAIN identity in nonprofit-deploy / eu-west-1 (mail task 7.2 re-confirms h-dcn.nl is
+  #   `VerifiedForSendingStatus:true`). When ADDITIONAL tenants are certified, broadening the
+  #   send grant to their domains is an explicit operator change (add the verified domain) — NOT
+  #   a wildcard identity. Do NOT revert to a single `support@jabaki.nl` address.
+  "MailSenderDomain=h-dcn.nl",
+  # SesConfigurationSet: the SES configuration set applied per send AND owned by this stack
+  #   (mail-spec task 5.1, R8.4). Its SNS event destination publishes bounce/complaint/delivery
+  #   events to the Members feedback topic the task-5.2 ingestion handler consumes. CHANGED from
+  #   the Flask-side `myadmin-emails` (task 5.1): that set lives in the PERSONAL account
+  #   (344561557829) and forwards to the Flask webhook for ZZP mail, but the Members plane sends
+  #   from nonprofit-deploy (506221081911) and a config set is account+region scoped — so the
+  #   Members plane owns its OWN set here. Per-env name, template param is fail-fast (no default)
+  #   so it MUST be supplied. The resource's Name and the sender's SES_CONFIGURATION_SET env var
+  #   are both this value, so they cannot disagree.
+  "SesConfigurationSet=members-emails",
+  # --- SES feedback SNS topic (R8.4/R9.5, mail task 5.1) — the PROD topic name ---
+  # The ONE account-level sink the config set above publishes bounce/complaint/delivery events
+  # to; the task-5.2 ingestion handler subscribes to it (its ARN is the MailFeedbackTopicArn
+  # output) and routes each event to the Members store by run_id/tag. Template param is
+  # fail-fast (no default) so it MUST be supplied. SNS is a nonprofit-deploy service
+  # (506221081911 / eu-west-1). OPERATOR/DEPLOY (deferred — Phase 7.4): this topic + the config
+  # set come into existence on the TEST/PROD stack deploy (OIDC, never local); confirming SES
+  # feedback is live is mail task 7.4/7.9.
+  "MailFeedbackTopicName=members-mail-feedback",
   # --- SQS mail-send queue (R4, task 4.2) — the PROD send-queue name ---
   # The queued send path (R4): the `deliver` route + the R5 scheduler enqueue here; the worker
   # (task 4.4) drains it. The template parameter has NO default (fail-fast), so it MUST be
@@ -127,14 +146,24 @@ parameter_overrides = [
   "MyAdminCognitoJwksUri=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_xyrlzfqbl/.well-known/jwks.json",
   "MyAdminCognitoClientId=43s15cm8qcgg8an85udt0e087u",
   "MyAdminCognitoPoolLabel=myAdmin-test",
-  # --- SES send config (R0, task 0.5) — nonprofit-deploy (506221081911) / eu-west-1 ---
-  # Same account/region as prod (the environment boundary is the `test_` table prefix +
-  # the test pool, NOT a separate account), so TEST sends from the SAME verified identity
-  # and config set. SesSenderEmail has NO template default (fail-fast) — it MUST be supplied.
-  # The IAM send statement is Condition-scoped to exactly this `ses:FromAddress`, so the TEST
-  # role can likewise only send AS this verified identity.
-  "SesSenderEmail=support@jabaki.nl",
-  "SesConfigurationSet=myadmin-emails",
+  # --- SES send config (R4.1/R4.2, mail task 4.2) — nonprofit-deploy (506221081911) / eu-west-1 ---
+  # Same account/region as prod (the environment boundary is the `test_` table prefix + the
+  # test pool, NOT a separate account), so TEST sends as the SAME per-tenant `noreply@<domain>`
+  # and config set — there is NO `jabaki.nl` substitute sender (R4.2). MailSenderDomain has NO
+  # template default (fail-fast) — it MUST be supplied. The IAM send statements are scoped to
+  # this domain's `identity/<domain>` ARN + `ses:FromAddress = noreply@<domain>`, so the TEST
+  # role can only send AS `noreply@h-dcn.nl`. (mail task 7.2 re-confirms h-dcn.nl is a VERIFIED
+  # SES domain identity in nonprofit-deploy before the TEST end-to-end send.)
+  "MailSenderDomain=h-dcn.nl",
+  # SesConfigurationSet (mail task 5.1): the TEST sibling of the owned Members config set —
+  #   `members-emails-test` (NOT the Flask `myadmin-emails`, which is in the PERSONAL account).
+  #   Its SNS event destination publishes bounce/complaint/delivery to the TEST feedback topic.
+  "SesConfigurationSet=members-emails-test",
+  # --- SES feedback SNS topic (R8.4/R9.5, mail task 5.1) — the TEST topic name ---
+  # TEST sibling of the prod feedback topic (same account; the environment boundary is the
+  # `-test` suffix). The runtime SES bounce/complaint/delivery events for TEST sends land here;
+  # the task-5.2 handler subscribes to it (MailFeedbackTopicArn output). Fail-fast — no default.
+  "MailFeedbackTopicName=members-mail-feedback-test",
   # --- SQS mail-send queue (R4, task 4.2) — the TEST send-queue name ---
   # TEST sibling of the prod queue; the DLQ is derived as `members-mail-send-test-dlq`.
   "MailSendQueueName=members-mail-send-test",
