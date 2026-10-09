@@ -697,9 +697,14 @@ export async function putAnalyticsSetDelivery(
   id: string,
   delivery: MemberDelivery
 ): Promise<MemberAnalyticsSet> {
+  // The backend reads the request body AS the delivery block itself
+  // (`_write_body(request)` → the entity's `{mode, template_id, attachment,
+  // recipients, label_options}`). Send the BARE block — NOT wrapped in
+  // `{ delivery: ... }` (a wrapper makes `mode` absent → 422
+  // `errors.analyticsset.delivery`).
   const payload = await putJson<unknown>(
     `/members/analytics-sets/${encodeURIComponent(id)}/delivery`,
-    { delivery: deliveryToBackend(delivery) }
+    deliveryToBackend(delivery)
   );
   return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
 }
