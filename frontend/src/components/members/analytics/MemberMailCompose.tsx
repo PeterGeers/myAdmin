@@ -69,8 +69,14 @@
  * @see .kiro/specs/Members/member-analytics (design C6; requirements R4.12, R8.4)
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -78,8 +84,10 @@ import {
   ModalBody,
   ModalFooter,
   ModalCloseButton,
+  Box,
   Button,
   Checkbox,
+  Divider,
   FormControl,
   FormLabel,
   HStack,
@@ -172,6 +180,52 @@ export function resolveTemplateSeed(
     }
   }
   return null;
+}
+
+/**
+ * Flatten a result row into a `{ key: string }` merge map, mirroring the SAM worker's
+ * `_flatten_merge_values`: top-level scalar keys plus one level of nested-mapping leaves (both
+ * the dotted `group.key` AND the bare leaf `key`), so a template placeholder resolves the same
+ * way whether it references `last_name` or `personal.last_name`.
+ */
+export function flattenRowMergeValues(
+  row: Record<string, unknown> | undefined | null,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!row) {
+    return out;
+  }
+  for (const [key, value] of Object.entries(row)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [subKey, subValue] of Object.entries(value as Record<string, unknown>)) {
+        if (subValue === null || (typeof subValue === 'object' && !Array.isArray(subValue))) {
+          continue;
+        }
+        out[`${key}.${subKey}`] = String(subValue);
+        if (!(subKey in out)) {
+          out[subKey] = String(subValue);
+        }
+      }
+    } else if (value !== null && value !== undefined) {
+      out[key] = String(value);
+    }
+  }
+  return out;
+}
+
+/**
+ * Substitute `{{ key }}` placeholders in `text` from `values` (missing/blank -> empty string),
+ * mirroring the backend `render_with_merge` grammar (`{{ field_key }}`, optional inner spaces).
+ * Pure; used ONLY for the compose preview (the authoritative merge happens on-plane at send).
+ */
+export function renderMergePreview(
+  text: string,
+  values: Record<string, string>,
+): string {
+  return (text ?? '').replace(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g, (_m, key: string) => {
+    const v = values[key];
+    return v === undefined || v === null ? '' : v;
+  });
 }
 
 export interface MemberMailComposeProps {
@@ -320,6 +374,7 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const cancelConfirmRef = useRef<HTMLButtonElement>(null);
   const [attachCsv, setAttachCsv] = useState(false);
   const [attachPdf, setAttachPdf] = useState(false);
   const [sending, setSending] = useState(false);
@@ -408,6 +463,23 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
   const resetConfirm = () => setConfirming(false);
 
   const trimmedSubject = subject.trim();
+
+  // Live preview of the per-recipient merge: substitute {{ key }} placeholders in the current
+  // subject + body from the FIRST result row's values (R2 "show a merged first-row example").
+  // Pure/preview-only — the authoritative merge runs on-plane at send. For a to_fixed send
+  // (no per-recipient merge) there are no row values, so placeholders simply render empty.
+  const previewValues = useMemo(
+    () => flattenRowMergeValues((recipients ?? [])[0] as Record<string, unknown> | undefined),
+    [recipients],
+  );
+  const previewSubject = useMemo(
+    () => renderMergePreview(subject, previewValues),
+    [subject, previewValues],
+  );
+  const previewBodyHtml = useMemo(
+    () => renderMergePreview(body, previewValues),
+    [body, previewValues],
+  );
   // Send is allowed when at least one recipient resolves (member emails via the
   // resolved field OR valid external addresses, R1), there are NO invalid
   // external tokens, and the subject/body are non-empty. Note: external-only
@@ -471,33 +543,33 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     };
   };
 
-  const handleSend = async () => {
+  // First action: OPEN the confirmation dialog (never sends directly). The dialog names the
+  // recipient count + sender and shows the merged first-row preview, so the user explicitly
+  // approves on a SEPARATE surface before any mail goes out (R8.4 — no silent double-click send).
+  const handleSendClick = () => {
     if (!canSend) {
       return;
     }
-    // First press → confirm (show the recipient count, R8.4). Second → send.
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
+    setConfirming(true);
+  };
 
+  // The ACTUAL send — only reachable from the confirmation dialog's "Send now" button.
+  const handleConfirmedSend = async () => {
     setSending(true);
     try {
-      // POST the ad-hoc compose body to the SAM plane route (R1/R2). The route
-      // enqueues and returns a 202 accepted receipt — it NEVER blocks on the SES
-      // send (a worker performs it). Surface the queued acknowledgment (R2.5/R3.5).
+      // POST the ad-hoc compose body to the SAM plane route (R1/R2). The route enqueues and
+      // returns a 202 accepted receipt — it NEVER blocks on the SES send (a worker performs it).
       const result = await sendAdHocMail(buildAdHocBody());
       toast({
         title: t(`${T}.toast.queued`, { count: result.enqueued }),
         status: 'success',
       });
+      setConfirming(false);
       onClose();
     } catch (err) {
-      // Surface the typed refusal/validation reason (API standard v1.0): a
-      // not-certified tenant (`errors.mail.notCertified`, R4.2/R5.2) or an invalid
-      // body (422) resolves to the clear bilingual message; a network/unknown
-      // throw degrades to the shared server-error fallback. The composed set is
-      // NOT lost — the modal stays open so the user can act on the reason.
+      // Surface the typed refusal/validation reason (API standard v1.0): a not-certified tenant
+      // (`errors.mail.notCertified`) or an invalid body (422) resolves to the clear bilingual
+      // message. The composed set is NOT lost — close the dialog and keep the compose open.
       applyApiError(err, { toast, t });
       setConfirming(false);
     } finally {
@@ -578,6 +650,7 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
                   resetConfirm();
                 }}
                 bg="gray.900"
+                color="white"
               />
             </FormControl>
 
@@ -594,7 +667,37 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
                 }}
                 rows={8}
                 bg="gray.900"
+                color="white"
               />
+            </FormControl>
+
+            {/* Rendered preview (R2): shows how the mail LOOKS, with the first result row's
+                values merged into {{ placeholders }} so the user sees the real first-recipient
+                result before sending. The body is first-party tenant-authored HTML (same trust
+                model as the ZZP/STR email previews), rendered via dangerouslySetInnerHTML. */}
+            <FormControl>
+              <FormLabel>{t(`${T}.previewLabel`)}</FormLabel>
+              <Box
+                data-testid="member-mail-preview"
+                bg="white"
+                color="black"
+                borderRadius="md"
+                borderWidth="1px"
+                borderColor="gray.600"
+                p={4}
+                maxH="320px"
+                overflowY="auto"
+                fontSize="sm"
+              >
+                <Text fontWeight="semibold" color="black" mb={2} data-testid="member-mail-preview-subject">
+                  {previewSubject}
+                </Text>
+                <Divider mb={2} />
+                <Box
+                  data-testid="member-mail-preview-body"
+                  dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
+                />
+              </Box>
             </FormControl>
 
             {/* Optional external recipients (R1): addresses NOT in the dataset,
@@ -616,6 +719,7 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
                 placeholder={t(`${T}.externalRecipientsPlaceholder`)}
                 rows={2}
                 bg="gray.900"
+                color="white"
               />
               {invalidExternal.length > 0 && (
                 <Text
@@ -660,12 +764,6 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
               </Checkbox>
             )}
 
-            {/* The confirmation prompt shown after the first Send press (R8.4). */}
-            {confirming && (
-              <Text fontSize="sm" color="orange.200" data-testid="member-mail-confirm">
-                {t(`${T}.confirm`, { count: recipientCount })}
-              </Text>
-            )}
           </VStack>
         </ModalBody>
         <ModalFooter>
@@ -674,9 +772,8 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
           </Button>
           <Button
             colorScheme="orange"
-            onClick={handleSend}
+            onClick={handleSendClick}
             isDisabled={!canSend}
-            isLoading={sending}
             data-testid="member-mail-send"
           >
             {t(`${T}.send`)}
@@ -694,6 +791,67 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
           onTemplatesChanged={handleTemplatesChanged}
         />
       )}
+
+      {/* Send confirmation (R8.4): a SEPARATE surface the user must explicitly approve before
+          any mail is sent — names the recipient count + sender and shows the merged first-row
+          preview ("here is what the first recipient gets; send to all?"). Replaces the old
+          silent two-press inline confirm. */}
+      <AlertDialog
+        isOpen={confirming}
+        leastDestructiveRef={cancelConfirmRef}
+        onClose={() => !sending && setConfirming(false)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.800" color="white" data-testid="member-mail-confirm-dialog">
+            <AlertDialogHeader>{t(`${T}.confirmTitle`)}</AlertDialogHeader>
+            <AlertDialogBody>
+              <Text mb={3} data-testid="member-mail-confirm-summary">
+                {t(`${T}.confirmSummary`, { count: recipientCount, sender: 'noreply@h-dcn.nl' })}
+              </Text>
+              <Text fontSize="sm" color="gray.400" mb={1}>
+                {t(`${T}.previewLabel`)}
+              </Text>
+              <Box
+                bg="white"
+                color="black"
+                borderRadius="md"
+                p={3}
+                maxH="240px"
+                overflowY="auto"
+                fontSize="sm"
+                data-testid="member-mail-confirm-preview"
+              >
+                <Text fontWeight="semibold" color="black" mb={2}>
+                  {previewSubject}
+                </Text>
+                <Divider mb={2} />
+                <Box dangerouslySetInnerHTML={{ __html: previewBodyHtml }} />
+              </Box>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={cancelConfirmRef}
+                variant="ghost"
+                onClick={() => setConfirming(false)}
+                isDisabled={sending}
+                data-testid="member-mail-confirm-cancel"
+              >
+                {t(`${T}.cancel`)}
+              </Button>
+              <Button
+                colorScheme="orange"
+                ml={3}
+                onClick={handleConfirmedSend}
+                isLoading={sending}
+                data-testid="member-mail-confirm-send"
+              >
+                {t(`${T}.confirmSend`, { count: recipientCount })}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Modal>
   );
 };
