@@ -81,6 +81,12 @@ export type { MemberMailComposeProps } from './MemberMailCompose';
 export { resolveTemplateSeed } from './MemberMailCompose';
 export type { TemplateSeed } from './MemberMailCompose';
 
+// R9 (pivot-output-actions/mail, task 3.3) — the mail SEND-STATUS / HISTORY
+// screen: a role-scoped list of send-runs + per-run FAILURE drill-down, with
+// honest "sent = SES accepted, not delivered" labelling (R9.4).
+export { default as MemberMailStatus } from './MemberMailStatus';
+export type { MemberMailStatusProps } from './MemberMailStatus';
+
 // R2 (pivot-output-actions) — the stored mail-template management surface
 // (CRUD + upload + improve-with-AI).
 export { default as MemberTemplateManager } from './MemberTemplateManager';

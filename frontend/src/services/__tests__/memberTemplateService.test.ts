@@ -59,6 +59,36 @@ describe('memberTemplateService', () => {
     expect(result).toEqual({ ok: true, data });
   });
 
+  // Regression (white-page crash): the delivery-editor template picker calls
+  // `templates.map`, so the list endpoint MUST yield an array. A malformed success
+  // body (object / missing data / null) previously flowed straight through and crashed
+  // the SPA — now it is coerced to an empty array so the picker degrades gracefully.
+  it('coerces a non-array `data` object on a success envelope to an empty array', async () => {
+    mGet.mockResolvedValue(
+      createMockResponse({ body: { success: true, data: { templates: [] } } }),
+    );
+
+    const result = await listMemberTemplates();
+
+    expect(result).toEqual({ ok: true, data: [] });
+  });
+
+  it('coerces a success envelope with NO `data` (envelope fallback) to an empty array', async () => {
+    mGet.mockResolvedValue(createMockResponse({ body: { success: true } }));
+
+    const result = await listMemberTemplates();
+
+    expect(result).toEqual({ ok: true, data: [] });
+  });
+
+  it('coerces a null `data` on a success envelope to an empty array', async () => {
+    mGet.mockResolvedValue(createMockResponse({ body: { success: true, data: null } }));
+
+    const result = await listMemberTemplates();
+
+    expect(result).toEqual({ ok: true, data: [] });
+  });
+
   it('gets a template by id (URL-encoded path)', async () => {
     const data = { template_id: 'a/b', name: 'X', languages: {} };
     mGet.mockResolvedValue(createMockResponse({ body: { success: true, data } }));

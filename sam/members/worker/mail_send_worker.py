@@ -14,9 +14,11 @@ shape ``handler/_dispatch._mail_job_to_envelope`` writes onto the queue — task
      → :func:`~sam.members.domain.template.render_with_merge`), one recipient.
    - ``to_fixed`` → build the attachment (``csv`` / ``pdf_labels``) from the job's ``rows`` +
      an optional covering-template body, sent to the fixed recipients.
-3. **Sends via SES** from ``SES_SENDER_EMAIL`` (attaching ``SES_CONFIGURATION_SET`` when set),
-   respecting ALL SES limits (recipients-per-message, message size — design §6.4). The actual
-   SES call is an injected PORT (:class:`SesSender`) so the service carries no boto3.
+3. **Sends via SES** from the per-send resolved tenant From (``noreply@<tenant-domain>``) with the
+   triggering user's Reply-To (both ride on the envelope — mail-spec task 1.2/1.3; no global env
+   sender), attaching ``SES_CONFIGURATION_SET`` when set, respecting ALL SES limits (recipients-
+   per-message, message size — design §6.4). The actual SES call is an injected PORT
+   (:class:`SesSender`) so the service carries no boto3.
 4. **Audits metadata-only** (``log_analytics_output`` / ``ses_mail``) — tenant, set, run,
    recipient COUNT, output kind — NEVER message bodies or member PII (design §8). The audit
    sink is an injected port.
@@ -49,6 +51,7 @@ import logging
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
+from sam.members.domain.mail_feedback_tags import build_feedback_tags as _build_feedback_tags
 from sam.members.domain.analytics_set import (
     DELIVERY_MODE_PER_RECIPIENT,
     DELIVERY_MODE_TO_FIXED,
@@ -177,23 +180,28 @@ class SesSender(Protocol):
     """The SES send PORT — the sole SES touch-point (the service carries no boto3).
 
     One method sends one rendered message (simple or with an attachment) and returns a
-    :class:`SesSendOutcome`. The production implementation (task 4.3 edge wiring) is a thin
-    boto3 ``send_email`` / ``send_raw_email`` adapter scoped to the verified sender identity +
-    the configuration set; a fake in tests CAPTURES the send and can simulate a throttle /
-    permanent error. The port never raises for an SES business error — it reports it on the
-    outcome (``ok=False`` + ``error``) so the SERVICE decides retryable-vs-permanent (keeping the
-    SES-limit policy in one place).
+    :class:`SesSendOutcome`. The verified **From** (``from_address``) and the **Reply-To**
+    (``reply_to``) are supplied PER SEND (mail-spec task 1.2): the service resolves the active
+    tenant's ``noreply@<tenant-domain>`` From + the triggering user's Reply-To and passes them in
+    — there is no global env sender and no substitute-sender fallback (Property 2). The production
+    implementation (:class:`~sam.members.repository.mail_send_adapters.SesBotoSender`) is a thin
+    boto3 ``send_email`` / ``send_raw_email`` adapter scoped to the configuration set; a fake in
+    tests CAPTURES the send and can simulate a throttle / permanent error. The port never raises
+    for an SES business error — it reports it on the outcome (``ok=False`` + ``error``) so the
+    SERVICE decides retryable-vs-permanent (keeping the SES-limit policy in one place).
     """
 
     def send(
         self,
         *,
+        from_address: str,
+        reply_to: str | None = None,
         recipients: Sequence[str],
         subject: str,
         body_html: str,
         attachments: Sequence[Mapping[str, Any]] | None = None,
     ) -> SesSendOutcome:
-        """Send one message; return the outcome (never raises for an SES business error)."""
+        """Send one message from ``from_address`` (Reply-To ``reply_to``); return the outcome."""
         ...
 
 
@@ -336,12 +344,24 @@ class MailSendWorker:
         # 2. Render per the mode.
         subject, body_html, attachments = self._render(envelope, mode, recipients)
 
-        # 3. Send via SES (respect limits; classify failures retryable-vs-permanent).
+        # 3. Send via SES (respect limits; classify failures retryable-vs-permanent). The
+        #    resolved per-send From (the active tenant's noreply@<tenant-domain>) + the user's
+        #    Reply-To ride on the envelope (mail-spec task 1.3 resolves + stamps them); the sender
+        #    refuses a send with no resolved From rather than substitute one (Property 2).
         outcome = self._ses.send(
+            from_address=str(envelope.get("from_address") or ""),
+            reply_to=(str(envelope["reply_to"]) if envelope.get("reply_to") else None),
             recipients=recipients,
             subject=subject,
             body_html=body_html,
             attachments=attachments,
+            # SES MESSAGE TAGS = the feedback ROUTING key (mail-spec task 5.2, R9.5): the config
+            # set echoes these back as `mail.tags` on every bounce/complaint/delivery event, so
+            # the ingestion handler can route the outcome to the originating run. tenant_id is the
+            # AUTHORITATIVE routing key (never guessed downstream) + run_id locates the run so a
+            # LATE bounce can create a failure sub-record + adjust the tally. Encoded into the
+            # SES-allowed tag charset at the sole seam that knows SES (the sender encodes).
+            tags=_build_feedback_tags(tenant_id, str(envelope.get("run_id") or "")),
         )
         self._enforce_outcome(job_id, outcome)
 

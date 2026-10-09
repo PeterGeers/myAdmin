@@ -205,17 +205,20 @@ class TestMembersNamespaceGating:
         assert 'members' not in get_schema_for_tenant(['STR', 'ZZP', 'FIN'])
 
     def test_members_namespace_declares_expected_params(self):
-        """`members` declares the three json config params + the mail-enabled gate.
+        """`members` declares the json config params, the mail-enabled gate, and the mail params.
 
         field_overlay / scope_dimensions / view_contexts are json; mail_enabled is the
         boolean per-tenant "mail-enabled / SES-certified" gate (pivot-output-actions R0,
-        projected as config#mail) that fails closed to False.
+        projected as config#mail) that fails closed to False. mail_domain / mail_local_part /
+        mail_certified (mail spec Phase 0, R4/§5f) feed the per-tenant From + the fail-closed
+        pre-send certification gate in the SAME config#mail row.
         """
         result = get_schema_for_tenant(['MEMBERS'])
         params = result['members']['params']
 
         assert set(params.keys()) == {
-            'field_overlay', 'scope_dimensions', 'view_contexts', 'mail_enabled'
+            'field_overlay', 'scope_dimensions', 'view_contexts', 'mail_enabled',
+            'mail_domain', 'mail_local_part', 'mail_certified',
         }
         for key in ('field_overlay', 'scope_dimensions', 'view_contexts'):
             assert params[key]['type'] == 'json', f"{key} must be a json param"
@@ -223,6 +226,22 @@ class TestMembersNamespaceGating:
         mail = params['mail_enabled']
         assert mail['type'] == 'boolean'
         assert mail['default'] is False  # fail-closed: the gate opens only on explicit True
+
+    def test_members_mail_params_shape(self):
+        """mail_domain / mail_local_part / mail_certified have the expected types + defaults.
+
+        mail_domain is a string; mail_local_part is a string DEFAULTING to 'noreply';
+        mail_certified is a boolean DEFAULTING to False (fail-closed pre-send gate).
+        """
+        params = get_schema_for_tenant(['MEMBERS'])['members']['params']
+
+        assert params['mail_domain']['type'] == 'string'
+
+        assert params['mail_local_part']['type'] == 'string'
+        assert params['mail_local_part']['default'] == 'noreply'
+
+        assert params['mail_certified']['type'] == 'boolean'
+        assert params['mail_certified']['default'] is False
 
     def test_members_namespace_gated_by_members_module(self):
         """The namespace's module gate is exactly 'MEMBERS'."""

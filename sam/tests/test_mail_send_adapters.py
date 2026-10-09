@@ -102,24 +102,41 @@ class FakeTable:
 class TestSesBotoSender:
     def test_simple_send_uses_send_email_and_reports_ok(self):
         client = FakeSesClient()
-        sender = SesBotoSender(
-            client=client, sender_email="noreply@tenant.example", configuration_set=""
-        )
+        sender = SesBotoSender(client=client, configuration_set="")
         out = sender.send(
-            recipients=["a@example.com"], subject="Hi", body_html="<p>Hi</p>"
+            from_address="noreply@tenant.example",
+            reply_to="webmaster@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
         )
         assert out.ok is True and out.message_id == "simple-1"
         assert len(client.send_email_calls) == 1
-        assert client.send_email_calls[0]["Source"] == "noreply@tenant.example"
+        call = client.send_email_calls[0]
+        # From = the per-send resolved tenant sender (not any global env sender)
+        assert call["Source"] == "noreply@tenant.example"
+        # Reply-To = the per-send user address
+        assert call["ReplyToAddresses"] == ["webmaster@tenant.example"]
         # no config set attached when blank
-        assert "ConfigurationSetName" not in client.send_email_calls[0]
+        assert "ConfigurationSetName" not in call
 
-    def test_attachment_send_uses_send_raw_email(self):
+    def test_simple_send_omits_reply_to_when_none(self):
         client = FakeSesClient()
-        sender = SesBotoSender(
-            client=client, sender_email="noreply@tenant.example", configuration_set="cfg"
+        sender = SesBotoSender(client=client, configuration_set="")
+        sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
         )
+        assert "ReplyToAddresses" not in client.send_email_calls[0]
+
+    def test_attachment_send_uses_send_raw_email_with_from_and_reply_to_headers(self):
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="cfg")
         out = sender.send(
+            from_address="noreply@tenant.example",
+            reply_to="webmaster@tenant.example",
             recipients=["a@example.com"],
             subject="Hi",
             body_html="<p>Hi</p>",
@@ -129,19 +146,130 @@ class TestSesBotoSender:
         )
         assert out.ok is True and out.message_id == "raw-1"
         assert len(client.send_raw_email_calls) == 1
+        call = client.send_raw_email_calls[0]
+        # the envelope Source is the per-send From
+        assert call["Source"] == "noreply@tenant.example"
+        # the MIME body carries the From + Reply-To headers for the raw send
+        raw = call["RawMessage"]["Data"]
+        assert "From: noreply@tenant.example" in raw
+        assert "Reply-To: webmaster@tenant.example" in raw
         # config set attached when non-blank
-        assert client.send_raw_email_calls[0]["ConfigurationSetName"] == "cfg"
+        assert call["ConfigurationSetName"] == "cfg"
 
     def test_ses_client_error_is_reported_not_raised(self):
         client = FakeSesClient(
             raise_error=FakeClientError("Throttling", "Maximum sending rate exceeded")
         )
-        sender = SesBotoSender(
-            client=client, sender_email="noreply@tenant.example", configuration_set=""
+        sender = SesBotoSender(client=client, configuration_set="")
+        out = sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
         )
-        out = sender.send(recipients=["a@example.com"], subject="Hi", body_html="<p>Hi</p>")
         assert out.ok is False
         assert "Throttling" in out.error  # the service classifies this as retryable
+
+    def test_simple_send_stamps_message_tags_for_feedback_routing(self):
+        # mail-spec task 5.2 (R9.5): the simple path stamps SES message Tags (the feedback
+        # routing key the config set echoes back as mail.tags) via the SendEmail `Tags` param.
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="cfg")
+        sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+            tags={"ms_tenant": "682d64636e", "ms_run": "72756e2d31"},
+        )
+        tags = client.send_email_calls[0]["Tags"]
+        assert {"Name": "ms_tenant", "Value": "682d64636e"} in tags
+        assert {"Name": "ms_run", "Value": "72756e2d31"} in tags
+
+    def test_simple_send_omits_tags_when_none(self):
+        # No tags supplied → the SendEmail `Tags` key is absent (SES rejects an empty tag list).
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert "Tags" not in client.send_email_calls[0]
+
+    def test_simple_send_drops_a_blank_tag_value(self):
+        # A blank-valued tag is OMITTED (SES rejects an empty value); a non-blank one still rides.
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+            tags={"ms_tenant": "682d64636e", "ms_run": ""},
+        )
+        tags = client.send_email_calls[0]["Tags"]
+        assert tags == [{"Name": "ms_tenant", "Value": "682d64636e"}]
+
+    def test_attachment_send_stamps_tags_via_x_ses_message_tags_header(self):
+        # mail-spec task 5.2 (R9.5): the RAW (attachment) path cannot use the simple `Tags` param,
+        # so it stamps the X-SES-MESSAGE-TAGS header (same key=value pairs) SES reads instead —
+        # one routing mechanism, both send paths.
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="cfg")
+        sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+            attachments=[
+                {"filename": "members.csv", "content": b"a,b\n1,2\n", "content_type": "text/csv"}
+            ],
+            tags={"ms_tenant": "682d64636e", "ms_run": "72756e2d31"},
+        )
+        raw = client.send_raw_email_calls[0]["RawMessage"]["Data"]
+        assert "X-SES-MESSAGE-TAGS:" in raw
+        assert "ms_tenant=682d64636e" in raw
+        assert "ms_run=72756e2d31" in raw
+
+    def test_blank_from_is_refused_without_substitute_sender(self):
+        # Property 2 / R4.2: no resolved From → refuse (no send, no substitute like jabaki.nl).
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        out = sender.send(
+            from_address="",
+            reply_to="webmaster@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert out.ok is False
+        assert "no resolved sender" in out.error
+        # the SES client was NEVER called — nothing was sent
+        assert client.send_email_calls == []
+        assert client.send_raw_email_calls == []
+
+    def test_no_global_env_sender_fallback(self, monkeypatch):
+        # The adapter no longer reads a global SES_SENDER_EMAIL — the symbol/resolver are gone,
+        # and a send with no per-send From does NOT silently fall back to an env value even if
+        # one is set (killing the jabaki.nl substitute-sender leak).
+        import sam.members.repository.mail_send_adapters as adapters
+
+        assert not hasattr(adapters, "resolve_ses_sender_email")
+        assert not hasattr(adapters, "SES_SENDER_EMAIL_ENV_VAR")
+
+        monkeypatch.setenv("SES_SENDER_EMAIL", "support@jabaki.nl")
+        client = FakeSesClient()
+        out = SesBotoSender(client=client, configuration_set="").send(
+            from_address="",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        # refused — the env value is NOT used as a sender
+        assert out.ok is False
+        assert client.send_email_calls == [] and client.send_raw_email_calls == []
 
 
 # ── DynamoDbMailSentMarkerStore ──────────────────────────────────────────────────────────

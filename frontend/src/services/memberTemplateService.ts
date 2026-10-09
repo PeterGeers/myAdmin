@@ -166,12 +166,24 @@ async function parse<T>(res: Response): Promise<TemplateServiceResult<T>> {
   return { ok: true, data };
 }
 
-/** List the tenant's templates (metadata only). */
+/**
+ * List the tenant's templates (metadata only).
+ *
+ * The success payload is GUARANTEED to be an array: a well-formed response carries
+ * `data: MemberTemplateDto[]`, but a malformed/legacy body (an object, `null`, or a
+ * missing `data` that `parse` falls back to the whole envelope for) is coerced to `[]`
+ * here so callers can safely `.map` without a runtime crash. A failed result is passed
+ * through unchanged so the caller can still branch on `ok === false`.
+ */
 export async function listMemberTemplates(): Promise<
   TemplateServiceResult<MemberTemplateDto[]>
 > {
   const res = await authenticatedGet(buildEndpoint(TEMPLATES_ENDPOINT));
-  return parse<MemberTemplateDto[]>(res);
+  const result = await parse<MemberTemplateDto[]>(res);
+  if (result.ok && !Array.isArray(result.data)) {
+    return { ok: true, data: [] };
+  }
+  return result;
 }
 
 /**

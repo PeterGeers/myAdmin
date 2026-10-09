@@ -114,11 +114,13 @@ import {
   savePreferredList,
   putAnalyticsSetDelivery,
   deleteAnalyticsSetDelivery,
+  deliverAnalyticsSet,
   listSchedulesForSet,
   createSchedule,
   updateSchedule,
   deleteSchedule,
 } from '../../../services/membersApiService';
+import { applyApiError } from '../../../shared/api/applyApiError';
 import type { MemberAnalyticsAreaProps } from './areas/types';
 import { getAvailablePresets } from './memberPivotPresets';
 import type { MemberPivotPreset } from './memberPivotPresets';
@@ -127,6 +129,7 @@ import { generateCsvFromObjects, downloadCsv } from '../../../utils/csvExport';
 import { recordAnalyticsOutput } from '../../../services/memberAnalyticsAuditService';
 import MemberFieldPicker, { type ExistingPivotModel } from './MemberFieldPicker';
 import MemberMailCompose from './MemberMailCompose';
+import MemberMailStatus from './MemberMailStatus';
 import MemberDeliveryEditor from './MemberDeliveryEditor';
 import MemberScheduleEditor from './MemberScheduleEditor';
 import AddressLabelGenerator from './AddressLabelGenerator';
@@ -349,6 +352,17 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     delivery?: MemberDelivery;
   } | null>(null);
 
+  // --- "Deliver now" state (mail-spec task 2.4 / R3.1/R3.2). -----------------
+  // The "Deliver now" lifecycle action (beside Delivery) RUNS a saved set's
+  // STORED `to_fixed` delivery immediately — the interactive trigger for the
+  // existing SAM deliver route (`POST /members/analytics-sets/{id}/deliver`),
+  // the gap R3.2 closes (the route existed but had no frontend caller). The run
+  // enqueues (a worker sends); the UI surfaces the accepted/queued receipt
+  // (R3.5) and any refusal (empty recipients / not-certified) as a clear error
+  // (R3.4). `isDeliveringNow` disables the action while the enqueue is in flight
+  // so a double-click never fires two runs.
+  const [isDeliveringNow, setIsDeliveringNow] = useState(false);
+
   // --- Schedule editor state (task 5.4 / R5). --------------------------------
   // The "Schedule" lifecycle action (beside Delivery, on a selected SAVED set)
   // opens MemberScheduleEditor to attach/manage the set's recurring run. A
@@ -382,6 +396,17 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
   // dropdown). The main pane stays clean — the full library (browse / filter /
   // add-to-preferred / reorder) lives in this modal, not inline.
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+  // --- Mail status/history state (mail-spec task 3.3 / R9). ------------------
+  // The "Mail status" entry point opens the send-status/history screen
+  // (MemberMailStatus) in a modal: a role-scoped list of send-runs + per-run
+  // FAILURE drill-down (R9.2), with honest "sent = SES accepted, not delivered"
+  // labelling (R9.4). The read routes it calls (`GET /members/mail-runs[/{id}]`)
+  // are gated `members:export` + role-scoped server-side (a user sees own runs,
+  // a Tenant_Admin all), so the entry point rides the same `members:export` gate
+  // the result-actions slot uses — it is NOT tied to a produced result (a user
+  // checks past sends independently of running a pivot).
+  const [isMailStatusOpen, setIsMailStatusOpen] = useState(false);
 
   // --- Preferred list state (R11.2 layer 2). ---------------------------------
   // One ordered list of TAGGED references per USER (keyed server-side on the
@@ -964,6 +989,54 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     toast({ title: t('analytics.delivery.cleared'), status: 'success' });
   }, [deliverySet, toast, t]);
 
+  // Deliver now (mail-spec task 2.4 / R3.1/R3.2): RUN the selected saved set's
+  // STORED `to_fixed` delivery immediately via the existing SAM deliver route
+  // (`POST /members/analytics-sets/{id}/deliver`, `deliverAnalyticsSet`). The
+  // route runs the set's STORED delivery (recipients + optional CSV attachment),
+  // so the action is only meaningful for a set that HAS a `to_fixed` delivery —
+  // the list summary carries only `hasDelivery` (not the mode), so we fetch the
+  // full set first and confirm `delivery.mode === 'to_fixed'`. A set with no
+  // delivery, or a `per_recipient` one, is NOT deliver-now-able here (the
+  // per_recipient interactive send is the separate compose path): we surface a
+  // clear reason, never a silent no-op (R3.4). On success the 202 receipt is
+  // surfaced as a "queued, N send(s)" acknowledgment (R3.5); a refusal
+  // (empty recipients 422, not-certified 422) is surfaced via `applyApiError` —
+  // the typed `errors.mail.notCertified` / `errors.analyticsset.delivery.
+  // notConfigured` codes resolve to the clear bilingual message (R4.2/R5.2).
+  const handleDeliverNow = useCallback(async () => {
+    if (!selectedModelSummary || isDeliveringNow) {
+      return;
+    }
+    setIsDeliveringNow(true);
+    try {
+      // Resolve the stored delivery (the summary carries only `hasDelivery`, not
+      // the mode). A fetch failure surfaces via applyApiError below.
+      const saved = await getAnalyticsSet(selectedModelSummary.id);
+      if (!saved.delivery || saved.delivery.mode !== 'to_fixed') {
+        // No `to_fixed` delivery to run — a clear reason, not a silent no-op
+        // (R3.4). The user must configure a fixed-address delivery first.
+        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
+        return;
+      }
+      const result = await deliverAnalyticsSet(saved.id);
+      // The accepted/queued receipt (R3.5): surface how many send jobs were
+      // enqueued (one message for a `to_fixed` delivery).
+      toast({
+        title: t('analytics.delivery.deliverNowQueued', { count: result.enqueued }),
+        status: 'success',
+      });
+    } catch (err) {
+      // Surface the typed refusal/validation reason (API standard v1.0): a
+      // not-certified tenant (`errors.mail.notCertified`) or a set with no stored
+      // delivery (`errors.analyticsset.delivery.notConfigured`) resolves to the
+      // clear bilingual message; a network/unknown throw degrades to the shared
+      // server-error toast. No form fields here → no setFieldError.
+      applyApiError(err, { toast, t });
+    } finally {
+      setIsDeliveringNow(false);
+    }
+  }, [selectedModelSummary, isDeliveringNow, toast, t]);
+
   // Schedule: open the schedule editor on the selected SAVED set (task 5.4 / R5).
   // A schedule can only be attached to a set that HAS a delivery block (R5), so
   // the full set is fetched to confirm its delivery AND its existing schedule is
@@ -1312,6 +1385,23 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
           >
             {t('analytics.pivotViews.library.open')}
           </Button>
+
+          {/* Mail status / history (mail-spec task 3.3 / R9) — the entry point to
+              the send-status screen (list of runs + per-run FAILURE drill-down).
+              Gated by members:export (the status read routes are export-gated +
+              role-scoped server-side, R9.3), independent of a produced result so
+              a user can check past sends any time. */}
+          {capabilities.canExport && (
+            <Button
+              variant="outline"
+              colorScheme="orange"
+              ml={2}
+              onClick={() => setIsMailStatusOpen(true)}
+              data-testid="member-pivot-open-mail-status"
+            >
+              {t('analytics.mailRuns.action')}
+            </Button>
+          )}
         </HStack>
 
         {/* Save lifecycle actions (task 7.5) — all EXPLICIT user actions (R4.4b):
@@ -1368,6 +1458,24 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
               data-testid="member-pivot-delivery"
             >
               {t('analytics.delivery.action')}
+            </Button>
+            {/* Deliver now (mail-spec task 2.4 / R3.1/R3.2) — RUN the selected
+                saved set's STORED delivery immediately via the existing SAM
+                deliver route (the interactive trigger R3.2 adds). Disabled until
+                a saved set is selected; the handler then confirms the set has a
+                `to_fixed` delivery (the summary carries only `hasDelivery`, not
+                the mode) and surfaces a clear reason otherwise (R3.4). The queued
+                receipt / any refusal (empty recipients, not-certified) is
+                surfaced as a toast (R3.5 / R4.2 / R5.2). */}
+            <Button
+              variant="outline"
+              colorScheme="orange"
+              onClick={handleDeliverNow}
+              isDisabled={!selectedModelSummary || isDeliveringNow}
+              isLoading={isDeliveringNow}
+              data-testid="member-pivot-deliver-now"
+            >
+              {t('analytics.delivery.deliverNow')}
             </Button>
             {/* Schedule (task 5.4 / R5) — attach/manage a recurring run on the
                 SAVED set. Offered ONLY when the caller may schedule (members:admin
@@ -1653,6 +1761,34 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
           </ModalBody>
         </ModalContent>
       </Modal>
+
+      {/* Mail status / history modal (mail-spec task 3.3 / R9). Hosts the
+          MemberMailStatus screen: a role-scoped list of send-runs + per-run
+          FAILURE drill-down (R9.2), with honest "sent = SES accepted, not
+          delivered" labelling (R9.4). Mounted only when its members:export entry
+          point is offered; the screen loads the run list on open. */}
+      {capabilities.canExport && (
+        <Modal
+          isOpen={isMailStatusOpen}
+          onClose={() => setIsMailStatusOpen(false)}
+          size="2xl"
+          isCentered
+          scrollBehavior="inside"
+        >
+          <ModalOverlay />
+          <ModalContent
+            bg="gray.800"
+            color="white"
+            data-testid="member-pivot-mail-status-modal"
+          >
+            <ModalHeader>{t('analytics.mailRuns.title')}</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody pb={6}>
+              <MemberMailStatus language={language} />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+      )}
 
       {/* The compose/edit modal (task 7.4 / 7.5). Mounted here so New set /
           Save-as / Update all route through the SAME picker; `existingModel`

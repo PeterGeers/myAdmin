@@ -72,6 +72,8 @@ from sam.members.domain.scope_dimensions import (
     StaticScopeConfigProvider,
 )
 from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+from sam.members.domain.mail_run_status import MailRunStatusService
+from sam.members.domain.mail_sender_resolver import MailSenderResolver
 from sam.members.domain.template_service import (
     InMemoryTemplateBodyStore,
     TemplateService,
@@ -332,6 +334,26 @@ class _CapturingMailQueue:
         self.jobs.append(job)
 
 
+class _CertifiedMailConfig:
+    """A static ``MailConfigReader`` modelling a CERTIFIED tenant for the pre-send resolver.
+
+    The deliver walkthrough runs the SYNCHRONOUS pre-send certification gate (mail-spec task
+    1.3); the harness models the certified happy path so the enqueue fan-out is exercised with a
+    usable From (``noreply@h-dcn.nl``) and no projection/DynamoDB round-trip."""
+
+    def is_mail_enabled(self, tenant_id: str) -> bool:
+        return bool(tenant_id)
+
+    def is_mail_certified(self, tenant_id: str) -> bool:
+        return bool(tenant_id)
+
+    def get_mail_domain(self, tenant_id: str) -> str | None:
+        return "h-dcn.nl" if tenant_id else None
+
+    def get_mail_local_part(self, tenant_id: str) -> str:
+        return "noreply"
+
+
 class MembersParityHarness:
     """Wires the migrated Members module exactly as production does and walks it end-to-end.
 
@@ -373,11 +395,15 @@ class MembersParityHarness:
         # with no AWS/SQS, so the deliver walkthrough step never touches a real queue.
         self.mail_queue = _CapturingMailQueue()
         self.deliver_service = ExecuteAndDeliverService(
-            self.repo, _PassThroughPivot(), self.mail_queue
+            self.repo,
+            _PassThroughPivot(),
+            self.mail_queue,
+            MailSenderResolver(_CertifiedMailConfig()),
         )
         self._original_service_getter: Callable[[], MembershipService] | None = None
         self._original_template_getter: Callable[[], TemplateService] | None = None
         self._original_deliver_getter: Callable[[], Any] | None = None
+        self._original_mail_run_status_getter: Callable[[], Any] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
         self._original_grants: Any = None
@@ -422,6 +448,8 @@ class MembersParityHarness:
         # dispatch_mod.get_execute_and_deliver_service; point it at the harness's fake-queue-
         # backed service so the deliver walkthrough enqueues to the capturing queue, never SQS.
         dispatch_mod.get_execute_and_deliver_service = lambda: self.deliver_service  # type: ignore[assignment]
+        self._original_mail_run_status_getter = dispatch_mod.get_mail_run_status_service
+        dispatch_mod.get_mail_run_status_service = lambda: MailRunStatusService(self.repo)  # type: ignore[assignment]
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
             {self.tenant_id: SAMPLE_SCOPE_CONFIG}
         )
@@ -441,6 +469,9 @@ class MembersParityHarness:
             if self._original_deliver_getter is not None:
                 dispatch_mod.get_execute_and_deliver_service = self._original_deliver_getter  # type: ignore[assignment]
                 self._original_deliver_getter = None
+            if self._original_mail_run_status_getter is not None:
+                dispatch_mod.get_mail_run_status_service = self._original_mail_run_status_getter  # type: ignore[assignment]
+                self._original_mail_run_status_getter = None
             app._SCOPE_CONFIG_PROVIDER_OVERRIDE = self._original_scope_config
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
@@ -854,6 +885,10 @@ class MembersParityHarness:
         # expected statuses are the "route answered as designed" set — importantly NOT
         # {404 no-route, 501 not-implemented}. Where a request is intentionally minimal we
         # accept the module's honest client-error answer (e.g. 422/409) as "route answered".
+        self.repo.create_mail_run(
+            self.tenant_id, "PARITY-RUN",
+            mode="per_recipient", triggered_by="admin-sub", recipient_count=1,
+        )
         checks: list[tuple] = [
             # ── Member CRUD (8 h-dcn behaviours) ──
             (
@@ -1184,6 +1219,45 @@ class MembersParityHarness:
                 {202},
                 {},
                 "run a saved set's stored delivery NOW — enqueues + returns 202 ACCEPTED (R4)",
+            ),
+            # ── Ad-hoc interactive send — stateless (new, mail-spec task 2.1) ──
+            # The SIBLING of deliver_analytics_set: a stateless POST /members/mail/send that
+            # carries the compose body itself (mode + current result rows + recipients /
+            # template / attachment) rather than a saved set. Delegates to the SAME execute-
+            # and-deliver service seam (send_ad_hoc) wired over the harness's FAKE mail queue in
+            # install(), so it enqueues to the capturing queue (never SQS) and returns an
+            # ACCEPTED (202). Gate: members:export (same as deliver). A minimal to_fixed body
+            # (one recipient + a csv attachment) is enough for the route to answer 202. The
+            # literal /members/mail/send path is disjoint from every /members/... route.
+            (
+                "send_ad_hoc_mail",
+                "POST",
+                "/members/mail/send",
+                {
+                    "mode": "to_fixed",
+                    "attachment": "csv",
+                    "recipients": ["agent@example.com"],
+                    "result_rows": [{"personal": {"email": "a@example.com"}}],
+                },
+                None,
+                {202},
+                {},
+                "send an ad-hoc compose NOW — enqueues + returns 202 ACCEPTED (R2)",
+            ),
+            (
+                "list_mail_runs", "GET", "/members/mail-runs",
+                None, None, {200}, {},
+                "list the tenant's send-run status records (R9)",
+            ),
+            (
+                "get_mail_run", "GET", "/members/mail-runs/PARITY-RUN",
+                None, None, {200}, {},
+                "get one send-run tally + failure drill-down (R9)",
+            ),
+            (
+                "delete_mail_run", "DELETE", "/members/mail-runs/PARITY-RUN",
+                None, None, {200}, {},
+                "manually delete a send-run status record (R9.6)",
             ),
             # ── Schedules (new, pivot-output-actions R5 task 5.2) ──
             # Gate: members:admin OR (members:write + ['*'] all-regions). The walkthrough's

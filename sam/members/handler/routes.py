@@ -404,6 +404,127 @@ ROUTES: tuple[RouteSpec, ...] = (
             "block). Gate: members:export + existing scope."
         ),
     ),
+    # ── Ad-hoc interactive send — stateless (1), R2 (mail-spec task 2.1) ──────────────
+    #
+    # The SIBLING of the saved-set `deliver` route (design "two thin routes, ONE shared send
+    # service"). Where `/deliver` runs a SAVED set + its stored delivery block, this stateless
+    # route carries the COMPOSE body itself — the current result rows + the typed recipients /
+    # template / attachment (an `AdHocMailBody`, mail-spec task 2.2) — so the interactive
+    # `per_recipient` compose can send WITHOUT first saving a set. Both routes delegate to the
+    # ONE execute-and-deliver service (`send_ad_hoc` here, `execute_and_deliver` there),
+    # converging on the SAME pre-send certification gate, fan-out, MailJob shape, and MailQueue.
+    #
+    # The LITERAL `/members/mail/send` path is disjoint from `/members/{member_id}` (the first
+    # segment past `/members/` is the literal `mail`, which is matched by its own route before
+    # the `{member_id}` placeholder could capture it — the router returns the first matching
+    # route in declaration order, and this is declared BEFORE the `{member_id}` routes) and from
+    # every other `/members/...` literal (analytics-sets / templates / schedules / field-config /
+    # export / me / search / column-preferences / membership-types), so there is no (method,
+    # path) collision or shadowing.
+    #
+    # Gate (R2, design §3/§8): `members:export` — the SAME single-capability gate the saved-set
+    # `deliver` route carries. An ad-hoc send can only dispatch what the user could already
+    # export within their scope, so it introduces NO new permission; it is an export-class
+    # action (export alone is both necessary and sufficient), matching the deliver gate.
+    RouteSpec(
+        name="send_ad_hoc_mail",
+        method=HttpMethod.POST,
+        path="/members/mail/send",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_EXPORT,
+        self_service=False,
+        summary=(
+            "Send an ad-hoc interactive compose NOW (current result rows + typed recipients / "
+            "template / attachment) — enqueues the send job(s) and returns an ACCEPTED (202) "
+            "result (R2; 422 on a malformed body or an un-certified tenant). Gate: "
+            "members:export + existing scope."
+        ),
+    ),
+    # ── Send-run STATUS — read (2), R9 (mail-spec task 3.2) ──────────────────────────
+    #
+    # The pull-model status/history SURFACE (R9.6): the React screen READS the send-run
+    # records the enqueue path + worker write (task 3.1) and renders them — a list of runs
+    # ("Newsletter — 198 sent, 2 failed") with per-run drill-down to the FAILURE sub-records.
+    # TWO thin reads back it: a LIST of the tenant's runs, and a SINGLE run + its failures.
+    # Both are keyed by `tenant_id` in the repository (Property 3 — no cross-tenant read); the
+    # ROLE-SCOPING (R9.3 — a plain user sees only their OWN sends, a Tenant_Admin sees ALL the
+    # tenant's) is resolved in the dispatch from the verified sub + the members:admin
+    # entitlement, then applied by the thin MailRunStatusService (the handler stays thin).
+    #
+    # The literal `/members/mail-runs` prefix is disjoint from `/members/{member_id}` (the
+    # first segment past `/members/` is the literal `mail-runs`, matched by its own route
+    # before the `{member_id}` placeholder could capture it — the router returns the first
+    # matching route in declaration order, and these are declared BEFORE the `{member_id}`
+    # routes) and from every other `/members/...` literal (analytics-sets / templates /
+    # schedules / mail / field-config / export / me / search / column-preferences /
+    # membership-types), so there is no (method, path) collision or shadowing. `mail-runs`
+    # (hyphen) is also distinct from the `mail` literal (`/members/mail/send`), so neither
+    # shadows the other.
+    #
+    # Gate (R9, design §Components): `members:export` + the active tenant — the SAME mail
+    # capability the send routes carry. Reading the status of a send is a mail-class action
+    # for anyone who could trigger a send; it introduces NO new permission. The user-vs-admin
+    # SCOPING is NOT a capability gate (both a plain export user and an admin pass the gate) —
+    # it is the data-visibility narrowing applied AFTER the gate, in the dispatch/service.
+    RouteSpec(
+        name="list_mail_runs",
+        method=HttpMethod.GET,
+        path="/members/mail-runs",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_EXPORT,
+        self_service=False,
+        summary=(
+            "List the send-run status records (R9.2/R9.6) — a plain user sees only their OWN "
+            "sends (triggered_by == sub), a Tenant_Admin sees ALL the tenant's. "
+            "Gate: members:export + active tenant; role-scoped by members:admin."
+        ),
+    ),
+    RouteSpec(
+        name="get_mail_run",
+        method=HttpMethod.GET,
+        path="/members/mail-runs/{run_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_EXPORT,
+        self_service=False,
+        summary=(
+            "Get one send-run's tally + its per-recipient FAILURE drill-down (R9.2), subject "
+            "to the same scope: a plain user may drill only into their OWN run (else 404, no "
+            "probe), a Tenant_Admin into any tenant run. Gate: members:export + active tenant."
+        ),
+    ),
+    # ── Send-run RETENTION — manual delete (1), R9.6 (mail-spec task 3.3) ─────────────
+    #
+    # The manual-delete half of the R9 retention model (design "Resolved implementation
+    # choices" → retention = a manual delete action + a DynamoDB TTL auto-delete). The user /
+    # Tenant_Admin may purge a run from the status screen before the 90-day TTL fires; the
+    # repository's `delete_mail_run` (task 3.1) removes the `mailrun#` tally AND all its
+    # `mailrecipient#` FAILURE sub-records in one tenant-pinned op (no orphaned failures).
+    #
+    # Same literal `/members/mail-runs/{run_id}` path as the single-run GET, distinguished by
+    # the DELETE method (the router keys on `(method, path)`), so it neither collides with nor
+    # is shadowed by the GET read; `mail-runs` (hyphen) stays distinct from the `mail` literal
+    # (`/members/mail/send`). Declared right after the status reads for cohesion.
+    #
+    # Gate (R9, design §Components): `members:export` + the active tenant — the SAME mail
+    # capability the status reads carry; deleting a run you can see is a mail-class action,
+    # no new permission. The user-vs-admin SCOPING (a plain user may delete only their OWN
+    # run; a Tenant_Admin any tenant run) is NOT a capability gate — it is the same
+    # data-visibility narrowing applied AFTER the gate, in the dispatch/service (an
+    # out-of-scope run is reported absent → 404, no probe), mirroring `get_mail_run`.
+    RouteSpec(
+        name="delete_mail_run",
+        method=HttpMethod.DELETE,
+        path="/members/mail-runs/{run_id}",
+        group=RouteGroup.ANALYTICS,
+        capability=CAP_MEMBERS_EXPORT,
+        self_service=False,
+        summary=(
+            "Manually delete a send-run status record (R9.6 retention) — removes the run tally "
+            "AND all its FAILURE sub-records, tenant-pinned. Subject to the same scope: a plain "
+            "user may delete only their OWN run (else 404, no probe), a Tenant_Admin any tenant "
+            "run. Gate: members:export + active tenant."
+        ),
+    ),
     # ── Templates — CRUD (5), R2 (pivot-output-actions task 2.3) ────────────────────
     #
     # Tenant-scoped stored mail templates (metadata on-plane `template#<id>`; body HTML +

@@ -59,3 +59,85 @@ Afzenderverificatie is voorbehouden aan de **Tenant Admin**. Gewone gebruikers k
 | Status blijft *In afwachting*          | De bevestigingslink is nog niet gevolgd              | Open de verificatiemail en volg de link                       |
 | Gebruikers zien geen mailacties        | Geen geverifieerde afzender, of tenant niet vrijgegeven | Verifieer een afzender; de acties verschijnen na vrijgave  |
 | Mail komt niet aan bij ontvangers      | De afzender is nog niet geverifieerd                 | Rond eerst de verificatie af voordat je verstuurt             |
+
+---
+
+## Runbook: je mail-domein laten certificeren (onboarding)
+
+> Deze sectie beschrijft het **onboardingproces** waarmee je tenant wordt vrijgegeven om te mailen vanaf een **eigen domein** (bijvoorbeeld `noreply@jouwclub.nl`). Dit is een **begeleid, eenmalig** proces — geen zelfbedieningsknop in de applicatie. Je doet het samen met de beheerder (operator) van het platform; jij zet de DNS-records klaar, de operator doet de kant aan de verzendservice en legt de certificering vast.
+
+!!! info
+Het verschil met [een afzender toevoegen](#een-afzender-toevoegen-en-verifieren) hierboven: dáár verifieer je één **adres**; hier certificeer je een heel **domein**. Met een gecertificeerd domein verstuurt de Ledenadministratie vanaf `noreply@<jouw-domein>` — een vast, generiek afzenderadres per tenant.
+
+### De afzender die je krijgt
+
+Als je domein is gecertificeerd, gaat elke ledenmail uit vanaf:
+
+- **Van (From):** `noreply@<jouw-domein>` — een vast, generiek adres per tenant (niet instelbaar per gebruiker).
+- **Antwoord naar (Reply-To):** het e-mailadres van de ingelogde gebruiker die de mail verstuurt, zodat antwoorden bij de juiste persoon terechtkomen.
+
+!!! info
+Het lokale deel (`noreply`) ligt standaard vast. Een afwijkend lokaal deel (bijvoorbeeld `info`) is alleen mogelijk als dat bij de onboarding is afgesproken en vastgelegd.
+
+### Stap 1 — Wat jij aanlevert
+
+Geef aan de operator door:
+
+1. Het **maildomein** dat je wilt gebruiken (bijvoorbeeld `jouwclub.nl`). Dit moet een domein zijn dat je zelf beheert en waarvan je de **DNS kunt aanpassen**.
+2. Eventueel een afwijkend **lokaal deel** van de afzender (standaard `noreply`).
+
+### Stap 2 — De operator maakt de domein-identiteit aan
+
+De operator registreert jouw domein als **verzendidentiteit** bij de mailservice (SES). Dat levert een set **DNS-records** op die jij vervolgens aan je domein toevoegt — dit is wat bewijst dat je het domein echt beheert.
+
+### Stap 3 — De DNS-records toevoegen (jouw kant)
+
+Voeg bij je domeinregistrar (of DNS-beheerder) de records toe die de operator je aanlevert:
+
+| Record            | Doel                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| **DKIM** (3× CNAME) | Ondertekent je uitgaande mail, zodat ontvangers kunnen controleren dat de mail echt van jouw domein komt. De mailservice levert meestal **drie** CNAME-records aan. |
+| **SPF** (TXT)     | Vermeldt welke servers namens je domein mogen verzenden. Neem de door de operator aangeleverde `include` op in je bestaande SPF-record (voeg er geen tweede SPF-record bij). |
+| **MAIL FROM** (optioneel, MX + TXT) | Alleen als de operator een eigen "MAIL FROM"-subdomein instelt; voeg dan ook die records toe. |
+
+!!! warning
+Voeg **geen tweede SPF-record** toe. Een domein hoort precies één SPF-TXT-record te hebben; staat er al een, vul die dan aan met de aangeleverde `include` in plaats van een nieuwe toe te voegen. Twee SPF-records maken je mail juist onbetrouwbaar.
+
+!!! tip
+DNS-wijzigingen kunnen even duren voordat ze overal zichtbaar zijn (van enkele minuten tot soms uren). Heb geduld voordat je de verificatie als mislukt beschouwt.
+
+### Stap 4 — Bevestigen dat het domein geverifieerd is
+
+Zodra de DNS-records live zijn, controleert de mailservice ze automatisch. De operator bevestigt dat de domein-identiteit de status **geverifieerd voor verzenden** heeft (`VerifiedForSendingStatus`). Pas dán is het domein bruikbaar als afzender.
+
+!!! info
+Naast de domeinverificatie geldt de account-brede randvoorwaarde dat verzenden is ingeschakeld (uit de "sandbox"). De operator bewaakt dat als operationele voorwaarde; het is geen stap die jij per verzending doet.
+
+### Stap 5 — De certificering vastleggen (`mail_certified`)
+
+Als laatste legt de operator de certificering vast als **tenantparameter**:
+
+| Parameter          | Waarde / betekenis                                                       |
+| ------------------ | ------------------------------------------------------------------------ |
+| `mail_domain`      | Jouw gecertificeerde domein (bijvoorbeeld `jouwclub.nl`)                 |
+| `mail_local_part`  | Het lokale deel van de afzender; standaard `noreply`                     |
+| `mail_certified`   | `true` zodra het domein geverifieerd is — dit is de schakelaar waar de verzending op afgaat |
+| `mail_enabled`     | `true` om de mailacties voor de tenant vrij te geven                      |
+
+Deze parameters worden bij de onboarding ingevoerd en **doorgezet** (geprojecteerd) naar de verzendomgeving, net als de overige tenantinstellingen. De verzending leest `mail_certified` vlak vóór het versturen: staat die niet op `true`, dan wordt er niet verstuurd.
+
+!!! warning
+`mail_certified` is een **vastgelegde** stand, geen live meting. Loopt de certificering van het domein later af (bijvoorbeeld doordat DNS-records worden verwijderd), dan moet de certificering opnieuw worden gecontroleerd en vastgelegd. Haal de DKIM/SPF-records dus niet weg zolang je blijft mailen.
+
+### Als je tenant (nog) niet is gecertificeerd
+
+Zolang `mail_certified` niet op `true` staat, geldt de **fail-closed** regel:
+
+- De verzending wordt **niet** uitgevoerd. Er is **geen** vervangende afzender — nooit een vreemd of platformdomein.
+- De gebruiker krijgt een duidelijke, bruikbare melding: *"de mail van je tenant is niet gecertificeerd — neem contact op met je beheerder."*
+
+!!! info
+Dit is bewust: liever een duidelijke blokkade met een actie dan een stille mislukking of een mail die vanaf een verkeerd domein de deur uitgaat. Zie ook [Verzenden & bezorging](../members/delivery.md) en [Mailstatus](../members/mail-status.md).
+
+!!! info
+Deze certificering hoort bij je **tenantgegevens**. Zie [Instellingen](tenant-settings.md) voor de overige tenantinstellingen; het maildomein en de certificering worden bij de onboarding ingevoerd en bij je tenant bewaard.

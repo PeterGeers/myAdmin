@@ -45,6 +45,7 @@ const savePreferredList = vi.fn();
 // actions call these from their handlers; stubbed so no network is hit.
 const putAnalyticsSetDelivery = vi.fn();
 const deleteAnalyticsSetDelivery = vi.fn();
+const deliverAnalyticsSet = vi.fn();
 const listSchedulesForSet = vi.fn();
 const createSchedule = vi.fn();
 const updateSchedule = vi.fn();
@@ -59,6 +60,7 @@ vi.mock('../../../services/membersApiService', () => ({
   savePreferredList: (...args: unknown[]) => savePreferredList(...args),
   putAnalyticsSetDelivery: (...args: unknown[]) => putAnalyticsSetDelivery(...args),
   deleteAnalyticsSetDelivery: (...args: unknown[]) => deleteAnalyticsSetDelivery(...args),
+  deliverAnalyticsSet: (...args: unknown[]) => deliverAnalyticsSet(...args),
   listSchedulesForSet: (...args: unknown[]) => listSchedulesForSet(...args),
   createSchedule: (...args: unknown[]) => createSchedule(...args),
   updateSchedule: (...args: unknown[]) => updateSchedule(...args),
@@ -120,13 +122,6 @@ const downloadCsv = vi.fn();
 vi.mock('../../../utils/csvExport', () => ({
   generateCsvFromObjects: (...args: unknown[]) => generateCsvFromObjects(...args),
   downloadCsv: (...args: unknown[]) => downloadCsv(...args),
-}));
-
-// --- Mock the mail service (task 9.2) so the Mail button + compose modal that
-// now mount in the result-actions slot never hit the network. ----------------
-const mailMembersSet = vi.fn();
-vi.mock('../../../services/memberMailService', () => ({
-  mailMembersSet: (...args: unknown[]) => mailMembersSet(...args),
 }));
 
 // --- Mock the analytics audit signal (task 10.1 / C7) so the CSV export's
@@ -272,6 +267,14 @@ beforeEach(() => {
   addressLabelGeneratorCalls.length = 0;
   putAnalyticsSetDelivery.mockReset();
   deleteAnalyticsSetDelivery.mockReset();
+  deliverAnalyticsSet.mockReset();
+  deliverAnalyticsSet.mockResolvedValue({
+    runId: 'run-1',
+    mode: 'to_fixed',
+    enqueued: 1,
+    skippedNoAddress: 0,
+    jobIds: ['job-1'],
+  });
   listSchedulesForSet.mockReset();
   createSchedule.mockReset();
   updateSchedule.mockReset();
@@ -2410,5 +2413,123 @@ describe('MemberPivotViews — schedule action gating (task 5.4 / R5)', () => {
     // Bound to the open set id, with the default cadence + enabled.
     expect(createSchedule).toHaveBeenCalledWith('set-7', 'monthly', true);
     expect(updateSchedule).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// Mail-spec task 2.4 (R3.1 / R3.2) — the "Deliver now" lifecycle action: RUN a
+// saved set's STORED `to_fixed` delivery immediately via the EXISTING SAM
+// deliver route (`POST /members/analytics-sets/{id}/deliver`, the frontend
+// caller the gap R3.2 closes). Enabled on a selected saved set; the handler
+// confirms the set has a `to_fixed` delivery (fetched — the summary carries only
+// `hasDelivery`), calls `deliverAnalyticsSet`, surfaces the queued receipt
+// (R3.5), and surfaces a refusal (empty recipients / not-certified, R3.4 /
+// R4.2 / R5.2) or the "no fixed delivery" guard as an error — never a silent
+// no-op.
+// ===========================================================================
+describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', () => {
+  /** Render with a single preferred saved set made selectable, then select it. */
+  async function renderWithSavedSet(opts: { hasDelivery: boolean } = { hasDelivery: true }) {
+    listAnalyticsSets.mockResolvedValue([
+      { id: 'set-7', name: 'Active seniors', kind: 'count', hasDelivery: opts.hasDelivery },
+    ]);
+    getPreferredList.mockResolvedValue({ sub: 'u1', refs: ['set:set-7'], updated_at: '' });
+    render(<MemberPivotViews {...makeProps()} />);
+    await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+    await waitFor(() => {
+      const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+      const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+      expect(values).toContain('model:set-7');
+    });
+    fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+      target: { value: 'model:set-7' },
+    });
+  }
+
+  const toFixedSet = {
+    id: 'set-7',
+    name: 'Active seniors',
+    kind: 'count' as const,
+    definition: { groupColumns: [], aggregations: [], filters: {} },
+    delivery: {
+      mode: 'to_fixed' as const,
+      templateId: null,
+      attachment: 'csv' as const,
+      recipients: ['agent@example.com'],
+      labelOptions: null,
+    },
+    created_at: '',
+    updated_at: '',
+  };
+
+  it('DISABLES Deliver now until a saved set is selected', async () => {
+    // No selection yet → the action is present (manage caller) but disabled, and
+    // a click never calls the deliver route.
+    render(<MemberPivotViews {...makeProps()} />);
+    await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+    const btn = screen.getByTestId('member-pivot-deliver-now') as HTMLButtonElement;
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    await waitFor(() => expect(deliverAnalyticsSet).not.toHaveBeenCalled());
+  });
+
+  // Validates: Requirements 3.1, 3.2, 3.5
+  it('calls the EXISTING deliver route for a set with a to_fixed delivery', async () => {
+    getAnalyticsSet.mockResolvedValue(toFixedSet);
+    await renderWithSavedSet({ hasDelivery: true });
+
+    fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+
+    // It resolves the stored delivery (summary carries no mode) then RUNS it via
+    // the existing SAM deliver route — the frontend caller R3.2 adds.
+    await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(deliverAnalyticsSet).toHaveBeenCalledWith('set-7'));
+  });
+
+  // Validates: Requirements 3.4 (clear reason, not a silent no-op)
+  it('does NOT call deliver and warns when the set has no to_fixed delivery', async () => {
+    // A per_recipient delivery is NOT deliver-now-able here (that is the separate
+    // compose path). The guard surfaces a reason and never hits the deliver route.
+    getAnalyticsSet.mockResolvedValue({
+      ...toFixedSet,
+      delivery: {
+        mode: 'per_recipient',
+        templateId: null,
+        attachment: null,
+        recipients: [],
+        labelOptions: null,
+      },
+    });
+    await renderWithSavedSet({ hasDelivery: true });
+
+    fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+
+    await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    // No stored to_fixed delivery to run → the route is NEVER called.
+    await waitFor(() => expect(deliverAnalyticsSet).not.toHaveBeenCalled());
+  });
+
+  // Validates: Requirements 3.4 (empty-recipients / not-certified refusal surfaces)
+  it('surfaces a deliver-route refusal (not-certified 422) without crashing', async () => {
+    getAnalyticsSet.mockResolvedValue(toFixedSet);
+    // The deliver route refuses BEFORE enqueue (pre-send certification gate):
+    // a structured ApiError the component surfaces via applyApiError.
+    const { ApiError } = await import('../../../shared/api/ApiError');
+    deliverAnalyticsSet.mockRejectedValue(
+      new ApiError(422, {
+        error: 'The tenant mail sender is not certified',
+        code: 'errors.mail.notCertified',
+      }),
+    );
+    await renderWithSavedSet({ hasDelivery: true });
+
+    fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+
+    // The run was attempted and the refusal handled (no crash); the action
+    // becomes clickable again once the in-flight run settles.
+    await waitFor(() => expect(deliverAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() =>
+      expect(screen.getByTestId('member-pivot-deliver-now')).not.toBeDisabled(),
+    );
   });
 });

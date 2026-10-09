@@ -101,6 +101,7 @@ nav:
                   - Exporteren: members/export.md
                   - Analyse: members/analytics.md
                   - Verzenden & bezorging: members/delivery.md
+                  - Mailstatus: members/mail-status.md
         - Rapportages:
                   - Overzicht: reports/index.md
                   - Dashboards: reports/dashboards.md
