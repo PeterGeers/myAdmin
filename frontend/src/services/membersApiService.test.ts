@@ -609,15 +609,15 @@ describe('membersApiService — column preferences (task 2.5.5)', () => {
       const [url, init] = fetchCall();
       expect(init.method).toBe('PUT');
       expect(url).toBe(`${BASE}/members/analytics-sets/set-1/delivery`);
-      // The body carries ONLY the snake_case delivery block (no name/kind/definition).
+      // The body IS the bare snake_case delivery block — NOT wrapped in
+      // `{ delivery: ... }`. The backend reads the request body directly as the
+      // block (`_write_body(request)`); a wrapper makes `mode` absent → 422.
       expect(JSON.parse(init.body as string)).toEqual({
-        delivery: {
-          mode: 'to_fixed',
-          template_id: null,
-          attachment: 'csv',
-          recipients: ['agent@example.com'],
-          label_options: null,
-        },
+        mode: 'to_fixed',
+        template_id: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        label_options: null,
       });
       // The reply is unwrapped + mapped back to the camelCase set (with delivery).
       expect(result.id).toBe('set-1');
