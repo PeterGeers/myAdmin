@@ -2071,6 +2071,7 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
                   onChange={(e) => setCsvMailTo(e.target.value)}
                   placeholder={t('analytics.export.csvMail.toPlaceholder')}
                   bg="gray.900"
+                  color="white"
                 />
               </FormControl>
             </AlertDialogBody>
