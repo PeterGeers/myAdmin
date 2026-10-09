@@ -79,6 +79,16 @@ Parameters:
     AllowedValues:
       - eu-west-1
 
+  SharedBucketName:
+    Type: String
+    Description: >-
+      Name of the per-env shared S3 bucket that holds mail-template bodies/logos (mail-spec
+      correction C4). Per environment: `myadmin-shared` (prod) / `myadmin-shared-test` (test).
+      Created + owned by THIS stack (the SharedBucket resource below). No default — fail-fast
+      (steering 23/36): a blank name must break the deploy. Object keys are tenant-first with a
+      free-form service path: `<tenant>/members/mail/templates/<id>/<lang>.html`.
+    AllowedPattern: "^myadmin-shared(-test)?$"
+
   Stage:
     Type: String
     Description: >-
@@ -506,6 +516,17 @@ Resources:
             # SES is a nonprofit-deploy service (`506221081911`/`eu-west-1`, steering 23); the
             # domain identity is verified OPERATIONALLY per tenant at onboarding (mail-spec task
             # 6.1 runbook) — this only grants send ACCESS to it.
+            # --- S3: template bodies/logos in the shared bucket (C4) — RW for the create/
+            # update/delete/get template routes. Scoped to the bucket + the Members service
+            # path (`*/members/mail/*`); the tenant prefix is the isolation boundary. ---
+            - Sid: MembersTemplateBodiesS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource:
+                - !Sub "arn:aws:s3:::${SharedBucketName}/*/members/mail/*"
             - Sid: MembersSendViaSes
               Effect: Allow
               Action:
@@ -586,6 +607,8 @@ Resources:
           # the stack parameters, which themselves have no defaults.
           MEMBERS_TABLE: !Ref MembersTableName
           GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
+          # Shared bucket for mail-template bodies/logos (C4) — fail-fast, no default.
+          S3_SHARED_BUCKET: !Ref SharedBucketName
           # NOTE ON `--env-vars` (local): `sam local start-api --env-vars` can only
           #   OVERRIDE variables that are DECLARED here — it cannot ADD undeclared
           #   ones. So every var the local env-vars JSON supplies (the DynamoDB-Local
@@ -738,6 +761,14 @@ Resources:
             # single-address `identity/support@jabaki.nl` + `== support@jabaki.nl` scope would
             # DENY the per-tenant send — removed here.) SES is nonprofit-deploy (506221081911 /
             # eu-west-1, steering 23).
+            # --- S3: template bodies in the shared bucket (C4) — READ for per-recipient
+            # render at send time. Scoped to the bucket + the Members service path. ---
+            - Sid: MailWorkerTemplateBodiesS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${SharedBucketName}/*/members/mail/*"
             - Sid: MailWorkerSendViaSes
               Effect: Allow
               Action:
@@ -786,6 +817,8 @@ Resources:
           APP_ENV: !FindInMap [StageToAppEnv, !Ref Stage, AppEnv]
           MEMBERS_TABLE: !Ref MembersTableName
           GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
+          # Shared bucket for mail-template bodies/logos (C4) — fail-fast, no default.
+          S3_SHARED_BUCKET: !Ref SharedBucketName
           # Local-only DynamoDB endpoint override (empty in prod; the client only overrides
           # when non-blank). Declared so `sam local`/tests can inject it, same as the edge.
           AWS_ENDPOINT_URL_DYNAMODB: !Ref DynamoDbEndpointUrl
@@ -1087,6 +1120,29 @@ Resources:
   # Per-env name from the fail-fast `MailFeedbackTopicName` param (same discipline as the send
   # queue's name): `members-mail-feedback` (prod) / `members-mail-feedback-test` (test), supplied
   # per env via samconfig.toml so TEST and PROD each own a distinct topic (no cross-env sharing).
+  # --- Shared S3 bucket: mail-template bodies/logos (mail-spec correction C4) --------------
+  # Created + OWNED by this stack (nonprofit-deploy, same account as the functions). Name per
+  # env via SharedBucketName (`myadmin-shared` prod / `myadmin-shared-test` test). Object keys
+  # are tenant-first with a free-form service path (`<tenant>/members/mail/templates/...`) so
+  # one bucket can hold many services' assets without collision — migration-safe for the future
+  # Flask->nonprofit consolidation. The tenant prefix is the isolation boundary; the function
+  # roles are scoped to `*/members/mail/*`. Private, SSE, versioned, public access blocked.
+  SharedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref SharedBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
   MembersMailFeedbackTopic:
     Type: AWS::SNS::Topic
     Properties:
