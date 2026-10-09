@@ -513,6 +513,11 @@ Resources:
                 - ses:SendRawEmail
               Resource:
                 - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${MailSenderDomain}"
+                # A SendEmail/SendRawEmail call that names a ConfigurationSetName is authorized
+                # against BOTH the identity AND the configuration-set resource — so the config
+                # set this stack owns must be in the Resource list too, else SES returns
+                # AccessDenied on `configuration-set/<name>` (mail-spec Phase 7 fix).
+                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:configuration-set/${SesConfigurationSet}"
               Condition:
                 StringEquals:
                   "ses:FromAddress": !Sub "noreply@${MailSenderDomain}"
@@ -740,6 +745,11 @@ Resources:
                 - ses:SendRawEmail
               Resource:
                 - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:identity/${MailSenderDomain}"
+                # A SendEmail/SendRawEmail call that names a ConfigurationSetName is authorized
+                # against BOTH the identity AND the configuration-set resource — so the config
+                # set this stack owns must be in the Resource list too, else SES returns
+                # AccessDenied on `configuration-set/<name>` (mail-spec Phase 7 fix).
+                - !Sub "arn:aws:ses:${Region}:${AWS::AccountId}:configuration-set/${SesConfigurationSet}"
               Condition:
                 StringEquals:
                   "ses:FromAddress": !Sub "noreply@${MailSenderDomain}"
