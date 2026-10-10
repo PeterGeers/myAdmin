@@ -40,9 +40,12 @@
 #   skipped (matching the original "no python → skip" behaviour) rather than
 #   hard-failing — the guard is a safety net, not a hard dependency.
 #
-# How the clean checkout works: temporarily stash untracked + ignored files (so
-# the tree matches a clean checkout of tracked files only), run the gates, then
-# ALWAYS restore the stash via an EXIT/INT/TERM trap.
+# How the clean checkout works: temporarily stash tracked changes + UNTRACKED
+# files (so the tree matches a clean checkout of the tracked file set), run the
+# gates, then ALWAYS restore the stash via an EXIT/INT/TERM trap. Ignored files
+# are intentionally NOT stashed (see the stash block below) — stashing them
+# with `--all` fails on an unreadable ignored data dir (e.g. a running Docker
+# `mysql_data/`), which previously made the whole guard silently skip its gates.
 #
 # Opt out:
 #   SKIP_PREPUSH=1          git push ...   # master switch — skip the WHOLE guard
@@ -141,16 +144,33 @@ fi
 # Clean-checkout stash. Only stash if there is something to stash, so a clean
 # tree pushes with no side effects. ALL gates below run inside this window.
 # ---------------------------------------------------------------------------
+#
+# NOTE on scope (why not --all): we deliberately stash only tracked changes +
+# UNTRACKED files (`--include-untracked`), NOT ignored files. Earlier revisions
+# used `--all` to mimic a truly pristine checkout, but `--all` also tries to
+# stash *ignored* paths — and this repo keeps a running Docker MySQL data dir
+# (`mysql_data/`, gitignored, owned by the container's UID 999 and unreadable by
+# the pushing user). `git stash --all` chokes on it ("Permission denied" ->
+# "fatal: Unable to process path"), the stash fails, and the guard then skipped
+# EVERY gate — silently turning the whole pre-push into a no-op (exactly the
+# failure class this task exists to prevent). Ignored build/data dirs are never
+# part of a CI checkout anyway, so excluding them loses nothing: untracked
+# *source* files are still stashed, so Gate 1's untracked-but-required-module
+# detection is preserved.
 STASHED=0
 if ! git diff --quiet || ! git diff --cached --quiet || \
-   [ -n "$(git ls-files --others --exclude-standard)" ] || \
-   [ -n "$(git ls-files --others --ignored --exclude-standard)" ]; then
-    echo "pre-push: stashing working-tree + untracked/ignored files to mimic a clean checkout ..."
-    if git stash push --include-untracked --all --quiet --message "pre-push-clean-collect" ; then
+   [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    echo "pre-push: stashing working-tree + untracked files to mimic a clean checkout ..."
+    if git stash push --include-untracked --quiet --message "pre-push-clean-collect" ; then
         STASHED=1
     else
-        echo "pre-push: WARNING could not stash; skipping gates to avoid touching your tree." >&2
-        exit 0
+        # A stash FAILURE must NOT silently pass the push — a guard that skips
+        # its gates on error is worse than no guard. Fail loud; the user can
+        # bypass deliberately with SKIP_PREPUSH=1 if they understand the risk.
+        echo "pre-push: ERROR could not stash working tree to mimic a clean checkout." >&2
+        echo "pre-push: refusing to push without running the gates (a silent skip would defeat the guard)." >&2
+        echo "pre-push: resolve the stash problem, or bypass intentionally with 'SKIP_PREPUSH=1 git push ...'." >&2
+        exit 1
     fi
 fi
 

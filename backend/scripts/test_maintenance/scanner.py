@@ -16,6 +16,7 @@ Components wired in Phase 3:
 
 Components wired in Phase 4:
     - DriftDetector          (source-test drift)
+    - KeySetDriftDetector    (frozen expected-set vs schema/config source)
     - FrontendScanner        (frontend test analysis)
 
 CLI interface::
@@ -61,6 +62,10 @@ from .dependency_mapper import (
 from .drift_detector import (
     DriftDetector,
     DriftIssue,
+)
+from .keyset_drift_detector import (
+    KeySetDriftDetector,
+    KeySetDriftIssue,
 )
 from .frontend_scanner import (
     FrontendScanner,
@@ -124,6 +129,9 @@ class ScanReport:
     summary: ScanSummary = field(default_factory=ScanSummary)
     mock_violations: List[MockViolation] = field(default_factory=list)
     drift_issues: List[DriftIssue] = field(default_factory=list)
+    keyset_drift_issues: List[KeySetDriftIssue] = field(
+        default_factory=list
+    )
     compliance_violations: List[ComplianceViolation] = field(
         default_factory=list
     )
@@ -234,6 +242,7 @@ class TestHealthScanner:
         self._compliance_checker = ComplianceChecker(config_path)
         self._dep_mapper = DependencyMapper()
         self._drift_detector: Optional[DriftDetector] = None
+        self._keyset_drift_detector = KeySetDriftDetector()
         self._frontend_scanner = FrontendScanner()
         self._registry = ClassificationRegistry(registry_path)
 
@@ -312,6 +321,24 @@ class TestHealthScanner:
             except Exception as exc:
                 logger.warning(
                     "Drift detection failed: %s — skipping drift issues",
+                    exc,
+                )
+
+        # --- Key-set drift (frozen expected-set vs schema source) ----------
+        # A frozen ``set(x.keys()) == {literal}`` assertion is a property of
+        # the test file alone (it resolves its schema source from imports),
+        # so scan each backend test file directly rather than per source
+        # pair.  This catches the F1 feature-vs-test drift class: a schema
+        # grows a key while a frozen-set test still asserts the old set.
+        for test_file in backend_test_files:
+            try:
+                report.keyset_drift_issues.extend(
+                    self._keyset_drift_detector.detect_keyset_drift(test_file)
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Key-set drift detection failed for %s: %s — skipping",
+                    test_file,
                     exc,
                 )
 
@@ -489,6 +516,24 @@ class TestHealthScanner:
             )
             items_by_cause.setdefault(root_cause, []).append(item)
 
+        # Key-set drift issues → work items
+        for v in report.keyset_drift_issues:
+            root_cause = "keyset_drift"
+            item = MaintenanceWorkItem(
+                file_path=v.test_file,
+                issue_type=v.drift_type,
+                root_cause=root_cause,
+                severity=v.severity,
+                description=v.description,
+                suggested_fix=(
+                    f"Update the frozen expected set at "
+                    f"{v.test_file}:{v.line_number} to match schema source "
+                    f"'{v.source_context}' in {v.source_module}"
+                ),
+                effort_estimate="5-15 min per test",
+            )
+            items_by_cause.setdefault(root_cause, []).append(item)
+
         # Frontend violations → work items
         for v in report.frontend_violations:
             root_cause = f"frontend_{v.violation_type}"
@@ -522,6 +567,7 @@ class TestHealthScanner:
                 "signature_change": "10-20 min per test",
                 "key_mismatch": "10-20 min per test",
                 "patch_target_unresolved": "5-15 min per test",
+                "keyset_drift": "5-15 min per test",
                 "frontend_missing_msw": "10-20 min per file",
                 "frontend_missing_provider": "5-10 min per file",
                 "frontend_stale_import": "5-10 min per file",
@@ -708,6 +754,8 @@ class TestHealthScanner:
             }
             cause = drift_map.get(v.drift_type, "other")
             counts[cause] = counts.get(cause, 0) + 1
+        for _v in report.keyset_drift_issues:
+            counts["keyset_drift"] = counts.get("keyset_drift", 0) + 1
         return counts
 
     # ------------------------------------------------------------------
@@ -755,6 +803,10 @@ class TestHealthScanner:
             issues_by_severity[sev] = issues_by_severity.get(sev, 0) + 1
 
         for v in report.drift_issues:
+            sev = v.severity
+            issues_by_severity[sev] = issues_by_severity.get(sev, 0) + 1
+
+        for v in report.keyset_drift_issues:
             sev = v.severity
             issues_by_severity[sev] = issues_by_severity.get(sev, 0) + 1
 
@@ -902,6 +954,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Test files scanned: {report.summary.total_test_files}")
         print(f"\nMock violations:       {len(report.mock_violations)}")
         print(f"Drift issues:          {len(report.drift_issues)}")
+        print(f"Key-set drift issues:  "
+              f"{len(report.keyset_drift_issues)}")
         print(f"Compliance violations: {len(report.compliance_violations)}")
         print(f"Frontend violations:   {len(report.frontend_violations)}")
         print(f"Untested sources:      {len(report.untested_sources)}")
@@ -936,6 +990,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         total_issues = (
             len(report.mock_violations)
             + len(report.drift_issues)
+            + len(report.keyset_drift_issues)
             + len(report.compliance_violations)
             + len(report.frontend_violations)
         )
