@@ -53,6 +53,30 @@ const TPL: MemberTemplateDto = {
   updated_at: '2024-01-01T00:00:00Z',
 };
 
+// A LABEL template (kind:"label") — content is ordered `lines` of result-field keys, NO languages.
+const LABEL_TPL: MemberTemplateDto = {
+  template_id: 'lbl-1',
+  name: 'Address labels',
+  kind: 'label',
+  lines: [['display_name'], ['street'], ['postal_code', 'city']],
+  languages: {},
+  merge_fields: [],
+  logo_asset_ref: null,
+  origin: 'user',
+  created_by: 'sub-1',
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+};
+
+// The current pivot RESULT's columns the label line-builder picks keys from (R6).
+const RESULT_FIELDS = [
+  { key: 'display_name', label: 'Display name' },
+  { key: 'street', label: 'Street' },
+  { key: 'postal_code', label: 'Postal code' },
+  { key: 'city', label: 'City' },
+  { key: 'country', label: 'Country' },
+];
+
 // Injected service spies (fresh per test).
 let listTemplates: ReturnType<typeof vi.fn>;
 let getTemplate: ReturnType<typeof vi.fn>;
@@ -249,6 +273,143 @@ describe('MemberTemplateManager', () => {
           expect.objectContaining({ title: 'analytics.mail.templates.improveError' }),
         ),
       );
+    });
+  });
+
+  // The unified editor shows ALL kinds in the list with a per-row KIND badge so mail vs label
+  // are distinguishable (R-L1), and the kind selector only appears when label creation is
+  // possible (the parent supplied result columns). With no resultFields (mail compose context)
+  // the editor manages mail only — no kind selector, no label section.
+  describe('kind-aware list + mail-only without result context', () => {
+    it('shows a kind badge distinguishing mail vs label in the list', async () => {
+      listTemplates.mockResolvedValue({ ok: true, data: [TPL, LABEL_TPL] });
+      render(<MemberTemplateManager {...makeProps({ resultFields: RESULT_FIELDS })} />);
+      await screen.findByTestId('member-template-list');
+
+      // Both templates are listed (ALL kinds), each with its own badge.
+      expect(screen.getByText('Welcome')).toBeInTheDocument();
+      expect(screen.getByText('Address labels')).toBeInTheDocument();
+      expect(screen.getByTestId('member-template-kind-tpl-1')).toHaveTextContent(
+        'analytics.mail.templates.kind.mail',
+      );
+      expect(screen.getByTestId('member-template-kind-lbl-1')).toHaveTextContent(
+        'analytics.mail.templates.kind.label',
+      );
+    });
+
+    it('offers no kind selector / label section without resultFields (mail-only context)', async () => {
+      render(<MemberTemplateManager {...makeProps()} />);
+      await screen.findByTestId('member-template-editor');
+      // Mail-only: the kind selector is absent and the mail content section is shown.
+      expect(screen.queryByTestId('member-template-kind-select')).not.toBeInTheDocument();
+      expect(screen.getByTestId('member-template-mail-section')).toBeInTheDocument();
+      expect(screen.queryByTestId('member-template-label-section')).not.toBeInTheDocument();
+    });
+  });
+
+  // Label mode (R-L1): with resultFields supplied, the user can pick kind "label", build ordered
+  // lines of result-field keys, and saving writes { name, kind:"label", lines } with NO languages.
+  describe('label mode (R-L1)', () => {
+    function renderLabelCreate() {
+      render(<MemberTemplateManager {...makeProps({ resultFields: RESULT_FIELDS })} />);
+    }
+
+    it('switches to label kind, gates Save until a line has a field, then creates a label record', async () => {
+      renderLabelCreate();
+      await screen.findByTestId('member-template-editor');
+
+      // Choose the label kind — the mail section disappears, the label builder appears.
+      fireEvent.change(screen.getByTestId('member-template-kind-select'), {
+        target: { value: 'label' },
+      });
+      expect(screen.getByTestId('member-template-label-section')).toBeInTheDocument();
+      expect(screen.queryByTestId('member-template-mail-section')).not.toBeInTheDocument();
+
+      const save = screen.getByTestId('member-template-save');
+      expect(save).toBeDisabled();
+
+      fireEvent.change(screen.getByTestId('member-template-name'), {
+        target: { value: 'My labels' },
+      });
+      // Name alone is not enough — a line needs a field.
+      expect(save).toBeDisabled();
+
+      // Build lines: ["display_name"], ["street"], ["postal_code","city"].
+      fireEvent.change(screen.getByTestId('member-template-add-field-0'), {
+        target: { value: 'display_name' },
+      });
+      expect(save).not.toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('member-template-add-line'));
+      fireEvent.change(screen.getByTestId('member-template-add-field-1'), {
+        target: { value: 'street' },
+      });
+
+      fireEvent.click(screen.getByTestId('member-template-add-line'));
+      fireEvent.change(screen.getByTestId('member-template-add-field-2'), {
+        target: { value: 'postal_code' },
+      });
+      fireEvent.change(screen.getByTestId('member-template-add-field-2'), {
+        target: { value: 'city' },
+      });
+
+      fireEvent.click(save);
+      await waitFor(() => expect(createTemplate).toHaveBeenCalledTimes(1));
+      const input = createTemplate.mock.calls[0][0];
+      expect(input.name).toBe('My labels');
+      expect(input.kind).toBe('label');
+      expect(input.lines).toEqual([['display_name'], ['street'], ['postal_code', 'city']]);
+      // A label template carries NO languages.
+      expect(input.languages).toBeUndefined();
+    });
+
+    it('seeds an existing label template on edit (lines) and updates it with kind="label"', async () => {
+      listTemplates.mockResolvedValue({ ok: true, data: [LABEL_TPL] });
+      getTemplate.mockResolvedValue({ ok: true, data: LABEL_TPL });
+      render(<MemberTemplateManager {...makeProps({ resultFields: RESULT_FIELDS })} />);
+      fireEvent.click(await screen.findByTestId('member-template-edit-lbl-1'));
+
+      await waitFor(() => expect(getTemplate).toHaveBeenCalledWith('lbl-1'));
+      const name = screen.getByTestId('member-template-name') as HTMLInputElement;
+      await waitFor(() => expect(name.value).toBe('Address labels'));
+
+      // The label section is shown (kind inferred + locked) with the three seeded lines.
+      expect(screen.getByTestId('member-template-label-section')).toBeInTheDocument();
+      expect(screen.queryByTestId('member-template-mail-section')).not.toBeInTheDocument();
+      // Editing locks the kind — no selector offered.
+      expect(screen.queryByTestId('member-template-kind-select')).not.toBeInTheDocument();
+      expect(screen.getByTestId('member-template-line-0')).toBeInTheDocument();
+      expect(screen.getByTestId('member-template-line-1')).toBeInTheDocument();
+      expect(screen.getByTestId('member-template-line-2')).toBeInTheDocument();
+      // Line 2 holds both of its seeded field chips.
+      expect(screen.getByTestId('member-template-field-2-0')).toBeInTheDocument();
+      expect(screen.getByTestId('member-template-field-2-1')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('member-template-save'));
+      await waitFor(() => expect(updateTemplate).toHaveBeenCalledTimes(1));
+      expect(updateTemplate.mock.calls[0][0]).toBe('lbl-1');
+      const input = updateTemplate.mock.calls[0][1];
+      expect(input.kind).toBe('label');
+      expect(input.lines).toEqual([['display_name'], ['street'], ['postal_code', 'city']]);
+      expect(input.languages).toBeUndefined();
+    });
+
+    it('removes a field from a line', async () => {
+      listTemplates.mockResolvedValue({ ok: true, data: [LABEL_TPL] });
+      getTemplate.mockResolvedValue({ ok: true, data: LABEL_TPL });
+      render(<MemberTemplateManager {...makeProps({ resultFields: RESULT_FIELDS })} />);
+      fireEvent.click(await screen.findByTestId('member-template-edit-lbl-1'));
+      await waitFor(() => expect(getTemplate).toHaveBeenCalledWith('lbl-1'));
+
+      // Drop "city" (line 2, field 1); line 2 should now be just ["postal_code"].
+      fireEvent.click(screen.getByTestId('member-template-remove-field-2-1'));
+      fireEvent.click(screen.getByTestId('member-template-save'));
+      await waitFor(() => expect(updateTemplate).toHaveBeenCalledTimes(1));
+      expect(updateTemplate.mock.calls[0][1].lines).toEqual([
+        ['display_name'],
+        ['street'],
+        ['postal_code'],
+      ]);
     });
   });
 });
