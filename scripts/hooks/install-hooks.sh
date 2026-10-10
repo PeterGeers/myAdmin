@@ -14,7 +14,11 @@
 #                  changed-path pytest subset (via scoped_runner) for the
 #                  backend files being pushed. Catches runtime test / lint /
 #                  format regressions, and an untracked-but-required module,
-#                  before they reach CI.
+#                  before they reach CI. The clean-checkout stash covers tracked
+#                  changes + untracked files but NOT ignored files (so an
+#                  unreadable ignored data dir like a running Docker mysql_data/
+#                  can't make the guard fail-open); a stash failure now ABORTS
+#                  the push rather than silently skipping the gates.
 #                  Opt out with SKIP_PREPUSH=1 (or legacy SKIP_PREPUSH_COLLECT=1).
 # Replacing any old .git/hooks/<name> loses nothing.
 # ---------------------------------------------------------------------------
