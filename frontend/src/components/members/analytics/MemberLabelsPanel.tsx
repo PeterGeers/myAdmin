@@ -31,6 +31,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Divider,
   FormControl,
   FormLabel,
   HStack,
@@ -38,6 +39,7 @@ import {
   Select,
   Text,
   VStack,
+  useToast,
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import type { FieldConfig, MemberRow } from '../../../types/members';
@@ -46,6 +48,7 @@ import {
   DEFAULT_LABEL_FORMAT_KEY,
   getLabelFormat,
   generateLabelTemplatePdf,
+  composeLabelLines,
   labelsPerPage,
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
@@ -54,6 +57,8 @@ import {
   type LabelStyleOptions,
 } from './addressLabelService';
 import type { MemberTemplateDto } from '../../../services/memberTemplateService';
+import { groupForKey } from '../fieldValue';
+import MemberTemplateManager from './MemberTemplateManager';
 
 /** The injectable generator (defaults to the real service — a test injects a spy). */
 type GenerateFn = typeof generateLabelTemplatePdf;
@@ -69,6 +74,20 @@ export interface MemberLabelsPanelProps {
   fieldConfig: FieldConfig | undefined;
   /** The tenant's `kind:"label"` templates (already loaded + filtered). */
   templates: MemberTemplateDto[];
+  /** Active language — resolves the editor's pickers. */
+  language: string;
+  /**
+   * The fields the label lines may use — the CURRENT pivot RESULT's columns
+   * (NOT the whole tenant field catalog). Each is `{ key, label }` where `key`
+   * is the result row's data key (the same key {@link composeLabelLines} reads
+   * via `valueFor`) and `label` is the localized header shown in the pickers.
+   * Supplied by the parent from `result.columns` + its `columnLabels` map, so a
+   * line can only ever reference a field that is actually in the result.
+   */
+  resultFields: Array<{ key: string; label: string }>;
+  /** Called after the embedded editor creates/edits/deletes a template, so the
+      parent can refresh the label-template list it passes in. */
+  onTemplatesChanged?: () => void;
   /** Injectable generator; defaults to the real {@link generateLabelTemplatePdf}. */
   generate?: GenerateFn;
   /** Injectable full-template loader; defaults to the real `getMemberTemplate`. */
@@ -103,10 +122,14 @@ const MemberLabelsPanel: React.FC<MemberLabelsPanelProps> = ({
   rows,
   fieldConfig,
   templates,
+  language,
+  resultFields,
+  onTemplatesChanged,
   generate = generateLabelTemplatePdf,
   getTemplate,
 }) => {
   const { t } = useTypedTranslation('members');
+  const toast = useToast();
 
   // Default the loader to the real service lazily so a test can inject a fake
   // without importing the service module.
@@ -144,6 +167,36 @@ const MemberLabelsPanel: React.FC<MemberLabelsPanelProps> = ({
     'labelCount' | 'excludedCount' | 'pages'
   > | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // The unified template editor (MemberTemplateManager) opened from the Edit
+  // button, so the user can see/change the template's LINES (incl. putting two
+  // fields on one line) without leaving the labels flow.
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+
+  // The currently-selected template object (for the lines view + preview).
+  const selectedTemplate = useMemo(
+    () => templates.find((tpl) => tpl.template_id === templateId),
+    [templates, templateId],
+  );
+
+  // A readable label for a result field key, falling back to the raw key — so the
+  // lines view reads the localized header (e.g. "Postcode"), not "postal_code".
+  const fieldLabel = useCallback(
+    (key: string): string => resultFields.find((f) => f.key === key)?.label ?? key,
+    [resultFields],
+  );
+
+  // A first-row MERGED preview of the selected template over the current rows, so
+  // the user sees the ACTUAL label text (not just field names) and updates it live
+  // when switching templates. Pure composeLabelLines — reads no analytics.* (R6).
+  const previewLines: string[] = useMemo(() => {
+    const lines = selectedTemplate?.lines;
+    if (!Array.isArray(lines) || lines.length === 0 || rows.length === 0) {
+      return [];
+    }
+    const composed = composeLabelLines([rows[0]], fieldConfig, { lines });
+    return composed[0]?.lines ?? [];
+  }, [selectedTemplate, rows, fieldConfig]);
 
   const selectedFormat = useMemo(
     () => getLabelFormat(formatKey) ?? AVERY_LABEL_FORMATS[0],
@@ -206,9 +259,18 @@ const MemberLabelsPanel: React.FC<MemberLabelsPanelProps> = ({
 
   const handleDownload = useCallback(() => {
     void runGenerate((result) => {
-      result.doc.save('member-address-labels.pdf');
+      result.doc.save('member-labels.pdf');
+      // Confirm the download so the action has visible feedback (the user asked:
+      // "no idea what happens"). Reports the labels + pages produced.
+      toast({
+        title: t('analytics.labels.downloaded', {
+          count: result.labelCount,
+          pages: result.pages,
+        }),
+        status: 'success',
+      });
     });
-  }, [runGenerate]);
+  }, [runGenerate, toast, t]);
 
   const handlePrint = useCallback(() => {
     void runGenerate((result) => {
@@ -242,6 +304,70 @@ const MemberLabelsPanel: React.FC<MemberLabelsPanelProps> = ({
           ))}
         </Select>
       </FormControl>
+
+      {/* The selected template's CONTENT — so the user can SEE what the template
+          lays out (incl. which fields share a line) and update it live when they
+          switch templates. Plus an Edit button into the line editor. */}
+      {selectedTemplate && (
+        <Box
+          bg="gray.900"
+          borderRadius="md"
+          px={3}
+          py={2}
+          data-testid="member-pivot-labels-template-view"
+        >
+          <HStack justify="space-between" mb={1}>
+            <Text fontSize="sm" fontWeight="semibold" color="gray.300">
+              {t('analytics.labels.linesTitle')}
+            </Text>
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="orange"
+              onClick={() => setIsEditorOpen(true)}
+              data-testid="member-pivot-labels-edit"
+            >
+              {t('analytics.labels.edit')}
+            </Button>
+          </HStack>
+          {/* Each line = its field keys resolved to readable labels, space-joined
+              exactly as they will render (two fields on a line show together). */}
+          <VStack align="stretch" spacing={0} data-testid="member-pivot-labels-lines">
+            {(selectedTemplate.lines ?? []).map((line, i) => (
+              <Text key={i} fontSize="sm" color="white">
+                {line.length > 0
+                  ? line.map((k) => fieldLabel(k)).join(' ')
+                  : t('analytics.labels.emptyLine')}
+              </Text>
+            ))}
+          </VStack>
+
+          {/* First-row MERGED preview — the ACTUAL label text for the first result
+              member, so the user sees real content, not just field names. */}
+          {previewLines.length > 0 && (
+            <>
+              <Divider my={2} borderColor="gray.600" />
+              <Text fontSize="xs" fontWeight="semibold" color="gray.400" mb={1}>
+                {t('analytics.labels.previewTitle')}
+              </Text>
+              <Box
+                borderWidth="1px"
+                borderColor="gray.500"
+                borderRadius="sm"
+                px={2}
+                py={1}
+                data-testid="member-pivot-labels-preview"
+              >
+                {previewLines.map((line, i) => (
+                  <Text key={i} fontSize="sm" color="white">
+                    {line}
+                  </Text>
+                ))}
+              </Box>
+            </>
+          )}
+        </Box>
+      )}
 
       <FormControl>
         <FormLabel htmlFor="member-pivot-labels-format">
@@ -387,6 +513,18 @@ const MemberLabelsPanel: React.FC<MemberLabelsPanelProps> = ({
           </Text>
         </Box>
       )}
+
+      {/* The unified template editor (see/change the LINES — incl. putting two
+          fields on one line). Opened from the Edit button; it offers ONLY the
+          current result's columns (`resultFields`, R6). On any change it calls
+          onTemplatesChanged so the parent refreshes the picked list. */}
+      <MemberTemplateManager
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        language={language}
+        resultFields={resultFields}
+        onTemplatesChanged={onTemplatesChanged}
+      />
     </VStack>
   );
 };
