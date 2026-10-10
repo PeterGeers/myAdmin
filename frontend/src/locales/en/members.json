@@ -57,6 +57,8 @@
       "selectSet": "Select a set",
       "selectSetPlaceholder": "Select a set…",
       "execute": "Execute",
+      "manageSet": "Manage set",
+      "more": "More",
       "savedSets": "Saved sets",
       "presets": "Predefined sets",
       "newSet": "New set",
@@ -217,7 +219,10 @@
       "deliverNowNeedsFixed": "Deliver now is available for a set that sends to a fixed address list. Set up a fixed-address delivery first.",
       "deliverNowNeedsResult": "Run the set first — Deliver now sends the current result.",
       "deliverNowQueued": "Delivery queued — {{count}} send(s) on their way.",
-      "deliverNowError": "Could not start the delivery."
+      "deliverNowError": "Could not start the delivery.",
+      "deliverNowConfirmTitle": "Send this set\u2019s result now?",
+      "deliverNowConfirmBody": "Email the current result ({{count}} rows) for \"{{name}}\" to its stored recipient list now. This cannot be undone.",
+      "deliverNowConfirmSend": "Send now"
     },
     "schedule": {
       "action": "Schedule",

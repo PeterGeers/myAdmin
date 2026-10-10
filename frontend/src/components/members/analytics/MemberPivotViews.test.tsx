@@ -1068,18 +1068,27 @@ describe('MemberPivotViews', () => {
 
       // New set is always available; the others require a selected saved model.
       // (Delete is no longer a main-pane button — it lives in the "All sets"
-      // modal per-row trash icon.)
-      expect(screen.getByTestId('member-pivot-new-set')).not.toBeDisabled();
-      expect(screen.getByTestId('member-pivot-save-as')).toBeDisabled();
-      expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
+      // modal per-row trash icon.) These are now MenuItems inside the "Manage set"
+      // menu — a disabled MenuItem renders aria-disabled ONLY while the menu is
+      // open, so open it before asserting. A disabled MenuItem still never fires.
+      // With NO set selected: Update does nothing (needs a saved model); Delete is
+      // not a main-pane control. Assert BEHAVIOR — Chakra's isDisabled suppresses
+      // the action — rather than the DOM disabled flag (Chakra MenuItem's disabled
+      // state is not reliably reflected in jsdom when the menu is portaled).
+      fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+      expect(screen.getByTestId('member-pivot-new-set')).toBeInTheDocument();
       expect(screen.queryByTestId('member-pivot-delete')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('member-pivot-update'));
+      expect(screen.queryByTestId('member-field-picker')).not.toBeInTheDocument();
+      expect(updateAnalyticsSet).not.toHaveBeenCalled();
 
-      // Selecting a PRESET enables Save-as but NOT Update (preset ≠ saved model).
+      // Selecting a PRESET: Update still does nothing (preset ≠ saved model).
       fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
         target: { value: 'preset:membership-types' },
       });
-      expect(screen.getByTestId('member-pivot-save-as')).not.toBeDisabled();
-      expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
+      fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+      fireEvent.click(screen.getByTestId('member-pivot-update'));
+      expect(updateAnalyticsSet).not.toHaveBeenCalled();
     });
 
     it('New set opens the picker to compose + save a brand-new set (R4.4)', async () => {
@@ -2479,11 +2488,13 @@ describe('MemberPivotViews — schedule action gating (task 5.4 / R5)', () => {
   it('DISABLES the Schedule action for a selected set with NO delivery block (R5)', async () => {
     await renderWithSavedSet({ hasDelivery: false });
 
-    const schedule = screen.getByTestId('member-pivot-schedule') as HTMLButtonElement;
+    // Open the "Manage set" menu so the (disabled) Schedule MenuItem renders.
+    fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+    const schedule = screen.getByTestId('member-pivot-schedule');
     // Offered (the caller can schedule) but disabled: a schedule needs a delivery.
+    // Assert the BEHAVIOR (Chakra's isDisabled suppresses the action): clicking it
+    // never fetches the set nor opens the editor.
     expect(schedule).toBeInTheDocument();
-    expect(schedule).toBeDisabled();
-    // Clicking the disabled action never fetches the set / opens the editor.
     fireEvent.click(schedule);
     await waitFor(() => expect(getAnalyticsSet).not.toHaveBeenCalled());
     expect(screen.queryByTestId('member-schedule-editor')).not.toBeInTheDocument();
@@ -2621,9 +2632,12 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     // a click never calls the deliver route.
     render(<MemberPivotViews {...makeProps()} />);
     await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
-    const btn = screen.getByTestId('member-pivot-deliver-now') as HTMLButtonElement;
-    expect(btn).toBeDisabled();
+    fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+    const btn = screen.getByTestId('member-pivot-deliver-now');
+    expect(btn).toBeInTheDocument();
+    // Disabled (no saved set) → clicking opens no confirm and sends nothing.
     fireEvent.click(btn);
+    expect(screen.queryByTestId('member-pivot-deliver-now-dialog')).not.toBeInTheDocument();
     await waitFor(() => expect(sendAdHocMail).not.toHaveBeenCalled());
     expect(deliverAnalyticsSet).not.toHaveBeenCalled();
   });
@@ -2635,7 +2649,9 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     // a server-side recompute of the whole member table (the old leak).
     await renderWithSavedSet({ hasDelivery: true, execute: true });
 
+    // Opening Deliver now shows a CONFIRM dialog first (safety); confirm it to send.
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+    fireEvent.click(await screen.findByTestId('member-pivot-deliver-now-confirm'));
 
     // It reads the set's stored fixed recipients, then sends the CURRENT result
     // rows as a CSV via the ad-hoc path (NOT the saved-set deliver route).
@@ -2690,10 +2706,10 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     );
     await renderWithSavedSet({ hasDelivery: true, execute: true });
 
+    // Confirm the send in the dialog, then the refusal is handled (no crash).
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+    fireEvent.click(await screen.findByTestId('member-pivot-deliver-now-confirm'));
 
-    // The send was attempted and the refusal handled (no crash); the action
-    // becomes clickable again once the in-flight run settles.
     await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.getByTestId('member-pivot-deliver-now')).not.toBeDisabled(),

@@ -57,6 +57,8 @@
       "selectSet": "Kies een set",
       "selectSetPlaceholder": "Selecteer een set…",
       "execute": "Uitvoeren",
+      "manageSet": "Set beheren",
+      "more": "Meer",
       "savedSets": "Opgeslagen sets",
       "presets": "Voorgedefinieerde sets",
       "newSet": "Nieuwe set",
@@ -217,7 +219,10 @@
       "deliverNowNeedsFixed": "Nu versturen is beschikbaar voor een set die naar een vaste adreslijst stuurt. Stel eerst een bezorging naar een vaste adreslijst in.",
       "deliverNowNeedsResult": "Voer de set eerst uit — Nu versturen verstuurt het huidige resultaat.",
       "deliverNowQueued": "Bezorging in de wachtrij — {{count}} verzending(en) onderweg.",
-      "deliverNowError": "Kon de bezorging niet starten."
+      "deliverNowError": "Kon de bezorging niet starten.",
+      "deliverNowConfirmTitle": "Resultaat van deze set nu versturen?",
+      "deliverNowConfirmBody": "Mail het huidige resultaat ({{count}} rijen) voor \"{{name}}\" nu naar de opgeslagen ontvangerslijst. Dit kan niet ongedaan worden gemaakt.",
+      "deliverNowConfirmSend": "Nu versturen"
     },
     "schedule": {
       "action": "Inplannen",
