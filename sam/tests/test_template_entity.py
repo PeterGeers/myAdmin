@@ -153,6 +153,86 @@ class TestTemplateEntryRoundTrip:
         assert entry.language("nl").subject == "Hallo {{first_name}}"
         assert entry.language("de") is None
 
+    def test_mail_entry_omits_kind_and_lines_in_item(self):
+        # Additive guarantee: a mail template (default kind, no lines) serializes EXACTLY as
+        # before — the new discriminator / content keys are not emitted for it.
+        item = _entry().to_item()
+        assert "kind" not in item
+        assert "lines" not in item
+
+
+def _label_entry(**overrides):
+    base = {
+        "tenant_id": "h-dcn",
+        "template_id": "lbl1",
+        "name": "Address labels",
+        "kind": "label",
+        "lines": (("display_name",), ("street",), ("postal_code", "city"), ("country",)),
+        "created_at": "2024-01-01T00:00:00+00:00",
+        "updated_at": "2024-01-01T00:00:00+00:00",
+    }
+    base.update(overrides)
+    return TemplateEntry(**base)
+
+
+class TestLabelTemplateEntry:
+    def test_label_entry_validates_without_languages(self):
+        # A label template carries NO mail body — `lines` is its content, `languages` not required.
+        _label_entry().validate()
+
+    def test_label_with_no_lines_is_invalid(self):
+        with pytest.raises(TemplateValidationError) as exc:
+            _label_entry(lines=()).validate()
+        assert "lines" in exc.value.errors
+
+    def test_label_with_only_blank_field_keys_is_invalid(self):
+        with pytest.raises(TemplateValidationError) as exc:
+            _label_entry(lines=(("", "  "),)).validate()
+        assert "lines" in exc.value.errors
+
+    def test_unknown_kind_is_invalid(self):
+        with pytest.raises(TemplateValidationError) as exc:
+            _label_entry(kind="sticker").validate()
+        assert "kind" in exc.value.errors
+
+    def test_kind_defaults_to_mail(self):
+        assert _entry().kind == "mail"
+
+    def test_to_item_carries_kind_and_lines(self):
+        item = _label_entry().to_item()
+        assert item["kind"] == "label"
+        assert item["lines"] == [
+            ["display_name"],
+            ["street"],
+            ["postal_code", "city"],
+            ["country"],
+        ]
+
+    def test_label_round_trips_through_item(self):
+        # The real round-trip contract is the stored item: to_item → from_item → to_item is
+        # stable, and the rebuilt entry carries kind + lines. (Direct `==` is avoided here only
+        # because `from_item` normalizes merge_fields to a list vs the dataclass's tuple default
+        # — a pre-existing, unrelated quirk, not a labels concern.)
+        original = _label_entry(merge_fields=[])
+        item = original.to_item()
+        rebuilt = TemplateEntry.from_item(item)
+        assert rebuilt.kind == "label"
+        assert rebuilt.lines == original.lines
+        assert rebuilt.to_item() == item
+
+    def test_from_item_defaults_kind_mail_and_empty_lines_for_legacy(self):
+        # A legacy mail item (no kind / no lines) rebuilds as a mail template unchanged.
+        rebuilt = TemplateEntry.from_item(
+            {
+                "tenant_id": "h-dcn",
+                "template_id": "t1",
+                "name": "N",
+                "languages": {"nl": {"subject": "S", "s3_body_key": "k"}},
+            }
+        )
+        assert rebuilt.kind == "mail"
+        assert rebuilt.lines == tuple()
+
 
 class TestMergePlaceholders:
     def test_discovers_distinct_keys_in_order(self):

@@ -188,6 +188,94 @@ class TestTemplateServiceCrud:
             service.create_template("h-dcn", {"name": "No body", "languages": {}})
 
 
+def _label_body():
+    return {
+        "name": "Member address labels",
+        "kind": "label",
+        "lines": [["display_name"], ["street"], ["postal_code", "city"]],
+    }
+
+
+class TestTemplateServiceLabelCrud:
+    """Label-template CRUD (labels sub-spec R-L1): kind + lines through the SAME store.
+
+    A label template carries NO mail body — no `languages`, no merge-field discovery, no
+    body-store writes. Create/get/list round-trip its `kind` and `lines`.
+
+    Validates: Requirements R-L1
+    """
+
+    def test_create_label_persists_kind_and_lines_no_bodies(self, service, body_store):
+        result = service.create_template("h-dcn", _label_body(), created_by="sub-1")
+        assert result["kind"] == "label"
+        assert result["lines"] == [["display_name"], ["street"], ["postal_code", "city"]]
+        # A label has no mail body → no languages, no merge fields.
+        assert result["languages"] == {}
+        assert result["merge_fields"] == []
+        assert result["origin"] == "user"
+        assert result["created_by"] == "sub-1"
+        # No body-store writes for a label template (it has no language bodies).
+        assert body_store._bodies == {}
+
+    def test_get_label_returns_kind_and_lines(self, service):
+        tid = service.create_template("h-dcn", _label_body())["template_id"]
+        got = service.get_template("h-dcn", tid)
+        assert got["template_id"] == tid
+        assert got["kind"] == "label"
+        assert got["lines"] == [["display_name"], ["street"], ["postal_code", "city"]]
+        assert got["languages"] == {}
+
+    def test_list_surfaces_label_kind_and_lines(self, service):
+        service.create_template("h-dcn", _label_body())
+        listed = service.list_templates("h-dcn")
+        assert len(listed) == 1
+        assert listed[0]["kind"] == "label"
+        assert listed[0]["lines"] == [["display_name"], ["street"], ["postal_code", "city"]]
+
+    def test_create_label_sanitizes_blank_keys_and_lines(self, service):
+        # Blank field keys dropped from a line; a line left empty is dropped entirely.
+        result = service.create_template(
+            "h-dcn",
+            {
+                "name": "Sanitized",
+                "kind": "label",
+                "lines": [["display_name", "  "], ["   "], ["postal_code", "", "city"]],
+            },
+        )
+        assert result["lines"] == [["display_name"], ["postal_code", "city"]]
+
+    def test_create_label_with_no_usable_lines_is_rejected(self, service):
+        # Empty / all-blank lines → nothing usable → validation error (→ 422 at the edge).
+        with pytest.raises(TemplateValidationError):
+            service.create_template(
+                "h-dcn", {"name": "Empty", "kind": "label", "lines": [["  "], []]}
+            )
+        with pytest.raises(TemplateValidationError):
+            service.create_template(
+                "h-dcn", {"name": "No lines", "kind": "label", "lines": []}
+            )
+
+    def test_update_label_lines_preserves_attribution_and_bumps_updated_at(self, service):
+        created = service.create_template("h-dcn", _label_body(), created_by="sub-1")
+        tid = created["template_id"]
+        updated = service.update_template(
+            "h-dcn",
+            tid,
+            {"lines": [["display_name"], ["country"]]},
+        )
+        assert updated["kind"] == "label"
+        assert updated["lines"] == [["display_name"], ["country"]]
+        assert updated["created_by"] == "sub-1"  # preserved
+        assert updated["created_at"] == created["created_at"]  # preserved
+        assert updated["origin"] == created["origin"]  # preserved
+        assert updated["updated_at"] >= created["updated_at"]  # bumped
+
+    def test_update_label_does_not_write_mail_bodies(self, service, body_store):
+        tid = service.create_template("h-dcn", _label_body())["template_id"]
+        service.update_template("h-dcn", tid, {"lines": [["display_name"]]})
+        assert body_store._bodies == {}  # a label update never touches the body store
+
+
 class TestTemplateServiceRenderWithMerge:
     def test_render_fills_per_recipient_values_in_subject_and_body(self, service):
         tid = service.create_template("h-dcn", _create_body())["template_id"]

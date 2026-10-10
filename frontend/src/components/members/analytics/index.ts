@@ -92,6 +92,11 @@ export type { MemberMailStatusProps } from './MemberMailStatus';
 export { default as MemberTemplateManager } from './MemberTemplateManager';
 export type { MemberTemplateManagerProps } from './MemberTemplateManager';
 
+// R-L1 (pivot-output-actions/labels, task 2.1) — the stored LABEL-template
+// management surface (filtered kind="label" CRUD; ordered lines of field keys).
+export { default as MemberLabelTemplateManager } from './MemberLabelTemplateManager';
+export type { MemberLabelTemplateManagerProps } from './MemberLabelTemplateManager';
+
 // R3 (pivot-output-actions, task 3.4) — the stored-delivery editor on a saved
 // set (mode, template, attachment, to_fixed recipients, shared label_options).
 export { default as MemberDeliveryEditor, hasValidFixedRecipients } from './MemberDeliveryEditor';

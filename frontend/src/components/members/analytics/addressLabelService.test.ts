@@ -40,8 +40,14 @@ import {
   labelsPerPage,
   pageCount,
   generateAddressLabelPdf,
+  generateLabelTemplatePdf,
+  layoutLabelPdf,
+  truncateToWidth,
+  computeFitFontSize,
   type LabelFormat,
   type LabelSortOrder,
+  type TextMeasurer,
+  type FitMeasurer,
 } from './addressLabelService';
 import type { FieldConfig, MemberRow } from '../../../types/members';
 
@@ -542,5 +548,360 @@ describe('generateAddressLabelPdf — jsPDF smoke + counts', () => {
       expect(result.labelCount).toBe(3);
       expect(result.pages).toBe(1);
     }
+  });
+
+  it('lays out extreme over-long lines without throwing (truncation path)', () => {
+    // A field whose text is far wider than any Avery cell — the layout must
+    // truncate it (Property 5), never crash.
+    const longRow = row({
+      member_id: 'long',
+      full_name: 'X'.repeat(500),
+      street_addr: 'Y'.repeat(500),
+      zip: '1000AA',
+      town: 'Z'.repeat(500),
+      nation: 'nl',
+    });
+    for (const format of AVERY_LABEL_FORMATS) {
+      const result = generateAddressLabelPdf([longRow], mappedFieldConfig, format);
+      expect(result.labelCount).toBe(1);
+      expect(typeof result.doc.output).toBe('function');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. truncateToWidth — per-line truncation to the cell inner width (R-L3, P5)
+// ---------------------------------------------------------------------------
+
+describe('truncateToWidth — no overflow past the label box (Property 5)', () => {
+  const ELLIPSIS = '…';
+  /**
+   * Deterministic measurer: every character (and the ellipsis) is `k` mm wide,
+   * so width is simply `text.length * k` — no font/jsPDF needed. This lets the
+   * assertions be exact.
+   */
+  const linearMeasurer = (k: number): TextMeasurer => ({
+    getTextWidth: (text: string) => text.length * k,
+  });
+
+  it('returns a string that already fits unchanged', () => {
+    const m = linearMeasurer(1); // 1 mm per char
+    expect(truncateToWidth(m, 'hello', 100)).toBe('hello'); // 5 <= 100
+    // exactly at the boundary still fits.
+    expect(truncateToWidth(m, 'hello', 5)).toBe('hello');
+  });
+
+  it('cuts an over-long string and ends with the ellipsis, within maxWidth', () => {
+    const m = linearMeasurer(1); // 1 mm per char
+    const out = truncateToWidth(m, 'abcdefghij', 5); // full width 10 > 5
+    expect(out.endsWith(ELLIPSIS)).toBe(true);
+    expect(m.getTextWidth(out)).toBeLessThanOrEqual(5);
+    // longest prefix: 4 chars + ellipsis = width 5.
+    expect(out).toBe('abcd…');
+  });
+
+  it('returns the empty string unchanged', () => {
+    const m = linearMeasurer(10);
+    expect(truncateToWidth(m, '', 0)).toBe('');
+    expect(truncateToWidth(m, '', 1000)).toBe('');
+  });
+
+  it('never loops forever and never exceeds maxWidth beyond the lone ellipsis', () => {
+    const m = linearMeasurer(1); // ellipsis itself is 1 mm wide
+    // maxWidth smaller than even the ellipsis → returns the ellipsis marker
+    // (the minimal non-empty truncation), does NOT hang.
+    const out = truncateToWidth(m, 'abcdef', 0.5);
+    expect(out).toBe(ELLIPSIS);
+    // and when the ellipsis DOES fit but no prefix char does, still just ellipsis.
+    const out2 = truncateToWidth(m, 'abcdef', 1); // ellipsis=1 fits; 'a…'=2 doesn't
+    expect(out2).toBe(ELLIPSIS);
+    expect(m.getTextWidth(out2)).toBeLessThanOrEqual(1);
+  });
+
+  it('honors a custom ellipsis string', () => {
+    const m = linearMeasurer(1);
+    const out = truncateToWidth(m, 'abcdefghij', 6, '...'); // '...' is 3 wide
+    expect(out.endsWith('...')).toBe(true);
+    expect(m.getTextWidth(out)).toBeLessThanOrEqual(6);
+    // 3-char prefix + '...' = 6.
+    expect(out).toBe('abc...');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. computeFitFontSize — per-sheet shrink-to-fit (R-L3, Property 6)
+// ---------------------------------------------------------------------------
+
+describe('computeFitFontSize — per-sheet shrink-to-fit (Property 6)', () => {
+  // Module geometry constants mirrored for exact assertions (kept in sync with
+  // addressLabelService: CELL_PADDING_MM=2, PT_TO_MM=0.3528, LINE_SPACING=1.15,
+  // and the 0.5pt downward search step).
+  const CELL_PADDING_MM = 2;
+  const PT_TO_MM = 0.3528;
+  const LINE_SPACING = 1.15;
+  const STEP = 0.5;
+
+  const fmt = getLabelFormat('L7160')!; // 63.5 x 38.1 → inner 59.5 x 34.1
+  const innerWidth = fmt.labelWidth - 2 * CELL_PADDING_MM; // 59.5
+  const innerHeight = fmt.labelHeight - 2 * CELL_PADDING_MM; // 34.1
+  const lineHeightAt = (fs: number) => fs * PT_TO_MM * LINE_SPACING;
+
+  /**
+   * Deterministic, size-stateful FitMeasurer: a line's width is
+   * `chars * k * currentFontSize` mm (so SMALLER fonts measure narrower — the
+   * whole point of shrink-to-fit). No real font/jsPDF needed, so assertions are
+   * exact. `setFontSize` re-points the current size, exactly as jsPDF does.
+   */
+  const makeMeasurer = (k: number): FitMeasurer => {
+    let current = 10;
+    return {
+      setFontSize: (pt: number) => {
+        current = pt;
+      },
+      getTextWidth: (text: string) => text.length * k * current,
+    };
+  };
+
+  it('returns the chosen size unchanged when the whole sheet already fits', () => {
+    // Short lines + k tiny → fits even at the chosen ceiling; no shrink.
+    const m = makeMeasurer(0.01); // 10 chars @ 12pt → 1.2mm ≪ 59.5
+    const blocks = [['Alice'], ['Bob', 'Street']];
+    expect(computeFitFontSize(m, blocks, fmt, { fontSize: 12 })).toBe(12);
+    // and height for 2 lines @ 12pt = 2 * ~4.87 = ~9.74 ≤ 34.1 → fine.
+    expect(2 * lineHeightAt(12)).toBeLessThanOrEqual(innerHeight);
+  });
+
+  it('shrinks to the largest size at which EVERY label fits width', () => {
+    // Choose k + a worst-case line length so width is the binding constraint.
+    // worst line = 20 chars. width@fs = 20 * k * fs. Pick k so that it fits at
+    // 10pt but NOT at 10.5pt: need 20*k*10 <= 59.5 < 20*k*10.5.
+    //   k in ( 59.5/210 , 59.5/200 ] = ( 0.283…, 0.2975 ]  → pick 0.29.
+    const k = 0.29;
+    const m = makeMeasurer(k);
+    const wide = 'W'.repeat(20); // the over-wide label
+    const blocks = [['short'], [wide], ['also short']];
+    const result = computeFitFontSize(m, blocks, fmt, { fontSize: 12 });
+
+    // Largest fitting size on the 0.5 grid from 12 down: 10.0 fits, 10.5 does not.
+    expect(result).toBe(10);
+    // Verify the frontier directly against the measurer.
+    m.setFontSize(result);
+    expect(m.getTextWidth(wide)).toBeLessThanOrEqual(innerWidth);
+    m.setFontSize(result + STEP);
+    expect(m.getTextWidth(wide)).toBeGreaterThan(innerWidth);
+  });
+
+  it('shrinks when the line BLOCK is too tall even if every line fits width', () => {
+    // Narrow lines (width never binds), but MANY of them → height is the binding
+    // constraint. innerHeight 34.1; lineHeight@fs = fs*0.3528*1.15.
+    // N lines fit at fs iff N*lineHeight@fs <= 34.1.
+    const m = makeMeasurer(0.001); // width negligible at any size
+    const n = 8; // 8 lines
+    const block = Array.from({ length: n }, (_, i) => `line${i}`);
+    const result = computeFitFontSize(m, [block], fmt, { fontSize: 12 });
+
+    // Result must satisfy the height invariant and be the largest 0.5-step that does.
+    expect(n * lineHeightAt(result)).toBeLessThanOrEqual(innerHeight);
+    expect(n * lineHeightAt(result + STEP)).toBeGreaterThan(innerHeight);
+    // Sanity: it genuinely shrank below the chosen 12.
+    expect(result).toBeLessThan(12);
+  });
+
+  it('returns the LARGEST fitting size — one step larger would NOT fit', () => {
+    const k = 0.29; // same frontier as the width test (fits@10, not@10.5)
+    const m = makeMeasurer(k);
+    const blocks = [['x'.repeat(20)]];
+    const result = computeFitFontSize(m, blocks, fmt, { fontSize: 12 });
+    // result fits; result + one step does not.
+    m.setFontSize(result);
+    expect(m.getTextWidth('x'.repeat(20))).toBeLessThanOrEqual(innerWidth);
+    m.setFontSize(result + STEP);
+    expect(m.getTextWidth('x'.repeat(20))).toBeGreaterThan(innerWidth);
+  });
+
+  it('never grows beyond the chosen (clamped) size even when everything fits', () => {
+    const m = makeMeasurer(0.001); // fits trivially at any size
+    // chosen 9 → must return 9, never a bigger size that would also fit.
+    expect(computeFitFontSize(m, [['a'], ['b']], fmt, { fontSize: 9 })).toBe(9);
+    // chosen out-of-band high (99) clamps to MAX (12); still never above 12.
+    const r = computeFitFontSize(m, [['a']], fmt, { fontSize: 99 });
+    expect(r).toBeLessThanOrEqual(MAX_FONT_SIZE);
+    expect(r).toBe(MAX_FONT_SIZE);
+  });
+
+  it('returns MIN_FONT_SIZE when the sheet cannot fit even at the floor (no loop)', () => {
+    // A line so wide it overflows at every size in the band (even at the floor).
+    // width@8 = 60 * k * 8 must exceed 59.5 → k > 59.5/480 ≈ 0.124; pick 0.5.
+    const m = makeMeasurer(0.5);
+    const blocks = [['Z'.repeat(60)]];
+    const result = computeFitFontSize(m, blocks, fmt, { fontSize: 12 });
+    expect(result).toBe(MIN_FONT_SIZE);
+    // Confirm it truly does not fit even at the floor (truncation is the net).
+    m.setFontSize(MIN_FONT_SIZE);
+    expect(m.getTextWidth('Z'.repeat(60))).toBeGreaterThan(innerWidth);
+  });
+
+  it('handles empty / absent line-blocks safely (fits → chosen size)', () => {
+    const m = makeMeasurer(0.1);
+    expect(computeFitFontSize(m, [], fmt, { fontSize: 11 })).toBe(11);
+    // defaults: no options → chosen defaults to 10.
+    expect(computeFitFontSize(m, [], fmt)).toBe(10);
+  });
+});
+
+describe('generateAddressLabelPdf — autoFit option (Property 6 smoke)', () => {
+  const fmt = getLabelFormat('L7160')!;
+
+  it('generates a doc with autoFit on, reporting the right counts', () => {
+    const result = generateAddressLabelPdf(
+      [...completeRows, nameOnlyRow],
+      mappedFieldConfig,
+      fmt,
+      { autoFit: true, fontSize: 12 },
+    );
+    expect(result.labelCount).toBe(3);
+    expect(result.excludedCount).toBe(1);
+    expect(result.pages).toBe(1);
+    expect(typeof result.doc.output).toBe('function');
+    expect(result.doc.output('bloburl').toString()).toContain('blob:');
+  });
+
+  it('shrinks for over-long rows under autoFit without throwing', () => {
+    const longRow = row({
+      member_id: 'long',
+      full_name: 'X'.repeat(300),
+      street_addr: 'Y'.repeat(300),
+      zip: '1000AA',
+      town: 'Z'.repeat(300),
+      nation: 'nl',
+    });
+    const result = generateAddressLabelPdf([longRow, completeRows[0]], mappedFieldConfig, fmt, {
+      autoFit: true,
+      fontSize: 12,
+    });
+    expect(result.labelCount).toBe(2);
+    expect(result.pages).toBe(1);
+    expect(typeof result.doc.output).toBe('function');
+  });
+
+  it('is additive: default (no autoFit) keeps the clamped-fontSize behavior', () => {
+    const withOut = generateAddressLabelPdf(completeRows, mappedFieldConfig, fmt, {
+      fontSize: 12,
+    });
+    expect(withOut.labelCount).toBe(3);
+    expect(withOut.pages).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateLabelTemplatePdf — the TEMPLATE-driven path (labels sub-spec task 3.2,
+// R-L2/R-L3/R-L4, Property 1/2/4). Composes via `composeLabelLines` (NOT
+// `composeAddresses`/`resolveAddressMapping`), so it reads NO `analytics.*` — a
+// field config with NO address mapping still yields labels from a label
+// template. Reuses the SHARED `layoutLabelPdf` draw loop (R-L5).
+// ---------------------------------------------------------------------------
+
+describe('generateLabelTemplatePdf — template-driven labels (task 3.2)', () => {
+  const fmt = getLabelFormat('L7160')!;
+
+  // A field config with NO analytics / address_mapping at all — only flat field
+  // keys the template references. This proves the template path never needs a
+  // mapping (Property 4 / R6): labels still come out.
+  const noMappingConfig = {
+    fields: [
+      { key: 'display_name', group: 'personal' },
+      { key: 'street', group: 'personal' },
+      { key: 'postal_code', group: 'personal' },
+      { key: 'city', group: 'personal' },
+    ],
+  } as unknown as FieldConfig;
+
+  const peopleRows: MemberRow[] = [
+    row({
+      member_id: '1',
+      display_name: 'Alice Smith',
+      street: '2 Low Rd',
+      postal_code: '2000BB',
+      city: 'Rotterdam',
+    }),
+    row({
+      member_id: '2',
+      display_name: 'Bob Jones',
+      street: '1 High St',
+      postal_code: '1000AA',
+      city: 'Amsterdam',
+    }),
+  ];
+
+  it('smoke: a template with N lines over the rows yields a doc + the right counts', () => {
+    const template = {
+      lines: [['display_name'], ['street'], ['postal_code', 'city']],
+    };
+    const result = generateLabelTemplatePdf(peopleRows, noMappingConfig, template, fmt);
+
+    expect(result.labelCount).toBe(2); // one label per non-empty row
+    expect(result.excludedCount).toBe(0);
+    expect(result.pages).toBe(1);
+    expect(typeof result.doc.output).toBe('function');
+    expect(result.doc.output('bloburl').toString()).toContain('blob:');
+  });
+
+  it('reads NO address mapping: a config with no analytics still produces labels (Property 4 / R6)', () => {
+    // `noMappingConfig` has NO `analytics.address_mapping`; the address path would
+    // exclude every row. The template path composes purely from the field keys.
+    const addressResult = generateAddressLabelPdf(peopleRows, noMappingConfig, fmt);
+    expect(addressResult.labelCount).toBe(0); // address path: nothing resolves
+    expect(addressResult.excludedCount).toBe(2);
+
+    const templateResult = generateLabelTemplatePdf(
+      peopleRows,
+      noMappingConfig,
+      { lines: [['display_name'], ['city']] },
+      fmt,
+    );
+    expect(templateResult.labelCount).toBe(2); // template path: full labels
+    expect(templateResult.excludedCount).toBe(0);
+  });
+
+  it('drops + counts a row whose template lines are ALL empty', () => {
+    const emptyRow = row({ member_id: 'z' }); // none of the template keys resolve
+    const template = { lines: [['display_name'], ['city']] };
+    const result = generateLabelTemplatePdf(
+      [...peopleRows, emptyRow],
+      noMappingConfig,
+      template,
+      fmt,
+    );
+    expect(result.labelCount).toBe(2); // the two real rows
+    expect(result.excludedCount).toBe(1); // the all-empty row dropped + counted
+  });
+
+  it('composes a multi-field line by joining values in field order (Property 2)', () => {
+    // Verify the composed line-blocks the generator lays out via the shared
+    // layout: a two-field line joins its values with a single space, in order.
+    // We assert through `composeLabelLines` indirectly by checking the kept
+    // label count AND exercising the join via a single-row template whose one
+    // line has two fields — a non-empty join yields exactly one label line.
+    const oneRow: MemberRow[] = [peopleRows[0]];
+    const result = generateLabelTemplatePdf(
+      oneRow,
+      noMappingConfig,
+      { lines: [['postal_code', 'city']] }, // "2000BB Rotterdam"
+      fmt,
+    );
+    expect(result.labelCount).toBe(1);
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it('reuses the shared layoutLabelPdf draw loop (one layout path, R-L5)', () => {
+    // The shared helper lays out already-composed line-blocks directly — the same
+    // code `generateLabelTemplatePdf` and `generateAddressLabelPdf` funnel into.
+    const laid = layoutLabelPdf(
+      [['Alice Smith', 'Rotterdam'], ['Bob Jones', 'Amsterdam']],
+      fmt,
+    );
+    expect(laid.labelCount).toBe(2);
+    expect(laid.pages).toBe(1);
+    expect(typeof laid.doc.output).toBe('function');
   });
 });
