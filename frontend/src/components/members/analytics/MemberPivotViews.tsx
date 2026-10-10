@@ -538,6 +538,15 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // labels action. FAIL-CLOSED: a non-ok result OR a thrown network error leaves
   // the list empty (action hidden with the bilingual reason), never a crash. The
   // loader is injectable via the `listTemplates` prop so a test can supply a fake.
+  const reloadLabelTemplates = useCallback(async () => {
+    try {
+      const res = await listTemplates();
+      setLabelTemplates(res.ok ? res.data.filter((tpl) => tpl.kind === 'label') : []);
+    } catch {
+      setLabelTemplates([]);
+    }
+  }, [listTemplates]);
+
   useEffect(() => {
     let active = true;
     listTemplates()
@@ -2049,6 +2058,12 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
                 rows={exportRows as MemberRow[]}
                 fieldConfig={fieldConfig ?? undefined}
                 templates={labelTemplates}
+                language={language}
+                resultFields={(result?.columns ?? []).map((col) => ({
+                  key: col.name,
+                  label: columnLabels[col.name] ?? col.name,
+                }))}
+                onTemplatesChanged={reloadLabelTemplates}
               />
             </ModalBody>
           </ModalContent>

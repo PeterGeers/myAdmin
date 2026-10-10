@@ -243,11 +243,16 @@
       "deleteError": "Verwijderen van de planning mislukt"
     },
     "labels": {
-      "action": "Adreslabels genereren",
-      "noTemplate": "Adreslabels zijn niet beschikbaar: maak eerst een labelsjabloon (en je hebt exportrechten nodig)",
-      "modalTitle": "Adreslabels genereren",
+      "action": "Labels genereren",
+      "noTemplate": "Labels zijn niet beschikbaar: maak eerst een labelsjabloon (en je hebt exportrechten nodig)",
+      "modalTitle": "Labels genereren",
       "template": "Labelsjabloon",
       "generate": "Genereren",
+      "linesTitle": "Regels van dit sjabloon",
+      "previewTitle": "Voorbeeld (eerste resultaatrij)",
+      "emptyLine": "(leeg)",
+      "edit": "Labelsjablonen bewerken",
+      "downloaded": "Label-PDF gedownload ({{count}} labels, {{pages}} pagina's)",
       "download": "PDF downloaden",
       "print": "Afdrukken",
       "autoFit": "Tekst verkleinen om te passen",
@@ -332,7 +337,12 @@
         "uploaded": "Bestand in de berichttekst geladen",
         "uploadError": "Lezen van het bestand mislukt",
         "improved": "Sjabloon verbeterd",
-        "improveError": "Kon het sjabloon niet verbeteren; uw tekst is behouden"
+        "improveError": "Kon het sjabloon niet verbeteren; uw tekst is behouden",
+        "kindLabel": "Type sjabloon",
+        "kind": {
+          "mail": "E-mail",
+          "label": "Label"
+        }
       },
       "previewLabel": "Voorbeeld (eerste rij samengevoegd)",
       "confirmTitle": "E-mail versturen bevestigen",

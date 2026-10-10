@@ -87,15 +87,11 @@ export type { TemplateSeed } from './MemberMailCompose';
 export { default as MemberMailStatus } from './MemberMailStatus';
 export type { MemberMailStatusProps } from './MemberMailStatus';
 
-// R2 (pivot-output-actions) — the stored mail-template management surface
-// (CRUD + upload + improve-with-AI).
+// R2 + R-L1 (pivot-output-actions + /labels) — the SINGLE stored-template
+// management surface for BOTH kinds: mail (CRUD + upload + improve-with-AI) and
+// label (ordered lines of result-field keys). "A template is a template."
 export { default as MemberTemplateManager } from './MemberTemplateManager';
-export type { MemberTemplateManagerProps } from './MemberTemplateManager';
-
-// R-L1 (pivot-output-actions/labels, task 2.1) — the stored LABEL-template
-// management surface (filtered kind="label" CRUD; ordered lines of field keys).
-export { default as MemberLabelTemplateManager } from './MemberLabelTemplateManager';
-export type { MemberLabelTemplateManagerProps } from './MemberLabelTemplateManager';
+export type { MemberTemplateManagerProps, ResultField } from './MemberTemplateManager';
 
 // R3 (pivot-output-actions, task 3.4) — the stored-delivery editor on a saved
 // set (mode, template, attachment, to_fixed recipients, shared label_options).
