@@ -84,14 +84,36 @@ class ExplodingRepo:
 
     The ad-hoc body carries its own already-computed result rows (design "What to ADD" #1), so
     ``send_ad_hoc`` must never call ``get_analytics_set`` / ``list_members``. Injecting a repo
-    whose every method raises turns an accidental re-fetch into a loud test failure.
+    whose RE-FETCH methods raise turns an accidental re-fetch into a loud test failure.
+    (It DOES record ``create_mail_run`` — the ad-hoc path legitimately writes the send-run tally
+    at enqueue, R9.1 — so a test can assert the run was created.)
     """
+
+    def __init__(self):
+        self.mail_runs: dict[tuple, dict] = {}
 
     def get_analytics_set(self, *a, **k):  # pragma: no cover - must never be called
         raise AssertionError("ad-hoc send must not resolve a saved set")
 
     def list_members(self, *a, **k):  # pragma: no cover - must never be called
         raise AssertionError("ad-hoc send must not re-fetch members")
+
+    def create_mail_run(self, tenant_id, run_id, *, mode, triggered_by, recipient_count):
+        key = (tenant_id, run_id)
+        if key in self.mail_runs:
+            return self.mail_runs[key]
+        run = {
+            "tenant_id": tenant_id,
+            "run_id": run_id,
+            "mode": mode,
+            "triggered_by": triggered_by,
+            "recipient_count": recipient_count,
+            "status": "queued",
+            "sent": 0,
+            "failed": 0,
+        }
+        self.mail_runs[key] = run
+        return run
 
 
 class FakeMailConfigReader:

@@ -284,12 +284,36 @@ class MailSendWorker:
         template_service: Any = None,
         audit: Callable[..., Any] | None = None,
         default_lang: str = DEFAULT_LANG,
+        run_store: Any = None,
     ):
         self._ses = ses
         self._markers = marker_store
         self._templates = template_service
         self._audit = audit
         self._default_lang = default_lang
+        # Optional send-run status store (R9.1): the worker ADVANCES the `mailrun#<run_id>` tally
+        # the enqueue side created — status queued→sending→(implicitly completed via counts), and
+        # the per-job sent/failed counts. Tenant-pinned `increment_mail_run_counts` /
+        # `update_mail_run_status` / `record_mail_failure` (the DynamoDbMembersRepository satisfies
+        # it). Optional + guarded so tests/local that do not wire it still send; a None store means
+        # "do not track" (the send itself never depends on the tally).
+        self._run_store = run_store
+
+    def _advance_run(self, tenant_id: str, run_id: str, *, sent: int = 0, failed: int = 0) -> None:
+        """Advance the run tally (best-effort): mark sending + add sent/failed counts. Never let a
+        status-tracking error fail the actual send/delete (the mail already went or will retry)."""
+        if self._run_store is None or not run_id:
+            return
+        try:
+            self._run_store.update_mail_run_status(tenant_id, run_id, "sending")
+            if sent or failed:
+                self._run_store.increment_mail_run_counts(
+                    tenant_id, run_id, sent=sent, failed=failed
+                )
+        except Exception:  # noqa: BLE001 — status tracking must never break the send path
+            logger.warning(
+                "mail-send worker: run-status update failed for run %s (non-fatal)", run_id
+            )
 
     # ── public entry point ──────────────────────────────────────────────────────────────
 
@@ -341,14 +365,43 @@ class MailSendWorker:
                 recipient_count=len(recipients),
             )
 
-        # 2. Render per the mode.
-        subject, body_html, attachments = self._render(envelope, mode, recipients)
+        # 2+3. Render + send. A PERMANENT failure (bad job / SES rejection / oversize) means
+        #     this job's recipients will NEVER be sent — record it against the run tally (R9.5:
+        #     a FAILURE-only `mailrecipient#` sub-record + failed count) BEFORE re-raising so the
+        #     message dead-letters. A RETRYABLE failure (SES throttle) is NOT recorded — the job
+        #     will be retried, so counting it failed now would be wrong.
+        try:
+            subject, body_html, attachments = self._render(envelope, mode, recipients)
+            outcome = self._send_via_ses(
+                envelope, tenant_id, recipients, subject, body_html, attachments
+            )
+            self._enforce_outcome(job_id, outcome)
+        except MailSendPermanent as exc:
+            self._record_run_failure(
+                tenant_id, str(envelope.get("run_id") or ""), recipients, reason=str(exc)
+            )
+            raise
 
-        # 3. Send via SES (respect limits; classify failures retryable-vs-permanent). The
-        #    resolved per-send From (the active tenant's noreply@<tenant-domain>) + the user's
-        #    Reply-To ride on the envelope (mail-spec task 1.3 resolves + stamps them); the sender
-        #    refuses a send with no resolved From rather than substitute one (Property 2).
-        outcome = self._ses.send(
+        # 4. Audit metadata-only (ses_mail) — never bodies / member PII (design §8).
+        self._emit_audit(envelope, tenant_id, len(recipients))
+
+        logger.info(
+            "mail-send worker: job %s sent to %d recipient(s) (message_id=%s)",
+            job_id,
+            len(recipients),
+            outcome.message_id,
+        )
+        # Advance the run tally: this job's recipients are now SENT (R9.1). Guarded by the dedupe
+        # marker above (we only reach here when the marker was freshly created), so an at-least-
+        # once redelivery of the same job returns deduped earlier and never double-counts.
+        self._advance_run(tenant_id, str(envelope.get("run_id") or ""), sent=len(recipients))
+        return MailSendResult(
+            job_id=job_id, sent=True, deduped=False, recipient_count=len(recipients)
+        )
+
+    def _send_via_ses(self, envelope, tenant_id, recipients, subject, body_html, attachments):
+        """The raw SES send call (extracted so process() can wrap render+send in one try)."""
+        return self._ses.send(
             from_address=str(envelope.get("from_address") or ""),
             reply_to=(str(envelope["reply_to"]) if envelope.get("reply_to") else None),
             recipients=recipients,
@@ -363,20 +416,25 @@ class MailSendWorker:
             # SES-allowed tag charset at the sole seam that knows SES (the sender encodes).
             tags=_build_feedback_tags(tenant_id, str(envelope.get("run_id") or "")),
         )
-        self._enforce_outcome(job_id, outcome)
 
-        # 4. Audit metadata-only (ses_mail) — never bodies / member PII (design §8).
-        self._emit_audit(envelope, tenant_id, len(recipients))
-
-        logger.info(
-            "mail-send worker: job %s sent to %d recipient(s) (message_id=%s)",
-            job_id,
-            len(recipients),
-            outcome.message_id,
-        )
-        return MailSendResult(
-            job_id=job_id, sent=True, deduped=False, recipient_count=len(recipients)
-        )
+    def _record_run_failure(self, tenant_id, run_id, recipients, *, reason):
+        """Record a permanent send failure against the run (best-effort): a FAILURE-only
+        `mailrecipient#` sub-record per recipient + a `failed` tally increment. Never let a
+        status-tracking error mask the original send failure (the job still dead-letters)."""
+        if self._run_store is None or not run_id:
+            return
+        try:
+            for address in recipients:
+                self._run_store.record_mail_failure(
+                    tenant_id, run_id, address=address, reason=reason
+                )
+            self._run_store.increment_mail_run_counts(
+                tenant_id, run_id, failed=len(recipients)
+            )
+        except Exception:  # noqa: BLE001 — status tracking must never mask the send failure
+            logger.warning(
+                "mail-send worker: run-failure recording failed for run %s (non-fatal)", run_id
+            )
 
     # ── render ────────────────────────────────────────────────────────────────────────
 
