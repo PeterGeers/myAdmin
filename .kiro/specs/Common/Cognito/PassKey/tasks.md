@@ -63,6 +63,53 @@ Rationale:
 - [x] Verify in AWS Console: user pool shows "Choice-based sign-in" enabled
 - [x] Verify app client shows `ALLOW_USER_AUTH` in auth flows
 
+### 1.4a WebAuthn Relying Party ID — post-apply CLI step (NOT expressible in Terraform)
+
+> **Why this exists:** the WebAuthn `RelyingPartyId` is NOT settable via the Terraform
+> AWS provider (same gap as the `SignInPolicy.AllowedFirstAuthFactors` note in
+> `cognito.tf`). If it is never set, Cognito defaults the RP ID to the **hosted-UI
+> domain** (`myadmin-*.auth.eu-west-1.amazoncognito.com`). Because the app registers
+> passkeys directly (Amplify `associateWebAuthnCredential`) from
+> `https://petergeers.github.io/myAdmin/` — NOT from the hosted UI — the browser then
+> throws `RelyingPartyMismatch: Relying party does not match current domain`.
+> This is the recurring passkey failure (see `h-dcn_cognito_request.md` §2 "Dynamic RP
+> ID based on environment", and `findings.md` F-002). It silently reverts whenever
+> the pool MFA/WebAuthn config is touched, so treat it as a required post-apply step.
+
+- [x] Set the WebAuthn RP ID to the app's serving host (`petergeers.github.io` — the full
+      host; it CANNOT be `github.io`, which is a Public Suffix List entry browsers reject):
+
+  ```bash
+  aws cognito-idp set-user-pool-mfa-config \
+    --user-pool-id eu-west-1_Hdp40eWmu \
+    --mfa-configuration OFF \
+    --web-authn-configuration 'RelyingPartyId=petergeers.github.io,UserVerification=preferred' \
+    --profile personal --region eu-west-1
+  ```
+
+- [x] Verify the RP ID is set (must print `petergeers.github.io`):
+
+  ```bash
+  aws cognito-idp get-user-pool-mfa-config \
+    --user-pool-id eu-west-1_Hdp40eWmu \
+    --profile personal --region eu-west-1 --output json
+  # expect: WebAuthnConfiguration.RelyingPartyId == "petergeers.github.io"
+  ```
+
+- [x] **Hardening (prevents recurrence) — DONE:** folded both post-apply CLI steps
+      (`SignInPolicy.AllowedFirstAuthFactors` + WebAuthn `set-user-pool-mfa-config` RP ID)
+      into `null_resource.cognito_passkey_post_apply` in `infrastructure/cognito.tf`. It
+      runs on every `terraform apply` and re-triggers when the pool, app client, or
+      `var.passkey_relying_party_id` changes, so the RP ID can no longer silently revert to
+      the hosted-UI default. RP ID + CLI profile are variables (`passkey_relying_party_id`
+      default `petergeers.github.io`, `cognito_cli_profile` default `personal`) in
+      `variables.tf`; the `hashicorp/null` provider was added in `main.tf`. `terraform
+      validate` passes. NOTE: the `local-exec` runs the AWS CLI on the apply host, which
+      must have the `personal` profile configured.
+- [ ] **If a custom app domain is ever adopted:** the RP ID must change to that host, kept
+      in lockstep with the Cognito callback/logout URLs. Local passkey testing needs
+      `RelyingPartyId=localhost` (per-origin), which the single prod RP ID does not cover.
+
 ### 1.5 Git Commit
 
 - [x] `git add infrastructure/cognito.tf`

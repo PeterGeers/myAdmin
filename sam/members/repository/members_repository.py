@@ -30,18 +30,43 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import datetime, timezone
 from typing import Any, Protocol, runtime_checkable
 
 from sam.members.domain.analytics_set import AnalyticsSetEntry
 from sam.members.domain.column_preferences import ColumnPreferences
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.domain.preferred_list import PreferredList
+from sam.members.domain.schedule import ScheduleEntry
+from sam.members.domain.template import TemplateEntry
 from sam.members.repository import table_design as td
 
 __all__ = [
     "DynamoDbMembersRepository",
     "MembersRepository",
 ]
+
+# --- Send-run status constants (R9, mail-spec task 3.1) --------------------------------
+
+#: How long a send-run status record (``mailrun#`` + its ``mailrecipient#`` failures) is retained
+#: (seconds) via DynamoDB TTL — the design DEFAULT of 90 days. 90d covers ~3 monthly newsletter
+#: cycles of look-back; the records are tiny metadata. TTL is best-effort auto-cleanup; a manual
+#: delete (:meth:`DynamoDbMembersRepository.delete_mail_run`) is also supported. (Distinct from the
+#: dedupe marker's 14d — a different, short-lived purpose.)
+MAIL_RUN_TTL_SECONDS = 90 * 24 * 60 * 60
+
+#: The send-run status lifecycle (R9.1): written ``queued`` at enqueue, advanced to ``sending`` /
+#: ``completed`` by the worker as it drains the run's jobs.
+MAIL_RUN_STATUS_QUEUED = "queued"
+MAIL_RUN_STATUS_SENDING = "sending"
+MAIL_RUN_STATUS_COMPLETED = "completed"
+
+#: The FAILURE sub-record statuses (R9.5): a send-time ``failed`` or a late async ``bounced`` /
+#: ``complaint`` (R8.4). A success is never stored (it is counted in the run tally).
+MAIL_RECIPIENT_STATUS_FAILED = "failed"
+MAIL_RECIPIENT_STATUS_BOUNCED = "bounced"
+MAIL_RECIPIENT_STATUS_COMPLAINT = "complaint"
+
 
 # Convenience aliases so the intent of each argument is legible in the signatures.
 Member = Mapping[str, Any]
@@ -197,6 +222,42 @@ class MembersRepository(Protocol):
         """Delete an analytics-set for ``tenant_id``."""
         ...
 
+    # ── Mail templates (on-plane metadata, R2) ──────────────────────────────────────
+
+    def get_template(self, tenant_id: str, template_id: str) -> TemplateEntry | None:
+        """Return the template ``template_id`` for ``tenant_id``, or ``None`` if absent."""
+        ...
+
+    def list_templates(self, tenant_id: str) -> Sequence[TemplateEntry]:
+        """List a tenant's template entries, sorted by ``(name, template_id)``."""
+        ...
+
+    def save_template(self, tenant_id: str, entry: TemplateEntry) -> TemplateEntry:
+        """Create or update a template for ``tenant_id`` (validated before persist)."""
+        ...
+
+    def delete_template(self, tenant_id: str, template_id: str) -> None:
+        """Delete a template for ``tenant_id``."""
+        ...
+
+    # ── Schedules (recurring run of a set + delivery, R5) ───────────────────────────
+
+    def get_schedule(self, tenant_id: str, schedule_id: str) -> ScheduleEntry | None:
+        """Return the schedule ``schedule_id`` for ``tenant_id``, or ``None`` if absent."""
+        ...
+
+    def list_schedules(self, tenant_id: str) -> Sequence[ScheduleEntry]:
+        """List a tenant's schedule entries, sorted by ``(set_id, schedule_id)``."""
+        ...
+
+    def save_schedule(self, tenant_id: str, entry: ScheduleEntry) -> ScheduleEntry:
+        """Create or update a schedule for ``tenant_id`` (validated before persist)."""
+        ...
+
+    def delete_schedule(self, tenant_id: str, schedule_id: str) -> None:
+        """Delete a schedule for ``tenant_id``."""
+        ...
+
     # ── Preferred lists (per-user, R11.2) ──────────────────────────────────────────
 
     def get_preferred_list(self, tenant_id: str, sub: str) -> PreferredList | None:
@@ -221,6 +282,75 @@ class MembersRepository(Protocol):
         self, tenant_id: str, entry: ColumnPreferences
     ) -> ColumnPreferences:
         """Create or replace user ``sub``'s column preferences (validated before persist)."""
+        ...
+
+    # ── Send-run status (mailrun tally + FAILURE-ONLY sub-records, R9) ──────────────
+
+    def create_mail_run(
+        self,
+        tenant_id: str,
+        run_id: str,
+        *,
+        mode: str,
+        triggered_by: str | None,
+        recipient_count: int,
+    ) -> Mapping[str, Any]:
+        """Write a ``mailrun#<run_id>`` tally at ENQUEUE with ``status=queued`` (R9.1).
+
+        Idempotent on the ``run_id`` (re-enqueuing the same logical run must not reset a run the
+        worker has already advanced). Sets the TTL (default 90 days). Tenant-pinned (Property 3).
+        """
+        ...
+
+    def update_mail_run_status(
+        self, tenant_id: str, run_id: str, status: str
+    ) -> Mapping[str, Any] | None:
+        """Advance a run's ``status`` (``queued`` → ``sending`` → ``completed``), from the worker."""
+        ...
+
+    def increment_mail_run_counts(
+        self, tenant_id: str, run_id: str, *, sent: int = 0, failed: int = 0
+    ) -> Mapping[str, Any] | None:
+        """Atomically add to a run's ``sent`` / ``failed`` tally as the worker processes jobs."""
+        ...
+
+    def record_mail_failure(
+        self,
+        tenant_id: str,
+        run_id: str,
+        *,
+        address: str,
+        status: str = MAIL_RECIPIENT_STATUS_FAILED,
+        reason: str | None = None,
+        message_id: str | None = None,
+        adjust_run_tally: bool = False,
+    ) -> Mapping[str, Any]:
+        """Write a FAILURE-ONLY ``mailrecipient#<run_id>#<n>`` sub-record (R9.5).
+
+        A send-time failure, or a LATE async bounce/complaint (R8.4) for a previously-sent
+        recipient — the latter CREATES the sub-record at event time (``adjust_run_tally=True``
+        also moves the run's tally from sent→failed). Sets the TTL (default 90 days). Tenant-pinned.
+        """
+        ...
+
+    def get_mail_run(
+        self, tenant_id: str, run_id: str
+    ) -> Mapping[str, Any] | None:
+        """Return a run's ``mailrun#<run_id>`` tally for ``tenant_id``, or ``None`` if absent."""
+        ...
+
+    def list_mail_run_failures(
+        self, tenant_id: str, run_id: str
+    ) -> Sequence[Mapping[str, Any]]:
+        """List a run's FAILURE sub-records (``mailrecipient#<run_id>#…``), tenant-pinned."""
+        ...
+
+    def list_mail_runs(self, tenant_id: str) -> Sequence[Mapping[str, Any]]:
+        """List a tenant's send-run tallies, newest first (feeds the status/history read route)."""
+        ...
+
+    def delete_mail_run(self, tenant_id: str, run_id: str) -> None:
+        """Manual-delete a run tally AND all its FAILURE sub-records, tenant-pinned (R9 retention)."""
         ...
 
 
@@ -292,6 +422,30 @@ class _StubMembersRepository:
     def delete_analytics_set(self, tenant_id: str, set_id: str):
         raise NotImplementedError(self._PENDING)
 
+    def get_template(self, tenant_id: str, template_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def list_templates(self, tenant_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def save_template(self, tenant_id: str, entry):
+        raise NotImplementedError(self._PENDING)
+
+    def delete_template(self, tenant_id: str, template_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def get_schedule(self, tenant_id: str, schedule_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def list_schedules(self, tenant_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def save_schedule(self, tenant_id: str, entry):
+        raise NotImplementedError(self._PENDING)
+
+    def delete_schedule(self, tenant_id: str, schedule_id: str):
+        raise NotImplementedError(self._PENDING)
+
     def get_preferred_list(self, tenant_id: str, sub: str):
         raise NotImplementedError(self._PENDING)
 
@@ -302,6 +456,42 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def save_column_preferences(self, tenant_id: str, entry):
+        raise NotImplementedError(self._PENDING)
+
+    def create_mail_run(
+        self, tenant_id, run_id, *, mode, triggered_by, recipient_count
+    ):
+        raise NotImplementedError(self._PENDING)
+
+    def update_mail_run_status(self, tenant_id, run_id, status):
+        raise NotImplementedError(self._PENDING)
+
+    def increment_mail_run_counts(self, tenant_id, run_id, *, sent=0, failed=0):
+        raise NotImplementedError(self._PENDING)
+
+    def record_mail_failure(
+        self,
+        tenant_id,
+        run_id,
+        *,
+        address,
+        status=MAIL_RECIPIENT_STATUS_FAILED,
+        reason=None,
+        message_id=None,
+        adjust_run_tally=False,
+    ):
+        raise NotImplementedError(self._PENDING)
+
+    def get_mail_run(self, tenant_id, run_id):
+        raise NotImplementedError(self._PENDING)
+
+    def list_mail_run_failures(self, tenant_id, run_id):
+        raise NotImplementedError(self._PENDING)
+
+    def list_mail_runs(self, tenant_id):
+        raise NotImplementedError(self._PENDING)
+
+    def delete_mail_run(self, tenant_id, run_id):
         raise NotImplementedError(self._PENDING)
 
 
@@ -678,6 +868,140 @@ class DynamoDbMembersRepository:
         self._require_tenant(tenant_id)
         self.table.delete_item(Key=td.build_key(tenant_id, td.analytics_set_sk(set_id)))
 
+    # ── Mail templates (on-plane metadata, R2) ──────────────────────────────────────
+
+    def get_template(self, tenant_id: str, template_id: str) -> TemplateEntry | None:
+        """Return the template ``template_id`` for ``tenant_id``, or ``None`` if absent.
+
+        A single ``get_item`` on ``template#<template_id>`` within the tenant partition
+        (isolation is structural — the partition key is pinned to ``tenant_id``).
+        """
+        self._require_tenant(tenant_id)
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.template_sk(template_id))
+        )
+        item = response.get("Item")
+        return TemplateEntry.from_item(item) if item is not None else None
+
+    def list_templates(self, tenant_id: str) -> Sequence[TemplateEntry]:
+        """List the tenant's template entries, sorted by ``(name, template_id)``.
+
+        Queries the ``template#`` sub-tree of the tenant partition (isolation is structural —
+        the partition key is pinned to ``tenant_id``), rebuilds each stored item into a
+        :class:`TemplateEntry`, and sorts by ``(name, template_id)`` so the list renders
+        deterministically.
+        """
+        self._require_tenant(tenant_id)
+        prefix = td.RECORD_TYPE_TEMPLATE + td.SORT_KEY_SEPARATOR
+        entries = [
+            TemplateEntry.from_item(item)
+            for item in self._query_prefix(tenant_id, prefix)
+        ]
+        entries.sort(key=lambda e: e.sort_order_key())
+        return entries
+
+    def save_template(self, tenant_id: str, entry: TemplateEntry) -> TemplateEntry:
+        """Create or update a template, validated before persist.
+
+        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
+        write, Property 1). :meth:`TemplateEntry.to_item` validates the shape, and
+        :func:`table_design.build_template_item` stamps the authoritative primary key, so a
+        malformed or misplaced entry can never be written. Only the METADATA is persisted here;
+        the body HTML / logo binary live in S3 and are written through the service's body-store
+        seam.
+        """
+        self._require_tenant(tenant_id)
+        if entry.tenant_id and entry.tenant_id != tenant_id:
+            raise ValueError(
+                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
+                f"{tenant_id!r} (no cross-tenant write, Property 1)"
+            )
+        bound = (
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
+        )
+        payload = bound.to_item()
+        item = td.build_template_item(tenant_id, bound.template_id, payload)
+        self.table.put_item(Item=item)
+        return bound
+
+    def delete_template(self, tenant_id: str, template_id: str) -> None:
+        """Hard-delete a template's metadata item for ``tenant_id``.
+
+        Deletes only the ``template#<template_id>`` metadata item; the service is responsible
+        for cleaning up the template's S3 body/logo objects through its body-store seam.
+        """
+        self._require_tenant(tenant_id)
+        self.table.delete_item(
+            Key=td.build_key(tenant_id, td.template_sk(template_id))
+        )
+
+    # ── Schedules (recurring run of a set + delivery, R5) ───────────────────────────
+
+    def get_schedule(self, tenant_id: str, schedule_id: str) -> ScheduleEntry | None:
+        """Return the schedule ``schedule_id`` for ``tenant_id``, or ``None`` if absent.
+
+        A single ``get_item`` on ``schedule#<schedule_id>`` within the tenant partition
+        (isolation is structural — the partition key is pinned to ``tenant_id``).
+        """
+        self._require_tenant(tenant_id)
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.schedule_sk(schedule_id))
+        )
+        item = response.get("Item")
+        return ScheduleEntry.from_item(item) if item is not None else None
+
+    def list_schedules(self, tenant_id: str) -> Sequence[ScheduleEntry]:
+        """List the tenant's schedule entries, sorted by ``(set_id, schedule_id)``.
+
+        Queries the ``schedule#`` sub-tree of the tenant partition (isolation is structural —
+        the partition key is pinned to ``tenant_id``), rebuilds each stored item into a
+        :class:`ScheduleEntry`, and sorts by ``(set_id, schedule_id)`` so the list renders
+        deterministically.
+        """
+        self._require_tenant(tenant_id)
+        prefix = td.RECORD_TYPE_SCHEDULE + td.SORT_KEY_SEPARATOR
+        entries = [
+            ScheduleEntry.from_item(item)
+            for item in self._query_prefix(tenant_id, prefix)
+        ]
+        entries.sort(key=lambda e: e.sort_order_key())
+        return entries
+
+    def save_schedule(self, tenant_id: str, entry: ScheduleEntry) -> ScheduleEntry:
+        """Create or update a schedule, validated before persist.
+
+        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
+        write, Property 1). :meth:`ScheduleEntry.to_item` validates the shape, and
+        :func:`table_design.build_schedule_item` stamps the authoritative primary key, so a
+        malformed or misplaced entry can never be written. The tenant is PINNED in the schedule
+        (an unattended run has no interactive user — R5); the "set must have a delivery block"
+        rule (R5) is a SERVICE/route gate (task 5.2), NOT enforced here (storage-only entity).
+        """
+        self._require_tenant(tenant_id)
+        if entry.tenant_id and entry.tenant_id != tenant_id:
+            raise ValueError(
+                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
+                f"{tenant_id!r} (no cross-tenant write, Property 1)"
+            )
+        bound = (
+            entry
+            if entry.tenant_id == tenant_id
+            else replace(entry, tenant_id=tenant_id)
+        )
+        payload = bound.to_item()
+        item = td.build_schedule_item(tenant_id, bound.schedule_id, payload)
+        self.table.put_item(Item=item)
+        return bound
+
+    def delete_schedule(self, tenant_id: str, schedule_id: str) -> None:
+        """Hard-delete a schedule for ``tenant_id`` (no referencing records to orphan)."""
+        self._require_tenant(tenant_id)
+        self.table.delete_item(
+            Key=td.build_key(tenant_id, td.schedule_sk(schedule_id))
+        )
+
     # ── Preferred lists (per-user, R11.2) ──────────────────────────────────────────
 
     def get_preferred_list(self, tenant_id: str, sub: str) -> PreferredList | None:
@@ -769,3 +1093,241 @@ class DynamoDbMembersRepository:
         item = td.build_column_prefs_item(tenant_id, bound.sub, payload)
         self.table.put_item(Item=item)
         return bound
+
+    # ── Send-run status (mailrun tally + FAILURE-ONLY sub-records, R9) ──────────────
+    #
+    # The design's DECIDED model (design "Resolved implementation choices"): a SUMMARY TALLY
+    # (``mailrun#<run_id>``) + FAILURE-ONLY sub-records (``mailrecipient#<run_id>#<n>``).
+    # Successful recipients are only COUNTED in the run tally — never stored per-recipient. The
+    # enqueue path writes the ``queued`` tally with the recipient count; the worker advances the
+    # status and increments ``sent`` / ``failed`` and, on a failure (incl. a late async
+    # bounce/complaint — R8.4), writes a failure sub-record. Both record kinds carry a ``ttl``
+    # epoch attribute (DynamoDB TTL, default 90 days) and support a manual delete. Every op pins
+    # ``tenant_id`` (Property 3 — these metadata records can only ever match within their tenant).
+
+    @staticmethod
+    def _now_iso() -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _ttl_epoch() -> int:
+        """The DynamoDB TTL epoch (default 90 days from now) for a send-run status record."""
+        from sam.members.repository.members_repository import MAIL_RUN_TTL_SECONDS
+
+        return int(datetime.now(timezone.utc).timestamp()) + MAIL_RUN_TTL_SECONDS
+
+    def create_mail_run(
+        self,
+        tenant_id: str,
+        run_id: str,
+        *,
+        mode: str,
+        triggered_by: str | None,
+        recipient_count: int,
+    ) -> Mapping[str, Any]:
+        """Write the ``mailrun#<run_id>`` tally at ENQUEUE with ``status=queued`` (R9.1).
+
+        Idempotent on the ``run_id``: a re-enqueue of the SAME logical run (an at-least-once
+        retry of the enqueue itself) must NOT clobber a run the worker has already advanced to
+        ``sending`` / ``completed`` or whose counts it has incremented — so if a tally already
+        exists this is a no-op that returns it. The first write sets ``sent=0`` / ``failed=0`` /
+        ``status=queued`` + the TTL (default 90 days). Metadata only — never bodies / member PII.
+        """
+        self._require_tenant(tenant_id)
+        if not run_id:
+            raise ValueError("run_id must be non-empty")
+        existing = self.get_mail_run(tenant_id, run_id)
+        if existing is not None:
+            return existing  # idempotent — don't reset an already-advanced run
+        now = self._now_iso()
+        entry = {
+            "mode": mode,
+            "triggered_by": triggered_by,
+            "recipient_count": int(recipient_count),
+            "status": MAIL_RUN_STATUS_QUEUED,
+            "sent": 0,
+            "failed": 0,
+            "created_at": now,
+            "updated_at": now,
+            "ttl": self._ttl_epoch(),
+        }
+        item = td.build_mail_run_item(tenant_id, run_id, entry)
+        self.table.put_item(Item=item)
+        return item
+
+    def update_mail_run_status(
+        self, tenant_id: str, run_id: str, status: str
+    ) -> Mapping[str, Any] | None:
+        """Advance a run's ``status`` from the worker (``queued`` → ``sending`` → ``completed``).
+
+        A read-modify-write of the tenant-pinned tally (the worker drains one job at a time —
+        BatchSize 1 — so there is no concurrent writer to race). Returns the updated tally, or
+        ``None`` when no such run exists (nothing to advance). ``ttl`` / ``created_at`` are
+        preserved; ``updated_at`` is refreshed.
+        """
+        self._require_tenant(tenant_id)
+        if status not in (
+            MAIL_RUN_STATUS_QUEUED,
+            MAIL_RUN_STATUS_SENDING,
+            MAIL_RUN_STATUS_COMPLETED,
+        ):
+            raise ValueError(f"unknown mail-run status {status!r}")
+        current = self.get_mail_run(tenant_id, run_id)
+        if current is None:
+            return None
+        updated = dict(current)
+        updated["status"] = status
+        updated["updated_at"] = self._now_iso()
+        item = td.build_mail_run_item(tenant_id, run_id, updated)
+        self.table.put_item(Item=item)
+        return item
+
+    def increment_mail_run_counts(
+        self, tenant_id: str, run_id: str, *, sent: int = 0, failed: int = 0
+    ) -> Mapping[str, Any] | None:
+        """Add to a run's ``sent`` / ``failed`` tally as the worker processes jobs (R9.1).
+
+        A read-modify-write of the tenant-pinned tally (worker BatchSize 1 — no concurrent
+        writer). Returns the updated tally, or ``None`` when no such run exists. Negative deltas
+        are supported so a late bounce can move a count from sent→failed (see
+        :meth:`record_mail_failure` with ``adjust_run_tally=True``); the tally is floored at 0.
+        """
+        self._require_tenant(tenant_id)
+        current = self.get_mail_run(tenant_id, run_id)
+        if current is None:
+            return None
+        updated = dict(current)
+        updated["sent"] = max(0, int(updated.get("sent", 0)) + int(sent))
+        updated["failed"] = max(0, int(updated.get("failed", 0)) + int(failed))
+        updated["updated_at"] = self._now_iso()
+        item = td.build_mail_run_item(tenant_id, run_id, updated)
+        self.table.put_item(Item=item)
+        return item
+
+    def record_mail_failure(
+        self,
+        tenant_id: str,
+        run_id: str,
+        *,
+        address: str,
+        status: str = MAIL_RECIPIENT_STATUS_FAILED,
+        reason: str | None = None,
+        message_id: str | None = None,
+        adjust_run_tally: bool = False,
+    ) -> Mapping[str, Any]:
+        """Write a FAILURE-ONLY ``mailrecipient#<run_id>#<n>`` sub-record (R9.5, design decision).
+
+        Written ONLY for a failure — a send-time reject / no-address, or a LATE async
+        bounce/complaint (R8.4) for a recipient that SUCCEEDED at send time (there is no
+        sub-record yet, since successes are only counted). ``adjust_run_tally=True`` is the late
+        path: it ALSO moves the run tally from sent→failed (``sent -= 1`` / ``failed += 1``),
+        since the recipient was previously counted as sent. The ``<n>`` sort-key segment is the
+        run's current failure COUNT (``failed``) so two failures never collide. Sets the TTL
+        (default 90 days). Tenant-pinned (Property 3). Metadata only — the ``reason`` is an SES
+        code/message, never member PII beyond the address being mailed.
+        """
+        self._require_tenant(tenant_id)
+        if not run_id:
+            raise ValueError("run_id must be non-empty")
+        if status not in (
+            MAIL_RECIPIENT_STATUS_FAILED,
+            MAIL_RECIPIENT_STATUS_BOUNCED,
+            MAIL_RECIPIENT_STATUS_COMPLAINT,
+        ):
+            raise ValueError(f"unknown mail-recipient failure status {status!r}")
+
+        # The failure sequence is the run's failure count SO FAR (0-based) — a stable, collision-
+        # free per-run discriminator. Fall back to the number of existing sub-records if the run
+        # tally is absent (defensive — a late bounce could arrive after a manual run delete).
+        run = self.get_mail_run(tenant_id, run_id)
+        if run is not None:
+            seq = int(run.get("failed", 0))
+        else:
+            seq = len(self.list_mail_run_failures(tenant_id, run_id))
+
+        entry: dict[str, Any] = {
+            "address": address,
+            "status": status,
+            "updated_at": self._now_iso(),
+            "ttl": self._ttl_epoch(),
+        }
+        if reason is not None:
+            entry["reason"] = reason
+        if message_id is not None:
+            entry["message_id"] = message_id
+        item = td.build_mail_recipient_item(tenant_id, run_id, str(seq), entry)
+        self.table.put_item(Item=item)
+
+        # Adjust the run tally. On the LATE path the recipient was previously counted as sent, so
+        # move it sent→failed; otherwise just increment failed (a send-time failure the worker is
+        # recording as it processes the job).
+        if run is not None:
+            if adjust_run_tally:
+                self.increment_mail_run_counts(tenant_id, run_id, sent=-1, failed=1)
+            else:
+                self.increment_mail_run_counts(tenant_id, run_id, failed=1)
+        return item
+
+    def get_mail_run(
+        self, tenant_id: str, run_id: str
+    ) -> Mapping[str, Any] | None:
+        """Return the ``mailrun#<run_id>`` tally for ``tenant_id``, or ``None`` if absent.
+
+        A single ``get_item`` within the tenant partition (isolation is structural — the
+        partition key is pinned to ``tenant_id``; Property 3).
+        """
+        self._require_tenant(tenant_id)
+        if not run_id:
+            return None
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.mail_run_sk(run_id))
+        )
+        return response.get("Item")
+
+    def list_mail_run_failures(
+        self, tenant_id: str, run_id: str
+    ) -> Sequence[Mapping[str, Any]]:
+        """List a run's FAILURE sub-records (``mailrecipient#<run_id>#…``), tenant-pinned.
+
+        A ``begins_with`` query on the run's failure prefix inside the tenant partition
+        (isolation is structural — Property 3). An empty list when the run had no failures
+        (the common case — successes are only counted in the tally, not stored).
+        """
+        self._require_tenant(tenant_id)
+        if not run_id:
+            return []
+        prefix = td.mail_recipient_sk_prefix(run_id) + td.SORT_KEY_SEPARATOR
+        return self._query_prefix(tenant_id, prefix)
+
+    def list_mail_runs(self, tenant_id: str) -> Sequence[Mapping[str, Any]]:
+        """List the tenant's send-run tallies, NEWEST FIRST (feeds the R9 status/history route).
+
+        Queries the ``mailrun#`` sub-tree of the tenant partition (isolation is structural — the
+        partition key is pinned to ``tenant_id``; Property 3) and sorts by ``created_at``
+        descending so the history view shows the most recent runs first. Returns only the TALLY
+        items (the ``mailrecipient#`` failures live under a different record-type prefix, so they
+        are never swept in here).
+        """
+        self._require_tenant(tenant_id)
+        prefix = td.RECORD_TYPE_MAIL_RUN + td.SORT_KEY_SEPARATOR
+        runs = list(self._query_prefix(tenant_id, prefix))
+        runs.sort(key=lambda r: str(r.get("created_at", "")), reverse=True)
+        return runs
+
+    def delete_mail_run(self, tenant_id: str, run_id: str) -> None:
+        """Manual-delete a run tally AND all its FAILURE sub-records (R9 retention; tenant-pinned).
+
+        Deletes the ``mailrun#<run_id>`` tally and every ``mailrecipient#<run_id>#…`` failure
+        sub-record so a manual delete leaves no orphaned failures behind (the complement to the
+        TTL auto-cleanup). Every delete is keyed by ``tenant_id`` (Property 3).
+        """
+        self._require_tenant(tenant_id)
+        if not run_id:
+            raise ValueError("run_id must be non-empty")
+        for failure in self.list_mail_run_failures(tenant_id, run_id):
+            sk = failure.get(td.SORT_KEY_ATTR)
+            if sk:
+                self.table.delete_item(Key=td.build_key(tenant_id, sk))
+        self.table.delete_item(
+            Key=td.build_key(tenant_id, td.mail_run_sk(run_id))
+        )

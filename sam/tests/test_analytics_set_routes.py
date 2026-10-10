@@ -1099,3 +1099,669 @@ class TestColumnPreferencesEdge:
             )
         )
         assert resp["statusCode"] == 200
+
+
+# =====================================================================================
+# Delivery block — set / clear on a saved set (R3, pivot-output-actions task 3.3)
+#
+# PUT/DELETE /members/analytics-sets/{set_id}/delivery store / clear the optional stored
+# "what to do with the result" block on an EXISTING set (design §2.1/§3). Gate: members:export
+# + existing scope — a stored delivery can send only what the user could already export, so NO
+# new permission and NO audit-on-save (R3). The entity's validate() (task 3.1) enforces the
+# mode rules; a bad block is a 422 surfacing the FieldError array; an unknown set is a 404.
+#
+# Validates: Requirements R3.
+# =====================================================================================
+
+
+def _delivery_to_fixed():
+    """A valid ``to_fixed`` delivery block: a fixed recipient list + a csv attachment."""
+    return {
+        "mode": "to_fixed",
+        "template_id": None,
+        "attachment": "csv",
+        "recipients": ["agent@example.com", "office@example.com"],
+        "label_options": None,
+    }
+
+
+def _delivery_per_recipient():
+    """A valid ``per_recipient`` delivery block: a template, no stored recipients (merge)."""
+    return {
+        "mode": "per_recipient",
+        "template_id": "template#welcome",
+        "attachment": None,
+        "recipients": [],
+        "label_options": None,
+    }
+
+
+class TestAnalyticsSetDeliveryDomain:
+    """Service-layer set/clear of the delivery block (MembershipService over the real repo)."""
+
+    def _seed(self, service):
+        return service.create_analytics_set(
+            "h-dcn",
+            {"name": "S", "kind": "count", "definition": _count_definition()},
+        )["set_id"]
+
+    def test_set_to_fixed_stores_the_block_and_round_trips(self, service, repo):
+        set_id = self._seed(service)
+        out = service.set_analytics_set_delivery(
+            "h-dcn", set_id, _delivery_to_fixed()
+        )
+        assert out["delivery"]["mode"] == "to_fixed"
+        assert out["delivery"]["recipients"] == [
+            "agent@example.com",
+            "office@example.com",
+        ]
+        # Genuinely persisted + round-trips through the repository (to_item/from_item).
+        reloaded = repo.get_analytics_set("h-dcn", set_id)
+        assert reloaded.delivery["mode"] == "to_fixed"
+        assert reloaded.delivery["recipients"] == [
+            "agent@example.com",
+            "office@example.com",
+        ]
+
+    def test_set_per_recipient_stores_template_and_no_recipients(self, service, repo):
+        set_id = self._seed(service)
+        out = service.set_analytics_set_delivery(
+            "h-dcn", set_id, _delivery_per_recipient()
+        )
+        assert out["delivery"]["mode"] == "per_recipient"
+        assert out["delivery"]["template_id"] == "template#welcome"
+        assert out["delivery"]["recipients"] == []
+
+    def test_set_preserves_definition_origin_created_by_and_bumps_updated_at(
+        self, service
+    ):
+        created = service.create_analytics_set(
+            "h-dcn",
+            {"name": "S", "kind": "count", "definition": _count_definition()},
+            created_by="author-sub",
+        )
+        set_id = created["set_id"]
+        out = service.set_analytics_set_delivery(
+            "h-dcn", set_id, _delivery_to_fixed()
+        )
+        # The pivot config + attribution + origin survive a delivery set; updated_at bumps.
+        assert out["definition"]["data_source"] == "members"
+        assert out["created_by"] == "author-sub"
+        assert out["origin"] == "user"
+        assert out["created_at"] == created["created_at"]
+        assert out["updated_at"] >= created["updated_at"]
+
+    def test_set_invalid_to_fixed_without_recipients_raises(self, service):
+        set_id = self._seed(service)
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            service.set_analytics_set_delivery(
+                "h-dcn", set_id, {"mode": "to_fixed", "recipients": []}
+            )
+        assert "delivery" in exc.value.errors
+
+    def test_set_invalid_per_recipient_with_recipients_raises(self, service):
+        set_id = self._seed(service)
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            service.set_analytics_set_delivery(
+                "h-dcn",
+                set_id,
+                {"mode": "per_recipient", "recipients": ["a@example.com"]},
+            )
+        assert "delivery" in exc.value.errors
+
+    def test_set_absent_set_raises_not_found(self, service):
+        with pytest.raises(AnalyticsSetNotFound):
+            service.set_analytics_set_delivery("h-dcn", "ghost", _delivery_to_fixed())
+
+    def test_clear_sets_delivery_back_to_none(self, service, repo):
+        set_id = self._seed(service)
+        service.set_analytics_set_delivery("h-dcn", set_id, _delivery_to_fixed())
+        out = service.clear_analytics_set_delivery("h-dcn", set_id)
+        assert out["delivery"] is None
+        assert repo.get_analytics_set("h-dcn", set_id).delivery is None
+
+    def test_clear_absent_set_raises_not_found(self, service):
+        with pytest.raises(AnalyticsSetNotFound):
+            service.clear_analytics_set_delivery("h-dcn", "ghost")
+
+
+class TestAnalyticsSetDeliveryEdge:
+    """End-to-end set/clear through the thin edge (routes → handler → domain → repo)."""
+
+    def _seed(self):
+        created = _data(
+            app.handler(
+                _event(
+                    "POST",
+                    "/members/analytics-sets",
+                    body={
+                        "name": "S",
+                        "kind": "count",
+                        "definition": _count_definition(),
+                    },
+                )
+            )
+        )
+        return created["set_id"]
+
+    def test_put_to_fixed_stores_the_block_returns_200(self, repo):
+        set_id = self._seed()
+        resp = app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                body=_delivery_to_fixed(),
+            )
+        )
+        assert resp["statusCode"] == 200
+        data = _data(resp)
+        assert data["delivery"]["mode"] == "to_fixed"
+        assert data["delivery"]["recipients"] == [
+            "agent@example.com",
+            "office@example.com",
+        ]
+        assert repo.get_analytics_set("h-dcn", set_id).delivery is not None
+
+    def test_put_per_recipient_stores_the_block_returns_200(self):
+        set_id = self._seed()
+        resp = app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                body=_delivery_per_recipient(),
+            )
+        )
+        assert resp["statusCode"] == 200
+        assert _data(resp)["delivery"]["mode"] == "per_recipient"
+
+    def test_put_invalid_block_returns_422_with_delivery_field(self):
+        # A to_fixed delivery with no recipients is an invalid block → 422, surfacing the
+        # entity's FieldError array (the field is "delivery").
+        set_id = self._seed()
+        resp = app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                body={"mode": "to_fixed", "recipients": []},
+            )
+        )
+        assert resp["statusCode"] == 422
+        fields = {e["field"] for e in json.loads(resp["body"])["errors"]}
+        assert "delivery" in fields
+
+    def test_put_absent_set_returns_404(self):
+        resp = app.handler(
+            _event(
+                "PUT",
+                "/members/analytics-sets/ghost/delivery",
+                body=_delivery_to_fixed(),
+            )
+        )
+        assert resp["statusCode"] == 404
+
+    def test_delete_clears_the_block_returns_200(self, repo):
+        set_id = self._seed()
+        app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                body=_delivery_to_fixed(),
+            )
+        )
+        resp = app.handler(
+            _event("DELETE", f"/members/analytics-sets/{set_id}/delivery")
+        )
+        assert resp["statusCode"] == 200
+        assert _data(resp)["delivery"] is None
+        assert repo.get_analytics_set("h-dcn", set_id).delivery is None
+
+    def test_delete_absent_set_returns_404(self):
+        resp = app.handler(
+            _event("DELETE", "/members/analytics-sets/ghost/delivery")
+        )
+        assert resp["statusCode"] == 404
+
+    def test_delivery_route_not_shadowed_by_set_id_route(self):
+        # The literal /{set_id}/delivery sub-path must resolve to the delivery route (an extra
+        # segment past /{set_id}); a 200 PUT proves it is not swallowed by the set CRUD routes.
+        set_id = self._seed()
+        resp = app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                body=_delivery_to_fixed(),
+            )
+        )
+        assert resp["statusCode"] == 200
+
+    def test_routes_require_auth(self):
+        resp = app.handler(
+            {
+                "httpMethod": "PUT",
+                "path": "/members/analytics-sets/x/delivery",
+                "headers": {},
+            }
+        )
+        assert resp["statusCode"] in (401, 403)
+
+
+class TestAnalyticsSetDeliveryGate:
+    """The export gate (R3): a stored delivery can only send what the user could already
+    export, so set/clear require members:export + existing scope — NO new permission."""
+
+    def _seed(self):
+        created = _data(
+            app.handler(
+                _event(
+                    "POST",
+                    "/members/analytics-sets",
+                    capabilities=("members:read", "members:export"),
+                    body={
+                        "name": "S",
+                        "kind": "count",
+                        "definition": _count_definition(),
+                    },
+                )
+            )
+        )
+        return created["set_id"]
+
+    def test_export_user_can_set_delivery(self):
+        set_id = self._seed()
+        resp = app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                capabilities=("members:read", "members:export"),
+                body=_delivery_to_fixed(),
+            )
+        )
+        assert resp["statusCode"] == 200
+
+    def test_export_user_can_clear_delivery(self):
+        set_id = self._seed()
+        app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                capabilities=("members:read", "members:export"),
+                body=_delivery_to_fixed(),
+            )
+        )
+        resp = app.handler(
+            _event(
+                "DELETE",
+                f"/members/analytics-sets/{set_id}/delivery",
+                capabilities=("members:read", "members:export"),
+            )
+        )
+        assert resp["statusCode"] == 200
+
+    def test_without_export_is_403_on_put(self):
+        # A write-only / read-only caller (no members:export) cannot store a delivery (403) —
+        # the gate is export, NOT write/admin. We seed as an export user, then attempt the PUT
+        # as a non-export caller.
+        set_id = self._seed()
+        resp = app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                capabilities=("members:read", "members:write", "members:admin"),
+                body=_delivery_to_fixed(),
+            )
+        )
+        assert resp["statusCode"] == 403
+
+    def test_without_export_is_403_on_delete(self):
+        set_id = self._seed()
+        app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                capabilities=("members:read", "members:export"),
+                body=_delivery_to_fixed(),
+            )
+        )
+        resp = app.handler(
+            _event(
+                "DELETE",
+                f"/members/analytics-sets/{set_id}/delivery",
+                capabilities=("members:read", "members:write", "members:admin"),
+            )
+        )
+        assert resp["statusCode"] == 403
+
+
+class TestAnalyticsSetDeliveryTenantIsolation:
+    """Cross-tenant isolation (Property 1): a set created under h-dcn is not reachable for a
+    delivery set/clear under a different tenant (the PK is pinned to the verified tenant)."""
+
+    def test_set_delivery_cross_tenant_is_404(self, monkeypatch):
+        from sam.tests.conftest import FakeScopeGrantsReader
+
+        # Seed a set under h-dcn (the autouse grants reader covers h-dcn).
+        set_id = _data(
+            app.handler(
+                _event(
+                    "POST",
+                    "/members/analytics-sets",
+                    body={
+                        "name": "S",
+                        "kind": "count",
+                        "definition": _count_definition(),
+                    },
+                )
+            )
+        )["set_id"]
+
+        # Point the scope reader at a SECOND tenant and attempt the delivery set there with the
+        # same set_id — the other tenant's partition has no such set → 404 (no cross-tenant
+        # reach, never a 200 that would mutate h-dcn's set).
+        monkeypatch.setattr(
+            app,
+            "_SCOPE_GRANTS_READER_OVERRIDE",
+            FakeScopeGrantsReader({("other-tenant", _EMAIL_ALL): {"region": ["*"]}}),
+        )
+        resp = app.handler(
+            _event(
+                "PUT",
+                f"/members/analytics-sets/{set_id}/delivery",
+                tenant="other-tenant",
+                body=_delivery_to_fixed(),
+            )
+        )
+        assert resp["statusCode"] == 404
+
+
+# =====================================================================================
+# Deliver — run execute-and-deliver NOW (R4, pivot-output-actions task 4.2)
+#
+# POST /members/analytics-sets/{set_id}/deliver is the THIN enqueue route: it delegates to
+# the standalone ExecuteAndDeliverService (task 4.1), which resolves the set + its stored
+# delivery block, re-fetches the tenant's member rows (tenant-pinned — Property 1), runs the
+# pivot, and ENQUEUES the send job(s); a worker (task 4.3/4.4) performs the actual SES send.
+# The route NEVER blocks on the send — it returns 202 ACCEPTED (enqueued, not done). Gate:
+# members:export + existing scope (same as the delivery set/clear — a send dispatches only
+# what the user could already export, no new permission).
+#
+# These exercise the route end-to-end over the SAME real repo + fake table, with the deliver
+# seam (dispatch_mod.get_execute_and_deliver_service) pointed at a service over that repo + a
+# FAKE mail queue that CAPTURES jobs — so no AWS/SQS is touched. The service method under the
+# route is execute_and_deliver(tenant_id, set_id, run_id) -> DeliveryOutcome; the 202 body is
+# the flattened outcome receipt (run_id, mode, enqueued, skipped_no_address, job_ids).
+# =====================================================================================
+
+
+class _PassThroughPivot:
+    """A fake PivotRunner — returns the re-fetched member rows unchanged (the result rows ARE
+    the member rows for both delivery modes; keeps the test focused on the enqueue fan-out)."""
+
+    def run(self, tenant_id, definition, rows):
+        return list(rows)
+
+
+class _FakeMailQueue:
+    """An in-memory MailQueue (R4) that CAPTURES every enqueued MailJob — no SQS, no boto3."""
+
+    def __init__(self):
+        self.jobs = []
+
+    def enqueue(self, job):
+        self.jobs.append(job)
+
+
+class _CertifiedMailConfig:
+    """A static MailConfigReader modelling a CERTIFIED tenant (mail-spec task 1.3 happy path).
+
+    Satisfies the resolver's :class:`~sam.members.domain.mail_sender_resolver.MailConfigReader`
+    seam by duck-typing so the deliver edge resolves a usable From (``noreply@h-dcn.nl``) with no
+    projection/DynamoDB round-trip. ``certified=False`` drives the pre-send refusal branch.
+    """
+
+    def __init__(self, *, certified=True, domain="h-dcn.nl"):
+        self._certified = certified
+        self._domain = domain
+
+    def is_mail_enabled(self, tenant_id):
+        return bool(tenant_id)
+
+    def is_mail_certified(self, tenant_id):
+        return bool(tenant_id) and self._certified
+
+    def get_mail_domain(self, tenant_id):
+        return self._domain if tenant_id else None
+
+    def get_mail_local_part(self, tenant_id):
+        return "noreply"
+
+
+def _member_record(member_id, first_name, email, *, membership_type="erelid"):
+    """A persisted member record addressable by a stable id (seeded straight via the repo)."""
+    return {
+        "tenant_id": "h-dcn",
+        "member_id": member_id,
+        "personal": {"first_name": first_name, "last_name": "Test", "email": email},
+        "membership": {"membership_type": membership_type, "joined_date": "2024-01-01"},
+        "overlay": {"region": "North"},
+    }
+
+
+class TestDeliverRouteEdge:
+    """End-to-end deliver through the thin edge (route → handler → execute-and-deliver service
+    over a FAKE mail queue). The queue capture proves the route enqueued; the 202 proves it is
+    accepted-not-done (R4 queued, not synchronous)."""
+
+    @pytest.fixture()
+    def mail_queue(self):
+        return _FakeMailQueue()
+
+    @pytest.fixture(autouse=True)
+    def inject_deliver_service(self, monkeypatch, repo, mail_queue):
+        # Point the deliver dispatch seam at a service over the SAME real repo (so a set stored
+        # via the CRUD/delivery routes is the one delivered) + the fake queue (never SQS). The
+        # repo fixture backs the autouse membership service too, so both see the same table.
+        from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+        from sam.members.domain.mail_sender_resolver import MailSenderResolver
+        from sam.members.handler import _dispatch as dispatch_mod
+
+        # The deliver path now runs the SYNCHRONOUS pre-send certification gate (mail-spec task
+        # 1.3). These edge tests exercise the CERTIFIED happy path, so inject a resolver over a
+        # certified static reader (no projection round-trip) — a dedicated not-certified test
+        # drives the refusal branch below.
+        deliver_service = ExecuteAndDeliverService(
+            repo,
+            _PassThroughPivot(),
+            mail_queue,
+            MailSenderResolver(_CertifiedMailConfig()),
+        )
+        monkeypatch.setattr(
+            dispatch_mod,
+            "get_execute_and_deliver_service",
+            lambda: deliver_service,
+        )
+        return deliver_service
+
+    def _seed_set_with_delivery(self, delivery):
+        """Create a set then store a delivery block on it via the routes; return its set_id."""
+        set_id = _data(
+            app.handler(
+                _event(
+                    "POST",
+                    "/members/analytics-sets",
+                    body={
+                        "name": "Clubblad",
+                        "kind": "list",
+                        "definition": _list_definition(),
+                    },
+                )
+            )
+        )["set_id"]
+        resp = app.handler(
+            _event("PUT", f"/members/analytics-sets/{set_id}/delivery", body=delivery)
+        )
+        assert resp["statusCode"] == 200
+        return set_id
+
+    # ── happy path: 202 ACCEPTED + the fake queue captured the job(s) ────────────────────
+    def test_deliver_to_fixed_returns_202_and_enqueues_one_job(self, repo, mail_queue):
+        set_id = self._seed_set_with_delivery(_delivery_to_fixed())
+        # A couple of members exist (to_fixed sends ONE job regardless of member count).
+        repo.save_member("h-dcn", _member_record("m1", "Ava", "ava@example.com"))
+        repo.save_member("h-dcn", _member_record("m2", "Ben", "ben@example.com"))
+
+        resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
+
+        assert resp["statusCode"] == 202
+        data = _data(resp)
+        assert data["mode"] == "to_fixed"
+        assert data["enqueued"] == 1  # to_fixed → exactly one job
+        assert data["job_ids"] and len(data["job_ids"]) == 1
+        # The fake queue genuinely captured the job (the route enqueued, never touched SQS).
+        assert len(mail_queue.jobs) == 1
+        job = mail_queue.jobs[0]
+        assert job.mode == "to_fixed"
+        assert job.recipients == ("agent@example.com", "office@example.com")
+
+    def test_deliver_per_recipient_enqueues_one_job_per_mailable_member(
+        self, repo, mail_queue
+    ):
+        set_id = self._seed_set_with_delivery(_delivery_per_recipient())
+        repo.save_member("h-dcn", _member_record("m1", "Ava", "ava@example.com"))
+        repo.save_member("h-dcn", _member_record("m2", "Ben", "ben@example.com"))
+
+        resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
+
+        assert resp["statusCode"] == 202
+        data = _data(resp)
+        assert data["mode"] == "per_recipient"
+        assert data["enqueued"] == 2  # one job per member with a resolvable address
+        assert len(mail_queue.jobs) == 2
+        assert sorted(r for job in mail_queue.jobs for r in job.recipients) == [
+            "ava@example.com",
+            "ben@example.com",
+        ]
+
+    # ── mail-spec task 1.3: the resolved From + the user Reply-To ride on every job ──────
+    def test_deliver_stamps_resolved_from_and_user_reply_to_on_every_job(
+        self, repo, mail_queue
+    ):
+        # The edge resolves the tenant From (noreply@<domain>) via the pre-send resolver and
+        # stamps it + the triggering user's VERIFIED email (the JWT `email` claim) as Reply-To
+        # onto EVERY enqueued job — the worker forwards them to SES without re-resolving.
+        set_id = self._seed_set_with_delivery(_delivery_per_recipient())
+        repo.save_member("h-dcn", _member_record("m1", "Ava", "ava@example.com"))
+        repo.save_member("h-dcn", _member_record("m2", "Ben", "ben@example.com"))
+
+        resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
+
+        assert resp["statusCode"] == 202
+        assert len(mail_queue.jobs) == 2
+        for job in mail_queue.jobs:
+            assert job.from_address == "noreply@h-dcn.nl"
+            assert job.reply_to == _EMAIL_ALL  # the verified user, from the JWT claim
+
+    # ── mail-spec task 1.3: a NOT-CERTIFIED tenant is refused before enqueue (422, no job) ─
+    def test_deliver_not_certified_tenant_returns_422_and_enqueues_nothing(
+        self, monkeypatch, repo, mail_queue
+    ):
+        from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+        from sam.members.domain.mail_sender_resolver import MailSenderResolver
+        from sam.members.handler import _dispatch as dispatch_mod
+
+        set_id = self._seed_set_with_delivery(_delivery_to_fixed())
+        repo.save_member("h-dcn", _member_record("m1", "Ava", "ava@example.com"))
+
+        # Re-point the deliver seam at a service whose resolver refuses (tenant not certified).
+        uncertified = ExecuteAndDeliverService(
+            repo,
+            _PassThroughPivot(),
+            mail_queue,
+            MailSenderResolver(_CertifiedMailConfig(certified=False)),
+        )
+        monkeypatch.setattr(
+            dispatch_mod, "get_execute_and_deliver_service", lambda: uncertified
+        )
+
+        resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
+
+        assert resp["statusCode"] == 422
+        body = json.loads(resp["body"])
+        assert body["code"] == "errors.mail.notCertified"
+        assert body["reason"] == "not_certified"  # the TYPED machine reason
+        assert mail_queue.jobs == []  # nothing enqueued, no substitute sender
+
+    # ── gate: members:export (403 without) ───────────────────────────────────────────────
+    def test_deliver_without_export_is_403(self, repo):
+        set_id = self._seed_set_with_delivery(_delivery_to_fixed())
+        resp = app.handler(
+            _event(
+                "POST",
+                f"/members/analytics-sets/{set_id}/deliver",
+                capabilities=("members:read", "members:write", "members:admin"),
+            )
+        )
+        assert resp["statusCode"] == 403
+
+    def test_deliver_with_export_is_allowed(self, repo):
+        set_id = self._seed_set_with_delivery(_delivery_to_fixed())
+        resp = app.handler(
+            _event(
+                "POST",
+                f"/members/analytics-sets/{set_id}/deliver",
+                capabilities=("members:read", "members:export"),
+            )
+        )
+        assert resp["statusCode"] == 202
+
+    # ── 404 unknown set ──────────────────────────────────────────────────────────────────
+    def test_deliver_unknown_set_returns_404(self, mail_queue):
+        resp = app.handler(_event("POST", "/members/analytics-sets/ghost/deliver"))
+        assert resp["statusCode"] == 404
+        assert mail_queue.jobs == []  # nothing enqueued for a set that does not exist
+
+    # ── 422 when the set has no delivery block (DeliveryNotConfigured) ────────────────────
+    def test_deliver_set_without_delivery_block_returns_422(self, mail_queue):
+        # A freshly-created set has NO delivery block → DeliveryNotConfigured → 422 (the set
+        # exists, so NOT a 404 — "configure a delivery first").
+        set_id = _data(
+            app.handler(
+                _event(
+                    "POST",
+                    "/members/analytics-sets",
+                    body={
+                        "name": "No delivery",
+                        "kind": "list",
+                        "definition": _list_definition(),
+                    },
+                )
+            )
+        )["set_id"]
+        resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
+        assert resp["statusCode"] == 422
+        assert json.loads(resp["body"])["code"] == "errors.analyticsset.delivery.notConfigured"
+        assert mail_queue.jobs == []  # nothing enqueued when there is nothing to send
+
+    # ── cross-tenant isolation (Property 1) ──────────────────────────────────────────────
+    def test_deliver_cross_tenant_is_404(self, monkeypatch, repo, mail_queue):
+        from sam.tests.conftest import FakeScopeGrantsReader
+
+        # A set with a delivery block exists under h-dcn.
+        set_id = self._seed_set_with_delivery(_delivery_to_fixed())
+
+        # Point the scope reader at a SECOND tenant and deliver the same set_id there — the
+        # other tenant's partition has no such set → 404 (no cross-tenant reach), and nothing
+        # is enqueued (never a 202 that would mail h-dcn's data for another tenant).
+        monkeypatch.setattr(
+            app,
+            "_SCOPE_GRANTS_READER_OVERRIDE",
+            FakeScopeGrantsReader({("other-tenant", _EMAIL_ALL): {"region": ["*"]}}),
+        )
+        resp = app.handler(
+            _event(
+                "POST",
+                f"/members/analytics-sets/{set_id}/deliver",
+                tenant="other-tenant",
+            )
+        )
+        assert resp["statusCode"] == 404
+        assert mail_queue.jobs == []

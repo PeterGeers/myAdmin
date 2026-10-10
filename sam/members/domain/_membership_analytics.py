@@ -149,6 +149,87 @@ class AnalyticsSetsMixin:
         self._repo.delete_analytics_set(tenant_id, set_id)
         return self._serialize_analytics_set(existing)
 
+    # ── delivery block — set / clear (R3, pivot-output-actions task 3.3) ─────────────
+
+    def set_analytics_set_delivery(
+        self, tenant_id: str, set_id: str, body: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Set/replace the stored ``delivery`` block on an EXISTING saved set (R3). 404 if absent.
+
+        Loads the set within the tenant (Property 1); an absent ``set_id`` raises
+        :class:`AnalyticsSetNotFound` (→ 404). The request body IS the delivery block
+        (``{mode, template_id, attachment, recipients, label_options}`` — design §2.1); it is
+        stamped onto the existing entry (identity + ``created_at`` + ``origin`` + ``created_by``
+        preserved, ``updated_at`` bumped) and the whole entry is re-validated via
+        :meth:`AnalyticsSetEntry.validate` — so a malformed block (bad mode, a ``to_fixed`` with
+        no recipients, a ``per_recipient`` carrying stored recipients, …) raises
+        :class:`AnalyticsSetValidationError` (→ 422, the entity's FieldError surfaced) and
+        nothing is written. The pivot ``definition`` is NOT touched (the delivery is a separate
+        additive field). Persists via the repository (which round-trips ``delivery``) and
+        returns the serialized entry (now carrying the stored ``delivery``).
+
+        ``tenant_id`` and the path ``set_id`` are AUTHORITATIVE — a body ``tenant_id`` /
+        ``set_id`` is never trusted (verify-before-trust, Property 2). The gate is the route's
+        ``members:export`` + existing scope (R3): a stored delivery introduces no new permission
+        and there is no audit-on-save (normal send-time auditing per R4 applies elsewhere).
+        """
+        existing = self._repo.get_analytics_set(tenant_id, set_id)
+        if existing is None:
+            raise AnalyticsSetNotFound(tenant_id, set_id)
+
+        now = datetime.now(timezone.utc).isoformat()
+        delivery = dict(body) if isinstance(body, Mapping) else {}
+
+        updated = AnalyticsSetEntry(
+            tenant_id=tenant_id,  # authoritative — never the body
+            set_id=set_id,  # the path is authoritative for identity
+            name=existing.name,
+            kind=existing.kind,
+            definition=existing.definition,  # the pivot config is NOT touched by a delivery set
+            origin=existing.origin,  # preserved — identity, never changed
+            created_by=existing.created_by,  # preserved — original author attribution (R11.3)
+            delivery=delivery,  # the new block (validated below by the entity)
+            created_at=existing.created_at,  # preserved from original
+            updated_at=now,  # bumped
+        )
+        updated.validate()
+        saved = self._repo.save_analytics_set(tenant_id, updated)
+        return self._serialize_analytics_set(saved)
+
+    def clear_analytics_set_delivery(
+        self, tenant_id: str, set_id: str
+    ) -> dict[str, Any]:
+        """Clear the stored ``delivery`` block on an EXISTING saved set (R3). 404 if absent.
+
+        Loads the set within the tenant (Property 1); an absent ``set_id`` raises
+        :class:`AnalyticsSetNotFound` (→ 404). Sets ``delivery`` back to ``None`` (the no-delivery
+        default — the set keeps working exactly like a legacy set that never had one), bumps
+        ``updated_at``, re-validates (a ``None`` delivery is always valid), persists, and returns
+        the serialized entry (now with ``delivery`` absent/null). Idempotent: clearing a set that
+        already has no delivery simply re-writes ``None``. The pivot ``definition`` is untouched.
+        Gate: the route's ``members:export`` + existing scope (R3) — no new permission.
+        """
+        existing = self._repo.get_analytics_set(tenant_id, set_id)
+        if existing is None:
+            raise AnalyticsSetNotFound(tenant_id, set_id)
+
+        now = datetime.now(timezone.utc).isoformat()
+        updated = AnalyticsSetEntry(
+            tenant_id=tenant_id,
+            set_id=set_id,
+            name=existing.name,
+            kind=existing.kind,
+            definition=existing.definition,
+            origin=existing.origin,
+            created_by=existing.created_by,
+            delivery=None,  # cleared — back to the no-delivery default
+            created_at=existing.created_at,
+            updated_at=now,
+        )
+        updated.validate()
+        saved = self._repo.save_analytics_set(tenant_id, updated)
+        return self._serialize_analytics_set(saved)
+
     # ── preferred list (per-user, R11.2 layer 2) ────────────────────────────────────
 
     def get_preferred_list(self, tenant_id: str, sub: str) -> dict[str, Any]:
@@ -314,9 +395,12 @@ class AnalyticsSetsMixin:
         """Project an analytics-set entry to the JSON-friendly shape the handler returns.
 
         Carries ``set_id``, ``name``, ``kind``, ``definition``, ``origin``, ``created_by``,
-        ``created_at``, ``updated_at`` as plain JSON. ``tenant_id`` is omitted (the caller
-        already knows the tenant context). ``created_by`` is surfaced for attribution display
-        (R11.3) — the SPA shows "created by" but never gates on it.
+        the optional ``delivery`` block (R3; ``None`` on a set with no delivery), ``created_at``,
+        ``updated_at`` as plain JSON. ``tenant_id`` is omitted (the caller already knows the
+        tenant context). ``created_by`` is surfaced for attribution display (R11.3) — the SPA
+        shows "created by" but never gates on it. ``delivery`` is surfaced so the saved-set
+        list/get and the delivery routes return the stored block (the frontend editor, task 3.4,
+        reads it back); it round-trips as a plain dict (or ``null``).
         """
         return {
             "set_id": entry.set_id,
@@ -325,6 +409,7 @@ class AnalyticsSetsMixin:
             "definition": dict(entry.definition),
             "origin": entry.origin,
             "created_by": entry.created_by,
+            "delivery": dict(entry.delivery) if entry.delivery is not None else None,
             "created_at": entry.created_at,
             "updated_at": entry.updated_at,
         }

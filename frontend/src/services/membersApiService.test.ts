@@ -562,4 +562,689 @@ describe('membersApiService — column preferences (task 2.5.5)', () => {
       expect(init.body).toBe(JSON.stringify({ columns: [] }));
     });
   });
+
+  // ==========================================================================
+  // Task 3.4 — the dedicated delivery route (PUT/DELETE), R3, design §3.
+  //
+  // The create/update set bodies deliberately do NOT carry delivery; the stored
+  // delivery is written/cleared ONLY via `/members/analytics-sets/{id}/delivery`.
+  // `putAnalyticsSetDelivery` maps the camelCase MemberDelivery to the stored
+  // snake_case block (via deliveryToBackend) and PUTs it; `deleteAnalyticsSetDelivery`
+  // DELETEs the same path.
+  // ==========================================================================
+  describe('analytics-set delivery route (task 3.4)', () => {
+    // Validates: Requirements 3 (R3)
+    it('PUT /delivery maps the body via deliveryToBackend and returns the mapped set', async () => {
+      const { putAnalyticsSetDelivery } = await import('./membersApiService');
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: {
+            data: {
+              set_id: 'set-1',
+              name: 'Jubilees',
+              kind: 'list',
+              definition: {},
+              delivery: {
+                mode: 'to_fixed',
+                template_id: null,
+                attachment: 'csv',
+                recipients: ['agent@example.com'],
+                label_options: null,
+              },
+              created_at: '2026-01-01T00:00:00Z',
+              updated_at: '2026-01-02T00:00:00Z',
+            },
+          },
+        }),
+      );
+
+      const result = await putAnalyticsSetDelivery('set-1', {
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      });
+
+      const [url, init] = fetchCall();
+      expect(init.method).toBe('PUT');
+      expect(url).toBe(`${BASE}/members/analytics-sets/set-1/delivery`);
+      // The body IS the bare snake_case delivery block — NOT wrapped in
+      // `{ delivery: ... }`. The backend reads the request body directly as the
+      // block (`_write_body(request)`); a wrapper makes `mode` absent → 422.
+      expect(JSON.parse(init.body as string)).toEqual({
+        mode: 'to_fixed',
+        template_id: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        label_options: null,
+      });
+      // The reply is unwrapped + mapped back to the camelCase set (with delivery).
+      expect(result.id).toBe('set-1');
+      expect(result.delivery).toEqual({
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      });
+    });
+
+    // Validates: Requirements 3 (R3)
+    it('DELETE /delivery targets the dedicated delivery path', async () => {
+      const { deleteAnalyticsSetDelivery } = await import('./membersApiService');
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { ok: true } } }),
+      );
+
+      await deleteAnalyticsSetDelivery('set-1');
+
+      const [url, init] = fetchCall();
+      expect(init.method).toBe('DELETE');
+      expect(url).toBe(`${BASE}/members/analytics-sets/set-1/delivery`);
+    });
+  });
+
+  // ==========================================================================
+  // Mail-spec task 2.4 (R3.1/R3.2) — the deliver-now route. `deliverAnalyticsSet`
+  // POSTs the EXISTING SAM deliver route (no body — it runs the set's STORED
+  // delivery) and maps the 202 snake_case receipt
+  // (`{ run_id, mode, enqueued, skipped_no_address, job_ids }`) to the camelCase
+  // DeliveryRunResult. A refusal (not-certified / no delivery) throws a
+  // structured ApiError the UI surfaces.
+  // ==========================================================================
+  describe('analytics-set deliver route (mail task 2.4)', () => {
+    // Validates: Requirements 3.2, 3.5
+    it('POST /deliver with NO body and maps the 202 receipt to camelCase', async () => {
+      const { deliverAnalyticsSet } = await import('./membersApiService');
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          status: 202,
+          body: {
+            data: {
+              run_id: 'run-abc',
+              mode: 'to_fixed',
+              enqueued: 1,
+              skipped_no_address: 0,
+              job_ids: ['job-1'],
+            },
+          },
+        }),
+      );
+
+      const result = await deliverAnalyticsSet('set-1');
+
+      const [url, init] = fetchCall();
+      expect(init.method).toBe('POST');
+      expect(url).toBe(`${BASE}/members/analytics-sets/set-1/deliver`);
+      // No request body — the route runs the set's STORED delivery block.
+      expect(init.body).toBeUndefined();
+      // The snake_case 202 receipt is mapped to the camelCase DeliveryRunResult.
+      expect(result).toEqual({
+        runId: 'run-abc',
+        mode: 'to_fixed',
+        enqueued: 1,
+        skippedNoAddress: 0,
+        jobIds: ['job-1'],
+      });
+    });
+
+    // Validates: Requirements 4.2, 5.2 (not-certified refusal is a thrown ApiError)
+    it('throws a structured ApiError carrying errors.mail.notCertified on a 422', async () => {
+      const { deliverAnalyticsSet } = await import('./membersApiService');
+      const { ApiError } = await import('../shared/api/ApiError');
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 422,
+          body: {
+            error: 'The tenant mail sender is not certified',
+            code: 'errors.mail.notCertified',
+            reason: 'not_certified',
+          },
+        }),
+      );
+
+      await expect(deliverAnalyticsSet('set-1')).rejects.toBeInstanceOf(ApiError);
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          ok: false,
+          status: 422,
+          body: { error: 'nope', code: 'errors.mail.notCertified' },
+        }),
+      );
+      await deliverAnalyticsSet('set-1').catch((err) => {
+        expect((err as InstanceType<typeof ApiError>).status).toBe(422);
+        expect((err as InstanceType<typeof ApiError>).code).toBe('errors.mail.notCertified');
+      });
+    });
+  });
+});
+
+// ============================================================================
+// Task 3.2 — delivery block mappers (R3, design §2.1)
+//
+// `deliveryToBackend` / `deliveryFromBackend` are the frontend ↔ backend set
+// mappers' delivery half: they convert the camelCase `MemberDelivery` to/from the
+// stored snake_case block (`{ mode, template_id, attachment, recipients,
+// label_options }`), using the shared label-options model's `toStored`/`fromStored`
+// for the `label_options` sub-block (one label-options model with R6 — task 6.3).
+// These tests round-trip BOTH modes so the camelCase ↔ snake_case mapping (incl.
+// the numeric label_options) is proven lossless.
+// ============================================================================
+
+describe('membersApiService — delivery block mappers (task 3.2)', () => {
+  // Validates: Requirements 3 (R3)
+  it('round-trips a per_recipient delivery (template, no recipients, no labels)', async () => {
+    const { deliveryToBackend, deliveryFromBackend } = await import('./membersApiService');
+
+    const delivery = {
+      mode: 'per_recipient' as const,
+      templateId: 'template#t-1',
+      attachment: 'csv' as const,
+      recipients: [],
+      labelOptions: null,
+    };
+
+    const stored = deliveryToBackend(delivery);
+    // per_recipient stores NO recipient addresses (resolved from the dataset at run time).
+    expect(stored.mode).toBe('per_recipient');
+    expect(stored.template_id).toBe('template#t-1');
+    expect(stored.attachment).toBe('csv');
+    expect(stored.recipients).toEqual([]);
+    expect(stored.label_options).toBeNull();
+
+    // Rebuild from the stored block → the original camelCase shape.
+    expect(deliveryFromBackend(stored)).toEqual(delivery);
+  });
+
+  // Validates: Requirements 3 (R3)
+  it('round-trips a to_fixed delivery with pdf_labels (numeric label_options survive)', async () => {
+    const { deliveryToBackend, deliveryFromBackend } = await import('./membersApiService');
+    const { normalizeLabelOptions } = await import(
+      '../components/members/analytics/labelOptions'
+    );
+
+    const labelOptions = normalizeLabelOptions({
+      format: 'L7160',
+      sortOrder: 'postcode',
+      fontSize: 11,
+      alignment: 'center',
+      showBorder: true,
+      showCountry: false,
+      startPosition: 4,
+    });
+    const delivery = {
+      mode: 'to_fixed' as const,
+      templateId: null,
+      attachment: 'pdf_labels' as const,
+      recipients: ['agent@example.com', 'back@example.com'],
+      labelOptions,
+    };
+
+    const stored = deliveryToBackend(delivery);
+    expect(stored.mode).toBe('to_fixed');
+    expect(stored.recipients).toEqual(['agent@example.com', 'back@example.com']);
+    // label_options serialized to the snake_case stored block with numeric fields intact.
+    expect(stored.label_options).toEqual({
+      format: 'L7160',
+      sort: 'postcode',
+      font_size: 11,
+      alignment: 'center',
+      border: true,
+      country: false,
+      start: 4,
+    });
+
+    // Full round-trip rebuilds the camelCase delivery (labelOptions normalized identically).
+    expect(deliveryFromBackend(stored)).toEqual(delivery);
+  });
+
+  // Validates: Requirements 3 (R3)
+  it('maps an absent / null stored block to undefined (a set with no delivery)', async () => {
+    const { deliveryFromBackend } = await import('./membersApiService');
+    expect(deliveryFromBackend(null)).toBeUndefined();
+    expect(deliveryFromBackend(undefined)).toBeUndefined();
+  });
+
+  // Validates: Requirements 3 (R3)
+  it('a to_fixed non-pdf_labels delivery carries no label_options', async () => {
+    const { deliveryToBackend, deliveryFromBackend } = await import('./membersApiService');
+
+    const delivery = {
+      mode: 'to_fixed' as const,
+      templateId: null,
+      attachment: 'csv' as const,
+      recipients: ['agent@example.com'],
+      labelOptions: null,
+    };
+
+    const stored = deliveryToBackend(delivery);
+    expect(stored.label_options).toBeNull();
+    expect(deliveryFromBackend(stored)).toEqual(delivery);
+  });
+});
+
+// ============================================================================
+// Task 5.4 — schedule route + cadence↔cron mapping (R5, design §2.3/§3/§5)
+//
+// `GET/POST/PUT/DELETE /members/schedules[/{id}]`. A schedule carries
+// `{ schedule_id, set_id, cron, enabled, created_by, created_at, updated_at }`.
+// The UI edits a FRIENDLY cadence (monthly/weekly) which maps to a concrete cron
+// via `cadenceToCron`; an existing schedule's cron maps back via `cronToCadence`.
+// ============================================================================
+
+describe('membersApiService — schedules (task 5.4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('VITE_MEMBERS_API_BASE_URL', 'http://members.test/api');
+    mockGetTokens.mockResolvedValue({ idToken: 'tok', accessToken: 'acc' } as never);
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  const SBASE = 'http://members.test/api';
+
+  // Validates: Requirements 5 (R5)
+  it('cadenceToCron maps each friendly cadence to its backend cron (design §5)', async () => {
+    const { cadenceToCron, CADENCE_CRON } = await import('./membersApiService');
+    expect(cadenceToCron('monthly')).toBe('cron(0 8 1 * ? *)');
+    expect(cadenceToCron('weekly')).toBe('cron(0 8 ? * MON *)');
+    // The forward map is the single source of truth.
+    expect(cadenceToCron('monthly')).toBe(CADENCE_CRON.monthly);
+    expect(cadenceToCron('weekly')).toBe(CADENCE_CRON.weekly);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('cronToCadence recovers the cadence, falling back to monthly for an unknown cron', async () => {
+    const { cronToCadence } = await import('./membersApiService');
+    expect(cronToCadence('cron(0 8 1 * ? *)')).toBe('monthly');
+    expect(cronToCadence('cron(0 8 ? * MON *)')).toBe('weekly');
+    // Round-trip stability.
+    expect(cronToCadence('cron(0 8 1 * ? *)')).toBe('monthly');
+    // An unrecognized expression → monthly (the editor still opens).
+    expect(cronToCadence('rate(13 hours)')).toBe('monthly');
+    expect(cronToCadence('')).toBe('monthly');
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('listSchedulesForSet GETs /members/schedules and returns only the set\'s schedules', async () => {
+    const { listSchedulesForSet } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: [
+            {
+              schedule_id: 'sch-1',
+              set_id: 'set-1',
+              cron: 'cron(0 8 1 * ? *)',
+              enabled: true,
+              created_by: 'sub-1',
+              created_at: '2026-01-01T00:00:00Z',
+              updated_at: '2026-01-01T00:00:00Z',
+            },
+            { schedule_id: 'sch-2', set_id: 'OTHER', cron: 'cron(0 8 ? * MON *)', enabled: false },
+          ],
+        },
+      }),
+    );
+
+    const result = await listSchedulesForSet('set-1');
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('GET');
+    expect(url).toBe(`${SBASE}/members/schedules`);
+    // Only the schedules for set-1 survive the filter, mapped to camelCase.
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      scheduleId: 'sch-1',
+      setId: 'set-1',
+      cron: 'cron(0 8 1 * ? *)',
+      enabled: true,
+      createdBy: 'sub-1',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('createSchedule POSTs /members/schedules with the mapped cron (no tenant/created_by in body)', async () => {
+    const { createSchedule } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: {
+            schedule_id: 'sch-1',
+            set_id: 'set-1',
+            cron: 'cron(0 8 1 * ? *)',
+            enabled: true,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        },
+      }),
+    );
+
+    const result = await createSchedule('set-1', 'monthly', true);
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('POST');
+    expect(url).toBe(`${SBASE}/members/schedules`);
+    // Body carries only domain fields; the cadence is mapped to a cron.
+    expect(JSON.parse(init.body as string)).toEqual({
+      set_id: 'set-1',
+      cron: 'cron(0 8 1 * ? *)',
+      enabled: true,
+    });
+    expect(result.scheduleId).toBe('sch-1');
+    expect(result.enabled).toBe(true);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('updateSchedule PUTs /members/schedules/{id} with the mapped cron + enabled toggle', async () => {
+    const { updateSchedule } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: {
+            schedule_id: 'sch-1',
+            set_id: 'set-1',
+            cron: 'cron(0 8 ? * MON *)',
+            enabled: false,
+          },
+        },
+      }),
+    );
+
+    const result = await updateSchedule('sch-1', 'weekly', false);
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('PUT');
+    expect(url).toBe(`${SBASE}/members/schedules/sch-1`);
+    expect(JSON.parse(init.body as string)).toEqual({
+      cron: 'cron(0 8 ? * MON *)',
+      enabled: false,
+    });
+    // The disabled toggle round-trips.
+    expect(result.enabled).toBe(false);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('deleteSchedule DELETEs /members/schedules/{id} (id url-encoded)', async () => {
+    const { deleteSchedule } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({ body: { data: { ok: true } } }),
+    );
+
+    await deleteSchedule('sch/9');
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('DELETE');
+    expect(url).toBe(`${SBASE}/members/schedules/sch%2F9`);
+  });
+
+  // Validates: Requirements 5 (R5)
+  it('listAnalyticsSets surfaces hasDelivery so the UI can gate the Schedule action', async () => {
+    const { listAnalyticsSets } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: [
+            {
+              set_id: 'with-delivery',
+              name: 'Has delivery',
+              kind: 'list',
+              definition: {},
+              delivery: {
+                mode: 'to_fixed',
+                template_id: null,
+                attachment: 'csv',
+                recipients: ['a@b.com'],
+                label_options: null,
+              },
+            },
+            { set_id: 'no-delivery', name: 'Bare', kind: 'count', definition: {} },
+          ],
+        },
+      }),
+    );
+
+    const sets = await listAnalyticsSets();
+    expect(sets.find((s) => s.id === 'with-delivery')?.hasDelivery).toBe(true);
+    expect(sets.find((s) => s.id === 'no-delivery')?.hasDelivery).toBe(false);
+  });
+});
+
+// ============================================================================
+// Mail-spec task 3.3 (R9) — send-run status / history client wrappers.
+//
+// `listMailRuns` GETs `/members/mail-runs` (the tenant's run tallies, newest
+// first, role-scoped server-side) and maps each snake_case tally to the
+// camelCase MailRunSummary. `getMailRun` GETs `/members/mail-runs/{run_id}` (one
+// run's tally + its FAILURE drill-down) and maps `{ run, failures }` to the
+// camelCase MailRunDetail. Both unwrap the `{ data }` envelope. These tests
+// prove the routes + the shape mapping (incl. the honest sent/failed tally that
+// the screen labels "SES accepted, not delivered" — R9.4).
+// ============================================================================
+
+describe('membersApiService — mail runs status (task 3.3)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('VITE_MEMBERS_API_BASE_URL', BASE);
+    mockGetTokens.mockResolvedValue({ idToken: 'tok', accessToken: 'acc' } as never);
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  // Validates: Requirements 9.2
+  it('listMailRuns GETs /members/mail-runs and maps each tally to camelCase', async () => {
+    const { listMailRuns } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: [
+            {
+              run_id: 'run-1',
+              mode: 'per_recipient',
+              triggered_by: 'sub-1',
+              recipient_count: 200,
+              status: 'completed',
+              sent: 198,
+              failed: 2,
+              created_at: '2026-01-02T00:00:00Z',
+              updated_at: '2026-01-02T00:05:00Z',
+            },
+          ],
+        },
+      }),
+    );
+
+    const runs = await listMailRuns();
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('GET');
+    expect(url).toBe(`${BASE}/members/mail-runs`);
+    expect(runs).toEqual([
+      {
+        runId: 'run-1',
+        mode: 'per_recipient',
+        triggeredBy: 'sub-1',
+        recipientCount: 200,
+        status: 'completed',
+        sent: 198,
+        failed: 2,
+        createdAt: '2026-01-02T00:00:00Z',
+        updatedAt: '2026-01-02T00:05:00Z',
+      },
+    ]);
+  });
+
+  // Validates: Requirements 9.2
+  it('listMailRuns returns [] when the enveloped data is not an array', async () => {
+    const { listMailRuns } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({ body: { data: null } }),
+    );
+    await expect(listMailRuns()).resolves.toEqual([]);
+  });
+
+  // Validates: Requirements 9.1 (defensive coercion of absent counts / owner)
+  it('listMailRuns defaults absent counts to 0 and a blank triggered_by to null', async () => {
+    const { listMailRuns } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: [{ run_id: 'run-x', mode: 'to_fixed', status: 'queued', triggered_by: '' }],
+        },
+      }),
+    );
+    const [run] = await listMailRuns();
+    expect(run).toEqual({
+      runId: 'run-x',
+      mode: 'to_fixed',
+      triggeredBy: null,
+      recipientCount: 0,
+      status: 'queued',
+      sent: 0,
+      failed: 0,
+      createdAt: '',
+      updatedAt: '',
+    });
+  });
+
+  // Validates: Requirements 9.2
+  it('getMailRun GETs /members/mail-runs/{id} and maps { run, failures } to camelCase', async () => {
+    const { getMailRun } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: {
+            run: {
+              run_id: 'run-1',
+              mode: 'per_recipient',
+              triggered_by: 'sub-1',
+              recipient_count: 3,
+              status: 'completed',
+              sent: 1,
+              failed: 2,
+              created_at: '2026-01-02T00:00:00Z',
+              updated_at: '2026-01-02T00:05:00Z',
+            },
+            failures: [
+              {
+                address: 'bad@example.com',
+                status: 'failed',
+                reason: 'MessageRejected',
+                message_id: null,
+              },
+              {
+                address: 'bounce@example.com',
+                status: 'bounced',
+                reason: null,
+                message_id: 'ses-123',
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    const detail = await getMailRun('run-1');
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('GET');
+    expect(url).toBe(`${BASE}/members/mail-runs/run-1`);
+    expect(detail.run).toEqual({
+      runId: 'run-1',
+      mode: 'per_recipient',
+      triggeredBy: 'sub-1',
+      recipientCount: 3,
+      status: 'completed',
+      sent: 1,
+      failed: 2,
+      createdAt: '2026-01-02T00:00:00Z',
+      updatedAt: '2026-01-02T00:05:00Z',
+    });
+    expect(detail.failures).toEqual([
+      {
+        address: 'bad@example.com',
+        status: 'failed',
+        reason: 'MessageRejected',
+        messageId: null,
+      },
+      {
+        address: 'bounce@example.com',
+        status: 'bounced',
+        reason: null,
+        messageId: 'ses-123',
+      },
+    ]);
+  });
+
+  // Validates: Requirements 9.2 (a run with no failures returns an empty drill-down)
+  it('getMailRun maps a run with no failures to an empty failures list', async () => {
+    const { getMailRun } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        body: {
+          data: {
+            run: {
+              run_id: 'run-ok',
+              mode: 'to_fixed',
+              status: 'completed',
+              recipient_count: 1,
+              sent: 1,
+              failed: 0,
+            },
+          },
+        },
+      }),
+    );
+    const detail = await getMailRun('run-ok');
+    expect(detail.run.sent).toBe(1);
+    expect(detail.run.failed).toBe(0);
+    expect(detail.failures).toEqual([]);
+  });
+
+  // Validates: Requirements 9.3 (a not-visible / absent run is a 404 the caller surfaces)
+  it('getMailRun url-encodes the run id and surfaces a 404 as a thrown error', async () => {
+    const { getMailRun } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({ ok: false, status: 404, body: { error: 'Not found' } }),
+    );
+    await expect(getMailRun('run/9')).rejects.toThrow('Not found');
+    const [url] = fetchCall();
+    expect(url).toBe(`${BASE}/members/mail-runs/run%2F9`);
+  });
+
+  // Validates: Requirements 9.6 (manual-delete retention — DELETE the run record)
+  it('deleteMailRun DELETEs /members/mail-runs/{id} and url-encodes the run id', async () => {
+    const { deleteMailRun } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({ body: { data: {} } }),
+    );
+
+    await expect(deleteMailRun('run/9')).resolves.toBeUndefined();
+
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('DELETE');
+    expect(url).toBe(`${BASE}/members/mail-runs/run%2F9`);
+  });
+
+  // Validates: Requirements 9.3 (a not-visible / absent run is a 404 the caller surfaces)
+  it('deleteMailRun surfaces a 404 as a thrown error (another user\'s / absent run)', async () => {
+    const { deleteMailRun } = await import('./membersApiService');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({ ok: false, status: 404, body: { error: 'Not found' } }),
+    );
+    await expect(deleteMailRun('run-x')).rejects.toThrow('Not found');
+  });
 });

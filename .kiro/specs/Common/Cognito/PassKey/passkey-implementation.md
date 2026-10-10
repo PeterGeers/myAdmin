@@ -110,6 +110,7 @@ Passkey stored in Cognito, linked to user's sub
 | `infrastructure/cognito.tf` | Change `mfa_configuration` from `"OPTIONAL"` to `"OFF"` (or keep and accept passkeys won't work with MFA) |
 | `infrastructure/cognito.tf` | Add `user_pool_add_ons.advanced_security_mode = "ENFORCED"` (required for choice-based auth)              |
 | `infrastructure/cognito.tf` | Update app client: add `ALLOW_USER_AUTH` to explicit auth flows                                           |
+| **CLI post-apply (NOT Terraform)** | Set WebAuthn `RelyingPartyId` to the app host (`petergeers.github.io`) via `aws cognito-idp set-user-pool-mfa-config`. If unset, Cognito defaults the RP ID to the hosted-UI domain → `RelyingPartyMismatch` on registration. See tasks.md §1.4a and h-dcn doc §2. |
 
 ### Backend (minimal changes)
 

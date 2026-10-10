@@ -41,6 +41,16 @@ const updateAnalyticsSet = vi.fn();
 const deleteAnalyticsSet = vi.fn();
 const getPreferredList = vi.fn();
 const savePreferredList = vi.fn();
+// Delivery + schedule route wrappers (R3 / R5). The Delivery/Schedule lifecycle
+// actions call these from their handlers; stubbed so no network is hit.
+const putAnalyticsSetDelivery = vi.fn();
+const deleteAnalyticsSetDelivery = vi.fn();
+const deliverAnalyticsSet = vi.fn();
+const listSchedulesForSet = vi.fn();
+const createSchedule = vi.fn();
+const updateSchedule = vi.fn();
+const deleteSchedule = vi.fn();
+const sendAdHocMail = vi.fn();
 vi.mock('../../../services/membersApiService', () => ({
   listAnalyticsSets: (...args: unknown[]) => listAnalyticsSets(...args),
   getAnalyticsSet: (...args: unknown[]) => getAnalyticsSet(...args),
@@ -49,6 +59,18 @@ vi.mock('../../../services/membersApiService', () => ({
   deleteAnalyticsSet: (...args: unknown[]) => deleteAnalyticsSet(...args),
   getPreferredList: (...args: unknown[]) => getPreferredList(...args),
   savePreferredList: (...args: unknown[]) => savePreferredList(...args),
+  putAnalyticsSetDelivery: (...args: unknown[]) => putAnalyticsSetDelivery(...args),
+  deleteAnalyticsSetDelivery: (...args: unknown[]) => deleteAnalyticsSetDelivery(...args),
+  deliverAnalyticsSet: (...args: unknown[]) => deliverAnalyticsSet(...args),
+  sendAdHocMail: (...args: unknown[]) => sendAdHocMail(...args),
+  listSchedulesForSet: (...args: unknown[]) => listSchedulesForSet(...args),
+  createSchedule: (...args: unknown[]) => createSchedule(...args),
+  updateSchedule: (...args: unknown[]) => updateSchedule(...args),
+  deleteSchedule: (...args: unknown[]) => deleteSchedule(...args),
+  // Constants the real MemberScheduleEditor imports (cadence picker + cron map).
+  SCHEDULE_CADENCES: ['monthly', 'weekly'],
+  cronToCadence: (cron: string) =>
+    cron === 'cron(0 8 ? * MON *)' ? 'weekly' : 'monthly',
 }));
 
 // --- Mock the reused PivotResultTable with a lightweight recorder. ------------
@@ -104,19 +126,52 @@ vi.mock('../../../utils/csvExport', () => ({
   downloadCsv: (...args: unknown[]) => downloadCsv(...args),
 }));
 
-// --- Mock the mail service (task 9.2) so the Mail button + compose modal that
-// now mount in the result-actions slot never hit the network. ----------------
-const mailMembersSet = vi.fn();
-vi.mock('../../../services/memberMailService', () => ({
-  mailMembersSet: (...args: unknown[]) => mailMembersSet(...args),
-}));
-
 // --- Mock the analytics audit signal (task 10.1 / C7) so the CSV export's
 // fire-and-forget audit POST never hits the network in a component test. ------
 const recordAnalyticsOutput = vi.fn();
 vi.mock('../../../services/memberAnalyticsAuditService', () => ({
   recordAnalyticsOutput: (...args: unknown[]) => recordAnalyticsOutput(...args),
 }));
+
+// --- Mock the reused AddressLabelGenerator (task 6.1 / R6) so the "Generate
+// address labels" action in the result-actions slot can be asserted without
+// driving the real jsPDF layout. The TEMPLATE-DRIVEN labels modal (labels
+// sub-spec task 3.2) composes via `generateLabelTemplatePdf`; we mock ONLY that
+// service export (spreading the real module so the format catalogue +
+// `generateAddressLabelPdf` the mail-attach path uses stay intact), capturing
+// each call's args so a test proves the modal composes the CURRENT result rows
+// through the CHOSEN template's lines + the CHOSEN Avery format, and that
+// `result.doc.save` fires the download. --
+const generateLabelTemplatePdf = vi.fn();
+vi.mock('./addressLabelService', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('./addressLabelService')>();
+  return {
+    ...actual,
+    generateLabelTemplatePdf: (...args: unknown[]) =>
+      generateLabelTemplatePdf(...args),
+  };
+});
+
+// --- Mock the member template service (labels sub-spec R-L2, task 3.1). ------
+// The labels action gate loads the tenant's `kind:"label"` templates via
+// `listMemberTemplates` (injectable prop, defaulting to this real service). It
+// is mocked so no network is hit; the DEFAULT resolves to an ok result with NO
+// label templates (so, as before, the labels action stays hidden unless a test
+// opts in). Property-3 tests inject their own `listTemplates` fake directly to
+// drive the ≥1-label-template branch, independent of this module default.
+const listMemberTemplates = vi.fn();
+vi.mock('../../../services/memberTemplateService', async (importOriginal) => {
+  // Spread the real module so the OTHER exports MemberMailCompose imports
+  // (getMemberTemplate, createMemberTemplate, …) stay intact; only the
+  // labels-gate loader `listMemberTemplates` is replaced with a controllable fn.
+  const actual =
+    await importOriginal<typeof import('../../../services/memberTemplateService')>();
+  return {
+    ...actual,
+    listMemberTemplates: (...args: unknown[]) => listMemberTemplates(...args),
+  };
+});
 
 // Echo i18n keys so assertions are locale-independent (no hardcoded English).
 vi.mock('../../../hooks/useTypedTranslation', () => ({
@@ -127,7 +182,7 @@ import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import MemberPivotViews from './MemberPivotViews';
 import { MemberPivotViews as FromBarrel } from './index';
 import type { FieldConfig } from '../../../types/members';
-import type { MemberAnalyticsAreaProps } from './areas/types';
+import type { MemberAnalyticsAreaProps, MemberAnalyticsCapabilities } from './areas/types';
 
 /**
  * A field config that exposes the fixed/calculated keys the always-available
@@ -143,6 +198,11 @@ const fieldConfig = {
     { key: 'joined_date', origin: 'fixed', label: { en: 'Joined' } },
     { key: 'country', origin: 'fixed', label: { en: 'Country' } },
   ],
+  // Mail-enabled by default (pivot-output-actions R0/R1 task 1.3) so the existing
+  // Mail / compose tests exercise the capability (canExport) gate, not the mail
+  // gate; the mail-enabled gate's hidden-when-not-enabled paths are covered in
+  // their own describe block below (mail_enabled false / absent).
+  mail_enabled: true,
 } as unknown as FieldConfig;
 
 const processedData = [
@@ -213,6 +273,40 @@ beforeEach(() => {
   generateCsvFromObjects.mockReturnValue('col\nval');
   recordAnalyticsOutput.mockReset();
   recordAnalyticsOutput.mockResolvedValue(true);
+  generateLabelTemplatePdf.mockReset();
+  // Default: the template generator returns a doc stub + sane counts; a test can
+  // override the counts, and the doc's save/output are spies so download/print
+  // never touch real jsPDF or the DOM.
+  generateLabelTemplatePdf.mockReturnValue({
+    doc: { save: vi.fn(), output: vi.fn().mockReturnValue('blob:labels') },
+    labelCount: 3,
+    excludedCount: 0,
+    pages: 1,
+  });
+  // Default: an ok template list with NO label templates (labels sub-spec R-L2),
+  // so the labels action stays hidden unless a test provides a label template.
+  listMemberTemplates.mockReset();
+  listMemberTemplates.mockResolvedValue({ ok: true, data: [] });
+  putAnalyticsSetDelivery.mockReset();
+  deleteAnalyticsSetDelivery.mockReset();
+  deliverAnalyticsSet.mockReset();
+  sendAdHocMail.mockReset();
+  sendAdHocMail.mockResolvedValue({ runId: 'run-1', mode: 'to_fixed', enqueued: 1, skippedNoAddress: 0, jobIds: ['job-1'] });
+  deliverAnalyticsSet.mockResolvedValue({
+    runId: 'run-1',
+    mode: 'to_fixed',
+    enqueued: 1,
+    skippedNoAddress: 0,
+    jobIds: ['job-1'],
+  });
+  listSchedulesForSet.mockReset();
+  createSchedule.mockReset();
+  updateSchedule.mockReset();
+  deleteSchedule.mockReset();
+  listSchedulesForSet.mockResolvedValue([]);
+  createSchedule.mockResolvedValue(undefined);
+  updateSchedule.mockResolvedValue(undefined);
+  deleteSchedule.mockResolvedValue(undefined);
 });
 
 describe('MemberPivotViews', () => {
@@ -813,6 +907,7 @@ describe('MemberPivotViews', () => {
       const produced = tableCalls[tableCalls.length - 1];
 
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [columns, rows] = generateCsvFromObjects.mock.calls[0];
@@ -882,6 +977,7 @@ describe('MemberPivotViews', () => {
       expect(produced.data).toHaveLength(processedData.length);
 
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [columns, rows] = generateCsvFromObjects.mock.calls[0];
@@ -911,6 +1007,7 @@ describe('MemberPivotViews', () => {
       fireEvent.click(screen.getByTestId('mock-table-filter-to-first-row'));
 
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
 
       expect(generateCsvFromObjects).toHaveBeenCalledTimes(1);
       const [, rows] = generateCsvFromObjects.mock.calls[0];
@@ -930,6 +1027,7 @@ describe('MemberPivotViews', () => {
 
       // No filter simulated → export the whole result (default behavior).
       fireEvent.click(screen.getByTestId('member-pivot-export-csv'));
+      fireEvent.click(screen.getByTestId('member-pivot-export-csv-download'));
       const [, rows] = generateCsvFromObjects.mock.calls[0];
       expect(rows).toBe(produced.data);
     });
@@ -970,18 +1068,27 @@ describe('MemberPivotViews', () => {
 
       // New set is always available; the others require a selected saved model.
       // (Delete is no longer a main-pane button — it lives in the "All sets"
-      // modal per-row trash icon.)
-      expect(screen.getByTestId('member-pivot-new-set')).not.toBeDisabled();
-      expect(screen.getByTestId('member-pivot-save-as')).toBeDisabled();
-      expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
+      // modal per-row trash icon.) These are now MenuItems inside the "Manage set"
+      // menu — a disabled MenuItem renders aria-disabled ONLY while the menu is
+      // open, so open it before asserting. A disabled MenuItem still never fires.
+      // With NO set selected: Update does nothing (needs a saved model); Delete is
+      // not a main-pane control. Assert BEHAVIOR — Chakra's isDisabled suppresses
+      // the action — rather than the DOM disabled flag (Chakra MenuItem's disabled
+      // state is not reliably reflected in jsdom when the menu is portaled).
+      fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+      expect(screen.getByTestId('member-pivot-new-set')).toBeInTheDocument();
       expect(screen.queryByTestId('member-pivot-delete')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('member-pivot-update'));
+      expect(screen.queryByTestId('member-field-picker')).not.toBeInTheDocument();
+      expect(updateAnalyticsSet).not.toHaveBeenCalled();
 
-      // Selecting a PRESET enables Save-as but NOT Update (preset ≠ saved model).
+      // Selecting a PRESET: Update still does nothing (preset ≠ saved model).
       fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
         target: { value: 'preset:membership-types' },
       });
-      expect(screen.getByTestId('member-pivot-save-as')).not.toBeDisabled();
-      expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
+      fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+      fireEvent.click(screen.getByTestId('member-pivot-update'));
+      expect(updateAnalyticsSet).not.toHaveBeenCalled();
     });
 
     it('New set opens the picker to compose + save a brand-new set (R4.4)', async () => {
@@ -1234,6 +1341,432 @@ describe('MemberPivotViews', () => {
 
       fireEvent.click(screen.getByTestId('member-pivot-mail'));
       expect(await screen.findByTestId('member-mail-compose')).toBeInTheDocument();
+    });
+
+    // --- Task 1.3 (pivot-output-actions R0/R1): the mail-enabled gate. --------
+    // The Mail output action (compose / send path) is OFFERED only when the
+    // tenant is mail-enabled — the R0 `config#mail` flag surfaced on the field
+    // config as `mail_enabled`. When NOT enabled the action is HIDDEN and the
+    // shared degradation reason explains why. Fail-closed: an ABSENT flag means
+    // not enabled. These tests exercise an export-capable caller (so the slot
+    // renders) and vary ONLY `fieldConfig.mail_enabled` to isolate the gate.
+    describe('mail-enabled gate (task 1.3, R0/R1)', () => {
+      const mailProps = (mail_enabled?: boolean) =>
+        makeProps({
+          capabilities: { canExport: true },
+          fieldConfig: { ...fieldConfig, mail_enabled } as unknown as FieldConfig,
+        });
+
+      it('HIDES the Mail action and shows the degradation reason when NOT mail-enabled', async () => {
+        render(<MemberPivotViews {...mailProps(false)} />);
+        await executeAggregate();
+
+        // The Mail button is gone; the shared degradation notice is shown in its
+        // place (the surrounding export slot still renders — CSV stays available).
+        expect(screen.queryByTestId('member-pivot-mail')).not.toBeInTheDocument();
+        const notice = screen.getByTestId('member-pivot-mail-unavailable');
+        expect(notice).toBeInTheDocument();
+        expect(notice).toHaveTextContent('analytics.degradation.mailNotEnabled');
+        // CSV is unaffected (the gate is a tenant gate, not a capability gate).
+        expect(screen.getByTestId('member-pivot-export-csv')).toBeInTheDocument();
+      });
+
+      it('HIDES the Mail action when the mail-enabled flag is ABSENT (fail-closed)', async () => {
+        render(<MemberPivotViews {...mailProps(undefined)} />);
+        await executeAggregate();
+
+        expect(screen.queryByTestId('member-pivot-mail')).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId('member-pivot-mail-unavailable'),
+        ).toBeInTheDocument();
+      });
+
+      it('OFFERS the Mail action (and no degradation notice) when mail-enabled', async () => {
+        render(<MemberPivotViews {...mailProps(true)} />);
+        await executeAggregate();
+
+        expect(screen.getByTestId('member-pivot-mail')).toBeInTheDocument();
+        expect(
+          screen.queryByTestId('member-pivot-mail-unavailable'),
+        ).not.toBeInTheDocument();
+      });
+
+      it('does NOT open the compose modal when NOT mail-enabled (the action is hidden)', async () => {
+        render(<MemberPivotViews {...mailProps(false)} />);
+        await executeAggregate();
+
+        // No Mail button to click, and the modal is never mounted.
+        expect(screen.queryByTestId('member-pivot-mail')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('member-mail-compose')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // --- Task 6.1: the "Generate address labels" action in the slot (R6). ------
+  describe('Generate address labels button (task 6.1, R6)', () => {
+    // A field config whose `analytics.address_mapping` resolves at least one slot
+    // (the `name` slot → the present `membership_type` field) so
+    // `resolveAddressMapping` returns a non-empty mapping. The task 6.2
+    // availability gate offers the labels action only when a mapping resolves AND
+    // the caller holds members:export; these task 6.1 tests assert the mounted
+    // action, so they run with a resolvable mapping. (The gate's hidden paths —
+    // no mapping / no export — are covered in the task 6.2 describe below.)
+    const fieldConfigWithMapping = {
+      ...fieldConfig,
+      analytics: { address_mapping: { name: 'membership_type' } },
+    } as unknown as FieldConfig;
+
+    /**
+     * Props for the labels-action tests: a resolvable address mapping so the
+     * action is OFFERED, plus whatever capability override the test needs.
+     */
+    const labelsProps = (capabilities: MemberAnalyticsCapabilities) =>
+      makeProps({ capabilities, fieldConfig: fieldConfigWithMapping });
+
+    // Seed membership-types as preferred so the aggregate path can select it
+    // from the dropdown (new contract: dropdown = preferred + selector presets).
+    // Also seed ≥1 LABEL template so the NEW labels gate (R-L2 / Property 3:
+    // `canExport && hasLabelTemplate`) is satisfied — these task-6.1 tests assert
+    // the MOUNTED action, so the gate must be open.
+    beforeEach(() => {
+      getPreferredList.mockResolvedValue({
+        sub: 'u1',
+        refs: ['preset:membership-types'],
+        updated_at: '',
+      });
+      listMemberTemplates.mockResolvedValue({
+        ok: true,
+        data: [{ template_id: 'lbl-1', name: 'Addresses', kind: 'label', lines: [['membership_type']] }],
+      });
+    });
+
+    /** Select the membership-types preset and Execute → a result renders. */
+    async function executeAggregate() {
+      await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+      await waitFor(() => {
+        const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+        const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+        expect(values).toContain('preset:membership-types');
+      });
+      fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+        target: { value: 'preset:membership-types' },
+      });
+      fireEvent.click(screen.getByTestId('member-pivot-execute'));
+      await screen.findByTestId('mock-pivot-result-table');
+    }
+
+    it('does NOT render the labels action without canExport (members:export)', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: false })} />);
+      await executeAggregate();
+      // The whole capability-gated actions slot is absent for a non-exporter, so
+      // the labels action is too.
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+    });
+
+    it('renders the labels action in the result-actions slot only when canExport, beside CSV / Mail', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+
+      // Nothing before Execute — the slot lives inside the produced result.
+      await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+
+      await executeAggregate();
+
+      // The labels action sits in the SAME result-actions slot as CSV + Mail.
+      const slot = screen.getByTestId('pivot-result-actions');
+      const labelsButton = screen.getByTestId('member-pivot-labels');
+      expect(slot).toContainElement(labelsButton);
+      // Bilingual label from the members namespace (no hardcoded English).
+      expect(labelsButton).toHaveTextContent('analytics.labels.action');
+    });
+
+    it('opens a modal hosting the template-driven labels panel when clicked', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+      await executeAggregate();
+
+      // The panel is not mounted until the action is clicked (the modal is
+      // closed, so its body — and the panel — is not rendered yet).
+      expect(screen.queryByTestId('member-labels-panel')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('member-pivot-labels'));
+
+      // The modal opens with the bilingual title and the hosted panel: a template
+      // select populated from the loaded kind:"label" templates + the Avery
+      // format select + the Generate button.
+      expect(await screen.findByTestId('member-pivot-labels-modal')).toBeInTheDocument();
+      expect(screen.getByText('analytics.labels.modalTitle')).toBeInTheDocument();
+      expect(screen.getByTestId('member-labels-panel')).toBeInTheDocument();
+
+      const templateSelect = screen.getByTestId(
+        'member-pivot-labels-template',
+      ) as HTMLSelectElement;
+      const templateValues = Array.from(
+        templateSelect.querySelectorAll('option'),
+      ).map((o) => o.value);
+      expect(templateValues).toEqual(['lbl-1']); // the loaded label template
+
+      const formatSelect = screen.getByTestId(
+        'member-pivot-labels-format',
+      ) as HTMLSelectElement;
+      const formatValues = Array.from(
+        formatSelect.querySelectorAll('option'),
+      ).map((o) => o.value);
+      expect(formatValues).toContain('L7160'); // the default Avery format
+      expect(screen.getByTestId('member-pivot-labels-generate')).toBeInTheDocument();
+    });
+
+    it('Generate composes the CURRENT rows through the chosen template lines + format and downloads', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+      await executeAggregate();
+      const produced = tableCalls[tableCalls.length - 1];
+
+      fireEvent.click(screen.getByTestId('member-pivot-labels'));
+      await screen.findByTestId('member-labels-panel');
+
+      // Pick the (only) label template + the L7163 format, then Generate.
+      fireEvent.change(screen.getByTestId('member-pivot-labels-format'), {
+        target: { value: 'L7163' },
+      });
+      fireEvent.click(screen.getByTestId('member-pivot-labels-generate'));
+
+      await waitFor(() => expect(generateLabelTemplatePdf).toHaveBeenCalled());
+      const call = generateLabelTemplatePdf.mock.calls[
+        generateLabelTemplatePdf.mock.calls.length - 1
+      ] as unknown[];
+      // (rows, fieldConfig, { lines }, format, options)
+      expect(call[0]).toEqual(produced.data); // CURRENT result rows (R2/R3)
+      expect(call[2]).toEqual({ lines: [['membership_type']] }); // chosen template's lines
+      expect((call[3] as { key: string }).key).toBe('L7163'); // chosen Avery format
+
+      // The produced doc is saved → the PDF downloads (R-L4).
+      const result = generateLabelTemplatePdf.mock.results[
+        generateLabelTemplatePdf.mock.results.length - 1
+      ].value as { doc: { save: ReturnType<typeof vi.fn> } };
+      expect(result.doc.save).toHaveBeenCalledTimes(1);
+
+      // The count badges reflect the run.
+      expect(screen.getByTestId('member-pivot-labels-counts')).toBeInTheDocument();
+    });
+
+    it('labels ONLY the table-filtered subset, not the full result (findings: table filters limit the output)', async () => {
+      render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
+      await executeAggregate();
+
+      const produced = tableCalls[tableCalls.length - 1];
+      // The aggregate result has more than one row, so a filter to one row is a
+      // real subset.
+      expect(produced.data.length).toBeGreaterThan(1);
+
+      // Simulate the user filtering the result table down to the first row.
+      fireEvent.click(screen.getByTestId('mock-table-filter-to-first-row'));
+
+      fireEvent.click(screen.getByTestId('member-pivot-labels'));
+      await screen.findByTestId('member-labels-panel');
+      fireEvent.click(screen.getByTestId('member-pivot-labels-generate'));
+
+      await waitFor(() => expect(generateLabelTemplatePdf).toHaveBeenCalled());
+      // The generator is handed the FILTERED subset (one row), not the full set.
+      const call = generateLabelTemplatePdf.mock.calls[
+        generateLabelTemplatePdf.mock.calls.length - 1
+      ] as unknown[];
+      expect(call[0]).toEqual(produced.data.slice(0, 1));
+    });
+  });
+
+  // --- Task 6.2: the "Generate address labels" availability gate (R6). -------
+  // Labels sub-spec R-L2 / Property 3 (REWORKED gate): the "Generate address
+  // labels" action is OFFERED only when the caller holds `members:export` AND at
+  // least one LABEL template (`kind:"label"`) exists; otherwise it is HIDDEN with
+  // the bilingual labels-namespace degradation reason (`analytics.labels.noTemplate`).
+  // The gate depends ONLY on `canExport` + `hasLabelTemplate` — crucially NOT on
+  // the address mapping / any `analytics.*` config (R6). The template loader is
+  // injected via the `listTemplates` prop so these tests drive the gate with no
+  // network. States: offered / hidden-no-template / hidden-no-export / and the
+  // key R6 assertion that the mapping is irrelevant to the gate.
+  describe('Generate address labels availability gate (labels R-L2 / Property 3)', () => {
+    // A field config WITHOUT any analytics address mapping. The NEW gate must not
+    // read it at all — a label template alone (plus export) opens the action.
+    const fieldConfigNoMapping = fieldConfig;
+
+    // A field config WITH a resolvable address mapping. Under the OLD gate this
+    // alone opened the action; under the NEW gate it is IRRELEVANT — proving the
+    // gate no longer depends on the mapping (R6 / Property 3).
+    const fieldConfigWithMapping = {
+      ...fieldConfig,
+      analytics: { address_mapping: { name: 'membership_type' } },
+    } as unknown as FieldConfig;
+
+    /** A fake template loader resolving to the given templates (ok result). */
+    const templatesLoader =
+      (data: unknown[]) => vi.fn().mockResolvedValue({ ok: true, data });
+
+    /** One label + one mail template — a kind:"label" exists ⇒ gate can open. */
+    const withLabelTemplate = templatesLoader([
+      { template_id: 'lbl-1', name: 'Addresses', kind: 'label', lines: [['membership_type']] },
+      { template_id: 'mail-1', name: 'Newsletter', kind: 'mail', languages: {} },
+    ]);
+    /** Only a mail template — NO kind:"label" ⇒ gate stays closed. */
+    const withoutLabelTemplate = templatesLoader([
+      { template_id: 'mail-1', name: 'Newsletter', kind: 'mail', languages: {} },
+    ]);
+
+    beforeEach(() => {
+      getPreferredList.mockResolvedValue({
+        sub: 'u1',
+        refs: ['preset:membership-types'],
+        updated_at: '',
+      });
+    });
+
+    /** Select the membership-types preset and Execute → a result renders. */
+    async function executeAggregate() {
+      await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+      await waitFor(() => {
+        const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+        const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+        expect(values).toContain('preset:membership-types');
+      });
+      fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+        target: { value: 'preset:membership-types' },
+      });
+      fireEvent.click(screen.getByTestId('member-pivot-execute'));
+      await screen.findByTestId('mock-pivot-result-table');
+    }
+
+    it('OFFERS the labels action when the caller may export AND ≥1 label template exists', async () => {
+      render(
+        <MemberPivotViews
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={withLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      // The action is shown; the degradation notice is NOT.
+      expect(screen.getByTestId('member-pivot-labels')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('member-pivot-labels-unavailable'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('HIDES the labels action with the no-template reason when ZERO label templates exist', async () => {
+      render(
+        <MemberPivotViews
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={withoutLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      // Hidden; the NEW bilingual labels-namespace reason explains why ("no label
+      // template"). The old address-mapping key is NOT used by this gate anymore.
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      const notice = screen.getByTestId('member-pivot-labels-unavailable');
+      expect(notice).toBeInTheDocument();
+      expect(notice).toHaveTextContent('analytics.labels.noTemplate');
+      // A degradation (not an empty / error state).
+      expect(notice).toHaveAttribute('data-notice-kind', 'degradation');
+
+      // Config/capability gate — NOT a tenant gate: CSV + Mail stay available.
+      expect(screen.getByTestId('member-pivot-export-csv')).toBeInTheDocument();
+      expect(screen.getByTestId('member-pivot-mail')).toBeInTheDocument();
+    });
+
+    it('HIDES the labels action (and the whole slot) when the caller lacks members:export', async () => {
+      // Even WITH a label template, no export → the whole result-actions slot is
+      // absent, so neither the action nor its degradation notice renders.
+      render(
+        <MemberPivotViews
+          {...makeProps({ capabilities: { canExport: false } })}
+          listTemplates={withLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('pivot-result-actions')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('member-pivot-labels-unavailable'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does NOT depend on the address mapping: a config with NO mapping but WITH a label template still SHOWS the action (R6 / Property 3)', async () => {
+      // THE key Property-3/R6 assertion. The field config has NO address_mapping
+      // at all, yet because a label template exists AND the caller may export,
+      // the action is OFFERED — proving the gate stopped reading `analytics.*`.
+      render(
+        <MemberPivotViews
+          {...makeProps({
+            capabilities: { canExport: true },
+            fieldConfig: fieldConfigNoMapping,
+          })}
+          listTemplates={withLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.getByTestId('member-pivot-labels')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('member-pivot-labels-unavailable'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does NOT depend on the address mapping: a config WITH a mapping but NO label template still HIDES the action (R6 / Property 3)', async () => {
+      // The converse: a resolvable address mapping is present, but there is NO
+      // label template — under the OLD gate this would have shown the action;
+      // under the NEW gate it is correctly HIDDEN. The mapping is irrelevant.
+      render(
+        <MemberPivotViews
+          {...makeProps({
+            capabilities: { canExport: true },
+            fieldConfig: fieldConfigWithMapping,
+          })}
+          listTemplates={withoutLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId('member-pivot-labels-unavailable'),
+      ).toHaveTextContent('analytics.labels.noTemplate');
+    });
+
+    it('fails closed: a non-ok template load hides the action (no crash)', async () => {
+      // A failed template load (ok:false) is treated as zero label templates —
+      // the action is hidden with the degradation reason, never a crash.
+      const failingLoader = vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, error: 'boom' });
+      render(
+        <MemberPivotViews
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={failingLoader}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId('member-pivot-labels-unavailable'),
+      ).toBeInTheDocument();
+    });
+
+    it('does NOT open the labels modal when the gate is closed (no template)', async () => {
+      // The modal mount is gated on `canGenerateLabels`; with no label template
+      // there is no action button and the modal / generator never mount.
+      render(
+        <MemberPivotViews
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={withoutLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('member-pivot-labels-modal')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('member-labels-panel'),
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -1908,5 +2441,278 @@ describe('MemberPivotViews — shared-set capability gating (R11)', () => {
     expect(
       savedRow.querySelector('[data-testid="member-pivot-library-delete"]'),
     ).toBeTruthy();
+  });
+});
+
+// ===========================================================================
+// Task 5.4 (R5) — the "Schedule" lifecycle action: gated on the selected set
+// having a delivery block AND on the caller's scheduling capability.
+// ===========================================================================
+describe('MemberPivotViews — schedule action gating (task 5.4 / R5)', () => {
+  /**
+   * Render with a single saved set (optionally carrying a delivery block) made
+   * preferred so `model:<id>` is a selectable dropdown option, then select it.
+   */
+  async function renderWithSavedSet(
+    opts: {
+      hasDelivery: boolean;
+      capabilities?: MemberAnalyticsCapabilities;
+    },
+  ) {
+    listAnalyticsSets.mockResolvedValue([
+      { id: 'set-7', name: 'Active seniors', kind: 'count', hasDelivery: opts.hasDelivery },
+    ]);
+    getPreferredList.mockResolvedValue({
+      sub: 'u1',
+      refs: ['set:set-7'],
+      updated_at: '',
+    });
+    render(
+      <MemberPivotViews
+        {...makeProps({
+          capabilities: opts.capabilities ?? { canExport: true, canWrite: true, isAdmin: true },
+        })}
+      />,
+    );
+    await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+    await waitFor(() => {
+      const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+      const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+      expect(values).toContain('model:set-7');
+    });
+    fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+      target: { value: 'model:set-7' },
+    });
+  }
+
+  it('DISABLES the Schedule action for a selected set with NO delivery block (R5)', async () => {
+    await renderWithSavedSet({ hasDelivery: false });
+
+    // Open the "Manage set" menu so the (disabled) Schedule MenuItem renders.
+    fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+    const schedule = screen.getByTestId('member-pivot-schedule');
+    // Offered (the caller can schedule) but disabled: a schedule needs a delivery.
+    // Assert the BEHAVIOR (Chakra's isDisabled suppresses the action): clicking it
+    // never fetches the set nor opens the editor.
+    expect(schedule).toBeInTheDocument();
+    fireEvent.click(schedule);
+    await waitFor(() => expect(getAnalyticsSet).not.toHaveBeenCalled());
+    expect(screen.queryByTestId('member-schedule-editor')).not.toBeInTheDocument();
+  });
+
+  it('ENABLES the Schedule action + opens the editor for a set WITH a delivery block (R5)', async () => {
+    getAnalyticsSet.mockResolvedValue({
+      id: 'set-7',
+      name: 'Active seniors',
+      kind: 'count',
+      definition: { groupColumns: [], aggregations: [], filters: {} },
+      delivery: {
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      },
+      created_at: '',
+      updated_at: '',
+    });
+    await renderWithSavedSet({ hasDelivery: true });
+
+    const schedule = screen.getByTestId('member-pivot-schedule') as HTMLButtonElement;
+    expect(schedule).not.toBeDisabled();
+
+    fireEvent.click(schedule);
+    // It loads the full set + lists the set's schedules, then opens the editor.
+    await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(listSchedulesForSet).toHaveBeenCalledWith('set-7'));
+    expect(await screen.findByTestId('member-schedule-editor')).toBeInTheDocument();
+  });
+
+  it('HIDES the Schedule action for a region-narrowed write caller (R5 access gate)', async () => {
+    // members:write WITHOUT the all-regions grant → isAdmin false → not offered.
+    await renderWithSavedSet({
+      hasDelivery: true,
+      capabilities: { canExport: true, canWrite: true, isAdmin: false },
+    });
+
+    expect(screen.queryByTestId('member-pivot-schedule')).not.toBeInTheDocument();
+    // But the create/edit actions for a write caller are still present.
+    expect(screen.getByTestId('member-pivot-update')).toBeInTheDocument();
+  });
+
+  it('creating a schedule from the editor calls createSchedule (POST)', async () => {
+    getAnalyticsSet.mockResolvedValue({
+      id: 'set-7',
+      name: 'Active seniors',
+      kind: 'count',
+      definition: { groupColumns: [], aggregations: [], filters: {} },
+      delivery: {
+        mode: 'to_fixed',
+        templateId: null,
+        attachment: 'csv',
+        recipients: ['agent@example.com'],
+        labelOptions: null,
+      },
+      created_at: '',
+      updated_at: '',
+    });
+    listSchedulesForSet.mockResolvedValue([]); // no existing schedule → POST path
+    await renderWithSavedSet({ hasDelivery: true });
+
+    fireEvent.click(screen.getByTestId('member-pivot-schedule'));
+    await screen.findByTestId('member-schedule-editor');
+
+    fireEvent.click(screen.getByTestId('member-schedule-save'));
+    await waitFor(() => expect(createSchedule).toHaveBeenCalledTimes(1));
+    // Bound to the open set id, with the default cadence + enabled.
+    expect(createSchedule).toHaveBeenCalledWith('set-7', 'monthly', true);
+    expect(updateSchedule).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// Mail-spec task 2.4 (R3.1 / R3.2) — the "Deliver now" lifecycle action: RUN a
+// saved set's STORED `to_fixed` delivery immediately via the EXISTING SAM
+// deliver route (`POST /members/analytics-sets/{id}/deliver`, the frontend
+// caller the gap R3.2 closes). Enabled on a selected saved set; the handler
+// confirms the set has a `to_fixed` delivery (fetched — the summary carries only
+// `hasDelivery`), calls `deliverAnalyticsSet`, surfaces the queued receipt
+// (R3.5), and surfaces a refusal (empty recipients / not-certified, R3.4 /
+// R4.2 / R5.2) or the "no fixed delivery" guard as an error — never a silent
+// no-op.
+// ===========================================================================
+describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', () => {
+  /**
+   * Render with a single preferred saved set made selectable, select it, and —
+   * when `execute` is true — run the pivot so a RESULT exists on screen (Deliver
+   * now sends the on-screen result, so a send test must produce one first).
+   */
+  async function renderWithSavedSet(
+    opts: { hasDelivery: boolean; execute?: boolean } = { hasDelivery: true },
+  ) {
+    listAnalyticsSets.mockResolvedValue([
+      { id: 'set-7', name: 'Active seniors', kind: 'count', hasDelivery: opts.hasDelivery },
+    ]);
+    getPreferredList.mockResolvedValue({ sub: 'u1', refs: ['set:set-7'], updated_at: '' });
+    render(<MemberPivotViews {...makeProps()} />);
+    await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+    await waitFor(() => {
+      const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+      const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+      expect(values).toContain('model:set-7');
+    });
+    fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+      target: { value: 'model:set-7' },
+    });
+    if (opts.execute) {
+      // Produce a result so `exportRows` is populated (Deliver now needs a result).
+      fireEvent.click(screen.getByTestId('member-pivot-execute'));
+      await screen.findByTestId('mock-pivot-result-table');
+    }
+  }
+
+  const toFixedSet = {
+    id: 'set-7',
+    name: 'Active seniors',
+    kind: 'count' as const,
+    definition: { groupColumns: [], aggregations: [], filters: {} },
+    delivery: {
+      mode: 'to_fixed' as const,
+      templateId: null,
+      attachment: 'csv' as const,
+      recipients: ['agent@example.com'],
+      labelOptions: null,
+    },
+    created_at: '',
+    updated_at: '',
+  };
+
+  it('DISABLES Deliver now until a saved set is selected', async () => {
+    // No selection yet → the action is present (manage caller) but disabled, and
+    // a click never calls the deliver route.
+    render(<MemberPivotViews {...makeProps()} />);
+    await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+    const btn = screen.getByTestId('member-pivot-deliver-now');
+    expect(btn).toBeInTheDocument();
+    // Disabled (no saved set) → clicking opens no confirm and sends nothing.
+    fireEvent.click(btn);
+    expect(screen.queryByTestId('member-pivot-deliver-now-dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(sendAdHocMail).not.toHaveBeenCalled());
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
+  });
+
+  // Validates: Requirements 3.1, 3.2, 3.5
+  it('sends the on-screen result to the stored fixed recipients via the ad-hoc path', async () => {
+    getAnalyticsSet.mockResolvedValue(toFixedSet);
+    // Execute first so a result (exportRows) exists — Deliver now sends THAT, not
+    // a server-side recompute of the whole member table (the old leak).
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
+
+    // Opening Deliver now shows a CONFIRM dialog first (safety); confirm it to send.
+    fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+    fireEvent.click(await screen.findByTestId('member-pivot-deliver-now-confirm'));
+
+    // It reads the set's stored fixed recipients, then sends the CURRENT result
+    // rows as a CSV via the ad-hoc path (NOT the saved-set deliver route).
+    await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
+    const body = sendAdHocMail.mock.calls[0][0];
+    expect(body.mode).toBe('to_fixed');
+    expect(body.attachment).toBe('csv');
+    expect(body.recipients).toEqual(['agent@example.com']);
+    // The rows sent are the on-screen result rows (what the table rendered), NOT
+    // the raw member table.
+    expect(body.result_rows).toEqual(tableCalls[0].data);
+    // The leaky saved-set deliver route is NEVER called.
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
+  });
+
+  // Validates: Requirements 3.4 (clear reason, not a silent no-op)
+  it('does NOT call deliver and warns when the set has no to_fixed delivery', async () => {
+    // A per_recipient delivery is NOT deliver-now-able here (that is the separate
+    // compose path). The guard surfaces a reason and never hits the deliver route.
+    getAnalyticsSet.mockResolvedValue({
+      ...toFixedSet,
+      delivery: {
+        mode: 'per_recipient',
+        templateId: null,
+        attachment: null,
+        recipients: [],
+        labelOptions: null,
+      },
+    });
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
+
+    fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+
+    await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    // No stored to_fixed delivery → the guard warns; NOTHING is sent.
+    await waitFor(() => expect(sendAdHocMail).not.toHaveBeenCalled());
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
+  });
+
+  // Validates: Requirements 3.4 (empty-recipients / not-certified refusal surfaces)
+  it('surfaces a deliver-route refusal (not-certified 422) without crashing', async () => {
+    getAnalyticsSet.mockResolvedValue(toFixedSet);
+    // The deliver route refuses BEFORE enqueue (pre-send certification gate):
+    // a structured ApiError the component surfaces via applyApiError.
+    const { ApiError } = await import('../../../shared/api/ApiError');
+    sendAdHocMail.mockRejectedValue(
+      new ApiError(422, {
+        error: 'The tenant mail sender is not certified',
+        code: 'errors.mail.notCertified',
+      }),
+    );
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
+
+    // Confirm the send in the dialog, then the refusal is handled (no crash).
+    fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+    fireEvent.click(await screen.findByTestId('member-pivot-deliver-now-confirm'));
+
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId('member-pivot-deliver-now')).not.toBeDisabled(),
+    );
   });
 });

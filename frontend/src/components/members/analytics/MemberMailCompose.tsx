@@ -11,6 +11,14 @@
  *     (`members:analytics.mail.subjectTemplate` / `bodyTemplate`, task 0.3) — the
  *     user edits before sending. No hardcoded English (every label resolves from
  *     the `members` namespace, bilingual via the active language).
+ *   - **Stored-template picker (R2, pivot-output-actions):** an optional
+ *     {@link LazySelect} lists the tenant's stored mail templates
+ *     (`GET /members/templates`). Picking one fetches it by id
+ *     (`GET /members/templates/{id}`) and SEEDS the subject + body for the active
+ *     language (falling back to the other language), leaving BOTH fully editable —
+ *     the picker never locks the fields. A "Manage templates" button opens the
+ *     {@link MemberTemplateManager} surface (CRUD + upload + improve-with-AI). The
+ *     picker is purely additive to the R1 external-recipients + attachment flow.
  *   - **Optional attachments**: "Attach CSV" (of the current result) and "Attach
  *     PDF labels" (only offered when the tenant's `address_mapping` resolves, so
  *     a tenant without address fields never sees a dead toggle). Both produce
@@ -20,17 +28,39 @@
  *     `fieldConfig` / `analytics.field_roles` via {@link resolveEmailField}
  *     (R4.12), NOT hardcoded. The recipient list is the result rows that carry a
  *     resolvable, de-duplicated email.
+ *   - **External recipients (R1, pivot-output-actions):** an optional free-text
+ *     field for addresses that are NOT in the dataset (e.g. a handling agent).
+ *     Entries are split on comma / semicolon / newline / whitespace, validated
+ *     client-side, de-duplicated against each other AND the member emails, and
+ *     sent as plain-string entries in `recipients` (`recipients: ["addr", ...]`).
+ *     The mail route already accepts plain addresses, so there is NO backend
+ *     change. A tenant with no email field configured can still send purely to
+ *     external addresses.
  *   - **Recipient COUNT for confirmation before send** (R8.4): the modal shows
  *     the count and sends via a confirmed action — never a fire-and-forget click.
  *     BCC is the default (the backend BCCs every recipient).
- *   - **POST** to `/api/members/mail-set` via the authenticated
- *     {@link mailMembersSet} service; a success / error toast follows. An SES
- *     RATE LIMIT (task 9.3, R4.12) is surfaced with the dedicated bilingual
- *     `toast.rateLimited` message rather than the generic error, and the composed
- *     set is kept (the modal stays open to retry); every other failure shows the
- *     generic error toast, also keeping the set.
- *   - **Transient artifact cleanup (R8.5):** the generated CSV/PDF attachment
- *     bytes are released from memory after the send completes (success OR
+ *   - **POST** to the SAM Members plane route `POST /members/mail/send` via the
+ *     authenticated {@link sendAdHocMail} service (mail-spec task 2.3) — NOT the
+ *     retired Flask `POST /api/members/mail-set` route that sent from the wrong
+ *     (`jabaki.nl`) sender (R1.1/R1.2: Members mail must flow on the SAM plane).
+ *     The send is a THIN enqueue: the route runs the synchronous pre-send
+ *     certification gate, builds the job(s) and ENQUEUES them (a worker performs
+ *     the actual SES send), returning a 202 ACCEPTED receipt
+ *     ({@link DeliveryRunResult}). The compose surfaces that as a "queued, N
+ *     recipient(s)" acknowledgment (`toast.queued`) and closes. A refusal — a
+ *     not-certified tenant (`errors.mail.notCertified`, R4.2/R5.2) or an invalid
+ *     body (422) — is surfaced via {@link applyApiError} (the typed code resolves
+ *     to the clear bilingual message); the composed set is NOT lost (the modal
+ *     stays open to act on it).
+ *   - **Mode (ad-hoc body):** a send carrying typed fixed recipients and/or an
+ *     attachment is a `to_fixed` send (one message to the fixed list, the worker
+ *     builds the attachment from the result rows on-plane); otherwise it is a
+ *     `per_recipient` fan-out mailing each result row individually. The frontend
+ *     only triggers + displays (steering 35) — it ships the result ROWS, never
+ *     base64 payload bytes; the SAM worker renders the body (from the template)
+ *     and any attachment.
+ *   - **Transient artifact cleanup (R8.5):** any locally generated CSV/PDF
+ *     preview bytes are released from memory after the send completes (success OR
  *     failure) — never silently accumulated across sends.
  *
  * Read-only w.r.t. member data: it only mails; it never mutates a member.
@@ -39,8 +69,14 @@
  * @see .kiro/specs/Members/member-analytics (design C6; requirements R4.12, R8.4)
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -48,10 +84,13 @@ import {
   ModalBody,
   ModalFooter,
   ModalCloseButton,
+  Box,
   Button,
   Checkbox,
+  Divider,
   FormControl,
   FormLabel,
+  HStack,
   Input,
   Textarea,
   Text,
@@ -62,12 +101,132 @@ import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import type { FieldConfig, MemberRow } from '../../../types/members';
 import { resolveEmailField, resolveAddressMapping } from './analyticsConfig';
 import {
-  mailMembersSet,
-  type MailAttachment,
-} from '../../../services/memberMailService';
+  sendAdHocMail,
+  type AdHocMailBody,
+} from '../../../services/membersApiService';
+import { applyApiError } from '../../../shared/api/applyApiError';
+import {
+  listMemberTemplates,
+  getMemberTemplate,
+  type MemberTemplateDto,
+} from '../../../services/memberTemplateService';
+import LazySelect from '../../common/LazySelect';
+import type { LazyOption } from '../../common/lazySelect.types';
+import MemberTemplateManager from './MemberTemplateManager';
 
 /** `members`-namespace i18n key prefix for every label this modal renders. */
 const T = 'analytics.mail';
+
+/**
+ * A pragmatic client-side email check (R1): one `@`, a non-empty local part, a
+ * dotted domain, no whitespace. This is a client-side guard against obvious
+ * typos — the backend/SES remains the authority on deliverability. Deliberately
+ * simple (RFC 5322 in full is not worth the complexity for a UI guard).
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Whether a trimmed token looks like a valid email address (R1). */
+export function isValidEmail(address: string): boolean {
+  return EMAIL_RE.test(address.trim());
+}
+
+/**
+ * Split a free-text external-recipients field into individual tokens on comma,
+ * semicolon, newline, or any whitespace, dropping blanks. Order is preserved and
+ * duplicates are NOT removed here (the caller de-dupes case-insensitively).
+ */
+export function parseExternalRecipients(raw: string): string[] {
+  return raw
+    .split(/[\s,;]+/)
+    .map((tok) => tok.trim())
+    .filter((tok) => tok.length > 0);
+}
+
+/** The subject + body a picked template seeds into the (still-editable) compose fields. */
+export interface TemplateSeed {
+  subject: string;
+  body: string;
+}
+
+/**
+ * Resolve the subject + body a stored template should SEED for the active language (R2).
+ *
+ * Prefers the active `language`'s variant; falls back to any other language that carries usable
+ * text so a template authored in only one language still seeds something. The body is taken from
+ * the resolved `body_html` (returned by GET-by-id); when the body text is not available the
+ * subject still seeds and the body is left blank for the user to fill. Returns `null` when the
+ * template has no usable language at all (nothing to seed) so the caller leaves the fields as-is.
+ */
+export function resolveTemplateSeed(
+  template: MemberTemplateDto,
+  language: string,
+): TemplateSeed | null {
+  const languages = template.languages ?? {};
+  const order = [language, 'nl', 'en', ...Object.keys(languages)];
+  const seen = new Set<string>();
+  for (const lang of order) {
+    if (seen.has(lang)) {
+      continue;
+    }
+    seen.add(lang);
+    const variant = languages[lang];
+    if (!variant) {
+      continue;
+    }
+    const subject = (variant.subject ?? '').trim();
+    const body = (variant.body_html ?? '').trim();
+    if (subject || body) {
+      return { subject: variant.subject ?? '', body: variant.body_html ?? '' };
+    }
+  }
+  return null;
+}
+
+/**
+ * Flatten a result row into a `{ key: string }` merge map, mirroring the SAM worker's
+ * `_flatten_merge_values`: top-level scalar keys plus one level of nested-mapping leaves (both
+ * the dotted `group.key` AND the bare leaf `key`), so a template placeholder resolves the same
+ * way whether it references `last_name` or `personal.last_name`.
+ */
+export function flattenRowMergeValues(
+  row: Record<string, unknown> | undefined | null,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!row) {
+    return out;
+  }
+  for (const [key, value] of Object.entries(row)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [subKey, subValue] of Object.entries(value as Record<string, unknown>)) {
+        if (subValue === null || (typeof subValue === 'object' && !Array.isArray(subValue))) {
+          continue;
+        }
+        out[`${key}.${subKey}`] = String(subValue);
+        if (!(subKey in out)) {
+          out[subKey] = String(subValue);
+        }
+      }
+    } else if (value !== null && value !== undefined) {
+      out[key] = String(value);
+    }
+  }
+  return out;
+}
+
+/**
+ * Substitute `{{ key }}` placeholders in `text` from `values` (missing/blank -> empty string),
+ * mirroring the backend `render_with_merge` grammar (`{{ field_key }}`, optional inner spaces).
+ * Pure; used ONLY for the compose preview (the authoritative merge happens on-plane at send).
+ */
+export function renderMergePreview(
+  text: string,
+  values: Record<string, string>,
+): string {
+  return (text ?? '').replace(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g, (_m, key: string) => {
+    const v = values[key];
+    return v === undefined || v === null ? '' : v;
+  });
+}
 
 export interface MemberMailComposeProps {
   /** Whether the modal is open. */
@@ -100,6 +259,21 @@ export interface MemberMailComposeProps {
   buildPdfBase64?: () => string | null;
   /** Optional audit label for the set being mailed (metadata only, R8.1). */
   setKey?: string;
+  /**
+   * Whether the stored-template picker is offered (R2). Defaults to `true`. The panel may hide
+   * it (e.g. when the tenant is not mail-enabled per R0, or templates are not applicable).
+   */
+  enableTemplates?: boolean;
+  /**
+   * List the tenant's templates (metadata). Injectable for tests; defaults to the authenticated
+   * {@link listMemberTemplates} service. Returning a non-ok result surfaces an empty picker.
+   */
+  listTemplates?: typeof listMemberTemplates;
+  /**
+   * Fetch one template by id (resolves per-language body for seeding). Injectable for tests;
+   * defaults to the authenticated {@link getMemberTemplate} service.
+   */
+  getTemplate?: typeof getMemberTemplate;
 }
 
 /**
@@ -116,6 +290,9 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
   buildCsvBase64,
   buildPdfBase64,
   setKey,
+  enableTemplates = true,
+  listTemplates = listMemberTemplates,
+  getTemplate = getMemberTemplate,
 }) => {
   const { t } = useTypedTranslation('members');
   const toast = useToast();
@@ -152,7 +329,38 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     return out;
   }, [recipients, emailField]);
 
-  const recipientCount = recipientEmails.length;
+  // Free-text external recipients (R1) — addresses NOT in the dataset. Parsed,
+  // validated, and de-duplicated below; sent as plain-string entries alongside
+  // the member rows (the mail route already accepts plain addresses).
+  const [externalRaw, setExternalRaw] = useState('');
+
+  // Split the free-text field into tokens, then partition into valid addresses
+  // (de-duplicated case-insensitively against each other AND the member emails)
+  // and invalid tokens (surfaced as a client-side validation reason, R1).
+  const { externalEmails, invalidExternal } = useMemo<{
+    externalEmails: string[];
+    invalidExternal: string[];
+  }>(() => {
+    const seen = new Set<string>(recipientEmails);
+    const valid: string[] = [];
+    const invalid: string[] = [];
+    for (const token of parseExternalRecipients(externalRaw)) {
+      if (!isValidEmail(token)) {
+        invalid.push(token);
+        continue;
+      }
+      const normalized = token.trim().toLowerCase();
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        valid.push(normalized);
+      }
+    }
+    return { externalEmails: valid, invalidExternal: invalid };
+  }, [externalRaw, recipientEmails]);
+
+  // The total recipient count surfaced for confirmation (R8.4): de-duplicated
+  // member emails PLUS the valid, de-duplicated external addresses (R1).
+  const recipientCount = recipientEmails.length + externalEmails.length;
 
   // Whether PDF-label attachment is offered: the tenant must have a resolvable
   // address mapping AND the panel must supply a PDF builder (R4.10).
@@ -166,12 +374,23 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const cancelConfirmRef = useRef<HTMLButtonElement>(null);
   const [attachCsv, setAttachCsv] = useState(false);
   const [attachPdf, setAttachPdf] = useState(false);
   const [sending, setSending] = useState(false);
   // The two-step confirm (R8.4): the first Send press asks for confirmation
   // (showing the recipient count); the second actually sends.
   const [confirming, setConfirming] = useState(false);
+
+  // The stored-template picker (R2): the currently picked template id, whether a seed fetch is
+  // in flight, and whether the management surface is open. A pick seeds subject/body but never
+  // locks them — the picker is additive to the R1 external-recipients + attachment flow.
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [seeding, setSeeding] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
+  // Bumped to force the LazySelect to re-resolve its (async) option list after the manager
+  // creates/edits/deletes a template, so the picker reflects the latest library.
+  const [templatesVersion, setTemplatesVersion] = useState(0);
 
   // Seed the subject/body from the bilingual template each time the modal opens,
   // and reset the attach toggles + confirm step. Keyed on open only so re-renders
@@ -184,93 +403,182 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     setBody(t(`${T}.bodyTemplate`));
     setAttachCsv(false);
     setAttachPdf(false);
+    setExternalRaw('');
     setConfirming(false);
     setSending(false);
+    setSelectedTemplateId('');
+    setSeeding(false);
+    setManagerOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // The (async) option source for the template picker: list the tenant's templates and map each
+  // to a LazyOption keyed by template_id, labelled by name. A non-ok list (or a thrown error)
+  // yields an empty picker rather than a crash — the user can still compose/send without one.
+  const loadTemplateOptions = useMemo(
+    () => async (): Promise<LazyOption[]> => {
+      const result = await listTemplates();
+      if (!result.ok) {
+        return [];
+      }
+      // Mail compose only offers MAIL templates. Label templates (kind:"label") live in
+      // the SAME `template#` store but belong to the "Generate address labels" modal — a
+      // label template carries `lines`, no subject/body, so picking it here would do nothing.
+      return result.data
+        .filter((tpl) => tpl.kind !== 'label')
+        .map((tpl) => ({ value: tpl.template_id, label: tpl.name }));
+    },
+    [listTemplates],
+  );
+
+  // Picking a template fetches it by id, resolves the seed for the active language, and SEEDS
+  // the (still-editable) subject + body (R2). A failed fetch surfaces a toast and leaves the
+  // composed text untouched. Any pick clears a pending confirmation.
+  const handlePickTemplate = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    resetConfirm();
+    if (!templateId) {
+      return;
+    }
+    setSeeding(true);
+    try {
+      const result = await getTemplate(templateId);
+      if (!result.ok) {
+        toast({ title: t(`${T}.templates.loadError`), status: 'error' });
+        return;
+      }
+      const seed = resolveTemplateSeed(result.data, language);
+      if (seed) {
+        setSubject(seed.subject);
+        setBody(seed.body);
+      }
+    } catch {
+      toast({ title: t(`${T}.templates.loadError`), status: 'error' });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  // After the manager mutates the library, re-resolve the picker options and (if the selected
+  // template was deleted) the caller can re-pick. We just bump the dep key.
+  const handleTemplatesChanged = () => setTemplatesVersion((v) => v + 1);
 
   // Any change to the composed mail cancels a pending confirmation, so the user
   // always confirms the exact mail they are about to send.
   const resetConfirm = () => setConfirming(false);
 
   const trimmedSubject = subject.trim();
+
+  // Live preview of the per-recipient merge: substitute {{ key }} placeholders in the current
+  // subject + body from the FIRST result row's values (R2 "show a merged first-row example").
+  // Pure/preview-only — the authoritative merge runs on-plane at send. For a to_fixed send
+  // (no per-recipient merge) there are no row values, so placeholders simply render empty.
+  const previewValues = useMemo(
+    () => flattenRowMergeValues((recipients ?? [])[0] as Record<string, unknown> | undefined),
+    [recipients],
+  );
+  const previewSubject = useMemo(
+    () => renderMergePreview(subject, previewValues),
+    [subject, previewValues],
+  );
+  const previewBodyHtml = useMemo(
+    () => renderMergePreview(body, previewValues),
+    [body, previewValues],
+  );
+  // Send is allowed when at least one recipient resolves (member emails via the
+  // resolved field OR valid external addresses, R1), there are NO invalid
+  // external tokens, and the subject/body are non-empty. Note: external-only
+  // sends do not need an `emailField` (the externals carry their own address),
+  // so the gate is on `recipientCount`, not on `emailField`.
   const canSend =
-    !!emailField &&
     recipientCount > 0 &&
+    invalidExternal.length === 0 &&
     trimmedSubject !== '' &&
     body.trim() !== '' &&
     !sending;
 
-  const buildAttachments = (): MailAttachment[] => {
-    const attachments: MailAttachment[] = [];
-    if (attachCsv && buildCsvBase64) {
-      const csv = buildCsvBase64();
-      if (csv) {
-        attachments.push({ kind: 'csv', content_base64: csv, filename: 'members.csv' });
-      }
+  /**
+   * Resolve the ad-hoc attachment KIND the compose carries (R3): the Avery-labels
+   * toggle maps to the SAM `pdf_labels` kind, the CSV toggle to `csv`. `null` when
+   * neither is toggled (or its builder/mapping is unavailable). The SAM worker
+   * builds the actual attachment bytes from the result rows on-plane — the
+   * frontend ships only the kind, never a base64 payload (steering 35).
+   */
+  const resolveAttachmentKind = (): AdHocMailBody['attachment'] => {
+    if (attachPdf && canAttachPdf) {
+      return 'pdf_labels';
     }
-    if (attachPdf && canAttachPdf && buildPdfBase64) {
-      const pdf = buildPdfBase64();
-      if (pdf) {
-        attachments.push({ kind: 'pdf', content_base64: pdf, filename: 'labels.pdf' });
-      }
+    if (attachCsv && canAttachCsv) {
+      return 'csv';
     }
-    return attachments;
+    return null;
   };
 
-  const handleSend = async () => {
-    if (!canSend || !emailField) {
-      return;
+  /**
+   * Build the ad-hoc compose body for `POST /members/mail/send` (mail-spec task 2.3).
+   *
+   * Mode selection: a send carrying typed FIXED recipients and/or an attachment is a
+   * `to_fixed` send (one message to the fixed list, the worker builds the attachment
+   * from the rows); otherwise it is a `per_recipient` fan-out mailing each result row
+   * individually. `tenant_id` + Reply-To are NEVER sent — the route derives them from
+   * the verified JWT (verify-before-trust, R4.3).
+   */
+  const buildAdHocBody = (): AdHocMailBody => {
+    const attachment = resolveAttachmentKind();
+    const toFixed = externalEmails.length > 0 || attachment !== null;
+    const rows = (recipients ?? []) as Array<Record<string, unknown>>;
+    if (toFixed) {
+      return {
+        mode: 'to_fixed',
+        result_rows: rows,
+        recipients: externalEmails,
+        template_id: selectedTemplateId || null,
+        attachment,
+        ...(setKey ? { set_id: setKey } : {}),
+      };
     }
-    // First press → confirm (show the recipient count, R8.4). Second → send.
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
+    return {
+      mode: 'per_recipient',
+      result_rows: rows,
+      template_id: selectedTemplateId || null,
+      // Carry the resolved email column as the per-recipient address path override
+      // only when it resolved; otherwise the route falls back to its default.
+      recipient_field: emailField ?? null,
+      ...(setKey ? { set_id: setKey } : {}),
+    };
+  };
 
+  // First action: OPEN the confirmation dialog (never sends directly). The dialog names the
+  // recipient count + sender and shows the merged first-row preview, so the user explicitly
+  // approves on a SEPARATE surface before any mail goes out (R8.4 — no silent double-click send).
+  const handleSendClick = () => {
+    if (!canSend) {
+      return;
+    }
+    setConfirming(true);
+  };
+
+  // The ACTUAL send — only reachable from the confirmation dialog's "Send now" button.
+  const handleConfirmedSend = async () => {
     setSending(true);
-    // The transient CSV/PDF attachment bytes this send holds in memory (R8.5).
-    // Built once here, forwarded to the service, then explicitly released in the
-    // `finally` below — on success OR failure — so a bulk mail never leaves the
-    // generated member-data buffers lingering in memory.
-    let attachments: MailAttachment[] = buildAttachments();
     try {
-      const result = await mailMembersSet({
-        recipients: recipients ?? [],
-        subject: trimmedSubject,
-        body,
-        email_field: emailField,
-        attachments,
-        set_key: setKey,
+      // POST the ad-hoc compose body to the SAM plane route (R1/R2). The route enqueues and
+      // returns a 202 accepted receipt — it NEVER blocks on the SES send (a worker performs it).
+      const result = await sendAdHocMail(buildAdHocBody());
+      toast({
+        title: t(`${T}.toast.queued`, { count: result.enqueued }),
+        status: 'success',
       });
-
-      if (result.success) {
-        toast({ title: t(`${T}.toast.success`), status: 'success' });
-        onClose();
-      } else if (result.rateLimited) {
-        // SES rate-limited the send (R4.12): show the DEDICATED bilingual message,
-        // NOT the generic error. The composed set is NOT lost — the modal stays
-        // open and the attach toggles are preserved so the user can retry.
-        toast({ title: t(`${T}.toast.rateLimited`), status: 'warning' });
-        setConfirming(false);
-      } else {
-        // Generic error toast for any other failure. The set result is NOT lost —
-        // the modal stays open.
-        toast({ title: t(`${T}.toast.error`), status: 'error' });
-        setConfirming(false);
-      }
-    } catch {
-      toast({ title: t(`${T}.toast.error`), status: 'error' });
+      setConfirming(false);
+      onClose();
+    } catch (err) {
+      // Surface the typed refusal/validation reason (API standard v1.0): a not-certified tenant
+      // (`errors.mail.notCertified`) or an invalid body (422) resolves to the clear bilingual
+      // message. The composed set is NOT lost — close the dialog and keep the compose open.
+      applyApiError(err, { toast, t });
       setConfirming(false);
     } finally {
       setSending(false);
-      // Release the in-memory attachment buffers regardless of outcome (R8.5):
-      // drop each descriptor's base64 payload, then the array itself, so the
-      // generated CSV/PDF bytes are not retained after the send completes.
-      for (const att of attachments) {
-        att.content_base64 = '';
-      }
-      attachments = [];
     }
   };
 
@@ -300,6 +608,41 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
               </Text>
             )}
 
+            {/* Stored-template picker (R2): seeds the (still-editable) subject + body, and a
+                button to open the template-management surface. Purely additive. */}
+            {enableTemplates && (
+              <FormControl data-testid="member-mail-template-control">
+                <FormLabel htmlFor="member-mail-template">
+                  {t(`${T}.templates.pickerLabel`)}
+                </FormLabel>
+                <HStack align="start" spacing={2}>
+                  <LazySelect
+                    name="member-mail-template"
+                    label={t(`${T}.templates.pickerLabel`)}
+                    placeholder={t(`${T}.templates.pickerPlaceholder`)}
+                    value={selectedTemplateId}
+                    onChange={handlePickTemplate}
+                    options={loadTemplateOptions}
+                    optionsDepKey={`member-templates-${templatesVersion}`}
+                    isDisabled={seeding}
+                    width="100%"
+                  />
+                  <Button
+                    variant="outline"
+                    colorScheme="orange"
+                    flexShrink={0}
+                    onClick={() => setManagerOpen(true)}
+                    data-testid="member-mail-manage-templates"
+                  >
+                    {t(`${T}.templates.manage`)}
+                  </Button>
+                </HStack>
+                <Text fontSize="xs" color="gray.400" mt={1}>
+                  {t(`${T}.templates.pickerHint`)}
+                </Text>
+              </FormControl>
+            )}
+
             {/* Editable subject (seeded from the bilingual template). */}
             <FormControl isRequired>
               <FormLabel htmlFor="member-mail-subject">{t(`${T}.subject`)}</FormLabel>
@@ -312,6 +655,7 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
                   resetConfirm();
                 }}
                 bg="gray.900"
+                color="white"
               />
             </FormControl>
 
@@ -328,7 +672,72 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
                 }}
                 rows={8}
                 bg="gray.900"
+                color="white"
               />
+            </FormControl>
+
+            {/* Rendered preview (R2): shows how the mail LOOKS, with the first result row's
+                values merged into {{ placeholders }} so the user sees the real first-recipient
+                result before sending. The body is first-party tenant-authored HTML (same trust
+                model as the ZZP/STR email previews), rendered via dangerouslySetInnerHTML. */}
+            <FormControl>
+              <FormLabel>{t(`${T}.previewLabel`)}</FormLabel>
+              <Box
+                data-testid="member-mail-preview"
+                bg="white"
+                color="black"
+                borderRadius="md"
+                borderWidth="1px"
+                borderColor="gray.600"
+                p={4}
+                maxH="320px"
+                overflowY="auto"
+                fontSize="sm"
+              >
+                <Text fontWeight="semibold" color="black" mb={2} data-testid="member-mail-preview-subject">
+                  {previewSubject}
+                </Text>
+                <Divider mb={2} />
+                <Box
+                  data-testid="member-mail-preview-body"
+                  dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
+                />
+              </Box>
+            </FormControl>
+
+            {/* Optional external recipients (R1): addresses NOT in the dataset,
+                e.g. a handling agent. Free text split on comma / semicolon /
+                newline / whitespace; validated client-side; sent as plain-string
+                entries in `recipients`. */}
+            <FormControl isInvalid={invalidExternal.length > 0}>
+              <FormLabel htmlFor="member-mail-external">
+                {t(`${T}.externalRecipients`)}
+              </FormLabel>
+              <Textarea
+                id="member-mail-external"
+                data-testid="member-mail-external"
+                value={externalRaw}
+                onChange={(e) => {
+                  setExternalRaw(e.target.value);
+                  resetConfirm();
+                }}
+                placeholder={t(`${T}.externalRecipientsPlaceholder`)}
+                rows={2}
+                bg="gray.900"
+                color="white"
+              />
+              {invalidExternal.length > 0 && (
+                <Text
+                  fontSize="sm"
+                  color="red.300"
+                  mt={1}
+                  data-testid="member-mail-external-invalid"
+                >
+                  {t(`${T}.externalRecipientsInvalid`, {
+                    addresses: invalidExternal.join(', '),
+                  })}
+                </Text>
+              )}
             </FormControl>
 
             {/* Optional attachments — CSV always (if the panel supplies a
@@ -360,12 +769,6 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
               </Checkbox>
             )}
 
-            {/* The confirmation prompt shown after the first Send press (R8.4). */}
-            {confirming && (
-              <Text fontSize="sm" color="orange.200" data-testid="member-mail-confirm">
-                {t(`${T}.confirm`, { count: recipientCount })}
-              </Text>
-            )}
           </VStack>
         </ModalBody>
         <ModalFooter>
@@ -374,15 +777,86 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
           </Button>
           <Button
             colorScheme="orange"
-            onClick={handleSend}
+            onClick={handleSendClick}
             isDisabled={!canSend}
-            isLoading={sending}
             data-testid="member-mail-send"
           >
             {t(`${T}.send`)}
           </Button>
         </ModalFooter>
       </ModalContent>
+
+      {/* Template-management surface (R2): CRUD + upload + improve-with-AI. Opened from the
+          "Manage templates" button; re-resolves the picker options on any change. */}
+      {enableTemplates && (
+        <MemberTemplateManager
+          isOpen={managerOpen}
+          onClose={() => setManagerOpen(false)}
+          language={language}
+          onTemplatesChanged={handleTemplatesChanged}
+        />
+      )}
+
+      {/* Send confirmation (R8.4): a SEPARATE surface the user must explicitly approve before
+          any mail is sent — names the recipient count + sender and shows the merged first-row
+          preview ("here is what the first recipient gets; send to all?"). Replaces the old
+          silent two-press inline confirm. */}
+      <AlertDialog
+        isOpen={confirming}
+        leastDestructiveRef={cancelConfirmRef}
+        onClose={() => !sending && setConfirming(false)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.800" color="white" data-testid="member-mail-confirm-dialog">
+            <AlertDialogHeader>{t(`${T}.confirmTitle`)}</AlertDialogHeader>
+            <AlertDialogBody>
+              <Text mb={3} data-testid="member-mail-confirm-summary">
+                {t(`${T}.confirmSummary`, { count: recipientCount, sender: 'noreply@h-dcn.nl' })}
+              </Text>
+              <Text fontSize="sm" color="gray.400" mb={1}>
+                {t(`${T}.previewLabel`)}
+              </Text>
+              <Box
+                bg="white"
+                color="black"
+                borderRadius="md"
+                p={3}
+                maxH="240px"
+                overflowY="auto"
+                fontSize="sm"
+                data-testid="member-mail-confirm-preview"
+              >
+                <Text fontWeight="semibold" color="black" mb={2}>
+                  {previewSubject}
+                </Text>
+                <Divider mb={2} />
+                <Box dangerouslySetInnerHTML={{ __html: previewBodyHtml }} />
+              </Box>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={cancelConfirmRef}
+                variant="ghost"
+                onClick={() => setConfirming(false)}
+                isDisabled={sending}
+                data-testid="member-mail-confirm-cancel"
+              >
+                {t(`${T}.cancel`)}
+              </Button>
+              <Button
+                colorScheme="orange"
+                ml={3}
+                onClick={handleConfirmedSend}
+                isLoading={sending}
+                data-testid="member-mail-confirm-send"
+              >
+                {t(`${T}.confirmSend`, { count: recipientCount })}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Modal>
   );
 };

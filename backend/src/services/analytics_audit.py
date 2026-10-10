@@ -23,12 +23,13 @@ This module is a thin, typed wrapper around it that:
 The ``timestamp`` is produced here (UTC, ISO-8601) so every audited action is stamped
 consistently regardless of caller.
 
-Why a shared helper and not an inline log line: the three audited actions originate in
-two places — the **server-side** SES mail route (``routes/members_mail.py``) and the
+Why a shared helper and not an inline log line: the audited analytics outputs are the
 **client-side** CSV / PDF generators, which report their action through the lightweight
-analytics-audit route (``routes/members_analytics_audit.py``, same spec task). Both
-funnel through this one helper so the record shape and the PII guarantee are identical
-across every output path.
+analytics-audit route (``routes/members_analytics_audit.py``, same spec task). They funnel
+through this one helper so the record shape and the PII guarantee are identical across every
+output path. (The interactive Members SES *mail* send is NO LONGER a Flask route — it was
+retired to the SAM plane per the mail spec, task 4.1 — so its audit now lives on the SAM
+plane, not here.)
 
 Reference: .kiro/specs/Members/member-analytics/design.md (C7); requirements R8.1, R8.3.
 """

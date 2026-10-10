@@ -14,6 +14,7 @@
  */
 
 import type { PivotConfig } from './pivot';
+import type { LabelOptions } from '../components/members/analytics/labelOptions';
 
 /** A localized label ({ nl, en }) as emitted by the projection/field-config. */
 export interface LocalizedLabel {
@@ -103,6 +104,163 @@ export interface MemberAnalyticsSetSummary {
   name: string;
   /** `'count'` (aggregate) or `'list'` (filtered list). */
   kind: 'count' | 'list';
+  /**
+   * Whether the set carries a stored {@link MemberDelivery} block (R3). Surfaced
+   * on the list feed so the UI can gate the "Schedule" action (R5 — a schedule
+   * can only be attached to a set that HAS a delivery) without fetching the full
+   * set. Absent on a legacy feed → treated as `false` (no delivery known).
+   */
+  hasDelivery?: boolean;
+}
+
+/**
+ * The two delivery MODES a saved set's optional {@link MemberDelivery} block may
+ * carry (R3, design §2.1), mirroring the SAM entity's `DELIVERY_MODES`:
+ *
+ * - `per_recipient` — mail each member in the result individually with mail-merge;
+ *   recipient addresses are resolved from the dataset at run time and are therefore
+ *   NEVER stored on the block (`recipients` is absent/empty).
+ * - `to_fixed` — send the result as an attachment to an explicit, stored
+ *   `recipients` list (e.g. a handling agent outside the dataset).
+ */
+export type MemberDeliveryMode = 'per_recipient' | 'to_fixed';
+
+/** The optional attachment a delivery produces (R3, design §2.1); `null`/absent = none. */
+export type MemberDeliveryAttachment = 'csv' | 'pdf_labels';
+
+/**
+ * The OPTIONAL stored "what to do with the result" block (R3, design §2.1) on a
+ * saved set — the camelCase frontend mirror of the SAM entity's snake_case
+ * `delivery` block. Absent/`undefined` on a set with no delivery (a legacy set
+ * written before the field existed loads without it and keeps working).
+ *
+ * The mapper (`membersApiService`) converts to/from the stored snake_case block
+ * (`{ mode, template_id, attachment, recipients, label_options }`), using the
+ * shared label-options model's `toStored`/`fromStored` for the `label_options`
+ * sub-block (one label-options model with R6 — task 6.3, no fork).
+ *
+ * Mode rules (enforced server-side in the SAM entity's `validate()`): `to_fixed`
+ * requires a non-empty `recipients` list; `per_recipient` stores no recipients.
+ */
+export interface MemberDelivery {
+  /** The delivery mode discriminator. */
+  mode: MemberDeliveryMode;
+  /** A stored template ref (`template#<id>`, R2), or `null` for a bare set. */
+  templateId: string | null;
+  /** The attachment to produce, or `null` for none. */
+  attachment: MemberDeliveryAttachment | null;
+  /** `to_fixed` ONLY — the explicit recipient addresses; empty for `per_recipient`. */
+  recipients: string[];
+  /**
+   * The shared (camelCase) label-options model — present only for `pdf_labels`,
+   * `null` otherwise. The SAME `LabelOptions` R6 uses interactively (task 6.3).
+   */
+  labelOptions: LabelOptions | null;
+}
+
+/**
+ * The accepted/queued receipt the deliver route returns (mail-spec R3.2/R3.5),
+ * the camelCase mirror of the SAM `/deliver` 202 body
+ * (`{ run_id, mode, enqueued, skipped_no_address, job_ids }`). A deliver NEVER
+ * blocks on the SES send — the route resolves the set's stored delivery, runs
+ * the synchronous pre-send certification gate, builds the send job(s), and
+ * ENQUEUES them; a worker performs the actual send. This receipt lets the UI
+ * surface a clear "queued, N recipients" acknowledgment (R3.5) without waiting.
+ */
+export interface DeliveryRunResult {
+  /** The logical run id (audit attribution + status drill-down, R9). */
+  runId: string;
+  /** The delivery mode that ran (`per_recipient` fan-out or one `to_fixed` message). */
+  mode: MemberDeliveryMode;
+  /** How many send jobs went on the queue (one per `to_fixed`; one per member otherwise). */
+  enqueued: number;
+  /** `per_recipient` rows skipped for want of a resolvable address (0 for `to_fixed`). */
+  skippedNoAddress: number;
+  /** The stable job ids enqueued (idempotency / observability). */
+  jobIds: string[];
+}
+
+/**
+ * The lifecycle status of a send-run (R9.1), the camelCase mirror of the SAM
+ * `mailrun#` record's `status`: written `queued` at enqueue, advanced to
+ * `sending` then `completed` by the worker as it drains the run's jobs.
+ */
+export type MailRunStatus = 'queued' | 'sending' | 'completed';
+
+/**
+ * The status of a single FAILURE sub-record (R9.5), the camelCase mirror of the
+ * SAM `mailrecipient#` record's `status`: a send-time `failed`, or a late async
+ * `bounced` / `complaint` (R8.4, the layered SES-feedback statuses). A success is
+ * NEVER stored per-recipient — it is only counted in the run tally.
+ */
+export type MailFailureStatus = 'failed' | 'bounced' | 'complaint';
+
+/**
+ * One send-run TALLY as surfaced by `GET /members/mail-runs` (mail-spec R9.1/R9.2),
+ * the camelCase mirror of the SAM `mailrun#` record after the edge strips the
+ * DynamoDB plumbing keys (`tenant_id` / `sk` / `ttl`). This is the aggregated
+ * outcome the status/history list renders — "Newsletter — 198 sent, 2 failed"
+ * (R9.2) — one row per run, newest first (ordered server-side).
+ *
+ * HONESTY OF STATUS (R9.4): `sent` means "SES ACCEPTED the message (a MessageId
+ * was returned)", which is NOT the same as "delivered to the inbox". The screen
+ * MUST NOT claim "delivered" on the strength of this count alone — true
+ * delivered/bounced status is the separate, layered SES-feedback concern (R9.5).
+ */
+export interface MailRunSummary {
+  /** The logical run id (the drill-down key for `GET /members/mail-runs/{runId}`). */
+  runId: string;
+  /** Which mode produced the run (`per_recipient` fan-out or one `to_fixed` message). */
+  mode: MemberDeliveryMode;
+  /**
+   * The verified `sub` of the user who triggered the run (R9.1 attribution), or
+   * `null` when the record carries none (e.g. a scheduler-triggered run).
+   */
+  triggeredBy: string | null;
+  /** How many recipients the run targeted (the fan-out size). */
+  recipientCount: number;
+  /** The run's lifecycle status (`queued` → `sending` → `completed`, R9.1). */
+  status: MailRunStatus;
+  /** How many messages SES ACCEPTED — NOT "delivered to the inbox" (R9.4). */
+  sent: number;
+  /** How many recipients failed (send-time reject, no address, or late bounce/complaint). */
+  failed: number;
+  /** ISO-8601 timestamp the run was created (enqueued). */
+  createdAt: string;
+  /** ISO-8601 timestamp of the run's last update (last worker increment). */
+  updatedAt: string;
+}
+
+/**
+ * One per-recipient FAILURE in a run's drill-down (mail-spec R9.2/R9.5), the
+ * camelCase mirror of a SAM `mailrecipient#` sub-record (plumbing keys stripped).
+ * Only FAILURES are stored/returned — a successful recipient is counted in the
+ * run tally, never listed here (design "failure-only sub-records"). Metadata
+ * only: the mailed address + the failure reason, never member PII beyond that.
+ */
+export interface MailRunFailure {
+  /** The recipient address that failed. */
+  address: string;
+  /** The failure kind (`failed` at send, or a late `bounced` / `complaint`, R8.4). */
+  status: MailFailureStatus;
+  /** The captured failure reason (SES error code/message, etc.), or `null` when none. */
+  reason: string | null;
+  /** The SES MessageId when one was assigned before the failure, else `null`. */
+  messageId: string | null;
+}
+
+/**
+ * One run's TALLY plus its FAILURE drill-down, as returned by
+ * `GET /members/mail-runs/{runId}` (mail-spec R9.2) — the camelCase mirror of the
+ * SAM single-run read `{ run: {...tally}, failures: [...] }`. The status screen
+ * expands a run from the list into this detailed view: the same summary fields
+ * plus the per-recipient failure list (empty when the run had no failures).
+ */
+export interface MailRunDetail {
+  /** The run's aggregated tally (the same shape the list row carries). */
+  run: MailRunSummary;
+  /** The run's FAILURE sub-records (empty when every recipient succeeded). */
+  failures: MailRunFailure[];
 }
 
 /**
@@ -120,10 +278,49 @@ export interface MemberAnalyticsSet {
   kind: 'count' | 'list';
   /** The pivot/list definition (camelCase `PivotConfig`). */
   definition: PivotConfig;
+  /**
+   * The OPTIONAL stored delivery block (R3), or `undefined` on a set with no
+   * delivery (the default; a legacy set loads without it).
+   */
+  delivery?: MemberDelivery;
   /** ISO-8601 UTC create timestamp. */
   created_at: string;
   /** ISO-8601 UTC last-update timestamp. */
   updated_at: string;
+}
+
+/**
+ * The friendly cadence choices the schedule editor offers (R5, design §5). A
+ * cadence maps to a concrete backend cron/rate expression via
+ * `cadenceToCron`/`cronToCadence` in `membersApiService` — the UI never shows a
+ * raw cron. `monthly` runs on the 1st of each month; `weekly` runs every Monday.
+ */
+export type MemberScheduleCadence = 'monthly' | 'weekly';
+
+/**
+ * A schedule attached to a saved set that HAS a delivery block (R5, design §2.3
+ * / §3), the camelCase frontend mirror of the SAM `schedule#<schedule_id>`
+ * record. A schedule can only be attached to a set with a stored `delivery` (the
+ * editor is gated on it); the scheduled run reuses the R4 execute-and-deliver
+ * path. Scheduling is gated to a tenant-wide-capable caller (`members:admin` OR
+ * `members:write` + the all-regions grant) — the backend is authoritative, the
+ * client only avoids offering a dead action.
+ */
+export interface MemberSchedule {
+  /** The backend `schedule_id` (string, server-chosen opaque id). */
+  scheduleId: string;
+  /** The saved set this schedule runs (the set must have a delivery block). */
+  setId: string;
+  /** The EventBridge schedule expression (cron/rate) the backend persists. */
+  cron: string;
+  /** Whether the schedule is active; a disabled schedule does not fire. */
+  enabled: boolean;
+  /** Cognito `sub` of the creator (echoed by the backend; informational). */
+  createdBy: string;
+  /** ISO-8601 UTC create timestamp. */
+  createdAt: string;
+  /** ISO-8601 UTC last-update timestamp. */
+  updatedAt: string;
 }
 
 /**
@@ -373,6 +570,16 @@ export interface FieldConfig {
    * backend-served shape (task 6.1).
    */
   analytics?: MemberAnalyticsConfig;
+  /**
+   * The tenant's mail-enabled gate flag (pivot-output-actions R0/R1, design §6.3). `true`
+   * when the tenant is cleared to send mail (the per-tenant "mail-enabled / SES-certified"
+   * onboarding gate the tenant-admin module owns, projected one-directionally and read by
+   * the Members edge). The pivot result's Mail output action is OFFERED only when this is
+   * `true`; otherwise the action is hidden with a degradation reason. FAIL-CLOSED: a
+   * missing/absent value means NOT enabled (treated as `false`). Presentation-only — the
+   * send path re-checks the gate server-side regardless.
+   */
+  mail_enabled?: boolean;
 }
 
 /**

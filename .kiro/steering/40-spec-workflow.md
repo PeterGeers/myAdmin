@@ -8,7 +8,9 @@ This project uses formal specifications for feature development. Specs provide s
 
 ## Spec Organization
 
-Specs are in `.kiro/specs/` organized by domain: `Common/` (cross-cutting), `FIN/` (financial), `STR/` (short-term rental), and `multi-tenant/` (platform evolution — turning myAdmin into the multi-tenant base that hosts SAM-backed modules).
+Specs are in `.kiro/specs/` organized by domain: `Common/` (cross-cutting, incl. `Common/Serverless-applications/` for the SAM plane — SAM apps, SNS/SES, and the `multi-tenant/` platform-evolution tree), `FIN/` (financial), `STR/` (short-term rental), `ZZP/`, and `Members/` (the Members SAM-backed module — the first app migrated onto the SAM plane; see `35-sam-module-architecture-sam.md`).
+
+> **Module domains vs. the SAM plane.** `Members` (like `FIN` / `STR` / `ZZP`) is a *module/domain* spec tree — it holds that module's feature specs (e.g. `Members/application-app/`, `Members/member-field-search/`). The *platform/SAM-plane* capabilities those features rely on (the handler edge, tenancy, SNS/SES, public intake) live under `Common/Serverless-applications/` and are governed by steering `35-sam-module-architecture-sam.md`. A module feature spec therefore CONSUMES SAM-plane capabilities and references their specs, rather than redefining them.
 
 The `multi-tenant/` tree has its own shape: `Analysis/` holds the reasoning docs (start at `overall_roadmap.md`), and each roadmap step gets its own step folder (e.g. `s2-jwt-verification/`) with requirements/design/tasks. See ADR 0003 for the settled model (myAdmin is the base; evolve in place; import apps as SAM-backed modules).
 

@@ -38,7 +38,7 @@
 
 import { jsPDF } from 'jspdf';
 import type { FieldConfig, FieldConfigField, MemberRow } from '../../../types/members';
-import { valueFor } from '../fieldValue';
+import { valueFor, groupForKey } from '../fieldValue';
 import {
   resolveAddressMapping,
   type AddressSlot,
@@ -174,6 +174,17 @@ export interface LabelStyleOptions {
   startPosition?: number;
   /** Sort order before layout. Default `'name'`. */
   sortOrder?: LabelSortOrder;
+  /**
+   * OPT-IN per-sheet shrink-to-fit (labels sub-spec R-L3, Property 6). When
+   * `true`, {@link generateAddressLabelPdf} computes the LARGEST uniform font
+   * size (≤ the user's clamped {@link fontSize}) at which EVERY label on the
+   * sheet fits — all lines within the cell inner width AND the line block within
+   * the cell inner height — and applies that one size across the whole sheet. It
+   * only ever SHRINKS, never grows beyond the chosen size; truncation (Property
+   * 5) remains the safety net at the font floor. Default `false` — behavior is
+   * unchanged (the clamped {@link fontSize}) when absent/false.
+   */
+  autoFit?: boolean;
 }
 
 /** The clamp bounds for the per-run font size (R4.10: 8–12pt). */
@@ -346,6 +357,75 @@ export function composeAddresses(
   return { addresses, excludedCount };
 }
 
+/**
+ * The minimal label-template content a {@link composeLabelLines} run needs: the
+ * ordered `lines`, each line an ordered list of pivot-result field keys (the
+ * whole label content model — see the labels sub-spec data model). A local,
+ * structural type keeps this module free of a hard dependency on
+ * `memberTemplateService` (the stored `MemberTemplateDto` is assignable to it).
+ */
+export interface LabelTemplateLines {
+  /** Ordered label lines; each line is an ordered list of field keys. */
+  lines: string[][];
+}
+
+/** One row's composed label content: the non-empty display lines, top to bottom. */
+export interface ComposedLabel {
+  /** The non-empty lines for this row (empty lines dropped), in template order. */
+  lines: string[];
+}
+
+/**
+ * Compose label lines from a stored label template (labels sub-spec R-L3,
+ * Properties 1 / 2 / 4) — the analytics-free counterpart to
+ * {@link composeAddresses}.
+ *
+ * For each row, for each `template.lines[i]` (an ordered list of field keys):
+ * resolve EACH key via the shared nested-or-flat accessor
+ * `valueFor(row, groupForKey(fieldConfig, key), key)` (so a nested fixed field
+ * like `personal.last_name` AND a flat alias like `display_name` both resolve
+ * exactly how the table reads them), stringify + trim, DROP empty/absent values,
+ * then JOIN the survivors with a single space → one output line (Property 1: N
+ * lines → N lines; Property 2: multi-key join in field order).
+ *
+ * A line whose keys ALL resolve empty is dropped so there is no blank gap; a row
+ * whose lines are ALL empty yields `{ lines: [] }` (the caller — the modal, a
+ * later phase — decides whether to drop/count such a row).
+ *
+ * PURE (Property 4): it reads ONLY `rows` / `fieldConfig` / `template`, never any
+ * `analytics.*` config, and never mutates its inputs.
+ */
+export function composeLabelLines(
+  rows: MemberRow[],
+  fieldConfig: FieldConfig | undefined,
+  template: LabelTemplateLines,
+): ComposedLabel[] {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const templateLines = Array.isArray(template?.lines) ? template.lines : [];
+
+  return safeRows.map((row) => {
+    const lines: string[] = [];
+    for (const keys of templateLines) {
+      const parts: string[] = [];
+      for (const key of Array.isArray(keys) ? keys : []) {
+        const raw = valueFor(row, groupForKey(fieldConfig, key), key);
+        if (raw === null || raw === undefined) {
+          continue;
+        }
+        const text = String(raw).trim();
+        if (text !== '') {
+          parts.push(text);
+        }
+      }
+      const line = parts.join(' ');
+      if (line !== '') {
+        lines.push(line);
+      }
+    }
+    return { lines };
+  });
+}
+
 /** Clamp a requested font size into the allowed 8–12pt band (R4.10). */
 export function clampFontSize(fontSize: number | undefined): number {
   if (typeof fontSize !== 'number' || !Number.isFinite(fontSize)) {
@@ -396,6 +476,165 @@ export function pageCount(
   return Math.ceil((addressCount + offset) / perPage);
 }
 
+/**
+ * The minimal measurement surface {@link truncateToWidth} needs: something that
+ * can report the rendered width of a string in the current unit (mm, for our
+ * `unit: 'mm'` jsPDF). A jsPDF document satisfies this structurally via its
+ * `getTextWidth`, but a test can inject a deterministic fake measurer (e.g. a
+ * fixed mm-per-character) without a real font/jsPDF.
+ */
+export interface TextMeasurer {
+  /** Width of `text` in the measurer's unit, at its current font/size. */
+  getTextWidth(text: string): number;
+}
+
+/**
+ * Truncate `text` to fit within `maxWidthMm` as measured by `measurer`, appending
+ * an ellipsis when characters are dropped (labels sub-spec R-L3, Property 5 —
+ * over-long field text is cut to the cell inner width, never drawn past the box).
+ *
+ * - If the full text already fits (`<= maxWidthMm`), it is returned unchanged.
+ * - Otherwise characters are trimmed from the END and the ellipsis appended until
+ *   `trimmed + ellipsis` fits.
+ * - An empty string returns `''`.
+ * - Degenerate case: if even the ellipsis alone cannot fit (absurdly small
+ *   `maxWidthMm`), the ellipsis is still returned — the function never loops
+ *   forever and never returns a result wider than `maxWidthMm` when a narrower
+ *   one is achievable.
+ *
+ * PURE: reads only its arguments (the measurer is consulted, never mutated).
+ */
+export function truncateToWidth(
+  measurer: TextMeasurer,
+  text: string,
+  maxWidthMm: number,
+  ellipsis = '…',
+): string {
+  if (text === '') {
+    return '';
+  }
+  if (measurer.getTextWidth(text) <= maxWidthMm) {
+    return text;
+  }
+  // The full text overflows → drop characters from the end, append the ellipsis,
+  // and keep the longest prefix whose `prefix + ellipsis` still fits. Binary
+  // search over the prefix length keeps this O(log n) measurer calls.
+  let lo = 0; // longest prefix length known to NOT fit yet is > lo; lo always fits (0 + ellipsis may or may not)
+  let hi = text.length - 1; // text.length itself overflows (checked above), so cap at length-1
+  let best = ''; // best prefix+ellipsis found that fits; '' until we find one
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate = text.slice(0, mid) + ellipsis;
+    if (measurer.getTextWidth(candidate) <= maxWidthMm) {
+      best = candidate; // fits — try a longer prefix
+      lo = mid + 1;
+    } else {
+      hi = mid - 1; // too wide — try a shorter prefix
+    }
+  }
+  // `best` is '' only when not even the ellipsis alone fit; return the ellipsis
+  // as the minimal truncation marker rather than empty (never loops; this is the
+  // smallest non-empty marker and only exceeds an absurdly tiny maxWidth).
+  return best !== '' ? best : ellipsis;
+}
+
+/**
+ * The measurement surface {@link computeFitFontSize} needs: a {@link TextMeasurer}
+ * that can ALSO be re-pointed at a candidate font size before measuring, because
+ * {@link TextMeasurer.getTextWidth} depends on the size currently set on the
+ * document. A real jsPDF doc satisfies this structurally (it exposes
+ * `setFontSize`), and a test can inject a deterministic fake whose width scales
+ * with the current size (e.g. `chars * k * fontSize`).
+ */
+export interface FitMeasurer extends TextMeasurer {
+  /** Set the current font size (points) used by subsequent `getTextWidth` calls. */
+  setFontSize(pt: number): void;
+}
+
+/**
+ * The downward search step (points) {@link computeFitFontSize} uses when probing
+ * candidate sizes from the chosen size to the floor. Half-point granularity is
+ * finer than any visible difference on an Avery cell while keeping the search
+ * bounded (≤ ~9 probes across the 8–12pt band).
+ */
+const FIT_STEP_PT = 0.5;
+
+/**
+ * Compute the single UNIFORM font size (points) for a whole sheet of labels under
+ * per-sheet shrink-to-fit (labels sub-spec R-L3, Property 6).
+ *
+ * Returns the LARGEST size in `[MIN_FONT_SIZE, chosen]` — where
+ * `chosen = clampFontSize(options.fontSize)` — at which EVERY label fits:
+ *
+ *   - a single LINE fits iff `measurer.getTextWidth(line) <= innerWidth`
+ *     (`innerWidth = format.labelWidth - 2 * CELL_PADDING_MM`), measured with the
+ *     measurer set to the candidate size;
+ *   - a LABEL fits iff all its lines fit AND the line block fits the cell height:
+ *     `(lines.length * fs * PT_TO_MM * LINE_SPACING) <= innerHeight`
+ *     (`innerHeight = format.labelHeight - 2 * CELL_PADDING_MM`);
+ *   - the SHEET fits iff every label fits.
+ *
+ * The search starts at `chosen` and steps DOWN by {@link FIT_STEP_PT} to
+ * `MIN_FONT_SIZE`, returning the first (largest) candidate that fits. It ONLY
+ * SHRINKS: the result never exceeds `chosen`. If even `MIN_FONT_SIZE` does not
+ * fit, it returns `MIN_FONT_SIZE` (the floor) — truncation (Property 5) then
+ * handles any residual overflow; the search never grows and never loops forever.
+ *
+ * PURE: it reads only its arguments. It DOES call `measurer.setFontSize` to probe
+ * each candidate (an unavoidable side effect of the measurer being size-stateful);
+ * the caller is expected to re-set the size it actually wants to draw with
+ * afterwards. Takes NO `analytics.*` config (R6.1) — only a measurer, the label
+ * line-blocks, the format, and the style options.
+ *
+ * @param measurer   a size-settable text measurer (a jsPDF doc, or a test fake).
+ * @param labelLineBlocks  one entry per label: that label's already-composed lines.
+ * @param format     the Avery format providing the cell geometry.
+ * @param options    the style options (only `fontSize` is read, for the ceiling).
+ */
+export function computeFitFontSize(
+  measurer: FitMeasurer,
+  labelLineBlocks: string[][],
+  format: LabelFormat,
+  options: LabelStyleOptions = {},
+): number {
+  const chosen = clampFontSize(options.fontSize);
+  const innerWidth = format.labelWidth - 2 * CELL_PADDING_MM;
+  const innerHeight = format.labelHeight - 2 * CELL_PADDING_MM;
+  const blocks = Array.isArray(labelLineBlocks) ? labelLineBlocks : [];
+
+  // Does the whole sheet fit at candidate size `fs`? (Set the measurer first —
+  // getTextWidth is relative to the current size.)
+  const sheetFitsAt = (fs: number): boolean => {
+    measurer.setFontSize(fs);
+    const lineHeightMm = fs * PT_TO_MM * LINE_SPACING;
+    for (const lines of blocks) {
+      const safeLines = Array.isArray(lines) ? lines : [];
+      // Height: the whole line block must fit the cell inner height.
+      if (safeLines.length * lineHeightMm > innerHeight) {
+        return false;
+      }
+      // Width: every individual line must fit the cell inner width.
+      for (const line of safeLines) {
+        if (measurer.getTextWidth(line) > innerWidth) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  // Search DOWN from the chosen ceiling to the floor; return the largest that
+  // fits. Only shrink — never return above `chosen`.
+  for (let fs = chosen; fs > MIN_FONT_SIZE; fs -= FIT_STEP_PT) {
+    if (sheetFitsAt(fs)) {
+      return fs;
+    }
+  }
+  // Nothing above the floor fit (or `chosen` already is the floor): the floor is
+  // the answer whether or not it technically fits — truncation handles the rest.
+  return MIN_FONT_SIZE;
+}
+
 /** The result of a PDF generation: the jsPDF doc + the counts the UI reports. */
 export interface GenerateResult {
   /** The constructed jsPDF document (caller saves / prints / attaches). */
@@ -409,38 +648,56 @@ export interface GenerateResult {
 }
 
 /**
- * Build the Avery address-label PDF for a member set.
+ * Lay a set of already-composed label line-blocks onto a jsPDF Avery sheet — the
+ * SINGLE jsPDF draw loop shared by the address path ({@link generateAddressLabelPdf})
+ * and the template path ({@link generateLabelTemplatePdf}). Pure w.r.t. its
+ * inputs beyond constructing + returning the document (it never reads
+ * `analytics.*`, member rows, or any field config — only the already-composed
+ * `labelLineBlocks`, the format, and the style options).
  *
- * Composes + filters + sorts the rows (via {@link composeAddresses}), then lays
- * the surviving addresses onto the chosen {@link LabelFormat} grid with jsPDF,
- * honoring the per-run {@link LabelStyleOptions} (font size, alignment, border,
- * country, start position). Returns the document plus the label/excluded/page
- * counts the UI surfaces as text badges (R6.6).
+ * Each entry of `labelLineBlocks` is ONE label's ordered text lines. The loop:
+ *   - creates an A4 portrait jsPDF (unit mm);
+ *   - picks the font size — per-sheet shrink-to-fit (Property 6) when
+ *     `options.autoFit`, else the clamped {@link LabelStyleOptions.fontSize};
+ *   - honors the start position (skip the first N cells of a partial sheet),
+ *     alignment, and optional cutting-guide border;
+ *   - truncates each line to the cell inner width so a field never overflows the
+ *     Avery box (Property 5).
  *
- * The caller decides what to do with `result.doc` — `doc.save(filename)` to
- * download, `doc.output('bloburl')` to preview/print, or
- * `doc.output('arraybuffer')` to attach to a mail (task 9.x).
+ * Returns the document plus the laid-out label count + page span (the caller adds
+ * its own `excludedCount` — the count of rows that produced no usable label).
  */
-export function generateAddressLabelPdf(
-  rows: MemberRow[],
-  fieldConfig: FieldConfig | undefined,
+export function layoutLabelPdf(
+  labelLineBlocks: string[][],
   format: LabelFormat,
   options: LabelStyleOptions = {},
-): GenerateResult {
-  const { addresses, excludedCount } = composeAddresses(rows, fieldConfig, options);
+): { doc: jsPDF; labelCount: number; pages: number } {
+  const blocks = Array.isArray(labelLineBlocks) ? labelLineBlocks : [];
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-  const fontSize = clampFontSize(options.fontSize);
   const alignment: LabelAlignment = options.alignment ?? 'left';
   const showBorder = options.showBorder === true;
   const perPage = labelsPerPage(format);
   const startOffset = Math.max(0, Math.min(options.startPosition ?? 0, perPage - 1));
 
   doc.setFont('helvetica', 'normal');
+  // Per-sheet shrink-to-fit (Property 6): when opted in, the font is the LARGEST
+  // uniform size (≤ the clamped user size) at which every label fits width AND
+  // height; otherwise it is simply the clamped user size (unchanged behavior).
+  // The fit search needs the label line-blocks being laid out, so it runs BEFORE
+  // the draw loop. Truncation below stays the safety net.
+  const fontSize =
+    options.autoFit === true
+      ? computeFitFontSize(doc, blocks, format, options)
+      : clampFontSize(options.fontSize);
   doc.setFontSize(fontSize);
   const lineHeightMm = fontSize * PT_TO_MM * LINE_SPACING;
+  // Usable text width inside the cell (both-side padding) — long lines are
+  // truncated to this so a field never overflows the Avery box (Property 5).
+  const innerWidth = format.labelWidth - 2 * CELL_PADDING_MM;
 
-  addresses.forEach((address, i) => {
+  blocks.forEach((lines, i) => {
+    const safeLines = Array.isArray(lines) ? lines : [];
     const absoluteCell = i + startOffset;
     const pageIndex = Math.floor(absoluteCell / perPage);
     // jsPDF starts with one page; add the rest as we reach them.
@@ -454,7 +711,7 @@ export function generateAddressLabelPdf(
     }
 
     // Vertically center the block of lines within the cell.
-    const blockHeight = address.lines.length * lineHeightMm;
+    const blockHeight = safeLines.length * lineHeightMm;
     const startY =
       y + Math.max(CELL_PADDING_MM, (format.labelHeight - blockHeight) / 2) + lineHeightMm * 0.5;
 
@@ -465,15 +722,81 @@ export function generateAddressLabelPdf(
       textX = x + format.labelWidth - CELL_PADDING_MM;
     }
 
-    address.lines.forEach((line, lineIdx) => {
-      doc.text(line, textX, startY + lineIdx * lineHeightMm, { align: alignment });
+    safeLines.forEach((line, lineIdx) => {
+      const drawn = truncateToWidth(doc, line, innerWidth);
+      doc.text(drawn, textX, startY + lineIdx * lineHeightMm, { align: alignment });
     });
   });
 
   return {
     doc,
-    labelCount: addresses.length,
-    excludedCount,
-    pages: pageCount(format, addresses.length, startOffset),
+    labelCount: blocks.length,
+    pages: pageCount(format, blocks.length, startOffset),
   };
+}
+
+/**
+ * Build the Avery address-label PDF for a member set.
+ *
+ * Composes + filters + sorts the rows (via {@link composeAddresses}), then lays
+ * the surviving addresses onto the chosen {@link LabelFormat} grid via the shared
+ * {@link layoutLabelPdf} draw loop, honoring the per-run {@link LabelStyleOptions}
+ * (font size, alignment, border, country, start position). Returns the document
+ * plus the label/excluded/page counts the UI surfaces as text badges (R6.6).
+ *
+ * The caller decides what to do with `result.doc` — `doc.save(filename)` to
+ * download, `doc.output('bloburl')` to preview/print, or
+ * `doc.output('arraybuffer')` to attach to a mail (task 9.x).
+ */
+export function generateAddressLabelPdf(
+  rows: MemberRow[],
+  fieldConfig: FieldConfig | undefined,
+  format: LabelFormat,
+  options: LabelStyleOptions = {},
+): GenerateResult {
+  const { addresses, excludedCount } = composeAddresses(rows, fieldConfig, options);
+  const { doc, labelCount, pages } = layoutLabelPdf(
+    addresses.map((a) => a.lines),
+    format,
+    options,
+  );
+  return { doc, labelCount, excludedCount, pages };
+}
+
+/**
+ * Build the Avery label PDF from a stored LABEL TEMPLATE (labels sub-spec R-L2 /
+ * R-L3 / R-L4) — the analytics-free counterpart to {@link generateAddressLabelPdf}.
+ *
+ * Composes the current result rows through the chosen label `template` via
+ * {@link composeLabelLines} (NOT `composeAddresses`/`resolveAddressMapping` — it
+ * reads NO `analytics.*`, Property 4), DROPS rows whose composed `lines` are all
+ * empty (counting them as `excludedCount` so the UI can report "N excluded"),
+ * then lays the surviving label line-blocks onto the chosen {@link LabelFormat}
+ * via the SAME shared {@link layoutLabelPdf} draw loop the address path uses
+ * (one layout code path, no second draw loop — R-L5). Returns the document plus
+ * the label/excluded/page counts the UI surfaces as badges.
+ *
+ * It reads ONLY `rows` / `fieldConfig` / `template` / `format` / `options`
+ * (Property 4). The caller does `result.doc.save(filename)` to download or
+ * `result.doc.output('bloburl')` to print (R-L4).
+ */
+export function generateLabelTemplatePdf(
+  rows: MemberRow[],
+  fieldConfig: FieldConfig | undefined,
+  template: LabelTemplateLines,
+  format: LabelFormat,
+  options: LabelStyleOptions = {},
+): GenerateResult {
+  const composed = composeLabelLines(rows, fieldConfig, template);
+  // Drop (and count) rows whose template produced NO usable line — a row with
+  // every line empty yields no printable label, never a blank cell.
+  const kept = composed.filter((c) => c.lines.length > 0);
+  const excludedCount = composed.length - kept.length;
+
+  const { doc, labelCount, pages } = layoutLabelPdf(
+    kept.map((c) => c.lines),
+    format,
+    options,
+  );
+  return { doc, labelCount, excludedCount, pages };
 }

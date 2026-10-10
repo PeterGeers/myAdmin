@@ -71,7 +71,15 @@ from sam.members.domain.scope_dimensions import (
     SAMPLE_SCOPE_CONFIG,
     StaticScopeConfigProvider,
 )
+from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
+from sam.members.domain.mail_run_status import MailRunStatusService
+from sam.members.domain.mail_sender_resolver import MailSenderResolver
+from sam.members.domain.template_service import (
+    InMemoryTemplateBodyStore,
+    TemplateService,
+)
 from sam.members.domain.tenant_hooks import TenantHookRegistry
+from sam.members.handler import _dispatch as dispatch_mod
 from sam.members.handler import app
 from sam.members.handler.routes import route_names
 from sam.members.migration.hdcn_backfill import (
@@ -301,6 +309,51 @@ def _email_for_scope_groups(groups: Sequence[str]) -> str:
     return _EMAIL_ALL
 
 
+class _PassThroughPivot:
+    """A fake ``PivotRunner`` for the deliver walkthrough — returns the re-fetched rows unchanged.
+
+    Mirrors the interim production pivot runner (``_dispatch._PassThroughPivotRunner``): the
+    result rows ARE the member rows, so the deliver step's enqueue fan-out is exercised without
+    a real pivot engine (not built on the SAM plane yet, design §4.2)."""
+
+    def run(self, tenant_id: str, definition: Mapping[str, Any], rows: Any) -> list[Any]:
+        return list(rows)
+
+
+class _CapturingMailQueue:
+    """An in-memory ``MailQueue`` (R4) that CAPTURES every enqueued ``MailJob`` — no SQS/boto3.
+
+    Satisfies the service's ``enqueue(job) -> None`` port; the deliver walkthrough asserts the
+    service enqueued jobs here instead of touching a real queue (the same seam the dedicated
+    execute-and-deliver service tests use)."""
+
+    def __init__(self) -> None:
+        self.jobs: list[Any] = []
+
+    def enqueue(self, job: Any) -> None:
+        self.jobs.append(job)
+
+
+class _CertifiedMailConfig:
+    """A static ``MailConfigReader`` modelling a CERTIFIED tenant for the pre-send resolver.
+
+    The deliver walkthrough runs the SYNCHRONOUS pre-send certification gate (mail-spec task
+    1.3); the harness models the certified happy path so the enqueue fan-out is exercised with a
+    usable From (``noreply@h-dcn.nl``) and no projection/DynamoDB round-trip."""
+
+    def is_mail_enabled(self, tenant_id: str) -> bool:
+        return bool(tenant_id)
+
+    def is_mail_certified(self, tenant_id: str) -> bool:
+        return bool(tenant_id)
+
+    def get_mail_domain(self, tenant_id: str) -> str | None:
+        return "h-dcn.nl" if tenant_id else None
+
+    def get_mail_local_part(self, tenant_id: str) -> str:
+        return "noreply"
+
+
 class MembersParityHarness:
     """Wires the migrated Members module exactly as production does and walks it end-to-end.
 
@@ -331,8 +384,26 @@ class MembersParityHarness:
             ),
             tenant_hooks=self.hooks,
         )
+        # The standalone template service (R2) over the SAME repo (its *_template methods are
+        # the metadata store) + an in-memory body store (no S3) — mirrors how production wires
+        # TemplateService(DynamoDbMembersRepository(), S3TemplateBodyStore()) but with no AWS.
+        self.template_service = TemplateService(self.repo, InMemoryTemplateBodyStore())
         self._seed_catalog()
+        # The execute-and-deliver service (R4, task 4.2) over the SAME repo + a FAKE mail queue
+        # that CAPTURES enqueued jobs — mirrors how production wires
+        # ExecuteAndDeliverService(DynamoDbMembersRepository(), <pivot>, SqsMailSendQueue()) but
+        # with no AWS/SQS, so the deliver walkthrough step never touches a real queue.
+        self.mail_queue = _CapturingMailQueue()
+        self.deliver_service = ExecuteAndDeliverService(
+            self.repo,
+            _PassThroughPivot(),
+            self.mail_queue,
+            MailSenderResolver(_CertifiedMailConfig()),
+        )
         self._original_service_getter: Callable[[], MembershipService] | None = None
+        self._original_template_getter: Callable[[], TemplateService] | None = None
+        self._original_deliver_getter: Callable[[], Any] | None = None
+        self._original_mail_run_status_getter: Callable[[], Any] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
         self._original_grants: Any = None
@@ -362,11 +433,23 @@ class MembersParityHarness:
         from sam.tests.conftest import FakeScopeGrantsReader
 
         self._original_service_getter = app._get_membership_service
+        self._original_template_getter = dispatch_mod.get_template_service
+        self._original_deliver_getter = dispatch_mod.get_execute_and_deliver_service
         self._original_scope_config = app._SCOPE_CONFIG_PROVIDER_OVERRIDE
         self._original_overlay = app._OVERLAY_PROVIDER_OVERRIDE
         self._original_grants = app._SCOPE_GRANTS_READER_OVERRIDE
 
         app._get_membership_service = lambda: self.service  # type: ignore[assignment]
+        # The template dispatch resolves its service via dispatch_mod.get_template_service
+        # (re-exported on app); point it at the harness's fake-backed service — never S3.
+        dispatch_mod.get_template_service = lambda: self.template_service  # type: ignore[assignment]
+        app.get_template_service = lambda: self.template_service  # type: ignore[assignment]
+        # The deliver dispatch (R4, task 4.2) resolves its service via
+        # dispatch_mod.get_execute_and_deliver_service; point it at the harness's fake-queue-
+        # backed service so the deliver walkthrough enqueues to the capturing queue, never SQS.
+        dispatch_mod.get_execute_and_deliver_service = lambda: self.deliver_service  # type: ignore[assignment]
+        self._original_mail_run_status_getter = dispatch_mod.get_mail_run_status_service
+        dispatch_mod.get_mail_run_status_service = lambda: MailRunStatusService(self.repo)  # type: ignore[assignment]
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
             {self.tenant_id: SAMPLE_SCOPE_CONFIG}
         )
@@ -379,6 +462,16 @@ class MembersParityHarness:
         if self._original_service_getter is not None:
             app._get_membership_service = self._original_service_getter  # type: ignore[assignment]
             self._original_service_getter = None
+            if self._original_template_getter is not None:
+                dispatch_mod.get_template_service = self._original_template_getter  # type: ignore[assignment]
+                app.get_template_service = self._original_template_getter  # type: ignore[assignment]
+                self._original_template_getter = None
+            if self._original_deliver_getter is not None:
+                dispatch_mod.get_execute_and_deliver_service = self._original_deliver_getter  # type: ignore[assignment]
+                self._original_deliver_getter = None
+            if self._original_mail_run_status_getter is not None:
+                dispatch_mod.get_mail_run_status_service = self._original_mail_run_status_getter  # type: ignore[assignment]
+                self._original_mail_run_status_getter = None
             app._SCOPE_CONFIG_PROVIDER_OVERRIDE = self._original_scope_config
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
@@ -792,6 +885,10 @@ class MembersParityHarness:
         # expected statuses are the "route answered as designed" set — importantly NOT
         # {404 no-route, 501 not-implemented}. Where a request is intentionally minimal we
         # accept the module's honest client-error answer (e.g. 422/409) as "route answered".
+        self.repo.create_mail_run(
+            self.tenant_id, "PARITY-RUN",
+            mode="per_recipient", triggered_by="admin-sub", recipient_count=1,
+        )
         checks: list[tuple] = [
             # ── Member CRUD (8 h-dcn behaviours) ──
             (
@@ -1085,6 +1182,152 @@ class MembersParityHarness:
                 {},
                 "update an analytics-set",
             ),
+            # ── Analytics-set delivery block set/clear (new, pivot-output-actions R3 task
+            # 3.3) ── Gate: members:export + existing scope (a stored delivery sends only what
+            # the user could already export — no new permission, no audit-on-save). set then
+            # clear, both BEFORE the delete below so the set still exists; the /delivery
+            # sub-path is an extra segment past /{set_id} so it never collides.
+            (
+                "set_analytics_set_delivery",
+                "PUT",
+                "/members/analytics-sets/__ASET_ID__/delivery",
+                {
+                    "mode": "to_fixed",
+                    "attachment": "csv",
+                    "recipients": ["agent@example.com"],
+                },
+                None,
+                {200},
+                {},
+                "store a saved set's delivery block (R3)",
+            ),
+            # ── Analytics-set DELIVER — run execute-and-deliver NOW (new,
+            # pivot-output-actions R4 task 4.2) ── Gate: members:export + existing scope (same
+            # as the delivery set/clear). Runs AFTER set_analytics_set_delivery (so the set now
+            # carries a `to_fixed` block) and BEFORE clear/delete (so the block is still
+            # present). The thin route delegates to the execute-and-deliver service — wired over
+            # the harness's FAKE mail queue (never SQS) in install() — which resolves the set,
+            # re-fetches rows (tenant-pinned), builds the output and ENQUEUES the send job(s),
+            # then returns an ACCEPTED (202): the honest status for "enqueued, not yet sent"
+            # (R4 — queued, not synchronous; the worker drains the queue later).
+            (
+                "deliver_analytics_set",
+                "POST",
+                "/members/analytics-sets/__ASET_ID__/deliver",
+                None,
+                None,
+                {202},
+                {},
+                "run a saved set's stored delivery NOW — enqueues + returns 202 ACCEPTED (R4)",
+            ),
+            # ── Ad-hoc interactive send — stateless (new, mail-spec task 2.1) ──
+            # The SIBLING of deliver_analytics_set: a stateless POST /members/mail/send that
+            # carries the compose body itself (mode + current result rows + recipients /
+            # template / attachment) rather than a saved set. Delegates to the SAME execute-
+            # and-deliver service seam (send_ad_hoc) wired over the harness's FAKE mail queue in
+            # install(), so it enqueues to the capturing queue (never SQS) and returns an
+            # ACCEPTED (202). Gate: members:export (same as deliver). A minimal to_fixed body
+            # (one recipient + a csv attachment) is enough for the route to answer 202. The
+            # literal /members/mail/send path is disjoint from every /members/... route.
+            (
+                "send_ad_hoc_mail",
+                "POST",
+                "/members/mail/send",
+                {
+                    "mode": "to_fixed",
+                    "attachment": "csv",
+                    "recipients": ["agent@example.com"],
+                    "result_rows": [{"personal": {"email": "a@example.com"}}],
+                },
+                None,
+                {202},
+                {},
+                "send an ad-hoc compose NOW — enqueues + returns 202 ACCEPTED (R2)",
+            ),
+            (
+                "list_mail_runs", "GET", "/members/mail-runs",
+                None, None, {200}, {},
+                "list the tenant's send-run status records (R9)",
+            ),
+            (
+                "get_mail_run", "GET", "/members/mail-runs/PARITY-RUN",
+                None, None, {200}, {},
+                "get one send-run tally + failure drill-down (R9)",
+            ),
+            (
+                "delete_mail_run", "DELETE", "/members/mail-runs/PARITY-RUN",
+                None, None, {200}, {},
+                "manually delete a send-run status record (R9.6)",
+            ),
+            # ── Schedules (new, pivot-output-actions R5 task 5.2) ──
+            # Gate: members:admin OR (members:write + ['*'] all-regions). The walkthrough's
+            # default admin caller (Regio_All / _ADMIN_CAPS) satisfies it. A schedule can only
+            # be CREATED for a set that HAS a delivery block (R5), so these run AFTER
+            # set_analytics_set_delivery (the set now carries a `to_fixed` block) and BEFORE
+            # clear/delete (so the block is still present). create first so get/update/delete
+            # have an addressable id; the id is server-generated, so those three target it via
+            # a mutable closure (mirrors the analytics-set / template id handling). The literal
+            # /members/schedules prefix is declared BEFORE /{member_id}, so it never collides.
+            (
+                "create_schedule",
+                "POST",
+                "/members/schedules",
+                {"set_id": "__ASET_ID__", "cron": "cron(0 9 1 * ? *)"},
+                None,
+                {200},
+                {},
+                "create a schedule for a set + delivery (R5)",
+            ),
+            (
+                "list_schedules",
+                "GET",
+                "/members/schedules",
+                None,
+                None,
+                {200},
+                {},
+                "list the tenant's schedules (R5)",
+            ),
+            (
+                "get_schedule",
+                "GET",
+                "/members/schedules/__SCHEDULE_ID__",
+                None,
+                None,
+                {200},
+                {},
+                "get a schedule by id (R5)",
+            ),
+            (
+                "update_schedule",
+                "PUT",
+                "/members/schedules/__SCHEDULE_ID__",
+                {"enabled": False},
+                None,
+                {200},
+                {},
+                "update a schedule (toggle enabled, R5)",
+            ),
+            (
+                "delete_schedule",
+                "DELETE",
+                "/members/schedules/__SCHEDULE_ID__",
+                None,
+                None,
+                {200},
+                {},
+                "delete a schedule (R5)",
+            ),
+            (
+                "clear_analytics_set_delivery",
+                "DELETE",
+                "/members/analytics-sets/__ASET_ID__/delivery",
+                None,
+                None,
+                {200},
+                {},
+                "clear a saved set's delivery block (R3)",
+            ),
             (
                 "delete_analytics_set",
                 "DELETE",
@@ -1143,6 +1386,70 @@ class MembersParityHarness:
                 {},
                 "replace the caller's chosen overview columns (full replace, one per user)",
             ),
+            # ── Stored mail templates (new, pivot-output-actions R2 task 2.3) ──
+            # Gate: members:export OR members:write. create first so the subsequent get/
+            # update/delete have an addressable id; the id is server-generated, so those three
+            # target it via a mutable closure (mirrors the analytics-set id handling). The
+            # literal /members/templates path is declared BEFORE /{member_id}, so it never
+            # collides.
+            (
+                "create_template",
+                "POST",
+                "/members/templates",
+                {
+                    "name": "Parity template",
+                    "languages": {
+                        "nl": {
+                            "subject": "Dag {{first_name}}",
+                            "body_html": "<p>Beste {{first_name}}</p>",
+                        }
+                    },
+                },
+                None,
+                {200},
+                {},
+                "create a stored mail template (metadata + S3 body)",
+            ),
+            (
+                "list_templates",
+                "GET",
+                "/members/templates",
+                None,
+                None,
+                {200},
+                {},
+                "list the tenant's stored mail templates (metadata only)",
+            ),
+            (
+                "get_template",
+                "GET",
+                "/members/templates/__TEMPLATE_ID__",
+                None,
+                None,
+                {200},
+                {},
+                "get a stored mail template by id",
+            ),
+            (
+                "update_template",
+                "PUT",
+                "/members/templates/__TEMPLATE_ID__",
+                {"name": "Parity template renamed"},
+                None,
+                {200},
+                {},
+                "update a stored mail template",
+            ),
+            (
+                "delete_template",
+                "DELETE",
+                "/members/templates/__TEMPLATE_ID__",
+                None,
+                None,
+                {200},
+                {},
+                "delete a stored mail template (metadata + bodies)",
+            ),
         ]
 
         # The analytics-set id is server-generated by the create route, so the get/update/
@@ -1150,15 +1457,39 @@ class MembersParityHarness:
         # the create check has run (keeps the checklist declarative while honouring the opaque
         # server-chosen id — mirrors how member fixtures are addressed by a known id).
         analytics_set_id: dict[str, str] = {}
+        # The template id is likewise server-generated by the create route; the get/update/
+        # delete checks reference a placeholder resolved to the created id once create has run.
+        template_id: dict[str, str] = {}
+        # The schedule id is likewise server-generated by the create_schedule route; the get/
+        # update/delete checks reference a placeholder resolved to the created id once create
+        # has run (mirrors the analytics-set / template id handling, R5).
+        schedule_id: dict[str, str] = {}
 
         for name, method, path, body, _q, expected, extra_kwargs, note in checks:
             if "__ASET_ID__" in path:
                 path = path.replace(
                     "__ASET_ID__", analytics_set_id.get("id", "missing")
                 )
+            if "__TEMPLATE_ID__" in path:
+                path = path.replace(
+                    "__TEMPLATE_ID__", template_id.get("id", "missing")
+                )
+            if "__SCHEDULE_ID__" in path:
+                path = path.replace(
+                    "__SCHEDULE_ID__", schedule_id.get("id", "missing")
+                )
+            # The create_schedule body references the server-generated analytics-set id (R5 —
+            # a schedule names the set it runs); resolve the body placeholder too, not just the
+            # path, so the schedule points at the real (delivery-bearing) set.
+            if isinstance(body, Mapping) and body.get("set_id") == "__ASET_ID__":
+                body = {**body, "set_id": analytics_set_id.get("id", "missing")}
             resp = self.call(method, path, body=body, **extra_kwargs)
             if name == "create_analytics_set" and resp["statusCode"] == 200:
                 analytics_set_id["id"] = self.data(resp)["set_id"]
+            if name == "create_template" and resp["statusCode"] == 200:
+                template_id["id"] = self.data(resp)["template_id"]
+            if name == "create_schedule" and resp["statusCode"] == 200:
+                schedule_id["id"] = self.data(resp)["schedule_id"]
             status = resp["statusCode"]
             # A route "answered as designed" when the status is in the expected set and is
             # neither a routing miss (404 where a route should exist) nor a 501 stub.

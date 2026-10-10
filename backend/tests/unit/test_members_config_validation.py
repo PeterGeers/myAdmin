@@ -22,6 +22,9 @@ import flask
 from services.members_config_validation import (
     MembersConfigError,
     validate_field_overlay,
+    validate_mail_certified,
+    validate_mail_domain,
+    validate_mail_local_part,
     validate_view_contexts,
     validate_members_param,
     FIXED_FIELD_KEYS,
@@ -226,6 +229,98 @@ class TestViewContextsValidation:
 
 
 # ---------------------------------------------------------------------------
+# mail/0.1 — mail config save validation (R4 / §5f: per-tenant From + cert gate)
+# ---------------------------------------------------------------------------
+
+
+class TestMailDomainValidation:
+
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_validate_mail_domain_blank_accepts(self, value):
+        # Optional param — unset/blank is accepted (From simply can't be composed yet).
+        validate_mail_domain(value)
+
+    @pytest.mark.parametrize(
+        "value", ["h-dcn.nl", "example.com", "sub.example.co.uk", "a.io"]
+    )
+    def test_validate_mail_domain_bare_domain_accepts(self, value):
+        validate_mail_domain(value)
+
+    def test_validate_mail_domain_trims_whitespace(self):
+        validate_mail_domain("  h-dcn.nl  ")  # surrounding whitespace tolerated
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "noreply@h-dcn.nl",      # has "@" (an address, not a bare domain)
+            "https://h-dcn.nl",      # has a scheme
+            "h-dcn.nl/path",         # has a path
+            "localhost",             # no TLD label
+            "h dcn.nl",              # whitespace inside
+            "-bad.nl",               # label starts with a hyphen
+            "bad-.nl",               # label ends with a hyphen
+            "example.123",           # non-alphabetic TLD
+        ],
+    )
+    def test_validate_mail_domain_malformed_raises(self, value):
+        with pytest.raises(MembersConfigError) as exc:
+            validate_mail_domain(value)
+        assert "mail_domain" in exc.value.reasons
+
+    def test_validate_mail_domain_non_string_raises(self):
+        with pytest.raises(MembersConfigError) as exc:
+            validate_mail_domain(123)
+        assert "mail_domain" in exc.value.reasons
+
+
+class TestMailLocalPartValidation:
+
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_validate_mail_local_part_blank_accepts(self, value):
+        # Optional param — unset/blank defers to the schema default ("noreply").
+        validate_mail_local_part(value)
+
+    @pytest.mark.parametrize(
+        "value", ["noreply", "info", "onderhoud", "no-reply", "a.b+c"]
+    )
+    def test_validate_mail_local_part_token_accepts(self, value):
+        validate_mail_local_part(value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "info@h-dcn.nl",   # has "@"
+            "no reply",         # whitespace inside
+            "bad\tpart",       # whitespace (tab) inside
+        ],
+    )
+    def test_validate_mail_local_part_invalid_raises(self, value):
+        with pytest.raises(MembersConfigError) as exc:
+            validate_mail_local_part(value)
+        assert "mail_local_part" in exc.value.reasons
+
+    def test_validate_mail_local_part_non_string_raises(self):
+        with pytest.raises(MembersConfigError) as exc:
+            validate_mail_local_part(42)
+        assert "mail_local_part" in exc.value.reasons
+
+
+class TestMailCertifiedValidation:
+
+    @pytest.mark.parametrize("value", [True, False, None])
+    def test_validate_mail_certified_bool_or_none_accepts(self, value):
+        # Real bool (either way) or unset (None → gate fails closed) is accepted.
+        validate_mail_certified(value)
+
+    @pytest.mark.parametrize("value", ["true", "false", 1, 0, "yes"])
+    def test_validate_mail_certified_non_bool_raises(self, value):
+        # Fail-closed gate: an ambiguous truthy string must never be stored as certified.
+        with pytest.raises(MembersConfigError) as exc:
+            validate_mail_certified(value)
+        assert "mail_certified" in exc.value.reasons
+
+
+# ---------------------------------------------------------------------------
 # 2.4 — dispatch entry point
 # ---------------------------------------------------------------------------
 
@@ -256,6 +351,25 @@ class TestValidateMembersParamDispatch:
     def test_validate_members_param_scope_dimensions_is_noop(self):
         # scope_dimensions has no cross-reference rule here → accepted as-is.
         validate_members_param("scope_dimensions", [{"key": "region", "enabled": True}])
+
+    def test_validate_members_param_mail_domain_dispatches(self):
+        validate_members_param("mail_domain", "h-dcn.nl")  # valid → no raise
+        with pytest.raises(MembersConfigError):
+            validate_members_param("mail_domain", "noreply@h-dcn.nl")
+
+    def test_validate_members_param_mail_local_part_dispatches(self):
+        validate_members_param("mail_local_part", "info")  # valid → no raise
+        with pytest.raises(MembersConfigError):
+            validate_members_param("mail_local_part", "info@h-dcn.nl")
+
+    def test_validate_members_param_mail_certified_dispatches(self):
+        validate_members_param("mail_certified", True)  # valid → no raise
+        with pytest.raises(MembersConfigError):
+            validate_members_param("mail_certified", "true")
+
+    def test_validate_members_param_unknown_key_is_noop(self):
+        # A key with no save-time rule is accepted as-is (no raise).
+        validate_members_param("mail_enabled", True)
 
     def test_validate_members_param_base_key_sets_match_contract(self):
         # Guardrail: the transcribed base key sets stay non-empty and disjoint.

@@ -47,21 +47,41 @@ def test_route_map_covers_eighteen_behaviours_total():
     # (task 5.3, R2.4/R1.4 — create + update + soft-delete) = 24, plus the five member
     # analytics-set CRUD routes (F-012 — create + list + get + update + delete) = 29, plus
     # the two preferred-list routes (R11.2 — get + save) = 31, plus the two per-user
-    # column-preferences routes (session-columns R6 — get + save) = 33.
-    assert len(ROUTES) == 33
+    # column-preferences routes (session-columns R6 — get + save) = 33, plus the five stored
+    # mail-template CRUD routes (pivot-output-actions R2 task 2.3 — create + list + get +
+    # update + delete) = 38, plus the two analytics-set DELIVERY routes
+    # (pivot-output-actions R3 task 3.3 - set + clear) = 40, plus the analytics-set deliver
+    # route (pivot-output-actions R4 task 4.2 — run a set's stored delivery now) = 41.
+    # ...plus the five schedule CRUD routes (pivot-output-actions R5 task 5.2 — create + list
+    # + get + update + delete) = 46, plus the stateless ad-hoc send route
+    # (mail-spec task 2.1 — POST /members/mail/send) = 47, plus the two send-run STATUS read
+    # routes (mail-spec task 3.2 — GET /members/mail-runs list + GET /members/mail-runs/{run_id})
+    # = 49, plus the send-run manual-DELETE route (mail-spec task 3.3, R9.6 retention —
+    # DELETE /members/mail-runs/{run_id}) = 50.
+    assert len(ROUTES) == 50
 
 
 def test_route_map_groups_match_the_design_c1_counts():
     # Member CRUD 8 + field-config 1 · membership lifecycle 7 · delegates 2 · payments 1 ·
     # catalog reads 2 (list + get, task 3.4) + catalog writes 3 (create + update + delete,
-    # task 5.3) = 5 · analytics 9 (sets: create+list+get+update+delete, F-012; preferred list:
-    # get+save, R11.2; column preferences: get+save, session-columns R6).
+    # task 5.3) = 5 · analytics 14 (sets: create+list+get+update+delete, F-012; preferred
+    # list: get+save, R11.2; column preferences: get+save, session-columns R6; stored mail
+    # templates: create+list+get+update+delete, pivot-output-actions R2 task 2.3).
     assert len(routes_by_group(RouteGroup.MEMBER)) == 9
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 7
     assert len(routes_by_group(RouteGroup.DELEGATE)) == 2
     assert len(routes_by_group(RouteGroup.PAYMENT)) == 1
     assert len(routes_by_group(RouteGroup.CATALOG)) == 5
-    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 9
+    # analytics 22: sets 5 (create+list+get+update+delete, F-012); preferred list 2
+    # (get+save, R11.2); column preferences 2 (get+save, session-columns R6); stored mail
+    # templates 5 (create+list+get+update+delete, pivot-output-actions R2 task 2.3); the two
+    # analytics-set delivery routes (set+clear, pivot-output-actions R3 task 3.3); the
+    # analytics-set deliver route (deliver, pivot-output-actions R4 task 4.2); the five
+    # schedule CRUD routes (create+list+get+update+delete, pivot-output-actions R5 task 5.2);
+    # the stateless ad-hoc send route (send_ad_hoc_mail, mail-spec task 2.1); the two send-run
+    # STATUS read routes (list_mail_runs + get_mail_run, mail-spec task 3.2); the send-run
+    # manual-DELETE route (delete_mail_run, mail-spec task 3.3, R9.6 retention).
+    assert len(routes_by_group(RouteGroup.ANALYTICS)) == 26
 
 
 def test_route_map_includes_each_named_behaviour():
@@ -108,6 +128,30 @@ def test_route_map_includes_each_named_behaviour():
         # Per-user overview column preferences (session-columns R6)
         "get_column_preferences",
         "save_column_preferences",
+        # Stored mail templates CRUD (pivot-output-actions R2 task 2.3)
+        "create_template",
+        "list_templates",
+        "get_template",
+        "update_template",
+        "delete_template",
+        # Analytics-set delivery block set/clear (pivot-output-actions R3 task 3.3)
+        "set_analytics_set_delivery",
+        "clear_analytics_set_delivery",
+        # Analytics-set deliver (R4 task 4.2)
+        "deliver_analytics_set",
+        # Schedule CRUD (pivot-output-actions R5 task 5.2)
+        "create_schedule",
+        "list_schedules",
+        "get_schedule",
+        "update_schedule",
+        "delete_schedule",
+        # Stateless ad-hoc send (mail-spec task 2.1 — POST /members/mail/send)
+        "send_ad_hoc_mail",
+        # Send-run STATUS reads (mail-spec task 3.2 — GET /members/mail-runs[/{run_id}])
+        "list_mail_runs",
+        "get_mail_run",
+        # Send-run manual DELETE (mail-spec task 3.3, R9.6 — DELETE /members/mail-runs/{run_id})
+        "delete_mail_run",
     }
     assert set(route_names()) == expected
 
@@ -194,7 +238,13 @@ def test_every_declared_route_resolves_to_itself(router):
     # Round-trip: each declared route, given a concrete path, resolves back to its name.
     for spec in ROUTES:
         concrete = spec.path
-        for placeholder in ("member_id", "membership_id"):
+        for placeholder in (
+            "member_id",
+            "membership_id",
+            "type_code",
+            "template_id",
+            "schedule_id",
+        ):
             concrete = concrete.replace(f"{{{placeholder}}}", "X")
         match = router.resolve(spec.method.value, concrete)
         assert isinstance(match, RouteMatch)

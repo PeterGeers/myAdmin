@@ -64,6 +64,11 @@ from typing import Any, Protocol
 
 from sam.members.domain.analytics_set import AnalyticsSetValidationError
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
+from sam.members.domain.execute_and_deliver import (
+    AdHocMailInvalid,
+    DeliveryNotConfigured,
+    MailNotCertified,
+)
 from sam.members.domain.field_resolver import TenantOverlay, TenantOverlayProvider
 from sam.members.domain.fixed_fields import (
     MembershipStatus,  # noqa: F401 (surface compat)
@@ -81,11 +86,14 @@ from sam.members.domain.membership_service import (
     MembershipTypeConflict,
     MembershipTypeNotFound,
     MemberValidationError,
+    ScheduleNotFound,
     ScopeDenied,
     TransitionDenied,
 )
 from sam.members.domain.membership_type_catalog import MembershipTypeValidationError
 from sam.members.domain.scope_access import ScopeAccess, resolve_scope_access
+from sam.members.domain.template import TemplateValidationError
+from sam.members.domain.template_service import TemplateNotFound
 from sam.members.domain.scope_dimensions import (
     WILDCARD,
     ScopeConfigProvider,
@@ -93,15 +101,21 @@ from sam.members.domain.scope_dimensions import (
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.view_contexts import ViewContext, ViewContextsProvider
+from sam.members.domain.mail_gate import MailGateProvider
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
+    MailRunNotFound,
     RouteNotImplemented,
     dispatch_route,
+    get_execute_and_deliver_service,  # noqa: F401 (surface compat: tests reach app.get_execute_and_deliver_service)
+    get_mail_run_status_service,  # noqa: F401 (surface compat: tests reach app.get_mail_run_status_service)
+    get_template_service,  # noqa: F401 (surface compat: tests reach app.get_template_service)
 )
 
 # ── HTTP adapter helpers (request parsing + response shaping) — re-exported ────────────
 from sam.members.handler._http import (
+    AcceptedResult,
     ParsedRequest,
     _error,
     _field_errors_array,
@@ -117,6 +131,8 @@ from sam.members.handler.router import (
     get_router,
 )
 from sam.members.handler.routes import (
+    CAP_MEMBERS_ADMIN,
+    CAP_MEMBERS_WRITE,
     RouteSpec,
 )
 from sam.members.repository.members_repository import (
@@ -175,6 +191,14 @@ _OVERLAY_PROVIDER_OVERRIDE: TenantOverlayProvider | None = None
 #: ``view_contexts`` can be driven without an AWS round-trip. When unset (production), each read
 #: builds a fresh projection reader (see :class:`_ProjectionViewContextsProvider`).
 _VIEW_CONTEXTS_PROVIDER_OVERRIDE: ViewContextsProvider | None = None
+
+#: Test-only override for the mail-gate provider (``None`` in production → fresh reader).
+#: Mirrors :data:`_VIEW_CONTEXTS_PROVIDER_OVERRIDE` — a test injects a
+#: ``StaticMailGateProvider`` (or a ``MembersProjectionReader`` over a fake table) so the
+#: field-config endpoint's ``mail_enabled`` flag (pivot-output-actions R0/R1, design §6.3)
+#: can be driven without an AWS round-trip. When unset (production), each read builds a fresh
+#: projection reader (see :class:`_ProjectionMailGateProvider`).
+_MAIL_GATE_PROVIDER_OVERRIDE: MailGateProvider | None = None
 
 
 def _new_projection_reader() -> MembersProjectionReader:
@@ -305,6 +329,31 @@ class _ProjectionViewContextsProvider:
 #: fresh projection each call (see :class:`_ProjectionViewContextsProvider`).
 _VIEW_CONTEXTS_PROVIDER: ViewContextsProvider = _ProjectionViewContextsProvider()
 
+
+class _ProjectionMailGateProvider:
+    """A thin :class:`MailGateProvider` indirection over a per-call fresh reader (§6.3).
+
+    pivot-output-actions R0/R1 task 1.3 — the mail-enabled gate seam wired at the module edge,
+    EXACTLY mirroring :class:`_ProjectionViewContextsProvider`. The :class:`MembershipService`
+    is a lazy module-level singleton that captures its providers once; to reflect a
+    re-projected ``config#mail`` edit (the tenant-admin module flips the flag, it re-projects)
+    without rebuilding the service per request, its mail-gate provider is this stable
+    indirection: every ``is_mail_enabled`` call delegates to a FRESH
+    :class:`MembersProjectionReader` (or the test override), so the field-config endpoint's
+    ``mail_enabled`` always reflects the current projection while the domain and the service
+    singleton stay UNCHANGED. Fail-closed is owned by the reader (missing row → ``False``, R0).
+    """
+
+    def is_mail_enabled(self, tenant_id: str) -> bool:
+        if _MAIL_GATE_PROVIDER_OVERRIDE is not None:
+            return _MAIL_GATE_PROVIDER_OVERRIDE.is_mail_enabled(tenant_id)
+        return _new_projection_reader().is_mail_enabled(tenant_id)
+
+
+#: The mail-gate provider handed to the domain service — a stable indirection that reads a
+#: fresh projection each call (see :class:`_ProjectionMailGateProvider`).
+_MAIL_GATE_PROVIDER: MailGateProvider = _ProjectionMailGateProvider()
+
 #: The tenants' membership-lifecycle configuration, carried as **data** (design C2, never an
 #: ``if tenant == ...``): h-dcn is simply the first ``tenant_id`` the provider knows about
 #: (its declarative state graph + guards, :data:`HDCN_LIFECYCLE_CONFIG`). A tenant with no
@@ -334,6 +383,7 @@ _TENANT_HOOKS = _build_tenant_hooks()
 
 __all__ = [
     "AuthorizationError",
+    "MailRunNotFound",
     "RouteNotImplemented",
     "TenantResolutionError",
     "handler",
@@ -696,6 +746,149 @@ def _any_capability_granted(
     return any(has_capability(claims, tenant_id, cap) is True for cap in required)
 
 
+def _scopes_are_all_regions(allowed_scopes: Mapping[str, list[str]]) -> bool:
+    """True when the caller's resolved scope is the ``["*"]`` all-regions grant on EVERY axis.
+
+    The R5 schedule gate requires TENANT-WIDE member scope: a scheduled run is unattended, so
+    it must never replay a partial regional slice. The resolved ``allowed_scopes`` is the
+    per-dimension map :func:`_resolve_scope_access` builds (``{dimension: [values]}``). This is
+    all-regions when EVERY enabled dimension maps to exactly the ``[WILDCARD]`` sentinel — a
+    subset (``["Oost"]``) or an empty/deny (``[]``) on ANY dimension fails. An un-partitioned
+    tenant collapses to a single ``{DEFAULT: ["*"]}`` entry (tenant-wide by construction), which
+    passes. An empty map (no scope resolved) is NOT all-regions (fail-closed).
+    """
+    if not allowed_scopes:
+        return False
+    return all(list(values) == [WILDCARD] for values in allowed_scopes.values())
+
+
+def _authorize_schedule_route(
+    claims: Mapping[str, Any],
+    tenant_id: str,
+    *,
+    config_provider: ScopeConfigProvider | None = None,
+    grants_reader: _ScopeGrantsReader | None = None,
+) -> dict[str, list[str]]:
+    """Enforce the SPECIAL R5 schedule gate: admin OR (write + all-regions). Returns the scopes.
+
+    The CRITICAL R5 rule (design §3/§8): a schedule may be managed by a caller with
+    **tenant-wide member access** only — either ``members:admin``, or ``members:write`` WITH
+    the ``["*"]`` all-regions scope grant. A region-NARROWED ``members:write`` caller (e.g.
+    region ``["Oost"]``) is REJECTED (403), because an unattended scheduled run must never
+    replay a partial regional slice. This is NOT a plain capability any-of — it is a combined
+    **capability + scope** gate, so it lives here rather than in the ordinary
+    ``_any_capability_granted`` + ``_resolve_scope_access`` path.
+
+    Decision:
+
+    1. ``members:admin`` (three-state :func:`has_capability` == ``True``) → PASS outright
+       (admin is tenant-wide by definition; no scope check needed).
+    2. Else ``members:write`` must be a token-backed grant AND the caller's resolved scope must
+       be all-regions (:func:`_scopes_are_all_regions` over the projected grants) → PASS.
+    3. Otherwise → :class:`AuthorizationError` (403): neither admin, nor write, nor a
+       write-with-a-narrowed-region caller may schedule.
+
+    Returns the resolved per-dimension ``allowed_scopes`` map (tenant-wide for an admin or an
+    all-regions write caller) so the context carries it like any other route — a scheduled run
+    operates tenant-wide, which the resolved ``["*"]`` map expresses.
+
+    Raises:
+        AuthorizationError: The caller is authenticated + tenant-resolved but does not satisfy
+            the schedule gate (→ 403).
+    """
+    # (1) Admin is tenant-wide — pass without a scope check and resolve the (wildcard) scope.
+    if has_capability(claims, tenant_id, CAP_MEMBERS_ADMIN) is True:
+        return _resolve_scope_access_for_admin(
+            tenant_id, config_provider=config_provider
+        )
+
+    # (2) members:write path — the capability AND the all-regions scope grant are BOTH required.
+    if has_capability(claims, tenant_id, CAP_MEMBERS_WRITE) is True:
+        allowed_scopes = _resolve_scope_access_for_schedule(
+            tenant_id,
+            claims,
+            config_provider=config_provider,
+            grants_reader=grants_reader,
+        )
+        if _scopes_are_all_regions(allowed_scopes):
+            return allowed_scopes
+        # A region-narrowed write caller — the scope is a subset / deny, NOT all-regions. An
+        # unattended run must never replay a partial slice (R5), so this is an honest 403.
+        logger.info(
+            "Members schedule route denied: members:write caller for tenant '%s' lacks the "
+            "all-regions ['*'] grant (resolved scopes=%s)",
+            tenant_id,
+            allowed_scopes,
+        )
+        raise AuthorizationError(
+            "Scheduling requires members:admin or members:write with an all-regions grant"
+        )
+
+    # (3) Neither admin nor write → deny (read-only / export-only / unentitled callers).
+    logger.info(
+        "Members schedule route denied: caller for tenant '%s' holds neither members:admin "
+        "nor members:write",
+        tenant_id,
+    )
+    raise AuthorizationError("Missing required capability for scheduling")
+
+
+def _resolve_scope_access_for_admin(
+    tenant_id: str, *, config_provider: ScopeConfigProvider | None = None
+) -> dict[str, list[str]]:
+    """The tenant-wide (all-regions) scope map an admin schedule caller operates under.
+
+    An admin is tenant-wide by definition (R5), so every enabled dimension is the ``[WILDCARD]``
+    grant; an un-partitioned tenant collapses to ``{DEFAULT: ["*"]}``. Built from the tenant's
+    scope config so the shape matches :func:`_resolve_scope_access` (the domain sees a uniform
+    per-dimension map) without reading the caller's projected grants (admin needs none).
+    """
+    if config_provider is None:
+        config_provider = _scope_config_provider()
+    config = config_provider.get_scope_config(tenant_id)
+    enabled = config.enabled()
+    if not enabled:
+        return {DEFAULT_SCOPE_DIMENSION_KEY: [WILDCARD]}
+    return {dimension.key: [WILDCARD] for dimension in enabled}
+
+
+def _resolve_scope_access_for_schedule(
+    tenant_id: str,
+    claims: Mapping[str, Any],
+    *,
+    config_provider: ScopeConfigProvider | None = None,
+    grants_reader: _ScopeGrantsReader | None = None,
+) -> dict[str, list[str]]:
+    """Resolve a members:write schedule caller's per-dimension scope from the PROJECTED grants.
+
+    A thin wrapper around the same :func:`_scope_access_from_grant` machinery
+    :func:`_resolve_scope_access` uses, but it does NOT take a :class:`RouteSpec` — the schedule
+    gate resolves scope for the combined decision in :func:`_authorize_schedule_route`. Returns
+    ``{dimension: [values]}``; the caller checks whether every dimension is the ``["*"]`` grant.
+    """
+    if config_provider is None:
+        config_provider = _scope_config_provider()
+    if grants_reader is None:
+        grants_reader = _scope_grants_reader()
+
+    config = config_provider.get_scope_config(tenant_id)
+    enabled = config.enabled()
+    if not enabled:
+        # Un-partitioned tenant → tenant-wide by construction (the R3.2 collapse).
+        wildcard = list(resolve_scope_access(tenant_id, None, []).allowed_scopes)
+        return {DEFAULT_SCOPE_DIMENSION_KEY: wildcard}
+
+    email = claims.get("email")
+    grants = grants_reader.get_scope_grants(tenant_id, str(email) if email else "")
+    allowed: dict[str, list[str]] = {}
+    for dimension in enabled:
+        granted_values = grants.get(dimension.key)
+        granted_list = list(granted_values) if granted_values is not None else None
+        access = _scope_access_from_grant(tenant_id, dimension, granted_list)
+        allowed[dimension.key] = list(access.allowed_scopes)
+    return allowed
+
+
 def _authenticate_and_authorize(
     event: Mapping[str, Any],
     request: ParsedRequest,
@@ -774,6 +967,33 @@ def _authenticate_and_authorize(
     #     ownership on `sub`, not scope.
     allowed_scopes: dict[str, list[str]] = {}
 
+    # A schedule route (R5) carries the SPECIAL combined capability+scope gate — NOT a plain
+    # any-of. `_authorize_schedule_route` enforces `members:admin` OR (`members:write` + the
+    # `["*"]` all-regions grant); a region-narrowed write caller is rejected (403) so an
+    # unattended run never replays a partial regional slice. It returns the tenant-wide scope
+    # map (an admin / all-regions write caller operates tenant-wide), which the context carries
+    # like any other route. This runs INSTEAD of the ordinary any-of + scope seam below.
+    if spec.schedule_gate:
+        allowed_scopes = _authorize_schedule_route(
+            claims,
+            tenant_id,
+            config_provider=config_provider,
+            grants_reader=grants_reader,
+        )
+        scope_dimension_key = _gating_dimension_key(
+            tenant_id, provider=config_provider
+        )
+        return RequestContext(
+            tenant_id=tenant_id,
+            sub=str(sub) if sub is not None else None,
+            groups=groups,
+            capability=spec.capability,
+            allowed_scopes=allowed_scopes,
+            claims=claims,
+            path_params=dict(path_params or {}),
+            scope_dimension_key=scope_dimension_key,
+        )
+
     # A route may be gated by a SINGLE capability (`spec.capability`) or an ANY-OF set
     # (`spec.capabilities_any`, R11.3 — e.g. export OR write). `_capability_gate` resolves
     # whichever applies into a single True/deny decision. A self-service-only route (neither
@@ -838,6 +1058,13 @@ def _get_membership_service() -> MembershipService:
     """
     global _SERVICE
     if _SERVICE is None:
+        # The production EventBridge-Scheduler management port (R5, task 5.3). It materializes
+        # the ONE EventBridge schedule behind each schedule#<id> record on create/update/delete.
+        # Its boto3 client + the two ARNs resolve lazily + fail-fast on FIRST USE
+        # (SCHEDULER_TARGET_FUNCTION_ARN / SCHEDULER_EXECUTION_ROLE_ARN wired by template.yaml),
+        # so constructing it here touches no AWS — only the schedule CRUD path exercises it.
+        from sam.members.repository.scheduler_api import EventBridgeSchedulerApi
+
         _SERVICE = MembershipService(
             DynamoDbMembersRepository(),
             overlay_provider=_OVERLAY_PROVIDER,
@@ -845,6 +1072,8 @@ def _get_membership_service() -> MembershipService:
             tenant_hooks=_TENANT_HOOKS,
             view_contexts_provider=_VIEW_CONTEXTS_PROVIDER,
             scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
+            mail_gate_provider=_MAIL_GATE_PROVIDER,
+            scheduler_port=EventBridgeSchedulerApi(),
         )
     return _SERVICE
 
@@ -957,6 +1186,16 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         # Absent analytics-set for the tenant (F-012) → 404, consistent with the member /
         # catalog not-found mappings (get/update/delete of an absent set_id).
         return _error(404, "Not found", code="errors.api.notFound")
+    except ScheduleNotFound:
+        # Absent schedule for the tenant (R5) → 404, consistent with the analytics-set /
+        # member / catalog not-found mappings (get/update/delete of an absent schedule_id).
+        return _error(404, "Not found", code="errors.api.notFound")
+    except MailRunNotFound:
+        # A send-run (R9.2) that is absent in the tenant, OR exists but was triggered by
+        # ANOTHER user and the caller is not a Tenant_Admin (R9.3) → 404, deliberately
+        # indistinguishable so a scoped caller cannot probe for another user's runs (mirrors
+        # the member-read not-found policy).
+        return _error(404, "Not found", code="errors.api.notFound")
     except AnalyticsSetConflict:
         # Creating an analytics-set whose set_id already exists (F-012) → 409 Conflict. With a
         # server-generated uuid4 this is effectively unreachable; carried for symmetry.
@@ -966,6 +1205,57 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
     except AnalyticsSetValidationError as exc:
         # A malformed analytics-set write (blank name, bad kind, non-mapping definition) → 422
         # Unprocessable, carrying the per-field errors as an RFC 9457 array (v1.0).
+        return _error(
+            422,
+            "Validation failed",
+            code="errors.validation.failed",
+            errors=_field_errors_array(exc.errors),
+        )
+    except DeliveryNotConfigured:
+        # A `deliver` (R4, task 4.2) was requested for a set that has NO stored delivery block —
+        # there is nothing to send. A caller error (not a not-found: the set exists), mapped to a
+        # 422 so the SPA can tell "set has no delivery, configure one first" apart from a 404.
+        return _error(
+            422,
+            "The analytics set has no delivery block configured",
+            code="errors.analyticsset.delivery.notConfigured",
+        )
+    except AdHocMailInvalid as exc:
+        # The ad-hoc send body (POST /members/mail/send, mail-spec task 2.1) is malformed — an
+        # unknown `mode`, a `to_fixed` with no recipients, or a `per_recipient` with no result
+        # rows. There is no entity validate() behind an ad-hoc compose (unlike a saved set), so
+        # the shared send service validates the body SHAPE and raises this; mapped to a 422 so
+        # the SPA can tell "fix the compose" apart from a not-certified refusal (Property 6 —
+        # never a silent enqueue-of-nothing). Carries the service's detail for the message.
+        return _error(
+            422,
+            "The mail compose is invalid",
+            code="errors.mail.adHocInvalid",
+            detail=exc.detail,
+        )
+    except MailNotCertified as exc:
+        # The pre-send certification gate (mail-spec task 1.3, R4.2/R5.2) refused BEFORE enqueue:
+        # the tenant's mail is not enabled / not certified / has no projected domain, so there is
+        # no usable verified From — NOTHING was queued and NO substitute sender was used (the
+        # jabaki.nl regression stays dead; Property 2/4/6). Mapped to a 422 carrying the TYPED
+        # machine reason so the SPA renders the right bilingual message + action (R8.1/R8.6a)
+        # rather than string-sniffing — "your tenant's mail is not certified — contact your
+        # administrator".
+        return _error(
+            422,
+            "The tenant mail sender is not certified",
+            code="errors.mail.notCertified",
+            reason=exc.reason.value,
+        )
+    except TemplateNotFound:
+        # Absent stored mail template for the tenant (R2) → 404, consistent with the member /
+        # catalog / analytics-set not-found mappings (get/update/delete of an absent template).
+        return _error(404, "Not found", code="errors.api.notFound")
+    except TemplateValidationError as exc:
+        # A malformed template write (blank name, no usable language, bad merge fields) → 422
+        # Unprocessable, carrying the per-field errors as an RFC 9457 array (v1.0). Also covers
+        # a render-time data fault (an absent language variant / missing body object) surfaced
+        # by the service as a TemplateValidationError.
         return _error(
             422,
             "Validation failed",
@@ -1018,5 +1308,12 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             request_id,
         )
         return _error(500, "Internal error", code="errors.api.serverError")
+
+    # A route may signal an ACCEPTED (202) outcome — the `deliver` route (R4) ENQUEUES the send
+    # and returns before the work is done, so the honest status is 202, not 200. Everything else
+    # is a completed 200. The envelope is identical (`{success:true, data}`); only the status
+    # differs (202 is still in the 2xx success range).
+    if isinstance(result, AcceptedResult):
+        return _response(202, {"data": result.data})
 
     return _response(200, {"data": result})
