@@ -84,6 +84,8 @@ def get_worker() -> Any:
             marker_store=DynamoDbMailSentMarkerStore(),
             template_service=template_service,
             audit=log_analytics_output,
+            # Advance the send-run status tally (R9.1) — same repo the template service uses.
+            run_store=repo,
         )
     return _WORKER
 
