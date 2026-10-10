@@ -184,12 +184,45 @@ def _to_fixed_envelope(job_id="job-fixed", attachment_kind="csv"):
     }
 
 
-def _worker(ses=None, markers=None, templates=None, audit=None):
+class FakeRunStore:
+    """Records the send-run status advances the worker makes (R9.1): status transitions, the
+    sent/failed count deltas, and any FAILURE sub-records written on a permanent send error."""
+
+    def __init__(self):
+        self.statuses: list[tuple[str, str, str]] = []  # (tenant, run, status)
+        self.counts: list[dict] = []  # {tenant, run, sent, failed}
+        self.failures: list[dict] = []  # {tenant, run, address, reason}
+
+    def update_mail_run_status(self, tenant_id, run_id, status):
+        self.statuses.append((tenant_id, run_id, status))
+        return {"status": status}
+
+    def increment_mail_run_counts(self, tenant_id, run_id, *, sent=0, failed=0):
+        self.counts.append({"tenant": tenant_id, "run": run_id, "sent": sent, "failed": failed})
+        return {"sent": sent, "failed": failed}
+
+    def record_mail_failure(self, tenant_id, run_id, *, address, status="failed", reason=None,
+                            message_id=None, adjust_run_tally=False):
+        self.failures.append({"tenant": tenant_id, "run": run_id, "address": address,
+                              "reason": reason})
+        return {"address": address}
+
+    @property
+    def sent_total(self):
+        return sum(c["sent"] for c in self.counts)
+
+    @property
+    def failed_total(self):
+        return sum(c["failed"] for c in self.counts)
+
+
+def _worker(ses=None, markers=None, templates=None, audit=None, run_store=None):
     return MailSendWorker(
         ses=ses or FakeSes(),
         marker_store=markers or FakeMarkerStore(),
         template_service=templates or FakeTemplates(),
         audit=audit,
+        run_store=run_store,
     )
 
 
@@ -476,3 +509,52 @@ class TestWorkerHandler:
     def test_handler_empty_batch_is_noop(self):
         worker_app._WORKER = _worker()
         assert worker_app.handler({"Records": []}) == {"batchItemFailures": []}
+
+
+class TestRunStatusTracking:
+    """The worker ADVANCES the send-run tally the enqueue side created (R9.1)."""
+
+    def test_successful_send_marks_sending_and_increments_sent(self):
+        runs = FakeRunStore()
+        _worker(run_store=runs).process(_per_recipient_envelope(address="ava@example.com"))
+        # status moved to `sending` for this run, and 1 recipient counted sent.
+        assert (TENANT, RUN_ID, "sending") in runs.statuses
+        assert runs.sent_total == 1
+        assert runs.failed_total == 0
+        assert runs.failures == []
+
+    def test_permanent_failure_records_failure_and_increments_failed(self):
+        runs = FakeRunStore()
+        ses = FakeSes(outcome=SesSendOutcome(ok=False, error="rejected: bad recipient"))
+        with pytest.raises(MailSendPermanent):
+            _worker(ses=ses, run_store=runs).process(
+                _per_recipient_envelope(address="ava@example.com")
+            )
+        # A FAILURE sub-record was written for the recipient + the failed count incremented.
+        assert len(runs.failures) == 1
+        assert runs.failures[0]["address"] == "ava@example.com"
+        assert runs.failed_total == 1
+        assert runs.sent_total == 0
+
+    def test_retryable_throttle_records_no_failure(self):
+        # A throttle will RETRY — it must NOT be counted as a failed send.
+        runs = FakeRunStore()
+        ses = FakeSes(outcome=SesSendOutcome(ok=False, error="Throttling: slow down"))
+        with pytest.raises(MailSendRetryable):
+            _worker(ses=ses, run_store=runs).process(_per_recipient_envelope())
+        assert runs.failures == []
+        assert runs.failed_total == 0
+
+    def test_deduped_redelivery_does_not_double_count(self):
+        runs = FakeRunStore()
+        markers = FakeMarkerStore()
+        worker = _worker(markers=markers, run_store=runs)
+        env = _per_recipient_envelope(job_id="job-dup-run", address="ava@example.com")
+        worker.process(env)
+        worker.process(env)  # at-least-once redelivery — deduped, no second count
+        assert runs.sent_total == 1
+
+    def test_no_run_store_is_a_noop(self):
+        # The send path must work with no run_store wired (status tracking is additive).
+        result = _worker(run_store=None).process(_per_recipient_envelope())
+        assert result.sent is True

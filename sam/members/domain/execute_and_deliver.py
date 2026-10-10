@@ -602,6 +602,18 @@ class ExecuteAndDeliverService:
             self._queue.enqueue(job)
             job_ids.append(job_id)
 
+        # Write the send-run status TALLY at enqueue (R9.1): a `mailrun#<run_id>` row with
+        # status=queued + the enqueued recipient count. Idempotent on run_id (a re-enqueue of
+        # the same logical run does not reset an already-advanced run). The worker advances it
+        # (sending/completed + sent/failed counts). This is what feeds the status/history screen.
+        self._repo.create_mail_run(
+            tenant_id,
+            run_id,
+            mode=DELIVERY_MODE_PER_RECIPIENT,
+            triggered_by=reply_to or "",
+            recipient_count=len(job_ids),
+        )
+
         return DeliveryOutcome(
             run_id=run_id,
             mode=DELIVERY_MODE_PER_RECIPIENT,
@@ -671,6 +683,17 @@ class ExecuteAndDeliverService:
             rows=tuple(dict(r) for r in result_rows),
         )
         self._queue.enqueue(job)
+
+        # Write the send-run status TALLY at enqueue (R9.1): one `mailrun#<run_id>` row with
+        # status=queued. recipient_count = the fixed-recipient count (the worker sends ONE
+        # message to the whole list, but the tally tracks the recipients). Idempotent on run_id.
+        self._repo.create_mail_run(
+            tenant_id,
+            run_id,
+            mode=DELIVERY_MODE_TO_FIXED,
+            triggered_by=reply_to or "",
+            recipient_count=len(recipients),
+        )
 
         return DeliveryOutcome(
             run_id=run_id,

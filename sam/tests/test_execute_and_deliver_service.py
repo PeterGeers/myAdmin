@@ -71,6 +71,9 @@ class FakeRepo:
         self._members: dict[str, list[dict]] = {}
         self.list_members_calls: list[str] = []
         self.get_set_calls: list[tuple] = []
+        # Records the send-run tallies the service creates at enqueue (R9.1) so a test can assert
+        # a `mailrun#` was created with the right mode + recipient_count. Keyed by (tenant, run).
+        self.mail_runs: dict[tuple, dict] = {}
 
     # seed helpers
     def put_set(self, entry: AnalyticsSetEntry) -> None:
@@ -89,6 +92,25 @@ class FakeRepo:
         # scan across other tenants' rows).
         self.list_members_calls.append(tenant_id)
         return list(self._members.get(tenant_id, []))
+
+    def create_mail_run(self, tenant_id, run_id, *, mode, triggered_by, recipient_count):
+        # Idempotent on run_id, like the real repo: a second create for the same run is a no-op.
+        key = (tenant_id, run_id)
+        existing = self.mail_runs.get(key)
+        if existing is not None:
+            return existing
+        run = {
+            "tenant_id": tenant_id,
+            "run_id": run_id,
+            "mode": mode,
+            "triggered_by": triggered_by,
+            "recipient_count": recipient_count,
+            "status": "queued",
+            "sent": 0,
+            "failed": 0,
+        }
+        self.mail_runs[key] = run
+        return run
 
 
 class PassThroughPivot:
