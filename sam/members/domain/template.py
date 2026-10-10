@@ -55,6 +55,7 @@ from sam.members.domain.error_codes import (
 __all__ = [
     "MERGE_PLACEHOLDER_PATTERN",
     "SORT_KEY_SEPARATOR",
+    "TEMPLATE_KINDS",
     "TEMPLATE_ORIGINS",
     "TemplateEntry",
     "TemplateLanguage",
@@ -70,6 +71,14 @@ SORT_KEY_SEPARATOR = "#"
 #: The valid ``origin`` values. ``user`` is a tenant-authored template; ``preset`` is a
 #: shipped/prefab template a tenant may start from. Default: ``user``.
 TEMPLATE_ORIGINS: tuple[str, ...] = ("user", "preset")
+
+#: The valid ``kind`` values (labels sub-spec R-L1). ``mail`` is the historical HTML-body
+#: template (per-language subject + body); ``label`` is an address-label template whose content
+#: is ``lines`` (ordered lines of pivot-result field keys) and carries no mail body. ``kind`` is
+#: a DISCRIMINATOR so both coexist in the one ``template#`` store. Default (absent/``None``) is
+#: ``mail`` so every template written before this field existed stays a mail template — the
+#: addition is backward-compatible.
+TEMPLATE_KINDS: tuple[str, ...] = ("mail", "label")
 
 #: The ``{{ field_name }}`` merge-placeholder grammar used by :func:`render_with_merge`. A
 #: placeholder is a field key (letters, digits, underscores, dots — e.g. ``first_name`` or
@@ -162,6 +171,15 @@ class TemplateEntry:
     created_by: str = ""
     created_at: str = ""
     updated_at: str = ""
+    #: The template KIND discriminator (labels sub-spec R-L1). ``"mail"`` (the default — and
+    #: what an absent/``None`` stored value resolves to) is the historical HTML-body template;
+    #: ``"label"`` is an address-label template whose content is :attr:`lines`. See
+    #: :data:`TEMPLATE_KINDS`.
+    kind: str = "mail"
+    #: The LABEL content model (labels sub-spec R-L1), only meaningful when ``kind == "label"``:
+    #: an ordered list of lines, each line a list of pivot-result field keys (a multi-key line
+    #: is space-joined at compose time). No hard line limit. Empty/absent for a mail template.
+    lines: Sequence[Sequence[str]] = field(default_factory=tuple)
 
     # ── validation ──────────────────────────────────────────────────────────────────
 
@@ -199,25 +217,61 @@ class TemplateEntry:
                 code=TEMPLATE_NAME, detail="must be a non-blank string"
             )
 
-        if not isinstance(self.languages, Mapping) or not self.languages:
-            errors["languages"] = FieldError(
-                code=TEMPLATE_LANGUAGES,
-                detail="must be a non-empty mapping of language code to {subject, s3_body_key}",
+        if self.kind not in TEMPLATE_KINDS:
+            errors["kind"] = FieldError(
+                code=TEMPLATE_ORIGIN,
+                detail=f"must be one of: {', '.join(TEMPLATE_KINDS)}",
+                params={"allowed": list(TEMPLATE_KINDS)},
             )
-        else:
-            usable = [
-                lang
-                for lang in self.languages.values()
-                if isinstance(lang, TemplateLanguage) and not lang.is_blank()
-            ]
-            if not usable:
-                errors["languages"] = FieldError(
+
+        if self.kind == "label":
+            # A LABEL template's content is `lines` (ordered lines of field keys); it carries NO
+            # mail body, so `languages` is not required for it (R-L1). At least one non-empty line
+            # with at least one non-blank field key is required — a label with no lines is empty.
+            if not isinstance(self.lines, (list, tuple)) or not self.lines:
+                errors["lines"] = FieldError(
                     code=TEMPLATE_LANGUAGES,
                     detail=(
-                        "at least one language must carry a non-blank subject and body key "
-                        "(a template with no usable body is unsendable)"
+                        "a label template must carry a non-empty list of lines "
+                        "(each line a list of field keys)"
                     ),
                 )
+            else:
+                usable_lines = [
+                    line
+                    for line in self.lines
+                    if isinstance(line, (list, tuple))
+                    and any(isinstance(k, str) and k.strip() for k in line)
+                ]
+                if not usable_lines:
+                    errors["lines"] = FieldError(
+                        code=TEMPLATE_LANGUAGES,
+                        detail=(
+                            "at least one line must carry a non-blank field key "
+                            "(a label with no usable lines is empty)"
+                        ),
+                    )
+        else:
+            # Mail template (default) — unchanged: at least one usable language variant required.
+            if not isinstance(self.languages, Mapping) or not self.languages:
+                errors["languages"] = FieldError(
+                    code=TEMPLATE_LANGUAGES,
+                    detail="must be a non-empty mapping of language code to {subject, s3_body_key}",
+                )
+            else:
+                usable = [
+                    lang
+                    for lang in self.languages.values()
+                    if isinstance(lang, TemplateLanguage) and not lang.is_blank()
+                ]
+                if not usable:
+                    errors["languages"] = FieldError(
+                        code=TEMPLATE_LANGUAGES,
+                        detail=(
+                            "at least one language must carry a non-blank subject and body key "
+                            "(a template with no usable body is unsendable)"
+                        ),
+                    )
 
         if not isinstance(self.merge_fields, (list, tuple)):
             errors["merge_fields"] = FieldError(
@@ -253,7 +307,7 @@ class TemplateEntry:
         never be written. ``languages`` is flattened to plain ``{lang: {subject, s3_body_key}}``.
         """
         self.validate()
-        return {
+        item: dict[str, Any] = {
             "tenant_id": self.tenant_id,
             "template_id": self.template_id,
             "name": self.name,
@@ -267,6 +321,15 @@ class TemplateEntry:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+        # `kind`/`lines` are ADDITIVE (labels sub-spec R-L1): a mail template (the default kind,
+        # no lines) serializes EXACTLY as before — the discriminator + lines are written only
+        # when they carry meaning, so existing mail items are byte-identical and round-trip
+        # unchanged. A label template carries both.
+        if self.kind != "mail":
+            item["kind"] = self.kind
+        if self.lines:
+            item["lines"] = [list(line) for line in self.lines]
+        return item
 
     @classmethod
     def from_item(cls, item: Mapping[str, Any]) -> TemplateEntry:
@@ -301,6 +364,19 @@ class TemplateEntry:
         origin = item.get("origin")
         created_by = item.get("created_by")
         logo = item.get("logo_asset_ref")
+
+        # `kind` defaults to "mail" for a legacy item written before the field existed
+        # (backward-compatible, R-L1). `lines` rebuilds the label content model (list of lists of
+        # field-key strings), tolerating a malformed/absent value as empty.
+        raw_kind = item.get("kind")
+        kind = raw_kind if isinstance(raw_kind, str) and raw_kind else "mail"
+        raw_lines = item.get("lines")
+        lines: list[list[str]] = []
+        if isinstance(raw_lines, (list, tuple)):
+            for line in raw_lines:
+                if isinstance(line, (list, tuple)):
+                    lines.append([str(k) for k in line if isinstance(k, str) and k])
+
         return cls(
             tenant_id=item.get("tenant_id", ""),
             template_id=item.get("template_id", ""),
@@ -312,6 +388,11 @@ class TemplateEntry:
             created_by=created_by if isinstance(created_by, str) else "",
             created_at=item.get("created_at", ""),
             updated_at=item.get("updated_at", ""),
+            kind=kind,
+            # No lines → the dataclass default (empty tuple) so a mail entry rebuilt from a
+            # legacy item stays `== ` the original (which also defaults lines to `()`), keeping
+            # the round-trip identity test green.
+            lines=tuple(tuple(line) for line in lines) if lines else tuple(),
         )
 
     def language(self, lang: str) -> TemplateLanguage | None:

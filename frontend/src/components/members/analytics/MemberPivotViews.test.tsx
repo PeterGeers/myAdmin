@@ -133,36 +133,43 @@ vi.mock('../../../services/memberAnalyticsAuditService', () => ({
 
 // --- Mock the reused AddressLabelGenerator (task 6.1 / R6) so the "Generate
 // address labels" action in the result-actions slot can be asserted without
-// driving the real jsPDF options UI. The mock records the props it receives
-// (rows / fieldConfig / canExport / setKey) so a test proves the slot passes the
-// CURRENT result rows + the caller's export capability straight through to the
-// generator, which itself reuses addressLabelService.generateAddressLabelPdf. --
-const addressLabelGeneratorCalls: Array<{
-  rows: unknown[];
-  canExport: boolean;
-  setKey?: string;
-}> = [];
-vi.mock('./AddressLabelGenerator', () => ({
-  default: function MockAddressLabelGenerator(props: {
-    rows: unknown[];
-    canExport: boolean;
-    setKey?: string;
-  }) {
-    addressLabelGeneratorCalls.push({
-      rows: props.rows,
-      canExport: props.canExport,
-      setKey: props.setKey,
-    });
-    return (
-      <div
-        data-testid="mock-address-label-generator"
-        data-row-count={props.rows.length}
-        data-can-export={String(props.canExport)}
-        data-set-key={props.setKey ?? ''}
-      />
-    );
-  },
-}));
+// driving the real jsPDF layout. The TEMPLATE-DRIVEN labels modal (labels
+// sub-spec task 3.2) composes via `generateLabelTemplatePdf`; we mock ONLY that
+// service export (spreading the real module so the format catalogue +
+// `generateAddressLabelPdf` the mail-attach path uses stay intact), capturing
+// each call's args so a test proves the modal composes the CURRENT result rows
+// through the CHOSEN template's lines + the CHOSEN Avery format, and that
+// `result.doc.save` fires the download. --
+const generateLabelTemplatePdf = vi.fn();
+vi.mock('./addressLabelService', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('./addressLabelService')>();
+  return {
+    ...actual,
+    generateLabelTemplatePdf: (...args: unknown[]) =>
+      generateLabelTemplatePdf(...args),
+  };
+});
+
+// --- Mock the member template service (labels sub-spec R-L2, task 3.1). ------
+// The labels action gate loads the tenant's `kind:"label"` templates via
+// `listMemberTemplates` (injectable prop, defaulting to this real service). It
+// is mocked so no network is hit; the DEFAULT resolves to an ok result with NO
+// label templates (so, as before, the labels action stays hidden unless a test
+// opts in). Property-3 tests inject their own `listTemplates` fake directly to
+// drive the ≥1-label-template branch, independent of this module default.
+const listMemberTemplates = vi.fn();
+vi.mock('../../../services/memberTemplateService', async (importOriginal) => {
+  // Spread the real module so the OTHER exports MemberMailCompose imports
+  // (getMemberTemplate, createMemberTemplate, …) stay intact; only the
+  // labels-gate loader `listMemberTemplates` is replaced with a controllable fn.
+  const actual =
+    await importOriginal<typeof import('../../../services/memberTemplateService')>();
+  return {
+    ...actual,
+    listMemberTemplates: (...args: unknown[]) => listMemberTemplates(...args),
+  };
+});
 
 // Echo i18n keys so assertions are locale-independent (no hardcoded English).
 vi.mock('../../../hooks/useTypedTranslation', () => ({
@@ -264,7 +271,20 @@ beforeEach(() => {
   generateCsvFromObjects.mockReturnValue('col\nval');
   recordAnalyticsOutput.mockReset();
   recordAnalyticsOutput.mockResolvedValue(true);
-  addressLabelGeneratorCalls.length = 0;
+  generateLabelTemplatePdf.mockReset();
+  // Default: the template generator returns a doc stub + sane counts; a test can
+  // override the counts, and the doc's save/output are spies so download/print
+  // never touch real jsPDF or the DOM.
+  generateLabelTemplatePdf.mockReturnValue({
+    doc: { save: vi.fn(), output: vi.fn().mockReturnValue('blob:labels') },
+    labelCount: 3,
+    excludedCount: 0,
+    pages: 1,
+  });
+  // Default: an ok template list with NO label templates (labels sub-spec R-L2),
+  // so the labels action stays hidden unless a test provides a label template.
+  listMemberTemplates.mockReset();
+  listMemberTemplates.mockResolvedValue({ ok: true, data: [] });
   putAnalyticsSetDelivery.mockReset();
   deleteAnalyticsSetDelivery.mockReset();
   deliverAnalyticsSet.mockReset();
@@ -1392,11 +1412,18 @@ describe('MemberPivotViews', () => {
 
     // Seed membership-types as preferred so the aggregate path can select it
     // from the dropdown (new contract: dropdown = preferred + selector presets).
+    // Also seed ≥1 LABEL template so the NEW labels gate (R-L2 / Property 3:
+    // `canExport && hasLabelTemplate`) is satisfied — these task-6.1 tests assert
+    // the MOUNTED action, so the gate must be open.
     beforeEach(() => {
       getPreferredList.mockResolvedValue({
         sub: 'u1',
         refs: ['preset:membership-types'],
         updated_at: '',
+      });
+      listMemberTemplates.mockResolvedValue({
+        ok: true,
+        data: [{ template_id: 'lbl-1', name: 'Addresses', kind: 'label', lines: [['membership_type']] }],
       });
     });
 
@@ -1440,38 +1467,72 @@ describe('MemberPivotViews', () => {
       expect(labelsButton).toHaveTextContent('analytics.labels.action');
     });
 
-    it('opens a modal hosting the AddressLabelGenerator options UI when clicked', async () => {
+    it('opens a modal hosting the template-driven labels panel when clicked', async () => {
       render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
       await executeAggregate();
 
-      // The generator is not mounted until the action is clicked (the modal is
-      // closed, so its body — and the generator — is not rendered yet).
-      expect(screen.queryByTestId('mock-address-label-generator')).not.toBeInTheDocument();
+      // The panel is not mounted until the action is clicked (the modal is
+      // closed, so its body — and the panel — is not rendered yet).
+      expect(screen.queryByTestId('member-labels-panel')).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId('member-pivot-labels'));
 
-      // The modal opens with the bilingual title and the hosted generator.
+      // The modal opens with the bilingual title and the hosted panel: a template
+      // select populated from the loaded kind:"label" templates + the Avery
+      // format select + the Generate button.
       expect(await screen.findByTestId('member-pivot-labels-modal')).toBeInTheDocument();
       expect(screen.getByText('analytics.labels.modalTitle')).toBeInTheDocument();
-      expect(screen.getByTestId('mock-address-label-generator')).toBeInTheDocument();
+      expect(screen.getByTestId('member-labels-panel')).toBeInTheDocument();
+
+      const templateSelect = screen.getByTestId(
+        'member-pivot-labels-template',
+      ) as HTMLSelectElement;
+      const templateValues = Array.from(
+        templateSelect.querySelectorAll('option'),
+      ).map((o) => o.value);
+      expect(templateValues).toEqual(['lbl-1']); // the loaded label template
+
+      const formatSelect = screen.getByTestId(
+        'member-pivot-labels-format',
+      ) as HTMLSelectElement;
+      const formatValues = Array.from(
+        formatSelect.querySelectorAll('option'),
+      ).map((o) => o.value);
+      expect(formatValues).toContain('L7160'); // the default Avery format
+      expect(screen.getByTestId('member-pivot-labels-generate')).toBeInTheDocument();
     });
 
-    it('passes the CURRENT result rows + export capability through to the generator', async () => {
+    it('Generate composes the CURRENT rows through the chosen template lines + format and downloads', async () => {
       render(<MemberPivotViews {...labelsProps({ canExport: true })} />);
       await executeAggregate();
       const produced = tableCalls[tableCalls.length - 1];
 
       fireEvent.click(screen.getByTestId('member-pivot-labels'));
-      await screen.findByTestId('mock-address-label-generator');
+      await screen.findByTestId('member-labels-panel');
 
-      // The generator received the produced result rows (the same `exportRows`
-      // CSV / Mail use) + the caller's members:export capability + the selected
-      // set key for the audit label — proving the slot wires straight through to
-      // the reused generator (which itself reuses generateAddressLabelPdf).
-      const lastCall = addressLabelGeneratorCalls[addressLabelGeneratorCalls.length - 1];
-      expect(lastCall.rows).toEqual(produced.data);
-      expect(lastCall.canExport).toBe(true);
-      expect(lastCall.setKey).toBe('preset:membership-types');
+      // Pick the (only) label template + the L7163 format, then Generate.
+      fireEvent.change(screen.getByTestId('member-pivot-labels-format'), {
+        target: { value: 'L7163' },
+      });
+      fireEvent.click(screen.getByTestId('member-pivot-labels-generate'));
+
+      await waitFor(() => expect(generateLabelTemplatePdf).toHaveBeenCalled());
+      const call = generateLabelTemplatePdf.mock.calls[
+        generateLabelTemplatePdf.mock.calls.length - 1
+      ] as unknown[];
+      // (rows, fieldConfig, { lines }, format, options)
+      expect(call[0]).toEqual(produced.data); // CURRENT result rows (R2/R3)
+      expect(call[2]).toEqual({ lines: [['membership_type']] }); // chosen template's lines
+      expect((call[3] as { key: string }).key).toBe('L7163'); // chosen Avery format
+
+      // The produced doc is saved → the PDF downloads (R-L4).
+      const result = generateLabelTemplatePdf.mock.results[
+        generateLabelTemplatePdf.mock.results.length - 1
+      ].value as { doc: { save: ReturnType<typeof vi.fn> } };
+      expect(result.doc.save).toHaveBeenCalledTimes(1);
+
+      // The count badges reflect the run.
+      expect(screen.getByTestId('member-pivot-labels-counts')).toBeInTheDocument();
     });
 
     it('labels ONLY the table-filtered subset, not the full result (findings: table filters limit the output)', async () => {
@@ -1487,30 +1548,54 @@ describe('MemberPivotViews', () => {
       fireEvent.click(screen.getByTestId('mock-table-filter-to-first-row'));
 
       fireEvent.click(screen.getByTestId('member-pivot-labels'));
-      await screen.findByTestId('mock-address-label-generator');
+      await screen.findByTestId('member-labels-panel');
+      fireEvent.click(screen.getByTestId('member-pivot-labels-generate'));
 
+      await waitFor(() => expect(generateLabelTemplatePdf).toHaveBeenCalled());
       // The generator is handed the FILTERED subset (one row), not the full set.
-      const lastCall = addressLabelGeneratorCalls[addressLabelGeneratorCalls.length - 1];
-      expect(lastCall.rows).toEqual(produced.data.slice(0, 1));
+      const call = generateLabelTemplatePdf.mock.calls[
+        generateLabelTemplatePdf.mock.calls.length - 1
+      ] as unknown[];
+      expect(call[0]).toEqual(produced.data.slice(0, 1));
     });
   });
 
   // --- Task 6.2: the "Generate address labels" availability gate (R6). -------
-  // The action is OFFERED only when there is a resolvable `address_mapping` AND
-  // the caller holds `members:export`; otherwise it is HIDDEN with the EXISTING
-  // degradation reason (`analytics.degradation.addressMappingAbsent`) — a
-  // config/capability gate, NOT a tenant gate (CSV + Mail stay available). Three
-  // states: available / hidden-when-no-mapping / hidden-when-no-export.
-  describe('Generate address labels availability gate (task 6.2, R6)', () => {
-    // A resolvable mapping: the `name` slot → the present `membership_type` field
-    // (so `resolveAddressMapping` returns a non-empty mapping).
+  // Labels sub-spec R-L2 / Property 3 (REWORKED gate): the "Generate address
+  // labels" action is OFFERED only when the caller holds `members:export` AND at
+  // least one LABEL template (`kind:"label"`) exists; otherwise it is HIDDEN with
+  // the bilingual labels-namespace degradation reason (`analytics.labels.noTemplate`).
+  // The gate depends ONLY on `canExport` + `hasLabelTemplate` — crucially NOT on
+  // the address mapping / any `analytics.*` config (R6). The template loader is
+  // injected via the `listTemplates` prop so these tests drive the gate with no
+  // network. States: offered / hidden-no-template / hidden-no-export / and the
+  // key R6 assertion that the mapping is irrelevant to the gate.
+  describe('Generate address labels availability gate (labels R-L2 / Property 3)', () => {
+    // A field config WITHOUT any analytics address mapping. The NEW gate must not
+    // read it at all — a label template alone (plus export) opens the action.
+    const fieldConfigNoMapping = fieldConfig;
+
+    // A field config WITH a resolvable address mapping. Under the OLD gate this
+    // alone opened the action; under the NEW gate it is IRRELEVANT — proving the
+    // gate no longer depends on the mapping (R6 / Property 3).
     const fieldConfigWithMapping = {
       ...fieldConfig,
       analytics: { address_mapping: { name: 'membership_type' } },
     } as unknown as FieldConfig;
 
-    // No analytics block at all → `resolveAddressMapping` returns {} → no mapping.
-    const fieldConfigNoMapping = fieldConfig;
+    /** A fake template loader resolving to the given templates (ok result). */
+    const templatesLoader =
+      (data: unknown[]) => vi.fn().mockResolvedValue({ ok: true, data });
+
+    /** One label + one mail template — a kind:"label" exists ⇒ gate can open. */
+    const withLabelTemplate = templatesLoader([
+      { template_id: 'lbl-1', name: 'Addresses', kind: 'label', lines: [['membership_type']] },
+      { template_id: 'mail-1', name: 'Newsletter', kind: 'mail', languages: {} },
+    ]);
+    /** Only a mail template — NO kind:"label" ⇒ gate stays closed. */
+    const withoutLabelTemplate = templatesLoader([
+      { template_id: 'mail-1', name: 'Newsletter', kind: 'mail', languages: {} },
+    ]);
 
     beforeEach(() => {
       getPreferredList.mockResolvedValue({
@@ -1535,13 +1620,11 @@ describe('MemberPivotViews', () => {
       await screen.findByTestId('mock-pivot-result-table');
     }
 
-    it('OFFERS the labels action when a mapping resolves AND the caller may export', async () => {
+    it('OFFERS the labels action when the caller may export AND ≥1 label template exists', async () => {
       render(
         <MemberPivotViews
-          {...makeProps({
-            capabilities: { canExport: true },
-            fieldConfig: fieldConfigWithMapping,
-          })}
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={withLabelTemplate}
         />,
       );
       await executeAggregate();
@@ -1553,25 +1636,22 @@ describe('MemberPivotViews', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('HIDES the labels action with the degradation reason when NO address mapping resolves', async () => {
+    it('HIDES the labels action with the no-template reason when ZERO label templates exist', async () => {
       render(
         <MemberPivotViews
-          {...makeProps({
-            capabilities: { canExport: true },
-            fieldConfig: fieldConfigNoMapping,
-          })}
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={withoutLabelTemplate}
         />,
       );
       await executeAggregate();
 
-      // The action is hidden; the SHARED degradation reason explains why (the
-      // SAME i18n key the PDF-labels mail attachment uses, R4.10).
+      // Hidden; the NEW bilingual labels-namespace reason explains why ("no label
+      // template"). The old address-mapping key is NOT used by this gate anymore.
       expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
       const notice = screen.getByTestId('member-pivot-labels-unavailable');
       expect(notice).toBeInTheDocument();
-      expect(notice).toHaveTextContent('analytics.degradation.addressMappingAbsent');
-      // It is a degradation (not an empty / error state) — same mechanism as the
-      // other analytics degradations.
+      expect(notice).toHaveTextContent('analytics.labels.noTemplate');
+      // A degradation (not an empty / error state).
       expect(notice).toHaveAttribute('data-notice-kind', 'degradation');
 
       // Config/capability gate — NOT a tenant gate: CSV + Mail stay available.
@@ -1580,15 +1660,12 @@ describe('MemberPivotViews', () => {
     });
 
     it('HIDES the labels action (and the whole slot) when the caller lacks members:export', async () => {
-      // Even with a resolvable mapping, no export → the whole result-actions slot
-      // is absent, so neither the action nor its degradation notice renders (the
-      // caller cannot export at all — there is nothing to degrade to).
+      // Even WITH a label template, no export → the whole result-actions slot is
+      // absent, so neither the action nor its degradation notice renders.
       render(
         <MemberPivotViews
-          {...makeProps({
-            capabilities: { canExport: false },
-            fieldConfig: fieldConfigWithMapping,
-          })}
+          {...makeProps({ capabilities: { canExport: false } })}
+          listTemplates={withLabelTemplate}
         />,
       );
       await executeAggregate();
@@ -1600,24 +1677,82 @@ describe('MemberPivotViews', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('does NOT open the labels modal when the gate is closed (no mapping)', async () => {
-      // The modal mount is gated on `canGenerateLabels`, so even if some other
-      // path tried to open it, a tenant without a mapping can never reach the
-      // generator. With no action button there is no way to open it; assert the
-      // modal / generator are absent after execute.
+    it('does NOT depend on the address mapping: a config with NO mapping but WITH a label template still SHOWS the action (R6 / Property 3)', async () => {
+      // THE key Property-3/R6 assertion. The field config has NO address_mapping
+      // at all, yet because a label template exists AND the caller may export,
+      // the action is OFFERED — proving the gate stopped reading `analytics.*`.
       render(
         <MemberPivotViews
           {...makeProps({
             capabilities: { canExport: true },
             fieldConfig: fieldConfigNoMapping,
           })}
+          listTemplates={withLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.getByTestId('member-pivot-labels')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('member-pivot-labels-unavailable'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does NOT depend on the address mapping: a config WITH a mapping but NO label template still HIDES the action (R6 / Property 3)', async () => {
+      // The converse: a resolvable address mapping is present, but there is NO
+      // label template — under the OLD gate this would have shown the action;
+      // under the NEW gate it is correctly HIDDEN. The mapping is irrelevant.
+      render(
+        <MemberPivotViews
+          {...makeProps({
+            capabilities: { canExport: true },
+            fieldConfig: fieldConfigWithMapping,
+          })}
+          listTemplates={withoutLabelTemplate}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId('member-pivot-labels-unavailable'),
+      ).toHaveTextContent('analytics.labels.noTemplate');
+    });
+
+    it('fails closed: a non-ok template load hides the action (no crash)', async () => {
+      // A failed template load (ok:false) is treated as zero label templates —
+      // the action is hidden with the degradation reason, never a crash.
+      const failingLoader = vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, error: 'boom' });
+      render(
+        <MemberPivotViews
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={failingLoader}
+        />,
+      );
+      await executeAggregate();
+
+      expect(screen.queryByTestId('member-pivot-labels')).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId('member-pivot-labels-unavailable'),
+      ).toBeInTheDocument();
+    });
+
+    it('does NOT open the labels modal when the gate is closed (no template)', async () => {
+      // The modal mount is gated on `canGenerateLabels`; with no label template
+      // there is no action button and the modal / generator never mount.
+      render(
+        <MemberPivotViews
+          {...makeProps({ capabilities: { canExport: true } })}
+          listTemplates={withoutLabelTemplate}
         />,
       );
       await executeAggregate();
 
       expect(screen.queryByTestId('member-pivot-labels-modal')).not.toBeInTheDocument();
       expect(
-        screen.queryByTestId('mock-address-label-generator'),
+        screen.queryByTestId('member-labels-panel'),
       ).not.toBeInTheDocument();
     });
   });

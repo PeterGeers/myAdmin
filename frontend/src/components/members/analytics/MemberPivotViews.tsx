@@ -78,6 +78,7 @@ import {
   AlertDialogOverlay,
   Box,
   Button,
+  Checkbox,
   FormControl,
   FormLabel,
   HStack,
@@ -138,7 +139,6 @@ import MemberMailCompose from './MemberMailCompose';
 import MemberMailStatus from './MemberMailStatus';
 import MemberDeliveryEditor from './MemberDeliveryEditor';
 import MemberScheduleEditor from './MemberScheduleEditor';
-import AddressLabelGenerator from './AddressLabelGenerator';
 import {
   AVERY_LABEL_FORMATS,
   DEFAULT_LABEL_FORMAT_KEY,
@@ -146,6 +146,11 @@ import {
   generateAddressLabelPdf,
 } from './addressLabelService';
 import { resolveAddressMapping } from './analyticsConfig';
+import MemberLabelsPanel from './MemberLabelsPanel';
+import {
+  listMemberTemplates as realListMemberTemplates,
+  type MemberTemplateDto,
+} from '../../../services/memberTemplateService';
 import AnalyticsStateNotice from './areas/AnalyticsStateNotice';
 import {
   candidateJubileeYears,
@@ -270,11 +275,23 @@ async function resolveConfig(set: SelectableSet): Promise<PivotConfig | undefine
   return undefined;
 }
 
-const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
+/**
+ * The optional injectable template loader (labels sub-spec R-L2, task 3.1). The
+ * labels action gate needs to know whether the tenant has ≥1 `kind:"label"`
+ * template; it loads them via `listMemberTemplates`. The prop defaults to the
+ * real service and exists only so a test can inject a fake (no network).
+ */
+interface MemberPivotViewsProps extends MemberAnalyticsAreaProps {
+  /** Injectable template-list loader; defaults to the real `listMemberTemplates`. */
+  listTemplates?: typeof realListMemberTemplates;
+}
+
+const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   processedData,
   fieldConfig,
   language,
   capabilities,
+  listTemplates = realListMemberTemplates,
 }) => {
   const { t } = useTypedTranslation('members');
   const toast = useToast();
@@ -292,6 +309,13 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
   // client-side data-source filter is needed: the Members Lambda never returns
   // another module's sets.
   const [savedModels, setSavedModels] = useState<MemberAnalyticsSetSummary[]>([]);
+
+  // The tenant's LABEL templates (`kind:"label"`), loaded once on mount (labels
+  // sub-spec R-L2, task 3.1). Their mere EXISTENCE (≥1) gates the "Generate
+  // address labels" action — see `hasLabelTemplate` / `canGenerateLabels` below.
+  // FAIL-CLOSED: a non-ok result or a throw leaves this empty, so the action is
+  // simply hidden with the bilingual degradation reason — never a crash.
+  const [labelTemplates, setLabelTemplates] = useState<MemberTemplateDto[]>([]);
 
   // The currently SELECTED option value — selection alone runs nothing (R1.6).
   const [selectedValue, setSelectedValue] = useState<string>('');
@@ -387,15 +411,16 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     schedule?: MemberSchedule;
   } | null>(null);
 
-  // --- Address-label generate state (task 6.1 / R6). -------------------------
+  // --- Address-label generate state (labels sub-spec task 3.2 / R-L2). -------
   // The "Generate address labels" action in the `pivot-result-actions` slot
-  // (beside CSV / Mail) opens a modal hosting the existing `AddressLabelGenerator`
-  // options UI, which lets the user pick the Avery format + per-run options and
-  // builds the PDF by REUSING `addressLabelService.generateAddressLabelPdf` (no
-  // bespoke generation here). It operates on the CURRENT result rows (`exportRows`
-  // — the table's post-filter visible rows). The availability GATE (resolvable
-  // address_mapping + members:export) is task 6.2's job — not implemented here;
-  // this task only mounts the action.
+  // (beside CSV / Mail) opens a modal hosting the TEMPLATE-DRIVEN
+  // `MemberLabelsPanel`, which lets the user pick a stored `kind:"label"`
+  // template + an Avery format + the shared per-run options and builds the PDF
+  // via `generateLabelTemplatePdf` (compose through `composeLabelLines`, NO
+  // `analytics.*` — R6). It operates on the CURRENT result rows (`exportRows` —
+  // the table's post-filter visible rows, R2/R3). The availability GATE
+  // (`canGenerateLabels` = members:export + ≥1 label template) decides whether
+  // the modal is reachable (below).
   const [isLabelsOpen, setIsLabelsOpen] = useState(false);
 
   // The "All sets" library modal (opened from the button beside the set
@@ -507,6 +532,32 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
       active = false;
     };
   }, []);
+
+  // Load the tenant's LABEL templates on mount (labels sub-spec R-L2, task 3.1).
+  // Only `kind:"label"` templates matter here — a mail template never gates the
+  // labels action. FAIL-CLOSED: a non-ok result OR a thrown network error leaves
+  // the list empty (action hidden with the bilingual reason), never a crash. The
+  // loader is injectable via the `listTemplates` prop so a test can supply a fake.
+  useEffect(() => {
+    let active = true;
+    listTemplates()
+      .then((res) => {
+        if (!active) {
+          return;
+        }
+        setLabelTemplates(
+          res.ok ? res.data.filter((tpl) => tpl.kind === 'label') : [],
+        );
+      })
+      .catch(() => {
+        if (active) {
+          setLabelTemplates([]);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [listTemplates]);
 
   // The flat list of selectable sets, keyed by a collision-free option value.
   const sets: SelectableSet[] = useMemo(() => {
@@ -1264,17 +1315,24 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     [fieldConfig],
   );
 
-  // Availability gate for the "Generate address labels" action (R6, task 6.2).
-  // The action is OFFERED only when the tenant has a resolvable `address_mapping`
-  // AND the caller holds `members:export` — the SAME two conditions the existing
-  // PDF-labels mail attachment is gated on (R4.10 precedent: `hasAddressMapping`
-  // above; `members:export` = the capability that already gates the whole
-  // result-actions slot and the CSV/Mail actions). This is a CONFIG/CAPABILITY
-  // gate, NOT a tenant gate: a tenant with no address fields configured (or a
-  // caller without export) simply does not see the labels action, and the shared
-  // degradation reason explains why (below). `canGenerateLabels` is the single
-  // predicate the labels action (task 6.1) renders on.
-  const canGenerateLabels = capabilities.canExport && hasAddressMapping;
+  // Whether the tenant has at least one LABEL template (`kind:"label"`). This —
+  // NOT the address mapping — is now the content precondition the labels action
+  // depends on (labels sub-spec R-L2 / Property 3; R6 "no analytics config": the
+  // action no longer reads any `analytics.*`). Fail-closed: an empty list (a
+  // failed/absent load) means no template, so the action stays hidden.
+  const hasLabelTemplate = labelTemplates.length > 0;
+
+  // Availability gate for the "Generate address labels" action (labels sub-spec
+  // R-L2 / Property 3). The action is OFFERED only when the caller holds
+  // `members:export` AND at least one LABEL template exists. This is the NEW
+  // gate: it depends ONLY on `capabilities.canExport` + `hasLabelTemplate`, and
+  // deliberately NOT on the address mapping / any `analytics.*` config (R6). The
+  // mail compose's SEPARATE "attach PDF labels" path keeps using
+  // `hasAddressMapping` (below) — that is a different feature, left intact. When
+  // either condition is false the action is HIDDEN with a bilingual degradation
+  // reason (below). `canGenerateLabels` is the single predicate the labels action
+  // and its modal mount render on.
+  const canGenerateLabels = capabilities.canExport && hasLabelTemplate;
 
   // The tenant's mail-enabled gate flag (pivot-output-actions R0/R1 task 1.3, design §6.3).
   // The per-tenant "mail-enabled / SES-certified" onboarding gate is OWNED by the tenant-admin
@@ -1657,18 +1715,19 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
                     testId="member-pivot-mail-unavailable"
                   />
                 )}
-                {/* Generate address labels (task 6.1 / R6) — a first-class
-                    result action beside CSV / Mail. Opens the existing
-                    AddressLabelGenerator options UI in a modal; it reuses
-                    addressLabelService.generateAddressLabelPdf to build the PDF.
+                {/* Generate address labels (labels sub-spec R-L2 / Property 3) —
+                    a first-class result action beside CSV / Mail. Opens the
+                    labels options UI in a modal.
 
-                    Availability gate (task 6.2 / R6): the slot already requires
-                    `members:export`, so the one remaining condition is a
-                    resolvable `address_mapping` — together `canGenerateLabels`.
-                    When it holds, the action is OFFERED; when the mapping is
-                    ABSENT the action is HIDDEN and the SAME shared degradation
-                    reason the PDF-labels mail attachment uses explains why
-                    (`analytics.degradation.addressMappingAbsent`, R4.10). A
+                    Availability gate (labels sub-spec R-L2 / Property 3): the
+                    slot already requires `members:export`, so the one remaining
+                    condition is that at least one LABEL template exists — together
+                    `canGenerateLabels`. The gate depends ONLY on
+                    `canExport` + `hasLabelTemplate` and deliberately NOT on the
+                    address mapping / any `analytics.*` config (R6). When it holds,
+                    the action is OFFERED; when there is NO label template (or no
+                    export) the action is HIDDEN with the bilingual labels-namespace
+                    degradation reason (`analytics.labels.noTemplate`). A
                     config/capability gate — NOT a tenant gate: CSV + Mail stay
                     available regardless. */}
                 {canGenerateLabels ? (
@@ -1683,7 +1742,7 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
                 ) : (
                   <AnalyticsStateNotice
                     kind="degradation"
-                    message={t('analytics.degradation.addressMappingAbsent')}
+                    message={t('analytics.labels.noTemplate')}
                     testId="member-pivot-labels-unavailable"
                   />
                 )}
@@ -1956,28 +2015,23 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
         />
       )}
 
-      {/* Address-label generate modal (task 6.1 / R6). Hosts the existing
-          AddressLabelGenerator options UI so the user picks the Avery format +
-          per-run options (sort, start, font, alignment, border, country) and the
-          generator builds the PDF by REUSING
-          addressLabelService.generateAddressLabelPdf — no bespoke generation
-          here. It labels the CURRENT result rows (`exportRows`, the table's
-          post-filter visible rows), the same rows CSV / Mail use.
+      {/* Address-label generate modal (labels sub-spec task 3.2 / R-L2/R-L3/R-L4).
+          Hosts the TEMPLATE-DRIVEN MemberLabelsPanel: the user picks a stored
+          `kind:"label"` template + an Avery format, tunes the ONE shared
+          LabelStyleOptions (R-L5 — font, alignment, border, start position,
+          shrink-to-fit), and Generates. The panel composes the CURRENT result
+          rows (`exportRows`, the table's post-filter visible rows — R2/R3)
+          through the template via `generateLabelTemplatePdf`, which uses
+          `composeLabelLines` (NOT `composeAddresses`/`resolveAddressMapping`) and
+          reads NO `analytics.*` (R6 / Property 4), then downloads/prints the PDF
+          (R-L4). The `labelTemplates` list (loaded for the gate) is passed in so
+          no extra fetch is needed — the list DTO already carries each template's
+          `lines`.
 
-          COORDINATION (task 6.3): the shared `label_options` model now lives in
-          `./labelOptions` (LabelOptions + toStyleOptions/resolveLabelFormat +
-          toStored/fromStored). This action reuses AddressLabelGenerator, which
-          owns the interactive options UI and drives generateAddressLabelPdf; the
-          generator is the seam that should converge on `./labelOptions` so this
-          interactive path and R3's `to_fixed` labels delivery share the ONE
-          model (not two). We do NOT fork a parallel options shape here.
-
-          The availability GATE (resolvable address_mapping + members:export =
-          `canGenerateLabels`, task 6.2) decides whether the action is reachable:
-          the modal mounts only when the gate holds, so a tenant without an
-          address mapping (or a caller without export) can never open it. The
-          generator keeps its OWN members:export guard too (`canExport` passed
-          through) — defence in depth. */}
+          The availability GATE (members:export + ≥1 label template =
+          `canGenerateLabels`) decides whether the action is reachable: the modal
+          mounts only when the gate holds, so a caller without export (or a tenant
+          with no label template) can never open it. */}
       {result && canGenerateLabels && (
         <Modal
           isOpen={isLabelsOpen}
@@ -1991,11 +2045,10 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
             <ModalHeader>{t('analytics.labels.modalTitle')}</ModalHeader>
             <ModalCloseButton />
             <ModalBody pb={6}>
-              <AddressLabelGenerator
+              <MemberLabelsPanel
                 rows={exportRows as MemberRow[]}
-                fieldConfig={fieldConfig}
-                canExport={capabilities.canExport}
-                setKey={selectedSet?.optionValue}
+                fieldConfig={fieldConfig ?? undefined}
+                templates={labelTemplates}
               />
             </ModalBody>
           </ModalContent>
