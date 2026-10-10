@@ -119,7 +119,6 @@ import {
   savePreferredList,
   putAnalyticsSetDelivery,
   deleteAnalyticsSetDelivery,
-  deliverAnalyticsSet,
   listSchedulesForSet,
   createSchedule,
   updateSchedule,
@@ -1055,53 +1054,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
     toast({ title: t('analytics.delivery.cleared'), status: 'success' });
   }, [deliverySet, toast, t]);
 
-  // Deliver now (mail-spec task 2.4 / R3.1/R3.2): RUN the selected saved set's
-  // STORED `to_fixed` delivery immediately via the existing SAM deliver route
-  // (`POST /members/analytics-sets/{id}/deliver`, `deliverAnalyticsSet`). The
-  // route runs the set's STORED delivery (recipients + optional CSV attachment),
-  // so the action is only meaningful for a set that HAS a `to_fixed` delivery —
-  // the list summary carries only `hasDelivery` (not the mode), so we fetch the
-  // full set first and confirm `delivery.mode === 'to_fixed'`. A set with no
-  // delivery, or a `per_recipient` one, is NOT deliver-now-able here (the
-  // per_recipient interactive send is the separate compose path): we surface a
-  // clear reason, never a silent no-op (R3.4). On success the 202 receipt is
-  // surfaced as a "queued, N send(s)" acknowledgment (R3.5); a refusal
-  // (empty recipients 422, not-certified 422) is surfaced via `applyApiError` —
-  // the typed `errors.mail.notCertified` / `errors.analyticsset.delivery.
-  // notConfigured` codes resolve to the clear bilingual message (R4.2/R5.2).
-  const handleDeliverNow = useCallback(async () => {
-    if (!selectedModelSummary || isDeliveringNow) {
-      return;
-    }
-    setIsDeliveringNow(true);
-    try {
-      // Resolve the stored delivery (the summary carries only `hasDelivery`, not
-      // the mode). A fetch failure surfaces via applyApiError below.
-      const saved = await getAnalyticsSet(selectedModelSummary.id);
-      if (!saved.delivery || saved.delivery.mode !== 'to_fixed') {
-        // No `to_fixed` delivery to run — a clear reason, not a silent no-op
-        // (R3.4). The user must configure a fixed-address delivery first.
-        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
-        return;
-      }
-      const result = await deliverAnalyticsSet(saved.id);
-      // The accepted/queued receipt (R3.5): surface how many send jobs were
-      // enqueued (one message for a `to_fixed` delivery).
-      toast({
-        title: t('analytics.delivery.deliverNowQueued', { count: result.enqueued }),
-        status: 'success',
-      });
-    } catch (err) {
-      // Surface the typed refusal/validation reason (API standard v1.0): a
-      // not-certified tenant (`errors.mail.notCertified`) or a set with no stored
-      // delivery (`errors.analyticsset.delivery.notConfigured`) resolves to the
-      // clear bilingual message; a network/unknown throw degrades to the shared
-      // server-error toast. No form fields here → no setFieldError.
-      applyApiError(err, { toast, t });
-    } finally {
-      setIsDeliveringNow(false);
-    }
-  }, [selectedModelSummary, isDeliveringNow, toast, t]);
 
   // Schedule: open the schedule editor on the selected SAVED set (task 5.4 / R5).
   // A schedule can only be attached to a set that HAS a delivery block (R5), so
@@ -1316,6 +1268,75 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
       setCsvMailSending(false);
     }
   }, [csvMailValid, csvMailSending, exportRows, csvMailRecipients, selectedSet, result, toast, t]);
+
+  // Deliver now: send the CURRENT pivot result (on-screen rows) to the set's
+  // stored fixed recipients as a CSV — the one-button equivalent of Export CSV
+  // -> Email, via the ad-hoc path. (The old saved-set /deliver route recomputed
+  // rows server-side and leaked the whole raw member table; it is no longer used
+  // here.)
+  const handleDeliverNow = useCallback(async () => {
+    if (!selectedModelSummary || isDeliveringNow) {
+      return;
+    }
+    // Deliver now sends the CURRENT pivot RESULT (the on-screen rows) — it is the
+    // one-button equivalent of Export CSV -> Email, reusing the SAME proven
+    // ad-hoc `to_fixed` + `attachment:'csv'` path (`sendAdHocMail`) that carries
+    // the frontend's `exportRows`. It does NOT call the saved-set `/deliver`
+    // server path, which recomputes rows server-side and (with the interim
+    // pass-through runner) would ship the whole raw member table — a data leak.
+    // Here the ROWS come from the screen (filtered + projected to the result
+    // columns) and only the fixed RECIPIENTS come from the set's stored delivery.
+    if (!result) {
+      // Nothing on screen to deliver — Deliver now operates on a produced result.
+      toast({ title: t('analytics.delivery.deliverNowNeedsResult'), status: 'warning' });
+      return;
+    }
+    setIsDeliveringNow(true);
+    try {
+      // Read the set's stored fixed recipients (the summary carries only
+      // `hasDelivery`, not the recipient list). A fetch failure surfaces below.
+      const saved = await getAnalyticsSet(selectedModelSummary.id);
+      const delivery = saved.delivery;
+      if (!delivery || delivery.mode !== 'to_fixed') {
+        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
+        return;
+      }
+      const recipients = (delivery.recipients ?? []).filter(
+        (r): r is string => typeof r === 'string' && r.trim().length > 0,
+      );
+      if (recipients.length === 0) {
+        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
+        return;
+      }
+      // Send the ON-SCREEN result rows to the stored fixed addresses as a CSV —
+      // identical shape to handleSendCsvMail, just with the recipients sourced
+      // from the saved delivery instead of a typed-in dialog.
+      const body: AdHocMailBody = {
+        mode: 'to_fixed',
+        result_rows: exportRows as Array<Record<string, unknown>>,
+        recipients,
+        template_id: null,
+        attachment: 'csv',
+        ...(selectedSet?.optionValue ? { set_id: selectedSet.optionValue } : {}),
+      };
+      const res = await sendAdHocMail(body);
+      toast({
+        title: t('analytics.delivery.deliverNowQueued', { count: res.enqueued }),
+        status: 'success',
+      });
+      void recordAnalyticsOutput({
+        outputKind: 'csv_export',
+        setKey: selectedSet?.optionValue,
+        recordCount: exportRows.length,
+        filterSummary: { columns: result.columns.length, delivery: 'deliver_now' },
+      });
+    } catch (err) {
+      // Typed refusal (not-certified) or network error -> clear bilingual toast.
+      applyApiError(err, { toast, t });
+    } finally {
+      setIsDeliveringNow(false);
+    }
+  }, [selectedModelSummary, isDeliveringNow, result, exportRows, selectedSet, toast, t]);
 
   // Whether the tenant has a resolvable address mapping — gates the mail
   // compose's "attach PDF labels" toggle (R4.10). Memoized on the field config.
