@@ -320,6 +320,61 @@ PARAMETER_SCHEMA = {
                     "which fields show together (single list value)"
                 ),
             },
+            "mail_enabled": {
+                "label": "Mail Enabled (SES certified)",
+                "label_nl": "E-mail ingeschakeld (SES-gecertificeerd)",
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "Per-tenant onboarding gate: whether the tenant is cleared to "
+                    "send mail (production SES access + a verified sender). The "
+                    "Members plane reads this (projected as config#mail) to decide "
+                    "whether to offer the mail output actions. Set only once the "
+                    "tenant's sender is verified and SES is production."
+                ),
+            },
+            "mail_domain": {
+                "label": "Mail Domain",
+                "label_nl": "E-maildomein",
+                "type": "string",
+                "required": False,
+                "description": (
+                    "The tenant's own mail domain (e.g. 'h-dcn.nl'), authored at "
+                    "onboarding and projected into config#mail. The Members send "
+                    "path composes the envelope From as "
+                    "'<mail_local_part|noreply>@<mail_domain>'; it is never projected "
+                    "as a literal address. Must be a bare domain (no scheme, no '@', "
+                    "no path)."
+                ),
+            },
+            "mail_local_part": {
+                "label": "Mail From Local-Part",
+                "label_nl": "E-mail afzender lokaal deel",
+                "type": "string",
+                "required": False,
+                "default": "noreply",
+                "description": (
+                    "The local-part of the envelope From address (the part before "
+                    "'@', e.g. 'info' or 'onderhoud'); DEFAULT 'noreply' when unset. "
+                    "Combined with mail_domain to form "
+                    "'<mail_local_part>@<mail_domain>'. Must be a single local-part "
+                    "token (no '@', no whitespace)."
+                ),
+            },
+            "mail_certified": {
+                "label": "Mail Certified (SES verified sender)",
+                "label_nl": "E-mail gecertificeerd (SES-geverifieerde afzender)",
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "The onboarding-recorded SES-verified flag for the tenant's "
+                    "mail domain/sender (Option B). The pre-send certification check "
+                    "reads this (projected as config#mail) and fails CLOSED when it "
+                    "is absent or False: not certified -> no send + a clear error, "
+                    "never a substitute sender. Set only once the domain/sender is "
+                    "SES-verified."
+                ),
+            },
         },
     },
 }

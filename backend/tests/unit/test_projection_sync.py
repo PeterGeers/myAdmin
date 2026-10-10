@@ -28,6 +28,7 @@ from services.projection_sync import (
     TenantSource,
     _supersedes,
     build_config_fields_row,
+    build_config_mail_row,
     build_config_scope_row,
     build_config_views_row,
     build_scopegrant_rows,
@@ -235,13 +236,16 @@ def test_sync_administration_single_tenant_writes_expected_items(sam_module):
         schema.build_sort_key(schema.RECORD_TYPE_ROLE, "a@b.example", "SamTest_Read")
         in written
     )
-    # + the always-present config rows (empty when un-configured, R1.6/R1.7/R5.1):
+    # + the always-present config rows (empty/fail-closed when un-configured,
+    # R1.6/R1.7/R5.1/R0):
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") in written
-    # tenant + module + role + config#scope + config#fields + config#views = 6 (no
-    # scopegrant: no scope_dimensions authored in the empty FakeParameterService).
-    assert result.written == 6
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
+    # tenant + module + role + config#scope + config#fields + config#views +
+    # config#mail = 7 (no scopegrant: no scope_dimensions authored in the empty
+    # FakeParameterService).
+    assert result.written == 7
     assert result.skipped == 0
 
 
@@ -1201,6 +1205,7 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
     scopegrant_sk = schema.build_sort_key(
         schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
     )
@@ -1210,8 +1215,9 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     # The config#scope row carries the authored region dimension.
     scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
     assert written[scope_sk]["dimensions"][0]["key"] == "region"
-    # tenant + module + 1 role + config#scope + config#fields + config#views + scopegrant = 7.
-    assert result.written == 7
+    # tenant + module + 1 role + config#scope + config#fields + config#views +
+    # config#mail + scopegrant = 8.
+    assert result.written == 8
 
 
 def test_sync_administration_non_sam_tenant_emits_no_c2_rows(sam_module):
@@ -1425,6 +1431,210 @@ def test_build_config_views_row_missing_tenant_key_raises():
     """A tenant without administration/tenant_id is a cross-tenant hazard (R5.4)."""
     with pytest.raises(ValueError):
         build_config_views_row({}, FakeParameterService({}))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# pivot-output-actions Task 0.4 — build_config_mail_row (the config#mail gate row).
+#
+# Feature: pivot-output-actions, R0 / design §6.3 (the mail-enabled gate, cross-plane READ).
+# Validates: Requirements R0.
+#
+# The per-tenant "mail-enabled / SES-certified" flag is authored on the Flask plane as
+# members.mail_enabled and projected as a config#mail row so the Members edge reads it via
+# the projection reader (NO live MySQL at request time). These tests pin the Flask-plane
+# builder: authored members.mail_enabled param -> config#mail row, FAIL-CLOSED default
+# (absent/malformed -> False), one-directional (read-only), and the cross-tenant guard.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def test_build_config_mail_row_true_flag_projects_enabled():
+    """Authored members.mail_enabled=True → config#mail row with mail_enabled True (R0).
+
+    The row ALWAYS carries the local-part (defaulting to ``noreply``) and the
+    ``mail_certified`` gate (fail-closed False here, as none authored); ``mail_domain``
+    is omitted when none authored (task 0.2 extended shape, design Data Models).
+    """
+    params = FakeParameterService(
+        {("members", "mail_enabled", "h-dcn"): True}
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn", "version": 7}, params)
+
+    assert item.tenant_id == "h-dcn"
+    assert item.sort_key == schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail")
+    assert item.version == 7
+    assert item.attributes == {
+        "mail_enabled": True,
+        "mail_local_part": "noreply",
+        "mail_certified": False,
+    }
+
+
+def test_build_config_mail_row_false_flag_projects_disabled():
+    """An explicit False flag projects a present-but-disabled gate (R0)."""
+    params = FakeParameterService(
+        {("members", "mail_enabled", "h-dcn"): False}
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes == {
+        "mail_enabled": False,
+        "mail_local_part": "noreply",
+        "mail_certified": False,
+    }
+
+
+def test_build_config_mail_row_projects_all_four_fields_into_single_row():
+    """All four members.* params → the SINGLE config#mail row (R4; task 0.2).
+
+    When mail_enabled, mail_domain, mail_local_part and mail_certified are all
+    authored, the ONE config#mail row carries exactly those four attributes — the
+    shape the SAM reader + pre-send resolver consume. The domain is projected as the
+    bare domain (From is composed downstream, never projected as a literal address).
+    """
+    params = FakeParameterService(
+        {
+            ("members", "mail_enabled", "h-dcn"): True,
+            ("members", "mail_domain", "h-dcn"): "h-dcn.nl",
+            ("members", "mail_local_part", "h-dcn"): "info",
+            ("members", "mail_certified", "h-dcn"): True,
+        }
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn", "version": 3}, params)
+
+    assert item.tenant_id == "h-dcn"
+    assert item.sort_key == schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail")
+    assert item.version == 3
+    assert item.attributes == {
+        "mail_enabled": True,
+        "mail_domain": "h-dcn.nl",
+        "mail_local_part": "info",
+        "mail_certified": True,
+    }
+    # The DynamoDB projection carries the canonical key attrs + the four fields.
+    dynamo = item.to_dynamodb_item()
+    assert dynamo[schema.PARTITION_KEY_ATTR] == "h-dcn"
+    assert dynamo[schema.SORT_KEY_ATTR] == "config#mail"
+    assert dynamo["mail_domain"] == "h-dcn.nl"
+    assert dynamo["mail_local_part"] == "info"
+    assert dynamo["mail_certified"] is True
+
+
+def test_build_config_mail_row_local_part_defaults_to_noreply_when_unset_or_blank():
+    """mail_local_part DEFAULTS to ``noreply`` when unset or blank (design Data Models)."""
+    for raw in (None, "", "   " and "", 0, [], {}):
+        params = FakeParameterService(
+            {
+                ("members", "mail_enabled", "h-dcn"): True,
+                ("members", "mail_local_part", "h-dcn"): raw,
+            }
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert item.attributes["mail_local_part"] == "noreply", (
+            f"raw local_part={raw!r} must default to noreply"
+        )
+
+
+def test_build_config_mail_row_omits_domain_when_absent_or_blank():
+    """No safe default for a domain (R4.2): absent/blank → mail_domain OMITTED.
+
+    A guessed host would be a foreign-sender leak (the jabaki.nl regression). The
+    reader resolves an absent domain to None and refuses the send (fail-closed).
+    """
+    for raw in (None, "", 123, [], {}):
+        params = FakeParameterService(
+            {
+                ("members", "mail_enabled", "h-dcn"): True,
+                ("members", "mail_domain", "h-dcn"): raw,
+            }
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert "mail_domain" not in item.attributes, (
+            f"raw domain={raw!r} must NOT project a mail_domain attribute"
+        )
+
+
+def test_build_config_mail_row_certified_fails_closed_to_false():
+    """Fail-closed (R5.2): only an explicit boolean True certifies; else False.
+
+    A stray truthy string, a number, or None must NEVER open the certification gate.
+    """
+    for raw in ("true", "True", 1, "yes", [], {}, None, False):
+        params = FakeParameterService(
+            {
+                ("members", "mail_enabled", "h-dcn"): True,
+                ("members", "mail_certified", "h-dcn"): raw,
+            }
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert item.attributes["mail_certified"] is False, (
+            f"raw certified={raw!r} must fail closed"
+        )
+
+
+def test_build_config_mail_row_no_param_fails_closed_to_false():
+    """Fail-closed (R0): an un-configured tenant → disabled/uncertified, no raise."""
+    params = FakeParameterService({})  # nothing authored
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.tenant_id == "h-dcn"
+    assert item.sort_key == schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail")
+    assert item.attributes == {
+        "mail_enabled": False,
+        "mail_local_part": "noreply",
+        "mail_certified": False,
+    }
+
+
+def test_build_config_mail_row_malformed_values_fail_closed_to_false():
+    """Fail-closed (R0): any non-boolean-True value collapses to False, never raises.
+
+    A stray truthy string ("true"), a number (1), or None must NEVER silently open the
+    gate — only an explicit boolean True enables sending.
+    """
+    for raw in ("true", "True", 1, "yes", [], {}, None):
+        params = FakeParameterService(
+            {("members", "mail_enabled", "h-dcn"): raw}
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert item.attributes["mail_enabled"] is False, (
+            f"raw={raw!r} must fail closed"
+        )
+
+
+def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
+    """One-directional (Property 1): only tenant-scope READS of the members.* params.
+
+    The builder reads each of the four mail params for this tenant and issues ZERO
+    writes — never a cross-tenant or unscoped read.
+    """
+    params = FakeParameterService(
+        {("members", "mail_enabled", "h-dcn"): True}
+    )
+
+    build_config_mail_row({"administration": "h-dcn"}, params)
+
+    # Every call is a read scoped to THIS tenant on the members namespace — no write.
+    assert len(params.calls) == 4
+    read_keys = {call["key"] for call in params.calls}
+    assert read_keys == {
+        "mail_enabled",
+        "mail_domain",
+        "mail_local_part",
+        "mail_certified",
+    }
+    for call in params.calls:
+        assert call["namespace"] == "members"
+        assert call["tenant"] == "h-dcn"
+
+
+def test_build_config_mail_row_missing_tenant_key_raises():
+    """A tenant without administration/tenant_id is a cross-tenant hazard (R5.4)."""
+    with pytest.raises(ValueError):
+        build_config_mail_row({}, FakeParameterService({}))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════

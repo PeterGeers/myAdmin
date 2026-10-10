@@ -1,0 +1,572 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0.1 Add `members.mail_domain`, `members.mail_local_part` (default `noreply`), and": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848015
+      },
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559862096
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560112626
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560119841
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560283596
+      }
+    ],
+    "0.2 Extend `build_config_mail_row` to project `{ mail_enabled, mail_domain, mail_local_part,": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848176
+      },
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559863529
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560112714
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560121337
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560285344
+      }
+    ],
+    "0.3 Extend the SAM projection reader to expose the new fields (domain / local_part / certified)": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848291
+      },
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559864698
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560112812
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560122299
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560286209
+      }
+    ],
+    "1.1 Pre-send certification resolver (SAM domain): resolve From =": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848377
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560112892
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560304023
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560628238
+      }
+    ],
+    "1.2 Change `SesBotoSender` to accept a per-send `From` + `Reply-To` (drop the single global": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848491
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560112967
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560305889
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560628505
+      }
+    ],
+    "1.3 Worker passes the resolved tenant From + user Reply-To into the sender for every send.": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848574
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113043
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560306838
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791562084551
+      }
+    ],
+    "2.1 New stateless SAM route `POST /members/mail/send` (ad-hoc): thin handler → authz": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848660
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113156
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791562738960
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791563851183
+      }
+    ],
+    "2.2 Shared send service: build `MailJob`s for the ad-hoc body (recipients/template/attachment)": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848772
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113291
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791562103205
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791562731196
+      }
+    ],
+    "2.3 Frontend: repoint `MemberMailCompose` from the Flask `/api/members/mail-set` to": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559848888
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113424
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791562740120
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791563852110
+      }
+    ],
+    "2.4 Frontend: add the interactive \"deliver now\" action on a saved set with a `to_fixed`": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849000
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113497
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791562104024
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791562732384
+      }
+    ],
+    "3.1 `MembersRepository`: write/update `mailrun#<run_id>` (tally) at enqueue + from the worker;": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849093
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113575
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791563860187
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791564324083
+      }
+    ],
+    "3.2 Read route `GET /members/mail-runs[/{id}]` (capability-gated: own sends for a user; all": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849181
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113686
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791564331552
+      }
+    ],
+    "3.3 Frontend: a mail status/history screen (list of runs + per-run drill-down to failures) + a": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849272
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113763
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791564808319
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791566027201
+      }
+    ],
+    "4.1 Retire Members' use of the Flask `POST /api/members/mail-set`": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849357
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113841
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791566036051
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791566550784
+      }
+    ],
+    "4.2 Remove the `jabaki.nl` substitute-sender fallback for Members (certified → send; not": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849440
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113918
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791566558049
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791567070662
+      }
+    ],
+    "5.1 SES **configuration set** publishing bounce/complaint/delivery events to SNS (infra —": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849526
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560113997
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791567087639
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791567516313
+      }
+    ],
+    "5.2 Ingestion handler (SAM): consume SNS events, route each to the Members store by": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849625
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114075
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791567523983
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791570264075
+      }
+    ],
+    "6.1 User-manual section (per `Common/end-user-documentation/`): sending to a fixed address vs": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849714
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114220
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791570339481
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791570701962
+      }
+    ],
+    "7.3a Author `members.*` params in TEST MySQL (Docker, APP_ENV=test; idempotent upsert,": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849837
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114305
+      }
+    ],
+    "7.3b `UPDATE tenants SET updated_at=CURRENT_TIMESTAMP WHERE administration='h-dcn'` (version": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559849948
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114433
+      }
+    ],
+    "7.3c Run `ProjectionSync` for h-dcn → `test_governance_projection` (`.env`-strip + STS guard;": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850041
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114522
+      }
+    ],
+    "7.1 **Land code on `test` + deploy.** Merge the implemented P0–P4 (+P5 if done) to the `test`": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850127
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114618
+      },
+      {
+        "executionId": "f9af96a8-7dae-40df-ab80-e0f3258b35a4",
+        "chatSessionId": "sess_c9862a14-fd1d-4532-8cfa-9e811ddfce77",
+        "timestamp": 1791572322376
+      }
+    ],
+    "7.2 **SES preconditions (read-only).** `aws sesv2 get-account` → out of sandbox + sending": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850219
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114694
+      }
+    ],
+    "7.3 **Author + project h-dcn mail config to TEST** (operator; explicit — the version-bump trap": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850311
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114770
+      }
+    ],
+    "7.4 **(If P5) Wire the SES configuration set + SNS** for bounce/complaint/delivery in TEST": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850409
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114849
+      }
+    ],
+    "7.5 **Frontend on TEST.** Per steering 43 there is NO hosted TEST frontend — run the local dev": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850492
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560114927
+      }
+    ],
+    "7.6 `per_recipient`: send to the member list → worker invoked, mail delivered,": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850596
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560115007
+      }
+    ],
+    "7.7 `to_fixed` deliver-now: CSV attachment to a fixed address; same checks. **[R3, R7]**": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850715
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560115087
+      }
+    ],
+    "7.8 Not-certified path: an un-certified tenant/user gets the clear error, NO send, no substitute": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850847
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560115177
+      }
+    ],
+    "7.9 Status screen: user sees own sends; Tenant_Admin sees all tenant sends; failures shown;": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559850933
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560115253
+      }
+    ],
+    "8.1 Fold this mail capability into the PARENT spec's `test → main` promotion (steering 43": [
+      {
+        "executionId": "eef5bbf1-9f58-43ff-ba36-c55f534bd4d3",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791559851016
+      },
+      {
+        "executionId": "e000814f-b705-4402-bc7e-111e44b54128",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791560115330
+      }
+    ]
+  }
+}

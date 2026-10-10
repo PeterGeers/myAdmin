@@ -23,6 +23,8 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from sam.members.domain.analytics_set import (
+    DELIVERY_MODE_PER_RECIPIENT,
+    DELIVERY_MODE_TO_FIXED,
     AnalyticsSetEntry,
     AnalyticsSetValidationError,
 )
@@ -163,3 +165,202 @@ class TestAnalyticsSetEntryRoundTrip:
         )
         assert rebuilt.definition == {}
         assert rebuilt.kind == "count"
+
+
+def _label_options():
+    """The shared snake_case label_options block (one model with R6, task 6.3)."""
+    return {
+        "format": "L7160",
+        "sort": "name",
+        "font_size": 10,
+        "alignment": "left",
+        "border": False,
+        "country": True,
+        "start": 0,
+    }
+
+
+class TestAnalyticsSetEntryDelivery:
+    """R3 — the optional `delivery` block: mode discriminator + per-mode recipient rules."""
+
+    # ── absence / default (a legacy set carries no delivery) ──────────────────────────
+    def test_delivery_defaults_to_none(self):
+        assert _entry().delivery is None
+
+    def test_no_delivery_set_validates(self):
+        _entry(delivery=None).validate()  # must not raise
+
+    # ── to_fixed mode: requires a non-empty recipients list ───────────────────────────
+    def test_to_fixed_with_recipients_passes(self):
+        _entry(
+            delivery={
+                "mode": DELIVERY_MODE_TO_FIXED,
+                "template_id": None,
+                "attachment": "csv",
+                "recipients": ["agent@example.com"],
+                "label_options": None,
+            }
+        ).validate()  # must not raise
+
+    def test_to_fixed_without_recipients_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(delivery={"mode": DELIVERY_MODE_TO_FIXED, "recipients": []}).validate()
+        assert "delivery" in exc.value.errors
+
+    def test_to_fixed_missing_recipients_key_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(delivery={"mode": DELIVERY_MODE_TO_FIXED}).validate()
+        assert "delivery" in exc.value.errors
+
+    def test_to_fixed_blank_recipient_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(
+                delivery={"mode": DELIVERY_MODE_TO_FIXED, "recipients": ["  "]}
+            ).validate()
+        assert "delivery" in exc.value.errors
+
+    def test_to_fixed_with_pdf_labels_and_label_options_passes(self):
+        _entry(
+            delivery={
+                "mode": DELIVERY_MODE_TO_FIXED,
+                "attachment": "pdf_labels",
+                "recipients": ["agent@example.com"],
+                "label_options": _label_options(),
+            }
+        ).validate()  # must not raise
+
+    # ── per_recipient mode: stores NO recipients ──────────────────────────────────────
+    def test_per_recipient_without_recipients_passes(self):
+        _entry(
+            delivery={
+                "mode": DELIVERY_MODE_PER_RECIPIENT,
+                "template_id": "template-1",
+                "attachment": None,
+                "label_options": None,
+            }
+        ).validate()  # must not raise
+
+    def test_per_recipient_empty_recipients_passes(self):
+        # An explicit empty list is fine — it just stores none.
+        _entry(
+            delivery={"mode": DELIVERY_MODE_PER_RECIPIENT, "recipients": []}
+        ).validate()  # must not raise
+
+    def test_per_recipient_storing_recipients_is_invalid(self):
+        # per_recipient resolves addresses from the dataset at run time — storing them is a
+        # shape error (design §2.1).
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(
+                delivery={
+                    "mode": DELIVERY_MODE_PER_RECIPIENT,
+                    "recipients": ["someone@example.com"],
+                }
+            ).validate()
+        assert "delivery" in exc.value.errors
+
+    # ── mode discriminator + shape ────────────────────────────────────────────────────
+    def test_bad_mode_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(delivery={"mode": "broadcast"}).validate()
+        assert "delivery" in exc.value.errors
+
+    def test_missing_mode_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(delivery={"recipients": ["a@example.com"]}).validate()
+        assert "delivery" in exc.value.errors
+
+    def test_non_mapping_delivery_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(delivery=["not", "a", "mapping"]).validate()
+        assert "delivery" in exc.value.errors
+
+    def test_bad_attachment_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(
+                delivery={
+                    "mode": DELIVERY_MODE_PER_RECIPIENT,
+                    "attachment": "zip",
+                }
+            ).validate()
+        assert "delivery" in exc.value.errors
+
+    def test_non_mapping_label_options_is_invalid(self):
+        with pytest.raises(AnalyticsSetValidationError) as exc:
+            _entry(
+                delivery={
+                    "mode": DELIVERY_MODE_TO_FIXED,
+                    "recipients": ["a@example.com"],
+                    "label_options": "not-a-mapping",
+                }
+            ).validate()
+        assert "delivery" in exc.value.errors
+
+
+class TestAnalyticsSetEntryDeliveryRoundTrip:
+    """R3 — to_item/from_item round-trip of the new delivery field; legacy load still works."""
+
+    def test_to_item_carries_delivery_block(self):
+        delivery = {
+            "mode": DELIVERY_MODE_TO_FIXED,
+            "template_id": "template-9",
+            "attachment": "pdf_labels",
+            "recipients": ["agent@example.com", "ops@example.com"],
+            "label_options": _label_options(),
+        }
+        item = _entry(delivery=delivery).to_item()
+        assert item["delivery"] == delivery
+
+    def test_to_item_emits_none_delivery_when_absent(self):
+        item = _entry(delivery=None).to_item()
+        assert item["delivery"] is None
+
+    def test_to_item_validates_delivery_first(self):
+        # A malformed delivery block must block the write.
+        with pytest.raises(AnalyticsSetValidationError):
+            _entry(delivery={"mode": DELIVERY_MODE_TO_FIXED, "recipients": []}).to_item()
+
+    def test_from_item_round_trips_to_fixed_delivery(self):
+        original = _entry(
+            delivery={
+                "mode": DELIVERY_MODE_TO_FIXED,
+                "template_id": None,
+                "attachment": "csv",
+                "recipients": ["agent@example.com"],
+                "label_options": None,
+            }
+        )
+        rebuilt = AnalyticsSetEntry.from_item(original.to_item())
+        assert rebuilt == original
+
+    def test_from_item_round_trips_per_recipient_delivery(self):
+        original = _entry(
+            delivery={
+                "mode": DELIVERY_MODE_PER_RECIPIENT,
+                "template_id": "template-1",
+                "attachment": None,
+                "label_options": None,
+            }
+        )
+        rebuilt = AnalyticsSetEntry.from_item(original.to_item())
+        assert rebuilt == original
+
+    def test_legacy_set_without_delivery_still_loads(self):
+        # A legacy stored item written before the delivery field existed must load with
+        # delivery defaulted to None (and keep working).
+        rebuilt = AnalyticsSetEntry.from_item(
+            {"tenant_id": "h-dcn", "set_id": "x", "name": "N", "kind": "list"}
+        )
+        assert rebuilt.delivery is None
+        rebuilt.validate()  # must not raise
+
+    def test_from_item_degrades_non_mapping_delivery_to_none(self):
+        rebuilt = AnalyticsSetEntry.from_item(
+            {
+                "tenant_id": "h-dcn",
+                "set_id": "x",
+                "name": "N",
+                "kind": "list",
+                "delivery": "corrupt",
+            }
+        )
+        assert rebuilt.delivery is None

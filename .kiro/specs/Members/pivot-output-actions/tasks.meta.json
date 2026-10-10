@@ -1,0 +1,572 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0.1 Draft + submit the **SES production-access re-request** for nonprofit-deploy": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456459351
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791458830859
+      },
+      {
+        "executionId": "5f73a6be-50ba-4b82-84ff-4df18e2bf974",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791461056212
+      }
+    ],
+    "0.2 Verify/activate the tenant sender path: backend endpoint": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456459495
+      },
+      {
+        "executionId": "8e8f24ba-9295-47d4-a009-e37ea1ac2e5a",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791461225130
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791462184414
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468469344
+      }
+    ],
+    "0.3 Tenant-admin UI to add + see verification status of a tenant's sender address(es).": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456459579
+      },
+      {
+        "executionId": "8e8f24ba-9295-47d4-a009-e37ea1ac2e5a",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791461226464
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791462185879
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468437666
+      }
+    ],
+    "0.4 Mail-enabled gate: tenant-admin module writes the flag to MySQL `parameters`;": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456459660
+      },
+      {
+        "executionId": "8e8f24ba-9295-47d4-a009-e37ea1ac2e5a",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791461227912
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791462187144
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468437918
+      }
+    ],
+    "0.5 IAM: grant the Members/worker role the SES actions, scoped; add SES config": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456459753
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468479847
+      },
+      {
+        "executionId": "c996ead9-bcbf-4ba8-8471-d1a38e7f33c0",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791470513758
+      },
+      {
+        "executionId": "c996ead9-bcbf-4ba8-8471-d1a38e7f33c0",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791470943958
+      }
+    ],
+    "1.1 Add an \"external recipients\" field to `MemberMailCompose`; client-side address": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456459849
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456515211
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791457382278
+      }
+    ],
+    "1.2 Keep CSV + PDF-label attachments working unchanged; gate PDF labels on a": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456459924
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456516586
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791457383348
+      }
+    ],
+    "1.3 Only offer sending when the R0 mail-enabled flag is set.": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460024
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791471145714
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791477187222
+      }
+    ],
+    "2.1 New record type `template#<template_id>` (metadata) + S3 body/logo layout under": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460102
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456518007
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791457377632
+      }
+    ],
+    "2.2 Template service (CRUD + render-with-merge-at-send) behind a module-agnostic": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460178
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456518909
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791457379494
+      }
+    ],
+    "2.3 Template routes `GET/POST/PUT/DELETE /members/templates[/{id}]`; API response &": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460281
+      },
+      {
+        "executionId": "8e8f24ba-9295-47d4-a009-e37ea1ac2e5a",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791461229371
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791462181247
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468437798
+      }
+    ],
+    "2.4 OpenRouter adapter (Members-owned, behind a seam): `improve(template,": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460354
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456520242
+      },
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791457380905
+      }
+    ],
+    "2.5 Frontend: template picker (LazySelect) seeds subject/body; template management": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460432
+      },
+      {
+        "executionId": "8e8f24ba-9295-47d4-a009-e37ea1ac2e5a",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791461230470
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791462182585
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468437546
+      }
+    ],
+    "3.1 Add the optional `delivery` field to `AnalyticsSetEntry`: declare it, write its": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460506
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791471144520
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791477185921
+      }
+    ],
+    "3.2 Thread it through the repository item builder (key stamp + `floats_to_decimal`": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460581
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791477188583
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791478526741
+      }
+    ],
+    "3.3 Routes `PUT/DELETE /members/analytics-sets/{set_id}/delivery`. Gate:": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460655
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791478533844
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791479515374
+      }
+    ],
+    "3.4 Frontend: a delivery editor on the saved set (mode, template, attachment,": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460726
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791478534903
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791479516180
+      }
+    ],
+    "4.1 execute-and-deliver service (storage-agnostic): resolve set, re-fetch member": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460806
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791479526159
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791482586192
+      }
+    ],
+    "4.2 SQS queue `members-mail-send[-test]` + DLQ; thin `POST": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460881
+      },
+      {
+        "executionId": "712c6924-8826-4bc4-b3a6-111de94f099d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791479526979
+      },
+      {
+        "executionId": "034dfe70-fbfe-4bf1-b5be-c204a8954d45",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791481596176
+      },
+      {
+        "executionId": "034dfe70-fbfe-4bf1-b5be-c204a8954d45",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791481600386
+      },
+      {
+        "executionId": "0526db8e-3f95-4e67-9c37-2e32b1776261",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791481775044
+      },
+      {
+        "executionId": "0526db8e-3f95-4e67-9c37-2e32b1776261",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791481780573
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791482593490
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791483511309
+      }
+    ],
+    "4.3 Worker Lambda (SQS event source, bounded concurrency): render (mail-merge /": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456460970
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791483797296
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791484710865
+      }
+    ],
+    "4.4 SAM template.yaml: declare the queue, DLQ, worker, event-source mapping, IAM;": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461071
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791483518945
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791483790578
+      }
+    ],
+    "5.1 New record type `schedule#<schedule_id>` (set_id, cron, created_by, enabled);": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461147
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791484728334
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791485188415
+      }
+    ],
+    "5.2 Schedule routes `GET/POST/PUT/DELETE /members/schedules[/{id}]`. Gate:": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461222
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791485195914
+      },
+      {
+        "executionId": "3ac92b05-a004-4c20-aa01-f4f37583b654",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791486991020
+      }
+    ],
+    "5.3 EventBridge Scheduler → the execute-and-deliver path for the set → enqueues to the": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461296
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791485200191
+      },
+      {
+        "executionId": "3ac92b05-a004-4c20-aa01-f4f37583b654",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791487001363
+      },
+      {
+        "executionId": "3ac92b05-a004-4c20-aa01-f4f37583b654",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791487542963
+      }
+    ],
+    "5.4 Frontend: attach/manage a schedule on a set that has a delivery block.": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461372
+      },
+      {
+        "executionId": "f1c3a600-a93a-4296-b020-68b3c2a8106f",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791485204635
+      },
+      {
+        "executionId": "3ac92b05-a004-4c20-aa01-f4f37583b654",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791486995139
+      }
+    ],
+    "6.1 Mount the existing `AddressLabelGenerator` options UI as a \"Generate address": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461462
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468478617
+      },
+      {
+        "executionId": "c996ead9-bcbf-4ba8-8471-d1a38e7f33c0",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791470941578
+      }
+    ],
+    "6.2 Availability gate: resolvable `address_mapping` + `members:export` (hide with the": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461563
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468477647
+      },
+      {
+        "executionId": "c996ead9-bcbf-4ba8-8471-d1a38e7f33c0",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791470942935
+      }
+    ],
+    "6.3 Share ONE `label_options` model between R6 (interactive) and R3's `to_fixed` +": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461638
+      },
+      {
+        "executionId": "c5899ae5-2af6-4223-8932-ac5b386f0d9d",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791468476274
+      },
+      {
+        "executionId": "c996ead9-bcbf-4ba8-8471-d1a38e7f33c0",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791470940105
+      }
+    ],
+    "7.1 End-user manual sections (`Common/end-user-documentation/`): external send,": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461713
+      },
+      {
+        "executionId": "3ac92b05-a004-4c20-aa01-f4f37583b654",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791487555107
+      },
+      {
+        "executionId": "3ac92b05-a004-4c20-aa01-f4f37583b654",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791487877122
+      }
+    ],
+    "7.2 Verify on the TEST stack (`test_sam-members`, deployed — not the local emulator):": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461790
+      }
+    ],
+    "7.3 Promote `test`→`main` via one PR + merge commit; preview prod changesets (no": [
+      {
+        "executionId": "6e4063a4-c485-4b51-93fe-d7d4a16043d7",
+        "chatSessionId": "sess_5ae83cad-b4a6-4573-bc83-c72d840f6837",
+        "timestamp": 1791456461865
+      }
+    ]
+  }
+}

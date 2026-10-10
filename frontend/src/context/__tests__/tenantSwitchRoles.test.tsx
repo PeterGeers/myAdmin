@@ -211,8 +211,16 @@ describe('Bug condition: stale roles after in-app tenant switch (h-dcn)', () => 
 
     // Menu labels carry an emoji prefix and are split across text nodes
     // (`{emoji} {t(...)}`), so match on the button's accessible name via regex.
+    //
+    // The Members entry is a BUTTON labelled `members:overview.navLabel`
+    // ("Overview") sitting under a separate "Members" section header
+    // (`members:nav.sectionTitle`) — see MainMenu, commit 3a351af96 which
+    // deliberately split the shared "Members Overview" name so the header and
+    // the item no longer collide. The combined "Members Overview" string now
+    // lives only as the page title (`members:overview.title`), not the nav
+    // button, so match the button on its real accessible name "Overview".
     const tenantAdminRe = /Tenant Administration/;
-    const membersRe = /Members Overview/;
+    const membersRe = /^👥\s*Overview$/;
 
     // Baseline: on the origin tenant the user holds Tenant_Admin, so
     // "Tenant Administration" is shown and "Members Overview" is not.

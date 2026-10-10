@@ -138,6 +138,30 @@ class FakeMembersRepository:
     def delete_analytics_set(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
+    def get_template(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_templates(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def save_template(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def delete_template(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def get_schedule(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_schedules(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def save_schedule(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def delete_schedule(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
     def get_preferred_list(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
@@ -148,6 +172,30 @@ class FakeMembersRepository:
         raise NotImplementedError
 
     def save_column_preferences(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def create_mail_run(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def update_mail_run_status(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def increment_mail_run_counts(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def record_mail_failure(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def get_mail_run(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_mail_run_failures(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def list_mail_runs(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def delete_mail_run(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
 

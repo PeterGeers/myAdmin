@@ -47,7 +47,12 @@
  *     over `processedData` as-is.
  *
  * Exports mount into the capability-gated, test-visible `pivot-result-actions`
- * slot (gated by `capabilities.canExport` = members:export). Task 8.1 wires CSV
+ * slot (gated by `capabilities.canExport` = members:export). Within the slot the
+ * Mail action carries an ADDITIONAL tenant gate (pivot-output-actions R0/R1 task
+ * 1.3): the compose/send path is OFFERED only when the tenant is mail-enabled —
+ * the R0 `config#mail` flag surfaced on the field config as `mail_enabled`;
+ * otherwise the action is HIDDEN with the shared degradation reason (mirroring how
+ * the labels action degrades on an absent address mapping). Task 8.1 wires CSV
  * export of the produced `PivotResult` here, REUSING `csvExport.ts` (no bespoke
  * CSV): a result column's `name` is the util's key + header, so the SAME mapping
  * exports an AGGREGATE result (group + aggregate columns) and a filtered-LIST
@@ -73,11 +78,16 @@ import {
   AlertDialogOverlay,
   Box,
   Button,
+  Checkbox,
   FormControl,
   FormLabel,
   HStack,
   IconButton,
   Input,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -93,7 +103,13 @@ import {
 import { AddIcon, DeleteIcon, MinusIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import type { PivotConfig, PivotResult } from '../../../types/pivot';
-import type { MemberRow, MemberAnalyticsSetSummary } from '../../../types/members';
+import type {
+  MemberRow,
+  MemberAnalyticsSetSummary,
+  MemberDelivery,
+  MemberSchedule,
+  MemberScheduleCadence,
+} from '../../../types/members';
 import PivotResultTable from '../../pivot/PivotResultTable';
 import {
   listAnalyticsSets,
@@ -101,7 +117,16 @@ import {
   deleteAnalyticsSet,
   getPreferredList,
   savePreferredList,
+  putAnalyticsSetDelivery,
+  deleteAnalyticsSetDelivery,
+  listSchedulesForSet,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+  sendAdHocMail,
+  type AdHocMailBody,
 } from '../../../services/membersApiService';
+import { applyApiError } from '../../../shared/api/applyApiError';
 import type { MemberAnalyticsAreaProps } from './areas/types';
 import { getAvailablePresets } from './memberPivotPresets';
 import type { MemberPivotPreset } from './memberPivotPresets';
@@ -110,6 +135,9 @@ import { generateCsvFromObjects, downloadCsv } from '../../../utils/csvExport';
 import { recordAnalyticsOutput } from '../../../services/memberAnalyticsAuditService';
 import MemberFieldPicker, { type ExistingPivotModel } from './MemberFieldPicker';
 import MemberMailCompose from './MemberMailCompose';
+import MemberMailStatus from './MemberMailStatus';
+import MemberDeliveryEditor from './MemberDeliveryEditor';
+import MemberScheduleEditor from './MemberScheduleEditor';
 import {
   AVERY_LABEL_FORMATS,
   DEFAULT_LABEL_FORMAT_KEY,
@@ -117,6 +145,12 @@ import {
   generateAddressLabelPdf,
 } from './addressLabelService';
 import { resolveAddressMapping } from './analyticsConfig';
+import MemberLabelsPanel from './MemberLabelsPanel';
+import {
+  listMemberTemplates as realListMemberTemplates,
+  type MemberTemplateDto,
+} from '../../../services/memberTemplateService';
+import AnalyticsStateNotice from './areas/AnalyticsStateNotice';
 import {
   candidateJubileeYears,
   selectedJubileeYear,
@@ -240,11 +274,23 @@ async function resolveConfig(set: SelectableSet): Promise<PivotConfig | undefine
   return undefined;
 }
 
-const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
+/**
+ * The optional injectable template loader (labels sub-spec R-L2, task 3.1). The
+ * labels action gate needs to know whether the tenant has ≥1 `kind:"label"`
+ * template; it loads them via `listMemberTemplates`. The prop defaults to the
+ * real service and exists only so a test can inject a fake (no network).
+ */
+interface MemberPivotViewsProps extends MemberAnalyticsAreaProps {
+  /** Injectable template-list loader; defaults to the real `listMemberTemplates`. */
+  listTemplates?: typeof realListMemberTemplates;
+}
+
+const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   processedData,
   fieldConfig,
   language,
   capabilities,
+  listTemplates = realListMemberTemplates,
 }) => {
   const { t } = useTypedTranslation('members');
   const toast = useToast();
@@ -262,6 +308,13 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
   // client-side data-source filter is needed: the Members Lambda never returns
   // another module's sets.
   const [savedModels, setSavedModels] = useState<MemberAnalyticsSetSummary[]>([]);
+
+  // The tenant's LABEL templates (`kind:"label"`), loaded once on mount (labels
+  // sub-spec R-L2, task 3.1). Their mere EXISTENCE (≥1) gates the "Generate
+  // address labels" action — see `hasLabelTemplate` / `canGenerateLabels` below.
+  // FAIL-CLOSED: a non-ok result or a throw leaves this empty, so the action is
+  // simply hidden with the bilingual degradation reason — never a crash.
+  const [labelTemplates, setLabelTemplates] = useState<MemberTemplateDto[]>([]);
 
   // The currently SELECTED option value — selection alone runs nothing (R1.6).
   const [selectedValue, setSelectedValue] = useState<string>('');
@@ -313,10 +366,81 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
   // additionally attach PDF labels.
   const [isMailOpen, setIsMailOpen] = useState(false);
 
+  // --- Delivery editor state (task 3.4 / R3). --------------------------------
+  // The "Delivery" lifecycle action (beside Update, on a selected SAVED set)
+  // opens MemberDeliveryEditor to edit the set's optional stored `delivery` block
+  // (mode / template / attachment / to_fixed recipients / shared label_options).
+  // The editor is seeded from the set's EXISTING delivery, which is only known
+  // once the full set is fetched (the list summary carries no delivery) — so
+  // opening Delivery loads the full set first, then opens the modal with its
+  // resolved delivery (undefined for a set with none yet).
+  const [isDeliveryOpen, setIsDeliveryOpen] = useState(false);
+  const [deliverySet, setDeliverySet] = useState<{
+    id: string;
+    name: string;
+    delivery?: MemberDelivery;
+  } | null>(null);
+
+  // --- "Deliver now" state (mail-spec task 2.4 / R3.1/R3.2). -----------------
+  // The "Deliver now" lifecycle action (beside Delivery) RUNS a saved set's
+  // STORED `to_fixed` delivery immediately — the interactive trigger for the
+  // existing SAM deliver route (`POST /members/analytics-sets/{id}/deliver`),
+  // the gap R3.2 closes (the route existed but had no frontend caller). The run
+  // enqueues (a worker sends); the UI surfaces the accepted/queued receipt
+  // (R3.5) and any refusal (empty recipients / not-certified) as a clear error
+  // (R3.4). `isDeliveringNow` disables the action while the enqueue is in flight
+  // so a double-click never fires two runs.
+  const [isDeliveringNow, setIsDeliveringNow] = useState(false);
+  // Deliver now opens a confirm dialog FIRST (so an irreversible send is never
+  // fired blind — the redesign Q3 safety follow-up).
+  const [isDeliverNowConfirmOpen, setIsDeliverNowConfirmOpen] = useState(false);
+  const deliverNowCancelRef = useRef<HTMLButtonElement>(null);
+
+  // --- Schedule editor state (task 5.4 / R5). --------------------------------
+  // The "Schedule" lifecycle action (beside Delivery, on a selected SAVED set)
+  // opens MemberScheduleEditor to attach/manage the set's recurring run. A
+  // schedule can ONLY be attached to a set that HAS a delivery block (R5), so the
+  // action is gated on the set's delivery; it is also gated on the R5 ACCESS rule
+  // (members:admin OR members:write + all-regions) reflected client-side as
+  // `capabilities.isAdmin` (see `canSchedule` below). The set's existing delivery
+  // AND its current schedule are only known once the full set is fetched (the
+  // list summary carries neither) — so opening Schedule loads the full set +
+  // lists the set's schedules first, then opens the modal seeded with them.
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [scheduleSet, setScheduleSet] = useState<{
+    id: string;
+    name: string;
+    hasDelivery: boolean;
+    schedule?: MemberSchedule;
+  } | null>(null);
+
+  // --- Address-label generate state (labels sub-spec task 3.2 / R-L2). -------
+  // The "Generate address labels" action in the `pivot-result-actions` slot
+  // (beside CSV / Mail) opens a modal hosting the TEMPLATE-DRIVEN
+  // `MemberLabelsPanel`, which lets the user pick a stored `kind:"label"`
+  // template + an Avery format + the shared per-run options and builds the PDF
+  // via `generateLabelTemplatePdf` (compose through `composeLabelLines`, NO
+  // `analytics.*` — R6). It operates on the CURRENT result rows (`exportRows` —
+  // the table's post-filter visible rows, R2/R3). The availability GATE
+  // (`canGenerateLabels` = members:export + ≥1 label template) decides whether
+  // the modal is reachable (below).
+  const [isLabelsOpen, setIsLabelsOpen] = useState(false);
+
   // The "All sets" library modal (opened from the button beside the set
   // dropdown). The main pane stays clean — the full library (browse / filter /
   // add-to-preferred / reorder) lives in this modal, not inline.
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+  // --- Mail status/history state (mail-spec task 3.3 / R9). ------------------
+  // The "Mail status" entry point opens the send-status/history screen
+  // (MemberMailStatus) in a modal: a role-scoped list of send-runs + per-run
+  // FAILURE drill-down (R9.2), with honest "sent = SES accepted, not delivered"
+  // labelling (R9.4). The read routes it calls (`GET /members/mail-runs[/{id}]`)
+  // are gated `members:export` + role-scoped server-side (a user sees own runs,
+  // a Tenant_Admin all), so the entry point rides the same `members:export` gate
+  // the result-actions slot uses — it is NOT tied to a produced result (a user
+  // checks past sends independently of running a pivot).
+  const [isMailStatusOpen, setIsMailStatusOpen] = useState(false);
 
   // --- Preferred list state (R11.2 layer 2). ---------------------------------
   // One ordered list of TAGGED references per USER (keyed server-side on the
@@ -342,6 +466,15 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
   // (Members_CRUD) alone does NOT grant delete here (unlike add/edit), so this
   // deliberately does not OR in `canWrite`.
   const canDeleteSets = capabilities.isAdmin === true;
+  // Whether the caller may SCHEDULE a set (R5): the backend gates schedule CRUD on
+  // `members:admin` OR (`members:write` + the `["*"]` all-regions grant). The page
+  // computes exactly that tenant-wide rule — ((Regio_All AND Members_CRUD) OR
+  // Tenant_Admin) — and passes it as `capabilities.isAdmin` (the same flag that
+  // gates set-delete). A region-NARROWED CRUD user therefore does NOT get the
+  // Schedule action, matching R5 (an unattended run must never replay a partial
+  // regional slice). The backend remains authoritative; this only avoids offering
+  // a dead action.
+  const canSchedule = capabilities.isAdmin === true;
 
   // Refresh the saved member sets from the Members API (the module-owned
   // DynamoDB store, F-012). The Lambda returns ONLY this tenant's member sets, so
@@ -402,6 +535,41 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
       active = false;
     };
   }, []);
+
+  // Load the tenant's LABEL templates on mount (labels sub-spec R-L2, task 3.1).
+  // Only `kind:"label"` templates matter here — a mail template never gates the
+  // labels action. FAIL-CLOSED: a non-ok result OR a thrown network error leaves
+  // the list empty (action hidden with the bilingual reason), never a crash. The
+  // loader is injectable via the `listTemplates` prop so a test can supply a fake.
+  const reloadLabelTemplates = useCallback(async () => {
+    try {
+      const res = await listTemplates();
+      setLabelTemplates(res.ok ? res.data.filter((tpl) => tpl.kind === 'label') : []);
+    } catch {
+      setLabelTemplates([]);
+    }
+  }, [listTemplates]);
+
+  useEffect(() => {
+    let active = true;
+    listTemplates()
+      .then((res) => {
+        if (!active) {
+          return;
+        }
+        setLabelTemplates(
+          res.ok ? res.data.filter((tpl) => tpl.kind === 'label') : [],
+        );
+      })
+      .catch(() => {
+        if (active) {
+          setLabelTemplates([]);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [listTemplates]);
 
   // The flat list of selectable sets, keyed by a collision-free option value.
   const sets: SelectableSet[] = useMemo(() => {
@@ -849,6 +1017,116 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     setIsPickerOpen(true);
   }, [selectedModelSummary]);
 
+  // Delivery: open the stored-delivery editor on the selected SAVED set (task
+  // 3.4 / R3). The list summary carries no delivery, so fetch the full set first
+  // and hand the editor the set's EXISTING delivery (undefined for a set that has
+  // none yet). Tenant-scoped id only (R5.2). A fetch failure degrades to opening
+  // the editor with no existing delivery (the user can still create one) rather
+  // than crashing.
+  const handleDelivery = useCallback(async () => {
+    if (!selectedModelSummary) {
+      return;
+    }
+    try {
+      const saved = await getAnalyticsSet(selectedModelSummary.id);
+      setDeliverySet({ id: saved.id, name: saved.name, delivery: saved.delivery });
+    } catch {
+      setDeliverySet({ id: selectedModelSummary.id, name: selectedModelSummary.name });
+    }
+    setIsDeliveryOpen(true);
+  }, [selectedModelSummary]);
+
+  // Persist the edited delivery for the open set (PUT the dedicated route, task
+  // 3.3). The editor awaits this; a reject keeps the modal open with an error.
+  const handleDeliverySave = useCallback(
+    async (delivery: MemberDelivery) => {
+      if (!deliverySet) {
+        return;
+      }
+      await putAnalyticsSetDelivery(deliverySet.id, delivery);
+      toast({ title: t('analytics.delivery.saved'), status: 'success' });
+    },
+    [deliverySet, toast, t],
+  );
+
+  // Clear the stored delivery for the open set (DELETE the dedicated route).
+  const handleDeliveryClear = useCallback(async () => {
+    if (!deliverySet) {
+      return;
+    }
+    await deleteAnalyticsSetDelivery(deliverySet.id);
+    toast({ title: t('analytics.delivery.cleared'), status: 'success' });
+  }, [deliverySet, toast, t]);
+
+
+  // Schedule: open the schedule editor on the selected SAVED set (task 5.4 / R5).
+  // A schedule can only be attached to a set that HAS a delivery block (R5), so
+  // the full set is fetched to confirm its delivery AND its existing schedule is
+  // listed (the summary carries neither); the editor is seeded with both. The
+  // action is only enabled (below) for a set the list feed reports as having a
+  // delivery AND for a caller who may schedule — but we re-resolve the delivery
+  // from the authoritative full set here. A fetch failure degrades to opening the
+  // editor with the summary's `hasDelivery` and no existing schedule (the user can
+  // still create one if the set has a delivery) rather than crashing.
+  const handleSchedule = useCallback(async () => {
+    if (!selectedModelSummary) {
+      return;
+    }
+    try {
+      const [saved, schedules] = await Promise.all([
+        getAnalyticsSet(selectedModelSummary.id),
+        listSchedulesForSet(selectedModelSummary.id),
+      ]);
+      setScheduleSet({
+        id: saved.id,
+        name: saved.name,
+        hasDelivery: saved.delivery !== undefined,
+        schedule: schedules[0],
+      });
+    } catch {
+      setScheduleSet({
+        id: selectedModelSummary.id,
+        name: selectedModelSummary.name,
+        hasDelivery: selectedModelSummary.hasDelivery === true,
+      });
+    }
+    setIsScheduleOpen(true);
+  }, [selectedModelSummary]);
+
+  // Create a schedule for the open set (POST /members/schedules, task 5.2). The
+  // editor awaits this; a reject keeps the modal open with an error.
+  const handleScheduleCreate = useCallback(
+    async (cadence: MemberScheduleCadence, enabled: boolean) => {
+      if (!scheduleSet) {
+        return;
+      }
+      await createSchedule(scheduleSet.id, cadence, enabled);
+      toast({ title: t('analytics.schedule.saved'), status: 'success' });
+    },
+    [scheduleSet, toast, t],
+  );
+
+  // Update the open set's existing schedule (PUT /members/schedules/{id}).
+  const handleScheduleUpdate = useCallback(
+    async (cadence: MemberScheduleCadence, enabled: boolean) => {
+      if (!scheduleSet?.schedule) {
+        return;
+      }
+      await updateSchedule(scheduleSet.schedule.scheduleId, cadence, enabled);
+      toast({ title: t('analytics.schedule.saved'), status: 'success' });
+    },
+    [scheduleSet, toast, t],
+  );
+
+  // Delete the open set's schedule (DELETE /members/schedules/{id}).
+  const handleScheduleDelete = useCallback(async () => {
+    if (!scheduleSet?.schedule) {
+      return;
+    }
+    await deleteSchedule(scheduleSet.schedule.scheduleId);
+    toast({ title: t('analytics.schedule.deleted'), status: 'success' });
+  }, [scheduleSet, toast, t]);
+
   // After a save/update, refresh the dropdown so the change appears immediately,
   // and (re)select the saved set so the user can run it. A save returns the new
   // set id; an update reuses the existing id (both are the backend `set_id`
@@ -933,12 +1211,174 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
     });
   }, [result, selectedSet, exportRows]);
 
+  // --- "Send CSV by email" (Export-CSV menu, pivot-output-actions C5) --------
+  // The Export action is a MENU: "Save locally" (handleExportCsv above) OR "Send CSV by email"
+  // — the latter mails the current result as a CSV attachment to one or more fixed addresses via
+  // the SAME proven SAM `to_fixed` + `attachment:'csv'` path the compose uses (the worker builds
+  // the CSV bytes on-plane; the frontend ships only the kind + rows). A small dialog collects the
+  // address(es) and confirms before sending (R8.4).
+  const [isCsvMailOpen, setIsCsvMailOpen] = useState(false);
+  const [csvMailTo, setCsvMailTo] = useState('');
+  const [csvMailSending, setCsvMailSending] = useState(false);
+  const csvMailCancelRef = useRef<HTMLButtonElement>(null);
+
+  const csvMailRecipients = useMemo(
+    () =>
+      csvMailTo
+        .split(/[\s,;]+/)
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0),
+    [csvMailTo],
+  );
+  const csvMailValid =
+    csvMailRecipients.length > 0 &&
+    csvMailRecipients.every((a) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a));
+
+  const handleOpenCsvMail = useCallback(() => {
+    setCsvMailTo('');
+    setIsCsvMailOpen(true);
+  }, []);
+
+  const handleSendCsvMail = useCallback(async () => {
+    if (!csvMailValid || csvMailSending) {
+      return;
+    }
+    setCsvMailSending(true);
+    try {
+      const body: AdHocMailBody = {
+        mode: 'to_fixed',
+        result_rows: exportRows as Array<Record<string, unknown>>,
+        recipients: csvMailRecipients,
+        template_id: null,
+        attachment: 'csv',
+        ...(selectedSet?.optionValue ? { set_id: selectedSet.optionValue } : {}),
+      };
+      const res = await sendAdHocMail(body);
+      toast({
+        title: t('analytics.export.csvMail.queued', { count: res.enqueued }),
+        status: 'success',
+      });
+      // Audit the output (C7 / R8.1): metadata only, mirroring the download path.
+      void recordAnalyticsOutput({
+        outputKind: 'csv_export',
+        setKey: selectedSet?.optionValue,
+        recordCount: exportRows.length,
+        filterSummary: { columns: result?.columns.length ?? 0, delivery: 'email' },
+      });
+      setIsCsvMailOpen(false);
+    } catch (err) {
+      applyApiError(err, { toast, t });
+    } finally {
+      setCsvMailSending(false);
+    }
+  }, [csvMailValid, csvMailSending, exportRows, csvMailRecipients, selectedSet, result, toast, t]);
+
+  // Deliver now: send the CURRENT pivot result (on-screen rows) to the set's
+  // stored fixed recipients as a CSV — the one-button equivalent of Export CSV
+  // -> Email, via the ad-hoc path. (The old saved-set /deliver route recomputed
+  // rows server-side and leaked the whole raw member table; it is no longer used
+  // here.)
+  const handleDeliverNow = useCallback(async () => {
+    if (!selectedModelSummary || isDeliveringNow) {
+      return;
+    }
+    // Deliver now sends the CURRENT pivot RESULT (the on-screen rows) — it is the
+    // one-button equivalent of Export CSV -> Email, reusing the SAME proven
+    // ad-hoc `to_fixed` + `attachment:'csv'` path (`sendAdHocMail`) that carries
+    // the frontend's `exportRows`. It does NOT call the saved-set `/deliver`
+    // server path, which recomputes rows server-side and (with the interim
+    // pass-through runner) would ship the whole raw member table — a data leak.
+    // Here the ROWS come from the screen (filtered + projected to the result
+    // columns) and only the fixed RECIPIENTS come from the set's stored delivery.
+    if (!result) {
+      // Nothing on screen to deliver — Deliver now operates on a produced result.
+      toast({ title: t('analytics.delivery.deliverNowNeedsResult'), status: 'warning' });
+      return;
+    }
+    setIsDeliveringNow(true);
+    try {
+      // Read the set's stored fixed recipients (the summary carries only
+      // `hasDelivery`, not the recipient list). A fetch failure surfaces below.
+      const saved = await getAnalyticsSet(selectedModelSummary.id);
+      const delivery = saved.delivery;
+      if (!delivery || delivery.mode !== 'to_fixed') {
+        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
+        return;
+      }
+      const recipients = (delivery.recipients ?? []).filter(
+        (r): r is string => typeof r === 'string' && r.trim().length > 0,
+      );
+      if (recipients.length === 0) {
+        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
+        return;
+      }
+      // Send the ON-SCREEN result rows to the stored fixed addresses as a CSV —
+      // identical shape to handleSendCsvMail, just with the recipients sourced
+      // from the saved delivery instead of a typed-in dialog.
+      const body: AdHocMailBody = {
+        mode: 'to_fixed',
+        result_rows: exportRows as Array<Record<string, unknown>>,
+        recipients,
+        template_id: null,
+        attachment: 'csv',
+        ...(selectedSet?.optionValue ? { set_id: selectedSet.optionValue } : {}),
+      };
+      const res = await sendAdHocMail(body);
+      toast({
+        title: t('analytics.delivery.deliverNowQueued', { count: res.enqueued }),
+        status: 'success',
+      });
+      void recordAnalyticsOutput({
+        outputKind: 'csv_export',
+        setKey: selectedSet?.optionValue,
+        recordCount: exportRows.length,
+        filterSummary: { columns: result.columns.length, delivery: 'deliver_now' },
+      });
+    } catch (err) {
+      // Typed refusal (not-certified) or network error -> clear bilingual toast.
+      applyApiError(err, { toast, t });
+    } finally {
+      setIsDeliveringNow(false);
+    }
+  }, [selectedModelSummary, isDeliveringNow, result, exportRows, selectedSet, toast, t]);
+
   // Whether the tenant has a resolvable address mapping — gates the mail
   // compose's "attach PDF labels" toggle (R4.10). Memoized on the field config.
   const hasAddressMapping = useMemo(
     () => Object.keys(resolveAddressMapping(fieldConfig ?? undefined)).length > 0,
     [fieldConfig],
   );
+
+  // Whether the tenant has at least one LABEL template (`kind:"label"`). This —
+  // NOT the address mapping — is now the content precondition the labels action
+  // depends on (labels sub-spec R-L2 / Property 3; R6 "no analytics config": the
+  // action no longer reads any `analytics.*`). Fail-closed: an empty list (a
+  // failed/absent load) means no template, so the action stays hidden.
+  const hasLabelTemplate = labelTemplates.length > 0;
+
+  // Availability gate for the "Generate address labels" action (labels sub-spec
+  // R-L2 / Property 3). The action is OFFERED only when the caller holds
+  // `members:export` AND at least one LABEL template exists. This is the NEW
+  // gate: it depends ONLY on `capabilities.canExport` + `hasLabelTemplate`, and
+  // deliberately NOT on the address mapping / any `analytics.*` config (R6). The
+  // mail compose's SEPARATE "attach PDF labels" path keeps using
+  // `hasAddressMapping` (below) — that is a different feature, left intact. When
+  // either condition is false the action is HIDDEN with a bilingual degradation
+  // reason (below). `canGenerateLabels` is the single predicate the labels action
+  // and its modal mount render on.
+  const canGenerateLabels = capabilities.canExport && hasLabelTemplate;
+
+  // The tenant's mail-enabled gate flag (pivot-output-actions R0/R1 task 1.3, design §6.3).
+  // The per-tenant "mail-enabled / SES-certified" onboarding gate is OWNED by the tenant-admin
+  // module (Flask writes it to MySQL `parameters`), projected one-directionally as `config#mail`,
+  // and READ by the Members edge — surfaced to the SPA on the field config as `mail_enabled`
+  // (NO live MySQL at request time). The pivot result's Mail output action (the compose action /
+  // send path) is OFFERED only when this is true (R1); otherwise the action is HIDDEN with the
+  // shared degradation reason, exactly mirroring how `canGenerateLabels` gates the labels action.
+  // FAIL-CLOSED: a missing/absent flag means NOT enabled. This is a tenant onboarding gate, not a
+  // capability gate — the surrounding slot still requires `members:export`; CSV + labels stay
+  // available regardless. The send path re-checks the gate server-side (design §9).
+  const mailEnabled = fieldConfig?.mail_enabled === true;
 
   // Build the CSV bytes of the CURRENT result, base64-encoded, for the mail
   // compose "attach CSV" toggle (task 9.2). REUSES the same `csvExport.ts`
@@ -1092,19 +1532,44 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
             {t('analytics.pivotViews.execute')}
           </Button>
 
-          {/* "All sets" — a SEPARATE manage function (browse/filter the library,
-              add/remove from the dropdown, delete custom sets). Placed after
-              Execute + visually separated (outline) so it reads as a distinct
-              action, not part of the run flow. */}
-          <Button
-            variant="outline"
-            colorScheme="orange"
-            ml={2}
-            onClick={() => setIsLibraryOpen(true)}
-            data-testid="member-pivot-open-library"
-          >
-            {t('analytics.pivotViews.library.open')}
-          </Button>
+          {/* Secondary navigation collapsed into a quiet "More" menu (redesign
+              Q2): the library browser ("All sets") + the send-status/history
+              screen ("Mail status"). Neither is part of the run flow, so they
+              sit behind one overflow control instead of competing with Execute.
+              Mail status is export-gated (its read routes are, R9.3); All sets is
+              always available. The item testids are preserved so existing flows
+              (and tests) reach them unchanged — just open the menu first. */}
+          <Menu>
+            <MenuButton
+              as={Button}
+              variant="outline"
+              colorScheme="orange"
+              ml={2}
+              data-testid="member-pivot-more"
+            >
+              {t('analytics.pivotViews.more')}
+            </MenuButton>
+            <MenuList bg="gray.800" borderColor="gray.600">
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={() => setIsLibraryOpen(true)}
+                data-testid="member-pivot-open-library"
+              >
+                {t('analytics.pivotViews.library.open')}
+              </MenuItem>
+              {capabilities.canExport && (
+                <MenuItem
+                  bg="gray.800"
+                  _hover={{ bg: 'gray.700' }}
+                  onClick={() => setIsMailStatusOpen(true)}
+                  data-testid="member-pivot-open-mail-status"
+                >
+                  {t('analytics.mailRuns.action')}
+                </MenuItem>
+              )}
+            </MenuList>
+          </Menu>
         </HStack>
 
         {/* Save lifecycle actions (task 7.5) — all EXPLICIT user actions (R4.4b):
@@ -1116,42 +1581,110 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
         {/* Create/edit a shared set needs members:export OR members:write (R11);
             delete needs members:write OR members:admin. A read-only caller sees
             no set-mutation actions at all (the whole HStack is gated). */}
+        {/* Set-management actions collapsed into ONE "Manage set" menu
+            (redesign Q1): New set / Save as / Update / Delivery / Deliver now /
+            Schedule. They are occasional, admin-ish actions contextual to a
+            selected saved set and rarely all needed at once, so a menu removes
+            the wall of six buttons without changing any gate. Every item keeps
+            its EXACT testid, onClick, and disabled rule, so existing flows and
+            tests reach them unchanged — just open the menu first. */}
         {canManageSets && (
-          <HStack spacing={2} data-testid="member-pivot-set-actions">
-            <Button
+          <Menu>
+            <MenuButton
+              as={Button}
               variant="outline"
               colorScheme="orange"
-              onClick={handleNewSet}
-              data-testid="member-pivot-new-set"
+              data-testid="member-pivot-manage-set"
             >
-              {t('analytics.pivotViews.newSet')}
-            </Button>
-            {/* Save as / Update: orange outline (readable on dark, enabled AND
-                disabled) — previously an uncolored ghost that rendered
-                black-on-black / invisible until hover. */}
-            <Button
-              variant="outline"
-              colorScheme="orange"
-              onClick={handleSaveAs}
-              isDisabled={!selectedSet}
-              data-testid="member-pivot-save-as"
-            >
-              {t('analytics.pivotViews.saveAs')}
-            </Button>
-            <Button
-              variant="outline"
-              colorScheme="orange"
-              onClick={handleUpdate}
-              isDisabled={!selectedModelSummary}
-              data-testid="member-pivot-update"
-            >
-              {t('analytics.pivotViews.update')}
-            </Button>
-            {/* No Delete here — permanently deleting a saved set lives in the
-                "All sets" modal (per-row trash icon), the single place to manage
-                the library. No main-pane quick-add either (the dropdown is the
-                preferred list; adding happens in the modal). */}
-          </HStack>
+              {t('analytics.pivotViews.manageSet')}
+            </MenuButton>
+            <MenuList bg="gray.800" borderColor="gray.600" data-testid="member-pivot-set-actions">
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleNewSet}
+                data-testid="member-pivot-new-set"
+              >
+                {t('analytics.pivotViews.newSet')}
+              </MenuItem>
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleSaveAs}
+                isDisabled={!selectedSet}
+                data-testid="member-pivot-save-as"
+              >
+                {t('analytics.pivotViews.saveAs')}
+              </MenuItem>
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleUpdate}
+                isDisabled={!selectedModelSummary}
+                data-testid="member-pivot-update"
+              >
+                {t('analytics.pivotViews.update')}
+              </MenuItem>
+              {/* Delivery — edit the SAVED set's stored delivery block (R3). */}
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleDelivery}
+                isDisabled={!selectedModelSummary}
+                data-testid="member-pivot-delivery"
+              >
+                {t('analytics.delivery.action')}
+              </MenuItem>
+              {/* Deliver now — send the on-screen result to the set's stored fixed
+                  recipients (R3.1/R3.2). A confirm dialog opens first so the send
+                  is never fired blind. */}
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={() => {
+                  // Guard the open so a disabled item can never surface the
+                  // confirm (Chakra's isDisabled does not always suppress the
+                  // click handler in every environment).
+                  if (!selectedModelSummary || isDeliveringNow) {
+                    return;
+                  }
+                  setIsDeliverNowConfirmOpen(true);
+                }}
+                isDisabled={!selectedModelSummary || isDeliveringNow}
+                data-testid="member-pivot-deliver-now"
+              >
+                {t('analytics.delivery.deliverNow')}
+              </MenuItem>
+              {/* Schedule — attach/manage a recurring run (R5). Offered only when
+                  the caller may schedule; disabled (with a reason) for a set with
+                  no delivery block. */}
+              {canSchedule &&
+                (selectedModelSummary && selectedModelSummary.hasDelivery !== true ? (
+                  <Tooltip label={t('analytics.schedule.needsDelivery')}>
+                    {/* A disabled MenuItem does not fire pointer events, so the
+                        Tooltip wraps a focusable span to still surface the reason. */}
+                    <MenuItem
+                      bg="gray.800"
+                      _hover={{ bg: 'gray.700' }}
+                      isDisabled
+                      data-testid="member-pivot-schedule"
+                    >
+                      {t('analytics.schedule.action')}
+                    </MenuItem>
+                  </Tooltip>
+                ) : (
+                  <MenuItem
+                    bg="gray.800"
+                    _hover={{ bg: 'gray.700' }}
+                    onClick={handleSchedule}
+                    isDisabled={!selectedModelSummary}
+                    data-testid="member-pivot-schedule"
+                  >
+                    {t('analytics.schedule.action')}
+                  </MenuItem>
+                ))}
+            </MenuList>
+          </Menu>
         )}
 
         {/* The produced result (REUSE PivotResultTable, R4.7). Rendered only
@@ -1175,22 +1708,89 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
                 data-testid="pivot-result-actions"
                 aria-label={t('analytics.export.csv')}
               >
-                <Button
-                  variant="outline"
-                  colorScheme="orange"
-                  onClick={handleExportCsv}
-                  data-testid="member-pivot-export-csv"
-                >
-                  {t('analytics.export.csv')}
-                </Button>
-                <Button
-                  variant="outline"
-                  colorScheme="orange"
-                  onClick={() => setIsMailOpen(true)}
-                  data-testid="member-pivot-mail"
-                >
-                  {t('analytics.export.mail')}
-                </Button>
+                <Menu>
+                  <MenuButton
+                    as={Button}
+                    variant="outline"
+                    colorScheme="orange"
+                    data-testid="member-pivot-export-csv"
+                  >
+                    {t('analytics.export.csv')}
+                  </MenuButton>
+                  <MenuList bg="gray.800" borderColor="gray.600">
+                    <MenuItem
+                      bg="gray.800"
+                      _hover={{ bg: 'gray.700' }}
+                      onClick={handleExportCsv}
+                      data-testid="member-pivot-export-csv-download"
+                    >
+                      {t('analytics.export.csvDownload')}
+                    </MenuItem>
+                    <MenuItem
+                      bg="gray.800"
+                      _hover={{ bg: 'gray.700' }}
+                      onClick={handleOpenCsvMail}
+                      data-testid="member-pivot-export-csv-email"
+                    >
+                      {t('analytics.export.csvEmail')}
+                    </MenuItem>
+                  </MenuList>
+                </Menu>
+                {/* Mail (R1 / pivot-output-actions task 1.3) — OFFERED only when the
+                    tenant is mail-enabled (the R0 `config#mail` gate surfaced as
+                    `fieldConfig.mail_enabled`). When enabled, the compose action /
+                    send path is offered; when NOT enabled the action is HIDDEN and
+                    the shared degradation reason explains why
+                    (`analytics.degradation.mailNotEnabled`), mirroring how the labels
+                    action degrades on an absent address mapping. A tenant ONBOARDING
+                    gate, not a capability gate: CSV + labels stay available regardless. */}
+                {mailEnabled ? (
+                  <Button
+                    variant="outline"
+                    colorScheme="orange"
+                    onClick={() => setIsMailOpen(true)}
+                    data-testid="member-pivot-mail"
+                  >
+                    {t('analytics.export.mail')}
+                  </Button>
+                ) : (
+                  <AnalyticsStateNotice
+                    kind="degradation"
+                    message={t('analytics.degradation.mailNotEnabled')}
+                    testId="member-pivot-mail-unavailable"
+                  />
+                )}
+                {/* Generate address labels (labels sub-spec R-L2 / Property 3) —
+                    a first-class result action beside CSV / Mail. Opens the
+                    labels options UI in a modal.
+
+                    Availability gate (labels sub-spec R-L2 / Property 3): the
+                    slot already requires `members:export`, so the one remaining
+                    condition is that at least one LABEL template exists — together
+                    `canGenerateLabels`. The gate depends ONLY on
+                    `canExport` + `hasLabelTemplate` and deliberately NOT on the
+                    address mapping / any `analytics.*` config (R6). When it holds,
+                    the action is OFFERED; when there is NO label template (or no
+                    export) the action is HIDDEN with the bilingual labels-namespace
+                    degradation reason (`analytics.labels.noTemplate`). A
+                    config/capability gate — NOT a tenant gate: CSV + Mail stay
+                    available regardless. */}
+                {canGenerateLabels ? (
+                  <Button
+                    variant="outline"
+                    colorScheme="orange"
+                    onClick={() => setIsLabelsOpen(true)}
+                    data-testid="member-pivot-labels"
+                  >
+                    {t('analytics.labels.action')}
+                  </Button>
+                ) : (
+                  <AnalyticsStateNotice
+                    kind="degradation"
+                    message={t('analytics.labels.noTemplate')}
+                    testId="member-pivot-labels-unavailable"
+                  />
+                )}
               </HStack>
             )}
           </Box>
@@ -1354,6 +1954,34 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
         </ModalContent>
       </Modal>
 
+      {/* Mail status / history modal (mail-spec task 3.3 / R9). Hosts the
+          MemberMailStatus screen: a role-scoped list of send-runs + per-run
+          FAILURE drill-down (R9.2), with honest "sent = SES accepted, not
+          delivered" labelling (R9.4). Mounted only when its members:export entry
+          point is offered; the screen loads the run list on open. */}
+      {capabilities.canExport && (
+        <Modal
+          isOpen={isMailStatusOpen}
+          onClose={() => setIsMailStatusOpen(false)}
+          size="2xl"
+          isCentered
+          scrollBehavior="inside"
+        >
+          <ModalOverlay />
+          <ModalContent
+            bg="gray.800"
+            color="white"
+            data-testid="member-pivot-mail-status-modal"
+          >
+            <ModalHeader>{t('analytics.mailRuns.title')}</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody pb={6}>
+              <MemberMailStatus language={language} />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+      )}
+
       {/* The compose/edit modal (task 7.4 / 7.5). Mounted here so New set /
           Save-as / Update all route through the SAME picker; `existingModel`
           switches it between create and in-place update. On a successful
@@ -1376,7 +2004,14 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
           R4.12), optionally attaching the result CSV / PDF labels. BCC-by-default
           + recipient-count confirmation are enforced in the modal + backend
           (R8.4). Mounted only when there is a result so `recipients` is defined. */}
-      {result && (
+      {/* Mounted only when there is a result AND the tenant is mail-enabled (R1,
+          task 1.3): the Mail action is hidden when not enabled, so the modal can
+          never open — mirroring how the labels modal mounts only when its gate
+          (`canGenerateLabels`) holds. `enableTemplates` is likewise tied to the
+          gate: the stored-template picker + send offer are offered only to a
+          mail-enabled tenant (R0 — the compose's `enableTemplates` prop documents
+          "hidden when the tenant is not mail-enabled per R0"). */}
+      {result && mailEnabled && (
         <MemberMailCompose
           isOpen={isMailOpen}
           onClose={() => setIsMailOpen(false)}
@@ -1385,7 +2020,90 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
           language={language}
           buildCsvBase64={buildCsvBase64}
           buildPdfBase64={hasAddressMapping ? buildPdfBase64 : undefined}
+          enableTemplates={mailEnabled}
         />
+      )}
+
+      {/* Delivery editor modal (task 3.4 / R3). Opened from the "Delivery"
+          lifecycle action on a selected saved set; edits the set's optional
+          stored delivery block and persists via the dedicated PUT/DELETE delivery
+          route (never the create/update set body). Mounted only once a set has
+          been resolved (`deliverySet` set by handleDelivery). */}
+      {deliverySet && (
+        <MemberDeliveryEditor
+          isOpen={isDeliveryOpen}
+          onClose={() => setIsDeliveryOpen(false)}
+          setId={deliverySet.id}
+          setName={deliverySet.name}
+          initialDelivery={deliverySet.delivery}
+          language={language}
+          onSave={handleDeliverySave}
+          onClear={handleDeliveryClear}
+        />
+      )}
+
+      {/* Schedule editor modal (task 5.4 / R5). Opened from the "Schedule"
+          lifecycle action on a selected saved set that HAS a delivery block;
+          creates/updates/deletes the set's recurring run via the dedicated
+          schedule route (POST/PUT/DELETE /members/schedules). Mounted only once a
+          set has been resolved (`scheduleSet` set by handleSchedule). */}
+      {scheduleSet && (
+        <MemberScheduleEditor
+          isOpen={isScheduleOpen}
+          onClose={() => setIsScheduleOpen(false)}
+          setName={scheduleSet.name}
+          hasDelivery={scheduleSet.hasDelivery}
+          initialSchedule={scheduleSet.schedule}
+          onCreate={handleScheduleCreate}
+          onUpdate={handleScheduleUpdate}
+          onDelete={handleScheduleDelete}
+        />
+      )}
+
+      {/* Address-label generate modal (labels sub-spec task 3.2 / R-L2/R-L3/R-L4).
+          Hosts the TEMPLATE-DRIVEN MemberLabelsPanel: the user picks a stored
+          `kind:"label"` template + an Avery format, tunes the ONE shared
+          LabelStyleOptions (R-L5 — font, alignment, border, start position,
+          shrink-to-fit), and Generates. The panel composes the CURRENT result
+          rows (`exportRows`, the table's post-filter visible rows — R2/R3)
+          through the template via `generateLabelTemplatePdf`, which uses
+          `composeLabelLines` (NOT `composeAddresses`/`resolveAddressMapping`) and
+          reads NO `analytics.*` (R6 / Property 4), then downloads/prints the PDF
+          (R-L4). The `labelTemplates` list (loaded for the gate) is passed in so
+          no extra fetch is needed — the list DTO already carries each template's
+          `lines`.
+
+          The availability GATE (members:export + ≥1 label template =
+          `canGenerateLabels`) decides whether the action is reachable: the modal
+          mounts only when the gate holds, so a caller without export (or a tenant
+          with no label template) can never open it. */}
+      {result && canGenerateLabels && (
+        <Modal
+          isOpen={isLabelsOpen}
+          onClose={() => setIsLabelsOpen(false)}
+          size="2xl"
+          isCentered
+          scrollBehavior="inside"
+        >
+          <ModalOverlay />
+          <ModalContent bg="gray.800" color="white" data-testid="member-pivot-labels-modal">
+            <ModalHeader>{t('analytics.labels.modalTitle')}</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody pb={6}>
+              <MemberLabelsPanel
+                rows={exportRows as MemberRow[]}
+                fieldConfig={fieldConfig ?? undefined}
+                templates={labelTemplates}
+                language={language}
+                resultFields={(result?.columns ?? []).map((col) => ({
+                  key: col.name,
+                  label: columnLabels[col.name] ?? col.name,
+                }))}
+                onTemplatesChanged={reloadLabelTemplates}
+              />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
       )}
 
       {/* Delete confirmation (task 7.5 / R4.4b) — deleting a saved set is an
@@ -1425,6 +2143,110 @@ const MemberPivotViews: React.FC<MemberAnalyticsAreaProps> = ({
                 data-testid="member-pivot-delete-confirm"
               >
                 {t('analytics.pivotViews.lifecycle.confirmDeleteConfirm')}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Send CSV by email (Export-CSV menu, C5): collect fixed address(es) + confirm, then
+          mail the current result as a CSV attachment via the SAM to_fixed path. */}
+      <AlertDialog
+        isOpen={isCsvMailOpen}
+        leastDestructiveRef={csvMailCancelRef}
+        onClose={() => !csvMailSending && setIsCsvMailOpen(false)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.800" color="white" data-testid="member-pivot-csv-mail-dialog">
+            <AlertDialogHeader>{t('analytics.export.csvMail.title')}</AlertDialogHeader>
+            <AlertDialogBody>
+              <Text fontSize="sm" color="gray.300" mb={3}>
+                {t('analytics.export.csvMail.summary', { count: exportRows.length })}
+              </Text>
+              <FormControl isInvalid={csvMailTo.trim() !== '' && !csvMailValid}>
+                <FormLabel htmlFor="member-pivot-csv-mail-to">
+                  {t('analytics.export.csvMail.toLabel')}
+                </FormLabel>
+                <Input
+                  id="member-pivot-csv-mail-to"
+                  data-testid="member-pivot-csv-mail-to"
+                  value={csvMailTo}
+                  onChange={(e) => setCsvMailTo(e.target.value)}
+                  placeholder={t('analytics.export.csvMail.toPlaceholder')}
+                  bg="gray.900"
+                  color="white"
+                />
+              </FormControl>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={csvMailCancelRef}
+                variant="ghost"
+                onClick={() => setIsCsvMailOpen(false)}
+                isDisabled={csvMailSending}
+                data-testid="member-pivot-csv-mail-cancel"
+              >
+                {t('analytics.pivotViews.lifecycle.confirmDeleteCancel')}
+              </Button>
+              <Button
+                colorScheme="orange"
+                ml={3}
+                onClick={handleSendCsvMail}
+                isDisabled={!csvMailValid}
+                isLoading={csvMailSending}
+                data-testid="member-pivot-csv-mail-send"
+              >
+                {t('analytics.export.csvMail.send')}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Deliver now — CONFIRM before an irreversible send (redesign Q3 safety).
+          Deliver now mails the on-screen result to the set's stored fixed
+          recipients; the confirm turns "fired blind" into a seen, deliberate
+          action. On confirm it runs the same handleDeliverNow (which reads the
+          stored recipients + sends the current result via the ad-hoc path). */}
+      <AlertDialog
+        isOpen={isDeliverNowConfirmOpen}
+        leastDestructiveRef={deliverNowCancelRef}
+        onClose={() => !isDeliveringNow && setIsDeliverNowConfirmOpen(false)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.800" color="white" data-testid="member-pivot-deliver-now-dialog">
+            <AlertDialogHeader>{t('analytics.delivery.deliverNowConfirmTitle')}</AlertDialogHeader>
+            <AlertDialogBody>
+              <Text fontSize="sm" color="gray.300">
+                {t('analytics.delivery.deliverNowConfirmBody', {
+                  name: selectedModelSummary?.name ?? '',
+                  count: exportRows.length,
+                })}
+              </Text>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={deliverNowCancelRef}
+                variant="ghost"
+                onClick={() => setIsDeliverNowConfirmOpen(false)}
+                isDisabled={isDeliveringNow}
+                data-testid="member-pivot-deliver-now-cancel"
+              >
+                {t('analytics.pivotViews.lifecycle.confirmDeleteCancel')}
+              </Button>
+              <Button
+                colorScheme="orange"
+                ml={3}
+                onClick={() => {
+                  setIsDeliverNowConfirmOpen(false);
+                  void handleDeliverNow();
+                }}
+                isLoading={isDeliveringNow}
+                data-testid="member-pivot-deliver-now-confirm"
+              >
+                {t('analytics.delivery.deliverNowConfirmSend')}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

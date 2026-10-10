@@ -73,12 +73,25 @@ __all__ = [
     "RECORD_TYPE_MEMBERSHIP",
     "RECORD_TYPE_MEMBERSHIP_TYPE",
     "RECORD_TYPE_COLUMN_PREFS",
+    "RECORD_TYPE_MAIL_SENT",
+    "RECORD_TYPE_MAIL_RUN",
+    "RECORD_TYPE_MAIL_RECIPIENT",
     "RECORD_TYPE_PAYMENT",
     "RECORD_TYPE_PREF_LIST",
+    "RECORD_TYPE_SCHEDULE",
+    "RECORD_TYPE_TEMPLATE",
     "SORT_KEY_ATTR",
     "SORT_KEY_SEPARATOR",
+    "TEMPLATE_S3_PREFIX",
     "analytics_set_sk",
     "build_analytics_set_item",
+    "build_schedule_item",
+    "schedule_sk",
+    "build_template_item",
+    "template_body_s3_key",
+    "template_logo_s3_key",
+    "template_s3_prefix",
+    "template_sk",
     "build_column_prefs_item",
     "build_key",
     "build_member_item",
@@ -90,6 +103,12 @@ __all__ = [
     "floats_to_decimal",
     "get_members_table_resource",
     "leading_keys_iam_policy_json",
+    "mail_sent_marker_sk",
+    "mail_run_sk",
+    "mail_recipient_sk",
+    "mail_recipient_sk_prefix",
+    "build_mail_run_item",
+    "build_mail_recipient_item",
     "member_sk",
     "member_sk_prefix",
     "membership_sk",
@@ -157,12 +176,61 @@ RECORD_TYPE_ANALYTICS_SET = "analyticsset"
 #: set library. Private to the user; lives in the tenant partition like every other entity.
 RECORD_TYPE_PREF_LIST = "preflist"
 
+#: A stored mail TEMPLATE (R2). A ``template#<template_id>`` item holds the template METADATA
+#: (name, per-language subjects + S3 body-key refs, merge fields, optional logo asset ref,
+#: origin, attribution) on-plane; the body HTML + logo binaries live in S3 ``myadmin-shared``
+#: (never inline — a DynamoDB item caps at 400 KB and must not carry binaries). Written
+#: module-agnostic (no member-specific logic) so the whole template store can extract to
+#: ``sam/shared/templates/`` on a second consumer (steering 35 rule of three). Lives in the
+#: tenant partition like every other entity (isolation is structural — the PK is tenant_id).
+RECORD_TYPE_TEMPLATE = "template"
+
+#: A stored SCHEDULE (R5). A ``schedule#<schedule_id>`` item holds the recurring-run metadata
+#: for a saved analytics-set + its delivery block (``set_id`` + the EventBridge Scheduler
+#: ``cron`` expression + ``created_by`` + ``enabled``). The tenant is PINNED here because an
+#: unattended run has no interactive user (R5). The entity is storage-only — the "the set must
+#: have a delivery block" rule is a SERVICE/route gate (task 5.2), not a storage concern. Lives
+#: in the tenant partition like every other entity (isolation is structural — the PK is
+#: tenant_id).
+RECORD_TYPE_SCHEDULE = "schedule"
+
 #: A user's chosen OVERVIEW COLUMNS (session-columns spec R6.2). One item per user, keyed by the
 #: user's Cognito ``sub`` (NOT a member_id — user ≠ member, R11.1). SK ``colprefs#<sub>`` (mirrors
 #: ``preflist#<sub>``). Holds an ordered list of field keys (references into the field config)
 #: the user surfaces as columns. Private to the user; lives in the tenant partition like every
 #: other entity (isolation is structural — the PK is pinned to tenant_id).
 RECORD_TYPE_COLUMN_PREFS = "colprefs"
+
+#: A **mail-sent idempotency marker** (R4, pivot-output-actions task 4.3). A
+#: ``mailsent#<job_id>`` item records that the worker already SENT the send job with that
+#: stable ``job_id`` (design §4.2 — SQS is at-least-once, so a redelivery of the same job must
+#: be a no-op, not a second send). The worker writes it with a conditional
+#: ``attribute_not_exists`` put BEFORE sending — a redelivery's put fails the condition, the
+#: worker sees the marker, and it skips the send. Metadata-only (job id + run id + a timestamp +
+#: a TTL) — never message bodies or member PII. Lives in the tenant partition like every other
+#: entity (the PK is tenant_id — a marker can only ever match within its own tenant).
+RECORD_TYPE_MAIL_SENT = "mailsent"
+
+#: A **send-run status TALLY** (R9.1, mail-spec task 3.1). A ``mailrun#<run_id>`` item holds the
+#: AGGREGATED status of one logical send run — ``mode`` / ``triggered_by`` / ``recipient_count`` /
+#: ``status`` (``queued`` → ``sending`` → ``completed``) / ``sent`` / ``failed`` + timestamps. The
+#: enqueue path writes it at ``queued`` with the recipient count; the worker advances the status
+#: and increments ``sent`` / ``failed`` as it processes jobs. Successful recipients are only
+#: COUNTED here (no per-recipient row) — the design's "summary tally + FAILURE-ONLY sub-records"
+#: decision. Carries a ``ttl`` epoch attribute (DynamoDB TTL, default 90 days). Lives in the tenant
+#: partition like every other entity (the PK is tenant_id — a run only ever matches within its own
+#: tenant; Property 3).
+RECORD_TYPE_MAIL_RUN = "mailrun"
+
+#: A **FAILURE-ONLY per-recipient sub-record** (R9.1/R9.5, mail-spec task 3.1). A
+#: ``mailrecipient#<run_id>#<n>`` item is written ONLY for a FAILURE of a send run — a send-time
+#: reject / no-address / a LATE async bounce / complaint (R8.4). It carries ``run_id`` /
+#: ``address`` / ``status`` (``failed`` / ``bounced`` / ``complaint``) / ``reason`` /
+#: ``message_id`` / ``updated_at``. Successes are NOT stored (they are counted in the run tally).
+#: The ``<n>`` segment is a per-run FAILURE sequence / discriminator so two failures of a run never
+#: collide. Carries a ``ttl`` epoch attribute (default 90 days). Lives in the tenant partition like
+#: every other entity (the PK is tenant_id — Property 3).
+RECORD_TYPE_MAIL_RECIPIENT = "mailrecipient"
 
 
 # --- Sort-key composition / parsing ----------------------------------------
@@ -252,6 +320,16 @@ def analytics_set_sk(set_id: str) -> str:
     return build_sort_key(RECORD_TYPE_ANALYTICS_SET, set_id)
 
 
+def template_sk(template_id: str) -> str:
+    """SK for a stored mail-template entry: ``template#<template_id>`` (R2)."""
+    return build_sort_key(RECORD_TYPE_TEMPLATE, template_id)
+
+
+def schedule_sk(schedule_id: str) -> str:
+    """SK for a stored schedule entry: ``schedule#<schedule_id>`` (R5)."""
+    return build_sort_key(RECORD_TYPE_SCHEDULE, schedule_id)
+
+
 def pref_list_sk(sub: str) -> str:
     """SK for a user's preferred-list entry: ``preflist#<sub>`` (R11.2).
 
@@ -270,6 +348,51 @@ def column_prefs_sk(sub: str) -> str:
     no key separator (an opaque Cognito sub never does).
     """
     return build_sort_key(RECORD_TYPE_COLUMN_PREFS, sub)
+
+
+def mail_sent_marker_sk(job_id: str) -> str:
+    """SK for a mail-sent idempotency marker: ``mailsent#<job_id>`` (R4, task 4.3).
+
+    ``job_id`` is the stable idempotency id the execute-and-deliver service derives for one
+    send job (design §4.2). The worker conditionally puts this marker (``attribute_not_exists``)
+    before sending, so an at-least-once SQS redelivery of the same job finds the marker and
+    skips a second send. ``job_id`` must be non-blank and contain no key separator (the
+    service's SHA-256 hex id never does).
+    """
+    return build_sort_key(RECORD_TYPE_MAIL_SENT, job_id)
+
+
+def mail_run_sk(run_id: str) -> str:
+    """SK for a send-run status tally: ``mailrun#<run_id>`` (R9.1, mail-spec task 3.1).
+
+    ``run_id`` is the caller-supplied id for ONE logical send run (the deliver route / the
+    scheduler mints it; shared by every job of a ``per_recipient`` fan-out — see
+    ``execute_and_deliver.DeliveryOutcome.run_id``). It must be non-blank and contain no key
+    separator (a scheduled run id like ``schedule:<id>:<ts>`` would — so callers that fold a
+    composite into the SK must sanitize; the service's own run ids do not carry ``#``).
+    """
+    return build_sort_key(RECORD_TYPE_MAIL_RUN, run_id)
+
+
+def mail_recipient_sk(run_id: str, seq: str) -> str:
+    """SK for a FAILURE-ONLY per-recipient sub-record: ``mailrecipient#<run_id>#<seq>``.
+
+    (R9.1/R9.5, mail-spec task 3.1.) ``seq`` is a per-run FAILURE discriminator so two failures
+    of the same run never collide — the repository derives it from the failure count (or a late
+    bounce's own ordinal). Both segments must be non-blank and contain no key separator.
+    """
+    return build_sort_key(RECORD_TYPE_MAIL_RECIPIENT, run_id, seq)
+
+
+def mail_recipient_sk_prefix(run_id: str) -> str:
+    """The SK prefix that selects every FAILURE sub-record of one run (R9.1).
+
+    ``mailrecipient#<run_id>`` is a prefix of every ``mailrecipient#<run_id>#<seq>`` item, so a
+    single ``begins_with`` Query inside the tenant partition fetches all of a run's failures
+    (still tenant-scoped — the partition key is fixed; Property 3). ``run_id`` must be non-blank
+    and contain no key separator.
+    """
+    return build_sort_key(RECORD_TYPE_MAIL_RECIPIENT, run_id)
 
 
 def member_sk_prefix(member_id: str) -> str:
@@ -455,6 +578,79 @@ def build_analytics_set_item(
     return item
 
 
+def build_template_item(
+    tenant_id: str, template_id: str, entry: Mapping[str, Any]
+) -> dict:
+    """Compose the stored DynamoDB item for a mail-template METADATA entry (R2).
+
+    Stamps the tenant partition key and the ``template#<template_id>`` sort key onto a copy of
+    the domain-layer ``entry`` payload (``name`` / ``languages`` / ``merge_fields`` /
+    ``logo_asset_ref`` / ``origin`` / ``created_by`` / timestamps). The caller's ``tenant_id``
+    and ``template_id`` are authoritative — any values already on the payload are overwritten so
+    a domain-layer mistake can never land an entry in the wrong partition or under the wrong id.
+
+    Only METADATA is stored here. The template body HTML + any logo binary live in S3 under the
+    tenant-prefixed layout (see :func:`template_body_s3_key` / :func:`template_logo_s3_key`) and
+    are referenced by key — never inlined (400 KB item limit + binary).
+
+    Args:
+        tenant_id: The tenant (partition key).
+        template_id: The template id (sort-key id segment; server-chosen).
+        entry: The domain entry payload (template metadata).
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + id attrs.
+
+    Raises:
+        ValueError: ``tenant_id`` or ``template_id`` is empty.
+    """
+    if not template_id:
+        raise ValueError("template_id must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = template_sk(template_id)
+    # Keep the id addressable without re-parsing the sort key.
+    item["template_id"] = template_id
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
+def build_schedule_item(
+    tenant_id: str, schedule_id: str, entry: Mapping[str, Any]
+) -> dict:
+    """Compose the stored DynamoDB item for a schedule entry (R5).
+
+    Stamps the tenant partition key and the ``schedule#<schedule_id>`` sort key onto a copy of
+    the domain-layer ``entry`` payload (``set_id`` / ``cron`` / ``created_by`` / ``enabled`` /
+    timestamps). The caller's ``tenant_id`` and ``schedule_id`` are authoritative — any values
+    already on the payload are overwritten so a domain-layer mistake can never land an entry in
+    the wrong partition or under the wrong id. The tenant is PINNED here (an unattended run has
+    no interactive user — R5).
+
+    Args:
+        tenant_id: The tenant (partition key).
+        schedule_id: The schedule id (sort-key id segment; server-chosen).
+        entry: The domain entry payload (schedule metadata).
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + id attrs.
+
+    Raises:
+        ValueError: ``tenant_id`` or ``schedule_id`` is empty.
+    """
+    if not schedule_id:
+        raise ValueError("schedule_id must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = schedule_sk(schedule_id)
+    # Keep the id addressable without re-parsing the sort key.
+    item["schedule_id"] = schedule_id
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
 def build_pref_list_item(tenant_id: str, sub: str, entry: Mapping[str, Any]) -> dict:
     """Compose the stored DynamoDB item for a user's preferred-list entry (R11.2).
 
@@ -520,6 +716,172 @@ def build_column_prefs_item(
     # Fail-fast if the composed key would be invalid (blank tenant, etc.).
     build_key(tenant_id, item[SORT_KEY_ATTR])
     return item
+
+
+def build_mail_run_item(
+    tenant_id: str, run_id: str, entry: Mapping[str, Any]
+) -> dict:
+    """Compose the stored DynamoDB item for a send-run status TALLY (R9.1, mail-spec task 3.1).
+
+    Stamps the tenant partition key and the ``mailrun#<run_id>`` sort key onto a copy of the
+    ``entry`` payload (``mode`` / ``triggered_by`` / ``recipient_count`` / ``status`` / ``sent`` /
+    ``failed`` / timestamps / ``ttl``). The caller's ``tenant_id`` and ``run_id`` are
+    authoritative — any values already on the payload are overwritten so a domain-layer mistake
+    can never land a run in the wrong partition or under the wrong id (Property 3). Only aggregate
+    metadata is stored — never message bodies or member PII.
+
+    Args:
+        tenant_id: The tenant (partition key).
+        run_id: The logical run id (sort-key id segment).
+        entry: The run-tally payload.
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + ``run_id`` attr.
+
+    Raises:
+        ValueError: ``tenant_id`` or ``run_id`` is empty.
+    """
+    if not run_id:
+        raise ValueError("run_id must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = mail_run_sk(run_id)
+    # Keep the id addressable without re-parsing the sort key.
+    item["run_id"] = run_id
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
+def build_mail_recipient_item(
+    tenant_id: str, run_id: str, seq: str, entry: Mapping[str, Any]
+) -> dict:
+    """Compose the stored DynamoDB item for a FAILURE-ONLY recipient sub-record (R9.1/R9.5).
+
+    (mail-spec task 3.1.) Stamps the tenant partition key and the
+    ``mailrecipient#<run_id>#<seq>`` sort key onto a copy of the ``entry`` payload (``address`` /
+    ``status`` / ``reason`` / ``message_id`` / ``updated_at``). The caller's ``tenant_id`` /
+    ``run_id`` / ``seq`` are authoritative — any values already on the payload are overwritten so
+    a domain-layer mistake can never land a record in the wrong partition or under the wrong id
+    (Property 3). Written ONLY for a failure — a success is counted in the run tally, not stored.
+
+    Args:
+        tenant_id: The tenant (partition key).
+        run_id: The logical run id (first sort-key id segment; also stored as ``run_id``).
+        seq: The per-run failure discriminator (second sort-key id segment).
+        entry: The failure payload.
+
+    Returns:
+        A new dict ready for ``put_item`` — the payload plus the primary-key + ``run_id`` attr.
+
+    Raises:
+        ValueError: ``tenant_id`` / ``run_id`` / ``seq`` is empty.
+    """
+    if not run_id:
+        raise ValueError("run_id must be non-empty")
+    if not seq:
+        raise ValueError("seq must be non-empty")
+    item = floats_to_decimal(dict(entry))  # DynamoDB-safe numbers (float→Decimal)
+    item[PARTITION_KEY_ATTR] = tenant_id  # authoritative — overwrite any payload value
+    item[SORT_KEY_ATTR] = mail_recipient_sk(run_id, seq)
+    # Keep the run id addressable without re-parsing the sort key.
+    item["run_id"] = run_id
+    # Fail-fast if the composed key would be invalid (blank tenant, etc.).
+    build_key(tenant_id, item[SORT_KEY_ATTR])
+    return item
+
+
+# --- S3 body/logo layout for stored templates (R2) -------------------------
+#
+# The template METADATA lives on-plane (``template#<id>`` above); the body HTML + any logo
+# binary live in the shared S3 bucket ``myadmin-shared`` (``infrastructure/s3.tf`` — the
+# tenant-prefixed home for invoice/branding/template storage). This module is the SINGLE place
+# that assembles the S3 KEY LAYOUT, mirroring how it is the single place the DynamoDB sort-key
+# shape is assembled — so the template service, the S3 reader/writer, and any backfill agree on
+# one definition instead of each re-deriving the path.
+#
+# The bucket NAME (``myadmin-shared-<env>``) is environment config resolved elsewhere (e.g. the
+# ``S3_SHARED_BUCKET`` env var); this module owns only the KEY (the object path WITHIN the
+# bucket). Every key is TENANT-PREFIXED (``<tenant>/templates/...``) per steering 23 — the same
+# tenant-prefix convention the invoice/branding storage already uses, so a tenant's objects are
+# addressable only under its own prefix (the storage-side counterpart to the DynamoDB
+# partition-key isolation).
+
+#: The fixed path segment under a tenant's prefix that groups all template objects. The full
+#: key is ``<tenant>/templates/<template_id>/...``.
+# Tenant-first key layout: <tenant>/<service-path>/templates/<id>/...
+# The service path namespaces the owning (sub)service so one shared bucket can hold many
+# services' assets without collision, migration-safe for the Flask->nonprofit consolidation.
+TEMPLATE_SERVICE_PATH = "members/mail"
+TEMPLATE_S3_PREFIX = "templates"
+
+
+def _require_s3_segment(name: str, value: str) -> str:
+    """Guard an S3-key segment: non-blank and free of ``/`` (which would alter the path).
+
+    A blank ``tenant`` would hoist an object out of its tenant prefix (a cross-tenant storage
+    hazard — the S3 counterpart to a blank partition key); a ``/`` in any id segment would
+    silently inject extra path levels. Both are refused so a key is never ambiguous.
+    """
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} must be a non-empty string (S3-key segment)")
+    if "/" in value:
+        raise ValueError(
+            f"{name} {value!r} must not contain '/' (it would alter the S3 key path)"
+        )
+    return value
+
+
+def template_s3_prefix(tenant: str, template_id: str) -> str:
+    """The tenant-prefixed S3 key prefix for one template's objects (R2).
+
+    Returns ``<tenant>/templates/<template_id>`` — the common prefix under which a template's
+    body (per language) and logo live. Tenant-prefixed per steering 23 (a tenant's objects are
+    addressable only under its own prefix).
+
+    Raises:
+        ValueError: ``tenant`` or ``template_id`` is blank or contains ``/``.
+    """
+    _require_s3_segment("tenant", tenant)
+    _require_s3_segment("template_id", template_id)
+    return f"{tenant}/{TEMPLATE_SERVICE_PATH}/{TEMPLATE_S3_PREFIX}/{template_id}"
+
+
+def template_body_s3_key(tenant: str, template_id: str, lang: str) -> str:
+    """S3 key for a template's body HTML in a given language (R2).
+
+    Returns ``<tenant>/templates/<template_id>/<lang>.html`` (design §2.2). This is the value a
+    language entry's ``s3_body_key`` points at. Tenant-prefixed per steering 23.
+
+    Args:
+        tenant: The owning tenant (key prefix = tenancy boundary).
+        template_id: The template id.
+        lang: The language code (e.g. ``nl`` / ``en``).
+
+    Raises:
+        ValueError: Any segment is blank or contains ``/``.
+    """
+    _require_s3_segment("lang", lang)
+    return f"{template_s3_prefix(tenant, template_id)}/{lang}.html"
+
+
+def template_logo_s3_key(tenant: str, template_id: str, filename: str) -> str:
+    """S3 key for a template's logo/image binary (R2).
+
+    Returns ``<tenant>/templates/<template_id>/logo/<filename>`` — a ``logo/`` sub-prefix keeps
+    binary assets separate from the per-language HTML bodies. Tenant-prefixed per steering 23.
+
+    Args:
+        tenant: The owning tenant (key prefix = tenancy boundary).
+        template_id: The template id.
+        filename: The logo object's file name (e.g. ``logo.png``).
+
+    Raises:
+        ValueError: ``tenant`` / ``template_id`` is blank or contains ``/``, or ``filename`` is
+            blank. (A ``filename`` may NOT contain ``/`` either — it is a single object name.)
+    """
+    _require_s3_segment("filename", filename)
+    return f"{template_s3_prefix(tenant, template_id)}/logo/{filename}"
 
 
 # --- Table-name resolution + resource (fail-fast, reuses the T0 client) ----

@@ -10,7 +10,8 @@ audit signal):
   - tenant isolation: a client-supplied tenant in the body is ignored;
   - PII guard: a PII-named filter key is never logged (R8.3).
 
-Mirrors tests/api/test_members_mail.py.
+(The former server-side Members SES mail route + its test were retired to the SAM
+plane per the mail spec, task 4.1; this client-side export-audit route remains.)
 
 Validates: Requirements R8.1, R8.3
 """
