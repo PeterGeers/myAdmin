@@ -1,0 +1,199 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create pure CSV helper for the transactions table": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219875616
+      },
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219890730
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220134471
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220319987
+      }
+    ],
+    "1.2 Write unit tests for the transactions CSV helper": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219875837
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220344925
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220598639
+      }
+    ],
+    "1.3 Add banking i18n keys for the export control": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219876103
+      },
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219891920
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220135393
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220321288
+      }
+    ],
+    "1.4 Wire the \"Export to CSV\" button into BankingMutatiesTab": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219876266
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220345982
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220601734
+      }
+    ],
+    "1.5 Add lightweight render test for the export button": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219876416
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220609176
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220847636
+      }
+    ],
+    "2. Checkpoint — Part (a) complete": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219876562
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220888283
+      }
+    ],
+    "3.1 Create pure CSV helper for the report export": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219876776
+      },
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219892668
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220136530
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220322276
+      }
+    ],
+    "3.2 Write unit tests for the report CSV helper": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219876930
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220347402
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220597064
+      }
+    ],
+    "3.3 Refactor exportMutatiesCsv onto the shared utility": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219877086
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220354258
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220599970
+      }
+    ],
+    "4. Final verification": [
+      {
+        "executionId": "c1a68237-3209-4417-9fc8-748f52ff8d15",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791219877226
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220893891
+      },
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791221119112
+      }
+    ],
+    "3. Part (b) — FIN report export standardization": [
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220600216
+      }
+    ],
+    "1. Part (a) — Transactions table export": [
+      {
+        "executionId": "d5ae30d5-a79a-4c42-a71c-566076086d6d",
+        "chatSessionId": "sess_9ada6d2c-1442-42ed-a682-46cfd6142a50",
+        "timestamp": 1791220847786
+      }
+    ]
+  }
+}

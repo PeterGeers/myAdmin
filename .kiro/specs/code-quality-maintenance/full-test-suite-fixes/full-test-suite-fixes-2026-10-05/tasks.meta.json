@@ -1,0 +1,107 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "**H1. Fix the stale `os` patch target in `test_landing_page_contact.py` left behind by the 10-04 `import os` lint sweep (F1, 1 failing test).** [S] — the test patches a symbol the production module no longer imports; a direct side-effect of 10-04 H2. Fix is in the **test**, not production.": [
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190585315
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190593632
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190745466
+      }
+    ],
+    "**H2. Treat the Airbnb `Bevestigingscode` as an opaque string in grouping so numeric-looking codes (`0000E0`) aren't coerced (F2, 1 failing test).** [M] — Hypothesis found a deterministic, reproducible falsifying example; fix is in the **parser** (keep the raw string key), not a weakened assertion.": [
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190585467
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190761624
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190946586
+      }
+    ],
+    "**L1. Broaden the pre-push guard from `--collect-only` to also run `ruff check` + `ruff format --check` + a changed-path test subset.** [M] — carried forward from 10-03 L1 / 10-04 L1; **the changed-path test subset would have caught F1 (the `import os`-sweep regression) before push**.": [
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190585638
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190975057
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791191995404
+      }
+    ],
+    "**L2. Add a changed-symbol test-reference check so a lint autofix that removes an imported name can't silently orphan a `@patch` target.** [S] — durable prevention for the F1 class (fix-induced test regression).": [
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190585778
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791192005845
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791192615661
+      }
+    ],
+    "**L3. (Report-only, non-blocking) Sweep the cheap report-only lint debt before it becomes a cliff.** [M] — none of this blocks CI today; clear the mechanical bulk so the report-only planes stay readable.": [
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190585929
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791192622038
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791193710154
+      }
+    ],
+    "**L4. Confirm ruff stays pinned to 0.16.5 (reproducibility guard).** [S] — standing guard carried forward from 10-03 L3 / 10-04 L4; no change expected.": [
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791190586085
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791193761032
+      },
+      {
+        "executionId": "3b57e663-78b5-4d4f-ba5e-45c3ce1f6a9a",
+        "chatSessionId": "sess_32a8da80-8c5e-4ef4-bc07-ad32ec33d2d1",
+        "timestamp": 1791193782217
+      }
+    ]
+  }
+}

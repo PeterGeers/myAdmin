@@ -7,7 +7,7 @@ architecture = "x86_64"
 handler = "sam.members.handler.app.handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["MembersFunction"]
+functions = ["MembersFunction", "MailWorkerFunction", "MailFeedbackFunction", "MembersSchedulerTriggerFunction"]
 
 [layer_build_definitions.957265f5-7885-4546-99ab-f299cab439f7]
 layer_name = "MembersLayer"
