@@ -50,6 +50,7 @@ const listSchedulesForSet = vi.fn();
 const createSchedule = vi.fn();
 const updateSchedule = vi.fn();
 const deleteSchedule = vi.fn();
+const sendAdHocMail = vi.fn();
 vi.mock('../../../services/membersApiService', () => ({
   listAnalyticsSets: (...args: unknown[]) => listAnalyticsSets(...args),
   getAnalyticsSet: (...args: unknown[]) => getAnalyticsSet(...args),
@@ -61,6 +62,7 @@ vi.mock('../../../services/membersApiService', () => ({
   putAnalyticsSetDelivery: (...args: unknown[]) => putAnalyticsSetDelivery(...args),
   deleteAnalyticsSetDelivery: (...args: unknown[]) => deleteAnalyticsSetDelivery(...args),
   deliverAnalyticsSet: (...args: unknown[]) => deliverAnalyticsSet(...args),
+  sendAdHocMail: (...args: unknown[]) => sendAdHocMail(...args),
   listSchedulesForSet: (...args: unknown[]) => listSchedulesForSet(...args),
   createSchedule: (...args: unknown[]) => createSchedule(...args),
   updateSchedule: (...args: unknown[]) => updateSchedule(...args),
@@ -288,6 +290,8 @@ beforeEach(() => {
   putAnalyticsSetDelivery.mockReset();
   deleteAnalyticsSetDelivery.mockReset();
   deliverAnalyticsSet.mockReset();
+  sendAdHocMail.mockReset();
+  sendAdHocMail.mockResolvedValue({ runId: 'run-1', mode: 'to_fixed', enqueued: 1, skippedNoAddress: 0, jobIds: ['job-1'] });
   deliverAnalyticsSet.mockResolvedValue({
     runId: 'run-1',
     mode: 'to_fixed',
@@ -1064,18 +1068,27 @@ describe('MemberPivotViews', () => {
 
       // New set is always available; the others require a selected saved model.
       // (Delete is no longer a main-pane button — it lives in the "All sets"
-      // modal per-row trash icon.)
-      expect(screen.getByTestId('member-pivot-new-set')).not.toBeDisabled();
-      expect(screen.getByTestId('member-pivot-save-as')).toBeDisabled();
-      expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
+      // modal per-row trash icon.) These are now MenuItems inside the "Manage set"
+      // menu — a disabled MenuItem renders aria-disabled ONLY while the menu is
+      // open, so open it before asserting. A disabled MenuItem still never fires.
+      // With NO set selected: Update does nothing (needs a saved model); Delete is
+      // not a main-pane control. Assert BEHAVIOR — Chakra's isDisabled suppresses
+      // the action — rather than the DOM disabled flag (Chakra MenuItem's disabled
+      // state is not reliably reflected in jsdom when the menu is portaled).
+      fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+      expect(screen.getByTestId('member-pivot-new-set')).toBeInTheDocument();
       expect(screen.queryByTestId('member-pivot-delete')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('member-pivot-update'));
+      expect(screen.queryByTestId('member-field-picker')).not.toBeInTheDocument();
+      expect(updateAnalyticsSet).not.toHaveBeenCalled();
 
-      // Selecting a PRESET enables Save-as but NOT Update (preset ≠ saved model).
+      // Selecting a PRESET: Update still does nothing (preset ≠ saved model).
       fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
         target: { value: 'preset:membership-types' },
       });
-      expect(screen.getByTestId('member-pivot-save-as')).not.toBeDisabled();
-      expect(screen.getByTestId('member-pivot-update')).toBeDisabled();
+      fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+      fireEvent.click(screen.getByTestId('member-pivot-update'));
+      expect(updateAnalyticsSet).not.toHaveBeenCalled();
     });
 
     it('New set opens the picker to compose + save a brand-new set (R4.4)', async () => {
@@ -2475,11 +2488,13 @@ describe('MemberPivotViews — schedule action gating (task 5.4 / R5)', () => {
   it('DISABLES the Schedule action for a selected set with NO delivery block (R5)', async () => {
     await renderWithSavedSet({ hasDelivery: false });
 
-    const schedule = screen.getByTestId('member-pivot-schedule') as HTMLButtonElement;
+    // Open the "Manage set" menu so the (disabled) Schedule MenuItem renders.
+    fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+    const schedule = screen.getByTestId('member-pivot-schedule');
     // Offered (the caller can schedule) but disabled: a schedule needs a delivery.
+    // Assert the BEHAVIOR (Chakra's isDisabled suppresses the action): clicking it
+    // never fetches the set nor opens the editor.
     expect(schedule).toBeInTheDocument();
-    expect(schedule).toBeDisabled();
-    // Clicking the disabled action never fetches the set / opens the editor.
     fireEvent.click(schedule);
     await waitFor(() => expect(getAnalyticsSet).not.toHaveBeenCalled());
     expect(screen.queryByTestId('member-schedule-editor')).not.toBeInTheDocument();
@@ -2567,8 +2582,14 @@ describe('MemberPivotViews — schedule action gating (task 5.4 / R5)', () => {
 // no-op.
 // ===========================================================================
 describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', () => {
-  /** Render with a single preferred saved set made selectable, then select it. */
-  async function renderWithSavedSet(opts: { hasDelivery: boolean } = { hasDelivery: true }) {
+  /**
+   * Render with a single preferred saved set made selectable, select it, and —
+   * when `execute` is true — run the pivot so a RESULT exists on screen (Deliver
+   * now sends the on-screen result, so a send test must produce one first).
+   */
+  async function renderWithSavedSet(
+    opts: { hasDelivery: boolean; execute?: boolean } = { hasDelivery: true },
+  ) {
     listAnalyticsSets.mockResolvedValue([
       { id: 'set-7', name: 'Active seniors', kind: 'count', hasDelivery: opts.hasDelivery },
     ]);
@@ -2583,6 +2604,11 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
       target: { value: 'model:set-7' },
     });
+    if (opts.execute) {
+      // Produce a result so `exportRows` is populated (Deliver now needs a result).
+      fireEvent.click(screen.getByTestId('member-pivot-execute'));
+      await screen.findByTestId('mock-pivot-result-table');
+    }
   }
 
   const toFixedSet = {
@@ -2606,23 +2632,40 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     // a click never calls the deliver route.
     render(<MemberPivotViews {...makeProps()} />);
     await waitFor(() => expect(listAnalyticsSets).toHaveBeenCalled());
-    const btn = screen.getByTestId('member-pivot-deliver-now') as HTMLButtonElement;
-    expect(btn).toBeDisabled();
+    fireEvent.click(screen.getByTestId('member-pivot-manage-set'));
+    const btn = screen.getByTestId('member-pivot-deliver-now');
+    expect(btn).toBeInTheDocument();
+    // Disabled (no saved set) → clicking opens no confirm and sends nothing.
     fireEvent.click(btn);
-    await waitFor(() => expect(deliverAnalyticsSet).not.toHaveBeenCalled());
+    expect(screen.queryByTestId('member-pivot-deliver-now-dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(sendAdHocMail).not.toHaveBeenCalled());
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
   });
 
   // Validates: Requirements 3.1, 3.2, 3.5
-  it('calls the EXISTING deliver route for a set with a to_fixed delivery', async () => {
+  it('sends the on-screen result to the stored fixed recipients via the ad-hoc path', async () => {
     getAnalyticsSet.mockResolvedValue(toFixedSet);
-    await renderWithSavedSet({ hasDelivery: true });
+    // Execute first so a result (exportRows) exists — Deliver now sends THAT, not
+    // a server-side recompute of the whole member table (the old leak).
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
 
+    // Opening Deliver now shows a CONFIRM dialog first (safety); confirm it to send.
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+    fireEvent.click(await screen.findByTestId('member-pivot-deliver-now-confirm'));
 
-    // It resolves the stored delivery (summary carries no mode) then RUNS it via
-    // the existing SAM deliver route — the frontend caller R3.2 adds.
+    // It reads the set's stored fixed recipients, then sends the CURRENT result
+    // rows as a CSV via the ad-hoc path (NOT the saved-set deliver route).
     await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
-    await waitFor(() => expect(deliverAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
+    const body = sendAdHocMail.mock.calls[0][0];
+    expect(body.mode).toBe('to_fixed');
+    expect(body.attachment).toBe('csv');
+    expect(body.recipients).toEqual(['agent@example.com']);
+    // The rows sent are the on-screen result rows (what the table rendered), NOT
+    // the raw member table.
+    expect(body.result_rows).toEqual(tableCalls[0].data);
+    // The leaky saved-set deliver route is NEVER called.
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
   });
 
   // Validates: Requirements 3.4 (clear reason, not a silent no-op)
@@ -2639,13 +2682,14 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
         labelOptions: null,
       },
     });
-    await renderWithSavedSet({ hasDelivery: true });
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
 
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
 
     await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
-    // No stored to_fixed delivery to run → the route is NEVER called.
-    await waitFor(() => expect(deliverAnalyticsSet).not.toHaveBeenCalled());
+    // No stored to_fixed delivery → the guard warns; NOTHING is sent.
+    await waitFor(() => expect(sendAdHocMail).not.toHaveBeenCalled());
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
   });
 
   // Validates: Requirements 3.4 (empty-recipients / not-certified refusal surfaces)
@@ -2654,19 +2698,19 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     // The deliver route refuses BEFORE enqueue (pre-send certification gate):
     // a structured ApiError the component surfaces via applyApiError.
     const { ApiError } = await import('../../../shared/api/ApiError');
-    deliverAnalyticsSet.mockRejectedValue(
+    sendAdHocMail.mockRejectedValue(
       new ApiError(422, {
         error: 'The tenant mail sender is not certified',
         code: 'errors.mail.notCertified',
       }),
     );
-    await renderWithSavedSet({ hasDelivery: true });
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
 
+    // Confirm the send in the dialog, then the refusal is handled (no crash).
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
+    fireEvent.click(await screen.findByTestId('member-pivot-deliver-now-confirm'));
 
-    // The run was attempted and the refusal handled (no crash); the action
-    // becomes clickable again once the in-flight run settles.
-    await waitFor(() => expect(deliverAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.getByTestId('member-pivot-deliver-now')).not.toBeDisabled(),
     );

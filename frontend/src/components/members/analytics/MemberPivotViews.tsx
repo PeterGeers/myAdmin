@@ -119,7 +119,6 @@ import {
   savePreferredList,
   putAnalyticsSetDelivery,
   deleteAnalyticsSetDelivery,
-  deliverAnalyticsSet,
   listSchedulesForSet,
   createSchedule,
   updateSchedule,
@@ -392,6 +391,10 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // (R3.4). `isDeliveringNow` disables the action while the enqueue is in flight
   // so a double-click never fires two runs.
   const [isDeliveringNow, setIsDeliveringNow] = useState(false);
+  // Deliver now opens a confirm dialog FIRST (so an irreversible send is never
+  // fired blind — the redesign Q3 safety follow-up).
+  const [isDeliverNowConfirmOpen, setIsDeliverNowConfirmOpen] = useState(false);
+  const deliverNowCancelRef = useRef<HTMLButtonElement>(null);
 
   // --- Schedule editor state (task 5.4 / R5). --------------------------------
   // The "Schedule" lifecycle action (beside Delivery, on a selected SAVED set)
@@ -538,6 +541,15 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // labels action. FAIL-CLOSED: a non-ok result OR a thrown network error leaves
   // the list empty (action hidden with the bilingual reason), never a crash. The
   // loader is injectable via the `listTemplates` prop so a test can supply a fake.
+  const reloadLabelTemplates = useCallback(async () => {
+    try {
+      const res = await listTemplates();
+      setLabelTemplates(res.ok ? res.data.filter((tpl) => tpl.kind === 'label') : []);
+    } catch {
+      setLabelTemplates([]);
+    }
+  }, [listTemplates]);
+
   useEffect(() => {
     let active = true;
     listTemplates()
@@ -1046,53 +1058,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
     toast({ title: t('analytics.delivery.cleared'), status: 'success' });
   }, [deliverySet, toast, t]);
 
-  // Deliver now (mail-spec task 2.4 / R3.1/R3.2): RUN the selected saved set's
-  // STORED `to_fixed` delivery immediately via the existing SAM deliver route
-  // (`POST /members/analytics-sets/{id}/deliver`, `deliverAnalyticsSet`). The
-  // route runs the set's STORED delivery (recipients + optional CSV attachment),
-  // so the action is only meaningful for a set that HAS a `to_fixed` delivery —
-  // the list summary carries only `hasDelivery` (not the mode), so we fetch the
-  // full set first and confirm `delivery.mode === 'to_fixed'`. A set with no
-  // delivery, or a `per_recipient` one, is NOT deliver-now-able here (the
-  // per_recipient interactive send is the separate compose path): we surface a
-  // clear reason, never a silent no-op (R3.4). On success the 202 receipt is
-  // surfaced as a "queued, N send(s)" acknowledgment (R3.5); a refusal
-  // (empty recipients 422, not-certified 422) is surfaced via `applyApiError` —
-  // the typed `errors.mail.notCertified` / `errors.analyticsset.delivery.
-  // notConfigured` codes resolve to the clear bilingual message (R4.2/R5.2).
-  const handleDeliverNow = useCallback(async () => {
-    if (!selectedModelSummary || isDeliveringNow) {
-      return;
-    }
-    setIsDeliveringNow(true);
-    try {
-      // Resolve the stored delivery (the summary carries only `hasDelivery`, not
-      // the mode). A fetch failure surfaces via applyApiError below.
-      const saved = await getAnalyticsSet(selectedModelSummary.id);
-      if (!saved.delivery || saved.delivery.mode !== 'to_fixed') {
-        // No `to_fixed` delivery to run — a clear reason, not a silent no-op
-        // (R3.4). The user must configure a fixed-address delivery first.
-        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
-        return;
-      }
-      const result = await deliverAnalyticsSet(saved.id);
-      // The accepted/queued receipt (R3.5): surface how many send jobs were
-      // enqueued (one message for a `to_fixed` delivery).
-      toast({
-        title: t('analytics.delivery.deliverNowQueued', { count: result.enqueued }),
-        status: 'success',
-      });
-    } catch (err) {
-      // Surface the typed refusal/validation reason (API standard v1.0): a
-      // not-certified tenant (`errors.mail.notCertified`) or a set with no stored
-      // delivery (`errors.analyticsset.delivery.notConfigured`) resolves to the
-      // clear bilingual message; a network/unknown throw degrades to the shared
-      // server-error toast. No form fields here → no setFieldError.
-      applyApiError(err, { toast, t });
-    } finally {
-      setIsDeliveringNow(false);
-    }
-  }, [selectedModelSummary, isDeliveringNow, toast, t]);
 
   // Schedule: open the schedule editor on the selected SAVED set (task 5.4 / R5).
   // A schedule can only be attached to a set that HAS a delivery block (R5), so
@@ -1308,6 +1273,75 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
     }
   }, [csvMailValid, csvMailSending, exportRows, csvMailRecipients, selectedSet, result, toast, t]);
 
+  // Deliver now: send the CURRENT pivot result (on-screen rows) to the set's
+  // stored fixed recipients as a CSV — the one-button equivalent of Export CSV
+  // -> Email, via the ad-hoc path. (The old saved-set /deliver route recomputed
+  // rows server-side and leaked the whole raw member table; it is no longer used
+  // here.)
+  const handleDeliverNow = useCallback(async () => {
+    if (!selectedModelSummary || isDeliveringNow) {
+      return;
+    }
+    // Deliver now sends the CURRENT pivot RESULT (the on-screen rows) — it is the
+    // one-button equivalent of Export CSV -> Email, reusing the SAME proven
+    // ad-hoc `to_fixed` + `attachment:'csv'` path (`sendAdHocMail`) that carries
+    // the frontend's `exportRows`. It does NOT call the saved-set `/deliver`
+    // server path, which recomputes rows server-side and (with the interim
+    // pass-through runner) would ship the whole raw member table — a data leak.
+    // Here the ROWS come from the screen (filtered + projected to the result
+    // columns) and only the fixed RECIPIENTS come from the set's stored delivery.
+    if (!result) {
+      // Nothing on screen to deliver — Deliver now operates on a produced result.
+      toast({ title: t('analytics.delivery.deliverNowNeedsResult'), status: 'warning' });
+      return;
+    }
+    setIsDeliveringNow(true);
+    try {
+      // Read the set's stored fixed recipients (the summary carries only
+      // `hasDelivery`, not the recipient list). A fetch failure surfaces below.
+      const saved = await getAnalyticsSet(selectedModelSummary.id);
+      const delivery = saved.delivery;
+      if (!delivery || delivery.mode !== 'to_fixed') {
+        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
+        return;
+      }
+      const recipients = (delivery.recipients ?? []).filter(
+        (r): r is string => typeof r === 'string' && r.trim().length > 0,
+      );
+      if (recipients.length === 0) {
+        toast({ title: t('analytics.delivery.deliverNowNeedsFixed'), status: 'warning' });
+        return;
+      }
+      // Send the ON-SCREEN result rows to the stored fixed addresses as a CSV —
+      // identical shape to handleSendCsvMail, just with the recipients sourced
+      // from the saved delivery instead of a typed-in dialog.
+      const body: AdHocMailBody = {
+        mode: 'to_fixed',
+        result_rows: exportRows as Array<Record<string, unknown>>,
+        recipients,
+        template_id: null,
+        attachment: 'csv',
+        ...(selectedSet?.optionValue ? { set_id: selectedSet.optionValue } : {}),
+      };
+      const res = await sendAdHocMail(body);
+      toast({
+        title: t('analytics.delivery.deliverNowQueued', { count: res.enqueued }),
+        status: 'success',
+      });
+      void recordAnalyticsOutput({
+        outputKind: 'csv_export',
+        setKey: selectedSet?.optionValue,
+        recordCount: exportRows.length,
+        filterSummary: { columns: result.columns.length, delivery: 'deliver_now' },
+      });
+    } catch (err) {
+      // Typed refusal (not-certified) or network error -> clear bilingual toast.
+      applyApiError(err, { toast, t });
+    } finally {
+      setIsDeliveringNow(false);
+    }
+  }, [selectedModelSummary, isDeliveringNow, result, exportRows, selectedSet, toast, t]);
+
   // Whether the tenant has a resolvable address mapping — gates the mail
   // compose's "attach PDF labels" toggle (R4.10). Memoized on the field config.
   const hasAddressMapping = useMemo(
@@ -1498,36 +1532,44 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
             {t('analytics.pivotViews.execute')}
           </Button>
 
-          {/* "All sets" — a SEPARATE manage function (browse/filter the library,
-              add/remove from the dropdown, delete custom sets). Placed after
-              Execute + visually separated (outline) so it reads as a distinct
-              action, not part of the run flow. */}
-          <Button
-            variant="outline"
-            colorScheme="orange"
-            ml={2}
-            onClick={() => setIsLibraryOpen(true)}
-            data-testid="member-pivot-open-library"
-          >
-            {t('analytics.pivotViews.library.open')}
-          </Button>
-
-          {/* Mail status / history (mail-spec task 3.3 / R9) — the entry point to
-              the send-status screen (list of runs + per-run FAILURE drill-down).
-              Gated by members:export (the status read routes are export-gated +
-              role-scoped server-side, R9.3), independent of a produced result so
-              a user can check past sends any time. */}
-          {capabilities.canExport && (
-            <Button
+          {/* Secondary navigation collapsed into a quiet "More" menu (redesign
+              Q2): the library browser ("All sets") + the send-status/history
+              screen ("Mail status"). Neither is part of the run flow, so they
+              sit behind one overflow control instead of competing with Execute.
+              Mail status is export-gated (its read routes are, R9.3); All sets is
+              always available. The item testids are preserved so existing flows
+              (and tests) reach them unchanged — just open the menu first. */}
+          <Menu>
+            <MenuButton
+              as={Button}
               variant="outline"
               colorScheme="orange"
               ml={2}
-              onClick={() => setIsMailStatusOpen(true)}
-              data-testid="member-pivot-open-mail-status"
+              data-testid="member-pivot-more"
             >
-              {t('analytics.mailRuns.action')}
-            </Button>
-          )}
+              {t('analytics.pivotViews.more')}
+            </MenuButton>
+            <MenuList bg="gray.800" borderColor="gray.600">
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={() => setIsLibraryOpen(true)}
+                data-testid="member-pivot-open-library"
+              >
+                {t('analytics.pivotViews.library.open')}
+              </MenuItem>
+              {capabilities.canExport && (
+                <MenuItem
+                  bg="gray.800"
+                  _hover={{ bg: 'gray.700' }}
+                  onClick={() => setIsMailStatusOpen(true)}
+                  data-testid="member-pivot-open-mail-status"
+                >
+                  {t('analytics.mailRuns.action')}
+                </MenuItem>
+              )}
+            </MenuList>
+          </Menu>
         </HStack>
 
         {/* Save lifecycle actions (task 7.5) — all EXPLICIT user actions (R4.4b):
@@ -1539,107 +1581,110 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
         {/* Create/edit a shared set needs members:export OR members:write (R11);
             delete needs members:write OR members:admin. A read-only caller sees
             no set-mutation actions at all (the whole HStack is gated). */}
+        {/* Set-management actions collapsed into ONE "Manage set" menu
+            (redesign Q1): New set / Save as / Update / Delivery / Deliver now /
+            Schedule. They are occasional, admin-ish actions contextual to a
+            selected saved set and rarely all needed at once, so a menu removes
+            the wall of six buttons without changing any gate. Every item keeps
+            its EXACT testid, onClick, and disabled rule, so existing flows and
+            tests reach them unchanged — just open the menu first. */}
         {canManageSets && (
-          <HStack spacing={2} data-testid="member-pivot-set-actions">
-            <Button
+          <Menu>
+            <MenuButton
+              as={Button}
               variant="outline"
               colorScheme="orange"
-              onClick={handleNewSet}
-              data-testid="member-pivot-new-set"
+              data-testid="member-pivot-manage-set"
             >
-              {t('analytics.pivotViews.newSet')}
-            </Button>
-            {/* Save as / Update: orange outline (readable on dark, enabled AND
-                disabled) — previously an uncolored ghost that rendered
-                black-on-black / invisible until hover. */}
-            <Button
-              variant="outline"
-              colorScheme="orange"
-              onClick={handleSaveAs}
-              isDisabled={!selectedSet}
-              data-testid="member-pivot-save-as"
-            >
-              {t('analytics.pivotViews.saveAs')}
-            </Button>
-            <Button
-              variant="outline"
-              colorScheme="orange"
-              onClick={handleUpdate}
-              isDisabled={!selectedModelSummary}
-              data-testid="member-pivot-update"
-            >
-              {t('analytics.pivotViews.update')}
-            </Button>
-            {/* Delivery (task 3.4 / R3) — edit the SAVED set's optional stored
-                delivery block (mode / template / attachment / to_fixed recipients
-                / shared label_options). Applies only to a saved member set (like
-                Update), so it is disabled for a preset / no selection. Gated by
-                members:export + scope server-side (task 3.3); the surrounding
-                HStack already requires manage rights. */}
-            <Button
-              variant="outline"
-              colorScheme="orange"
-              onClick={handleDelivery}
-              isDisabled={!selectedModelSummary}
-              data-testid="member-pivot-delivery"
-            >
-              {t('analytics.delivery.action')}
-            </Button>
-            {/* Deliver now (mail-spec task 2.4 / R3.1/R3.2) — RUN the selected
-                saved set's STORED delivery immediately via the existing SAM
-                deliver route (the interactive trigger R3.2 adds). Disabled until
-                a saved set is selected; the handler then confirms the set has a
-                `to_fixed` delivery (the summary carries only `hasDelivery`, not
-                the mode) and surfaces a clear reason otherwise (R3.4). The queued
-                receipt / any refusal (empty recipients, not-certified) is
-                surfaced as a toast (R3.5 / R4.2 / R5.2). */}
-            <Button
-              variant="outline"
-              colorScheme="orange"
-              onClick={handleDeliverNow}
-              isDisabled={!selectedModelSummary || isDeliveringNow}
-              isLoading={isDeliveringNow}
-              data-testid="member-pivot-deliver-now"
-            >
-              {t('analytics.delivery.deliverNow')}
-            </Button>
-            {/* Schedule (task 5.4 / R5) — attach/manage a recurring run on the
-                SAVED set. Offered ONLY when the caller may schedule (members:admin
-                OR members:write + all-regions — `canSchedule`); a region-narrowed
-                write user never sees it (R5). When offered it is additionally
-                DISABLED until a saved set WITH a delivery block is selected (a
-                schedule can only be attached to a set that has a delivery, R5) —
-                the disabled reason explains why (no delivery configured yet),
-                mirroring the shared degradation pattern. The backend re-checks both
-                gates server-side. */}
-            {canSchedule &&
-              (selectedModelSummary && selectedModelSummary.hasDelivery !== true ? (
-                <Tooltip label={t('analytics.schedule.needsDelivery')}>
-                  <Button
-                    variant="outline"
-                    colorScheme="orange"
-                    isDisabled
+              {t('analytics.pivotViews.manageSet')}
+            </MenuButton>
+            <MenuList bg="gray.800" borderColor="gray.600" data-testid="member-pivot-set-actions">
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleNewSet}
+                data-testid="member-pivot-new-set"
+              >
+                {t('analytics.pivotViews.newSet')}
+              </MenuItem>
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleSaveAs}
+                isDisabled={!selectedSet}
+                data-testid="member-pivot-save-as"
+              >
+                {t('analytics.pivotViews.saveAs')}
+              </MenuItem>
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleUpdate}
+                isDisabled={!selectedModelSummary}
+                data-testid="member-pivot-update"
+              >
+                {t('analytics.pivotViews.update')}
+              </MenuItem>
+              {/* Delivery — edit the SAVED set's stored delivery block (R3). */}
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={handleDelivery}
+                isDisabled={!selectedModelSummary}
+                data-testid="member-pivot-delivery"
+              >
+                {t('analytics.delivery.action')}
+              </MenuItem>
+              {/* Deliver now — send the on-screen result to the set's stored fixed
+                  recipients (R3.1/R3.2). A confirm dialog opens first so the send
+                  is never fired blind. */}
+              <MenuItem
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+                onClick={() => {
+                  // Guard the open so a disabled item can never surface the
+                  // confirm (Chakra's isDisabled does not always suppress the
+                  // click handler in every environment).
+                  if (!selectedModelSummary || isDeliveringNow) {
+                    return;
+                  }
+                  setIsDeliverNowConfirmOpen(true);
+                }}
+                isDisabled={!selectedModelSummary || isDeliveringNow}
+                data-testid="member-pivot-deliver-now"
+              >
+                {t('analytics.delivery.deliverNow')}
+              </MenuItem>
+              {/* Schedule — attach/manage a recurring run (R5). Offered only when
+                  the caller may schedule; disabled (with a reason) for a set with
+                  no delivery block. */}
+              {canSchedule &&
+                (selectedModelSummary && selectedModelSummary.hasDelivery !== true ? (
+                  <Tooltip label={t('analytics.schedule.needsDelivery')}>
+                    {/* A disabled MenuItem does not fire pointer events, so the
+                        Tooltip wraps a focusable span to still surface the reason. */}
+                    <MenuItem
+                      bg="gray.800"
+                      _hover={{ bg: 'gray.700' }}
+                      isDisabled
+                      data-testid="member-pivot-schedule"
+                    >
+                      {t('analytics.schedule.action')}
+                    </MenuItem>
+                  </Tooltip>
+                ) : (
+                  <MenuItem
+                    bg="gray.800"
+                    _hover={{ bg: 'gray.700' }}
+                    onClick={handleSchedule}
+                    isDisabled={!selectedModelSummary}
                     data-testid="member-pivot-schedule"
                   >
                     {t('analytics.schedule.action')}
-                  </Button>
-                </Tooltip>
-              ) : (
-                <Button
-                  variant="outline"
-                  colorScheme="orange"
-                  onClick={handleSchedule}
-                  isDisabled={!selectedModelSummary}
-                  data-testid="member-pivot-schedule"
-                >
-                  {t('analytics.schedule.action')}
-                </Button>
-              ))}
-            {/* No Delete here — permanently deleting a saved set lives in the
-                "All sets" modal (per-row trash icon), the single place to manage
-                the library. No main-pane quick-add either (the dropdown is the
-                preferred list; adding happens in the modal). */}
-          </HStack>
+                  </MenuItem>
+                ))}
+            </MenuList>
+          </Menu>
         )}
 
         {/* The produced result (REUSE PivotResultTable, R4.7). Rendered only
@@ -2049,6 +2094,12 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
                 rows={exportRows as MemberRow[]}
                 fieldConfig={fieldConfig ?? undefined}
                 templates={labelTemplates}
+                language={language}
+                resultFields={(result?.columns ?? []).map((col) => ({
+                  key: col.name,
+                  label: columnLabels[col.name] ?? col.name,
+                }))}
+                onTemplatesChanged={reloadLabelTemplates}
               />
             </ModalBody>
           </ModalContent>
@@ -2147,6 +2198,55 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
                 data-testid="member-pivot-csv-mail-send"
               >
                 {t('analytics.export.csvMail.send')}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Deliver now — CONFIRM before an irreversible send (redesign Q3 safety).
+          Deliver now mails the on-screen result to the set's stored fixed
+          recipients; the confirm turns "fired blind" into a seen, deliberate
+          action. On confirm it runs the same handleDeliverNow (which reads the
+          stored recipients + sends the current result via the ad-hoc path). */}
+      <AlertDialog
+        isOpen={isDeliverNowConfirmOpen}
+        leastDestructiveRef={deliverNowCancelRef}
+        onClose={() => !isDeliveringNow && setIsDeliverNowConfirmOpen(false)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.800" color="white" data-testid="member-pivot-deliver-now-dialog">
+            <AlertDialogHeader>{t('analytics.delivery.deliverNowConfirmTitle')}</AlertDialogHeader>
+            <AlertDialogBody>
+              <Text fontSize="sm" color="gray.300">
+                {t('analytics.delivery.deliverNowConfirmBody', {
+                  name: selectedModelSummary?.name ?? '',
+                  count: exportRows.length,
+                })}
+              </Text>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                ref={deliverNowCancelRef}
+                variant="ghost"
+                onClick={() => setIsDeliverNowConfirmOpen(false)}
+                isDisabled={isDeliveringNow}
+                data-testid="member-pivot-deliver-now-cancel"
+              >
+                {t('analytics.pivotViews.lifecycle.confirmDeleteCancel')}
+              </Button>
+              <Button
+                colorScheme="orange"
+                ml={3}
+                onClick={() => {
+                  setIsDeliverNowConfirmOpen(false);
+                  void handleDeliverNow();
+                }}
+                isLoading={isDeliveringNow}
+                data-testid="member-pivot-deliver-now-confirm"
+              >
+                {t('analytics.delivery.deliverNowConfirmSend')}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

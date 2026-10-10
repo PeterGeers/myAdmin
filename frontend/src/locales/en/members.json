@@ -57,6 +57,8 @@
       "selectSet": "Select a set",
       "selectSetPlaceholder": "Select a set…",
       "execute": "Execute",
+      "manageSet": "Manage set",
+      "more": "More",
       "savedSets": "Saved sets",
       "presets": "Predefined sets",
       "newSet": "New set",
@@ -215,8 +217,12 @@
       "deliverNow": "Deliver now",
       "deliverNowHint": "Send this set's result to its fixed recipient list now.",
       "deliverNowNeedsFixed": "Deliver now is available for a set that sends to a fixed address list. Set up a fixed-address delivery first.",
+      "deliverNowNeedsResult": "Run the set first — Deliver now sends the current result.",
       "deliverNowQueued": "Delivery queued — {{count}} send(s) on their way.",
-      "deliverNowError": "Could not start the delivery."
+      "deliverNowError": "Could not start the delivery.",
+      "deliverNowConfirmTitle": "Send this set\u2019s result now?",
+      "deliverNowConfirmBody": "Email the current result ({{count}} rows) for \"{{name}}\" to its stored recipient list now. This cannot be undone.",
+      "deliverNowConfirmSend": "Send now"
     },
     "schedule": {
       "action": "Schedule",
@@ -243,11 +249,16 @@
       "deleteError": "Failed to delete the schedule"
     },
     "labels": {
-      "action": "Generate address labels",
-      "noTemplate": "Address labels are unavailable: create a label template first (and you need export permission)",
-      "modalTitle": "Generate address labels",
+      "action": "Generate labels",
+      "noTemplate": "Labels are unavailable: create a label template first (and you need export permission)",
+      "modalTitle": "Generate labels",
       "template": "Label template",
       "generate": "Generate",
+      "linesTitle": "This template's lines",
+      "previewTitle": "Preview (first result row)",
+      "emptyLine": "(empty)",
+      "edit": "Edit label templates",
+      "downloaded": "Label PDF downloaded ({{count}} labels, {{pages}} pages)",
       "download": "Download PDF",
       "print": "Print",
       "autoFit": "Shrink text to fit",
@@ -332,7 +343,12 @@
         "uploaded": "File loaded into the message body",
         "uploadError": "Failed to read the file",
         "improved": "Template improved",
-        "improveError": "Could not improve the template; your text was kept"
+        "improveError": "Could not improve the template; your text was kept",
+        "kindLabel": "Template type",
+        "kind": {
+          "mail": "Mail",
+          "label": "Label"
+        }
       },
       "previewLabel": "Preview (first row merged)",
       "confirmTitle": "Confirm sending the email",

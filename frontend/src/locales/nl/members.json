@@ -57,6 +57,8 @@
       "selectSet": "Kies een set",
       "selectSetPlaceholder": "Selecteer een set…",
       "execute": "Uitvoeren",
+      "manageSet": "Set beheren",
+      "more": "Meer",
       "savedSets": "Opgeslagen sets",
       "presets": "Voorgedefinieerde sets",
       "newSet": "Nieuwe set",
@@ -215,8 +217,12 @@
       "deliverNow": "Nu versturen",
       "deliverNowHint": "Verstuur het resultaat van deze set nu naar de vaste adreslijst.",
       "deliverNowNeedsFixed": "Nu versturen is beschikbaar voor een set die naar een vaste adreslijst stuurt. Stel eerst een bezorging naar een vaste adreslijst in.",
+      "deliverNowNeedsResult": "Voer de set eerst uit — Nu versturen verstuurt het huidige resultaat.",
       "deliverNowQueued": "Bezorging in de wachtrij — {{count}} verzending(en) onderweg.",
-      "deliverNowError": "Kon de bezorging niet starten."
+      "deliverNowError": "Kon de bezorging niet starten.",
+      "deliverNowConfirmTitle": "Resultaat van deze set nu versturen?",
+      "deliverNowConfirmBody": "Mail het huidige resultaat ({{count}} rijen) voor \"{{name}}\" nu naar de opgeslagen ontvangerslijst. Dit kan niet ongedaan worden gemaakt.",
+      "deliverNowConfirmSend": "Nu versturen"
     },
     "schedule": {
       "action": "Inplannen",
@@ -243,11 +249,16 @@
       "deleteError": "Verwijderen van de planning mislukt"
     },
     "labels": {
-      "action": "Adreslabels genereren",
-      "noTemplate": "Adreslabels zijn niet beschikbaar: maak eerst een labelsjabloon (en je hebt exportrechten nodig)",
-      "modalTitle": "Adreslabels genereren",
+      "action": "Labels genereren",
+      "noTemplate": "Labels zijn niet beschikbaar: maak eerst een labelsjabloon (en je hebt exportrechten nodig)",
+      "modalTitle": "Labels genereren",
       "template": "Labelsjabloon",
       "generate": "Genereren",
+      "linesTitle": "Regels van dit sjabloon",
+      "previewTitle": "Voorbeeld (eerste resultaatrij)",
+      "emptyLine": "(leeg)",
+      "edit": "Labelsjablonen bewerken",
+      "downloaded": "Label-PDF gedownload ({{count}} labels, {{pages}} pagina's)",
       "download": "PDF downloaden",
       "print": "Afdrukken",
       "autoFit": "Tekst verkleinen om te passen",
@@ -332,7 +343,12 @@
         "uploaded": "Bestand in de berichttekst geladen",
         "uploadError": "Lezen van het bestand mislukt",
         "improved": "Sjabloon verbeterd",
-        "improveError": "Kon het sjabloon niet verbeteren; uw tekst is behouden"
+        "improveError": "Kon het sjabloon niet verbeteren; uw tekst is behouden",
+        "kindLabel": "Type sjabloon",
+        "kind": {
+          "mail": "E-mail",
+          "label": "Label"
+        }
       },
       "previewLabel": "Voorbeeld (eerste rij samengevoegd)",
       "confirmTitle": "E-mail versturen bevestigen",

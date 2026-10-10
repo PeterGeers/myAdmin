@@ -32,6 +32,15 @@ vi.mock('../../../hooks/useTypedTranslation', () => ({
   }),
 }));
 
+// Stub the embedded (unified) template editor: it fetches templates on open (a
+// real network call in jsdom). We only need to assert the panel MOUNTS it on
+// Edit, so render a lightweight marker when open — no service call, no noisy
+// auth error.
+vi.mock('./MemberTemplateManager', () => ({
+  default: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="member-template-manager" /> : null,
+}));
+
 import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import MemberLabelsPanel from './MemberLabelsPanel';
 import type { MemberLabelsPanelProps } from './MemberLabelsPanel';
@@ -104,6 +113,11 @@ function makeProps(
     rows: ROWS,
     fieldConfig: FIELD_CONFIG,
     templates: [TPL_A, TPL_B],
+    language: 'en',
+    resultFields: [
+      { key: 'display_name', label: 'Display name' },
+      { key: 'city', label: 'City' },
+    ],
     generate: generate as unknown as MemberLabelsPanelProps['generate'],
     getTemplate: getTemplate as unknown as MemberLabelsPanelProps['getTemplate'],
     ...overrides,
@@ -201,5 +215,45 @@ describe('MemberLabelsPanel', () => {
     expect(
       await screen.findByTestId('member-pivot-labels-counts'),
     ).toBeInTheDocument();
+  });
+
+  it('shows the selected template lines resolved to field labels, and updates on switch', () => {
+    render(<MemberLabelsPanel {...makeProps()} />);
+    const view = screen.getByTestId('member-pivot-labels-lines');
+    // TPL_A = [[display_name],[city]] -> localized result-column labels shown.
+    expect(view).toHaveTextContent('Display name');
+    expect(view).toHaveTextContent('City');
+    // Switch to TPL_B ([[display_name]]) -> only Display name remains.
+    fireEvent.change(templateSelect(), { target: { value: 'lbl-b' } });
+    const view2 = screen.getByTestId('member-pivot-labels-lines');
+    expect(view2).toHaveTextContent('Display name');
+  });
+
+  it('shows a first-row merged preview of the actual label text', () => {
+    render(<MemberLabelsPanel {...makeProps()} />);
+    const preview = screen.getByTestId('member-pivot-labels-preview');
+    // First row: display_name=Alice, city=Amsterdam -> two preview lines.
+    expect(preview).toHaveTextContent('Alice');
+    expect(preview).toHaveTextContent('Amsterdam');
+  });
+
+  it('opens the unified template editor from the Edit button', () => {
+    render(<MemberLabelsPanel {...makeProps()} />);
+    // The editor modal is not mounted/open until Edit is clicked.
+    expect(screen.queryByTestId('member-template-manager')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('member-pivot-labels-edit'));
+    expect(screen.getByTestId('member-template-manager')).toBeInTheDocument();
+  });
+
+  it('fires a download-confirmation toast after Download', async () => {
+    // The i18n mock echoes the key, so the toast title is the key; we assert the
+    // generator ran + doc.save fired (the toast path) without throwing.
+    const props = makeProps();
+    const generate = props.generate as unknown as ReturnType<typeof vi.fn>;
+    render(<MemberLabelsPanel {...props} />);
+    fireEvent.click(screen.getByTestId('member-pivot-labels-generate'));
+    await waitFor(() => expect(generate).toHaveBeenCalledTimes(1));
+    const result = generate.mock.results[0].value as GenerateResult;
+    expect((result.doc.save as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
   });
 });
