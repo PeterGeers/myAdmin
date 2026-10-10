@@ -438,6 +438,30 @@ describe('MemberMailCompose', () => {
       expect(getMemberTemplate).toHaveBeenCalledWith('tpl-1');
     });
 
+    it('excludes kind:"label" templates from the mail picker (they belong to the labels modal)', async () => {
+      // A label template lives in the SAME template# store but has no subject/body, so it must
+      // NOT appear in the mail compose picker (picking it would do nothing).
+      listMemberTemplates.mockResolvedValue({
+        ok: true,
+        data: [
+          { template_id: 'mail-1', name: 'Welcome mail' },
+          { template_id: 'mail-2', name: 'Reminder', kind: 'mail' },
+          { template_id: 'lbl-1', name: 'Adreslabel', kind: 'label', lines: [['display_name']] },
+        ],
+      });
+
+      render(<MemberMailCompose {...makeProps({ language: 'en' })} />);
+
+      // Open the picker (LazySelect combobox).
+      fireEvent.click(screen.getByRole('combobox'));
+
+      // The mail templates are offered...
+      expect(await screen.findByText('Welcome mail')).toBeInTheDocument();
+      expect(screen.getByText('Reminder')).toBeInTheDocument();
+      // ...the label template is NOT.
+      expect(screen.queryByText('Adreslabel')).not.toBeInTheDocument();
+    });
+
     it('opens the template-management surface from the Manage templates button', async () => {
       render(<MemberMailCompose {...makeProps()} />);
       fireEvent.click(screen.getByTestId('member-mail-manage-templates'));

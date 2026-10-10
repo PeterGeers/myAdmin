@@ -43,6 +43,14 @@ const TEMPLATES_ENDPOINT = '/members/templates';
 export type TemplateOrigin = 'user' | 'preset';
 
 /**
+ * The template `kind` discriminator (labels sub-spec R-L1). `"mail"` is the historical
+ * HTML-body template; `"label"` is an address-label template whose content is `lines` (ordered
+ * lines of pivot-result field keys). The field is OPTIONAL on the wire: an absent/undefined
+ * `kind` means `"mail"`, so every existing mail template keeps working unchanged.
+ */
+export type TemplateKind = 'mail' | 'label';
+
+/**
  * One language variant of a template as the backend serializes it. The list/metadata shape
  * carries `subject` + the body `s3_body_key` ref; a GET-by-id additionally resolves `body_html`
  * (the actual body text) so the compose picker can seed the editable body. Either may be absent
@@ -71,6 +79,18 @@ export interface MemberTemplateDto {
   logo_asset_ref: string | null;
   /** `user` (default) or `preset`. */
   origin: TemplateOrigin;
+  /**
+   * The template kind (labels sub-spec R-L1). OPTIONAL: absent/undefined ⇒ `"mail"` (so an
+   * existing mail template, which carries no `kind`, keeps working). `"label"` marks an
+   * address-label template whose content is {@link MemberTemplateDto.lines}.
+   */
+  kind?: TemplateKind;
+  /**
+   * The LABEL content model (labels sub-spec R-L1), present only for a `kind: "label"`
+   * template: an ordered list of lines, each line a list of pivot-result field keys (a
+   * multi-key line is space-joined at compose time). Absent/undefined for a mail template.
+   */
+  lines?: string[][];
   /** The verified Cognito `sub` of the creator (attribution only). */
   created_by: string;
   /** ISO-8601 UTC timestamps stamped by the service. */
@@ -92,8 +112,23 @@ export interface TemplateLanguageInput {
 export interface MemberTemplateInput {
   /** The template name (required, non-blank). */
   name: string;
-  /** Per-language `{subject, body_html}` variants (at least one usable variant required). */
-  languages: Record<string, TemplateLanguageInput>;
+  /**
+   * The template kind (labels sub-spec R-L1). OPTIONAL: omit (or `"mail"`) for the historical
+   * HTML-body template so existing mail-write callers are unchanged; `"label"` writes an
+   * address-label template whose content is {@link MemberTemplateInput.lines}.
+   */
+  kind?: TemplateKind;
+  /**
+   * Per-language `{subject, body_html}` variants (at least one usable variant required for a
+   * MAIL template). OPTIONAL so a `kind: "label"` template — which has no mail body — can be
+   * written without a languages map; a mail write still carries it.
+   */
+  languages?: Record<string, TemplateLanguageInput>;
+  /**
+   * The LABEL content model (labels sub-spec R-L1), for a `kind: "label"` write: an ordered
+   * list of lines, each line a list of pivot-result field keys. Omit for a mail template.
+   */
+  lines?: string[][];
   /**
    * Optional explicit merge-field keys. When omitted the backend discovers them from the body
    * `{{ placeholders }}` — so a caller usually leaves this unset.
@@ -127,12 +162,12 @@ export interface TemplateAiImproveResult {
 export type TemplateServiceResult<T> =
   | { ok: true; data: T }
   | {
-      ok: false;
-      status: number;
-      error: string;
-      code?: string;
-      params?: Record<string, unknown>;
-    };
+    ok: false;
+    status: number;
+    error: string;
+    code?: string;
+    params?: Record<string, unknown>;
+  };
 
 /** The envelope the Members Lambda returns (API response & error standard v1.0, steering 37). */
 interface ApiEnvelope<T> {

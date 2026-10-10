@@ -421,7 +421,12 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
       if (!result.ok) {
         return [];
       }
-      return result.data.map((tpl) => ({ value: tpl.template_id, label: tpl.name }));
+      // Mail compose only offers MAIL templates. Label templates (kind:"label") live in
+      // the SAME `template#` store but belong to the "Generate address labels" modal — a
+      // label template carries `lines`, no subject/body, so picking it here would do nothing.
+      return result.data
+        .filter((tpl) => tpl.kind !== 'label')
+        .map((tpl) => ({ value: tpl.template_id, label: tpl.name }));
     },
     [listTemplates],
   );
