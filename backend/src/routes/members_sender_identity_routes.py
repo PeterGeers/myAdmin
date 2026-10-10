@@ -87,9 +87,7 @@ def get_sender_identity(
         ), 200
 
     except Exception as e:
-        logger.error(
-            f"Error reading sender identity for tenant {tenant}: {e}", exc_info=True
-        )
+        logger.exception("Error reading sender identity for tenant %s", tenant)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -153,7 +151,5 @@ def create_sender_identity(
         ), 400
 
     except Exception as e:
-        logger.error(
-            f"Error verifying sender identity for tenant {tenant}: {e}", exc_info=True
-        )
+        logger.exception("Error verifying sender identity for tenant %s", tenant)
         return jsonify({"success": False, "error": str(e)}), 500
