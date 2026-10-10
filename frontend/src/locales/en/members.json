@@ -215,6 +215,7 @@
       "deliverNow": "Deliver now",
       "deliverNowHint": "Send this set's result to its fixed recipient list now.",
       "deliverNowNeedsFixed": "Deliver now is available for a set that sends to a fixed address list. Set up a fixed-address delivery first.",
+      "deliverNowNeedsResult": "Run the set first — Deliver now sends the current result.",
       "deliverNowQueued": "Delivery queued — {{count}} send(s) on their way.",
       "deliverNowError": "Could not start the delivery."
     },

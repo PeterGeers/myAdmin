@@ -215,6 +215,7 @@
       "deliverNow": "Nu versturen",
       "deliverNowHint": "Verstuur het resultaat van deze set nu naar de vaste adreslijst.",
       "deliverNowNeedsFixed": "Nu versturen is beschikbaar voor een set die naar een vaste adreslijst stuurt. Stel eerst een bezorging naar een vaste adreslijst in.",
+      "deliverNowNeedsResult": "Voer de set eerst uit — Nu versturen verstuurt het huidige resultaat.",
       "deliverNowQueued": "Bezorging in de wachtrij — {{count}} verzending(en) onderweg.",
       "deliverNowError": "Kon de bezorging niet starten."
     },

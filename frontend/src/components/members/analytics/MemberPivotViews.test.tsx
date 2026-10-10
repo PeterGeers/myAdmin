@@ -50,6 +50,7 @@ const listSchedulesForSet = vi.fn();
 const createSchedule = vi.fn();
 const updateSchedule = vi.fn();
 const deleteSchedule = vi.fn();
+const sendAdHocMail = vi.fn();
 vi.mock('../../../services/membersApiService', () => ({
   listAnalyticsSets: (...args: unknown[]) => listAnalyticsSets(...args),
   getAnalyticsSet: (...args: unknown[]) => getAnalyticsSet(...args),
@@ -61,6 +62,7 @@ vi.mock('../../../services/membersApiService', () => ({
   putAnalyticsSetDelivery: (...args: unknown[]) => putAnalyticsSetDelivery(...args),
   deleteAnalyticsSetDelivery: (...args: unknown[]) => deleteAnalyticsSetDelivery(...args),
   deliverAnalyticsSet: (...args: unknown[]) => deliverAnalyticsSet(...args),
+  sendAdHocMail: (...args: unknown[]) => sendAdHocMail(...args),
   listSchedulesForSet: (...args: unknown[]) => listSchedulesForSet(...args),
   createSchedule: (...args: unknown[]) => createSchedule(...args),
   updateSchedule: (...args: unknown[]) => updateSchedule(...args),
@@ -288,6 +290,8 @@ beforeEach(() => {
   putAnalyticsSetDelivery.mockReset();
   deleteAnalyticsSetDelivery.mockReset();
   deliverAnalyticsSet.mockReset();
+  sendAdHocMail.mockReset();
+  sendAdHocMail.mockResolvedValue({ runId: 'run-1', mode: 'to_fixed', enqueued: 1, skippedNoAddress: 0, jobIds: ['job-1'] });
   deliverAnalyticsSet.mockResolvedValue({
     runId: 'run-1',
     mode: 'to_fixed',
@@ -2567,8 +2571,14 @@ describe('MemberPivotViews — schedule action gating (task 5.4 / R5)', () => {
 // no-op.
 // ===========================================================================
 describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', () => {
-  /** Render with a single preferred saved set made selectable, then select it. */
-  async function renderWithSavedSet(opts: { hasDelivery: boolean } = { hasDelivery: true }) {
+  /**
+   * Render with a single preferred saved set made selectable, select it, and —
+   * when `execute` is true — run the pivot so a RESULT exists on screen (Deliver
+   * now sends the on-screen result, so a send test must produce one first).
+   */
+  async function renderWithSavedSet(
+    opts: { hasDelivery: boolean; execute?: boolean } = { hasDelivery: true },
+  ) {
     listAnalyticsSets.mockResolvedValue([
       { id: 'set-7', name: 'Active seniors', kind: 'count', hasDelivery: opts.hasDelivery },
     ]);
@@ -2583,6 +2593,11 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
       target: { value: 'model:set-7' },
     });
+    if (opts.execute) {
+      // Produce a result so `exportRows` is populated (Deliver now needs a result).
+      fireEvent.click(screen.getByTestId('member-pivot-execute'));
+      await screen.findByTestId('mock-pivot-result-table');
+    }
   }
 
   const toFixedSet = {
@@ -2609,20 +2624,32 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     const btn = screen.getByTestId('member-pivot-deliver-now') as HTMLButtonElement;
     expect(btn).toBeDisabled();
     fireEvent.click(btn);
-    await waitFor(() => expect(deliverAnalyticsSet).not.toHaveBeenCalled());
+    await waitFor(() => expect(sendAdHocMail).not.toHaveBeenCalled());
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
   });
 
   // Validates: Requirements 3.1, 3.2, 3.5
-  it('calls the EXISTING deliver route for a set with a to_fixed delivery', async () => {
+  it('sends the on-screen result to the stored fixed recipients via the ad-hoc path', async () => {
     getAnalyticsSet.mockResolvedValue(toFixedSet);
-    await renderWithSavedSet({ hasDelivery: true });
+    // Execute first so a result (exportRows) exists — Deliver now sends THAT, not
+    // a server-side recompute of the whole member table (the old leak).
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
 
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
 
-    // It resolves the stored delivery (summary carries no mode) then RUNS it via
-    // the existing SAM deliver route — the frontend caller R3.2 adds.
+    // It reads the set's stored fixed recipients, then sends the CURRENT result
+    // rows as a CSV via the ad-hoc path (NOT the saved-set deliver route).
     await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
-    await waitFor(() => expect(deliverAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
+    const body = sendAdHocMail.mock.calls[0][0];
+    expect(body.mode).toBe('to_fixed');
+    expect(body.attachment).toBe('csv');
+    expect(body.recipients).toEqual(['agent@example.com']);
+    // The rows sent are the on-screen result rows (what the table rendered), NOT
+    // the raw member table.
+    expect(body.result_rows).toEqual(tableCalls[0].data);
+    // The leaky saved-set deliver route is NEVER called.
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
   });
 
   // Validates: Requirements 3.4 (clear reason, not a silent no-op)
@@ -2639,13 +2666,14 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
         labelOptions: null,
       },
     });
-    await renderWithSavedSet({ hasDelivery: true });
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
 
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
 
     await waitFor(() => expect(getAnalyticsSet).toHaveBeenCalledWith('set-7'));
-    // No stored to_fixed delivery to run → the route is NEVER called.
-    await waitFor(() => expect(deliverAnalyticsSet).not.toHaveBeenCalled());
+    // No stored to_fixed delivery → the guard warns; NOTHING is sent.
+    await waitFor(() => expect(sendAdHocMail).not.toHaveBeenCalled());
+    expect(deliverAnalyticsSet).not.toHaveBeenCalled();
   });
 
   // Validates: Requirements 3.4 (empty-recipients / not-certified refusal surfaces)
@@ -2654,19 +2682,19 @@ describe('MemberPivotViews — deliver-now action (mail task 2.4 / R3.1/R3.2)', 
     // The deliver route refuses BEFORE enqueue (pre-send certification gate):
     // a structured ApiError the component surfaces via applyApiError.
     const { ApiError } = await import('../../../shared/api/ApiError');
-    deliverAnalyticsSet.mockRejectedValue(
+    sendAdHocMail.mockRejectedValue(
       new ApiError(422, {
         error: 'The tenant mail sender is not certified',
         code: 'errors.mail.notCertified',
       }),
     );
-    await renderWithSavedSet({ hasDelivery: true });
+    await renderWithSavedSet({ hasDelivery: true, execute: true });
 
     fireEvent.click(screen.getByTestId('member-pivot-deliver-now'));
 
-    // The run was attempted and the refusal handled (no crash); the action
+    // The send was attempted and the refusal handled (no crash); the action
     // becomes clickable again once the in-flight run settles.
-    await waitFor(() => expect(deliverAnalyticsSet).toHaveBeenCalledWith('set-7'));
+    await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.getByTestId('member-pivot-deliver-now')).not.toBeDisabled(),
     );
