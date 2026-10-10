@@ -1,0 +1,158 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0.1 Add a `kind: \"label\"` label-template shape to the template model/types + the": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626481276
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626490574
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626819349
+      }
+    ],
+    "0.2 Persist/read label templates through the EXISTING `template#` store (same CRUD the mail": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626481466
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626874724
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627023508
+      }
+    ],
+    "1.1 `composeLabelLines(rows, fieldConfig, template)` in `addressLabelService.ts`: per row,": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626481647
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627030657
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627218119
+      }
+    ],
+    "1.2 Add per-line truncation to the cell inner width in the layout (measure via": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626481845
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627240062
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627384017
+      }
+    ],
+    "1.3 OPTIONAL per-sheet shrink-to-fit: compute the largest font (≤ the user's chosen size)": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626482022
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627388991
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627578475
+      }
+    ],
+    "2.1 A small editor (in/beside `MemberTemplateManager`, filtered to `kind:\"label\"`) to define": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626482188
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791627583366
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791628134331
+      }
+    ],
+    "3.1 Change the labels action gate to `members:export AND ≥1 label template exists`": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626482378
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791628156925
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791628759899
+      }
+    ],
+    "3.2 The labels modal: pick a LABEL template + an Avery format; compose via": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626482593
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791628764947
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791629313093
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791629363786
+      },
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791629472090
+      }
+    ],
+    "4.1 As webmaster@h-dcn.nl on the local dev frontend (VITE_APP_ENV=test): create a label": [
+      {
+        "executionId": "ebec4e55-4d1d-447f-aa6a-798053beda97",
+        "chatSessionId": "sess_00111fdf-df6b-4d92-a552-0db258e47182",
+        "timestamp": 1791626482768
+      }
+    ]
+  }
+}

@@ -238,6 +238,26 @@ class TemplateService:
                     seen.append(key)
         return seen
 
+    @staticmethod
+    def _sanitize_lines(raw_lines: Any) -> list[list[str]]:
+        """Coerce a label body's ``lines`` to a clean list-of-lists of non-blank field keys.
+
+        Each line is kept as the list of its non-blank string field keys (blanks/non-strings
+        dropped); a line that ends up empty is dropped entirely. The result MAY be empty — the
+        label-kind path hands it to :meth:`TemplateEntry.validate`, which rejects a label with
+        no usable lines (so an all-blank ``lines`` surfaces as a 422, not a silent empty label).
+        """
+        if not isinstance(raw_lines, (list, tuple)):
+            return []
+        cleaned: list[list[str]] = []
+        for line in raw_lines:
+            if not isinstance(line, (list, tuple)):
+                continue
+            keys = [k.strip() for k in line if isinstance(k, str) and k.strip()]
+            if keys:
+                cleaned.append(keys)
+        return cleaned
+
     def _serialize(
         self, entry: TemplateEntry, *, include_bodies: bool = False
     ) -> dict[str, Any]:
@@ -256,7 +276,7 @@ class TemplateService:
                 d["body_html"] = self._bodies.get_body(variant.s3_body_key) or ""
             return d
 
-        return {
+        payload: dict[str, Any] = {
             "template_id": entry.template_id,
             "name": entry.name,
             "languages": {
@@ -269,6 +289,16 @@ class TemplateService:
             "created_at": entry.created_at,
             "updated_at": entry.updated_at,
         }
+        # Carry the label-template discriminator + content through serialization (labels
+        # sub-spec R-L1). Additive: a mail template (default kind, no lines) projects exactly as
+        # before — `kind`/`lines` are emitted only when they carry meaning, so the mail client
+        # shape is unchanged. A label template surfaces both so the picker/editor can tell it
+        # apart and round-trip its lines.
+        if entry.kind != "mail":
+            payload["kind"] = entry.kind
+        if entry.lines:
+            payload["lines"] = [list(line) for line in entry.lines]
+        return payload
 
     def _build_languages(
         self,
@@ -331,6 +361,33 @@ class TemplateService:
         template_id = uuid.uuid4().hex
         now = self._now()
 
+        kind = payload.get("kind")
+        kind = kind if isinstance(kind, str) and kind else "mail"
+
+        if kind == "label":
+            # LABEL template (labels sub-spec R-L1): content is `lines`, NOT a mail body — so we
+            # do NOT discover merge fields, require `languages`, or write any body-store object.
+            # `TemplateEntry.validate()` rejects a label with no usable lines (→ 422).
+            lines = self._sanitize_lines(payload.get("lines"))
+            logo = payload.get("logo_asset_ref")
+            entry = TemplateEntry(
+                tenant_id=tenant_id,
+                template_id=template_id,
+                name=str(payload.get("name", "")),
+                languages={},
+                merge_fields=(),
+                logo_asset_ref=logo if isinstance(logo, str) and logo else None,
+                origin="user",
+                created_by=created_by or "",
+                created_at=now,
+                updated_at=now,
+                kind="label",
+                lines=lines,
+            )
+            entry.validate()
+            saved = self._meta.save_template(tenant_id, entry)
+            return self._serialize(saved)
+
         raw_langs = payload.get("languages")
         body_payload: dict[str, Mapping[str, Any]] = (
             {str(k): v for k, v in raw_langs.items() if isinstance(v, Mapping)}
@@ -382,6 +439,40 @@ class TemplateService:
         now = self._now()
 
         name = str(payload["name"]) if "name" in payload else existing.name
+
+        # Resolve the kind: an explicit body `kind` wins, otherwise the stored entry's kind is
+        # preserved. A label template persists its `lines` and writes NO mail body.
+        raw_kind = payload.get("kind")
+        kind = raw_kind if isinstance(raw_kind, str) and raw_kind else existing.kind
+
+        if kind == "label":
+            lines = (
+                self._sanitize_lines(payload.get("lines"))
+                if "lines" in payload
+                else [list(line) for line in existing.lines]
+            )
+            logo = (
+                payload.get("logo_asset_ref")
+                if "logo_asset_ref" in payload
+                else existing.logo_asset_ref
+            )
+            updated = TemplateEntry(
+                tenant_id=tenant_id,  # authoritative — never the body
+                template_id=template_id,  # the path is authoritative for identity
+                name=name,
+                languages={},
+                merge_fields=(),
+                logo_asset_ref=logo if isinstance(logo, str) and logo else None,
+                origin=existing.origin,  # preserved
+                created_by=existing.created_by,  # preserved
+                created_at=existing.created_at,  # preserved
+                updated_at=now,  # bumped
+                kind="label",
+                lines=lines,
+            )
+            updated.validate()
+            saved = self._meta.save_template(tenant_id, updated)
+            return self._serialize(saved)
 
         if "languages" in payload and isinstance(payload.get("languages"), Mapping):
             body_payload = {
