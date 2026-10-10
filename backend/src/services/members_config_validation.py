@@ -408,7 +408,9 @@ def validate_mail_local_part(value: Any) -> None:
     local = value.strip()
     if "@" in local or any(ch.isspace() for ch in local):
         raise MembersConfigError(
-            {"mail_local_part": "must be a single local-part token (no '@' or whitespace)"}
+            {
+                "mail_local_part": "must be a single local-part token (no '@' or whitespace)"
+            }
         )
     if not _LOCAL_PART_RE.match(local):
         raise MembersConfigError(
@@ -429,9 +431,7 @@ def validate_mail_certified(value: Any) -> None:
     if value is None:
         return
     if not isinstance(value, bool):
-        raise MembersConfigError(
-            {"mail_certified": "must be a boolean (true/false)"}
-        )
+        raise MembersConfigError({"mail_certified": "must be a boolean (true/false)"})
 
 
 # ── dispatch entry point used by the parameter save path ───────────────────────────────

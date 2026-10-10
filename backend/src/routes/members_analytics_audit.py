@@ -82,8 +82,7 @@ def record_analytics_output(user_email, user_roles) -> ResponseReturnValue:
             return jsonify(
                 {
                     "error": (
-                        "output_kind must be one of "
-                        f"{sorted(_CLIENT_OUTPUT_KINDS)}"
+                        f"output_kind must be one of {sorted(_CLIENT_OUTPUT_KINDS)}"
                     )
                 }
             ), 400
@@ -104,6 +103,6 @@ def record_analytics_output(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "audit": record})
 
-    except Exception as e:  # noqa: BLE001 — route boundary: never leak a 500 stack
+    except Exception as e:
         logger.error("Error recording analytics output audit: %s", e)
         return jsonify({"error": "Failed to record audit", "message": str(e)}), 500
