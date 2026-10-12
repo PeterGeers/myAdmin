@@ -39,8 +39,11 @@ REQUIRED_VARS = {
 
 # Optional but recommended variables
 OPTIONAL_VARS = {
-    'AWS_ACCESS_KEY_ID': 'AWS Access Key ID (required for SNS notifications)',
-    'AWS_SECRET_ACCESS_KEY': 'AWS Secret Access Key (required for SNS notifications)',
+    # NOT required: AWS creds are now supplied ambiently — via an AWS profile locally
+    # (AWS_PROFILE) and Railway service variables in prod — not the committed .env.
+    # Bugfix: "load_dotenv clobbers AWS_PROFILE" (2026-10-12). AWS_REGION stays required.
+    'AWS_ACCESS_KEY_ID': 'AWS Access Key ID (ambient via AWS profile / Railway service vars)',
+    'AWS_SECRET_ACCESS_KEY': 'AWS Secret Access Key (ambient via AWS profile / Railway service vars)',
     'SNS_TOPIC_ARN': 'AWS SNS Topic ARN for notifications',
     'TEST_MODE': 'Test mode flag',
     'TEST_DB_NAME': 'Test database name',

@@ -20,9 +20,8 @@ class TestValidateDate:
     @pytest.fixture
     def extractor(self, mock_env):
         """Create AIExtractor with mocked environment."""
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                ext = AIExtractor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            ext = AIExtractor()
         return ext
 
     # --- Valid date formats ---
@@ -85,9 +84,8 @@ class TestFallbackData:
 
     @pytest.fixture
     def extractor(self, mock_env):
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                ext = AIExtractor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            ext = AIExtractor()
         return ext
 
     def test_fallback_data_with_vendor_hint(self, extractor):
@@ -123,17 +121,15 @@ class TestExtractInvoiceData:
 
     @pytest.fixture
     def extractor(self, mock_env):
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                ext = AIExtractor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            ext = AIExtractor()
         return ext
 
     def test_extract_invoice_data_no_api_key_returns_fallback(self, mock_env):
         """Without API key, should return fallback data."""
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': ''}, clear=False):
-                ext = AIExtractor()
-                ext.api_key = None
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': ''}, clear=False):
+            ext = AIExtractor()
+            ext.api_key = None
 
         result = ext.extract_invoice_data("Invoice text content")
         assert result['total_amount'] == 0.0
@@ -333,9 +329,8 @@ class TestAIExtractorRegistryIntegration:
     @pytest.fixture
     def extractor(self, mock_env):
         """Create AIExtractor with mocked environment."""
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                ext = AIExtractor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            ext = AIExtractor()
         return ext
 
     @pytest.mark.unit
