@@ -1,0 +1,411 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test for `_normalize_date` (non-padded dates)": {
+      "status": "passed",
+      "failingExample": "Exploration (fix) test correctly detected the bug: all 16 TestNormalizeDate cases FAILED on unfixed code because _normalize_date returns None for every non-zero-padded date. Counterexamples:\n_normalize_date(\"5-5-2026\")  -> None (expected \"2026-05-05\")  [8 chars fails len==10 guard]\n_normalize_date(\"3-6-2026\")  -> None (expected \"2026-06-03\")\n_normalize_date(\"17-5-2026\") -> None (expected \"2026-05-17\")  [9 chars fails len==10 guard]\n_normalize_date(\"5-12-2026\") -> None (expected \"2026-12-05\")\n_normalize_date(\"5/5/2026\")  -> None (expected \"2026-05-05\")\n_normalize_date(\"3/6/2026\")  -> None (expected \"2026-06-03\")\n_normalize_date(\"17/5/2026\") -> None (expected \"2026-05-17\")\n_normalize_date(\"2026-5-5\")  -> None (expected \"2026-05-05\")  [8 chars, non-padded ISO fails len==10 guard]\nRoot cause: every branch is guarded by `len(date_str) == 10` with separators at fixed positions, so any non-zero-padded component falls through to `return None`.",
+      "lastRunTimestamp": 1791720313075
+    },
+    "5. Write bug condition exploration test for the wizard mapping (flat response)": {
+      "status": "passed",
+      "failingExample": "Surface (a) wizard-contract bug confirmed on UNFIXED code — 6/7 assertions fail (the 1 pass is the deliberate counterexample-documentation case). Counterexamples for a flat success response { success:true, total_rows:3, valid:3, warnings:0, errors:0, rows:[...], preview:[...] }:\n\n(1) MAPPING — mapResponseToPreviewState(flat) returns `undefined` because the wizard reads `resp.data` (nested) which does not exist on the flat response → null validationResult → empty Preview. `expect(state).toBeDefined()` → \"expected undefined to be defined\"; `state.total_rows` → \"expected undefined to be 3\".\n\n(2) BADGE — getStatusBadge reads `row.status`/`row.messages` but the backend sends `_status`/`_messages`, so colorScheme/label resolve to `undefined`: ok→\"expected undefined to be 'green'\"; warning→\"expected undefined to be 'yellow'\"; error→\"expected undefined to be 'red'\".\n\n(3) COMMIT — commitImport posts `{ vehicle_id, column_mapping }` (no rows/skip_error_rows). Diff: Received has `column_mapping` where Expected has `rows`, and `skip_error_rows` is absent. \"expected { vehicle_id: 7, column_mapping: [...] } to deeply equal { vehicle_id: 7, rows: [...], skip_error_rows: true }\".\n\nThese prove surface (a) defects 1.1/1.2 (flat vs resp.data), 1.4 (_status/_messages), and 1.5 (commit omits rows). All six will flip to PASS once task 6 maps the flat fields, reads _status/_messages, and sends rows on commit.",
+      "lastRunTimestamp": 1791720780700
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test for `_normalize_date` (non-padded dates)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213316
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720222936
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720333091
+      }
+    ],
+    "2. Write preservation property tests for `_normalize_date` (BEFORE implementing fix)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213437
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720343198
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720436051
+      }
+    ],
+    "3.1 Redesign `_normalize_date` in `backend/src/services/zzp_trip_import_service.py`": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213524
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720440665
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720526548
+      }
+    ],
+    "3.2 Verify the bug condition exploration test now passes": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213612
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720531610
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720571872
+      }
+    ],
+    "3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213724
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720575654
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720580240
+      }
+    ],
+    "4. Add `validate_import` end-to-end test with non-padded dates (Requirement 5.4)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213812
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720584231
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720635801
+      }
+    ],
+    "5. Write bug condition exploration test for the wizard mapping (flat response)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213908
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720640010
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720800595
+      }
+    ],
+    "6.1 Flatten `ApiImportResponse` and map flat fields into `validationResult`": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720213990
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720805513
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720906528
+      }
+    ],
+    "6.2 Retype `ImportRow` to the backend underscore fields and read them in the UI": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214089
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720911092
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791721758655
+      }
+    ],
+    "6.3 Send validated rows on commit": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214182
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791721762524
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791723763044
+      }
+    ],
+    "6.4 Verify the wizard exploration/mapping test now passes": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214289
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791723790623
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791723795323
+      }
+    ],
+    "6.5 Verify wizard preservation behavior is unchanged": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214390
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791723800342
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724003936
+      }
+    ],
+    "7. Verify surface (a) + surface (b) regress clean before starting surface (c)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214493
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724008617
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724227496
+      }
+    ],
+    "8. Write bug condition exploration test for Excel handling (wrong sheet, datetime date, error marker)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214589
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724231914
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724448992
+      }
+    ],
+    "9. Write preservation property tests for Excel handling (BEFORE implementing fix)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214691
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724453420
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724650670
+      }
+    ],
+    "10.1 Change 5 — header-matching worksheet selection": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214791
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724654905
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724775220
+      }
+    ],
+    "10.2 Change 6 — datetime-aware `_normalize_date`": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720214890
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724780010
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724905469
+      }
+    ],
+    "10.3 Change 7 — Excel error-marker detection": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720215057
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724911122
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725378330
+      }
+    ],
+    "10.4 Verify the Excel bug condition exploration test now passes": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720215174
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725385287
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725390750
+      }
+    ],
+    "10.5 Verify Excel preservation tests still pass": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720215292
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725394891
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725398514
+      }
+    ],
+    "11. Add `validate_import` end-to-end tests for the fixed Excel behavior": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720215402
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725403196
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725640545
+      }
+    ],
+    "12. Checkpoint — Run the full backend suite + frontend build/typecheck and clean up": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720215507
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725644671
+      },
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725918817
+      }
+    ],
+    "3. Fix `_normalize_date` to accept non-zero-padded numeric dates via range validation": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791720580390
+      }
+    ],
+    "6. Fix the wizard contract (flat mapping, underscore fields, commit payload)": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791724004152
+      }
+    ],
+    "10. Fix Excel handling in `backend/src/services/zzp_trip_import_service.py`": [
+      {
+        "executionId": "11e54d8e-c9e1-41a6-9d29-14fa3b1a75dc",
+        "chatSessionId": "sess_33d64c6c-cd43-4fb3-93c4-44147e013660",
+        "timestamp": 1791725398704
+      }
+    ]
+  }
+}
