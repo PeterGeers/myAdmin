@@ -30,9 +30,11 @@ import {
 } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import {
+  getMembersConfigStatus,
   getMembersParameterDefinitions,
   getMembersParameters,
 } from '../../../services/membersConfigService';
+import { MembersConfigStatus } from './MembersConfigStatus';
 import type { Parameter } from '../../../types/parameterTypes';
 import type {
   MembersParamDefinition,
@@ -114,6 +116,10 @@ export const MembersConfigEditor: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [defs, setDefs] = useState<MembersParamDefinition[]>([]);
   const [rows, setRows] = useState<Record<string, Parameter>>({});
+  // The module's projected delivered/loaded status (Phase 0 step 3). Empty = unavailable
+  // (older module build / fetch glitch) → the status banner simply hides. A status fetch
+  // never blocks authoring, so a failure degrades to "unavailable", not an error.
+  const [configStatus, setConfigStatus] = useState<Record<string, string | number | null>>({});
 
   // Live working copies of the two params that feed the pickers, so a newly-added
   // functional group / field key becomes pickable immediately (before Save).
@@ -132,6 +138,10 @@ export const MembersConfigEditor: React.FC<Props> = ({
       setRows(values);
       setOverlayValue((values.field_overlay?.value as MembersConfigValue) ?? {});
       setScopeValue((values.scope_dimensions?.value as MembersConfigValue) ?? []);
+      // Delivered/loaded status is best-effort and non-blocking: a failure resolves to an
+      // empty map inside getMembersConfigStatus (the banner then hides), so the editor loads
+      // regardless of the module endpoint's availability.
+      setConfigStatus(await getMembersConfigStatus());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -196,6 +206,7 @@ export const MembersConfigEditor: React.FC<Props> = ({
 
   return (
     <Box data-testid="members-config-editor">
+      <MembersConfigStatus status={configStatus} lang={lang as 'nl' | 'en'} />
       <Tabs colorScheme="orange" variant="enclosed" isLazy>
         <TabList>
           <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>

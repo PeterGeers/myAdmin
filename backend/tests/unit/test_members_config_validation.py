@@ -202,6 +202,17 @@ class TestViewContextsValidation:
         contexts = [{"key": "c", "columns": ["display_name", "age", "years_member"]}]
         validate_view_contexts(contexts)  # calculated fields resolve
 
+    def test_validate_view_contexts_birth_part_calculated_fields_resolve(self):
+        # Drift regression: the four birth_* calculated keys are real
+        # (calculated_fields.CALCULATED_FIELDS) and must resolve, not be rejected.
+        contexts = [
+            {
+                "key": "c",
+                "columns": ["birth_day", "birth_month", "birth_year", "birth_quarter"],
+            }
+        ]
+        validate_view_contexts(contexts)  # must not raise
+
     def test_validate_view_contexts_overlay_field_resolves(self):
         overlay = {"fields": {"motor_brand": {"type": "string"}}}
         contexts = [{"key": "c", "columns": ["member_number", "motor_brand"]}]
@@ -376,3 +387,23 @@ class TestValidateMembersParamDispatch:
         assert FIXED_FIELD_KEYS
         assert CALCULATED_FIELD_KEYS
         assert not (FIXED_FIELD_KEYS & CALCULATED_FIELD_KEYS)
+
+    def test_calculated_field_keys_match_sam_source_of_truth(self):
+        # Drift guard (Phase 0 step 1): this Flask transcription MUST mirror all nine
+        # entries of sam/members/domain/calculated_fields.CALCULATED_FIELDS. The two
+        # planes are intentionally not import-coupled (see the module docstring), so the
+        # canonical set is pinned here as a literal — if a calculated field is added or
+        # renamed in the SAM registry, update both the transcription and this assertion.
+        assert CALCULATED_FIELD_KEYS == frozenset(
+            {
+                "personal.display_name",
+                "personal.age",
+                "personal.birthday",
+                "personal.birth_day",
+                "personal.birth_month",
+                "personal.birth_year",
+                "personal.birth_quarter",
+                "membership.years_member",
+                "membership.application_year",
+            }
+        )

@@ -199,7 +199,9 @@ def build_config_scope_row(
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE
         ),
-        version=_scope_config_version(tenant),
+        version=_config_row_version(
+            tenant, parameter_service, tenant_id, (_SCOPE_DIMENSIONS_PARAM_KEY,)
+        ),
         attributes={"dimensions": dimensions},
     )
 
@@ -224,6 +226,64 @@ def _scope_config_version(tenant: Mapping[str, Any]) -> Any:
         if value is not None:
             return _normalize_version(value)
     return 0
+
+
+def _config_row_version(
+    tenant: Mapping[str, Any],
+    parameter_service: Any,
+    tenant_id: str,
+    param_keys: Sequence[str],
+) -> Any:
+    """Version a ``config#*`` row off its SOURCE param(s), not just the tenant row.
+
+    THE VERSION-BUMP TRAP FIX (impact-analysis §0.3 / Phase 0 step 2). The
+    ``config#*`` rows are written under the sync's VERSION-GUARDED conditional put
+    (``_supersedes`` / the ``#v < :incoming`` condition), which writes only when the
+    incoming ``version`` STRICTLY supersedes the stored one. Deriving that version
+    from the TENANT row alone (:func:`_scope_config_version`) is the bug: editing a
+    ``members.*`` param (e.g. ``field_overlay``) does NOT bump the tenant row, so the
+    projected row keeps the same version, the conditional put SKIPS it, and the edit
+    never reaches DynamoDB (``written=0 skipped=N`` — the #6/#7/#8 "config won't save"
+    symptom). The historic workaround was to hand-bump ``tenants.updated_at``.
+
+    FIX — version off the PARAM's own ``updated_at`` (``parameters`` table,
+    ``ON UPDATE CURRENT_TIMESTAMP``) when it is present, exactly as
+    :func:`services._projection_scopegrant._scopegrant_version` already does for
+    per-user grants (same freshness mechanism, same monotonic ISO-8601 ordering via
+    :func:`_normalize_version`):
+
+    - (a) **advances on a param edit** — the edited param's ``updated_at`` moves
+      forward, so the new version strictly supersedes the stored one and the put
+      writes (the edit propagates — the trap is gone);
+    - (b) **is stable on an unchanged re-sync** — an untouched param reproduces the
+      SAME ``updated_at`` → same version → the conditional put is a no-op (idempotence
+      preserved, no version churn, R5.6);
+    - (c) **fits the existing plumbing** — ``_normalize_version`` renders the
+      ``datetime`` to an ISO-8601 string that sorts lexicographically in chronological
+      order, a valid monotonic version for BOTH the write conditional put and the
+      read-side staleness check.
+
+    When a row is driven by MORE THAN ONE param (``config#mail`` reads four keys), the
+    MAX param revision wins so an edit to ANY of them bumps the row. Param revisions
+    are compared only against each other (all ISO-8601 strings — safely ordered); the
+    tenant-row version is used ONLY as the fallback when NO param in ``param_keys`` has
+    a per-param revision (an un-authored row, or a source — e.g. a test fixture — that
+    exposes no ``get_param_revision``). This mirrors ``_scopegrant_version``: never mix
+    a param ISO timestamp and an int tenant ``version`` in one comparison.
+
+    One-directional discipline (Property 1): only READS — ``get_param_revision`` issues
+    a plain SELECT; this helper never writes MySQL.
+    """
+    revisions: list[Any] = []
+    getter = getattr(parameter_service, "get_param_revision", None)
+    if callable(getter):
+        for key in param_keys:
+            revision = getter(_MEMBERS_PARAM_NAMESPACE, key, tenant=tenant_id)
+            if revision is not None:
+                revisions.append(_normalize_version(revision))
+    if revisions:
+        return max(revisions)
+    return _scope_config_version(tenant)
 
 
 # --- C2 config#fields builder (S5b design.md C2, R1.3) ---------------------
@@ -425,7 +485,9 @@ def build_config_fields_row(
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
         ),
-        version=_scope_config_version(tenant),
+        version=_config_row_version(
+            tenant, parameter_service, tenant_id, (_FIELD_OVERLAY_PARAM_KEY,)
+        ),
         attributes={
             "fields": fields,
             "overrides": overrides,
@@ -544,7 +606,9 @@ def build_config_views_row(
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS
         ),
-        version=_scope_config_version(tenant),
+        version=_config_row_version(
+            tenant, parameter_service, tenant_id, (_VIEW_CONTEXTS_PARAM_KEY,)
+        ),
         attributes={"contexts": contexts},
     )
 
@@ -669,7 +733,20 @@ def build_config_mail_row(
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL
         ),
-        version=_scope_config_version(tenant),
+        # config#mail is driven by FOUR params — an edit to ANY must bump the row,
+        # so the version is the max of their per-param revisions (version-bump trap
+        # fix), falling back to the tenant row only when none is authored.
+        version=_config_row_version(
+            tenant,
+            parameter_service,
+            tenant_id,
+            (
+                _MAIL_ENABLED_PARAM_KEY,
+                _MAIL_DOMAIN_PARAM_KEY,
+                _MAIL_LOCAL_PART_PARAM_KEY,
+                _MAIL_CERTIFIED_PARAM_KEY,
+            ),
+        ),
         attributes=attributes,
     )
 
@@ -690,6 +767,7 @@ __all__ = [
     "_SCOPE_VERSION_FIELDS",
     "_VIEW_CONTEXTS_PARAM_KEY",
     "_VIEW_CONTEXT_DEFAULTS",
+    "_config_row_version",
     "_map_fixed_override",
     "_map_functional_group",
     "_map_overlay_field",
