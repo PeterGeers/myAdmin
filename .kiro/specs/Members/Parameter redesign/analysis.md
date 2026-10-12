@@ -9,7 +9,8 @@
 > `seed_view_contexts.py`, `lifecycle_config.py`; the authoring path spec
 > `.kiro/specs/Members/s5j-members-config-authoring-path`; and the parked design concerns in
 > `.kiro/specs/Members/pivot-output-actions/bugs-to-solve.md` (#6/#7/#8/#11/#12/#13 + the
-> "config-home architecture fork").
+> "config-home architecture fork"); and the user's own parameter observations (originally
+> `.kiro/specs/myBacklog/findings.md`, now folded into 2.3 / 2.5 / 2.6 / Q4 below).
 
 ## 1. Why this spec exists
 
@@ -42,7 +43,10 @@ be, and where it should be authored** — then (separate phase) rebuild the auth
 - **Finding (re Q2.1):** the fixed/overlay split is a *provenance* distinction (built-in vs
   tenant-added), but to the USER authoring config it reads as an arbitrary, confusing divide —
   especially since both end up as "just fields" in the generic UI. The runtime already treats
-  them uniformly (`valueFor` reads either). So the split is **real in storage, incidental to the
+  them uniformly (the shared bucket-walking value reader in `field_resolver.py` resolves a dotted
+  key out of `personal`/`membership`/`overlay` regardless of origin — there is no per-origin value
+  path; note there is **no** `valueFor` method on `ResolvedField`, and calculated values come from
+  `calculated_fields.compute_calculated_fields`). So the split is **real in storage, incidental to the
   user**. Candidate simplification: present ONE field list with a small "built-in / custom /
   calculated" badge, not two separate concepts the user must understand.
 
@@ -53,6 +57,13 @@ be, and where it should be authored** — then (separate phase) rebuild the auth
 - **Finding (re Q2.3):** the mechanism works and is genuinely needed (multi-tenant scope
   isolation, R3). The user's complaint is the **UI**, not the model. So: keep the model, redo the
   editor. (Note: the user→tenant→roles side may stay in Flask — see Q3.2 below.)
+- **User finding:** the h-dcn region filter "works ok" and row-based subset access is confirmed a
+  **nice-to-have**, not core. The sharp open question the user raises is **how the parameter is
+  managed**: is a scope dimension an **attribute of one or more fields** (a field flagged
+  "scopes records") rather than a separate `scope_dimensions` list, and **how does the code build
+  the filtering** from that? And is the current editor page practical? → feeds Q4 (make
+  scope-binding a field attribute in the catalog) rather than keeping it as a standalone param
+  surface.
 
 ### 2.3 View contexts — the suspect
 - `members.view_contexts` (param → `config#views`) is a list of `ui.tables`-shaped contexts, each
@@ -69,6 +80,21 @@ be, and where it should be authored** — then (separate phase) rebuild the auth
   `config#views` to drive behavior the generic UI doesn't already cover (e.g. role-restricted
   column visibility)? If a residual need exists (per-role column allow-list), fold it into the
   field model (a field carries its own `permission_roles`) rather than a separate context object.
+- **User findings (per-sub-field disposition) — strengthen the retirement case and pin the one
+  residual:**
+  - **`filterable_columns`** → "perfect solved by the generic field table framework." Retire.
+  - **`default_sort`** → "perfect solved by the generic field table framework." Retire.
+  - **`page_size` / pagination** → the user flags this as the **one piece still potentially
+    valuable**; "what model manages this parameter is a question." So pagination is the concrete
+    **residual** of view_contexts (not per-role column visibility as the doc first guessed) —
+    decide where pagination config lives (a tenant/field default vs per-user pref) before deleting
+    the param.
+  - **`columns`** → UX-clarity **defect**: the user sees rows marked *"unresolved"* that, when
+    clicked, expand into a list of field names, and has "no idea what the idea behind this block
+    is." Whatever survives of column config must not reproduce this opaque "unresolved" state.
+  - **Themes:** the user notes "a few themes (functional groups with the same structure)
+    repeating" across view contexts — i.e. the real recurring unit is the **functional group**,
+    reinforcing the Q4 group→field model over per-view column lists.
 
 ### 2.4 The four `members.*` params + the dual editing surface
 - `members` namespace = `field_overlay`, `scope_dimensions`, `view_contexts` (json) +
@@ -77,6 +103,61 @@ be, and where it should be authored** — then (separate phase) rebuild the auth
   **Members tab** editor AND (2) the raw **Advanced parameters** key/value view — two doors to the
   same rows. Evidence of phase-evolution (raw params first, typed editor layered on later without
   retiring the raw surface).
+
+- **Generalization — "Advanced" and the Members config are ONE mechanism at two polish levels**
+  (moved here from the Tenant-Administration backlog item, 2026-10-12). Both are
+  **parameter-namespace editors over the `parameters` table**:
+  - Every module namespace gets a GENERIC namespace editor for free — the raw key/value table =
+    "Advanced", SysAdmin-gated because raw params are dangerous.
+  - A module MAY register a TYPED editor that supersedes the raw table for its namespace (Members
+    did this with its 4-tab config; FIN could). "Advanced" stays the catch-all for namespaces
+    **without** a typed editor.
+
+  This unifies why Members-config and Advanced felt inconsistent — same underlying mechanism
+  (namespace param editing), one typed, one raw. It also frames this spec's own fix: the dual
+  surface (#12) is just a namespace (`members.*`) that has BOTH a typed editor and the raw
+  catch-all — the cleanup (§5 / impact-analysis §5) is to make the typed editor supersede the raw
+  table **for that namespace** (exclude `members.*` from `ParameterManagement`), i.e. apply the
+  general rule rather than invent a Members-only special case. The platform-wide registry that
+  decides which admin surfaces render (so "Advanced" is a registered catch-all surface) belongs to
+  the Tenant-Administration spec; this note records only the typed-vs-raw namespace-editor model
+  that directly shapes the Members authoring surface.
+
+### 2.5 Analytics parameters — user findings (the detail Q1 was waiting on)
+The user's examples of candidate "analytics parameters" turn out, on inspection, to be **mostly
+subsumed by existing fields + the generic pivot/filter UI**, with only small residuals. Each is
+tagged with its likely disposition:
+- **Jubilee years** — a plausibly valuable parameter, but **unclear whether global or
+  tenant-specific**, and possibly not a parameter at all: it may be solvable as a **pivot filter**
+  (`years_member == 25`, …) or as a **calculated field**. Decision: don't add a param until it's
+  shown it can't be a calculated field / pivot filter. (Also raises the global-vs-tenant axis the
+  rest of the doc hasn't needed yet.)
+- **Analytic field roles** — mixed:
+  - some are a **1:1 mapping onto an existing (flattened) field** → already easy to use, **no new
+    param needed**;
+  - some can't bind to a field because they're **enum *values* of a field** (e.g. Magazine →
+    Papier / Digitaal / Geen). A **pivot filter on that enum** already yields the distribution
+    list (e.g. all paper-magazine members) → **subsumed by the generic UI**, not a param.
+- **Address label fields** — a **1:1 mapping onto existing flattened fields**; the current
+  flattened fields are "perfect to use." The only extra function is providing an **alternative
+  (display) name** → so the residual here is just a **label/alias attribute on a field**, not a
+  standalone analytics param.
+- **Finding (reconciles Q1):** these concrete cases confirm the Q1 lean — most "analytics params"
+  are **not needed as params**; they're existing fields, calculated fields, or pivot filters. The
+  only genuine residuals are (a) an optional **alias/display-name** attribute on a field, and (b)
+  the open **global-vs-tenant** question for a thing like Jubilee years. Both fold into the Q4
+  attribute catalog rather than a separate "analytics" config surface. *(The #6/#7/#8 "no analytics
+  config" symptom in §1 is a separate reliability concern — see risk #4/#6 — not evidence that an
+  analytics-param surface is needed.)*
+
+### 2.6 Field overlay vs functional groups — two sections, no link
+- **User finding:** overlay and functional groups are "implemented as two sections **without a link
+  to the functional hierarchy**." From the user's view, **functional groups are the key domains**;
+  fields belong to the groups they functionally relate to. "Does field overlay refer to a technical
+  constraint?" — i.e. the user suspects `overlay` is a storage/provenance artifact (2.1) that has
+  no business being a top-level authoring concept, while the **group** is the concept that actually
+  organizes the many fields coherently. → directly reinforces 2.1 (drop the fixed/overlay divide
+  from the UI) and Q4.3 (groups as the organizing unit).
 
 ## 3. The user's questions → framed as decisions
 
@@ -92,11 +173,18 @@ be, and where it should be authored** — then (separate phase) rebuild the auth
 - 2.1 overlay/fixed confusing → present as one field list + provenance badge (decision).
 - 2.2 field/group/attribute management UI is **awful** → the core UX rebuild (see Q4).
 - 2.3 scope dimensions model fine, UI questionable → keep model, redo editor.
-- 2.4 view contexts opaque, likely subsumed by the generic UI → **candidate for retirement**
-  (verify residual role-column need first).
-- 2.5 = Q1.
+- 2.4 view contexts opaque, likely subsumed by the generic UI → **candidate for retirement**;
+  user findings pin the residual as **pagination**, plus a "columns = unresolved" UX defect.
+- 2.5 "analytics params" mostly subsumed by fields / calculated fields / pivot filters → feeds
+  Q1; residuals are an alias attribute + the global-vs-tenant question.
+- 2.6 overlay vs functional groups split with no link → groups are the organizing unit (Q4.3).
 
 ### Q3 — Where should the tenant members field structure be authored? (THE central question)
+> ✅ **DECIDED (user, 2026-10-12): Option B.** Flask authors; SAM reads a first-class projection
+> (auto-bump + delivered/loaded status). **Keep steering 36** — Option C (SAM-native authoring) is
+> rejected, so no steering-level change. Q3.2 confirmed: user→tenant→roles stays Flask-authored
+> with its projection. The three options below are retained for the record.
+
 Three options (from bugs-doc "config-home fork"):
 - **Option A — status quo:** Flask `parameters` = source of truth → projected to DynamoDB → SAM
   reads. Works; steering-36 compliant; but the over-complicated path (manual projection, version-
@@ -132,6 +220,26 @@ Three options (from bugs-doc "config-home fork"):
   calculated?, scope-binding?, …). That catalog does not exist as a single artifact today — it is
   implicit across `field_resolver`, `calculated_fields`, enum validation, and the overlay schema.
   **Producing that catalog is a prerequisite** for both the redesign and the new UI.
+- **Catalog seed (user findings) — concrete starting attributes and the shape of the catalog:**
+  - distinguish **required-per-field** vs **optional** attributes;
+  - **`type`** ∈ {str, num, enum, boolean} is required; when `type == enum`, a **sub-attribute
+    `enum-values`** is required (this is exactly the Magazine case from 2.5);
+  - an optional **alias / display-name** attribute (the sole residual from "address label fields",
+    2.5);
+  - an optional **scope-binding** flag (from 2.2 — "is scope an attribute of a field?");
+  - **open question — i18n:** are **field-name labels** stored *in the attribute* (`label{nl,en}`)
+    or **managed by i18n**? The doc must pick one; it changes whether labels live in the catalog or
+    in translation resources. (User raised this explicitly.)
+- **4.3 — how are the functional groups themselves defined? (open sub-decision).** The Q4 UI
+  presents "a list of functional groups," but the doc does not yet say what a group *is* in the
+  model: is it a **new first-class config object** (its own list, with key, bilingual label,
+  ordering, maybe permission_roles) that fields reference — or merely a **`group` attribute on each
+  field** (groups emerge implicitly from the distinct values)? This affects the catalog (does
+  "group" need its own attribute set?), the UI (do you author groups separately, then assign
+  fields, or just tag each field?), and **group + field ordering** (nothing today encodes display
+  order; the generic UI/column prefs order columns, but a group→field authoring view needs an
+  explicit order). Decide group identity + ordering before the catalog is finalized, since the
+  catalog shape depends on it.
 
 ## 4. Key tensions / risks to resolve before design
 1. **Steering 36 vs Q3.1 (Option C).** The user leans to authoring in SAM; steering 36 forbids a
@@ -146,6 +254,16 @@ Three options (from bugs-doc "config-home fork"):
    local artifact — before deciding A/B/C, since a flaky projection argues for B or C.
 5. **Attribute catalog** must be authored as a first-class artifact; it is the backbone of both
    the model and the UI.
+6. **No projection delivered/loaded visibility.** Everything the doc says about the Flask →
+   DynamoDB projection (`config#fields` / `config#scope` / `config#views` / `config#mail`) is from
+   the **writer** side. There is **no observability on the read side**: the user cannot confirm a
+   projection actually **delivered and loaded** into the SAM edge (last-synced marker, version
+   actually in effect, which items loaded). This is the likely reason the #6/#7/#8 symptom is hard
+   to pin down — without a delivered/loaded indicator you cannot distinguish "save failed" from
+   "projection didn't bump" (#12/#8 stale trap) from "SAM is reading stale data." A delivery/loaded
+   status is a prerequisite for diagnosing risk #4, and strengthens the case for **Option B** (make
+   the projection first-class *and inspectable*) over plain Option A. Decide whether the redesign
+   must surface projection status.
 
 ## 5. Explicitly OUT OF SCOPE of this spec
 - Sender Addresses (own spec, Q3.3).
@@ -159,3 +277,16 @@ Three options (from bugs-doc "config-home fork"):
 3. **Adopt "only `member_id` is fixed; all else configurable" (4.1)?** (reframes the field model.)
 4. **One unified field list with a provenance badge** instead of the fixed/overlay split? (Q2.1)
 5. **Build the attribute catalog first** as the backbone artifact? (prerequisite either way.)
+6. **Functional groups: first-class object or a `group` field-attribute — and how is display
+   order encoded?** (Q4.3; gates the catalog shape and the authoring UI.)
+7. **Must the redesign surface projection delivered/loaded status** (last-synced, version in
+   effect, items loaded) so stale/failed projections are diagnosable? (risk #6; informs A/B/C.)
+8. **Field labels: catalog attribute (`label{nl,en}`) or i18n-managed?** (from 2.5/Q4 catalog
+   seed; decides where labels live.)
+9. **"Analytics params" — confirm none survive as params?** The user findings (2.5) show Jubilee
+   years, analytic field roles, and address labels resolve to calculated fields / pivot filters /
+   a field alias attribute. Confirm the only residuals are the alias attribute + the global-vs-
+   tenant question, and that no standalone analytics-config surface is built. *(A more detailed
+   analytics finding from the user may still refine this.)*
+10. **Pagination model** — if `view_contexts` is retired, where does `page_size`/pagination live
+    (tenant/field default vs per-user pref)? (from 2.3.)

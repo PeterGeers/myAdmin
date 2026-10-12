@@ -88,14 +88,10 @@ Storage is "one choice relevant for many modules that store objects." Architectu
   whose modules store nothing does not.
 
 ## "Advanced" + Members config — one thing at two polish levels (namespace parameter editing)
-Both are PARAMETER-NAMESPACE editors over the `parameters` table:
-- Every module namespace gets a GENERIC namespace editor for free (the raw table = "Advanced",
-  SysAdmin-gated because raw params are dangerous).
-- A module MAY register a TYPED editor that supersedes the raw table for its namespace (Members
-  did this with its 4-tab config; FIN could). "Advanced" stays the catch-all for namespaces
-  without a typed editor.
-This unifies why Members-config and Advanced felt inconsistent — they are the same mechanism
-(namespace param editing), one typed, one raw.
+> MOVED (2026-10-12) → `.kiro/specs/Members/Parameter redesign/analysis.md` §2.4 (the typed-vs-raw
+> namespace-editor model now lives next to the Members dual-surface #12 it shapes). The platform-wide
+> admin-surface registry that makes "Advanced" a registered catch-all surface stays this spec's
+> concern — see the SCOPE line below ("the generic namespace param editor").
 
 ## Open questions (design pass)
 - Which cross-cutting surfaces are truly `always` vs `capability`-consumed? Today Storage/
@@ -116,40 +112,15 @@ This unifies why Members-config and Advanced felt inconsistent — they are the 
 
 
 # Projection version gap — config/param changes don't auto-bump the projection version
-**Problem (discovered during s5m h-dcn SAM Code migration, 2026-09-30):** a change to a
-tenant's `members.*` parameter (e.g. `members.field_overlay` via `seed-hdcn-members-config.py`
-or the Tenant-Admin config UI) does NOT propagate to the DynamoDB `governance_projection`
-`config#fields` / `config#scope` / `config#views` rows on its own. `ProjectionSync` writes each
-row only when its `version` strictly supersedes the stored one (`_conditional_put` +
-`_supersedes`, `services/projection_sync.py`), and that `version` is derived by
-`_scope_config_version(tenant)` from the **tenant row's** `version`/`updated_at`/`revision`/
-`modified_at` — NOT from the changed param's content. So after seeding the param, `sync_administration`
-reported `written=0 skipped=15` and the app kept serving the OLD field config until we manually
-bumped the tenant row (`UPDATE tenants SET updated_at = CURRENT_TIMESTAMP WHERE administration='h-dcn'`)
-and re-ran the sync (then `written=4`).
-
-**Impact:** any future members-config change (new/edited overlay field, changed enum values, a
-new `member_number` format regex) will SILENTLY not take effect in the app plane unless someone
-also touches the tenant row `updated_at` (or knows to). Easy to rediscover the hard way.
-
-**Interim workaround (what we did):** after seeding a param, bump the tenant row `updated_at`,
-then run the projection sync for that tenant. (For h-dcn, the sync must READ Railway MySQL and
-WRITE the real `governance_projection` in the `nonprofit-deploy` account — strip the `.env`
-personal-account AWS keys + local `AWS_ENDPOINT_URL_DYNAMODB`, force `AWS_PROFILE=nonprofit-deploy`.)
-
-**Now committed as a one-command runner:** `scripts/aws/project-config-to-prod.py --tenant <t> --apply` performs seed → `tenants.updated_at` bump → AWS re-strip + STS account guard → `ProjectionSync.sync_administration` → read-back verify, and REFUSES to report success on `written==0` (which signals the version bump did not take). Dry-run is the default. This removes the manual-dance footgun for the interim; the proper fix below still stands.
-
-**Proper fix (the deferred "task 6.x" the code comment references in `_scope_config_version`):**
-thread a per-parameter change revision through so a `members.*` param write bumps the relevant
-`config#*` projection version directly — no reliance on the coarse tenant-row timestamp. Options:
-(a) `ParameterService.set_param` stamps/increments a per-namespace revision the builders read;
-(b) the param-change route enqueues the sync AND the builders version off the param's own
-`updated_at` rather than the tenant row's. Either way: a config change should be sufficient on its
-own to propagate to the projection. Add a test that a param change alone yields `written>0`.
-
-**Scope:** `services/projection_sync.py` (`_scope_config_version` / the config#* builders),
-`services/parameter_service.py`, the members-config seed/route. Relates to the Tenant Administration
-registry spec (same params/projection plumbing).
+> MOVED (2026-10-12) → `.kiro/specs/Members/Parameter redesign/impact-analysis.md` §0.3 + Phase 0
+> step 2. This is the "version-bump trap" the spec already owns (the `_scope_config_version`
+> tenant-row-proxy defect that silently drops `members.*` edits). The spec covers the proper fix
+> (per-param revision, Phase 0 step 2) and goes further — adding a read-side delivered/loaded
+> status (Phase 0 step 3) so stale/failed syncs are diagnosable. The field evidence
+> (`written=0 skipped=15` on h-dcn) and the committed interim runner
+> (`scripts/aws/project-config-to-prod.py`, which refuses success on `written==0`) are preserved
+> in that §0.3 note. The runner's `_restrip_aws_env()` dependency stays the SEPARATE backlog item
+> below ("load_dotenv() clobbers AWS_PROFILE").
 
 
 
@@ -161,15 +132,15 @@ Aanmelden mislukt
 Passkey registreren mislukt. Probeer het opnieuw.
 
 # load_dotenv() in database.py clobbers AWS_PROFILE → ops scripts silently hit the WRONG AWS account
-**Problem (cost ~2 sessions during members-modal-field-mapping-mismatch, 2026-10-01):** `backend/src/database.py` calls `load_dotenv()` at IMPORT time. The repo-root `.env` exports STATIC personal-account `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` plus `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000`. boto3's credential chain ranks static ENV keys ABOVE `AWS_PROFILE`, so ANY script that (a) strips those keys in the shell to target `nonprofit-deploy`, then (b) imports `database` (or anything that transitively imports it), gets the keys SILENTLY RE-INJECTED by that import-time `load_dotenv()`. The DynamoDB client then resolves the WRONG account (personal `344561557829`) or the LOCAL emulator — surfacing as `ResourceNotFoundException: Cannot do operations on a non-existent table` on prod tables (e.g. `governance_projection`) that only exist in `nonprofit-deploy` `506221081911`. The failure is maximally confusing because a direct boto3 read of the SAME table name/region/account (in a process that never imported `database`) succeeds, so it looks like an intermittent "table doesn't exist" when it is really a credential/account swap.
-
-**Impact:** every local ops script that spans "strip env → import backend code → write real AWS" is a landmine: the strip is undone by the import. This is the root cause of the hours lost projecting the h-dcn members config to prod. It will recur for ANY future Railway-MySQL-read → nonprofit-deploy-DynamoDB-write script.
-
-**Interim workaround (now committed):** `scripts/aws/project-config-to-prod.py` bakes in a `_restrip_aws_env()` that re-pops `AWS_ENDPOINT_URL_DYNAMODB` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` and re-pins `AWS_PROFILE` + `AWS_REGION` AFTER the database-dependent imports run (so after their `load_dotenv`) and BEFORE building any boto3 client, plus a hard STS account guard. Any new ops script in this shape must do the same (import database-dependent modules → re-strip → account guard → write).
-
-**Proper fix (candidates):** (a) make `database.py` NOT call `load_dotenv()` at import time (load config explicitly at app startup instead), or at least have it NOT override an already-set `AWS_PROFILE` / already-exported AWS creds (`load_dotenv(override=False)` is already the default — the real issue is the `.env` exporting static AWS keys at all); (b) move the static personal-account AWS keys OUT of the repo `.env` so nothing re-injects them (use a profile for local DynamoDB too); (c) a shared `ops_env` helper that establishes the correct account/endpoint and is import-safe. Add a test that importing `database` does not mutate pre-set AWS_* env.
-
-**Scope:** `backend/src/database.py` (the import-time `load_dotenv()`), repo-root `.env` (static AWS keys), steering `41-shell-environment.md` (already warns about the `.env`-overrides-`AWS_PROFILE` hazard — this is the concrete code cause). Relates to the "Projection version gap" item above (both bite the same prod-projection path).
+> PROMOTED TO BUGFIX (2026-10-12) → `.kiro/specs/BUGS/20261012 load_dotenv clobbers AWS_PROFILE/analysis.md`.
+> Decided fix: **(a) remove the import-time `load_dotenv` side-effect in `database.py` + (b) strip
+> the static personal-account AWS keys from both `.env` and `backend/.env`** (option (c) ops-env
+> helper rejected). Grounded re-check found the earlier `backend/.env` pin only MOVED the clobber
+> (both files still export the static keys; `backend/.env` also exports the local DynamoDB
+> endpoint), and that the local-DynamoDB path already defaults creds to `"local"` so (b)'s blast
+> radius is small. This is the **prerequisite gate** before the Members `Parameter redesign` Phase 0
+> (whose committed `project-config-to-prod.py` runner carries a `_restrip_aws_env()` workaround for
+> THIS bug). Stays a standalone infra bugfix — NOT folded into the redesign.
 
 
 # Your main branch isn't protected
@@ -314,3 +285,4 @@ Relates to: steering `43-cicd-deploys.md` ("no secrets in CI"), `41-shell-enviro
 `#database` skill (env model), and possibly the open `.kiro/specs/Members/Parameter redesign/`
 analysis. Also connects to the open "s3 object management module and SAM" + shared-building-blocks
 backlog items (same reuse-across-planes theme).
+
