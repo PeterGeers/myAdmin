@@ -397,6 +397,49 @@ class ParameterService:
 
         return None
 
+    def get_param_revision(
+        self,
+        namespace: str,
+        key: str,
+        tenant: str | None = None,
+        role: str | None = None,
+        user: str | None = None,
+    ) -> Any:
+        """Return the per-param revision (``updated_at``) of the resolved row, else None.
+
+        Reads the ``updated_at`` timestamp of the FIRST scope row that actually
+        resolves the ``get_param`` value (walking the same user -> role -> tenant
+        chain, skipping any scope whose id is ``None``). This is the per-parameter
+        freshness signal the governance projection needs to fix the "version-bump
+        trap": the ``members.*`` config rows must bump their projected ``version``
+        when a param is EDITED even though the tenant row was not touched, so the
+        version-guarded conditional put in ``ProjectionSync`` actually writes the
+        change instead of silently skipping it.
+
+        ``updated_at`` is the ``parameters`` table's ``ON UPDATE CURRENT_TIMESTAMP``
+        column: it advances on a genuine value change and is stable on an unchanged
+        re-sync — exactly the monotonic-yet-idempotent property the conditional
+        write relies on (R5.6). It is READ-ONLY (a plain SELECT); this method never
+        writes MySQL, so the sync's one-directional guarantee is preserved.
+
+        Returns ``None`` when the value comes from a ``CODE_DEFAULTS`` fallback (no
+        DB row to date-stamp) or when no scope resolves — callers treat that as "no
+        per-param revision" and fall back to the tenant-row version.
+        """
+        scope_lookups = [
+            ("user", user),
+            ("role", role),
+            ("tenant", tenant),
+            ("system", "_system_"),
+        ]
+        for scope, scope_id in scope_lookups:
+            if scope_id is None:
+                continue
+            revision = self._resolve_revision_from_db(scope, scope_id, namespace, key)
+            if revision is not None:
+                return revision
+        return None
+
     def set_param(
         self,
         scope: str,
@@ -603,6 +646,31 @@ class ParameterService:
         keys_to_remove = [k for k in self._cache if k[2] == namespace and k[3] == key]
         for k in keys_to_remove:
             del self._cache[k]
+
+    def _resolve_revision_from_db(
+        self, scope: str, scope_id: str, namespace: str, key: str
+    ) -> Any:
+        """Return the ``updated_at`` of a specific scope+key row, or ``None`` if absent.
+
+        READ-ONLY (a single parameterized SELECT, no write) — mirrors
+        :meth:`_resolve_from_db` but reads the per-row freshness column
+        (``updated_at``, the table's ``ON UPDATE CURRENT_TIMESTAMP``) rather than the
+        value. Used by :meth:`get_param_revision` to supply the per-parameter version
+        the governance projection needs. Not cached: it backs a projection sync run
+        that must observe the latest edit, and the value cache would otherwise mask a
+        fresh ``updated_at`` after a save.
+        """
+        query = """
+            SELECT updated_at FROM parameters
+            WHERE scope = %s AND scope_id = %s AND namespace = %s AND `key` = %s
+            LIMIT 1
+        """
+        rows = self.db.execute_query(
+            query, (scope, scope_id, namespace, key), fetch=True
+        )
+        if not rows:
+            return None
+        return rows[0].get("updated_at")
 
     def _resolve_from_db(
         self, scope: str, scope_id: str, namespace: str, key: str

@@ -944,3 +944,55 @@ class TestSenderFieldsSharePartitionCache:
         assert reader.is_mail_certified("h-dcn") is True
 
         assert table.query_counts["h-dcn"] == 1
+
+
+# ---------------------------------------------------------------------------
+# get_config_status — delivered/loaded projection status (Phase 0 step 3)
+# ---------------------------------------------------------------------------
+
+
+class TestGetConfigStatus:
+    def test_get_config_status_reports_delivered_row_versions(self):
+        """A present config#* row surfaces its projected version (delivered + loaded)."""
+        table = FakeTable()
+        table.put(_config_scope_item("h-dcn", [_region_dimension_dict()], version=5))
+        table.put(
+            _config_fields_item("h-dcn", fields={}, overrides={}, version="2026-10-12T09:00:00")
+        )
+
+        status = MembersProjectionReader(table=table).get_config_status("h-dcn")
+
+        assert status["scope"] == 5
+        assert status["fields"] == "2026-10-12T09:00:00"
+        # views + mail were never delivered for this tenant → None.
+        assert status["views"] is None
+        assert status["mail"] is None
+
+    def test_get_config_status_all_absent_is_all_none(self):
+        """A tenant with no projection at all → every config id maps to None (empty-is-valid)."""
+        table = FakeTable()  # nothing seeded
+
+        status = MembersProjectionReader(table=table).get_config_status("unconfigured")
+
+        assert status == {"scope": None, "fields": None, "views": None, "mail": None}
+
+    def test_get_config_status_shares_partition_cache(self):
+        """All four config rows resolve from ONE partition Query (per-invocation cache)."""
+        table = FakeTable()
+        table.put(_config_scope_item("h-dcn", [], version=1))
+        table.put(_config_fields_item("h-dcn", fields={}, overrides={}, version=1))
+
+        reader = MembersProjectionReader(table=table)
+        reader.get_config_status("h-dcn")
+
+        assert table.query_counts["h-dcn"] == 1
+
+    def test_get_config_status_is_tenant_isolated(self):
+        """Only the queried tenant's versions are reported — no cross-tenant bleed."""
+        table = FakeTable()
+        table.put(_config_scope_item("tenant-a", [], version=9))
+        table.put(_config_scope_item("tenant-b", [], version=3))
+
+        status_a = MembersProjectionReader(table=table).get_config_status("tenant-a")
+
+        assert status_a["scope"] == 9

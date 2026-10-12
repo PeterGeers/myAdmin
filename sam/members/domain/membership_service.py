@@ -88,6 +88,10 @@ from sam.members.domain.lifecycle_config import (
 from sam.members.domain.scope_dimensions import (
     ScopeConfigProvider,
 )
+from sam.members.domain.config_status import (
+    ConfigStatusProvider,
+    StaticConfigStatusProvider,
+)
 from sam.members.domain.mail_gate import (
     MailGateProvider,
     StaticMailGateProvider,
@@ -196,6 +200,7 @@ class MembershipService(
         view_contexts_provider: ViewContextsProvider | None = None,
         scope_config_provider: ScopeConfigProvider | None = None,
         mail_gate_provider: MailGateProvider | None = None,
+        config_status_provider: ConfigStatusProvider | None = None,
         scheduler_port: "SchedulerApiPort | None" = None,
     ):
         self._repo = repository
@@ -237,6 +242,18 @@ class MembershipService(
             mail_gate_provider
             if mail_gate_provider is not None
             else StaticMailGateProvider()
+        )
+        # The config delivered/loaded status seam (Phase 0 step 3, impact-analysis §2 / risk
+        # #6). Mirrors the mail-gate injection: the service depends only on the
+        # ConfigStatusProvider Protocol, never on where the projection lives. Defaults to the
+        # empty StaticConfigStatusProvider — a service built without a provider reports every
+        # config id as "not yet delivered" (all-None), matching the reader's empty-is-valid
+        # behaviour. get_field_config surfaces it as `config_status` so the authoring UI can
+        # show whether an edit has been projected (delivered) and is what the module reads.
+        self._config_status_provider: ConfigStatusProvider = (
+            config_status_provider
+            if config_status_provider is not None
+            else StaticConfigStatusProvider()
         )
         self._lifecycle_provider: LifecycleConfigProvider = (
             lifecycle_provider
