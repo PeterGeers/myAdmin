@@ -1,0 +1,192 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Remove the import-time `load_dotenv` from the 8 modules. Delete the pinned": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832647638
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832657497
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832795600
+      }
+    ],
+    "2. Add regression test `backend/tests/unit/test_env_import_safety.py`: set": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832647783
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832804865
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832933358
+      }
+    ],
+    "3. Smoke — import `app` (startup load still runs) and run the suites touching the 8 modules.": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832647907
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832939085
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833582099
+      }
+    ],
+    "4. GATE — confirm Railway's AWS credential source. Verify the deployed Flask app gets": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832648690
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832658211
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832796717
+      }
+    ],
+    "5. Migrate the one code reader to ambient creds.": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832648829
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832805904
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832934052
+      }
+    ],
+    "6. Remove the static AWS keys from the committed env files. Delete ONLY these lines (keep": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832648933
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832940204
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833169799
+      }
+    ],
+    "7. Verify local DynamoDB unaffected. With `AWS_ENDPOINT_URL_DYNAMODB` set and no static keys,": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832649058
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833587274
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833849724
+      }
+    ],
+    "8. Verify account resolution. With the steering-41 strip,": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832649160
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833588563
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833850919
+      }
+    ],
+    "9. Update steering `41-shell-environment.md` — state the static keys were removed; profiles /": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832649264
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833855962
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791834112356
+      }
+    ],
+    "10. Update `backend/validate_env.py` — mark the two static keys not-required.": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832649423
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833857340
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791834113740
+      }
+    ],
+    "11. (optional) Retire the `_restrip_aws_env()` crutch in": [
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791832649539
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791833858688
+      },
+      {
+        "executionId": "3daf1a82-9163-4e11-b75c-234c6bf75965",
+        "chatSessionId": "sess_fd237fbd-ef81-44cd-8906-865e73539927",
+        "timestamp": 1791834115109
+      }
+    ]
+  }
+}

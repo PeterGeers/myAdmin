@@ -39,11 +39,14 @@ def get_cognito_client():
     """Get or create Cognito client"""
     global cognito_client
     if cognito_client is None:
+        # Ambient/profile credential resolution (bugfix ``load_dotenv clobbers
+        # AWS_PROFILE``, finding F4 + decision D3): no explicit static-key kwargs — let
+        # boto3 resolve creds from the ambient chain (AWS_PROFILE locally, Railway
+        # service variables in prod), matching ``aws_notifications.py`` /
+        # ``routes/sysadmin_health.py``. Only ``region_name`` is passed.
         cognito_client = boto3.client(
             "cognito-idp",
             region_name=os.getenv("AWS_REGION", "eu-west-1"),
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
         )
     return cognito_client
 

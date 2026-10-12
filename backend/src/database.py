@@ -2,10 +2,8 @@ import logging
 import os
 import time
 from contextlib import contextmanager
-from pathlib import Path
 
 import mysql.connector
-from dotenv import load_dotenv
 from mysql.connector import pooling
 
 from database_banking_queries import DatabaseBankingQueriesMixin
@@ -15,10 +13,6 @@ from db_exceptions import (
     IntegrityError,
     OperationalError,
 )
-
-# Pin backend/.env so this import-time load never picks up the repo-root .env
-# (prevents the documented AWS-credential clobber + non-deterministic config).
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

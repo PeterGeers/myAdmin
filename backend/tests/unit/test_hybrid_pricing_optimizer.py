@@ -20,11 +20,10 @@ class TestGenerateAiInsights:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
-                    opt.api_key = 'test-key'
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
+                opt.api_key = 'test-key'
         return opt
 
     @patch('hybrid_pricing_optimizer.requests.post')
@@ -115,23 +114,22 @@ class TestGenerateDailyPricing:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                mock_bpm = MagicMock()
-                mock_bpm.calculate_business_price.return_value = {
-                    'final_price': 120.0,
-                    'base_rate': 100.0,
-                    'historical_mult': 1.1,
-                    'occupancy_mult': 1.0,
-                    'pace_mult': 1.0,
-                    'event_mult': 1.0,
-                    'ai_correction': 1.0,
-                    'btw_adjustment': 0.09,
-                    'historical_adr': 110.0,
-                    'reasoning': 'Standard pricing',
-                }
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            mock_bpm = MagicMock()
+            mock_bpm.calculate_business_price.return_value = {
+                'final_price': 120.0,
+                'base_rate': 100.0,
+                'historical_mult': 1.1,
+                'occupancy_mult': 1.0,
+                'pace_mult': 1.0,
+                'event_mult': 1.0,
+                'ai_correction': 1.0,
+                'btw_adjustment': 0.09,
+                'historical_adr': 110.0,
+                'reasoning': 'Standard pricing',
+            }
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_generate_daily_pricing_returns_correct_count(self, optimizer):
@@ -220,10 +218,9 @@ class TestCalculateHistoricalRates:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_calculate_historical_rates_no_listing_returns_note(self, optimizer):
@@ -272,23 +269,22 @@ class TestGeneratePricingStrategy:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                mock_bpm = MagicMock()
-                mock_bpm.calculate_business_price.return_value = {
-                    'final_price': 100.0,
-                    'base_rate': 90.0,
-                    'historical_mult': 1.0,
-                    'occupancy_mult': 1.0,
-                    'pace_mult': 1.0,
-                    'event_mult': 1.0,
-                    'ai_correction': 1.0,
-                    'btw_adjustment': 0.09,
-                    'historical_adr': 95.0,
-                    'reasoning': 'Standard',
-                }
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            mock_bpm = MagicMock()
+            mock_bpm.calculate_business_price.return_value = {
+                'final_price': 100.0,
+                'base_rate': 90.0,
+                'historical_mult': 1.0,
+                'occupancy_mult': 1.0,
+                'pace_mult': 1.0,
+                'event_mult': 1.0,
+                'ai_correction': 1.0,
+                'btw_adjustment': 0.09,
+                'historical_adr': 95.0,
+                'reasoning': 'Standard',
+            }
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_generate_pricing_strategy_single_listing(self, optimizer):
@@ -337,17 +333,16 @@ class TestGenerateAllListingsPricing:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                mock_bpm = MagicMock()
-                mock_bpm.calculate_business_price.return_value = {
-                    'final_price': 100.0, 'base_rate': 90.0, 'historical_mult': 1.0,
-                    'occupancy_mult': 1.0, 'pace_mult': 1.0, 'event_mult': 1.0,
-                    'ai_correction': 1.0, 'btw_adjustment': 0.09, 'historical_adr': 95.0,
-                    'reasoning': 'Standard',
-                }
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            mock_bpm = MagicMock()
+            mock_bpm.calculate_business_price.return_value = {
+                'final_price': 100.0, 'base_rate': 90.0, 'historical_mult': 1.0,
+                'occupancy_mult': 1.0, 'pace_mult': 1.0, 'event_mult': 1.0,
+                'ai_correction': 1.0, 'btw_adjustment': 0.09, 'historical_adr': 95.0,
+                'reasoning': 'Standard',
+            }
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel', return_value=mock_bpm):
+                opt = HybridPricingOptimizer()
         return opt
 
     @staticmethod
@@ -443,10 +438,9 @@ class TestSavePricingToDatabase:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_save_pricing_to_database_success(self, optimizer):
@@ -553,10 +547,9 @@ class TestSavePricingToDatabaseNoClear:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_save_pricing_no_clear_success(self, optimizer):
@@ -623,10 +616,9 @@ class TestSaveAiInsightsToFile:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_save_ai_insights_no_insights_returns_false(self, optimizer):
@@ -666,10 +658,9 @@ class TestGetEventsData:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_get_events_data_success(self, optimizer):
@@ -708,10 +699,9 @@ class TestGetListingPerformance:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_get_listing_performance_no_listing_returns_defaults(self, optimizer):
@@ -768,10 +758,9 @@ class TestGetHistoricalData:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_get_historical_data_with_listing(self, optimizer):
@@ -845,10 +834,9 @@ class TestGetLastYearAdr:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_get_last_year_adr_no_listing_returns_none(self, optimizer):
@@ -899,10 +887,9 @@ class TestGetEventNameForDate:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
         return opt
 
     def test_get_event_name_found(self, optimizer):
@@ -952,11 +939,10 @@ class TestRegistryIntegration:
 
     @pytest.fixture
     def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer()
-                    opt.api_key = 'test-key'
+        with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+            with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                opt = HybridPricingOptimizer()
+                opt.api_key = 'test-key'
         return opt
 
     @patch('hybrid_pricing_optimizer.requests.post')

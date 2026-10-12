@@ -21,10 +21,9 @@ class TestVisionProfileResolution:
     @pytest.fixture
     def processor(self, mock_env):
         """Create ImageAIProcessor with mocked environment."""
-        with patch('image_ai_processor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                from image_ai_processor import ImageAIProcessor
-                proc = ImageAIProcessor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            from image_ai_processor import ImageAIProcessor
+            proc = ImageAIProcessor()
         return proc
 
     @patch('image_ai_processor.requests.post')
@@ -212,10 +211,9 @@ class TestAllModelsFailReturnsNone:
     @pytest.fixture
     def processor(self, mock_env):
         """Create ImageAIProcessor with mocked environment."""
-        with patch('image_ai_processor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                from image_ai_processor import ImageAIProcessor
-                proc = ImageAIProcessor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            from image_ai_processor import ImageAIProcessor
+            proc = ImageAIProcessor()
         return proc
 
     @patch('image_ai_processor.requests.post')
@@ -399,10 +397,9 @@ class TestRegistryErrorReturnsNone:
     @pytest.fixture
     def processor(self, mock_env):
         """Create ImageAIProcessor with mocked environment."""
-        with patch('image_ai_processor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                from image_ai_processor import ImageAIProcessor
-                proc = ImageAIProcessor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            from image_ai_processor import ImageAIProcessor
+            proc = ImageAIProcessor()
         return proc
 
     @patch('image_ai_processor.requests.post')
