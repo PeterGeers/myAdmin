@@ -21,24 +21,24 @@ plane reads the prod DynamoDB projection in the data account — there is no
 in-account MySQL to project from. Hence ``--db railway`` is the DEFAULT.
 
 ────────────────────────────────────────────────────────────────────────────
-THE THREE BAKED-IN SAFETIES (why each exists)
+THE BAKED-IN SAFETIES (why each exists)
 ────────────────────────────────────────────────────────────────────────────
 
-1. ``_restrip_aws_env(profile, region)`` — the load_dotenv credential-clobber fix.
-   ``backend/src/database.py`` calls ``load_dotenv()`` at IMPORT time, which
-   re-injects the repo ``.env`` STATIC personal-account ``AWS_ACCESS_KEY_ID`` /
-   ``AWS_SECRET_ACCESS_KEY`` plus ``AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000``.
-   boto3's credential chain ranks static ENV keys ABOVE ``AWS_PROFILE``, so without
-   this fix a DynamoDB client silently resolves the WRONG account (personal
-   344561557829) or the LOCAL emulator → ``ResourceNotFoundException`` on prod
-   tables that only exist in nonprofit-deploy. The helper POPS
-   ``AWS_ENDPOINT_URL_DYNAMODB`` / ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY``
-   / ``AWS_SESSION_TOKEN`` and RE-SETS ``AWS_PROFILE`` + ``AWS_REGION``. It MUST be
-   called AFTER importing any database-dependent module (so that module's
-   ``load_dotenv`` has already run and injected the keys) and BEFORE constructing
-   any boto3 client. Strict apply order: map Railway DB_* → import
-   database-dependent modules → ``_restrip_aws_env`` → STS account guard →
-   build/run sync.
+1. AWS profile pin. The script pins ``AWS_PROFILE`` + ``AWS_REGION`` (from
+   ``--aws-profile`` / ``--region``) before any boto3 call so clients resolve the
+   nonprofit-deploy data account cleanly.
+
+   HISTORICAL NOTE — the ``_restrip_aws_env()`` strip crutch was RETIRED (bugfix
+   ``.kiro/specs/BUGS/20261012 load_dotenv clobbers AWS_PROFILE``). It used to POP
+   the static personal-account ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY`` /
+   ``AWS_SESSION_TOKEN`` + ``AWS_ENDPOINT_URL_DYNAMODB`` that ``load_dotenv()``
+   re-injected at ``database`` import time, because boto3 ranks those static ENV
+   keys ABOVE ``AWS_PROFILE`` and would otherwise resolve the WRONG account /
+   local emulator. That root cause is now cured: the static AWS keys were removed
+   from the committed env files and the import-time ``load_dotenv`` was dropped
+   from ``database.py`` (et al.), so nothing re-injects them into this process. We
+   now only pin the profile/region; the STS account guard (safety #3) remains as
+   belt-and-suspenders.
 
 2. Version-guard tenant bump. ``ProjectionSync`` writes a ``config#*`` row only
    when its version STRICTLY supersedes the stored one; ``_scope_config_version``
@@ -93,19 +93,11 @@ from scripts.onboarding._lib.paths import (  # noqa: E402
 ensure_backend_src_on_path()
 _REPO_ROOT = repo_root()
 
-#: Repo-root .env — parsed by hand for RAILWAY_DB_* only (never re-sourced whole,
-#: so we don't re-inject the personal-account AWS keys; _restrip_aws_env also
-#: covers that).
+#: Repo-root .env — parsed by hand for RAILWAY_DB_* only (never re-sourced whole).
+#: The committed env files no longer carry static personal-account AWS keys (bugfix
+#: .kiro/specs/BUGS/20261012 load_dotenv clobbers AWS_PROFILE), so this hand-parse
+#: can never re-inject them anyway.
 _ENV_PATH = os.path.join(_REPO_ROOT, ".env")
-
-#: DynamoDB endpoint / static-credential env vars that the repo .env injects and
-#: that must be stripped so AWS_PROFILE resolves (safety #1).
-_AWS_CLOBBER_VARS = (
-    "AWS_ENDPOINT_URL_DYNAMODB",
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
-)
 
 
 def _load_seed_module(tenant: str = "h-dcn"):
@@ -186,26 +178,21 @@ def _map_railway_db_env() -> None:
     )
 
 
-def _restrip_aws_env(profile: str, region: str) -> None:
-    """SAFETY #1 — undo the load_dotenv AWS credential clobber before any boto3 call.
+def _pin_aws_profile(profile: str, region: str) -> None:
+    """Pin ``AWS_PROFILE`` + ``AWS_REGION`` so boto3 resolves the data account.
 
-    A database-dependent import (``database``) runs ``load_dotenv()`` at import
-    time, re-injecting the repo .env static personal-account keys +
-    ``AWS_ENDPOINT_URL_DYNAMODB``. boto3 ranks those ENV creds ABOVE ``AWS_PROFILE``,
-    so left in place a client resolves the WRONG account / the local emulator. Pop
-    them and pin ``AWS_PROFILE`` + ``AWS_REGION`` so the profile resolves cleanly.
-
-    MUST be called AFTER importing the database-dependent modules (so their
-    load_dotenv already ran) and BEFORE constructing any boto3 client.
+    Formerly ``_restrip_aws_env`` — it also POPed the static personal-account keys +
+    ``AWS_ENDPOINT_URL_DYNAMODB`` that ``load_dotenv()`` re-injected at ``database``
+    import time (boto3 ranks static ENV creds ABOVE ``AWS_PROFILE``). That strip is
+    no longer needed: the static keys were removed from the committed env files and
+    the import-time ``load_dotenv`` was dropped from ``database.py`` (bugfix
+    .kiro/specs/BUGS/20261012 load_dotenv clobbers AWS_PROFILE), so nothing
+    re-injects them into this process. We only pin the profile/region now; the STS
+    account guard (``_assert_account``) remains as belt-and-suspenders before any write.
     """
-    for var in _AWS_CLOBBER_VARS:
-        os.environ.pop(var, None)
     os.environ["AWS_PROFILE"] = profile
     os.environ["AWS_REGION"] = region
-    print(
-        f"[aws] stripped static-cred/endpoint env; pinned AWS_PROFILE={profile} "
-        f"AWS_REGION={region}"
-    )
+    print(f"[aws] pinned AWS_PROFILE={profile} AWS_REGION={region}")
 
 
 def _assert_account(expected_account: str, region: str) -> None:
@@ -213,7 +200,7 @@ def _assert_account(expected_account: str, region: str) -> None:
 
     Resolve ``get_caller_identity().Account`` and require it equals
     ``expected_account`` (default the data account 506221081911), else SystemExit
-    naming resolved vs expected. Called AFTER _restrip_aws_env, BEFORE any write.
+    naming resolved vs expected. Called AFTER the profile pin, BEFORE any write.
     """
     import boto3  # local import: dry-run must not touch boto3 at all
 
@@ -259,7 +246,7 @@ def _run_dry_run(args) -> int:
     from services.parameter_service import ParameterService
 
     seed_module = _load_seed_module(args.tenant)
-    db = DatabaseManager(test_mode=args.test_mode)
+    db = DatabaseManager()  # test_mode kwarg removed (test-env Phase 3); DB target is DB_* env
     svc = ParameterService(db)
 
     print("=" * 68)
@@ -296,8 +283,8 @@ def _run_apply(args) -> int:
     # GOVERNANCE_PROJECTION_TABLE (fail-fast) at resolve time.
     os.environ["GOVERNANCE_PROJECTION_TABLE"] = args.projection_table
 
-    # Import database-dependent modules (their load_dotenv runs here) lazily, AFTER
-    # the Railway env mapping and BEFORE _restrip_aws_env.
+    # Import database-dependent modules lazily, AFTER the Railway env mapping and
+    # BEFORE pinning the AWS profile.
     from database import DatabaseManager
     from services.parameter_service import ParameterService
     from services.projection_sync import DatabaseSourceProvider, ProjectionSync
@@ -306,7 +293,7 @@ def _run_apply(args) -> int:
     seed_module = _load_seed_module(args.tenant)
 
     # ONE DatabaseManager / ONE connection target for seed + bump + source read.
-    db = DatabaseManager(test_mode=args.test_mode)
+    db = DatabaseManager()  # test_mode kwarg removed (test-env Phase 3); DB target is DB_* env
     svc = ParameterService(db)
 
     print("=" * 68)
@@ -321,8 +308,8 @@ def _run_apply(args) -> int:
     # (b) version-guard bump (SAFETY #2) on the SAME db.
     _bump_tenant_updated_at(db, args.tenant)
 
-    # (c) strip personal AWS env (SAFETY #1) then STS account guard (SAFETY #3).
-    _restrip_aws_env(args.aws_profile, args.region)
+    # (c) pin the AWS profile (SAFETY #1) then STS account guard (SAFETY #3).
+    _pin_aws_profile(args.aws_profile, args.region)
     _assert_account(args.expected_account, args.region)
 
     # (d) run the sync via the REAL ProjectionSync (sole writer), reusing db.

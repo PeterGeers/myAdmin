@@ -1,7 +1,5 @@
 import logging
-from pathlib import Path
 
-from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
 
 from api_schemas import validate_response_schema
@@ -10,10 +8,6 @@ from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from mutaties_cache import get_cache
 from utils.closure_helpers import get_closure_aware_start_year
-
-# Pin backend/.env so this import-time load never picks up the repo-root .env
-# (prevents the documented AWS-credential clobber + non-deterministic config).
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 logger = logging.getLogger(__name__)
 

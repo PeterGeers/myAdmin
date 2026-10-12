@@ -1,17 +1,11 @@
 import json
 import logging
 import os
-from pathlib import Path
 
-from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-
-# Pin backend/.env so this import-time load never picks up the repo-root .env
-# (prevents the documented AWS-credential clobber + non-deterministic config).
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 

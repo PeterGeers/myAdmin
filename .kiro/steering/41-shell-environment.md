@@ -121,35 +121,39 @@ Passing `--no-cli-pager` / piping to `| cat` remains a harmless belt-and-suspend
 - Cognito/identity: profile `personal`, account `344561557829`, region `eu-west-1`.
 - Infra/data (DynamoDB/API GW/Lambda): profile `nonprofit-deploy`, account `506221081911`.
 
-### ⚠️ `.env` credentials override `AWS_PROFILE` — strip them for `nonprofit-deploy`
+### AWS credentials now resolve from profiles / Railway — the committed `.env` files are not a cred source
 
-The repo-root `.env` (auto-loaded by many scripts, and often `source`d into the shell)
-exports **static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for the `personal`
-account** plus `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000`. boto3's credential
-chain ranks **static env keys ABOVE `AWS_PROFILE`**, so a plain
-`AWS_PROFILE=nonprofit-deploy python …` **silently runs against the WRONG account
-(`personal` 344561557829)** — surfacing as `ResourceNotFoundException` on tables that
-only exist in `nonprofit-deploy` (e.g. `sam-members`, `governance_projection`). The
-endpoint var likewise silently redirects DynamoDB to the local emulator.
+As of the bugfix `20261012 load_dotenv clobbers AWS_PROFILE` (2026-10-12), the static
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` lines were **removed** from the committed env
+files (`.env`, `backend/.env`, `backend/.env.example`). Credentials now resolve from your AWS
+profiles locally (`~/.aws`) and from Railway service variables in production. The committed
+files are **no longer a credential source** — they keep only `AWS_REGION` (and `backend/.env`
+keeps `AWS_ENDPOINT_URL_DYNAMODB` for the local DynamoDB emulator).
 
-So for ANY script/CLI that must hit the `nonprofit-deploy` account, **strip both** and
-let the profile resolve:
+So on a clean checkout, a plain `AWS_PROFILE=nonprofit-deploy python …` resolves the right
+account — no key-strip workaround is required.
+
+**Caveat — the override-ranking trap can still bite if keys come back.** boto3's credential
+chain ranks **static env keys ABOVE `AWS_PROFILE`**. So IF you have an old shell that
+previously `source`d the keys (they may linger in the environment), or you re-add static keys
+locally, a plain `AWS_PROFILE=nonprofit-deploy python …` can still **silently run against the
+WRONG account (`personal` 344561557829)** — surfacing as `ResourceNotFoundException` on tables
+that only exist in `nonprofit-deploy` (e.g. `sam-members`, `governance_projection`); a stray
+`AWS_ENDPOINT_URL_DYNAMODB` likewise redirects DynamoDB to the local emulator. In that case the
+strip remains a valid **belt-and-suspenders** (no longer required, but harmless):
 
 ```bash
 env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
   AWS_REGION=eu-west-1 AWS_PROFILE=nonprofit-deploy <command>
 ```
 
-**Always sanity-check identity first** — with the strip, this MUST print
-`506221081911` (NonprofitDeployRole), not `344561557829`:
+**Always sanity-check identity when it matters** — this MUST print `506221081911`
+(NonprofitDeployRole), not `344561557829`:
 
 ```bash
 env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
   aws sts get-caller-identity --profile nonprofit-deploy --region eu-west-1 --output json
 ```
-
-(The `personal` account is the DEFAULT the raw `.env` keys give you, so `personal`-account
-work needs no strip — but never assume; check the identity when it matters.)
 
 ## Task output & log files — reduce read-approval friction
 
