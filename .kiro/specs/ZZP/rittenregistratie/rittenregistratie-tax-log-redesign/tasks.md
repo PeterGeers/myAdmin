@@ -322,7 +322,7 @@ that the agent must NOT run autonomously.
   - Note: the Railway production migration (task 21) is a separate human-gated task and is
     NOT part of this autonomous checkpoint.
 
-- [~] 21. Railway production migration — MANUAL, HUMAN-GATED (do NOT run autonomously)
+- [x] 21. Railway production migration — MANUAL, HUMAN-GATED (do NOT run autonomously)
   - **This task requires an explicit human go-ahead and MUST NOT be executed by the agent/
     orchestrator autonomously.** It drops columns on live production data irreversibly.
   - Pre-check for real data loss before dropping (Req 9.4, rollout Step 3):
