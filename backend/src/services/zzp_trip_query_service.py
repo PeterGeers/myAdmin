@@ -1,8 +1,9 @@
 """
-TripQueryService: Trip query, listing, and billing operations.
+TripQueryService: Trip query, listing, and tax-log operations.
 
-Handles trip retrieval, filtering, pagination, contact enrichment,
-gap detection, billing operations, and audit history.
+Handles trip retrieval, filtering, pagination, gap detection, and audit
+history. Trips carry a free-text ``client_name`` (Klant) directly — there is
+no contacts JOIN and no billing path on any read query (Req 4.3, 4.5, 4.4).
 Extracted from zzp_trip_service.py for file size compliance (<500 lines).
 
 Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
@@ -13,9 +14,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Non-billing columns selected on every trip read path. Mirrors the
+# post-redesign zzp_trips schema: includes free-text ``client_name`` and
+# excludes the dropped billing/contact-link columns (contact_id, is_billable,
+# is_billed, invoice_id) — Req 4.5.
+_TRIP_COLUMNS = (
+    "id, administration, vehicle_id, trip_date, start_time, end_time, "
+    "start_address, end_address, start_odometer, end_odometer, distance_km, "
+    "trip_category, trip_purpose, route_description, project_name, notes, "
+    "client_name, is_gap_fill, is_cancelled, cancel_reason, version, "
+    "created_at, updated_at, created_by"
+)
+
 
 class TripQueryService:
-    """Trip query operations: get, list, history, gaps, billing, contacts."""
+    """Trip query operations: get, list, history, gaps."""
 
     def __init__(self, service):
         """Initialize with reference to the parent TripService.
@@ -28,24 +41,31 @@ class TripQueryService:
         self.db = service.db
 
     def get_trip(self, tenant: str, trip_id: int) -> dict | None:
-        """Get a single trip by ID, scoped to tenant."""
+        """Get a single trip by ID, scoped to tenant.
+
+        Returns the trip with ``client_name`` directly; no nested contact
+        object and no ``contact_id`` (Req 4.5). The query is always scoped to
+        the tenant via ``WHERE administration = %s`` (Req 10.5).
+        """
         rows = self.db.execute_query(
-            "SELECT * FROM zzp_trips WHERE id = %s AND administration = %s",
+            f"SELECT {_TRIP_COLUMNS} FROM zzp_trips "
+            "WHERE id = %s AND administration = %s",
             (trip_id, tenant),
         )
         if not rows:
             return None
-        trip = self.service._format_trip(rows[0])
-        # Enrich with contact info
-        self.enrich_with_contacts(tenant, [trip])
-        return trip
+        return self.service._format_trip(rows[0])
 
     def list_trips(self, tenant: str, filters: dict | None = None) -> dict:
         """List trips with filtering and pagination.
 
         Supported filters:
-            vehicle_id, date_from, date_to, trip_category,
-            contact_id, is_billed, is_gap_fill
+            vehicle_id, date_from, date_to, trip_category, is_gap_fill
+
+        Billing-related filters (``is_billed``, ``contact_id``) are not wired
+        into the WHERE builder — they are silently ignored, so a request
+        carrying them returns the same full, unfiltered result set as one
+        without them, raising no error (Req 4.3).
 
         Pagination:
             limit (default 50), offset (default 0)
@@ -73,14 +93,6 @@ class TripQueryService:
             where_clauses.append("trip_category = %s")
             params.append(filters["trip_category"])
 
-        if filters.get("contact_id"):
-            where_clauses.append("contact_id = %s")
-            params.append(int(filters["contact_id"]))
-
-        if "is_billed" in filters and filters["is_billed"] is not None:
-            where_clauses.append("is_billed = %s")
-            params.append(bool(filters["is_billed"]))
-
         if "is_gap_fill" in filters and filters["is_gap_fill"] is not None:
             where_clauses.append("is_gap_fill = %s")
             params.append(bool(filters["is_gap_fill"]))
@@ -97,7 +109,7 @@ class TripQueryService:
         offset = int(filters.get("offset", 0))
 
         data_query = (
-            f"SELECT * FROM zzp_trips WHERE {where_sql} "
+            f"SELECT {_TRIP_COLUMNS} FROM zzp_trips WHERE {where_sql} "
             f"ORDER BY trip_date DESC, id DESC "
             f"LIMIT %s OFFSET %s"
         )
@@ -105,9 +117,7 @@ class TripQueryService:
         rows = self.db.execute_query(data_query, data_params) or []
 
         return {
-            "data": self.enrich_with_contacts(
-                tenant, [self.service._format_trip(r) for r in rows]
-            ),
+            "data": [self.service._format_trip(r) for r in rows],
             "total": total,
         }
 
@@ -219,15 +229,14 @@ class TripQueryService:
 
         rows = (
             self.db.execute_query(
-                f"SELECT * FROM zzp_trips WHERE {where_sql} ORDER BY trip_date DESC",
+                f"SELECT {_TRIP_COLUMNS} FROM zzp_trips WHERE {where_sql} "
+                "ORDER BY trip_date DESC",
                 tuple(params),
             )
             or []
         )
 
-        trips = [self.service._format_trip(r) for r in rows]
-        self.enrich_with_contacts(tenant, trips)
-        return trips
+        return [self.service._format_trip(r) for r in rows]
 
     # ── Odometer gap detection ─────────────────────────────
 
@@ -288,90 +297,7 @@ class TripQueryService:
         # No gap
         return None
 
-    # ── Contact enrichment ──────────────────────────────────
-
-    def enrich_with_contacts(self, tenant: str, trips: list[dict]) -> list[dict]:
-        """Enrich trip dicts with contact information (company_name).
-
-        Batch-queries the contacts table to avoid N+1.
-        Trips with a contact_id get a nested 'contact' object:
-            {"id": <int>, "company_name": <str>}
-        Trips without a contact_id get contact=None.
-        If a contact_id references a non-existent contact (orphaned FK),
-        the trip also gets contact=None.
-        """
-        # Collect unique non-null contact_ids
-        contact_ids = list(
-            {t["contact_id"] for t in trips if t.get("contact_id") is not None}
-        )
-
-        if not contact_ids:
-            # No contacts to look up — set contact=None on all
-            for trip in trips:
-                trip["contact"] = None
-            return trips
-
-        # Batch query contacts table
-        placeholders = ", ".join(["%s"] * len(contact_ids))
-        query = (
-            f"SELECT id, company_name FROM contacts "
-            f"WHERE id IN ({placeholders}) AND administration = %s"
-        )
-        params = tuple(contact_ids) + (tenant,)
-        rows = self.db.execute_query(query, params) or []
-
-        # Build lookup dict
-        lookup = {
-            row["id"]: {"id": row["id"], "company_name": row["company_name"]}
-            for row in rows
-        }
-
-        # Enrich each trip
-        for trip in trips:
-            cid = trip.get("contact_id")
-            if cid is not None:
-                trip["contact"] = lookup.get(cid)  # None if orphaned FK
-            else:
-                trip["contact"] = None
-
-        return trips
-
     # ── Billing ─────────────────────────────────────────────
-
-    def get_unbilled_trips(self, tenant: str, contact_id: int) -> list[dict]:
-        """Get unbilled billable trips for a specific client.
-
-        Filters for trips that are:
-        - Scoped to the tenant (administration = tenant)
-        - Linked to the given contact (contact_id = contact_id)
-        - Marked as billable (is_billable = TRUE)
-        - Not yet billed (is_billed = FALSE)
-        - Not cancelled (is_cancelled = FALSE)
-
-        Results are ordered by trip_date ASC (oldest first) for chronological
-        billing.
-
-        Args:
-            tenant: Administration/tenant identifier.
-            contact_id: The client's contact ID to filter on.
-
-        Returns:
-            List of formatted trip dicts enriched with contact info.
-        """
-        rows = (
-            self.db.execute_query(
-                "SELECT * FROM zzp_trips "
-                "WHERE administration = %s AND contact_id = %s "
-                "AND is_billable = TRUE AND is_billed = FALSE AND is_cancelled = FALSE "
-                "ORDER BY trip_date ASC",
-                (tenant, int(contact_id)),
-            )
-            or []
-        )
-
-        trips = [self.service._format_trip(r) for r in rows]
-        self.enrich_with_contacts(tenant, trips)
-        return trips
 
     def mark_as_billed(self, tenant: str, trip_ids: list, invoice_id: int) -> int:
         """Mark specified trips as billed by linking them to an invoice.

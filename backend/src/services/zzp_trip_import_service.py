@@ -17,6 +17,7 @@ Business rules:
 Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.4
 """
 
+import datetime
 import io
 import logging
 
@@ -35,7 +36,7 @@ DEFAULT_COLUMN_MAPPING = {
     "Eind KM": "end_odometer",
     "Categorie": "trip_category",
     "Doel": "trip_purpose",
-    "Klant": "contact_name",
+    "Klant": "client_name",
     "Notities": "notes",
 }
 
@@ -49,6 +50,68 @@ REQUIRED_IMPORT_FIELDS = [
     "trip_category",
     "trip_purpose",
 ]
+
+# Recognized Excel error markers — the cached value Excel saves for a broken or
+# unresolved formula cell (e.g. an XLOOKUP / x.zoeken that did not resolve).
+# These are never evaluated; they are detected as literal strings and used to
+# flag the row with a specific, column-naming error message.
+EXCEL_ERROR_MARKERS = {
+    "#N/A",
+    "#REF!",
+    "#VALUE!",
+    "#NAME?",
+    "#DIV/0!",
+    "#NULL!",
+    "#NUM!",
+}
+
+
+def _is_excel_error_marker(value) -> bool:
+    """Return True when ``value`` is a recognized Excel error marker string.
+
+    Non-strings (including ``None`` for a plain empty cell) are NOT markers, so an
+    unresolved formula that reads as empty continues to be handled by the existing
+    required-field check. On the stripped string value, this matches the known
+    marker set exactly OR the general leading-``#`` Excel error form (starts with
+    ``#`` and ends with ``!`` or ``?``), so forms like ``#GETTING_DATA`` or future
+    error strings are still caught.
+
+    Args:
+        value: A mapped cell value (any type).
+
+    Returns:
+        True if the value is an Excel error marker; False otherwise.
+    """
+    if not isinstance(value, str):
+        return False
+    v = value.strip()
+    if v in EXCEL_ERROR_MARKERS:
+        return True
+    return v.startswith("#") and v.endswith(("!", "?"))
+
+
+class _SheetSelectionError(Exception):
+    """No worksheet in the workbook carried the required header set.
+
+    Raised by ``TripImportService._read_dataframe`` (Excel branch) when, after
+    scanning every sheet in insertion order, none has a stripped column set that
+    is a superset of the required headers. ``parse_file`` catches this before the
+    generic read-error branch and translates it into a found-vs-expected envelope.
+
+    Attributes:
+        found: The columns actually present (first sheet's columns, used as a
+            readable representation of what the workbook contained).
+        expected: The required header set that no sheet satisfied.
+    """
+
+    def __init__(self, found: list[str], expected: set[str]):
+        self.found = found
+        self.expected = expected
+        super().__init__(
+            f"No worksheet matched the required headers. "
+            f"Found: {found}. Expected (⊆ required): {sorted(expected)}."
+        )
+
 
 # Template CSV columns (Dutch headers for downloadable template)
 TEMPLATE_COLUMNS = [
@@ -119,8 +182,38 @@ class TripImportService:
                 "error": f"Unsupported file type: '{ext}'. Use .csv, .xlsx, or .xls.",
             }
 
+        # Required file-column headers = mapping keys whose internal field name is
+        # a required import field (Datum, Vertrekadres, Bestemming, Begin KM,
+        # Eind KM, Categorie, Doel). Klant/Notities are optional and excluded.
+        required_headers = {
+            file_col
+            for file_col, field in mapping.items()
+            if field in REQUIRED_IMPORT_FIELDS
+        }
+
         try:
-            df = self._read_dataframe(file_stream, ext)
+            df = self._read_dataframe(file_stream, ext, required_headers)
+        except _SheetSelectionError as e:
+            logger.warning(
+                "No worksheet with required columns in import file '%s': "
+                "found=%s expected=%s",
+                filename,
+                e.found,
+                sorted(e.expected),
+            )
+            return {
+                "success": False,
+                "rows": [],
+                "total_rows": 0,
+                "columns_found": e.found,
+                "columns_mapped": [],
+                "unmapped_columns": [],
+                "error": (
+                    "Geen werkblad met de verwachte kolommen gevonden. "
+                    f"Gevonden kolommen: {e.found}. "
+                    f"Verwachte kolommen: {sorted(required_headers)}."
+                ),
+            }
         except Exception as e:
             logger.warning("Failed to parse import file '%s': %s", filename, e)
             return {
@@ -250,8 +343,9 @@ class TripImportService:
             annotated["_status"] = "ok"
             annotated_rows.append(annotated)
 
-        # Phase 1: Per-row validation (required fields, date, odometer)
+        # Phase 1: Per-row validation (error markers, required fields, date, odometer)
         for row in annotated_rows:
+            self._validate_error_markers(row)
             self._validate_required_fields(row)
             self._validate_date_format(row)
             self._validate_odometer_values(row)
@@ -309,6 +403,22 @@ class TripImportService:
                 - skipped (int): Number of rows skipped (errors).
                 - errors (list[str]): Any errors encountered during insert.
         """
+        # Klant (client_name) length guard (Req 2.8): a value longer than 255
+        # characters cannot be persisted. Flag the offending row as an error with
+        # a message naming the 255-char limit so it is excluded from the commit
+        # set below; the batch is NOT aborted — every other valid row still
+        # commits. This runs before the valid/error split so flagged rows drop
+        # out and are counted as skipped.
+        for row in rows:
+            client_name = row.get("client_name")
+            if isinstance(client_name, str) and len(client_name) > 255:
+                row["_status"] = "error"
+                messages = row.setdefault("_messages", [])
+                messages.append(
+                    f"Klant mag maximaal 255 tekens bevatten "
+                    f"(ingevoerd: {len(client_name)} tekens)."
+                )
+
         # Separate valid rows from error rows
         valid_rows = [r for r in rows if r.get("_status") != "error"]
         skipped = len(rows) - len(valid_rows)
@@ -332,8 +442,8 @@ class TripImportService:
             INSERT INTO zzp_trips (
                 administration, vehicle_id, trip_date, start_time, end_time,
                 start_address, end_address, start_odometer, end_odometer,
-                trip_category, trip_purpose, contact_id, project_name, notes,
-                is_billable, is_gap_fill, is_cancelled, version, created_by
+                trip_category, trip_purpose, client_name, project_name, notes,
+                route_description, is_gap_fill, is_cancelled, version, created_by
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
@@ -350,6 +460,15 @@ class TripImportService:
         try:
             with self.db.transaction() as (cursor, _conn):
                 for row in valid_rows:
+                    # Trim whitespace on the persisted Klant value; a blank or
+                    # empty cell persists as NULL (Req 2.1, 2.7).
+                    raw_client_name = row.get("client_name")
+                    if isinstance(raw_client_name, str):
+                        stripped_client_name = raw_client_name.strip()
+                        client_name = stripped_client_name or None
+                    else:
+                        client_name = raw_client_name
+
                     params = (
                         tenant,
                         vehicle_id,
@@ -362,10 +481,10 @@ class TripImportService:
                         row.get("end_odometer"),
                         row.get("trip_category"),
                         row.get("trip_purpose"),
-                        row.get("contact_id"),
+                        client_name,
                         row.get("project_name"),
                         row.get("notes"),
-                        False,  # is_billable
+                        row.get("route_description"),
                         False,  # is_gap_fill
                         False,  # is_cancelled
                         1,  # version
@@ -379,6 +498,14 @@ class TripImportService:
                     cursor.execute(audit_query, audit_params)
 
                     imported += 1
+
+            # Seed route presets from the committed rows (Req 6.1-6.4). This runs
+            # AFTER the transaction above has committed successfully (D2): preset
+            # learning is NEVER done inside the per-row insert, so a preset
+            # failure can never roll back a committed trip or the import. Only
+            # the committed non-error rows (``valid_rows``) are seeded here; error
+            # rows were already excluded above and are skipped entirely (Req 6.1).
+            self._seed_route_presets(tenant, valid_rows)
 
             logger.info(
                 "Import committed for tenant=%s vehicle_id=%d: imported=%d, skipped=%d",
@@ -407,6 +534,68 @@ class TripImportService:
                 "skipped": skipped,
                 "errors": [f"Database error during import: {e!s}"],
             }
+
+    def _seed_route_presets(self, tenant: str, committed_rows: list[dict]) -> None:
+        """Seed route presets from committed non-error import rows (Req 6.1-6.4).
+
+        Called once, AFTER ``commit_import`` has committed the trip batch (D2), so
+        a preset failure can never roll back a committed trip or the import. For
+        each committed non-error row this calls
+        ``RoutePresetService.increment_usage`` exactly once for that row's
+        from-address/to-address pair, carrying the row's category/purpose and the
+        generated distance as preset metadata (Req 6.1). Normalization of the
+        from/to pair for matching (case-insensitive, trimmed) is handled inside
+        ``RoutePresetService`` (Req 6.2, 6.3).
+
+        Each call is isolated in its own ``try/except``: if learning raises for a
+        row, the failure is logged as a warning and a NON-FATAL note is attached
+        to that row's ``_messages`` — the committed trip and the import result are
+        left untouched (Req 6.4). A failure on one row never prevents the
+        remaining rows from being seeded.
+
+        Args:
+            tenant: Administration/tenant identifier.
+            committed_rows: The non-error rows that were committed by this import.
+        """
+        from services.zzp_route_preset_service import RoutePresetService
+
+        preset_service = RoutePresetService(self.db, self.parameter_service)
+
+        for row in committed_rows:
+            start_address = row.get("start_address")
+            end_address = row.get("end_address")
+
+            try:
+                start_odometer = row.get("start_odometer")
+                end_odometer = row.get("end_odometer")
+                typical_distance_km = None
+                if isinstance(start_odometer, int) and isinstance(end_odometer, int):
+                    typical_distance_km = end_odometer - start_odometer
+
+                preset_service.increment_usage(
+                    tenant,
+                    start_address,
+                    end_address,
+                    default_category=row.get("trip_category"),
+                    default_purpose=row.get("trip_purpose"),
+                    typical_distance_km=typical_distance_km,
+                )
+            except Exception as exc:
+                # Non-fatal: the trip is already committed. Log and annotate the
+                # row, but never roll back the committed trip or the import (Req 6.4).
+                logger.warning(
+                    "Route preset learning failed for committed import row "
+                    "(tenant=%s, %r -> %r): %s",
+                    tenant,
+                    start_address,
+                    end_address,
+                    exc,
+                )
+                messages = row.setdefault("_messages", [])
+                messages.append(
+                    "Rit is geïmporteerd, maar het bijwerken van de "
+                    "routesuggestie is niet gelukt."
+                )
 
     def get_template_csv(self) -> bytes:
         """Generate a downloadable CSV template with correct headers and example rows.
@@ -460,18 +649,27 @@ class TripImportService:
         return filename[dot_idx:].lower()
 
     @staticmethod
-    def _read_dataframe(file_stream, ext: str) -> pd.DataFrame:
+    def _read_dataframe(file_stream, ext: str, required_headers=None) -> pd.DataFrame:
         """Read file stream into a pandas DataFrame based on extension.
+
+        For Excel files, scans all worksheets (in insertion order) and selects the
+        first sheet whose stripped column set is a superset of ``required_headers``.
+        This handles workbooks where a decoy/summary sheet precedes the data sheet.
+        CSV files are single-sheet and ignore ``required_headers`` entirely.
 
         Args:
             file_stream: File-like object with the data.
             ext: File extension (e.g., ".csv", ".xlsx").
+            required_headers: Optional set of file-column headers that the chosen
+                worksheet must contain. If falsy, the Excel branch defensively
+                returns the first sheet (old behavior).
 
         Returns:
-            pandas DataFrame with the file contents.
+            pandas DataFrame with the file contents (the selected sheet for Excel).
 
         Raises:
             ValueError: If extension is unsupported.
+            _SheetSelectionError: If no Excel worksheet matches ``required_headers``.
             Exception: Propagates pandas read errors.
         """
         if ext == ".csv":
@@ -487,9 +685,92 @@ class TripImportService:
                 df = pd.read_csv(file_stream, sep=",", dtype=str)
             return df
         elif ext in (".xlsx", ".xls"):
-            return pd.read_excel(file_stream, dtype=str)
+            # Buffer the bytes once so we can read with pandas AND re-read with
+            # openpyxl to recover Excel error-marker cells (see below).
+            raw = file_stream.read()
+
+            # Read ALL sheets as an ordered name->df dict (insertion order).
+            sheets = pd.read_excel(io.BytesIO(raw), sheet_name=None, dtype=str)
+
+            # Defensive: no required headers → preserve old first-sheet behavior.
+            if not required_headers:
+                sheet_name = next(iter(sheets))
+                return TripImportService._restore_excel_error_markers(
+                    sheets[sheet_name], raw, sheet_name
+                )
+
+            # Select the first sheet whose stripped headers ⊇ required_headers.
+            for sheet_name, sheet_df in sheets.items():
+                stripped = {str(c).strip() for c in sheet_df.columns}
+                if set(required_headers).issubset(stripped):
+                    return TripImportService._restore_excel_error_markers(
+                        sheet_df, raw, sheet_name
+                    )
+
+            # No sheet matched — report the first sheet's columns as "found".
+            first_df = next(iter(sheets.values()))
+            found = [str(c).strip() for c in first_df.columns]
+            raise _SheetSelectionError(found=found, expected=set(required_headers))
         else:
             raise ValueError(f"Unsupported file extension: {ext}")
+
+    @staticmethod
+    def _restore_excel_error_markers(
+        df: pd.DataFrame, raw: bytes, sheet_name: str
+    ) -> pd.DataFrame:
+        """Recover Excel error-marker strings that pandas coerced to NaN.
+
+        A broken/unresolved formula cell (e.g. an XLOOKUP / ``x.zoeken`` that did
+        not resolve) is stored by Excel as an *error-type* cell whose cached value
+        is a marker like ``#N/A`` or ``#REF!``. ``pd.read_excel`` reads every
+        error-type cell as ``NaN`` regardless of ``keep_default_na``/``na_values``,
+        so the marker never survives to the DataFrame. openpyxl, however, exposes
+        the literal marker string for such cells (``data_type == "e"``).
+
+        This helper re-reads the selected worksheet with openpyxl and writes the
+        marker string back into ``df`` at any cell position where pandas produced a
+        null, so the downstream row-level error-marker check can detect it. Formulas
+        are NEVER evaluated — only the cached marker string Excel saved is restored.
+        Genuine empty cells remain null (openpyxl yields ``None`` for them), so they
+        still fall through to the required-field check.
+
+        Args:
+            df: The DataFrame pandas produced for the selected sheet.
+            raw: The full workbook bytes.
+            sheet_name: Name of the selected worksheet.
+
+        Returns:
+            The same DataFrame, with error-marker strings restored in place.
+        """
+        try:
+            from openpyxl import load_workbook
+
+            wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=False)
+            try:
+                if sheet_name not in wb.sheetnames:
+                    return df
+                ws = wb[sheet_name]
+                # Row 1 is the header; data starts at worksheet row 2, which maps
+                # to DataFrame positional index 0.
+                for excel_row_idx, ws_row in enumerate(
+                    ws.iter_rows(min_row=2), start=0
+                ):
+                    if excel_row_idx >= len(df.index):
+                        break
+                    for col_pos, cell in enumerate(ws_row):
+                        if col_pos >= len(df.columns):
+                            break
+                        if cell.data_type == "e" and isinstance(cell.value, str):
+                            # pandas gave NaN for this error cell; restore the marker.
+                            df.iat[excel_row_idx, col_pos] = cell.value
+            finally:
+                wb.close()
+        except Exception as exc:
+            # Marker recovery is best-effort; never fail the whole read because of
+            # it. Without recovery, an error cell simply stays null and is caught
+            # by the required-field check (prior behavior).
+            logger.debug("Could not restore Excel error markers: %s", exc)
+        return df
 
     @staticmethod
     def _clean_row(row: dict) -> dict:
@@ -577,51 +858,107 @@ class TripImportService:
                 row["_status"] = "error"
 
     @staticmethod
-    def _normalize_date(date_str: str) -> str | None:
-        """Try to parse and normalize a date string to YYYY-MM-DD format.
+    def _validate_error_markers(row: dict) -> None:
+        """Flag the row when any mapped cell carries an Excel error marker.
+
+        A broken/unresolved formula (XLOOKUP / ``x.zoeken``) leaves an Excel error
+        marker (``#N/A``, ``#REF!``, …) as the cell's cached value. Rather than let
+        it masquerade as a generic required-field/format error, flag the row
+        ``error`` with a specific message naming the column (internal field name)
+        and the marker. Formulas are NEVER evaluated — only the cached marker string
+        is inspected. A plain empty/``None`` cell is not a marker, so it still falls
+        through to the required-field check.
+
+        Only mapped internal field names are inspected; ``_``-prefixed helper keys
+        (``_row_number`` / ``_status`` / ``_messages`` / ``_normalized_date``) are
+        skipped.
+
+        Args:
+            row: An annotated row dict (carries ``_status`` / ``_messages``).
+        """
+        for field, value in row.items():
+            if field.startswith("_"):
+                continue
+            if _is_excel_error_marker(value):
+                marker = value.strip()
+                row["_messages"].append(
+                    f"Formulewaarde niet berekend: '{marker}' in kolom {field}"
+                )
+                row["_status"] = "error"
+
+    @staticmethod
+    def _normalize_date(date_value) -> str | None:
+        """Try to parse and normalize a date value to YYYY-MM-DD format.
+
+        Accepts a datetime/date object or a string. For strings, detects the
+        separator and validates numeric ranges rather than relying on fixed
+        string length/positions, so non-zero-padded components are accepted.
+        A trailing time component (whitespace- or 'T'-separated) is discarded,
+        keeping only the date portion; no year inference and no timezone/time
+        semantics are applied (the year is always present).
 
         Accepts:
-            - YYYY-MM-DD (ISO)
-            - DD-MM-YYYY (Dutch)
-            - DD/MM/YYYY (Dutch alt)
+            - datetime/date objects (Excel-valued dates) -> ISO date portion
+            - ISO strings carrying a time component ("2026-05-05 00:00:00",
+              "2026-05-05T00:00:00") -> date portion only
+            - YYYY-M-D / YYYY-MM-DD (ISO)
+            - D-M-YYYY / DD-MM-YYYY (Dutch)
+            - D/M/YYYY / DD/MM/YYYY (Dutch alt)
+          each zero-padded or not.
 
         Returns:
             Normalized date string (YYYY-MM-DD) or None if invalid.
         """
-        if not date_str or not isinstance(date_str, str):
+        if not date_value:
             return None
 
-        date_str = date_str.strip()
+        # datetime/date object -> ISO date portion directly. datetime.datetime
+        # is a subclass of datetime.date, so this single check covers both and
+        # .strftime works on both. No time/timezone semantics are applied.
+        if isinstance(date_value, datetime.date):
+            return date_value.strftime("%Y-%m-%d")
 
-        # Try ISO format: YYYY-MM-DD
-        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
-            try:
-                parts = date_str.split("-")
-                year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
-                if 1 <= month <= 12 and 1 <= day <= 31 and year >= 1900:
-                    return date_str
-            except (ValueError, IndexError):
-                pass
+        if not isinstance(date_value, str):
+            return None
 
-        # Try DD-MM-YYYY
-        if len(date_str) == 10 and date_str[2] == "-" and date_str[5] == "-":
-            try:
-                parts = date_str.split("-")
-                day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
-                if 1 <= month <= 12 and 1 <= day <= 31 and year >= 1900:
-                    return f"{year:04d}-{month:02d}-{day:02d}"
-            except (ValueError, IndexError):
-                pass
+        date_str = date_value.strip()
 
-        # Try DD/MM/YYYY
-        if len(date_str) == 10 and date_str[2] == "/" and date_str[5] == "/":
-            try:
-                parts = date_str.split("/")
-                day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
-                if 1 <= month <= 12 and 1 <= day <= 31 and year >= 1900:
-                    return f"{year:04d}-{month:02d}-{day:02d}"
-            except (ValueError, IndexError):
-                pass
+        # Strip a trailing time component by taking the leading date token
+        # split on whitespace or 'T':
+        #   "2026-05-05 00:00:00" -> "2026-05-05"
+        #   "2026-05-05T00:00:00" -> "2026-05-05"
+        # A pure date string (no time) is unaffected, so surface-(b) behavior
+        # is identical.
+        date_str = date_str.replace("T", " ").split()[0] if date_str else date_str
+
+        # Choose the separator: '-' takes precedence, then '/'. Reject when
+        # neither is present. This replaces the previous fixed length/position
+        # guards so non-zero-padded components are accepted.
+        if "-" in date_str:
+            sep = "-"
+        elif "/" in date_str:
+            sep = "/"
+        else:
+            return None
+
+        parts = date_str.split(sep)
+        if len(parts) != 3:
+            # Rejects missing-year forms like "5-5" (2 parts).
+            return None
+        if not all(part and part.isdigit() for part in parts):
+            # Rejects empty and non-numeric components ("5-mei").
+            return None
+
+        # Infer ordering: a 4-digit first component is ISO (YYYY-M-D),
+        # otherwise it is the Dutch day-month-year ordering.
+        if len(parts[0]) == 4:
+            year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+        else:
+            day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+
+        # Numeric-range validation (no year inference).
+        if 1 <= month <= 12 and 1 <= day <= 31 and year >= 1900:
+            return f"{year:04d}-{month:02d}-{day:02d}"
 
         return None
 
@@ -633,7 +970,10 @@ class TripImportService:
             row["_normalized_date"] = "9999-99-99"
             return
 
-        normalized = self._normalize_date(str(date_value))
+        # Pass the raw value so an actual datetime/date object reaches the
+        # object branch in _normalize_date; the isinstance guards there handle
+        # both object and string forms.
+        normalized = self._normalize_date(date_value)
         if normalized:
             row["trip_date"] = normalized
             row["_normalized_date"] = normalized

@@ -6,7 +6,7 @@ Supports PDF (Belastingdienst-compliant), CSV, and XLSX formats.
 
 Business rules:
 - Exports are scoped by tenant, vehicle, and year
-- Optional filters (trip_category, contact_id, date range)
+- Optional filters (trip_category, date range)
 - PDF format must be Belastingdienst-compliant (per vehicle, per year, all required fields)
 - Yearly totals included at bottom (zakelijk/privé/woon-werk)
 - CSV uses standard columns: Datum, Vertrekadres, Bestemming, Begin KM, Eind KM, Afstand, Categorie, Doel, Klant
@@ -52,7 +52,7 @@ class TripExportService:
             tenant: Administration/tenant identifier.
             vehicle_id: Vehicle to export trips for.
             year: Calendar year to export.
-            filters: Optional additional filters (trip_category, contact_id, etc.).
+            filters: Optional additional filters (trip_category, date range, etc.).
 
         Returns:
             PDF file content as bytes.
@@ -85,7 +85,7 @@ class TripExportService:
             tenant: Administration/tenant identifier.
             vehicle_id: Vehicle to export trips for.
             year: Calendar year to export.
-            filters: Optional additional filters (trip_category, contact_id, etc.).
+            filters: Optional additional filters (trip_category, date range, etc.).
 
         Returns:
             CSV file content as bytes (UTF-8-BOM encoded).
@@ -102,7 +102,7 @@ class TripExportService:
             "distance_km": "Afstand",
             "trip_category": "Categorie",
             "trip_purpose": "Doel",
-            "contact_name": "Klant",
+            "client_name": "Klant",
         }
 
         # Build rows with only the export columns
@@ -110,7 +110,9 @@ class TripExportService:
         for trip in trips:
             rows.append(
                 {
-                    dutch_name: trip.get(field_name, "")
+                    dutch_name: (
+                        value if (value := trip.get(field_name)) is not None else ""
+                    )
                     for field_name, dutch_name in column_mapping.items()
                 }
             )
@@ -137,7 +139,7 @@ class TripExportService:
             tenant: Administration/tenant identifier.
             vehicle_id: Vehicle to export trips for.
             year: Calendar year to export.
-            filters: Optional additional filters (trip_category, contact_id, etc.).
+            filters: Optional additional filters (trip_category, date range, etc.).
 
         Returns:
             XLSX file content as bytes.
@@ -154,7 +156,7 @@ class TripExportService:
             ("distance_km", "Afstand", 12),
             ("trip_category", "Categorie", 15),
             ("trip_purpose", "Doel", 20),
-            ("contact_name", "Klant", 25),
+            ("client_name", "Klant", 25),
         ]
 
         wb = Workbook()
@@ -179,7 +181,9 @@ class TripExportService:
         # Write data rows
         for row_idx, trip in enumerate(trips, start=2):
             for col_idx, (field, _, _) in enumerate(columns, start=1):
-                value = trip.get(field, "")
+                value = trip.get(field)
+                if value is None:
+                    value = ""
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 if field in numeric_fields and value != "":
                     cell.number_format = numbers.FORMAT_NUMBER
@@ -355,7 +359,7 @@ class TripExportService:
             distance = trip.get("distance_km", "")
             category = trip.get("trip_category", "")
             purpose = trip.get("trip_purpose", "")
-            client = trip.get("contact_name", "") or ""
+            client = trip.get("client_name", "") or ""
 
             rows_html += (
                 f"<tr>"
@@ -423,7 +427,6 @@ class TripExportService:
             year: Calendar year to filter on.
             filters: Optional dict with additional filters:
                 - trip_category: Filter by category (Zakelijk, Privé, Woon-werk)
-                - contact_id: Filter by linked client
                 - date_from: Start date (within the year)
                 - date_to: End date (within the year)
 
@@ -448,10 +451,6 @@ class TripExportService:
             where_clauses.append("t.trip_category = %s")
             params.append(filters["trip_category"])
 
-        if filters.get("contact_id"):
-            where_clauses.append("t.contact_id = %s")
-            params.append(int(filters["contact_id"]))
-
         if filters.get("date_from"):
             where_clauses.append("t.trip_date >= %s")
             params.append(filters["date_from"])
@@ -467,11 +466,9 @@ class TripExportService:
             "t.start_address, t.end_address, "
             "t.start_odometer, t.end_odometer, t.distance_km, "
             "t.trip_category, t.trip_purpose, "
-            "t.route_description, t.contact_id, t.project_name, "
-            "t.notes, t.is_billable, t.is_billed, t.is_gap_fill, "
-            "c.company_name as contact_name "
+            "t.route_description, t.client_name, t.project_name, "
+            "t.notes, t.is_gap_fill "
             "FROM zzp_trips t "
-            "LEFT JOIN contacts c ON t.contact_id = c.id AND c.administration = t.administration "
             f"WHERE {where_sql} "
             "ORDER BY t.trip_date ASC, t.start_odometer ASC"
         )
@@ -519,7 +516,7 @@ class TripExportService:
                 row[key] = int(row[key])
 
         # Ensure boolean fields
-        for key in ("is_billable", "is_billed", "is_gap_fill"):
+        for key in ("is_gap_fill",):
             if key in row:
                 row[key] = bool(row[key])
 

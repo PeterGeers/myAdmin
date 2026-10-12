@@ -1,0 +1,30 @@
+{
+  "name": "zzp_trips_tax_log_redesign",
+  "description": "Redesign zzp_trips into a pure Belastingdienst kilometer log: add free-text client_name (Klant); remove the never-approved trip-billing model by dropping the contact_id and invoice_id foreign keys, the billing indexes (idx_admin_contact, idx_admin_billed, idx_zzp_trips_unbilled), and the billing columns (contact_id, invoice_id, is_billable, is_billed). FK/index drops are ordered before column drops. The down migration restores the exact pre-migration definition.",
+  "timestamp": "20260821120000",
+  "up": [
+    "ALTER TABLE zzp_trips ADD COLUMN client_name VARCHAR(255) DEFAULT NULL",
+    "ALTER TABLE zzp_trips DROP FOREIGN KEY zzp_trips_ibfk_2",
+    "ALTER TABLE zzp_trips DROP FOREIGN KEY zzp_trips_ibfk_3",
+    "DROP INDEX idx_admin_contact ON zzp_trips",
+    "DROP INDEX idx_admin_billed ON zzp_trips",
+    "DROP INDEX idx_zzp_trips_unbilled ON zzp_trips",
+    "ALTER TABLE zzp_trips DROP COLUMN contact_id",
+    "ALTER TABLE zzp_trips DROP COLUMN invoice_id",
+    "ALTER TABLE zzp_trips DROP COLUMN is_billable",
+    "ALTER TABLE zzp_trips DROP COLUMN is_billed"
+  ],
+  "down": [
+    "ALTER TABLE zzp_trips DROP COLUMN client_name",
+    "ALTER TABLE zzp_trips ADD CONSTRAINT zzp_trips_ibfk_3 FOREIGN KEY (invoice_id) REFERENCES invoices(id)",
+    "ALTER TABLE zzp_trips ADD CONSTRAINT zzp_trips_ibfk_2 FOREIGN KEY (contact_id) REFERENCES contacts(id)",
+    "CREATE INDEX idx_zzp_trips_unbilled ON zzp_trips (is_billable, is_billed, is_cancelled)",
+    "CREATE INDEX idx_admin_billed ON zzp_trips (administration, is_billed)",
+    "CREATE INDEX idx_admin_contact ON zzp_trips (administration, contact_id)",
+    "ALTER TABLE zzp_trips ADD COLUMN is_billed TINYINT(1) DEFAULT '0'",
+    "ALTER TABLE zzp_trips ADD COLUMN is_billable TINYINT(1) DEFAULT '0'",
+    "ALTER TABLE zzp_trips ADD COLUMN invoice_id INT DEFAULT NULL COMMENT 'Set when billed'",
+    "ALTER TABLE zzp_trips ADD COLUMN contact_id INT DEFAULT NULL COMMENT 'Linked client from contacts table'"
+  ],
+  "version": "1.0"
+}

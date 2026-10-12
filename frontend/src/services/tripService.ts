@@ -2,7 +2,7 @@
  * API service for ZZP trip/mileage registration (Rittenregistratie).
  * Reference: .kiro/specs/ZZP/rittenregistratie/design.md §5.5
  */
-import type { Trip, TripFilters, TripSummary, TripAuditEntry, GapFillData } from '../types/zzpTrips';
+import type { Trip, TripFilters, TripSummary, TripAuditEntry, GapFillData, ImportRow } from '../types/zzpTrips';
 import {
   authenticatedGet,
   authenticatedPost,
@@ -77,16 +77,22 @@ export interface ColumnMapping {
   [key: string]: string | undefined;
 }
 
-/** Response from import preview/validation. */
+/**
+ * Response from import preview/validation.
+ * The backend returns the validation result FLAT at the top level
+ * (not nested under `data`); `rows` is the full validated set, `preview`
+ * is the first slice for display.
+ */
 interface ApiImportResponse {
   success: boolean;
-  data: {
-    total_rows: number;
-    valid: number;
-    warnings: number;
-    errors: number;
-    preview: Array<Record<string, unknown>>;
-  };
+  total_rows: number;
+  valid: number;
+  warnings: number;
+  errors: number;
+  rows: ImportRow[];
+  preview: ImportRow[];
+  message?: string;
+  error?: string;
 }
 
 const BASE = '/api/zzp/trips';
@@ -147,16 +153,6 @@ export async function getTripHistory(id: number): Promise<ApiAuditResponse> {
 }
 
 /**
- * Get unbilled billable trips for a specific contact.
- * GET /api/zzp/trips/unbilled?contact_id={id}
- */
-export async function getUnbilledTrips(contactId: number): Promise<ApiListResponse> {
-  const params = new URLSearchParams({ contact_id: String(contactId) });
-  const resp = await authenticatedGet(buildEndpoint(`${BASE}/unbilled`, params));
-  return resp.json();
-}
-
-/**
  * Get trip summary (yearly totals per category, bijtelling status).
  * GET /api/zzp/trips/summary?vehicle_id=&year=
  */
@@ -210,13 +206,20 @@ export async function importTrips(file: File, vehicleId: number): Promise<ApiImp
 }
 
 /**
- * Commit a validated import with column mapping.
+ * Commit a validated import by sending the validated rows.
+ * The commit endpoint requires a non-empty `rows` list and supports
+ * `skip_error_rows` to drop rows flagged with errors.
  * POST /api/zzp/trips/import/commit
  */
-export async function commitImport(vehicleId: number, mapping: ColumnMapping): Promise<ApiResponse> {
+export async function commitImport(
+  vehicleId: number,
+  rows: ImportRow[],
+  skipErrorRows = true,
+): Promise<ApiResponse & { imported?: number; skipped?: number }> {
   const resp = await authenticatedPost(buildEndpoint(`${BASE}/import/commit`), {
     vehicle_id: vehicleId,
-    column_mapping: mapping,
+    rows,
+    skip_error_rows: skipErrorRows,
   });
   return resp.json();
 }

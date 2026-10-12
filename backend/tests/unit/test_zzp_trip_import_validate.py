@@ -450,3 +450,410 @@ class TestDatabaseErrorHandling:
         # Should still succeed with validation (just no DB checks)
         assert result["success"] is True
         assert result["total_rows"] == 1
+
+# ---------------------------------------------------------------------------
+# Tests: _normalize_date (surface b — non-padded numeric dates)
+# ---------------------------------------------------------------------------
+
+class TestNormalizeDate:
+    """Direct tests for TripImportService._normalize_date (static method, no DB).
+
+    Property 1 (Bug Condition) — Non-Padded Numeric Dates Rejected.
+
+    These are FIX tests: each case asserts the post-fix expected zero-padded
+    YYYY-MM-DD output. On UNFIXED code every branch of _normalize_date is guarded
+    by `len(date_str) == 10` with separators at fixed positions, so a valid
+    non-zero-padded numeric Dutch/ISO date (8-9 chars, or "2026-5-5") fails every
+    branch and the method returns None — so these assertions FAIL, which confirms
+    the bug exists. After the surface-(b) fix (task 3) the same assertions pass.
+
+    Scoped-PBT approach: the accepted date set is small and fully enumerated in the
+    design's Fix Checking table, so each table row is one explicit assertion for
+    reproducibility rather than randomized generation.
+
+    Validates: Requirements 5.1, 5.2, 5.3
+    """
+
+    # (input, expected normalized output) — the design Fix Checking table rows.
+    # Hyphen-separated non-padded Dutch dates (D-M-YYYY family) — Requirement 5.1
+    NON_PADDED_DASH_CASES = [
+        ("5-5-2026", "2026-05-05"),
+        ("3-6-2026", "2026-06-03"),
+        ("17-5-2026", "2026-05-17"),
+        ("5-12-2026", "2026-12-05"),
+    ]
+
+    # Slash-separated non-padded Dutch dates (D/M/YYYY family) — Requirement 5.2
+    NON_PADDED_SLASH_CASES = [
+        ("5/5/2026", "2026-05-05"),
+        ("3/6/2026", "2026-06-03"),
+        ("17/5/2026", "2026-05-17"),
+    ]
+
+    # Non-padded ISO date (YYYY-M-D) — Requirement 5.3
+    NON_PADDED_ISO_CASES = [
+        ("2026-5-5", "2026-05-05"),
+    ]
+
+    @pytest.mark.parametrize("date_str,expected", NON_PADDED_DASH_CASES)
+    def test_normalize_date_non_padded_dash_normalizes_to_iso(self, date_str, expected):
+        """Non-zero-padded hyphen Dutch date normalizes to zero-padded YYYY-MM-DD.
+
+        Validates: Requirements 5.1
+        """
+        result = TripImportService._normalize_date(date_str)
+        assert result == expected
+
+    @pytest.mark.parametrize("date_str,expected", NON_PADDED_SLASH_CASES)
+    def test_normalize_date_non_padded_slash_normalizes_to_iso(self, date_str, expected):
+        """Non-zero-padded slash Dutch date normalizes to zero-padded YYYY-MM-DD.
+
+        Validates: Requirements 5.2
+        """
+        result = TripImportService._normalize_date(date_str)
+        assert result == expected
+
+    @pytest.mark.parametrize("date_str,expected", NON_PADDED_ISO_CASES)
+    def test_normalize_date_non_padded_iso_normalizes_to_iso(self, date_str, expected):
+        """Non-zero-padded ISO date (YYYY-M-D) normalizes to zero-padded YYYY-MM-DD.
+
+        Validates: Requirements 5.3
+        """
+        result = TripImportService._normalize_date(date_str)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "date_str,expected",
+        NON_PADDED_DASH_CASES + NON_PADDED_SLASH_CASES + NON_PADDED_ISO_CASES,
+    )
+    def test_normalize_date_non_padded_matches_iso_pattern(self, date_str, expected):
+        """Every normalized non-padded result matches /^\\d{4}-\\d{2}-\\d{2}$/.
+
+        Validates: Requirements 5.1, 5.2, 5.3
+        """
+        import re
+
+        result = TripImportService._normalize_date(date_str)
+        assert result is not None
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", result)
+
+    # -----------------------------------------------------------------------
+    # Property 2 (Preservation) — Already-Valid Dates Unchanged,
+    #                             Invalid Dates Still Rejected.
+    #
+    # Observation-first methodology: each case below was run against the
+    # UNFIXED _normalize_date and the OBSERVED output recorded as the expected
+    # value, so these assertions PASS on unfixed code (confirming the baseline
+    # behavior to preserve) and must continue to pass after the surface-(b) fix.
+    #
+    #   Observed on unfixed code:
+    #     "05-05-2026" -> "2026-05-05"   "15-01-2026" -> "2026-01-15"
+    #     "2026-05-05" -> "2026-05-05"   "05/05/2026" -> "2026-05-05"
+    #     "5-5" -> None       "2026" -> None        "5-mei" -> None
+    #     "5-mei-2026" -> None           "32-5-2026" -> None
+    #     "5-13-2026" -> None            "0-5-2026" -> None
+    #     "5-5-1899" -> None             "" -> None            None -> None
+    #
+    # Validates: Requirements 6.1, 6.2, 6.3, 6.4
+    # -----------------------------------------------------------------------
+
+    # Already-zero-padded / ISO inputs — normalize to the identical result
+    # (Requirement 6.4). Observed output recorded as expected.
+    PRESERVED_VALID_CASES = [
+        ("05-05-2026", "2026-05-05"),
+        ("15-01-2026", "2026-01-15"),
+        ("2026-05-05", "2026-05-05"),
+        ("05/05/2026", "2026-05-05"),
+    ]
+
+    # Truly-invalid inputs — still rejected (observed output: None).
+    # Requirements 6.1 (missing year), 6.2 (non-numeric), 6.3 (out-of-range);
+    # plus empty / non-string guards. Each is annotated with why it is rejected.
+    REJECTED_INVALID_CASES = [
+        ("5-5", "missing year / 2 parts"),            # Req 6.1
+        ("2026", "missing parts"),                    # Req 6.1
+        ("5-mei", "non-numeric component"),           # Req 6.2
+        ("5-mei-2026", "non-numeric component"),      # Req 6.2
+        ("32-5-2026", "day out of range"),            # Req 6.3
+        ("5-13-2026", "month out of range"),          # Req 6.3
+        ("0-5-2026", "day out of range"),             # Req 6.3
+        ("5-5-1899", "year < 1900"),                  # Req 6.3
+        ("", "empty string"),                         # guard
+    ]
+
+    @pytest.mark.parametrize("date_str,expected", PRESERVED_VALID_CASES)
+    def test_normalize_date_already_valid_returns_identical_iso(self, date_str, expected):
+        """Already zero-padded / ISO date normalizes to the identical YYYY-MM-DD.
+
+        Observation-first: expected value is the OBSERVED unfixed output, so this
+        passes on unfixed code and must stay stable after the fix.
+
+        Validates: Requirements 6.4
+        """
+        result = TripImportService._normalize_date(date_str)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "date_str,reason",
+        REJECTED_INVALID_CASES,
+        ids=[f"{d!r}-{r}" for d, r in REJECTED_INVALID_CASES],
+    )
+    def test_normalize_date_invalid_string_still_rejected_returns_none(self, date_str, reason):
+        """Truly-invalid date string is still rejected (returns None).
+
+        Observation-first: unfixed code returns None for each of these; the fix
+        must keep rejecting them.
+
+        Validates: Requirements 6.1, 6.2, 6.3
+        """
+        result = TripImportService._normalize_date(date_str)
+        assert result is None, f"expected None for {date_str!r} ({reason})"
+
+    def test_normalize_date_none_input_still_rejected_returns_none(self):
+        """Non-string (None) input is still rejected (returns None).
+
+        Observation-first: unfixed code returns None for a non-string value.
+
+        Validates: Requirements 6.2
+        """
+        result = TripImportService._normalize_date(None)
+        assert result is None
+
+# ---------------------------------------------------------------------------
+# Tests: validate_import end-to-end with non-padded dates (surface b)
+# ---------------------------------------------------------------------------
+
+class TestValidateImportNonPaddedDates:
+    """End-to-end validate_import test with non-zero-padded numeric dates.
+
+    Requirement 5.4 — WHEN every row in an otherwise valid import carries a
+    non-zero-padded numeric date THEN the system SHALL report the correct
+    `valid` count and a populated preview.
+
+    Requirement 6.5 — rows that pass date validation SHALL CONTINUE to apply
+    the existing required-field, odometer-continuity, duplicate-detection, and
+    category/purpose-warning validation unchanged.
+
+    The rows below are continuity-respecting (odometers chain, dates are in
+    chronological order after normalization) and the only non-standard trait is
+    the non-zero-padded `trip_date` values, so with the no-existing-trips
+    `mock_db` and no parameter_service there are no warnings or errors — every
+    row is `ok`. On UNFIXED code the parser rejects every non-padded date, so
+    this would be an all-error preview; it passes only after the surface-(b)
+    fix.
+    """
+
+    def test_validate_import_non_padded_dates_all_valid(self, service):
+        """Non-padded dates across a continuity-respecting import all validate ok.
+
+        Validates: Requirements 5.4, 6.5
+        """
+        import re
+
+        rows = [
+            make_valid_row(trip_date="5-5-2026", start_odometer=45000, end_odometer=45050),
+            make_valid_row(trip_date="6-5-2026", start_odometer=45050, end_odometer=45100),
+            make_valid_row(trip_date="17-5-2026", start_odometer=45100, end_odometer=45150),
+        ]
+        result = service.validate_import("tenant1", 1, rows)
+
+        # Correct counts: every row valid, no warnings, no errors.
+        assert result["valid"] == len(rows)
+        assert result["warnings"] == 0
+        assert result["errors"] == 0
+        assert result["total_rows"] == len(rows)
+
+        # Populated preview.
+        assert len(result["preview"]) == len(rows)
+
+        # Every row is ok and its normalized trip_date is zero-padded ISO.
+        for row in result["rows"]:
+            assert row["_status"] == "ok"
+            assert re.match(r"^\d{4}-\d{2}-\d{2}$", row["trip_date"])
+
+        # Spot-check the exact normalized values (date order preserved).
+        normalized_dates = [row["trip_date"] for row in result["rows"]]
+        assert normalized_dates == ["2026-05-05", "2026-05-06", "2026-05-17"]
+
+# ---------------------------------------------------------------------------
+# Property-based tests: date validation unchanged (rittenregistratie redesign)
+#
+# Feature: rittenregistratie-tax-log-redesign
+# Properties 13-16 — confirm _normalize_date / validate_import reject yearless
+# and non-numeric-month dates without inference, name the offending value in a
+# bounded message, retain rejected rows in the preview, and accept the
+# documented formats (normalizing to ISO). No code change is required: these
+# tests pin the existing behavior per Req 8.1-8.5 and the change-with-tests
+# contract (Req 10.7).
+# ---------------------------------------------------------------------------
+
+import datetime as _dt
+import re as _re
+
+from hypothesis import given, strategies as st, settings
+
+
+# -- Strategies ------------------------------------------------------------
+
+# Yearless Dutch dates: "D-mnd" / "DD-mnd" (no 4-digit year, Dutch month name).
+_DUTCH_MONTHS = ["jan", "feb", "mrt", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
+
+_yearless_date_st = st.builds(
+    lambda d, m: f"{d}-{m}",
+    st.integers(min_value=1, max_value=31),
+    st.sampled_from(_DUTCH_MONTHS),
+)
+
+# Bare non-numeric month tokens: "mei", "jan", "dec" (no day, no year).
+_non_numeric_month_st = st.sampled_from(_DUTCH_MONTHS)
+
+# A valid (year, month, day) triple within the parser's accepted ranges.
+_valid_ymd_st = st.builds(
+    lambda y, m, d: (y, m, d),
+    st.integers(min_value=1900, max_value=2099),
+    st.integers(min_value=1, max_value=12),
+    st.integers(min_value=1, max_value=28),  # <=28 avoids month-length edge noise
+)
+
+
+def _invalid_date_row(trip_date):
+    """A row that is valid except for the (bad) trip_date, so the only error is the date."""
+    return make_valid_row(trip_date=trip_date)
+
+
+def _service_no_existing_trips():
+    """A TripImportService whose DB reports no existing trips (stateless mock).
+
+    Built fresh inside each test body so it is safe to use under Hypothesis
+    @given (no function-scoped fixture shared across generated inputs).
+    """
+    db = MagicMock()
+    db.execute_query.return_value = []
+    return TripImportService(db=db)
+
+
+@pytest.mark.unit
+class TestDatePropertiesRedesign:
+    """Hypothesis properties 13-16 for date validation (Req 8.1-8.5, 10.7)."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 13: Invalid dates rejected without inference
+    @settings(max_examples=150)
+    @given(bad_date=st.one_of(_yearless_date_st, _non_numeric_month_st))
+    def test_property_13_invalid_dates_rejected_without_inference(self, bad_date):
+        """Yearless or non-numeric-month dates are rejected; no year is inferred.
+
+        Validates: Requirements 8.1, 8.2
+        """
+        service = _service_no_existing_trips()
+
+        # Direct parser: never returns a normalized value (no inference).
+        assert service._normalize_date(bad_date) is None
+
+        # End-to-end: the row is an error and its date is NOT silently normalized
+        # to any YYYY-MM-DD value (no year substituted in).
+        result = service.validate_import("tenant1", 1, [_invalid_date_row(bad_date)])
+        row = result["rows"][0]
+        assert row["_status"] == "error"
+        assert row["trip_date"] == bad_date  # untouched: no inferred year
+        assert not _re.match(r"^\d{4}-\d{2}-\d{2}$", str(row["trip_date"]))
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 14: Rejected-date message names the value and is bounded
+    @settings(max_examples=150)
+    @given(bad_date=st.one_of(_yearless_date_st, _non_numeric_month_st))
+    def test_property_14_rejected_date_message_names_value_and_bounded(self, bad_date):
+        """The per-row date error names the exact value + expected format, <= 500 chars.
+
+        Validates: Requirements 8.3
+        """
+        service = _service_no_existing_trips()
+        result = service.validate_import("tenant1", 1, [_invalid_date_row(bad_date)])
+        row = result["rows"][0]
+
+        date_msgs = [m for m in row["_messages"] if "datumformaat" in m.lower()]
+        assert date_msgs, f"expected a date-format message for {bad_date!r}"
+        msg = date_msgs[0]
+
+        # Names the exact offending value and the expected formats.
+        assert bad_date in msg
+        assert "YYYY-MM-DD" in msg
+        assert "DD-MM-YYYY" in msg
+        assert "DD/MM/YYYY" in msg
+        # Bounded length.
+        assert len(msg) <= 500
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 15: Rejected rows retained in the preview
+    @settings(max_examples=150)
+    @given(
+        bad_dates=st.lists(_yearless_date_st, min_size=1, max_size=8),
+        n_valid=st.integers(min_value=0, max_value=8),
+    )
+    def test_property_15_rejected_rows_retained_in_preview(self, bad_dates, n_valid):
+        """Every input row appears in the preview; invalid-date rows are marked error, never dropped.
+
+        Validates: Requirements 8.4
+        """
+        service = _service_no_existing_trips()
+
+        # Interleave invalid-date rows with some clean rows; tag each with a
+        # unique marker so we can confirm presence by identity in the preview.
+        # Keep total <= 20 so the whole set fits the preview window.
+        rows = []
+        for i, bad in enumerate(bad_dates):
+            r = _invalid_date_row(bad)
+            r["_marker"] = f"bad-{i}"
+            rows.append(r)
+        for j in range(n_valid):
+            r = make_valid_row(trip_date="2026-01-15")
+            r["_marker"] = f"ok-{j}"
+            rows.append(r)
+
+        total = len(rows)
+        result = service.validate_import("tenant1", 1, rows)
+
+        # Preview retains every input row (set <= 20).
+        assert len(result["rows"]) == total
+        assert len(result["preview"]) == total
+        preview_markers = {r.get("_marker") for r in result["preview"]}
+        expected_markers = {r["_marker"] for r in rows}
+        assert preview_markers == expected_markers
+
+        # Every invalid-date row is present and marked as an error (never dropped).
+        bad_rows = [r for r in result["preview"] if str(r.get("_marker", "")).startswith("bad-")]
+        assert len(bad_rows) == len(bad_dates)
+        for r in bad_rows:
+            assert r["_status"] == "error"
+            assert any("datumformaat" in m.lower() for m in r["_messages"])
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 16: Accepted date formats normalize to ISO
+    @settings(max_examples=150)
+    @given(ymd=_valid_ymd_st, fmt=st.sampled_from(["iso", "dash", "slash", "datetime", "date"]))
+    def test_property_16_accepted_formats_normalize_to_iso(self, ymd, fmt):
+        """Accepted formats (ISO; DD-MM-YYYY / DD/MM/YYYY padded or not; datetime/date) normalize to ISO.
+
+        Validates: Requirements 8.5
+        """
+        service = _service_no_existing_trips()
+        year, month, day = ymd
+        expected = f"{year:04d}-{month:02d}-{day:02d}"
+
+        if fmt == "iso":
+            value = f"{year:04d}-{month}-{day}"            # YYYY-M-D (non-padded ok)
+        elif fmt == "dash":
+            value = f"{day}-{month}-{year:04d}"            # D-M-YYYY (non-padded)
+        elif fmt == "slash":
+            value = f"{day:02d}/{month:02d}/{year:04d}"    # DD/MM/YYYY (padded)
+        elif fmt == "datetime":
+            value = _dt.datetime(year, month, day, 0, 0, 0)
+        else:  # date
+            value = _dt.date(year, month, day)
+
+        # Direct parser normalizes to zero-padded ISO.
+        assert service._normalize_date(value) == expected
+
+        # End-to-end: the row is not rejected for date validity and carries the
+        # normalized ISO date.
+        result = service.validate_import("tenant1", 1, [make_valid_row(trip_date=value)])
+        row = result["rows"][0]
+        assert not any("datumformaat" in m.lower() for m in row["_messages"])
+        assert row["trip_date"] == expected
+        assert _re.match(r"^\d{4}-\d{2}-\d{2}$", row["trip_date"])
