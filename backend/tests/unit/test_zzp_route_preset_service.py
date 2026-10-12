@@ -595,3 +595,303 @@ class TestTenantIsolation:
         call_args = db.execute_query.call_args[0]
         assert "administration = %s" in call_args[0]
         assert TENANT in call_args[1]
+
+
+# ===========================================================================
+# Property-based tests — preset learning from import (task 6.2)
+#
+# Feature: rittenregistratie-tax-log-redesign
+# These exercise the import → preset-learning seam added in task 6.1
+# (TripImportService.commit_import → _seed_route_presets →
+# RoutePresetService.increment_usage). Properties 10 and 12 live here (rather
+# than in test_zzp_trip_import_service.py / test_zzp_trip_import_commit.py,
+# which are owned by task 5.2) so the commit seam is exercised without touching
+# those files.
+# ===========================================================================
+
+from hypothesis import given, strategies as st, settings
+
+from services.zzp_trip_import_service import TripImportService
+
+
+# ── Shared helpers for the import → preset seam ────────────────────────────
+
+
+def _commit_db():
+    """A MagicMock DB whose transaction() context manager yields a cursor.
+
+    Mirrors the fixture pattern in test_zzp_trip_import_commit.py: the per-row
+    INSERT + audit writes go through cursor.execute, and lastrowid is stable.
+    execute_query returns [] so validate-time lookups (if ever hit) are empty.
+    """
+    db = Mock()
+    db.execute_query = Mock(return_value=[])
+    cursor = Mock()
+    cursor.lastrowid = 1
+    conn = Mock()
+    ctx = Mock()
+    ctx.__enter__ = Mock(return_value=(cursor, conn))
+    ctx.__exit__ = Mock(return_value=False)
+    db.transaction = Mock(return_value=ctx)
+    return db
+
+
+def _import_row(idx, from_addr, to_addr, status="ok", start_km=1000, end_km=1050):
+    """Build a validated import row as commit_import expects to receive it."""
+    return {
+        "trip_date": "2026-01-15",
+        "start_time": None,
+        "end_time": None,
+        "start_address": from_addr,
+        "end_address": to_addr,
+        "start_odometer": start_km,
+        "end_odometer": end_km,
+        "trip_category": "Zakelijk",
+        "trip_purpose": "Klantbezoek",
+        "client_name": None,
+        "project_name": None,
+        "notes": None,
+        "route_description": None,
+        "_status": status,
+        "_messages": [],
+        "_row_number": idx + 1,
+    }
+
+
+# Addresses kept short and distinct so pair identity is easy to reason about.
+_addr = st.text(
+    alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ ", min_size=1, max_size=8
+).map(lambda s: s.strip() or "X")
+
+# A row spec: (from, to, is_error)
+_row_spec = st.tuples(_addr, _addr, st.booleans())
+
+
+# ── Property 10 ────────────────────────────────────────────────────────────
+
+
+class TestPropertyPresetLearningRunsPerCommittedRow:
+    """Property 10: Preset learning runs once per committed non-error row."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 10: increment_usage
+    # is invoked exactly once per committed non-error row and zero times per
+    # error row.
+    @settings(max_examples=150)
+    @given(specs=st.lists(_row_spec, min_size=0, max_size=12))
+    def test_increment_usage_called_once_per_committed_non_error_row(self, specs):
+        """Validates: Requirements 6.1"""
+        rows = [
+            _import_row(i, frm, to, status="error" if is_err else "ok")
+            for i, (frm, to, is_err) in enumerate(specs)
+        ]
+        expected_non_error = sum(1 for (_f, _t, is_err) in specs if not is_err)
+
+        db = _commit_db()
+        service = TripImportService(db=db)
+
+        fake_preset = Mock()
+        fake_preset.increment_usage = Mock(return_value=1)
+        with patch(
+            "services.zzp_route_preset_service.RoutePresetService",
+            return_value=fake_preset,
+        ):
+            result = service.commit_import("tenant1", 1, rows, "user@test.com")
+
+        assert result["success"] is True
+        # Learning invoked exactly once per committed non-error row...
+        assert fake_preset.increment_usage.call_count == expected_non_error
+        # ...and the imported count matches the committed non-error rows.
+        assert result["imported"] == expected_non_error
+
+        # Every error row is skipped: none of its (from, to) pair was learned.
+        learned_pairs = [
+            (c.args[1], c.args[2])
+            for c in fake_preset.increment_usage.call_args_list
+        ]
+        committed_pairs = [
+            (frm, to) for (frm, to, is_err) in specs if not is_err
+        ]
+        assert sorted(learned_pairs) == sorted(committed_pairs)
+
+
+# ── Property 11 ────────────────────────────────────────────────────────────
+
+
+class _FakePresetDB:
+    """Stateful in-memory stand-in for DatabaseManager, scoped to presets.
+
+    Models the normalized matching contract of auto-learned presets: a from/to
+    pair is matched case-insensitively after trimming (Req 6.2, 6.3). This lets
+    the REAL RoutePresetService.increment_usage upsert against it so use_count
+    reflects the true occurrence count of each normalized pair.
+    """
+
+    def __init__(self):
+        # key = (tenant, from_norm, to_norm) -> stored row dict
+        self._by_key = {}
+        self._next_id = 1
+
+    @staticmethod
+    def _norm(addr):
+        return (addr or "").strip().casefold()
+
+    def execute_query(self, query, params=None, fetch=True, commit=False):
+        params = params or ()
+        q = " ".join(query.split())  # collapse whitespace for simple matching
+
+        if q.startswith("SELECT id, use_count FROM zzp_route_presets"):
+            tenant, from_addr, to_addr = params[0], params[1], params[2]
+            key = (tenant, self._norm(from_addr), self._norm(to_addr))
+            row = self._by_key.get(key)
+            return [{"id": row["id"], "use_count": row["use_count"]}] if row else []
+
+        if q.startswith("UPDATE zzp_route_presets"):
+            # params tail: (..., id, tenant) — increment the stored row.
+            preset_id = params[-2]
+            for row in self._by_key.values():
+                if row["id"] == preset_id:
+                    row["use_count"] += 1
+                    break
+            return None
+
+        if q.startswith("INSERT INTO zzp_route_presets"):
+            tenant, from_addr, to_addr = params[0], params[1], params[2]
+            key = (tenant, self._norm(from_addr), self._norm(to_addr))
+            self._by_key[key] = {
+                "id": self._next_id,
+                "tenant": tenant,
+                "from_address": from_addr,
+                "to_address": to_addr,
+                "use_count": 1,
+            }
+            self._next_id += 1
+            return None
+
+        return []
+
+    def presets_for(self, tenant):
+        return [r for r in self._by_key.values() if r["tenant"] == tenant]
+
+
+# A pair drawn from a small address pool so collisions (repeat pairs) and
+# case/whitespace variants of the same pair occur naturally.
+_pair_pool = st.sampled_from(
+    ["AMS", "RTM", "UTR", "DH ", " ams", "rtm", "Utr"]
+)
+_pair = st.tuples(_pair_pool, _pair_pool)
+
+
+class TestPropertyPresetUseCountEqualsOccurrences:
+    """Property 11: Preset use_count equals occurrence count."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 11: each auto-learned
+    # preset's use_count equals the number of committed rows carrying that
+    # normalized (case-insensitive, trimmed) from/to pair; distinct pairs yield
+    # distinct presets.
+    @settings(max_examples=150)
+    @given(pairs=st.lists(_pair, min_size=1, max_size=20))
+    def test_use_count_matches_normalized_pair_occurrences(self, pairs):
+        """Validates: Requirements 6.2, 6.3"""
+        tenant = "tenant1"
+        db = _FakePresetDB()
+        service = TripImportService(db=db)
+
+        committed_rows = [
+            _import_row(i, frm, to) for i, (frm, to) in enumerate(pairs)
+        ]
+        # Drive the real learning path (real RoutePresetService, fake DB).
+        service._seed_route_presets(tenant, committed_rows)
+
+        # Expected: count of each normalized (trim + casefold) pair.
+        def norm(a):
+            return a.strip().casefold()
+
+        expected = {}
+        for frm, to in pairs:
+            key = (norm(frm), norm(to))
+            expected[key] = expected.get(key, 0) + 1
+
+        presets = db.presets_for(tenant)
+
+        # Distinct normalized pairs → distinct presets (one row each).
+        assert len(presets) == len(expected)
+
+        # Each preset's use_count equals its normalized pair's occurrence count.
+        by_norm = {
+            (norm(p["from_address"]), norm(p["to_address"])): p["use_count"]
+            for p in presets
+        }
+        assert by_norm == expected
+        # A first occurrence yields use_count == 1.
+        assert all(count >= 1 for count in by_norm.values())
+
+
+# ── Property 12 ────────────────────────────────────────────────────────────
+
+
+class TestPropertyPresetLearningFailureNonFatal:
+    """Property 12: Preset learning failure is non-fatal."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 12: when learning
+    # raises for a row, the trip and import stay committed and a non-fatal note
+    # is recorded for that row.
+    @settings(max_examples=150)
+    @given(
+        specs=st.lists(_row_spec, min_size=1, max_size=10),
+        seed=st.integers(min_value=0, max_value=10_000),
+    )
+    def test_learning_failure_leaves_import_committed_with_note(self, specs, seed):
+        """Validates: Requirements 6.4"""
+        rows = [
+            _import_row(i, frm, to, status="error" if is_err else "ok")
+            for i, (frm, to, is_err) in enumerate(specs)
+        ]
+        committed_rows = [r for r in rows if r["_status"] != "error"]
+
+        # Nothing to assert about learning if no row commits; still must succeed.
+        db = _commit_db()
+        service = TripImportService(db=db)
+
+        if not committed_rows:
+            fake_preset = Mock()
+            fake_preset.increment_usage = Mock(return_value=1)
+            with patch(
+                "services.zzp_route_preset_service.RoutePresetService",
+                return_value=fake_preset,
+            ):
+                result = service.commit_import("tenant1", 1, rows, "user@test.com")
+            assert result["success"] is True
+            assert result["imported"] == 0
+            return
+
+        # Pick exactly one committed row whose learning will raise.
+        failing_index = seed % len(committed_rows)
+        failing_row = committed_rows[failing_index]
+
+        call_state = {"n": 0}
+
+        def flaky_increment(*_args, **_kwargs):
+            # Raise only on the call corresponding to the chosen failing row.
+            current = call_state["n"]
+            call_state["n"] += 1
+            if current == failing_index:
+                raise RuntimeError("preset backend unavailable")
+            return 1
+
+        fake_preset = Mock()
+        fake_preset.increment_usage = Mock(side_effect=flaky_increment)
+        with patch(
+            "services.zzp_route_preset_service.RoutePresetService",
+            return_value=fake_preset,
+        ):
+            result = service.commit_import("tenant1", 1, rows, "user@test.com")
+
+        # Import stays committed; the committed trips are still counted.
+        assert result["success"] is True
+        assert result["imported"] == len(committed_rows)
+
+        # The failing row carries a non-fatal note; the import did not roll back.
+        notes = failing_row.get("_messages", [])
+        assert any("routesuggestie" in m for m in notes), (
+            f"expected a non-fatal preset note on the failing row, got {notes!r}"
+        )

@@ -38,10 +38,9 @@ class TripCrudService:
         "trip_category",
         "trip_purpose",
         "route_description",
-        "contact_id",
+        "client_name",
         "project_name",
         "notes",
-        "is_billable",
     ]
 
     def __init__(self, service):
@@ -94,10 +93,10 @@ class TripCrudService:
                    (administration, vehicle_id, trip_date, start_time, end_time,
                     start_address, end_address, start_odometer, end_odometer,
                     trip_category, trip_purpose, route_description,
-                    contact_id, project_name, notes,
-                    is_billable, is_gap_fill, created_by)
+                    client_name, project_name, notes,
+                    is_gap_fill, created_by)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                           %s, %s, %s, %s, %s, %s)""",
+                           %s, %s, %s, %s, %s)""",
                 (
                     tenant,
                     int(data["vehicle_id"]),
@@ -111,10 +110,9 @@ class TripCrudService:
                     data["trip_category"],
                     data["trip_purpose"],
                     data.get("route_description"),
-                    data.get("contact_id"),
+                    data.get("client_name"),
                     data.get("project_name"),
                     data.get("notes"),
-                    data.get("is_billable", False),
                     data.get("is_gap_fill", False),
                     created_by,
                 ),
@@ -122,7 +120,7 @@ class TripCrudService:
                 commit=True,
             )
         except IntegrityError as e:
-            # FK violation (vehicle_id, contact_id, etc.)
+            # FK violation (vehicle_id, etc.)
             raise IntegrityError(
                 f"Foreign key constraint failed: {e}",
                 error_code=e.error_code,
@@ -216,7 +214,7 @@ class TripCrudService:
         """Update/correct a trip with version increment and audit logging.
 
         Raises ValueError if trip not found, correction_reason missing,
-        trip is billed, or no valid fields to update.
+        or no valid fields to update.
         """
         # 1. Require correction_reason
         if not correction_reason or not correction_reason.strip():
@@ -227,14 +225,7 @@ class TripCrudService:
         if not existing:
             raise ValueError(f"Trip {trip_id} not found for this tenant")
 
-        # 3. Block editing billed trips
-        if existing.get("is_billed"):
-            raise ValueError(
-                f"Trip {trip_id} is billed and cannot be edited. "
-                "Unbill or create a new trip instead."
-            )
-
-        # 4. Filter to only updatable fields that are actually provided
+        # 3. Filter to only updatable fields that are actually provided
         update_fields = {k: v for k, v in data.items() if k in self.UPDATABLE_FIELDS}
         if not update_fields:
             raise ValueError(
@@ -242,7 +233,7 @@ class TripCrudService:
                 + ", ".join(self.UPDATABLE_FIELDS)
             )
 
-        # 5. Compute changed_fields diff (only fields that actually changed)
+        # 4. Compute changed_fields diff (only fields that actually changed)
         changed_fields = {}
         for field, new_value in update_fields.items():
             old_value = existing.get(field)
@@ -258,11 +249,11 @@ class TripCrudService:
         if not changed_fields:
             raise ValueError("No fields have changed — nothing to update")
 
-        # 6. Increment version
+        # 5. Increment version
         current_version = int(existing.get("version", 1))
         new_version = current_version + 1
 
-        # 7. Build and execute UPDATE statement
+        # 6. Build and execute UPDATE statement
         set_clauses = []
         params = []
         for field in changed_fields:
@@ -283,7 +274,7 @@ class TripCrudService:
         )
         self.db.execute_query(update_sql, tuple(params), fetch=False, commit=True)
 
-        # 8. Write audit entry
+        # 7. Write audit entry
         changed_fields_json = json.dumps(changed_fields, ensure_ascii=False)
         self._write_audit_entry(
             tenant=tenant,
@@ -295,7 +286,7 @@ class TripCrudService:
             correction_reason=correction_reason.strip(),
         )
 
-        # 9. Return updated trip
+        # 8. Return updated trip
         updated_trip = self.service.get_trip(tenant, trip_id)
         return updated_trip
 
@@ -305,7 +296,7 @@ class TripCrudService:
         """Soft-cancel a trip (sets is_cancelled = true with reason).
 
         Raises ValueError if cancel_reason missing, trip not found,
-        trip already cancelled, or trip is billed.
+        or trip already cancelled.
         """
         # 1. Require cancel_reason
         if not cancel_reason or not cancel_reason.strip():
@@ -320,14 +311,7 @@ class TripCrudService:
         if existing.get("is_cancelled"):
             raise ValueError(f"Trip {trip_id} is already cancelled")
 
-        # 4. Block cancellation of billed trips
-        if existing.get("is_billed"):
-            raise ValueError(
-                f"Trip {trip_id} is billed and cannot be cancelled. "
-                "Unbill the trip first."
-            )
-
-        # 5. Set is_cancelled = true and cancel_reason
+        # 4. Set is_cancelled = true and cancel_reason
         current_version = int(existing.get("version", 1))
         self.db.execute_query(
             """UPDATE zzp_trips
@@ -338,7 +322,7 @@ class TripCrudService:
             commit=True,
         )
 
-        # 6. Write audit entry
+        # 5. Write audit entry
         self._write_audit_entry(
             tenant=tenant,
             trip_id=trip_id,
@@ -348,7 +332,7 @@ class TripCrudService:
             correction_reason=cancel_reason.strip(),
         )
 
-        # 7. Return True on success
+        # 6. Return True on success
         return True
 
     def create_gap_fill(self, tenant: str, data: dict, created_by: str) -> dict:
@@ -396,10 +380,10 @@ class TripCrudService:
                    (administration, vehicle_id, trip_date, start_time, end_time,
                     start_address, end_address, start_odometer, end_odometer,
                     trip_category, trip_purpose, route_description,
-                    contact_id, project_name, notes,
-                    is_billable, is_gap_fill, created_by)
+                    client_name, project_name, notes,
+                    is_gap_fill, created_by)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                           %s, %s, %s, %s, %s, %s)""",
+                           %s, %s, %s, %s, %s)""",
                 (
                     tenant,
                     int(data["vehicle_id"]),
@@ -413,10 +397,9 @@ class TripCrudService:
                     data["trip_category"],
                     data["trip_purpose"],
                     data.get("route_description"),
-                    data.get("contact_id"),
+                    data.get("client_name"),
                     data.get("project_name"),
                     data.get("notes"),
-                    data.get("is_billable", False),
                     True,  # is_gap_fill always True
                     created_by,
                 ),

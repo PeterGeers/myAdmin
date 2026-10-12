@@ -142,7 +142,7 @@ def list_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
     """List trips with filtering and pagination.
 
     Query params: vehicle_id, date_from, date_to, trip_category,
-                  contact_id, is_billed, is_gap_fill, limit, offset
+                  is_gap_fill, limit, offset
     """
     try:
         svc = _get_trip_service()
@@ -157,10 +157,6 @@ def list_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
             filters["date_to"] = request.args.get("date_to")
         if request.args.get("trip_category"):
             filters["trip_category"] = request.args.get("trip_category")
-        if request.args.get("contact_id"):
-            filters["contact_id"] = request.args.get("contact_id")
-        if request.args.get("is_billed") is not None:
-            filters["is_billed"] = request.args.get("is_billed", "").lower() == "true"
         if request.args.get("is_gap_fill") is not None:
             filters["is_gap_fill"] = (
                 request.args.get("is_gap_fill", "").lower() == "true"
@@ -271,35 +267,6 @@ def list_gaps(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
         return jsonify({"success": False, "error": str(ve)}), 400
     except Exception as e:
         logger.error("list_gaps error for %s: %s", tenant, e)
-        return jsonify({"success": False, "error": "An internal error occurred"}), 500
-
-
-@zzp_trip_bp.route("/api/zzp/trips/unbilled", methods=["GET"])
-@cognito_required(required_permissions=["zzp_crud"])
-@tenant_required()
-@module_required("ZZP")
-def get_unbilled_trips(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
-    """Get unbilled billable trips for a client.
-
-    Required query param: contact_id (int).
-    Reference: Design §3.3 GET /api/zzp/trips/unbilled
-    """
-    try:
-        contact_id = request.args.get("contact_id")
-        if not contact_id:
-            return jsonify(
-                {"success": False, "error": "contact_id query parameter is required"}
-            ), 400
-
-        svc = _get_trip_service()
-        trips = svc.get_unbilled_trips(tenant, int(contact_id))
-        return jsonify({"success": True, "data": trips})
-    except ValueError as ve:
-        return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
-        logger.error("get_unbilled_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 

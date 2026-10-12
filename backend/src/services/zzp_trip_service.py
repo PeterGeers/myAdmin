@@ -4,7 +4,7 @@ TripService: Facade for Trip CRUD, queries, and calculations.
 Core service for the Rittenregistratie (Trip/Mileage Registration) module.
 Delegates to sub-modules for implementation:
 - zzp_trip_crud_service.py — create, update, cancel, gap-fill
-- zzp_trip_query_service.py — get, list, history, gaps, billing, contacts
+- zzp_trip_query_service.py — get, list, history, gaps
 - zzp_trip_calculation_service.py — summary, bijtelling, parameters
 
 Business rules:
@@ -61,7 +61,7 @@ class TripService(FieldConfigMixin):
         "trip_category",
         "trip_purpose",
         "route_description",
-        "contact_id",
+        "client_name",
         "project_name",
         "notes",
         "is_billable",
@@ -133,14 +133,6 @@ class TripService(FieldConfigMixin):
     ) -> dict | None:
         """Detect an odometer gap between the previous trip and the new trip."""
         return self._query.detect_gap(tenant, vehicle_id, start_odometer)
-
-    def enrich_with_contacts(self, tenant: str, trips: list[dict]) -> list[dict]:
-        """Enrich trip dicts with contact information (company_name)."""
-        return self._query.enrich_with_contacts(tenant, trips)
-
-    def get_unbilled_trips(self, tenant: str, contact_id: int) -> list[dict]:
-        """Get unbilled billable trips for a specific client."""
-        return self._query.get_unbilled_trips(tenant, contact_id)
 
     def mark_as_billed(self, tenant: str, trip_ids: list, invoice_id: int) -> int:
         """Mark specified trips as billed by linking them to an invoice."""

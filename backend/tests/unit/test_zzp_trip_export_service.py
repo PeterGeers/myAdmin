@@ -8,6 +8,8 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import date
 
+from hypothesis import given, settings, strategies as st
+
 from services.zzp_trip_export_service import TripExportService
 
 
@@ -23,7 +25,12 @@ def _make_service(db=None, parameter_service=None):
 
 
 def _sample_trips():
-    """Sample trip rows as returned by _get_trips_for_export."""
+    """Sample trip rows as returned by _get_trips_for_export.
+
+    Tax-log redesign: the export query selects ``t.client_name`` directly (no
+    contacts JOIN, no ``contact_id``/billing columns). The Klant column is
+    sourced from ``client_name`` (empty when null).
+    """
     return [
         {
             "id": 1,
@@ -38,13 +45,10 @@ def _sample_trips():
             "trip_category": "Zakelijk",
             "trip_purpose": "Klantbezoek",
             "route_description": None,
-            "contact_id": 5,
+            "client_name": "Acme BV",
             "project_name": "Project Alpha",
             "notes": None,
-            "is_billable": True,
-            "is_billed": False,
             "is_gap_fill": False,
-            "contact_name": "Acme BV",
         },
         {
             "id": 2,
@@ -59,13 +63,10 @@ def _sample_trips():
             "trip_category": "Privé",
             "trip_purpose": "Overig",
             "route_description": None,
-            "contact_id": None,
+            "client_name": None,
             "project_name": None,
             "notes": None,
-            "is_billable": False,
-            "is_billed": False,
             "is_gap_fill": False,
-            "contact_name": None,
         },
     ]
 
@@ -151,9 +152,9 @@ class TestExportCSV:
         assert "Datum" in lines[0]
 
     @patch.object(TripExportService, "_get_trips_for_export")
-    def test_csv_null_contact_name_handled(self, mock_get_trips):
-        """Trips without a contact_name produce empty string in Klant column."""
-        trips = [_sample_trips()[1]]  # Trip with contact_name=None
+    def test_csv_null_client_name_handled(self, mock_get_trips):
+        """Trips without a client_name produce empty string in Klant column."""
+        trips = [_sample_trips()[1]]  # Trip with client_name=None
         mock_get_trips.return_value = trips
         service = _make_service()
 
@@ -685,3 +686,123 @@ class TestGetYearlySummary:
         service.get_yearly_summary(TENANT, VEHICLE_ID, YEAR)
 
         mock_get_trips.assert_called_once_with(TENANT, VEHICLE_ID, YEAR)
+
+
+# ---------------------------------------------------------------------------
+# Property-based tests (Hypothesis) — Tax-log redesign
+# ---------------------------------------------------------------------------
+
+# Klant free-text: cover arbitrary normal client names (letters, digits,
+# spaces, punctuation, accents) but exclude characters that CSV / XLSX and the
+# round-trip parse treat as structural. Specifically we drop:
+#   * control/format/surrogate/line/paragraph-separator categories
+#     (Cc, Cs, Zl, Zp) — these include Unicode line-break code points that
+#     str.splitlines()/csv treat as row boundaries (e.g. U+0085 NEL), which
+#     would corrupt the CSV round-trip comparison;
+#   * the explicit line-break code points not otherwise caught; and
+#   * the ";" separator (QUOTE_ALL still exercises quote handling via the
+#     double-quote char, which stays in the alphabet).
+# The property under test is value fidelity (Klant == client_name), not CSV
+# escaping of structural line-break edge chars.
+_LINE_BREAK_CHARS = "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"
+_klant_text = st.text(
+    alphabet=st.characters(
+        blacklist_categories=("Cc", "Cs", "Zl", "Zp"),
+        blacklist_characters=";" + _LINE_BREAK_CHARS,
+    ),
+    min_size=1,
+    max_size=255,
+).map(str.strip).filter(lambda s: len(s) > 0)
+
+# A single generated trip: client_name is either a non-empty text value or None.
+_export_trip = st.fixed_dictionaries(
+    {
+        "trip_date": st.just("2026-07-13"),
+        "start_address": st.just("Keizersgracht 100, Amsterdam"),
+        "end_address": st.just("Stationsplein 1, Utrecht"),
+        "start_odometer": st.just(45230),
+        "end_odometer": st.just(45275),
+        "distance_km": st.just(45),
+        "trip_category": st.just("Zakelijk"),
+        "trip_purpose": st.just("Klantbezoek"),
+        "route_description": st.none(),
+        "client_name": st.one_of(st.none(), _klant_text),
+        "project_name": st.none(),
+        "notes": st.none(),
+        "is_gap_fill": st.just(False),
+    }
+)
+
+
+class TestPropertyExportKlantMirrorsClientName:
+    """Property 6: Export Klant mirrors Client_Name (Req 2.9)."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 6: Export Klant mirrors Client_Name
+    @settings(max_examples=100, deadline=None)
+    @given(trips=st.lists(_export_trip, min_size=0, max_size=8))
+    def test_property_export_klant_mirrors_client_name(self, trips):
+        """Exported Klant equals each trip's client_name (empty when null),
+        produced without any contacts join.
+
+        **Validates: Requirements 2.9**
+        """
+        expected_klant = [
+            "" if t["client_name"] is None else t["client_name"] for t in trips
+        ]
+
+        # --- CSV export: Klant column (last column, index 8) mirrors client_name
+        with patch.object(
+            TripExportService, "_get_trips_for_export", return_value=trips
+        ):
+            csv_bytes = _make_service().export_csv(TENANT, VEHICLE_ID, YEAR)
+
+        import csv as _csv
+
+        content = csv_bytes[3:].decode("utf-8")  # strip UTF-8 BOM
+        # Split rows on CRLF/LF only (not str.splitlines(), which also breaks on
+        # exotic Unicode line separators that may appear inside a quoted field).
+        rows = [r for r in content.replace("\r\n", "\n").split("\n") if r != ""]
+        reader = list(_csv.reader(rows, delimiter=";"))
+        header = reader[0]
+        assert header[-1] == "Klant"
+        klant_idx = header.index("Klant")
+        csv_klant = [row[klant_idx] for row in reader[1:]]
+        assert csv_klant == expected_klant
+
+        # --- XLSX export: Klant column (column 9) mirrors client_name
+        from openpyxl import load_workbook
+        import io
+
+        with patch.object(
+            TripExportService, "_get_trips_for_export", return_value=trips
+        ):
+            xlsx_bytes = _make_service().export_xlsx(TENANT, VEHICLE_ID, YEAR)
+
+        ws = load_workbook(io.BytesIO(xlsx_bytes)).active
+        assert ws.cell(row=1, column=9).value == "Klant"
+        for offset, trip in enumerate(trips):
+            cell_value = ws.cell(row=2 + offset, column=9).value
+            # openpyxl stores an empty string as None in the cell.
+            normalized = "" if cell_value is None else cell_value
+            expected = "" if trip["client_name"] is None else trip["client_name"]
+            assert normalized == expected
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 6: Export Klant mirrors Client_Name
+    @settings(max_examples=100, deadline=None)
+    @given(trips=st.lists(_export_trip, min_size=0, max_size=8))
+    def test_property_export_query_has_no_contacts_join(self, trips):
+        """The export query selects t.client_name directly and performs no
+        contacts join (Klant is produced without any contacts join).
+
+        **Validates: Requirements 2.9**
+        """
+        db = Mock()
+        db.execute_query.return_value = trips
+        service = _make_service(db=db)
+
+        service._get_trips_for_export(TENANT, VEHICLE_ID, YEAR)
+
+        query = db.execute_query.call_args[0][0].lower()
+        assert "t.client_name" in query
+        assert "join contacts" not in query
+        assert "contact_id" not in query

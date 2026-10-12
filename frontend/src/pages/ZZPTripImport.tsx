@@ -7,14 +7,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Flex, Button, Text, useToast, Spinner, Select, VStack, HStack,
-  Table, Thead, Tbody, Tr, Th, Td, Badge, Input, Tooltip,
+  Table, Thead, Tbody, Tr, Th, Td, Badge, Input,
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { importTrips, commitImport } from '../services/tripService';
 import { getVehicles } from '../services/vehicleService';
 import { TripImportStepper } from '../components/zzp/TripImportWizard';
 import type { Vehicle, ImportRow } from '../types/zzpTrips';
-import type { ColumnMapping } from '../services/tripService';
 import { authenticatedGet, buildEndpoint } from '../services/apiService';
 
 /* ─── Constants ─── */
@@ -28,6 +27,7 @@ interface ImportValidationResult {
   warnings: number;
   errors: number;
   preview: ImportRow[];
+  rows: ImportRow[];
 }
 
 /* ─── Main Page ─── */
@@ -126,7 +126,14 @@ const ZZPTripImport: React.FC = () => {
       try {
         const resp = await importTrips(file, selectedVehicle);
         if (resp.success) {
-          setValidationResult(resp.data as unknown as ImportValidationResult);
+          setValidationResult({
+            total_rows: resp.total_rows,
+            valid: resp.valid,
+            warnings: resp.warnings,
+            errors: resp.errors,
+            preview: resp.preview,
+            rows: resp.rows,
+          });
           setCurrentStep(1);
         } else {
           toast({ title: 'Upload mislukt', status: 'error', duration: 3000 });
@@ -154,8 +161,7 @@ const ZZPTripImport: React.FC = () => {
     if (!selectedVehicle) return;
     setImporting(true);
     try {
-      const mapping: ColumnMapping = {};
-      const resp = await commitImport(selectedVehicle, mapping);
+      const resp = await commitImport(selectedVehicle, validationResult?.rows ?? [], true);
       if (resp.success) {
         setImportDone(true);
         toast({
@@ -187,15 +193,36 @@ const ZZPTripImport: React.FC = () => {
     const colorMap = { ok: 'green', warning: 'yellow', error: 'red' };
     const labelMap = { ok: 'OK', warning: 'Waarschuwing', error: 'Fout' };
     return (
-      <Tooltip
-        label={row.messages?.length > 0 ? row.messages.join('\n') : 'Geen opmerkingen'}
-        placement="top"
-        hasArrow
-      >
-        <Badge colorScheme={colorMap[row.status]} cursor="pointer">
-          {labelMap[row.status]}
-        </Badge>
-      </Tooltip>
+      <Badge colorScheme={colorMap[row._status]}>
+        {labelMap[row._status]}
+      </Badge>
+    );
+  };
+
+  /* ─── Inline Messages Helper ─── */
+  // Renders each per-row validation message as a separate, visually distinct inline
+  // entry — visible without hover/focus (Req 7.1–7.3). Clean rows (0 messages) render
+  // nothing (Req 7.4).
+  const renderInlineMessages = (row: ImportRow) => {
+    if (!row._messages || row._messages.length === 0) return null;
+    const colorMap = { ok: 'green.300', warning: 'yellow.300', error: 'red.300' };
+    const borderMap = { ok: 'green.400', warning: 'yellow.400', error: 'red.400' };
+    return (
+      <VStack spacing={1} align="stretch" mt={1}>
+        {row._messages.map((msg, i) => (
+          <Text
+            key={i}
+            fontSize="xs"
+            color={colorMap[row._status]}
+            borderLeft="2px solid"
+            borderColor={borderMap[row._status]}
+            pl={2}
+            whiteSpace="normal"
+          >
+            {msg}
+          </Text>
+        ))}
+      </VStack>
     );
   };
 
@@ -306,22 +333,37 @@ const ZZPTripImport: React.FC = () => {
                 <Th color="gray.300" isNumeric>Begin KM</Th>
                 <Th color="gray.300" isNumeric>Eind KM</Th>
                 <Th color="gray.300">Categorie</Th>
+                <Th color="gray.300">Klant</Th>
                 <Th color="gray.300">Status</Th>
               </Tr>
             </Thead>
             <Tbody>
-              {rows.map((row, idx) => (
-                <Tr key={idx} _hover={{ bg: 'gray.700' }}>
-                  <Td>{row.row_number ?? idx + 1}</Td>
-                  <Td>{row.trip_date}</Td>
-                  <Td>{row.start_address}</Td>
-                  <Td>{row.end_address}</Td>
-                  <Td isNumeric>{row.start_odometer}</Td>
-                  <Td isNumeric>{row.end_odometer}</Td>
-                  <Td>{row.trip_category || '-'}</Td>
-                  <Td>{getStatusBadge(row)}</Td>
-                </Tr>
-              ))}
+              {rows.map((row, idx) => {
+                const client = row.client_name?.trim();
+                const hasMessages = (row._messages?.length ?? 0) > 0;
+                return (
+                  <React.Fragment key={idx}>
+                    <Tr _hover={{ bg: 'gray.700' }}>
+                      <Td>{row._row_number ?? idx + 1}</Td>
+                      <Td>{row.trip_date}</Td>
+                      <Td>{row.start_address}</Td>
+                      <Td>{row.end_address}</Td>
+                      <Td isNumeric>{row.start_odometer}</Td>
+                      <Td isNumeric>{row.end_odometer}</Td>
+                      <Td>{row.trip_category || '-'}</Td>
+                      <Td>{client || ''}</Td>
+                      <Td>{getStatusBadge(row)}</Td>
+                    </Tr>
+                    {hasMessages && (
+                      <Tr>
+                        <Td colSpan={9} pt={0} borderTop="none">
+                          {renderInlineMessages(row)}
+                        </Td>
+                      </Tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </Tbody>
           </Table>
         </Box>
