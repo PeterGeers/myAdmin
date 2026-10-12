@@ -8,19 +8,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, Button, FormControl, FormLabel,
-  Input, Select, Switch, Textarea, VStack, HStack, Text, useToast,
+  Input, Select, Textarea, VStack, HStack, Text, useToast,
   FormErrorMessage,
   AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader,
   AlertDialogContent, AlertDialogOverlay,
 } from '@chakra-ui/react';
 import { Formik, Form, Field } from 'formik';
-import type { FieldProps, FormikHelpers } from 'formik';
+import type { FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { createTrip, updateTrip, cancelTrip, getTrips } from '../../services/tripService';
-import { getContacts } from '../../services/contactService';
 import type { Trip } from '../../types/zzpTrips';
-import type { Contact } from '../../types/zzp';
 
 /* ─── Types ─── */
 
@@ -42,10 +40,9 @@ interface TripFormValues {
   end_odometer: string;
   trip_category: string;
   trip_purpose: string;
-  contact_id: string;
+  client_name: string;
   project_name: string;
   notes: string;
-  is_billable: boolean;
   correction_reason: string;
 }
 
@@ -66,24 +63,19 @@ export const TripModal: React.FC<TripModalProps> = ({
 }) => {
   const { t } = useTypedTranslation('zzp');
   const toast = useToast();
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [lastEndOdometer, setLastEndOdometer] = useState<number | null>(null);
 
   const isEdit = !!trip;
-  const isBilled = trip?.is_billed === true;
   const isCancelled = trip?.is_cancelled === true;
-  const isReadOnly = isBilled || isCancelled;
+  const isReadOnly = isCancelled;
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  // Load contacts and last odometer on open
+  // Load last odometer on open
   useEffect(() => {
     if (!isOpen) return;
-    getContacts().then(resp => {
-      if (resp.success) setContacts(resp.data || []);
-    });
 
     // Pre-fill start_odometer with last trip's end_odometer (create mode only)
     if (!trip && vehicleId) {
@@ -105,10 +97,9 @@ export const TripModal: React.FC<TripModalProps> = ({
     end_odometer: trip?.end_odometer?.toString() || '',
     trip_category: trip?.trip_category || '',
     trip_purpose: trip?.trip_purpose || '',
-    contact_id: trip?.contact_id?.toString() || '',
+    client_name: trip?.client_name || '',
     project_name: trip?.project_name || '',
     notes: trip?.notes || '',
-    is_billable: trip?.is_billable ?? false,
     correction_reason: '',
   };
 
@@ -154,11 +145,10 @@ export const TripModal: React.FC<TripModalProps> = ({
         end_odometer: Number(values.end_odometer),
         trip_category: values.trip_category,
         trip_purpose: values.trip_purpose,
-        is_billable: values.is_billable,
+        client_name: values.client_name ? values.client_name : null,
       };
       if (values.start_time) data.start_time = values.start_time;
       if (values.end_time) data.end_time = values.end_time;
-      if (values.contact_id) data.contact_id = Number(values.contact_id);
       if (values.project_name) data.project_name = values.project_name;
       if (values.notes) data.notes = values.notes;
 
@@ -238,9 +228,7 @@ export const TripModal: React.FC<TripModalProps> = ({
           <ModalCloseButton />
           <ModalBody maxH="70vh" overflowY="auto">
             <Text color="orange.300" mb={4}>
-              {isBilled
-                ? t('trips.readOnly.billed')
-                : t('trips.readOnly.cancelled')}
+              {t('trips.readOnly.cancelled')}
             </Text>
             <VStack spacing={2} align="stretch">
               <Text fontSize="sm" color="gray.400">{t('trips.labels.date')}: {trip.trip_date}</Text>
@@ -249,8 +237,8 @@ export const TripModal: React.FC<TripModalProps> = ({
               <Text fontSize="sm" color="gray.400">{t('trips.labels.distance')}: {trip.distance_km} km</Text>
               <Text fontSize="sm" color="gray.400">{t('trips.labels.category')}: {trip.trip_category}</Text>
               <Text fontSize="sm" color="gray.400">{t('trips.labels.purpose')}: {trip.trip_purpose}</Text>
-              {trip.contact?.company_name && (
-                <Text fontSize="sm" color="gray.400">{t('trips.labels.client')}: {trip.contact.company_name}</Text>
+              {trip.client_name && (
+                <Text fontSize="sm" color="gray.400">{t('trips.labels.client')}: {trip.client_name}</Text>
               )}
               {trip.project_name && (
                 <Text fontSize="sm" color="gray.400">{t('trips.labels.project')}: {trip.project_name}</Text>
@@ -286,7 +274,7 @@ export const TripModal: React.FC<TripModalProps> = ({
             onSubmit={handleSubmit}
             enableReinitialize
           >
-            {({ isSubmitting, values, setFieldValue, errors, touched }) => (
+            {({ isSubmitting, errors, touched }) => (
               <Form>
                 <ModalBody maxH="70vh" overflowY="auto">
                   <VStack spacing={3}>
@@ -366,16 +354,12 @@ export const TripModal: React.FC<TripModalProps> = ({
                       </FormControl>
                     </HStack>
 
-                    {/* Contact + Project */}
+                    {/* Klant + Project */}
                     <HStack w="full" spacing={3}>
                       <FormControl flex={1}>
                         <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.client')}</FormLabel>
-                        <Field as={Select} name="contact_id" size="sm"
-                          bg="gray.700" color="white" borderColor="gray.600" placeholder="—">
-                          {contacts.map(c => (
-                            <option key={c.id} value={c.id}>{c.company_name}</option>
-                          ))}
-                        </Field>
+                        <Field as={Input} name="client_name" size="sm" maxLength={255}
+                          bg="gray.700" color="white" borderColor="gray.600" />
                       </FormControl>
                       <FormControl flex={1}>
                         <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.project')}</FormLabel>
@@ -389,20 +373,6 @@ export const TripModal: React.FC<TripModalProps> = ({
                       <FormLabel color="gray.300" fontSize="sm">{t('trips.labels.notes')}</FormLabel>
                       <Field as={Textarea} name="notes" size="sm" rows={2}
                         bg="gray.700" color="white" borderColor="gray.600" />
-                    </FormControl>
-
-                    {/* Billable toggle */}
-                    <FormControl display="flex" alignItems="center">
-                      <FormLabel color="gray.300" fontSize="sm" mb={0}>{t('trips.labels.billable')}</FormLabel>
-                      <Field name="is_billable">
-                        {({ field }: FieldProps) => (
-                          <Switch
-                            isChecked={field.value}
-                            onChange={(e) => setFieldValue('is_billable', e.target.checked)}
-                            colorScheme="orange"
-                          />
-                        )}
-                      </Field>
                     </FormControl>
 
                     {/* Correction reason — edit mode only */}

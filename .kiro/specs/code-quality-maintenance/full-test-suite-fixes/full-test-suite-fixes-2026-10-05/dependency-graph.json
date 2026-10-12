@@ -1,0 +1,115 @@
+{
+  "specId": "9e34295d-e952-4f69-a0be-7ec0ebfa02e7",
+  "spec": "full-test-suite-fixes-2026-10-05",
+  "ciRun": 37278831648,
+  "ciRunNumber": 53,
+  "ciConclusion": "failure",
+  "ciHeadSha": "6301234f41eccfb0cd41cffb675af503386cd012",
+  "ciHeadBranch": "main",
+  "ciEvent": "schedule",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #53, 2026-10-05)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1",
+      "H2"
+    ],
+    "medium": [],
+    "low": [
+      "L1",
+      "L2",
+      "L3",
+      "L4"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Fix stale os patch target in test_landing_page_contact.py (F1, 1 failing test)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "FIX-INDUCED regression from 10-04 H2. test_landing_page_contact.py::TestSendContactNotificationHelper::test_no_email_configured_skips_send decorates with @patch(\"routes.landing_page_routes.os.getenv\", return_value=\"false\") (line ~425), but backend/src/routes/landing_page_routes.py no longer imports os (confirmed: grep 'import os|os.' -> no matches). The 10-04 F401 autofix removed the then-unused 'import os', orphaning the patch target -> AttributeError: module 'routes.landing_page_routes' has no attribute 'os'. Fix in the TEST, not production: do NOT re-add import os to satisfy the patch. Repoint at the real config seam the handler uses now (patch os.getenv on the module that still imports os and that the handler delegates to, OR use the mock_env fixture per backend testing standards, OR drive the value through the handler's parameter/config if it was refactored to take it). Prefer mock_env where it fits."
+    },
+    {
+      "id": "H2",
+      "title": "Treat Airbnb Bevestigingscode as an opaque string in grouping so numeric-looking codes aren't coerced (F2, 1 failing test)",
+      "priority": "high",
+      "effort": "M",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "test_str_airbnb_parser_grouping_property.py::TestAirbnbGroupingProperty::test_one_booking_per_code_payout_excluded fails 'assert {\"0.0\"} == {\"0000E0\"}'. Hypothesis minimised a falsifying example with Bevestigingscode='0000E0' (looks like scientific notation -> 0.0). process_airbnb_multi groups by Bevestigingscode; somewhere the group key is passed through numeric coercion (float/Decimal round-trip or dtype inference, e.g. pandas read_csv inferring the column as float), turning '0000E0' into '0.0' so the produced key no longer matches the original string. DETERMINISTIC/reproducible via @reproduce_failure('6.92.1', b'AAEBAAEAAQABAAEOAQAAAAAB'); NOT a deadline/flaky non-determinism issue (derandomize/deadline remedy does NOT apply). Fix in the PARSER: read and use the confirmation code as a stripped string end-to-end, never float()/int()/Decimal() it, force dtype=str for that column if a numeric-inferring reader is involved. Keep the test assertion as-is (airbnb-export-format-update Property 3 treats the code as a verbatim identifier string)."
+    },
+    {
+      "id": "L1",
+      "title": "Broaden pre-push guard from collect-only to ruff check + ruff format --check + changed-path tests",
+      "priority": "low",
+      "effort": "M",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "Carried forward from 10-03 L1 / 10-04 L1 (still open). 5 consecutive red cycles entered via branch commits that only surface at the next scheduled run. This cycle's F1 is the textbook case: a 'ruff --fix' removed an import and the test that patched it was never re-run. A pre-push changed-path pytest subset (map edited src/** -> paired tests, e.g. test_maintenance scoped_runner --git-diff) plus 'cd backend && ruff check src/ && ruff format --check src/' would have blocked F1 pre-push. Keep the SKIP_PREPUSH_* escape hatch; fail on non-zero."
+    },
+    {
+      "id": "L2",
+      "title": "Add a changed-symbol/@patch-target drift check so a lint autofix can't silently orphan a patch target",
+      "priority": "low",
+      "effort": "S",
+      "plane": "backend",
+      "type": "prevention",
+      "rootCause": "Durable prevention for the F1 class. F1 happened because ruff --fix deleted 'import os' from a module while a test still did @patch('...landing_page_routes.os...'); nothing flagged the now-dangling patch target. Extend the test-maintenance drift detector (backend/scripts/test_maintenance/) to resolve each @patch(...)/patch.object(...) target string against the current module and report any whose attribute is no longer importable. Wire into the scanner --maintenance-session list."
+    },
+    {
+      "id": "L3",
+      "title": "(Report-only, non-blocking) Sweep cheap report-only lint debt (SAM ruff 329, FE ESLint 1117, FE tsc 8)",
+      "priority": "low",
+      "effort": "M",
+      "plane": "lint",
+      "type": "hygiene",
+      "rootCause": "None of this blocks CI (these planes run report-only), but the debt is drifting up unnoticed. SAM ruff 329 findings = 291 F401 (unused imports, 'cd sam && ruff check . --fix' then re-run sam suite) + 38 residual (I001 x11, RUF022 x6, SIM102 x4, UP037 x3, RUF100 x3, B017 x3, TRY004 x2, PYI034 x1, PLW1510 x1, PIE810 x1, PIE804 x1). FE ESLint 1117 (6 errors + 1111 warnings; 1 err + 196 warn auto-fixable). FE ESLint 6 errors: prefer-const MembersTypedField.tsx:424; no-constant-binary-expression BankingFileUpload.account-scoped-dedupe-preservation.test.tsx:306; no-useless-escape x2 zzp/ContactModal.tsx:69; no-useless-escape x2 pages/public/blocks/ContactBlock.tsx:79. FE tsc 8 errors: AppRoutes.tsx:90 (mode prop not on UserMenuProps), useBankingPatterns.test.ts:134 / useBankingUpload.test.ts:198 (mocked setter typing .mockClear/.mock), routePresetService.test.ts:53/62 + vehicleService.test.ts:75 (label not in Partial<...>), BankingFileUpload...dedupe-preservation.test.tsx:306 always-truthy. Do each as an independent low-risk sweep; not required for green CI."
+    },
+    {
+      "id": "L4",
+      "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "Standing reproducibility guard carried forward from 10-03 L3 / 10-04 L4. Backend lint is green this cycle; keep local 0.16.5 == CI 0.16.5 so results stay reproducible and a silent version bump can't reintroduce a wall of findings."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L2",
+      "type": "recommended-after",
+      "reason": "fix the orphaned patch target first, then add the drift check that would have caught it so the F1 class can't recur"
+    },
+    {
+      "from": "H1",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "H1 is exactly the regression a changed-path pre-push test run would have blocked; wire L1 once F1 is green"
+    }
+  ],
+  "recommendedOrder": [
+    "H1",
+    "H2",
+    "L1",
+    "L2",
+    "L3",
+    "L4"
+  ],
+  "notes": [
+    "CI run #53 (id 37278831648) is RED with ONE failing job (Backend Full Test Suite: 2 failed of 6938). Backend Lint & Static Analysis, SAM Module-Plane (1247 tests) and Frontend (2928 tests) are GREEN. The two backend failures are INDEPENDENT (no shared root cause).",
+    "BIG IMPROVEMENT: backend failures 46 (10-03) -> 17 (10-04) -> 2 (10-05); AND the whole Backend Lint job recovered 10-04's 39 ruff + 17 format -> 0 + 0. Cleanest run in the recent arc.",
+    "HELD GREEN: the 10-04 cursor-mock cluster (G1/G3/G4, H1), env-isolation drift (G2, H4), and test_duplicate_checker continue-decision (10-04 M1) are all green this cycle - no recurrence of the chronic twice-recurred preservation/banking cluster.",
+    "REGRESSION (fix-induced): F1 (test_landing_page_contact.py) is newly red as a DIRECT side-effect of the 10-04 H2 'import os' F401 sweep - removing the unused import from landing_page_routes.py orphaned a @patch('routes.landing_page_routes.os.getenv') target. Confirmed against source: the module has no 'import os'. Mirror image of the 10-04 pattern: a change landed without re-running the tests referencing the touched symbol.",
+    "F2 is NOT fix-induced: a pre-existing numeric-coercion edge case Hypothesis minimised to Bevestigingscode='0000E0' (-> '0.0'). Deterministic once pinned (@reproduce_failure 6.92.1); may appear/disappear between runs via the Hypothesis example DB, but the underlying bug is stable.",
+    "Hypothesis caveat: F2 prints 'Falsifying example' + @reproduce_failure. DETERMINISTIC minimised failure, NOT deadline/flaky - the derandomize=True + deadline=None remedy (CI Lesson Rule 2) does NOT apply; debug via the reproduce decorator as an ordinary assertion failure. Lesson: identifier-like fields that look numeric must stay opaque strings, never round-tripped through float/numeric dtype inference.",
+    "META-PATTERN (continued, 5th cycle but shrinking): breakage keeps entering via branch commits that only surface at the next scheduled run. The 10-03/10-04 L1 pre-push broadening (ruff + changed-path tests) is STILL open and would have caught F1 pre-push - carried forward as L1 and reinforced by L2 (stale-@patch-target drift check).",
+    "Report-only (non-blocking) debt is accumulating quietly and did NOT cause the red run: FE ESLint 1117 (6 err/1111 warn), FE tsc 8, SAM ruff 329 (291 F401). Tracked as L3; cheap F401/error sweeps worth doing before these planes are ever promoted to blocking.",
+    "Ruff version: CI 0.16.5 == local 0.16.5. Lint is green regardless; no version-mismatch question this cycle.",
+    "No Critical and no Medium tasks this cycle: no collection/import errors (both failures ran), and no carried-over property failures remain (10-04 M1 is green)."
+  ]
+}

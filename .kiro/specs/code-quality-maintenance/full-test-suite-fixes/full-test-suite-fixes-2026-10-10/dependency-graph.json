@@ -1,0 +1,143 @@
+{
+  "specId": "b884d9c2-986d-4731-bebd-6545b71ebdd0",
+  "spec": "full-test-suite-fixes-2026-10-10",
+  "ciRun": 38056285364,
+  "ciRunNumber": 60,
+  "ciConclusion": "failure",
+  "ciHeadSha": "c4e30fab87d0285d3f9ae533416a266c6ca43ac3",
+  "ciHeadBranch": "test",
+  "ciEvent": "workflow_dispatch",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #60, 2026-10-10)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1",
+      "H2",
+      "H3",
+      "H4",
+      "H5"
+    ],
+    "medium": [],
+    "low": [
+      "L1",
+      "L2",
+      "L3"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Update stale expected-set in test_parameter_admin_routes.py for the 3 new Members mail_* keys (F1, 1 failing test)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "test_parameter_admin_routes.py::TestParameterSchemaEndpointMembersGating::test_schema_members_tenant_permits_members_namespace asserts set(params.keys()) == {field_overlay, mail_enabled, scope_dimensions, view_contexts} at line ~567. The parameter-schema endpoint now ALSO returns the new Members mail namespace keys mail_certified, mail_domain, mail_local_part (same feature that added members_config_validation.py's mail_local_part/mail_certified validators). AssertionError lists those three as extra items in the actual (left) set. Feature-vs-test drift: production is correct, the test's frozen expected set is stale. Fix in the TEST: add the three keys to the expected set after confirming against the schema source they are intentional. Do NOT change production."
+    },
+    {
+      "id": "H2",
+      "title": "Fix Members tenant-switch role re-resolution so 'Members Overview' surfaces after switch to h-dcn (F2, 1 failing test)",
+      "priority": "high",
+      "effort": "M",
+      "plane": "frontend",
+      "type": "fix",
+      "rootCause": "tenantSwitchRoles.test.tsx > 're-resolves roles on switch to h-dcn' expects after an in-app tenant switch to h-dcn that Tenant Administration hides and a button named /Members Overview/ appears (fetch carrying X-Tenant: h-dcn). TestingLibraryElementError: Unable to find an accessible element with role 'button' and name /Members Overview/ -> the Members Overview nav entry is not rendered post-switch. Needs production-vs-test triage: either role re-resolution/nav gating no longer exposes Members Overview for h-dcn (fix production), or the label/role drifted (fix test). Prefer the production path if the switch genuinely stopped surfacing the entry. Files: frontend/src/context TenantContext/role resolver + Members Overview nav item; test frontend/src/context/__tests__/tenantSwitchRoles.test.tsx."
+    },
+    {
+      "id": "H3",
+      "title": "Fix Members session-column filter composition so excluded rows are filtered out (F3/F4, 2 failing tests, one cluster)",
+      "priority": "high",
+      "effort": "M",
+      "plane": "frontend",
+      "type": "fix",
+      "rootCause": "Two MembersPage.sessionColumns.test.tsx failures share one shape: expect(element).not.toBeInTheDocument() but 'found <td>' - a row expected to be excluded (Marie) stays in the DOM. (R2.4) AND-composition of a chosen-column filter with the global all-fields search (global search value 'regulier'; stats strip total 3 / filtered 2) does not drop the extra row; (OQ-1/R3.3) the saved column list after a view-context switch likewise leaves a row that should be absent. Shared cause = Members session-column filter composition / re-application. Files: frontend/src/pages/MembersPage.* column-chooser + global-search filter composition; test frontend/src/pages/__tests__/MembersPage.sessionColumns.test.tsx. Prefer fixing the filter if the behaviour genuinely broke."
+    },
+    {
+      "id": "H4",
+      "title": "Clear 3 CI-blocking ruff-lint errors in new Members routes (G201 x2, RUF100 x1)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "Backend Lint job red on 3 ruff errors (ruff 0.16.5, CI-blocking). members_sender_identity_routes.py:90:16 and :156:16 = G201 (use logger.exception(msg) instead of logger.error(msg, exc_info=True) in the except block; manual, 2 sites). members_analytics_audit.py:107:29 = RUF100 unused '# noqa' directive for non-enabled BLE001 (auto-fixable: ruff check --fix). All in new Members sender-identity/analytics-audit routes - same feature family as F1 and the format findings. 1 of 3 fixable with --fix."
+    },
+    {
+      "id": "H5",
+      "title": "Reformat the 2 ruff-format files from the new Members mail-config feature",
+      "priority": "high",
+      "effort": "S",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "Ruff Format red on 2 files (325 already formatted). members_analytics_audit.py:85 (split f-string collapses to one line) and members_config_validation.py:411,433 (re-wrap MembersConfigError({...}) dict/call). Both are new Members mail-config feature files - the same change that added the mail_local_part keys driving F1. Purely mechanical: ruff format src/."
+    },
+    {
+      "id": "L1",
+      "title": "Broaden pre-push guard from collect-only to ruff check + ruff format --check + changed-path tests",
+      "priority": "low",
+      "effort": "M",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "Carried forward from 10-03/10-04/10-05 L1 (STILL open). FOURTH consecutive cycle this guard would have prevented the red Backend Lint job: new Members files landed un-linted (H4) and un-formatted (H5), and a schema key-set grew without its paired test (H1). A pre-push 'cd backend && ruff check src/ && ruff format --check src/' plus a changed-path pytest subset (edited src/** -> paired tests, e.g. test_maintenance scoped_runner --git-diff) would have blocked H1/H4/H5 pre-push. Keep the SKIP_PREPUSH_* escape hatch; fail on non-zero."
+    },
+    {
+      "id": "L2",
+      "title": "Add schema/enum key-set <-> expected-set drift check so growing a key set can't silently break a frozen-set test",
+      "priority": "low",
+      "effort": "S",
+      "plane": "backend",
+      "type": "prevention",
+      "rootCause": "Durable prevention for the F1 class (feature-vs-test drift). F1 happened because the parameter schema gained mail_certified/mail_domain/mail_local_part while test_parameter_admin_routes.py asserted a hard-coded set(x.keys()) == {literal}; nothing flagged the divergence until CI. Extend the test-maintenance drift detector (backend/scripts/test_maintenance/) to find tests asserting a literal key-set against a schema/config source and flag when the source's key set no longer matches. Wire into the scanner --maintenance-session list."
+    },
+    {
+      "id": "L3",
+      "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "Standing reproducibility guard carried forward from 10-03 L3 / 10-04 L4 / 10-05 L4. CI ran ruff 0.16.5; the 3 lint + 2 format findings are real new debt on the branch, NOT a version drift. Keep local 0.16.5 == CI 0.16.5 so results stay reproducible and a silent version bump can't reintroduce a wall of findings."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L2",
+      "type": "recommended-after",
+      "reason": "fix the stale expected-set first, then add the key-set drift check that would have caught it so the F1 class can't recur"
+    },
+    {
+      "from": "H4",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "H4/H5 are exactly the un-linted new-file debt a pre-push ruff gate would have blocked; wire L1 once the lint job is green"
+    },
+    {
+      "from": "H5",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "same pre-push ruff format --check gate would have blocked H5; wire L1 after format is green"
+    }
+  ],
+  "recommendedOrder": [
+    "H4",
+    "H5",
+    "H1",
+    "H2",
+    "H3",
+    "L1",
+    "L2",
+    "L3"
+  ],
+  "notes": [
+    "CI run #60 (id 38056285364) is RED with THREE red jobs: Backend Full Test Suite (1 failed of 7068), Frontend (3 failed of 3602, 2 files), Backend Lint & Static Analysis (3 ruff + 2 format). SAM Module-Plane is GREEN. The failures are NOT one shared root cause but they all trace to the SAME feature family: Members work (mail config namespace + sender-identity/analytics-audit routes + Members UI) landed on branch 'test' without the full suite + lint run together.",
+    "DIRECTION SHIFT vs the 10-05 arc: 10-02->10-05 was converging on green (backend 46->17->2, lint recovered to 0+0). This 'test'-branch cycle re-opened TWO planes that were green at 10-05 - Frontend 0->3 and Backend Lint 0->3 ruff + 0->2 format - while backend tests kept improving 2->1.",
+    "HELD GREEN: the 10-05 backend fixes held - F1 (stale os patch in test_landing_page_contact.py) and F2 (Airbnb Bevestigingscode numeric coercion) did NOT recur. SAM held green for a fourth consecutive cycle; Vulture green across the arc.",
+    "F1 (backend) is feature-vs-test drift: the parameter schema gained mail_certified/mail_domain/mail_local_part but the frozen expected set in test_parameter_admin_routes.py:567 was not updated. Fix in the TEST (add the keys), not production.",
+    "F2 (frontend) tenant-switch role re-resolution: 'Members Overview' button not found after switch to h-dcn. Needs production-vs-test triage; prefer production if the switch genuinely stopped surfacing the nav entry.",
+    "F3/F4 (frontend) are ONE cluster: Members session-column filter composition - an excluded row (Marie) stays in the DOM when a chosen-column filter is AND-composed with the global search, and when the saved column list survives a view-context switch.",
+    "Lint findings are all mechanical and all in NEW Members files: G201 x2 (members_sender_identity_routes.py - logger.exception vs logger.error exc_info=True), RUF100 x1 (members_analytics_audit.py, auto-fixable), ruff-format x2 (members_analytics_audit.py + members_config_validation.py). 1 of 3 ruff errors + both format files are --fix/format-able; the 2 G201 are a trivial manual idiom swap.",
+    "META-PATTERN: breakage entered via Members feature work merged on a branch without the full suite/lint. The 10-03->10-05 L1 pre-push broadening (ruff + changed-path tests) is STILL open and would have blocked H1/H4/H5 pre-push - FOURTH consecutive cycle it would have helped. Carried forward as L1 and reinforced by L2 (schema key-set drift check).",
+    "No recurring failures from 10-05 this cycle; all failures are new. No Critical (no collection/import errors - the backend failure ran) and no Medium (no carried-over property failures) tasks.",
+    "Ruff version: CI 0.16.5 == local 0.16.5. The lint findings are genuine new debt, not a version-mismatch artifact (L3 standing guard)."
+  ]
+}

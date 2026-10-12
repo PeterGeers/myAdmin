@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 from datetime import date, datetime
 from decimal import Decimal
 
+from hypothesis import given, settings, strategies as st
+
 from services.zzp_trip_service import TripService
 
 
@@ -438,12 +440,16 @@ class TestGetTrip:
     """Tests for TripService.get_trip."""
 
     def test_existing_trip_returns_data(self):
-        """Getting an existing trip returns formatted dict with contact."""
+        """Getting an existing trip returns the free-text client_name directly.
+
+        Post-redesign the SELECT carries ``client_name`` and performs no
+        contacts JOIN, so the result has no nested ``contact`` object and no
+        ``contact_id`` field (Req 4.5).
+        """
         db = Mock()
-        db.execute_query = Mock(side_effect=[
-            [_trip_row()],       # SELECT trip
-            [{"id": 5, "company_name": "Acme BV"}],  # enrich contacts
-        ])
+        row = _trip_row({"client_name": "Acme BV"})
+        # The redesigned read path issues a single SELECT (no contacts JOIN).
+        db.execute_query = Mock(return_value=[row])
         svc = _make_service(db=db)
 
         result = svc.get_trip(TENANT, 1)
@@ -451,7 +457,8 @@ class TestGetTrip:
         assert result is not None
         assert result["id"] == 1
         assert result["trip_date"] == "2026-07-13"
-        assert result["contact"] == {"id": 5, "company_name": "Acme BV"}
+        assert result["client_name"] == "Acme BV"
+        assert "contact" not in result
 
     def test_non_existent_trip_returns_none(self):
         """Getting a non-existent trip returns None."""
@@ -545,8 +552,13 @@ class TestListTrips:
         count_query = db.execute_query.call_args_list[0][0][0]
         assert "trip_category = %s" in count_query
 
-    def test_filter_by_contact_id(self):
-        """Filter by contact_id adds WHERE clause."""
+    def test_filter_by_contact_id_is_ignored(self):
+        """A ``contact_id`` filter is silently ignored, not wired to WHERE.
+
+        Post-redesign the billing/contact-link filter is dropped from the
+        WHERE builder, so the query is identical to one without it and raises
+        no error (Req 4.3).
+        """
         db = Mock()
         db.execute_query = Mock(side_effect=[
             [{"total": 0}],
@@ -557,10 +569,18 @@ class TestListTrips:
         svc.list_trips(TENANT, filters={"contact_id": 5})
 
         count_query = db.execute_query.call_args_list[0][0][0]
-        assert "contact_id = %s" in count_query
+        assert "contact_id" not in count_query
+        # 5 was passed as a filter value but must not reach the params.
+        count_params = db.execute_query.call_args_list[0][0][1]
+        assert 5 not in count_params
 
-    def test_filter_by_is_billed(self):
-        """Filter by is_billed adds WHERE clause."""
+    def test_filter_by_is_billed_is_ignored(self):
+        """An ``is_billed`` filter is silently ignored, not wired to WHERE.
+
+        Post-redesign the billing filter is dropped from the WHERE builder,
+        so the query is identical to one without it and raises no error
+        (Req 4.3).
+        """
         db = Mock()
         db.execute_query = Mock(side_effect=[
             [{"total": 0}],
@@ -571,7 +591,7 @@ class TestListTrips:
         svc.list_trips(TENANT, filters={"is_billed": True})
 
         count_query = db.execute_query.call_args_list[0][0][0]
-        assert "is_billed = %s" in count_query
+        assert "is_billed" not in count_query
 
     def test_filter_by_is_gap_fill(self):
         """Filter by is_gap_fill adds WHERE clause."""
@@ -622,74 +642,13 @@ class TestListTrips:
         assert result["data"] == []
 
 
-# ── enrich_with_contacts ────────────────────────────────────
-
-
-class TestEnrichWithContacts:
-    """Tests for TripService.enrich_with_contacts."""
-
-    def test_trips_with_contacts_enriched(self):
-        """Trips with contact_id get nested contact object."""
-        db = Mock()
-        db.execute_query = Mock(return_value=[
-            {"id": 5, "company_name": "Acme BV"},
-            {"id": 8, "company_name": "Widget Corp"},
-        ])
-        svc = _make_service(db=db)
-
-        trips = [
-            {"id": 1, "contact_id": 5},
-            {"id": 2, "contact_id": 8},
-        ]
-        result = svc.enrich_with_contacts(TENANT, trips)
-
-        assert result[0]["contact"] == {"id": 5, "company_name": "Acme BV"}
-        assert result[1]["contact"] == {"id": 8, "company_name": "Widget Corp"}
-
-    def test_trips_without_contacts_get_none(self):
-        """Trips without contact_id get contact=None."""
-        db = Mock()
-        svc = _make_service(db=db)
-
-        trips = [{"id": 1, "contact_id": None}]
-        result = svc.enrich_with_contacts(TENANT, trips)
-
-        assert result[0]["contact"] is None
-        # No DB call needed when no contact_ids
-        db.execute_query.assert_not_called()
-
-    def test_orphaned_fk_returns_none(self):
-        """Trip with contact_id pointing to non-existent contact gets None."""
-        db = Mock()
-        db.execute_query = Mock(return_value=[])  # Contact not found
-        svc = _make_service(db=db)
-
-        trips = [{"id": 1, "contact_id": 999}]
-        result = svc.enrich_with_contacts(TENANT, trips)
-
-        assert result[0]["contact"] is None
-
-    def test_batch_query_optimization(self):
-        """Multiple trips with different contacts use a single batch query."""
-        db = Mock()
-        db.execute_query = Mock(return_value=[
-            {"id": 5, "company_name": "Acme BV"},
-            {"id": 8, "company_name": "Widget Corp"},
-        ])
-        svc = _make_service(db=db)
-
-        trips = [
-            {"id": 1, "contact_id": 5},
-            {"id": 2, "contact_id": 8},
-            {"id": 3, "contact_id": 5},  # duplicate contact_id
-        ]
-        svc.enrich_with_contacts(TENANT, trips)
-
-        # Only ONE query should have been made (batch)
-        assert db.execute_query.call_count == 1
-        # Query should use IN clause with deduplicated IDs
-        query = db.execute_query.call_args[0][0]
-        assert "IN" in query
+# ── enrich_with_contacts (REMOVED — task 9.1) ───────────────
+#
+# TestEnrichWithContacts was deleted: the redesign dropped
+# ``TripService.enrich_with_contacts`` entirely. Trips now carry a free-text
+# ``client_name`` directly, with no contacts JOIN and no nested contact object
+# on any read path (Req 4.5). The billing-free read invariant is covered by
+# Property 8 (query side) in TestQueryPropertiesTaxLog below.
 
 
 # ── get_summary ─────────────────────────────────────────────
@@ -1231,10 +1190,16 @@ class TestCreateGapFill:
         data = self._gap_fill_data({"is_gap_fill": False})
         svc.create_gap_fill(TENANT, data, "user@example.com")
 
-        # Verify INSERT params have is_gap_fill=True (position 16)
+        # Verify INSERT params have is_gap_fill=True.
+        # Post-redesign INSERT column order (task 8.1): administration(0),
+        # vehicle_id(1), trip_date(2), start_time(3), end_time(4),
+        # start_address(5), end_address(6), start_odometer(7), end_odometer(8),
+        # trip_category(9), trip_purpose(10), route_description(11),
+        # client_name(12), project_name(13), notes(14), is_gap_fill(15),
+        # created_by(16). No contact_id / is_billable are written (Req 4.6).
         insert_call = db.execute_query.call_args_list[1]
         insert_params = insert_call[0][1]
-        assert insert_params[16] is True
+        assert insert_params[15] is True
 
     @patch("services.zzp_trip_service.TripService.validate_fields")
     def test_does_not_call_detect_gap(self, mock_validate):
@@ -1351,7 +1316,7 @@ class TestGetUnresolvedGaps:
     Unresolved gaps: is_gap_fill=TRUE, trip_purpose='Niet geregistreerd', is_cancelled=FALSE
     """
 
-    def _gap_row(self, id=1, vehicle_id=1, contact_id=None):
+    def _gap_row(self, id=1, vehicle_id=1, client_name=None):
         """Generate a gap-fill trip row as returned by the DB."""
         return _trip_row({
             "id": id,
@@ -1365,17 +1330,17 @@ class TestGetUnresolvedGaps:
             "trip_category": "Privé",
             "trip_purpose": "Niet geregistreerd",
             "is_gap_fill": 1,
-            "contact_id": contact_id,
+            "client_name": client_name,
         })
 
     def test_returns_unresolved_gaps(self):
-        """Returns gap-fill trips that still have purpose 'Niet geregistreerd'."""
+        """Returns gap-fill trips that still have purpose 'Niet geregistreerd'.
+
+        The redesigned path issues a single SELECT (no contacts enrichment).
+        """
         db = Mock()
         gap_rows = [self._gap_row(id=1), self._gap_row(id=2)]
-        db.execute_query = Mock(side_effect=[
-            gap_rows,  # SELECT unresolved gaps
-            [],        # enrich_with_contacts (no contacts)
-        ])
+        db.execute_query = Mock(return_value=gap_rows)
         svc = _make_service(db=db)
 
         result = svc.get_unresolved_gaps(TENANT)
@@ -1385,14 +1350,13 @@ class TestGetUnresolvedGaps:
         assert result[1]["id"] == 2
         assert result[0]["is_gap_fill"] is True
         assert result[0]["trip_purpose"] == "Niet geregistreerd"
+        # No contacts enrichment on the read path (Req 4.5).
+        assert "contact" not in result[0]
 
     def test_filter_by_vehicle_id(self):
         """When vehicle_id is provided, query filters by that vehicle."""
         db = Mock()
-        db.execute_query = Mock(side_effect=[
-            [self._gap_row(id=5, vehicle_id=2)],  # SELECT
-            [],  # enrich_with_contacts
-        ])
+        db.execute_query = Mock(return_value=[self._gap_row(id=5, vehicle_id=2)])
         svc = _make_service(db=db)
 
         result = svc.get_unresolved_gaps(TENANT, vehicle_id=2)
@@ -1455,20 +1419,24 @@ class TestGetUnresolvedGaps:
         query = db.execute_query.call_args[0][0]
         assert "vehicle_id = %s" not in query
 
-    def test_enriches_with_contacts(self):
-        """Results are enriched with contact information."""
+    def test_no_contact_enrichment(self):
+        """Gap results carry client_name directly, with no nested contact.
+
+        The ``enrich_with_contacts`` call site was removed from this path
+        (Req 4.5), so a single SELECT runs and no ``contact`` object appears.
+        """
         db = Mock()
-        gap_row = self._gap_row(id=1, contact_id=5)
-        db.execute_query = Mock(side_effect=[
-            [gap_row],  # SELECT unresolved gaps
-            [{"id": 5, "company_name": "Acme BV"}],  # enrich_with_contacts
-        ])
+        gap_row = self._gap_row(id=1, client_name="Acme BV")
+        db.execute_query = Mock(return_value=[gap_row])
         svc = _make_service(db=db)
 
         result = svc.get_unresolved_gaps(TENANT)
 
         assert len(result) == 1
-        assert result[0]["contact"] == {"id": 5, "company_name": "Acme BV"}
+        assert result[0]["client_name"] == "Acme BV"
+        assert "contact" not in result[0]
+        # Exactly one query — the SELECT — with no follow-up enrichment query.
+        assert db.execute_query.call_count == 1
 
 
 # ── update_trip ─────────────────────────────────────────────
@@ -1644,18 +1612,32 @@ class TestUpdateTrip:
                 correction_reason="Correction", updated_by="user@example.com",
             )
 
-    def test_billed_trip_cannot_be_edited(self):
-        """Billed trips (is_billed=True) cannot be updated."""
+    def test_update_not_blocked_by_prior_billing_state(self):
+        """Updates proceed regardless of any prior billing value (Req 4.7).
+
+        The old is_billed "cannot be edited" guard was removed in the tax-log
+        redesign; a valid update must complete and persist even when the raw
+        row still carries a stale billing flag from before the migration.
+        """
         db = Mock()
         existing_row = self._existing_trip_row({"is_billed": True})
-        db.execute_query = Mock(return_value=[existing_row])
+        updated_row = _trip_row({"notes": "test", "version": 2})
+        db.execute_query = Mock(side_effect=[
+            [existing_row],    # _get_raw_trip (stale is_billed=True)
+            None,              # UPDATE
+            None,              # audit INSERT
+            [updated_row],     # get_trip SELECT
+        ])
         svc = _make_service(db=db)
 
-        with pytest.raises(ValueError, match="is billed and cannot be edited"):
-            svc.update_trip(
-                TENANT, 1, {"notes": "test"},
-                correction_reason="Correction", updated_by="user@example.com",
-            )
+        result = svc.update_trip(
+            TENANT, 1, {"notes": "test"},
+            correction_reason="Correction", updated_by="user@example.com",
+        )
+
+        assert result is not None
+        assert result["notes"] == "test"
+        assert result["version"] == 2
 
     def test_non_updatable_fields_are_ignored(self):
         """Fields not in UPDATABLE_FIELDS are silently ignored."""
@@ -1846,19 +1828,32 @@ class TestCancelTrip:
         with pytest.raises(ValueError, match="cancel_reason is required"):
             svc.cancel_trip(TENANT, 1, cancel_reason="   ", cancelled_by="user@example.com")
 
-    def test_billed_trip_cannot_be_cancelled(self):
-        """Billed trips (is_billed=True) cannot be cancelled."""
+    def test_cancel_not_blocked_by_prior_billing_state(self):
+        """Cancellation proceeds regardless of any prior billing value (Req 4.8).
+
+        The old is_billed "cannot be cancelled" guard was removed in the
+        tax-log redesign; cancellation must complete even when the raw row
+        still carries a stale billing flag from before the migration.
+        """
         db = Mock()
         existing_row = self._existing_trip_row({"is_billed": True})
-        db.execute_query = Mock(return_value=[existing_row])
+        db.execute_query = Mock(side_effect=[
+            [existing_row],    # _get_raw_trip (stale is_billed=True)
+            None,              # UPDATE (set is_cancelled)
+            None,              # audit INSERT
+        ])
         svc = _make_service(db=db)
 
-        with pytest.raises(ValueError, match="is billed and cannot be cancelled"):
-            svc.cancel_trip(
-                TENANT, 1,
-                cancel_reason="Test reden",
-                cancelled_by="user@example.com",
-            )
+        result = svc.cancel_trip(
+            TENANT, 1,
+            cancel_reason="Test reden",
+            cancelled_by="user@example.com",
+        )
+
+        assert result is True
+        # The cancellation UPDATE was executed (no billing-based rejection).
+        update_query = db.execute_query.call_args_list[1][0][0]
+        assert "is_cancelled = TRUE" in update_query
 
     def test_already_cancelled_trip_blocked(self):
         """Already-cancelled trips cannot be cancelled again."""
@@ -2111,143 +2106,12 @@ class TestGetTripHistory:
         assert result[1]["correction_reason"] == "Dubbel ingevoerd"
 
 
-# ── get_unbilled_trips ──────────────────────────────────────
-
-
-class TestGetUnbilledTrips:
-    """Tests for TripService.get_unbilled_trips.
-
-    Covers: Requirement 6 (Client billing — get unbilled billable trips)
-    Filter: administration + contact_id + is_billable=TRUE + is_billed=FALSE + is_cancelled=FALSE
-    Order: trip_date ASC (oldest first for chronological billing)
-    """
-
-    def _unbilled_row(self, id=1, contact_id=5, trip_date=None):
-        """Generate an unbilled billable trip row."""
-        return _trip_row({
-            "id": id,
-            "contact_id": contact_id,
-            "trip_date": trip_date or date(2026, 7, 10),
-            "is_billable": 1,
-            "is_billed": 0,
-            "is_cancelled": 0,
-        })
-
-    def test_returns_unbilled_trips_for_contact(self):
-        """Returns unbilled billable trips for the specified contact."""
-        db = Mock()
-        rows = [
-            self._unbilled_row(id=1, trip_date=date(2026, 7, 10)),
-            self._unbilled_row(id=2, trip_date=date(2026, 7, 12)),
-        ]
-        db.execute_query = Mock(side_effect=[
-            rows,  # SELECT unbilled trips
-            [{"id": 5, "company_name": "Acme BV"}],  # enrich_with_contacts
-        ])
-        svc = _make_service(db=db)
-
-        result = svc.get_unbilled_trips(TENANT, contact_id=5)
-
-        assert len(result) == 2
-        assert result[0]["id"] == 1
-        assert result[1]["id"] == 2
-        assert result[0]["is_billable"] is True
-        assert result[0]["is_billed"] is False
-        assert result[0]["contact"] == {"id": 5, "company_name": "Acme BV"}
-
-    def test_empty_results_when_no_unbilled_trips(self):
-        """Returns empty list when no unbilled trips exist for the contact."""
-        db = Mock()
-        db.execute_query = Mock(return_value=[])
-        svc = _make_service(db=db)
-
-        result = svc.get_unbilled_trips(TENANT, contact_id=99)
-
-        assert result == []
-
-    def test_tenant_isolation(self):
-        """Query is always scoped by administration (tenant)."""
-        db = Mock()
-        db.execute_query = Mock(return_value=[])
-        svc = _make_service(db=db)
-
-        svc.get_unbilled_trips("tenant_A", contact_id=5)
-
-        query = db.execute_query.call_args[0][0]
-        params = db.execute_query.call_args[0][1]
-        assert "administration = %s" in query
-        assert "tenant_A" in params
-
-    def test_correct_filter_conditions(self):
-        """Query includes all required WHERE conditions for unbilled billing."""
-        db = Mock()
-        db.execute_query = Mock(return_value=[])
-        svc = _make_service(db=db)
-
-        svc.get_unbilled_trips(TENANT, contact_id=5)
-
-        query = db.execute_query.call_args[0][0]
-        params = db.execute_query.call_args[0][1]
-        assert "administration = %s" in query
-        assert "contact_id = %s" in query
-        assert "is_billable = TRUE" in query
-        assert "is_billed = FALSE" in query
-        assert "is_cancelled = FALSE" in query
-        assert "ORDER BY trip_date ASC" in query
-        assert TENANT in params
-        assert 5 in params
-
-    def test_ordered_by_trip_date_ascending(self):
-        """Results are ordered oldest first for chronological billing."""
-        db = Mock()
-        rows = [
-            self._unbilled_row(id=1, trip_date=date(2026, 7, 5)),
-            self._unbilled_row(id=2, trip_date=date(2026, 7, 10)),
-            self._unbilled_row(id=3, trip_date=date(2026, 7, 15)),
-        ]
-        db.execute_query = Mock(side_effect=[
-            rows,  # SELECT (ordered by DB)
-            [{"id": 5, "company_name": "Acme BV"}],  # enrich_with_contacts
-        ])
-        svc = _make_service(db=db)
-
-        result = svc.get_unbilled_trips(TENANT, contact_id=5)
-
-        # Verify ORDER BY ASC in the query
-        query = db.execute_query.call_args_list[0][0][0]
-        assert "ORDER BY trip_date ASC" in query
-        # Results should be in chronological order
-        assert result[0]["trip_date"] == "2026-07-05"
-        assert result[1]["trip_date"] == "2026-07-10"
-        assert result[2]["trip_date"] == "2026-07-15"
-
-    def test_enriches_with_contacts(self):
-        """Results are enriched with contact information."""
-        db = Mock()
-        row = self._unbilled_row(id=1, contact_id=5)
-        db.execute_query = Mock(side_effect=[
-            [row],  # SELECT unbilled trips
-            [{"id": 5, "company_name": "Client BV"}],  # enrich_with_contacts
-        ])
-        svc = _make_service(db=db)
-
-        result = svc.get_unbilled_trips(TENANT, contact_id=5)
-
-        assert len(result) == 1
-        assert result[0]["contact"] == {"id": 5, "company_name": "Client BV"}
-
-    def test_uses_parameterized_query(self):
-        """Query uses %s placeholders (not f-string interpolation) for safety."""
-        db = Mock()
-        db.execute_query = Mock(return_value=[])
-        svc = _make_service(db=db)
-
-        svc.get_unbilled_trips(TENANT, contact_id=5)
-
-        query = db.execute_query.call_args[0][0]
-        # Verify parameterized — no literal tenant or contact_id in query
-        assert TENANT not in query
-        assert "5" not in query.replace("%s", "")
+# ── get_unbilled_trips (REMOVED — task 9.1) ─────────────────
+#
+# TestGetUnbilledTrips was deleted: the redesign dropped
+# ``TripService.get_unbilled_trips`` entirely — there is no callable
+# unbilled-trips service path (Req 4.4). The absence is pinned by
+# TestQueryExamplesTaxLog.test_get_unbilled_trips_not_callable below.
 
 
 # ── mark_as_billed ──────────────────────────────────────────
@@ -2395,3 +2259,706 @@ class TestMarkAsBilled:
         result = svc.mark_as_billed(TENANT, [10], invoice_id=42)
 
         assert result == 0
+
+# ════════════════════════════════════════════════════════════
+# Property-based + example tests — CRUD paths (task 8.2)
+#
+# Feature: rittenregistratie-tax-log-redesign
+#
+# These exercise the post-redesign create / gap-fill / update / cancel paths
+# against a stateful fake zzp_trips store that mirrors the real SQL the
+# TripCrudService + TripQueryService issue. The store deliberately refuses to
+# accept any billing/contact-link column (contact_id, is_billable, is_billed,
+# invoice_id) on INSERT and never returns one on read, so the billing-free
+# invariant is verified structurally rather than by assertion alone.
+#
+# NOTE (coordination): query/list/get property tests are owned by task 9.2 and
+# are intentionally NOT added here.
+# ════════════════════════════════════════════════════════════
+
+
+# Columns the redesigned INSERT writes, in order (task 8.1). distance_km is a
+# generated column (end - start) and is NOT part of the INSERT.
+_INSERT_COLUMNS = [
+    "administration", "vehicle_id", "trip_date", "start_time", "end_time",
+    "start_address", "end_address", "start_odometer", "end_odometer",
+    "trip_category", "trip_purpose", "route_description",
+    "client_name", "project_name", "notes", "is_gap_fill", "created_by",
+]
+
+# Columns that must never be persisted on, or returned from, a trip (Req 4.5, 4.6).
+_FORBIDDEN_BILLING_COLUMNS = (
+    "contact_id", "is_billable", "is_billed", "invoice_id",
+)
+
+VALID_CATEGORIES = ("Zakelijk", "Privé", "Woon-werk")
+
+
+class _FakeTripStore:
+    """A stateful fake DatabaseManager for the zzp_trips CRUD/read paths.
+
+    Simulates just enough of the schema to drive create/gap-fill/update/cancel
+    and the follow-up get_trip read. Enforces the billing-free invariant: the
+    INSERT statement must not reference any forbidden billing column, and reads
+    never surface one.
+    """
+
+    def __init__(self, vehicle_start_odometer=0, prior_end_odometer=None):
+        self.rows = {}          # trip_id -> stored row dict
+        self._next_id = 1
+        self.vehicle_start_odometer = vehicle_start_odometer
+        # Most-recent prior non-cancelled trip end_odometer for the vehicle
+        # (None → fall back to the vehicle's start_odometer in detect_gap).
+        self.prior_end_odometer = prior_end_odometer
+        self.inserted_columns = None   # columns parsed from the last trip INSERT
+
+    # -- helper ---------------------------------------------------------
+    def _store_from_insert(self, params):
+        row = dict(zip(_INSERT_COLUMNS, params))
+        trip_id = self._next_id
+        self._next_id += 1
+        row["id"] = trip_id
+        # Generated column semantics (Req 1.2): distance = end - start.
+        row["distance_km"] = int(row["end_odometer"]) - int(row["start_odometer"])
+        row.setdefault("is_cancelled", False)
+        row.setdefault("cancel_reason", None)
+        row.setdefault("version", 1)
+        row.setdefault("created_at", datetime(2026, 7, 13, 8, 30, 0))
+        row.setdefault("updated_at", datetime(2026, 7, 13, 8, 30, 0))
+        self.rows[trip_id] = row
+        return trip_id
+
+    # -- DatabaseManager surface ---------------------------------------
+    def execute_query(self, query, params=None, fetch=True, commit=False, **kwargs):
+        params = params or ()
+        q = " ".join(query.split())  # collapse whitespace
+        qu = q.upper()
+
+        # Vehicle existence check (_validate_vehicle)
+        if "FROM ZZP_VEHICLES" in qu and "SELECT ID" in qu:
+            return [{"id": params[0]}]
+
+        # detect_gap: previous end_odometer for the vehicle
+        if "SELECT END_ODOMETER FROM ZZP_TRIPS" in qu:
+            if self.prior_end_odometer is None:
+                return []
+            return [{"end_odometer": self.prior_end_odometer}]
+
+        # detect_gap fallback: vehicle start_odometer
+        if "SELECT START_ODOMETER FROM ZZP_VEHICLES" in qu:
+            return [{"start_odometer": self.vehicle_start_odometer}]
+
+        # Trip INSERT
+        if qu.startswith("INSERT INTO ZZP_TRIPS"):
+            # Billing-free invariant: the INSERT must not mention any
+            # forbidden billing/contact column (Req 4.6).
+            for col in _FORBIDDEN_BILLING_COLUMNS:
+                assert col not in q, f"INSERT must not write billing column {col!r}"
+            # Parse the column list for structural assertions.
+            col_blob = q[q.index("(") + 1:q.index(")")]
+            self.inserted_columns = [c.strip() for c in col_blob.split(",")]
+            return self._store_from_insert(params)
+
+        # Audit INSERT
+        if qu.startswith("INSERT INTO ZZP_TRIP_AUDIT"):
+            return None
+
+        # Route-preset learning (SELECT then UPSERT) — tolerate as no-op.
+        if "ZZP_ROUTE_PRESETS" in qu:
+            if qu.startswith("SELECT"):
+                return []
+            return None
+
+        # _get_raw_trip: SELECT * FROM zzp_trips WHERE id = %s AND administration
+        if qu.startswith("SELECT * FROM ZZP_TRIPS"):
+            trip_id = params[0]
+            row = self.rows.get(trip_id)
+            return [dict(row)] if row else []
+
+        # get_trip: SELECT <cols> FROM zzp_trips WHERE id = %s AND administration
+        if qu.startswith("SELECT ID, ADMINISTRATION") and "FROM ZZP_TRIPS" in qu:
+            trip_id = params[0]
+            row = self.rows.get(trip_id)
+            if not row:
+                return []
+            # Reads never surface a billing column (Req 4.5).
+            projected = {k: v for k, v in row.items()
+                         if k not in _FORBIDDEN_BILLING_COLUMNS}
+            return [projected]
+
+        # UPDATE zzp_trips (update_trip / cancel_trip)
+        if qu.startswith("UPDATE ZZP_TRIPS"):
+            # The WHERE clause binds (..., trip_id, tenant); id is second-to-last.
+            trip_id = params[-2]
+            row = self.rows.get(trip_id)
+            if row is None:
+                return 0
+            if "IS_CANCELLED = TRUE" in qu:
+                row["is_cancelled"] = True
+                row["cancel_reason"] = params[0]
+            else:
+                # Field update: SET col = %s, ..., version = %s WHERE id, admin
+                set_blob = q[q.upper().index("SET") + 3:q.upper().index("WHERE")]
+                assignments = [a.strip() for a in set_blob.split(",")]
+                values = list(params[: len(assignments)])
+                for assignment, value in zip(assignments, values):
+                    col = assignment.split("=")[0].strip()
+                    row[col] = value
+            return 1
+
+        return []
+
+
+def _crud_service(store, parameter_service=None):
+    if parameter_service is None:
+        parameter_service = Mock()
+        parameter_service.get_param = Mock(return_value=None)
+    return TripService(db=store, parameter_service=parameter_service)
+
+
+# Hypothesis strategies -------------------------------------------------
+
+_odometer = st.integers(min_value=0, max_value=9_999_999)
+_address = st.text(min_size=1, max_size=120).map(lambda s: s.strip() or "x")
+_client_name = st.one_of(
+    st.none(),
+    st.text(max_size=255),
+)
+
+
+@st.composite
+def _valid_trip_strategy(draw):
+    """A valid trip payload: end strictly greater than start, valid category."""
+    start = draw(st.integers(min_value=0, max_value=9_999_990))
+    end = draw(st.integers(min_value=start + 1, max_value=9_999_999))
+    return {
+        "vehicle_id": 1,
+        "trip_date": "2026-07-13",
+        "start_address": draw(_address),
+        "end_address": draw(_address),
+        "start_odometer": start,
+        "end_odometer": end,
+        "trip_category": draw(st.sampled_from(VALID_CATEGORIES)),
+        "trip_purpose": "Klantbezoek",
+        "project_name": draw(st.one_of(st.none(), st.text(max_size=80))),
+        "notes": draw(st.one_of(st.none(), st.text(max_size=200))),
+        "client_name": draw(_client_name),
+    }
+
+
+class TestCrudPropertiesTaxLog:
+    """Property-based CRUD tests for the tax-log redesign (task 8.2)."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 1: Trip persistence and generated distance
+    @settings(max_examples=100, deadline=None)
+    @given(data=_valid_trip_strategy())
+    def test_property_trip_persistence_and_generated_distance(self, data):
+        """A valid trip persists its fields; distance_km == end - start.
+
+        Validates: Requirements 1.1, 1.2, 1.7
+        """
+        store = _FakeTripStore(prior_end_odometer=data["start_odometer"])
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            result = svc.create_trip(TENANT, data, "user@example.com")
+
+        assert result["success"] is True
+        trip = result["data"]
+        assert trip["trip_date"] == "2026-07-13"
+        assert trip["start_address"] == data["start_address"].strip()
+        assert trip["end_address"] == data["end_address"].strip()
+        assert trip["start_odometer"] == data["start_odometer"]
+        assert trip["end_odometer"] == data["end_odometer"]
+        assert trip["trip_category"] == data["trip_category"]
+        assert trip["trip_purpose"] == data["trip_purpose"]
+        assert trip["project_name"] == data["project_name"]
+        assert trip["notes"] == data["notes"]
+        # Generated distance column (Req 1.2).
+        assert trip["distance_km"] == data["end_odometer"] - data["start_odometer"]
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 2: End-before-start odometer is rejected
+    @settings(max_examples=100, deadline=None)
+    @given(
+        start=st.integers(min_value=1, max_value=9_999_999),
+        delta=st.integers(min_value=0, max_value=1_000),
+    )
+    def test_property_end_before_start_odometer_rejected(self, start, delta):
+        """end <= start is rejected with an odometer error, nothing persisted.
+
+        Validates: Requirement 1.3
+        """
+        end = max(0, start - delta)  # end <= start (equal when delta == 0)
+        data = {
+            "vehicle_id": 1,
+            "trip_date": "2026-07-13",
+            "start_address": "A",
+            "end_address": "B",
+            "start_odometer": start,
+            "end_odometer": end,
+            "trip_category": "Zakelijk",
+            "trip_purpose": "Klantbezoek",
+        }
+        store = _FakeTripStore(prior_end_odometer=start)
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            with pytest.raises(ValueError, match="end_odometer must be greater"):
+                svc.create_trip(TENANT, data, "user@example.com")
+        # Nothing persisted; input values are unchanged (retained for the caller).
+        assert store.rows == {}
+        assert data["start_odometer"] == start
+        assert data["end_odometer"] == end
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 3: Invalid category is rejected
+    @settings(max_examples=100, deadline=None)
+    @given(
+        category=st.text(min_size=1, max_size=30).filter(
+            lambda c: c not in VALID_CATEGORIES
+        ),
+    )
+    def test_property_invalid_category_rejected(self, category):
+        """A category outside the fixed set is rejected, nothing persisted.
+
+        Validates: Requirement 1.5
+        """
+        data = {
+            "vehicle_id": 1,
+            "trip_date": "2026-07-13",
+            "start_address": "A",
+            "end_address": "B",
+            "start_odometer": 100,
+            "end_odometer": 200,
+            "trip_category": category,
+            "trip_purpose": "Klantbezoek",
+        }
+        store = _FakeTripStore(prior_end_odometer=100)
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            with pytest.raises(ValueError, match="Invalid trip_category"):
+                svc.create_trip(TENANT, data, "user@example.com")
+        assert store.rows == {}
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 8: Billing-free invariant (CRUD side)
+    @settings(max_examples=100, deadline=None)
+    @given(data=_valid_trip_strategy(), gap_fill=st.booleans())
+    def test_property_billing_free_invariant(self, data, gap_fill):
+        """Created/gap-filled records never carry a billing/contact field.
+
+        Validates: Requirements 4.5, 4.6
+        """
+        store = _FakeTripStore(prior_end_odometer=data["start_odometer"])
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            if gap_fill:
+                result = svc.create_gap_fill(TENANT, data, "user@example.com")
+            else:
+                result = svc.create_trip(TENANT, data, "user@example.com")
+
+        trip = result["data"]
+        # The INSERT wrote no billing/contact column (enforced in the store too).
+        assert store.inserted_columns is not None
+        for col in _FORBIDDEN_BILLING_COLUMNS:
+            assert col not in store.inserted_columns
+            assert col not in trip
+        # No nested contact object either (Req 4.5).
+        assert "contact" not in trip
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 9: Mutations never blocked by billing state
+    @settings(max_examples=100, deadline=None)
+    @given(
+        data=_valid_trip_strategy(),
+        stale_is_billed=st.booleans(),
+        new_notes=st.text(min_size=1, max_size=60),
+    )
+    def test_property_mutations_not_blocked_by_billing(
+        self, data, stale_is_billed, new_notes
+    ):
+        """Update + cancel complete regardless of any prior billing value.
+
+        Validates: Requirements 4.7, 4.8
+        """
+        store = _FakeTripStore(prior_end_odometer=data["start_odometer"])
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            created = svc.create_trip(TENANT, data, "user@example.com")
+        trip_id = created["data"]["id"]
+
+        # Simulate a stale pre-migration billing flag lingering on the raw row.
+        store.rows[trip_id]["is_billed"] = stale_is_billed
+
+        # Update with a valid payload — must persist, no billing-based rejection.
+        if store.rows[trip_id].get("notes") == new_notes:
+            new_notes = new_notes + "x"
+        with patch.object(TripService, "validate_fields"):
+            updated = svc.update_trip(
+                TENANT, trip_id, {"notes": new_notes},
+                correction_reason="Correctie", updated_by="user@example.com",
+            )
+        assert updated["notes"] == new_notes
+        assert store.rows[trip_id]["notes"] == new_notes
+
+        # Cancel — must complete regardless of the stale billing flag.
+        ok = svc.cancel_trip(
+            TENANT, trip_id, cancel_reason="Afgerond",
+            cancelled_by="user@example.com",
+        )
+        assert ok is True
+        assert store.rows[trip_id]["is_cancelled"] is True
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 17: Gap-detection flag reflects odometer continuity
+    @settings(max_examples=100, deadline=None)
+    @given(
+        prior_end=st.integers(min_value=1, max_value=9_000_000),
+        gap=st.integers(min_value=1, max_value=5_000),
+        has_gap=st.booleans(),
+    )
+    def test_property_gap_detection_reflects_continuity(
+        self, prior_end, gap, has_gap
+    ):
+        """Gap offered iff start_odometer != prior trip's end_odometer.
+
+        Validates: Requirement 10.2
+        """
+        start = prior_end + gap if has_gap else prior_end
+        data = {
+            "vehicle_id": 1,
+            "trip_date": "2026-07-13",
+            "start_address": "A",
+            "end_address": "B",
+            "start_odometer": start,
+            "end_odometer": start + 10,
+            "trip_category": "Zakelijk",
+            "trip_purpose": "Klantbezoek",
+        }
+        store = _FakeTripStore(prior_end_odometer=prior_end)
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            result = svc.create_trip(TENANT, data, "user@example.com")
+
+        if has_gap:
+            # Continuity broken → a gap warning + gap_fill_offer is present.
+            assert "gap_fill_offer" in result
+            gap_warnings = [
+                w for w in result.get("warnings", [])
+                if w["type"] == "odometer_gap"
+            ]
+            assert len(gap_warnings) == 1
+            assert gap_warnings[0]["gap_km"] == gap
+        else:
+            # Odometers continuous → no gap offer.
+            assert "gap_fill_offer" not in result
+            gap_warnings = [
+                w for w in result.get("warnings", [])
+                if w["type"] == "odometer_gap"
+            ]
+            assert gap_warnings == []
+
+
+class TestCrudExamplesTaxLog:
+    """Example-based CRUD tests for the tax-log redesign (task 8.2)."""
+
+    @pytest.mark.parametrize("category", ["Zakelijk", "Privé", "Woon-werk"])
+    def test_three_categories_accepted(self, category):
+        """Each of the three fixed categories is accepted on create (Req 1.4)."""
+        data = {
+            "vehicle_id": 1,
+            "trip_date": "2026-07-13",
+            "start_address": "Amsterdam",
+            "end_address": "Utrecht",
+            "start_odometer": 1000,
+            "end_odometer": 1045,
+            "trip_category": category,
+            "trip_purpose": "Klantbezoek",
+        }
+        store = _FakeTripStore(prior_end_odometer=1000)
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            result = svc.create_trip(TENANT, data, "user@example.com")
+
+        assert result["success"] is True
+        assert result["data"]["trip_category"] == category
+
+    def test_empty_client_name_persists_as_null(self):
+        """An empty/omitted Klant note persists as null on create (Req 2.1)."""
+        data = {
+            "vehicle_id": 1,
+            "trip_date": "2026-07-13",
+            "start_address": "Amsterdam",
+            "end_address": "Utrecht",
+            "start_odometer": 2000,
+            "end_odometer": 2050,
+            "trip_category": "Zakelijk",
+            "trip_purpose": "Klantbezoek",
+            # No client_name key provided at all.
+        }
+        store = _FakeTripStore(prior_end_odometer=2000)
+        svc = _crud_service(store)
+        with patch.object(TripService, "validate_fields"):
+            result = svc.create_trip(TENANT, data, "user@example.com")
+
+        trip_id = result["data"]["id"]
+        # The persisted client_name is null (None), not an empty string.
+        assert store.rows[trip_id]["client_name"] is None
+        assert result["data"]["client_name"] is None
+
+
+# ════════════════════════════════════════════════════════════
+# Property-based + example tests — QUERY paths (task 9.2)
+#
+# Feature: rittenregistratie-tax-log-redesign
+#
+# These exercise the post-redesign get_trip / list_trips read paths against a
+# recording fake zzp_trips store. The store mirrors the real SQL the
+# TripQueryService issues: a single tenant-scoped SELECT per read, no contacts
+# JOIN, and tenant filtering by ``administration``. Rows carry a free-text
+# ``client_name`` and never a billing/contact-link column, so the billing-free
+# read invariant (Property 8) is verified structurally. Query SQL is captured
+# so tenant-isolation (Property 18) and the ignored billing filters (Property 7)
+# can be asserted against the exact statements and bound params.
+#
+# NOTE (coordination): the CRUD create/gap-fill/update/cancel property tests
+# are owned by task 8.2 (TestCrudPropertiesTaxLog) and are not duplicated here.
+# ════════════════════════════════════════════════════════════
+
+
+def _query_trip_row(trip_id, administration, client_name=None, **overrides):
+    """A read-path trip row carrying only post-redesign (non-billing) columns.
+
+    Mirrors the ``_TRIP_COLUMNS`` the redesigned SELECT projects: includes the
+    free-text ``client_name`` and excludes every dropped billing/contact-link
+    column (contact_id, is_billable, is_billed, invoice_id) — Req 4.5.
+    """
+    row = {
+        "id": trip_id,
+        "administration": administration,
+        "vehicle_id": 1,
+        "trip_date": date(2026, 7, 13),
+        "start_time": "08:30",
+        "end_time": "09:15",
+        "start_address": "Keizersgracht 100, Amsterdam",
+        "end_address": "Stationsplein 1, Utrecht",
+        "start_odometer": 45230,
+        "end_odometer": 45275,
+        "distance_km": 45,
+        "trip_category": "Zakelijk",
+        "trip_purpose": "Klantbezoek",
+        "route_description": None,
+        "project_name": "Project Alpha",
+        "notes": None,
+        "client_name": client_name,
+        "is_gap_fill": 0,
+        "is_cancelled": 0,
+        "cancel_reason": None,
+        "version": 1,
+        "created_at": datetime(2026, 7, 13, 8, 30, 0),
+        "updated_at": datetime(2026, 7, 13, 8, 30, 0),
+        "created_by": "user@example.com",
+    }
+    row.update(overrides)
+    return row
+
+
+class _QueryRecordingStore:
+    """A recording fake DatabaseManager for the zzp_trips read paths.
+
+    Holds a fixed set of trip rows keyed by id. ``execute_query`` records every
+    (query, params) pair, then answers COUNT / data SELECTs for ``list_trips``
+    and the single-row SELECT for ``get_trip``. Rows are returned only when the
+    bound tenant matches the row's ``administration`` (the tenant is always the
+    last positional param on these read queries), modelling the real
+    ``WHERE administration = %s`` scoping. Reads never surface a billing column.
+    """
+
+    def __init__(self, rows):
+        # rows: list of row dicts (each carrying an ``administration``)
+        self._rows = [dict(r) for r in rows]
+        self.calls = []  # list of (query, params)
+
+    def execute_query(self, query, params=None, fetch=True, commit=False, **kwargs):
+        params = tuple(params or ())
+        self.calls.append((query, params))
+        qu = " ".join(query.split()).upper()
+
+        # Every read path must be tenant-scoped (Req 10.5).
+        assert "ADMINISTRATION = %S" in qu, (
+            f"read query missing tenant scope: {query!r}"
+        )
+
+        if qu.startswith("SELECT COUNT(*)"):
+            matched = self._match(query, params)
+            return [{"total": len(matched)}]
+
+        # Data SELECT (list) or single-row SELECT (get_trip).
+        matched = self._match(query, params)
+        # Reads never surface a billing/contact column (Req 4.5).
+        return [
+            {k: v for k, v in r.items() if k not in _FORBIDDEN_BILLING_COLUMNS}
+            for r in matched
+        ]
+
+    def _match(self, query, params):
+        """Return the stored rows visible to the bound tenant for this query.
+
+        The redesigned read queries bind the tenant to the first positional
+        param (``WHERE id = %s AND administration = %s`` has the tenant second;
+        ``list_trips`` binds it first). We therefore match any row whose
+        ``administration`` appears anywhere in the bound params — a row is only
+        ever returned to a query that bound its tenant, so an unbound/foreign
+        tenant yields nothing (Req 10.6).
+        """
+        qu = " ".join(query.split()).upper()
+        visible = [r for r in self._rows if r["administration"] in params]
+
+        # get_trip binds a specific id as well.
+        if "WHERE ID = %S" in qu:
+            # id is the first bound param on the get_trip query.
+            trip_id = params[0]
+            visible = [r for r in visible if r["id"] == trip_id]
+        return visible
+
+
+_query_client_name = st.one_of(st.none(), st.text(max_size=255))
+
+
+@st.composite
+def _query_rows_strategy(draw, administration=TENANT, min_rows=0, max_rows=6):
+    """A set of distinct read-path trip rows for one tenant."""
+    n = draw(st.integers(min_value=min_rows, max_value=max_rows))
+    return [
+        _query_trip_row(
+            trip_id=i + 1,
+            administration=administration,
+            client_name=draw(_query_client_name),
+        )
+        for i in range(n)
+    ]
+
+
+class TestQueryPropertiesTaxLog:
+    """Property-based query-path tests for the tax-log redesign (task 9.2)."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 7: Billing filters ignored (metamorphic)
+    @settings(max_examples=100, deadline=None)
+    @given(
+        rows=_query_rows_strategy(),
+        is_billed=st.booleans(),
+        # Kept well clear of the default pagination params (limit=50, offset=0)
+        # so a collision can't make the "value never reached params" check flaky.
+        contact_id=st.integers(min_value=1000, max_value=9999),
+    )
+    def test_property_billing_filters_ignored(self, rows, is_billed, contact_id):
+        """list_trips with is_billed/contact_id filters == without them.
+
+        Metamorphic: adding the removed billing/contact filters to an otherwise
+        identical request must not change the result set and must not error
+        (Req 4.3).
+        """
+        base_store = _QueryRecordingStore(rows)
+        filtered_store = _QueryRecordingStore(rows)
+        base = _crud_service(base_store)
+        filtered = _crud_service(filtered_store)
+
+        baseline = base.list_trips(TENANT)
+        with_billing = filtered.list_trips(
+            TENANT, filters={"is_billed": is_billed, "contact_id": contact_id}
+        )
+
+        # Same set of trip ids and same total — the filters were ignored.
+        assert with_billing["total"] == baseline["total"]
+        assert (
+            [t["id"] for t in with_billing["data"]]
+            == [t["id"] for t in baseline["data"]]
+        )
+        # The ignored filter values never reach the DB params.
+        for query, params in filtered_store.calls:
+            assert "contact_id" not in query
+            assert "is_billed" not in query
+            assert contact_id not in params
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 8: Billing-free invariant (query side)
+    @settings(max_examples=100, deadline=None)
+    @given(rows=_query_rows_strategy(min_rows=1))
+    def test_property_billing_free_invariant_query_side(self, rows):
+        """Retrieved/listed trips carry no billing/contact field.
+
+        Validates: Requirements 4.5, 4.6
+        """
+        svc = _crud_service(_QueryRecordingStore(rows))
+
+        listed = svc.list_trips(TENANT)["data"]
+        assert len(listed) == len(rows)
+        for trip in listed:
+            for col in _FORBIDDEN_BILLING_COLUMNS:
+                assert col not in trip
+            assert "contact" not in trip
+            # The free-text client note is carried through directly.
+            assert "client_name" in trip
+
+        # get_trip for the first row surfaces no billing field either.
+        single = svc.get_trip(TENANT, rows[0]["id"])
+        assert single is not None
+        for col in _FORBIDDEN_BILLING_COLUMNS:
+            assert col not in single
+        assert "contact" not in single
+        assert "client_name" in single
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 18: Tenant isolation on every trip query
+    @settings(max_examples=100, deadline=None)
+    @given(
+        rows=_query_rows_strategy(min_rows=1),
+        tenant=st.text(min_size=1, max_size=40).map(lambda s: s.strip() or "t"),
+    )
+    def test_property_tenant_isolation_on_every_query(self, rows, tenant):
+        """Every get/list query binds WHERE administration = %s to the tenant.
+
+        Validates: Requirement 10.5
+        """
+        store = _QueryRecordingStore(rows)
+        svc = _crud_service(store)
+
+        svc.list_trips(tenant)
+        svc.get_trip(tenant, rows[0]["id"])
+
+        assert store.calls, "no query was issued"
+        for query, params in store.calls:
+            q = " ".join(query.split())
+            assert "administration = %s" in q
+            # The requesting tenant is bound as a positional param.
+            assert tenant in params
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 19: Missing tenant yields no rows
+    @settings(max_examples=100, deadline=None)
+    @given(rows=_query_rows_strategy(min_rows=1))
+    def test_property_missing_tenant_yields_no_rows(self, rows):
+        """A query bound to a tenant that owns no rows returns nothing.
+
+        The rows all belong to ``TENANT``; a query bound to a different (or
+        empty) tenant matches none of them, so the read is scoped out and
+        returns no trip rows (Req 10.6).
+        """
+        store = _QueryRecordingStore(rows)
+        svc = _crud_service(store)
+
+        other = "other_tenant_with_no_trips"
+        listed = svc.list_trips(other)
+        assert listed["total"] == 0
+        assert listed["data"] == []
+        assert svc.get_trip(other, rows[0]["id"]) is None
+
+        # An empty-string tenant likewise matches nothing (no silent default).
+        assert svc.list_trips("")["data"] == []
+
+
+class TestQueryExamplesTaxLog:
+    """Example-based query-path tests for the tax-log redesign (task 9.2)."""
+
+    def test_get_unbilled_trips_not_callable(self):
+        """The unbilled-trips service path no longer exists (Req 4.4)."""
+        svc = _make_service(db=Mock())
+        assert not hasattr(svc, "get_unbilled_trips")
+        with pytest.raises(AttributeError):
+            svc.get_unbilled_trips(TENANT, contact_id=5)
+
+    def test_enrich_with_contacts_removed(self):
+        """The contacts-enrichment service path no longer exists (Req 4.5)."""
+        svc = _make_service(db=Mock())
+        assert not hasattr(svc, "enrich_with_contacts")
