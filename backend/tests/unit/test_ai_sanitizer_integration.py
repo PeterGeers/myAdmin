@@ -23,10 +23,9 @@ class TestAIExtractorSanitization:
 
     @pytest.fixture
     def extractor(self, mock_env):
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                from ai_extractor import AIExtractor
-                ext = AIExtractor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            from ai_extractor import AIExtractor
+            ext = AIExtractor()
         return ext
 
     def test_rejected_content_returns_error(self, extractor):
@@ -244,10 +243,9 @@ class TestInvoiceTestServiceSanitization:
         from services.invoice_test_service import InvoiceTestService
         service = InvoiceTestService()
 
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                from ai_extractor import AIExtractor
-                ai = AIExtractor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            from ai_extractor import AIExtractor
+            ai = AIExtractor()
 
         with patch('requests.post') as mock_post:
             mock_response = MagicMock()
@@ -279,10 +277,9 @@ class TestInvoiceTestServiceSanitization:
         from services.invoice_test_service import InvoiceTestService
         service = InvoiceTestService()
 
-        with patch('ai_extractor.load_dotenv'):
-            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
-                from ai_extractor import AIExtractor
-                ai = AIExtractor()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            from ai_extractor import AIExtractor
+            ai = AIExtractor()
 
         with patch('requests.post') as mock_post:
             # Return response missing 'vendor' field

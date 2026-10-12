@@ -216,25 +216,33 @@ class TestModeConsistency:
 
 
 class TestDotenvLoaderHygiene:
-    """Guard the .env configuration-hygiene fix.
+    """Guard the .env configuration-hygiene fix (approach (a)).
 
-    Every import-time ``load_dotenv()`` under ``backend/src`` must PIN
-    ``backend/.env`` via ``Path(__file__).parent.parent / ".env"`` rather than
-    call the BARE ``load_dotenv()``. A bare call searches the CWD upward, so
-    which .env loads becomes context-dependent: a script run from the repo root
-    makes the backend import the ROOT .env, whose static personal-account AWS
-    keys then clobber boto3's AWS_PROFILE (documented in
-    scripts/onboarding/members/_generic/project-config-to-prod.py). Pinning makes
-    the load deterministic and CWD-independent regardless of where Python starts.
+    Supersedes the earlier "pin backend/.env in every module" guard. Per
+    analysis.md finding F1, pinning the loader to ``backend/.env`` only MOVED the
+    clobber (``backend/.env`` ALSO exports the static personal-account AWS keys),
+    so the pin fix is not the cure. The chosen hygiene fix (approach (a), finding
+    F4) is to REMOVE the import-time ``load_dotenv`` side-effect from the seven
+    backend modules entirely, so importing any of them never mutates process env
+    (and never re-arms the AWS_PROFILE clobber). ``app.py`` remains the SOLE
+    startup loader: it keeps the single pinned ``backend/.env`` load.
+
+    So the intent here is now split:
+      * The seven modules must NOT call ``load_dotenv`` at import and must NOT
+        import it from ``dotenv`` (no import-time side-effect at all).
+      * ``app.py`` must STILL pin ``backend/.env`` via
+        ``load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")``.
 
     These tests parse module SOURCE (they do NOT call load_dotenv — forbidden in
     test files per steering 34 — and never open a DB connection), so they assert
     the property directly without mutating process env.
     """
 
-    # Files whose loaders were pinned (app.py is the reference and already pinned).
     SRC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "src")
-    PINNED_MODULES = [
+
+    # The seven modules whose import-time load_dotenv side-effect was removed
+    # (approach (a)). Importing these must have no dotenv side-effect.
+    DEDOTENVED_MODULES = [
         "database.py",
         "transaction_logic.py",
         "actuals_routes.py",
@@ -242,35 +250,51 @@ class TestDotenvLoaderHygiene:
         "ai_extractor.py",
         "hybrid_pricing_optimizer.py",
         "image_ai_processor.py",
-        "app.py",  # the pattern these mirror
     ]
+
+    # app.py is the one module that legitimately still loads backend/.env at
+    # startup — it is the single, deliberate entry-point loader.
+    STARTUP_LOADER_MODULE = "app.py"
 
     def _read_src(self, filename):
         with open(os.path.join(self.SRC_DIR, filename), "r", encoding="utf-8") as fh:
             return fh.read()
 
-    @pytest.mark.parametrize("filename", PINNED_MODULES)
-    def test_loader_has_no_bare_load_dotenv(self, filename):
+    @pytest.mark.parametrize("filename", DEDOTENVED_MODULES)
+    def test_module_does_not_call_load_dotenv_at_import(self, filename):
         source = self._read_src(filename)
-        # A bare call is load_dotenv with an empty arg list. The pinned form
-        # always passes dotenv_path=..., so no "load_dotenv()" literal may remain.
-        assert "load_dotenv()" not in source, (
-            f"{filename} still calls bare load_dotenv() — it must pin backend/.env "
-            "so the import-time load is CWD-independent."
+        # Approach (a): the import-time load was removed outright. No call of any
+        # form (bare or pinned) may remain in these modules.
+        assert "load_dotenv(" not in source, (
+            f"{filename} still calls load_dotenv() at import — approach (a) "
+            "(analysis.md F4) removed the import-time load from the seven modules "
+            "so importing them never re-injects the static AWS keys. app.py is the "
+            "only startup loader."
         )
 
-    @pytest.mark.parametrize("filename", PINNED_MODULES)
-    def test_loader_pins_backend_env(self, filename):
+    @pytest.mark.parametrize("filename", DEDOTENVED_MODULES)
+    def test_module_does_not_import_load_dotenv(self, filename):
         source = self._read_src(filename)
-        # Accept either literal path layout used across the modules/app.py.
+        # The dotenv import is now unused dead weight (and a re-arming hazard) in
+        # these modules — it must be gone too.
+        assert "from dotenv import load_dotenv" not in source, (
+            f"{filename} still imports load_dotenv from dotenv — remove the unused "
+            "import; approach (a) drops the import-time load entirely."
+        )
+
+    def test_app_py_remains_the_pinned_startup_loader(self):
+        # app.py is the SOLE module that still loads backend/.env, and it must
+        # stay pinned (CWD-independent) via Path(__file__).parent.parent / ".env".
+        source = self._read_src(self.STARTUP_LOADER_MODULE)
         pins_inline = 'dotenv_path=Path(__file__).parent.parent / ".env"' in source
         pins_via_var = (
             'Path(__file__).parent.parent / ".env"' in source
             and "load_dotenv(dotenv_path=" in source
         )
         assert pins_inline or pins_via_var, (
-            f"{filename} must load backend/.env via "
-            'load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env").'
+            f"{self.STARTUP_LOADER_MODULE} must remain the single startup loader, "
+            'pinning backend/.env via load_dotenv(dotenv_path='
+            'Path(__file__).parent.parent / ".env").'
         )
 
     def test_backend_env_resolves_to_backend_dir(self):

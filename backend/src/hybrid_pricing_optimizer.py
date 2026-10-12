@@ -2,10 +2,8 @@ import json
 import os
 import warnings
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
 
 from business_pricing_model import BusinessPricingModel
 from database import DatabaseManager
@@ -13,10 +11,6 @@ from services.ai_model_registry import RegistryError, resolver
 from services.ai_usage_tracker import AIUsageTracker
 
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
-
-# Pin backend/.env so this import-time load never picks up the repo-root .env
-# (prevents the documented AWS-credential clobber + non-deterministic config).
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 
 class HybridPricingOptimizer:
