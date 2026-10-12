@@ -580,6 +580,18 @@ export interface FieldConfig {
    * send path re-checks the gate server-side regardless.
    */
   mail_enabled?: boolean;
+  /**
+   * The DELIVERED/LOADED status of this tenant's projected `config#*` rows (Members config
+   * redesign Phase 0 step 3). A map `{config_id: version | null}` where `config_id` is one of
+   * `scope` / `fields` / `views` / `mail`. The `version` is the monotonic value the
+   * one-directional MySQL→DynamoDB projection advances on every edit: a config id with a
+   * non-null version has been DELIVERED and is what the module LOADS; a `null` version means
+   * that config has NEVER been projected for the tenant ("not yet delivered"). Presentation-
+   * only — the authoring UI compares each version to the source param's own revision to render
+   * a delivered / stale / not-yet-delivered indicator; the module enforces nothing off it.
+   * Absent on an older module build (treated as "status unavailable").
+   */
+  config_status?: Record<string, string | number | null>;
 }
 
 /**

@@ -1030,6 +1030,20 @@ class WritesMixin:
             # gates the result-actions slot). Presentation-only: the module serves it; the
             # worker/send path re-checks the gate server-side regardless (design §9).
             "mail_enabled": self._mail_gate_provider.is_mail_enabled(tenant_id),
+            # The DELIVERED/LOADED status of this tenant's projected config#* rows (Phase 0
+            # step 3, impact-analysis §2 / risk #6). A map {config_id: version|None} sourced
+            # from the injected ConfigStatusProvider — in production the projection reader's
+            # per-row `version` (the monotonic value the one-directional write + the
+            # version-bump-trap fix advance; a config PRESENT with a version is DELIVERED and
+            # is what the module LOADS), a StaticConfigStatusProvider in tests. A `None` version
+            # means that config has NEVER been projected for the tenant ("not yet delivered").
+            # Presentation-only: the authoring UI compares each version to the source param's
+            # own revision to render a delivered / stale / not-yet-delivered indicator; the
+            # module enforces nothing off it (mirrors `mail_enabled` / `view_contexts`).
+            # Empty-is-valid: an unconfigured tenant yields all-None, never a crash.
+            "config_status": dict(
+                self._config_status_provider.get_config_status(tenant_id)
+            ),
         }
 
     @staticmethod

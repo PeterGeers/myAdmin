@@ -33,6 +33,7 @@ const mockGetDefs = vi.fn();
 const mockGetParams = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
+const mockGetStatus = vi.fn();
 
 vi.mock('../../../../services/membersConfigService', async () => {
   const actual = await vi.importActual<
@@ -42,6 +43,9 @@ vi.mock('../../../../services/membersConfigService', async () => {
     ...actual,
     getMembersParameterDefinitions: (...a: unknown[]) => mockGetDefs(...a),
     getMembersParameters: (...a: unknown[]) => mockGetParams(...a),
+    // The delivered/loaded status fetch (Phase 0 step 3) — mocked so the editor test does
+    // not hit the module field-config endpoint; defaults to the all-None status below.
+    getMembersConfigStatus: (...a: unknown[]) => mockGetStatus(...a),
     // saveMembersParameter is the REAL implementation — it must route to exactly one of
     // create/update below, which is what Property 8 (save-once → one request) asserts.
     saveMembersParameter: actual.saveMembersParameter,
@@ -264,6 +268,36 @@ describe('MembersConfigEditor', () => {
     vi.clearAllMocks();
     mockCreate.mockResolvedValue({ success: true });
     mockUpdate.mockResolvedValue({ success: true });
+    // Default: a delivered fields/scope/views projection so the status banner renders.
+    mockGetStatus.mockResolvedValue({
+      fields: '2026-10-12T09:00:00',
+      scope: 3,
+      views: null,
+      mail: null,
+    });
+  });
+
+  describe('projection status banner (Phase 0 step 3)', () => {
+    it('renders the delivered/loaded status from the module config_status', async () => {
+      await renderEditor();
+      const banner = await screen.findByTestId('members-config-status');
+      // fields was delivered → a Delivered badge; views was never delivered → Not yet delivered.
+      expect(
+        within(screen.getByTestId('members-config-status-fields')).getByText('Delivered'),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId('members-config-status-views')).getByText(
+          'Not yet delivered',
+        ),
+      ).toBeInTheDocument();
+      expect(banner).toBeInTheDocument();
+    });
+
+    it('hides the banner when status is unavailable (older module build)', async () => {
+      mockGetStatus.mockResolvedValue({});
+      await renderEditor();
+      expect(screen.queryByTestId('members-config-status')).not.toBeInTheDocument();
+    });
   });
 
   describe('composite-type rendering (four sub-editors)', () => {
