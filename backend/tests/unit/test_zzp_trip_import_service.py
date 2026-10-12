@@ -4,6 +4,7 @@ Unit tests for TripImportService.parse_file method.
 Tests CSV/Excel parsing, column mapping, error handling, and data cleaning.
 """
 import io
+import datetime
 import pytest
 import pandas as pd
 from unittest.mock import MagicMock
@@ -75,7 +76,7 @@ class TestParseCSVSemicolon:
         assert row["end_odometer"] == 45045
         assert row["trip_category"] == "Zakelijk"
         assert row["trip_purpose"] == "Klantbezoek"
-        assert row["contact_name"] == "Acme BV"
+        assert row["client_name"] == "Acme BV"
         assert row["notes"] == "Test rit"
 
     def test_csv_mapped_columns_reported(self, service):
@@ -196,7 +197,7 @@ class TestColumnMapping:
         assert "end_odometer" in row
         assert "trip_category" in row
         assert "trip_purpose" in row
-        assert "contact_name" in row
+        assert "client_name" in row
         assert "notes" in row
 
     def test_custom_mapping(self, service):
@@ -462,7 +463,7 @@ class TestNanNoneHandling:
         result = service.parse_file(stream, "test.csv")
 
         row = result["rows"][0]
-        assert row["contact_name"] is None
+        assert row["client_name"] is None
         assert row["notes"] is None
 
     def test_nan_in_xlsx_becomes_none(self, service):
@@ -483,7 +484,7 @@ class TestNanNoneHandling:
         result = service.parse_file(stream, "test.xlsx")
 
         row = result["rows"][0]
-        assert row["contact_name"] is None
+        assert row["client_name"] is None
         assert row["notes"] is None
 
     def test_whitespace_only_values_become_none(self, service):
@@ -494,7 +495,7 @@ class TestNanNoneHandling:
         result = service.parse_file(stream, "test.csv")
 
         row = result["rows"][0]
-        assert row["contact_name"] is None
+        assert row["client_name"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -651,7 +652,7 @@ class TestCommitImport:
             "end_odometer": 45045,
             "trip_category": "Zakelijk",
             "trip_purpose": "Klantbezoek",
-            "contact_id": None,
+            "client_name": None,
             "project_name": None,
             "notes": "Test import",
             "_status": "ok",
@@ -750,16 +751,25 @@ class TestCommitImport:
             end_odometer=60030,
             trip_category="Privé",
             trip_purpose="Persoonlijk",
-            contact_id=5,
+            client_name="Acme BV",
             project_name="Project X",
             notes="Notitie",
         )
         result = service.commit_import("admin1", 7, [row], "peter@example.com")
 
         assert result["success"] is True
-        # Check the first execute call (INSERT trip)
+        # Check the first execute call (INSERT trip). The post-redesign INSERT
+        # writes 19 columns: no contact_id / is_billable / is_billed / invoice_id;
+        # client_name is written at index 11 and route_description at 14 (Req 2.7,
+        # 4.6). Positional map:
+        #   0 administration, 1 vehicle_id, 2 trip_date, 3 start_time, 4 end_time,
+        #   5 start_address, 6 end_address, 7 start_odometer, 8 end_odometer,
+        #   9 trip_category, 10 trip_purpose, 11 client_name, 12 project_name,
+        #   13 notes, 14 route_description, 15 is_gap_fill, 16 is_cancelled,
+        #   17 version, 18 created_by.
         first_call = mock_cursor.execute.call_args_list[0]
         params = first_call[0][1]
+        assert len(params) == 19
         assert params[0] == "admin1"      # administration
         assert params[1] == 7             # vehicle_id
         assert params[2] == "2026-03-10"  # trip_date
@@ -769,10 +779,9 @@ class TestCommitImport:
         assert params[8] == 60030         # end_odometer
         assert params[9] == "Privé"       # trip_category
         assert params[10] == "Persoonlijk"  # trip_purpose
-        assert params[11] == 5            # contact_id
+        assert params[11] == "Acme BV"    # client_name (replaces contact_id)
         assert params[12] == "Project X"  # project_name
         assert params[13] == "Notitie"    # notes
-        assert params[14] is False        # is_billable
         assert params[15] is False        # is_gap_fill
         assert params[16] is False        # is_cancelled
         assert params[17] == 1            # version
@@ -829,3 +838,633 @@ class TestCommitImport:
         assert result["success"] is True
         assert result["imported"] == 2
         assert result["skipped"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: Surface (c) Excel handling — BUG CONDITION exploration (Task 8)
+# ---------------------------------------------------------------------------
+
+class TestExcelHandlingBugCondition:
+    """Fixed behavior for surface (c): Excel handling (post-fix assertions).
+
+    Property 5 (Expected Behavior) — Correct Sheet Selected, Datetime Dates
+    Normalize, Error Markers Flagged.
+
+    These were originally the bug-condition exploration assertions (task 8) that
+    documented the WRONG behavior on unfixed code. Per the bugfix methodology, the
+    fix (tasks 10.1–10.3) is now applied, so the exploration assertions have been
+    FLIPPED to encode the CORRECT post-fix behavior:
+
+    - The matching second worksheet IS selected (not the decoy first sheet).
+    - A date string carrying a time component normalizes to the date portion, and
+      a datetime/date object normalizes to its ISO date.
+    - An Excel error marker (``#N/A``) in a mapped cell flags the row ``error`` with
+      a message naming the column + marker.
+
+    The scenario-level end-to-end assertions (two-sheet selection, no-match failure,
+    error-marker in-sheet) live in the task-11 ``validate_import`` tests below; these
+    retain the direct unit-level checks of the three fixed behaviors.
+    """
+
+    @pytest.fixture
+    def excel_service(self, mock_db):
+        """TripImportService backed by the shared mock_db (no existing trips)."""
+        mock_db.execute_query.return_value = []
+        return TripImportService(db=mock_db)
+
+    @staticmethod
+    def _make_two_sheet_xlsx() -> io.BytesIO:
+        """Build an .xlsx with a decoy FIRST sheet and a full SECOND sheet.
+
+        - FIRST sheet ``Blad1``: only a subset of headers (missing the required
+          Datum/Bestemming/Begin KM/Eind KM columns).
+        - SECOND sheet ``ritten_import_template``: ALL mapped headers with two
+          continuity-respecting data rows.
+        """
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            decoy = pd.DataFrame({
+                "Vertrekadres": ["Amsterdam", "Utrecht"],
+                "Categorie": ["Zakelijk", "Zakelijk"],
+                "Doel": ["Klantbezoek", "Klantbezoek"],
+                "Klant": ["Acme BV", "Acme BV"],
+                "Notities": ["rit 1", "rit 2"],
+            })
+            decoy.to_excel(writer, sheet_name="Blad1", index=False)
+
+            full = pd.DataFrame({
+                "Datum": ["2026-05-05", "2026-05-06"],
+                "Vertrekadres": ["Amsterdam", "Utrecht"],
+                "Bestemming": ["Utrecht", "Amsterdam"],
+                "Begin KM": ["45000", "45050"],
+                "Eind KM": ["45050", "45100"],
+                "Categorie": ["Zakelijk", "Zakelijk"],
+                "Doel": ["Klantbezoek", "Klantbezoek"],
+                "Klant": ["Acme BV", "Acme BV"],
+                "Notities": ["rit 1", "rit 2"],
+            })
+            full.to_excel(writer, sheet_name="ritten_import_template", index=False)
+        buf.seek(0)
+        return buf
+
+    # -- Property 5(1): Wrong sheet read -----------------------------------
+
+    def test_parse_file_two_sheet_workbook_selects_matching_second_sheet(self, excel_service):
+        """FIXED: parse_file skips the decoy first sheet and selects the matching second.
+
+        Expected behavior — header-matching worksheet selection returns the first
+        sheet whose stripped headers ⊇ the required set. The decoy ``Blad1`` lacks
+        ``Datum/Bestemming/Begin KM/Eind KM``, so the full ``ritten_import_template``
+        sheet is chosen and ``columns_found`` reflects its nine headers.
+        """
+        stream = self._make_two_sheet_xlsx()
+
+        result = excel_service.parse_file(stream, "ritten.xlsx")
+
+        # The matching second sheet is selected — not the decoy first sheet.
+        assert result["success"] is True
+        assert result["columns_found"] == [
+            "Datum", "Vertrekadres", "Bestemming", "Begin KM", "Eind KM",
+            "Categorie", "Doel", "Klant", "Notities",
+        ]
+        # The required headers from the second sheet are now present.
+        assert "Datum" in result["columns_found"]
+        assert "Bestemming" in result["columns_found"]
+        assert "Begin KM" in result["columns_found"]
+        assert "Eind KM" in result["columns_found"]
+
+    def test_validate_import_two_sheet_workbook_rows_valid(self, excel_service):
+        """FIXED: selecting the matching second sheet makes its rows validate ``ok``.
+
+        Expected behavior — because the chosen sheet carries all required columns,
+        the two continuity-respecting rows validate (``valid > 0``), replacing the
+        pre-fix empty/all-error preview.
+        """
+        stream = self._make_two_sheet_xlsx()
+        parsed = excel_service.parse_file(stream, "ritten.xlsx")
+
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        assert result["total_rows"] == 2
+        assert result["valid"] == 2
+        assert result["errors"] == 0
+        for row in result["rows"]:
+            assert row["_status"] == "ok"
+            assert row["_messages"] == []
+
+    # -- Property 5(3): Datetime-valued date rejected ----------------------
+
+    def test_normalize_date_datetime_string_normalizes_to_date_portion(self):
+        """FIXED: a date string carrying a time component normalizes to the date portion.
+
+        Expected behavior — the leading date token is split off on whitespace (or
+        ``'T'``), so ``"2026-05-05 00:00:00"`` normalizes to ``"2026-05-05"``. No
+        time/timezone semantics are applied.
+        """
+        assert TripImportService._normalize_date("2026-05-05 00:00:00") == "2026-05-05"
+        assert TripImportService._normalize_date("2026-05-05T00:00:00") == "2026-05-05"
+
+    def test_normalize_date_date_object_normalizes_to_iso(self):
+        """FIXED: a datetime/date object is normalized to its ISO date string.
+
+        Expected behavior — a ``datetime.date`` (and ``datetime.datetime``) reaches
+        the object branch and returns ``value.strftime("%Y-%m-%d")``.
+        """
+        assert TripImportService._normalize_date(datetime.date(2026, 5, 5)) == "2026-05-05"
+        assert (
+            TripImportService._normalize_date(datetime.datetime(2026, 5, 5, 0, 0, 0))
+            == "2026-05-05"
+        )
+
+    # -- Property 5(4): Error marker silently unflagged --------------------
+
+    def test_validate_import_na_marker_specially_flagged(self, excel_service):
+        """FIXED: an Excel error marker ('#N/A') in a mapped date cell is specially flagged.
+
+        Expected behavior — pandas coerces the ``#N/A`` cell to NaN, but openpyxl
+        reports it as an error-type cell (``data_type == "e"``) and the fix restores
+        the literal marker before validation. The row is flagged ``error`` with a
+        message naming BOTH the column (``trip_date``) and the marker (``#N/A``):
+        ``"Formulewaarde niet berekend: '#N/A' in kolom trip_date"``.
+        """
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            df = pd.DataFrame({
+                "Datum": ["#N/A", "2026-05-06"],
+                "Vertrekadres": ["Amsterdam", "Utrecht"],
+                "Bestemming": ["Utrecht", "Amsterdam"],
+                "Begin KM": ["45000", "45050"],
+                "Eind KM": ["45050", "45100"],
+                "Categorie": ["Zakelijk", "Zakelijk"],
+                "Doel": ["Klantbezoek", "Klantbezoek"],
+            })
+            df.to_excel(writer, sheet_name="Sheet1", index=False)
+        buf.seek(0)
+
+        parsed = excel_service.parse_file(buf, "markers.xlsx")
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        # Locate the row originating from the '#N/A' cell (restored marker string).
+        na_rows = [r for r in result["rows"] if r.get("trip_date") == "#N/A"]
+        assert na_rows, "expected a row carrying the restored '#N/A' marker"
+
+        for row in na_rows:
+            assert row["_status"] == "error"
+            marker_msgs = [m for m in row["_messages"] if "Formulewaarde niet berekend" in m]
+            assert marker_msgs, "expected an error-marker message naming the column + marker"
+            joined = " | ".join(marker_msgs)
+            assert "trip_date" in joined
+            assert "#N/A" in joined
+
+
+# ---------------------------------------------------------------------------
+# Tests: Surface (c) Excel handling — PRESERVATION (Task 9)
+# ---------------------------------------------------------------------------
+
+class TestExcelHandlingPreservation:
+    """Preservation tests for surface (c): Excel handling.
+
+    Property 6 (Preservation) — Single-Sheet/First-Match/CSV Identical, Extra
+    Columns Ignored, Cached Values and Empty/None Unchanged.
+
+    Observation-first: each assertion encodes behavior OBSERVED on the UNFIXED
+    reader, so these PASS now (confirming the baseline to preserve) and must keep
+    passing after the task-10 fix. The ``mock_db`` fixture returns no existing
+    trips (``execute_query`` default ``[]``), so odometer-continuity and duplicate
+    detection do not interfere.
+    """
+
+    @pytest.fixture
+    def excel_service(self, mock_db):
+        """TripImportService backed by the shared mock_db (no existing trips)."""
+        mock_db.execute_query.return_value = []
+        return TripImportService(db=mock_db)
+
+    @staticmethod
+    def _single_sheet_xlsx() -> io.BytesIO:
+        """One-sheet .xlsx: FIRST (only) sheet has all mapped headers + rows.
+
+        make_xlsx_bytes writes a single-sheet df, which is exactly the
+        first-sheet-matching case Requirement 9.1 preserves.
+        """
+        df = pd.DataFrame({
+            "Datum": ["2026-05-05", "2026-05-06", "2026-05-07"],
+            "Vertrekadres": ["Amsterdam", "Utrecht", "Den Haag"],
+            "Bestemming": ["Utrecht", "Den Haag", "Rotterdam"],
+            "Begin KM": ["45000", "45050", "45100"],
+            "Eind KM": ["45050", "45100", "45150"],
+            "Categorie": ["Zakelijk", "Zakelijk", "Zakelijk"],
+            "Doel": ["Klantbezoek", "Klantbezoek", "Klantbezoek"],
+            "Klant": ["Acme BV", "Acme BV", "Acme BV"],
+            "Notities": ["rit 1", "rit 2", "rit 3"],
+        })
+        return make_xlsx_bytes(df)
+
+    # -- Requirement 9.1: single-sheet first-match reads the same sheet ----
+
+    def test_parse_file_single_sheet_reads_all_mapped_headers(self, excel_service):
+        """Observed: the only sheet is read; all nine mapped headers are found."""
+        parsed = excel_service.parse_file(self._single_sheet_xlsx(), "single.xlsx")
+
+        assert parsed["success"] is True
+        assert parsed["total_rows"] == 3
+        assert parsed["columns_found"] == [
+            "Datum", "Vertrekadres", "Bestemming", "Begin KM", "Eind KM",
+            "Categorie", "Doel", "Klant", "Notities",
+        ]
+
+    def test_validate_import_single_sheet_all_rows_valid(self, excel_service):
+        """Observed: a single-sheet workbook validates all rows ``ok`` (valid == 3)."""
+        parsed = excel_service.parse_file(self._single_sheet_xlsx(), "single.xlsx")
+
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        assert result["success"] is True
+        assert result["total_rows"] == 3
+        assert result["valid"] == 3
+        assert result["warnings"] == 0
+        assert result["errors"] == 0
+        # Mapped row values are read correctly and dates normalized (surface b).
+        expected = [
+            ("2026-05-05", "Amsterdam", "Utrecht", 45000, 45050),
+            ("2026-05-06", "Utrecht", "Den Haag", 45050, 45100),
+            ("2026-05-07", "Den Haag", "Rotterdam", 45100, 45150),
+        ]
+        by_row = {r["_row_number"]: r for r in result["rows"]}
+        for idx, (date, start, end, skm, ekm) in enumerate(expected, start=1):
+            row = by_row[idx]
+            assert row["_status"] == "ok"
+            assert row["_messages"] == []
+            assert row["trip_date"] == date
+            assert row["start_address"] == start
+            assert row["end_address"] == end
+            assert row["start_odometer"] == skm
+            assert row["end_odometer"] == ekm
+
+    # -- Requirement 9.2: CSV unaffected by worksheet selection ------------
+
+    def test_parse_file_csv_semicolon_unaffected_by_sheet_selection(self, excel_service):
+        """Observed: a semicolon-separated CSV parses via the existing path.
+
+        Worksheet selection is an Excel-only concern and must not affect CSV.
+        """
+        csv_content = (
+            "Datum;Vertrekadres;Bestemming;Begin KM;Eind KM;Categorie;Doel;Klant;Notities\n"
+            "2026-05-05;Amsterdam;Utrecht;45000;45050;Zakelijk;Klantbezoek;Acme BV;rit 1\n"
+            "2026-05-06;Utrecht;Den Haag;45050;45100;Zakelijk;Klantbezoek;Acme BV;rit 2\n"
+        )
+        parsed = excel_service.parse_file(make_csv_bytes(csv_content), "trips.csv")
+
+        assert parsed["success"] is True
+        assert parsed["total_rows"] == 2
+
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        assert result["valid"] == 2
+        assert result["warnings"] == 0
+        assert result["errors"] == 0
+        by_row = {r["_row_number"]: r for r in result["rows"]}
+        assert by_row[1]["_status"] == "ok"
+        assert by_row[1]["trip_date"] == "2026-05-05"
+        assert by_row[1]["start_odometer"] == 45000
+        assert by_row[2]["_status"] == "ok"
+        assert by_row[2]["trip_date"] == "2026-05-06"
+        assert by_row[2]["end_odometer"] == 45100
+
+    # -- Requirement 9.3: extra / unmapped columns ignored -----------------
+
+    def test_parse_file_extra_unmapped_columns_ignored(self, excel_service):
+        """Observed: trailing extra / Unnamed-style columns are reported as unmapped.
+
+        The extra columns are listed in ``unmapped_columns`` (not mapped to any
+        internal field) and do not interfere with reading the mapped fields.
+        """
+        df = pd.DataFrame({
+            "Datum": ["2026-05-05", "2026-05-06"],
+            "Vertrekadres": ["Amsterdam", "Utrecht"],
+            "Bestemming": ["Utrecht", "Den Haag"],
+            "Begin KM": ["45000", "45050"],
+            "Eind KM": ["45050", "45100"],
+            "Categorie": ["Zakelijk", "Zakelijk"],
+            "Doel": ["Klantbezoek", "Klantbezoek"],
+            "Klant": ["Acme BV", "Acme BV"],
+            "Notities": ["rit 1", "rit 2"],
+            "Afstand": ["50", "50"],          # extra, mapped to nothing
+            "Unnamed: 10": ["x", "y"],        # stray Unnamed-style column
+        })
+        parsed = excel_service.parse_file(make_xlsx_bytes(df), "extra.xlsx")
+
+        assert parsed["success"] is True
+        # Extra columns are recognized as unmapped (ignored by the mapping).
+        assert "Afstand" in parsed["unmapped_columns"]
+        assert "Unnamed: 10" in parsed["unmapped_columns"]
+        # The mapped internal fields are still produced from the mapped headers.
+        for field in (
+            "trip_date", "start_address", "end_address", "start_odometer",
+            "end_odometer", "trip_category", "trip_purpose",
+        ):
+            assert field in parsed["columns_mapped"]
+
+    def test_validate_import_extra_columns_do_not_affect_validation(self, excel_service):
+        """Observed: extra/unmapped columns do not break mapped-field validation."""
+        df = pd.DataFrame({
+            "Datum": ["2026-05-05", "2026-05-06"],
+            "Vertrekadres": ["Amsterdam", "Utrecht"],
+            "Bestemming": ["Utrecht", "Den Haag"],
+            "Begin KM": ["45000", "45050"],
+            "Eind KM": ["45050", "45100"],
+            "Categorie": ["Zakelijk", "Zakelijk"],
+            "Doel": ["Klantbezoek", "Klantbezoek"],
+            "Afstand": ["50", "50"],
+            "Unnamed: 10": ["x", "y"],
+        })
+        parsed = excel_service.parse_file(make_xlsx_bytes(df), "extra.xlsx")
+
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        assert result["valid"] == 2
+        assert result["errors"] == 0
+        for row in result["rows"]:
+            assert row["_status"] == "ok"
+            assert row["_messages"] == []
+
+    # -- Requirements 9.5, 9.6: valid cached formula value read directly ---
+
+    def test_validate_import_cached_value_read_as_plain_value(self, excel_service):
+        """Observed: an ordinary (already-computed) cell value is read directly.
+
+        A mapped cell carrying a plain string/number — the kind of cached "view"
+        value pandas returns for a resolved formula — is read as that value and
+        the row validates ``ok``. No formula evaluation is performed.
+        """
+        df = pd.DataFrame({
+            "Datum": ["2026-05-05", "2026-05-06"],
+            "Vertrekadres": ["Amsterdam", "Utrecht"],
+            "Bestemming": ["Utrecht", "Den Haag"],
+            "Begin KM": ["45000", "45050"],
+            "Eind KM": ["45050", "45100"],
+            "Categorie": ["Zakelijk", "Zakelijk"],
+            "Doel": ["Klantbezoek", "Klantbezoek"],
+            "Klant": ["CachedKlant", "CachedKlant"],  # cached value from another tab
+            "Notities": ["rit 1", "rit 2"],
+        })
+        parsed = excel_service.parse_file(make_xlsx_bytes(df), "cached.xlsx")
+
+        # The plain value is read straight through the mapping.
+        assert parsed["rows"][0]["client_name"] == "CachedKlant"
+
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        assert result["valid"] == 2
+        assert result["errors"] == 0
+        for row in result["rows"]:
+            assert row["_status"] == "ok"
+            assert row["client_name"] == "CachedKlant"
+            assert row["_messages"] == []
+
+    # -- Requirement 9.6: empty/None cell → normal required-field error ----
+
+    def test_validate_import_empty_required_cell_normal_required_error(self, excel_service):
+        """Observed: an empty/None required cell yields the normal required-field error.
+
+        Row 2 is missing the required Bestemming (end_address). It is flagged
+        ``error`` with the standard "Verplicht veld ontbreekt" message — NOT an
+        error-marker ("Formulewaarde niet berekend") message.
+        """
+        df = pd.DataFrame({
+            "Datum": ["2026-05-05", "2026-05-06"],
+            "Vertrekadres": ["Amsterdam", "Utrecht"],
+            "Bestemming": ["Utrecht", None],  # row 2 missing required end_address
+            "Begin KM": ["45000", "45050"],
+            "Eind KM": ["45050", "45100"],
+            "Categorie": ["Zakelijk", "Zakelijk"],
+            "Doel": ["Klantbezoek", "Klantbezoek"],
+        })
+        parsed = excel_service.parse_file(make_xlsx_bytes(df), "empty.xlsx")
+
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        assert result["total_rows"] == 2
+        assert result["valid"] == 1
+        assert result["errors"] == 1
+
+        by_row = {r["_row_number"]: r for r in result["rows"]}
+        # Row 1 is unaffected.
+        assert by_row[1]["_status"] == "ok"
+        assert by_row[1]["end_address"] == "Utrecht"
+        # Row 2: normal required-field error, not an error-marker message.
+        assert by_row[2]["_status"] == "error"
+        assert by_row[2]["end_address"] is None
+        assert "Verplicht veld ontbreekt: end_address" in by_row[2]["_messages"]
+        joined = " | ".join(by_row[2]["_messages"])
+        assert "Formulewaarde niet berekend" not in joined
+
+
+# ---------------------------------------------------------------------------
+# Tests: Surface (c) Excel handling — FIXED end-to-end (Task 11)
+# ---------------------------------------------------------------------------
+
+class TestValidateImportFixedExcelBehavior:
+    """End-to-end ``validate_import`` tests encoding the FIXED Property-5 behavior.
+
+    Post-fix assertions (tasks 10.1–10.3 applied):
+      - header-matching worksheet selection picks the sheet whose headers ⊇ the
+        required set, or returns ``success: False`` naming found vs expected when
+        no sheet matches;
+      - Excel datetime-valued dates (surfacing as ``"YYYY-MM-DD HH:MM:SS"`` under
+        ``dtype=str``) normalize to the date portion and validate ``ok``;
+      - an Excel error marker (``#N/A``) in a mapped cell flags the row ``error``
+        with a message naming the column + marker.
+
+    The ``mock_db`` fixture returns no existing trips so odometer-continuity and
+    duplicate detection do not interfere.
+    """
+
+    @pytest.fixture
+    def excel_service(self, mock_db):
+        """TripImportService backed by the shared mock_db (no existing trips)."""
+        mock_db.execute_query.return_value = []
+        return TripImportService(db=mock_db)
+
+    @staticmethod
+    def _make_two_sheet_xlsx() -> io.BytesIO:
+        """Build an .xlsx with a decoy FIRST sheet and a full SECOND sheet.
+
+        - FIRST sheet ``Blad1``: only a subset of headers (missing the required
+          Datum/Bestemming/Begin KM/Eind KM columns).
+        - SECOND sheet ``ritten_import_template``: ALL mapped headers with two
+          continuity-respecting data rows.
+        """
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            decoy = pd.DataFrame({
+                "Vertrekadres": ["Amsterdam", "Utrecht"],
+                "Categorie": ["Zakelijk", "Zakelijk"],
+                "Doel": ["Klantbezoek", "Klantbezoek"],
+                "Klant": ["Acme BV", "Acme BV"],
+                "Notities": ["rit 1", "rit 2"],
+            })
+            decoy.to_excel(writer, sheet_name="Blad1", index=False)
+
+            full = pd.DataFrame({
+                "Datum": ["2026-05-05", "2026-05-06"],
+                "Vertrekadres": ["Amsterdam", "Utrecht"],
+                "Bestemming": ["Utrecht", "Amsterdam"],
+                "Begin KM": ["45000", "45050"],
+                "Eind KM": ["45050", "45100"],
+                "Categorie": ["Zakelijk", "Zakelijk"],
+                "Doel": ["Klantbezoek", "Klantbezoek"],
+                "Klant": ["Acme BV", "Acme BV"],
+                "Notities": ["rit 1", "rit 2"],
+            })
+            full.to_excel(writer, sheet_name="ritten_import_template", index=False)
+        buf.seek(0)
+        return buf
+
+    # -- Property 5(1): correct sheet selected end-to-end ------------------
+
+    def test_parse_file_decoy_first_sheet_selects_matching_second_sheet(self, excel_service):
+        """FIXED: the decoy first sheet is skipped and the matching second is used.
+
+        Asserts ``success is True``, the mapped ``columns_found`` come from the
+        second sheet, ``total_rows`` matches that sheet's data, and
+        ``validate_import`` reports ``valid > 0``.
+        """
+        stream = self._make_two_sheet_xlsx()
+
+        result = excel_service.parse_file(stream, "ritten.xlsx")
+
+        assert result["success"] is True
+        # columns_found / mapped fields come from the SECOND (matching) sheet.
+        assert result["columns_found"] == [
+            "Datum", "Vertrekadres", "Bestemming", "Begin KM", "Eind KM",
+            "Categorie", "Doel", "Klant", "Notities",
+        ]
+        for field in (
+            "trip_date", "start_address", "end_address", "start_odometer",
+            "end_odometer", "trip_category", "trip_purpose",
+        ):
+            assert field in result["columns_mapped"]
+        # total_rows matches the second sheet's two data rows.
+        assert result["total_rows"] == 2
+
+        validated = excel_service.validate_import("tenant1", 1, result["rows"])
+        assert validated["valid"] > 0
+        assert validated["valid"] == 2
+        assert validated["errors"] == 0
+        # The mapped values are the second sheet's rows (date normalized).
+        by_row = {r["_row_number"]: r for r in validated["rows"]}
+        assert by_row[1]["trip_date"] == "2026-05-05"
+        assert by_row[1]["start_odometer"] == 45000
+        assert by_row[2]["trip_date"] == "2026-05-06"
+        assert by_row[2]["end_odometer"] == 45100
+
+    # -- Property 5(1): no sheet matches → success: False ------------------
+
+    def test_parse_file_no_sheet_matches_returns_success_false(self, excel_service):
+        """FIXED: a workbook where NO sheet carries the required headers fails cleanly.
+
+        Asserts ``success is False`` and that the ``error`` string names BOTH the
+        columns actually found and the expected (required) columns, so the wizard
+        would keep the user on Upload rather than render an empty preview.
+        """
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            pd.DataFrame({
+                "Kolom A": ["x", "y"],
+                "Kolom B": ["1", "2"],
+            }).to_excel(writer, sheet_name="Overzicht", index=False)
+            pd.DataFrame({
+                "Vertrekadres": ["Amsterdam"],
+                "Categorie": ["Zakelijk"],
+            }).to_excel(writer, sheet_name="Deels", index=False)
+        buf.seek(0)
+
+        result = excel_service.parse_file(buf, "geen_match.xlsx")
+
+        assert result["success"] is False
+        assert result["rows"] == []
+        assert result["total_rows"] == 0
+        error = result["error"]
+        assert error is not None
+        # The found columns (first sheet) are named in the error.
+        assert "Kolom A" in error
+        assert "Kolom B" in error
+        # The expected/required columns are also named in the error.
+        for expected in ("Datum", "Bestemming", "Begin KM", "Eind KM", "Vertrekadres",
+                         "Categorie", "Doel"):
+            assert expected in error
+
+    # -- Property 5(3): datetime-valued dates in-sheet normalize + validate -
+
+    def test_validate_import_datetime_valued_dates_in_sheet_ok(self, excel_service):
+        """FIXED: Excel datetime-valued Datum cells normalize to the date portion.
+
+        Writing ``pd.Timestamp`` values into the Datum column stores genuine Excel
+        datetimes; under ``dtype=str`` they surface as ``"YYYY-MM-DD HH:MM:SS"``.
+        After the fix those rows normalize to ``YYYY-MM-DD`` and validate ``ok``.
+        """
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            df = pd.DataFrame({
+                "Datum": [pd.Timestamp("2026-05-05"), pd.Timestamp("2026-05-06")],
+                "Vertrekadres": ["Amsterdam", "Utrecht"],
+                "Bestemming": ["Utrecht", "Amsterdam"],
+                "Begin KM": ["45000", "45050"],
+                "Eind KM": ["45050", "45100"],
+                "Categorie": ["Zakelijk", "Zakelijk"],
+                "Doel": ["Klantbezoek", "Klantbezoek"],
+            })
+            df.to_excel(writer, sheet_name="Sheet1", index=False)
+        buf.seek(0)
+
+        parsed = excel_service.parse_file(buf, "datetimes.xlsx")
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        assert result["total_rows"] == 2
+        assert result["valid"] == 2
+        assert result["errors"] == 0
+        by_row = {r["_row_number"]: r for r in result["rows"]}
+        # Only the YYYY-MM-DD date portion is kept — no time component.
+        assert by_row[1]["_status"] == "ok"
+        assert by_row[1]["trip_date"] == "2026-05-05"
+        assert by_row[2]["_status"] == "ok"
+        assert by_row[2]["trip_date"] == "2026-05-06"
+
+    # -- Property 5(4): error marker in-sheet flags the row ----------------
+
+    def test_validate_import_na_marker_flags_row_error(self, excel_service):
+        """FIXED: a mapped trip_date cell equal to '#N/A' flags that row ``error``.
+
+        Asserts the ``#N/A`` row's ``_status == "error"`` and that a ``_messages``
+        entry names BOTH the column (``trip_date``) and the marker (``#N/A``).
+        """
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            df = pd.DataFrame({
+                "Datum": ["#N/A", "2026-05-06"],
+                "Vertrekadres": ["Amsterdam", "Utrecht"],
+                "Bestemming": ["Utrecht", "Amsterdam"],
+                "Begin KM": ["45000", "45050"],
+                "Eind KM": ["45050", "45100"],
+                "Categorie": ["Zakelijk", "Zakelijk"],
+                "Doel": ["Klantbezoek", "Klantbezoek"],
+            })
+            df.to_excel(writer, sheet_name="Sheet1", index=False)
+        buf.seek(0)
+
+        parsed = excel_service.parse_file(buf, "markers.xlsx")
+        result = excel_service.validate_import("tenant1", 1, parsed["rows"])
+
+        na_rows = [r for r in result["rows"] if r.get("trip_date") == "#N/A"]
+        assert na_rows, "expected a row carrying the restored '#N/A' marker"
+
+        marked = na_rows[0]
+        assert marked["_status"] == "error"
+        marker_msgs = [
+            m for m in marked["_messages"] if "trip_date" in m and "#N/A" in m
+        ]
+        assert marker_msgs, (
+            "expected a _messages entry naming both the column (trip_date) and "
+            "the marker (#N/A)"
+        )

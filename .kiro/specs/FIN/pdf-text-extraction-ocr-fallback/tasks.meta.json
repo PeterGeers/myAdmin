@@ -1,0 +1,216 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Write bug condition exploration test (BEFORE implementing the fix)": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265826317
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265835913
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265998242
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing the fix)": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265826452
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791266028802
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791268920042
+      }
+    ],
+    "3.1 Implement the shared tesseract resolver and remove both hardcoded Windows paths": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265826546
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791268924108
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269006650
+      }
+    ],
+    "3.2 Implement `ocr_pdf_pages` with PyMuPDF + pytesseract and wire it into `process_pdf`": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265826648
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269011020
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269135301
+      }
+    ],
+    "3.3 Implement honest failure — never call the AI model on empty content": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265826734
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269139400
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269334383
+      }
+    ],
+    "3.4 Add Python dependencies and install the `tesseract-ocr` system package in the production image": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265826858
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269338604
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269389629
+      }
+    ],
+    "3.5 Verify the bug condition exploration test now reflects the fixed behavior": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265826942
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269393606
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269561273
+      }
+    ],
+    "3.6 Verify preservation tests still pass": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265827025
+      },
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791269565219
+      },
+      {
+        "executionId": "4d862e4f-9964-4b34-bd9d-55432dbe3de2",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791273844244
+      }
+    ],
+    "4. Unit tests for the new helpers and the failure channel": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265827111
+      },
+      {
+        "executionId": "4d862e4f-9964-4b34-bd9d-55432dbe3de2",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791273848626
+      },
+      {
+        "executionId": "4d862e4f-9964-4b34-bd9d-55432dbe3de2",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791274141353
+      }
+    ],
+    "5. Property-based tests for the fix invariants": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265827197
+      },
+      {
+        "executionId": "4d862e4f-9964-4b34-bd9d-55432dbe3de2",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791274145253
+      },
+      {
+        "executionId": "4d862e4f-9964-4b34-bd9d-55432dbe3de2",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791274306435
+      }
+    ],
+    "6. Integration tests for the full invoice-upload flow": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265827283
+      },
+      {
+        "executionId": "4d862e4f-9964-4b34-bd9d-55432dbe3de2",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791274310103
+      },
+      {
+        "executionId": "daba5e70-a8ec-4da3-bd82-ddefed9818fe",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791276057820
+      }
+    ],
+    "7. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "c1cdc3b1-68a9-4827-9f19-f9321dcbe844",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791265827375
+      },
+      {
+        "executionId": "daba5e70-a8ec-4da3-bd82-ddefed9818fe",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791276063128
+      },
+      {
+        "executionId": "daba5e70-a8ec-4da3-bd82-ddefed9818fe",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791276720158
+      }
+    ],
+    "3. Fix for vector-outline PDF extraction (OCR fallback + environment-resolved binary + honest failure)": [
+      {
+        "executionId": "4d862e4f-9964-4b34-bd9d-55432dbe3de2",
+        "chatSessionId": "sess_2a6552b9-69d0-4225-b1a4-df2b0448b18a",
+        "timestamp": 1791273844475
+      }
+    ]
+  }
+}

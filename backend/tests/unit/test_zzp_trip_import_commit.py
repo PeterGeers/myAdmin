@@ -8,6 +8,8 @@ import io
 import pytest
 from unittest.mock import MagicMock, patch, call
 
+from hypothesis import given, strategies as st, settings, HealthCheck
+
 import sys
 import os
 
@@ -68,7 +70,7 @@ def make_import_row(**overrides):
         "end_odometer": 45045,
         "trip_category": "Zakelijk",
         "trip_purpose": "Klantbezoek",
-        "contact_id": None,
+        "client_name": None,
         "project_name": None,
         "notes": "Test import",
         "_status": "ok",
@@ -160,16 +162,25 @@ class TestCommitImportValidRows:
             end_odometer=60030,
             trip_category="Privé",
             trip_purpose="Persoonlijk",
-            contact_id=5,
+            client_name="Acme BV",
             project_name="Project X",
             notes="Notitie",
         )
         result = service.commit_import("admin1", 7, [row], "peter@example.com")
 
         assert result["success"] is True
-        # First execute call is the INSERT trip
+        # First execute call is the INSERT trip. Post-redesign the INSERT writes
+        # 19 columns, with client_name at index 11 (replacing the removed
+        # contact_id) and route_description at index 14; is_billable/is_billed/
+        # invoice_id are no longer written (Req 2.7, 4.6). Positional map:
+        #   0 administration, 1 vehicle_id, 2 trip_date, 3 start_time, 4 end_time,
+        #   5 start_address, 6 end_address, 7 start_odometer, 8 end_odometer,
+        #   9 trip_category, 10 trip_purpose, 11 client_name, 12 project_name,
+        #   13 notes, 14 route_description, 15 is_gap_fill, 16 is_cancelled,
+        #   17 version, 18 created_by.
         first_call = mock_cursor.execute.call_args_list[0]
         params = first_call[0][1]
+        assert len(params) == 19
         assert params[0] == "admin1"          # administration
         assert params[1] == 7                 # vehicle_id
         assert params[2] == "2026-03-10"      # trip_date
@@ -181,10 +192,9 @@ class TestCommitImportValidRows:
         assert params[8] == 60030             # end_odometer
         assert params[9] == "Privé"           # trip_category
         assert params[10] == "Persoonlijk"    # trip_purpose
-        assert params[11] == 5               # contact_id
+        assert params[11] == "Acme BV"       # client_name (replaces contact_id)
         assert params[12] == "Project X"     # project_name
         assert params[13] == "Notitie"       # notes
-        assert params[14] is False           # is_billable
         assert params[15] is False           # is_gap_fill
         assert params[16] is False           # is_cancelled
         assert params[17] == 1              # version
@@ -600,3 +610,172 @@ class TestEndToEndFlow:
         assert "end_address" in parse_result["columns_mapped"]
         assert "start_odometer" in parse_result["columns_mapped"]
         assert "end_odometer" in parse_result["columns_mapped"]
+
+
+# ===========================================================================
+# Property-based tests (Hypothesis) — rittenregistratie-tax-log-redesign
+# ===========================================================================
+#
+# These exercise commit_import against the post-redesign model where the import
+# writes a free-text client_name (Klant) and no billing columns. Each example
+# builds its OWN mock DB + service (rather than a function-scoped fixture) so
+# Hypothesis's function-scoped-fixture HealthCheck does not fire, and route-preset
+# learning is patched out so a committed row never reaches a real RoutePresetService.
+#
+# INSERT positional map (19 cols): client_name is params[11].
+
+# Column index of client_name in the commit_import INSERT (see positional map).
+_CLIENT_NAME_PARAM_INDEX = 11
+
+
+def _build_commit_service():
+    """Build a TripImportService backed by a fresh transaction-aware mock DB.
+
+    Returns ``(service, mock_cursor)``. The cursor records every ``execute`` call
+    so a test can read the persisted INSERT params (committed client_name lives at
+    ``params[_CLIENT_NAME_PARAM_INDEX]``).
+    """
+    db = MagicMock()
+    db.execute_query.return_value = []
+    mock_cursor = MagicMock()
+    mock_cursor.lastrowid = 1
+    mock_conn = MagicMock()
+    db.transaction.return_value.__enter__ = MagicMock(return_value=(mock_cursor, mock_conn))
+    db.transaction.return_value.__exit__ = MagicMock(return_value=False)
+    return TripImportService(db=db), mock_cursor
+
+
+def _persisted_client_names(mock_cursor):
+    """Extract the client_name value written by each INSERT into zzp_trips.
+
+    commit_import issues two execute calls per committed row (INSERT trip + audit);
+    the INSERT is the one whose query targets ``zzp_trips``. Returns the committed
+    client_name values in insertion order.
+    """
+    values = []
+    for c in mock_cursor.execute.call_args_list:
+        query = c[0][0]
+        params = c[0][1] if len(c[0]) > 1 else None
+        if params is not None and "INSERT INTO zzp_trips" in query:
+            values.append(params[_CLIENT_NAME_PARAM_INDEX])
+    return values
+
+
+# Klant cell values whose trimmed form is non-empty (<= 255 chars so they persist).
+# Avoid NUL/control-only edge cases but allow surrounding whitespace to exercise trim.
+_nonblank_klant = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs", "Cc"), min_codepoint=0x20),
+    min_size=1,
+    max_size=120,
+).filter(lambda s: s.strip() != "")
+
+# Values that are empty or whitespace-only → must persist as NULL.
+_blank_klant = st.sampled_from(["", " ", "   ", "\t", "  \t ", "\n", None])
+
+
+class TestClientNameImportRoundTripProperty:
+    """Property 4: Client_Name import round-trip (Req 2.1, 2.7)."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 4: committing a row
+    # persists client_name equal to the trimmed input, and null for empty/blank cells.
+    @settings(max_examples=150, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @given(value=_nonblank_klant)
+    def test_property_4_nonblank_klant_persists_trimmed(self, value):
+        """**Validates: Requirements 2.1, 2.7**
+
+        A non-blank Klant cell commits a trip whose persisted client_name equals the
+        input with leading/trailing whitespace stripped.
+        """
+        with patch("services.zzp_route_preset_service.RoutePresetService"):
+            service, mock_cursor = _build_commit_service()
+            row = make_import_row(client_name=value)
+
+            result = service.commit_import("tenant1", 1, [row], "user@test.com")
+
+        assert result["success"] is True
+        assert result["imported"] == 1
+        assert result["skipped"] == 0
+        persisted = _persisted_client_names(mock_cursor)
+        assert persisted == [value.strip()]
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 4: committing a row
+    # persists client_name equal to the trimmed input, and null for empty/blank cells.
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @given(value=_blank_klant)
+    def test_property_4_blank_klant_persists_null(self, value):
+        """**Validates: Requirements 2.1, 2.7**
+
+        An empty or whitespace-only (or absent) Klant cell commits a trip whose
+        persisted client_name is NULL.
+        """
+        with patch("services.zzp_route_preset_service.RoutePresetService"):
+            service, mock_cursor = _build_commit_service()
+            row = make_import_row(client_name=value)
+
+            result = service.commit_import("tenant1", 1, [row], "user@test.com")
+
+        assert result["success"] is True
+        assert result["imported"] == 1
+        persisted = _persisted_client_names(mock_cursor)
+        assert persisted == [None]
+
+
+class TestOverLengthKlantRowRejectedProperty:
+    """Property 5: Over-length Klant row rejected, others preserved (Req 2.8)."""
+
+    # Feature: rittenregistratie-tax-log-redesign, Property 5: in a mixed batch,
+    # over-length (>255) Klant rows become error rows carrying the 255-char message
+    # and do not persist, while every other valid row still commits.
+    @settings(max_examples=120, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @given(
+        over_len=st.integers(min_value=256, max_value=600),
+        n_valid_before=st.integers(min_value=0, max_value=3),
+        n_valid_after=st.integers(min_value=0, max_value=3),
+        valid_klant=st.one_of(st.none(), _nonblank_klant),
+    )
+    def test_property_5_over_length_rejected_others_commit(
+        self, over_len, n_valid_before, n_valid_after, valid_klant
+    ):
+        """**Validates: Requirements 2.8**
+
+        A batch mixing one over-length Klant row with otherwise-valid rows: the
+        over-length row is flagged an error with the 255-char message and is NOT
+        persisted; every other valid row still commits.
+        """
+        over_value = "x" * over_len
+
+        valid_before = [
+            make_import_row(client_name=valid_klant, _row_number=i + 1)
+            for i in range(n_valid_before)
+        ]
+        over_row = make_import_row(
+            client_name=over_value, _row_number=n_valid_before + 1
+        )
+        valid_after = [
+            make_import_row(
+                client_name=valid_klant, _row_number=n_valid_before + 2 + i
+            )
+            for i in range(n_valid_after)
+        ]
+        rows = valid_before + [over_row] + valid_after
+        total_valid = n_valid_before + n_valid_after
+
+        with patch("services.zzp_route_preset_service.RoutePresetService"):
+            service, mock_cursor = _build_commit_service()
+            result = service.commit_import("tenant1", 1, rows, "user@test.com")
+
+        assert result["success"] is True
+        # The over-length row is skipped; every other valid row commits.
+        assert result["imported"] == total_valid
+        assert result["skipped"] == 1
+
+        # The over-length row is flagged an error with a 255-char-limit message.
+        assert over_row["_status"] == "error"
+        assert any("255" in m for m in over_row["_messages"])
+
+        # The over-length value is never written to the DB; only valid rows persist.
+        persisted = _persisted_client_names(mock_cursor)
+        assert over_value not in persisted
+        assert len(persisted) == total_valid
+        expected_valid = valid_klant.strip() if isinstance(valid_klant, str) else None
+        assert all(v == expected_valid for v in persisted)

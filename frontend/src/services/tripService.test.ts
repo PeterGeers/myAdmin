@@ -18,7 +18,6 @@ import {
   updateTrip,
   cancelTrip,
   getTripHistory,
-  getUnbilledTrips,
   getTripSummary,
   exportTrips,
   createGapFill,
@@ -26,6 +25,9 @@ import {
   commitImport,
   getGaps,
 } from './tripService';
+// Import the whole module too, so we can assert the billing surface is absent
+// (removed exports can't be named-imported — that would be a compile error).
+import * as tripService from './tripService';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Keep the real buildEndpoint (pure URL helper); stub only the network fns.
@@ -94,14 +96,6 @@ describe('tripService', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/zzp/trips/8/history');
   });
 
-  it('getUnbilledTrips scopes by contact_id', async () => {
-    mockGet.mockResolvedValue(createMockResponse({ body: { success: true, data: [] } }));
-    await getUnbilledTrips(11);
-    const url = String(mockGet.mock.calls[0][0]);
-    expect(url).toContain('/api/zzp/trips/unbilled?');
-    expect(url).toContain('contact_id=11');
-  });
-
   it('getTripSummary passes vehicle_id and year', async () => {
     mockGet.mockResolvedValue(createMockResponse({ body: { success: true, data: {} } }));
     await getTripSummary(3, 2025);
@@ -148,12 +142,14 @@ describe('tripService', () => {
     expect(fd.get('vehicle_id')).toBe('3');
   });
 
-  it('commitImport POSTs vehicle_id and column mapping', async () => {
+  it('commitImport POSTs vehicle_id, rows and skip_error_rows', async () => {
     mockPost.mockResolvedValue(createMockResponse({ body: { success: true } }));
-    await commitImport(3, { date: 'A', start_km: 'B' });
+    const rows = [{ _row_number: 1, _status: 'ok', _messages: [] }] as unknown as Parameters<typeof commitImport>[1];
+    await commitImport(3, rows, true);
     expect(mockPost).toHaveBeenCalledWith('/api/zzp/trips/import/commit', {
       vehicle_id: 3,
-      column_mapping: { date: 'A', start_km: 'B' },
+      rows,
+      skip_error_rows: true,
     });
   });
 
@@ -166,5 +162,48 @@ describe('tripService', () => {
   it('propagates rejected apiService calls (error handling)', async () => {
     mockGet.mockRejectedValue(new Error('offline'));
     await expect(getTrips()).rejects.toThrow('offline');
+  });
+
+  // --- Trip-billing surface removal (Req 5.3, 5.4) ---
+  describe('trip-billing surface is removed', () => {
+    const exported = tripService as Record<string, unknown>;
+
+    it('exposes no getUnbilledTrips operation (Req 5.4)', () => {
+      expect(exported.getUnbilledTrips).toBeUndefined();
+    });
+
+    it('exposes no invoice-from-trips operation (Req 5.4)', () => {
+      // No createInvoiceFromTrips (or any invoice-from-trips) path on the service.
+      expect(exported.createInvoiceFromTrips).toBeUndefined();
+      const billingNames = Object.keys(exported).filter((name) =>
+        /invoice|unbilled|billable|billed|km_?rate/i.test(name),
+      );
+      expect(billingNames).toEqual([]);
+    });
+
+    it('returns no billing-derived rows from a trip retrieval (Req 5.3, 5.4)', async () => {
+      // The service passes the backend payload through verbatim; it never
+      // synthesises is_billable / km_rate / billing-derived fields.
+      mockGet.mockResolvedValue(
+        createMockResponse({
+          body: {
+            success: true,
+            data: [{ id: 1, start_km: 100, end_km: 150, category: 'zakelijk' }],
+          },
+        }),
+      );
+
+      const result = await getTrips();
+
+      const serialised = JSON.stringify(result);
+      expect(serialised).not.toMatch(/is_billable/);
+      expect(serialised).not.toMatch(/km_rate/);
+      expect(serialised).not.toMatch(/0\.23/);
+      result.data.forEach((row) => {
+        const keys = Object.keys(row as unknown as Record<string, unknown>);
+        expect(keys).not.toContain('is_billable');
+        expect(keys).not.toContain('km_rate');
+      });
+    });
   });
 });

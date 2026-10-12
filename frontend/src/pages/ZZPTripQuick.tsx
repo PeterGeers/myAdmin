@@ -9,6 +9,7 @@ import {
   HStack,
   FormControl,
   FormLabel,
+  FormErrorMessage,
   Input,
   useToast,
   Spinner,
@@ -41,7 +42,11 @@ const ZZPTripQuick: React.FC = () => {
   const [endAddress, setEndAddress] = useState<string>('');
   const [tripCategory, setTripCategory] = useState<string>('Zakelijk');
   const [tripPurpose, setTripPurpose] = useState<string>('');
+  const [clientName, setClientName] = useState<string>('');
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
+
+  // Validation state
+  const [klantError, setKlantError] = useState<string | null>(null);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -138,6 +143,28 @@ const ZZPTripQuick: React.FC = () => {
       toast({ title: 'Vul een geldige eind km-stand in', status: 'warning', duration: 3000 });
       return;
     }
+    // Required-one validation for category and purpose (Req 10.3, 10.4)
+    if (!tripCategory) {
+      toast({ title: 'Selecteer een categorie', status: 'warning', duration: 3000 });
+      return;
+    }
+    if (!tripPurpose) {
+      toast({ title: 'Selecteer een ritdoel', status: 'warning', duration: 3000 });
+      return;
+    }
+    // Klant length guard (Req 2.4) — retain the entered value, show an error
+    const trimmedClientName = clientName.trim();
+    if (trimmedClientName.length > 255) {
+      setKlantError('Klant mag maximaal 255 tekens bevatten.');
+      toast({
+        title: 'Klant te lang',
+        description: 'Klant mag maximaal 255 tekens bevatten.',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+    setKlantError(null);
 
     setSubmitting(true);
     try {
@@ -150,7 +177,9 @@ const ZZPTripQuick: React.FC = () => {
         end_odometer: endKm,
         distance_km: endKm - startKm,
         trip_category: tripCategory,
-        trip_purpose: tripPurpose || `${startAddress} → ${endAddress}`,
+        trip_purpose: tripPurpose,
+        // Free-text Klant note; empty input → null (Req 2.3, 2.5)
+        client_name: trimmedClientName === '' ? null : trimmedClientName,
       };
 
       await createTrip(tripData);
@@ -168,6 +197,8 @@ const ZZPTripQuick: React.FC = () => {
       setStartAddress('');
       setEndAddress('');
       setTripPurpose('');
+      setClientName('');
+      setKlantError(null);
       setSelectedPresetId(null);
     } catch (err) {
       toast({
@@ -363,6 +394,29 @@ const ZZPTripQuick: React.FC = () => {
               <option value="Overig" style={{ background: '#2D3748' }}>Overig</option>
             </Select>
           </HStack>
+        </FormControl>
+
+        {/* Klant (free-text client note) */}
+        <FormControl isInvalid={!!klantError}>
+          <FormLabel fontSize="sm" color="gray.400">
+            Klant
+          </FormLabel>
+          <Input
+            value={clientName}
+            onChange={(e) => {
+              setClientName(e.target.value);
+              if (klantError) setKlantError(null);
+            }}
+            placeholder="Klant (optioneel)"
+            bg="gray.700"
+            borderColor="gray.600"
+            color="white"
+            size="md"
+            minH="44px"
+            maxLength={1000}
+            aria-label="Klant"
+          />
+          {klantError && <FormErrorMessage>{klantError}</FormErrorMessage>}
         </FormControl>
       </VStack>
 
