@@ -30,13 +30,9 @@ export interface Trip {
   trip_category: string;
   trip_purpose: string;
   route_description: string | null;
-  contact_id: number | null;
-  contact?: { id: number; company_name: string };
+  client_name: string | null;
   project_name: string | null;
   notes: string | null;
-  is_billable: boolean;
-  is_billed: boolean;
-  invoice_id: number | null;
   is_gap_fill: boolean;
   is_cancelled: boolean;
   version: number;
@@ -102,7 +98,7 @@ export interface TripAuditEntry {
 }
 
 export interface ImportRow {
-  row_number: number;
+  _row_number: number;
   trip_date: string;
   start_address: string;
   end_address: string;
@@ -110,8 +106,8 @@ export interface ImportRow {
   end_odometer: number;
   trip_category?: string;
   trip_purpose?: string;
-  contact_name?: string;
+  client_name?: string;
   notes?: string;
-  status: 'ok' | 'warning' | 'error';
-  messages: string[];
+  _status: 'ok' | 'warning' | 'error';
+  _messages: string[];
 }

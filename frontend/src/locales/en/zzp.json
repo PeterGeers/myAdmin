@@ -396,6 +396,8 @@
     "inactive": "Inactive",
     "loading": "Loading...",
     "noData": "No data found",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "previous": "Previous",
+    "next": "Next"
   }
 }
