@@ -108,11 +108,19 @@ FIXED_FIELD_KEYS: frozenset[str] = frozenset(
 )
 
 #: Calculated (derived, read-only) fields, as canonical dotted keys (calculated_fields.py).
+#: MUST stay in lock-step with ``sam/members/domain/calculated_fields.CALCULATED_FIELDS`` (the
+#: single source of truth). The four ``birth_*`` keys were previously missing, so a view context
+#: referencing a real calculated key (e.g. ``birth_month``) was wrongly rejected at Save — this
+#: set now transcribes all nine CalculatedField entries.
 CALCULATED_FIELD_KEYS: frozenset[str] = frozenset(
     {
         "personal.display_name",
         "personal.age",
         "personal.birthday",
+        "personal.birth_day",
+        "personal.birth_month",
+        "personal.birth_year",
+        "personal.birth_quarter",
         "membership.years_member",
         "membership.application_year",
     }

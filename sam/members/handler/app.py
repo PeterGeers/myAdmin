@@ -102,6 +102,7 @@ from sam.members.domain.scope_dimensions import (
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.view_contexts import ViewContext, ViewContextsProvider
 from sam.members.domain.mail_gate import MailGateProvider
+from sam.members.domain.config_status import ConfigStatusProvider
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
@@ -199,6 +200,14 @@ _VIEW_CONTEXTS_PROVIDER_OVERRIDE: ViewContextsProvider | None = None
 #: can be driven without an AWS round-trip. When unset (production), each read builds a fresh
 #: projection reader (see :class:`_ProjectionMailGateProvider`).
 _MAIL_GATE_PROVIDER_OVERRIDE: MailGateProvider | None = None
+
+#: Test-only override for the config-status provider (``None`` in production → fresh reader).
+#: Mirrors :data:`_MAIL_GATE_PROVIDER_OVERRIDE` — a test injects a ``StaticConfigStatusProvider``
+#: (or a ``MembersProjectionReader`` over a fake table) so the field-config endpoint's
+#: ``config_status`` block (Phase 0 step 3 — projection delivered/loaded status) can be driven
+#: without an AWS round-trip. When unset (production), each read builds a fresh projection
+#: reader (see :class:`_ProjectionConfigStatusProvider`).
+_CONFIG_STATUS_PROVIDER_OVERRIDE: ConfigStatusProvider | None = None
 
 
 def _new_projection_reader() -> MembersProjectionReader:
@@ -353,6 +362,30 @@ class _ProjectionMailGateProvider:
 #: The mail-gate provider handed to the domain service — a stable indirection that reads a
 #: fresh projection each call (see :class:`_ProjectionMailGateProvider`).
 _MAIL_GATE_PROVIDER: MailGateProvider = _ProjectionMailGateProvider()
+
+
+class _ProjectionConfigStatusProvider:
+    """A thin :class:`ConfigStatusProvider` indirection over a per-call fresh reader.
+
+    Phase 0 step 3 — the config delivered/loaded status seam wired at the module edge, EXACTLY
+    mirroring :class:`_ProjectionMailGateProvider`. The :class:`MembershipService` is a lazy
+    module-level singleton that captures its providers once; to reflect a freshly re-projected
+    ``config#*`` edit without rebuilding the service per request, its config-status provider is
+    this stable indirection: every ``get_config_status`` call delegates to a FRESH
+    :class:`MembersProjectionReader` (or the test override), so the field-config endpoint's
+    ``config_status`` always reflects the current projection while the domain and the service
+    singleton stay UNCHANGED. Empty-is-valid is owned by the reader (missing row → ``None``).
+    """
+
+    def get_config_status(self, tenant_id: str) -> dict:
+        if _CONFIG_STATUS_PROVIDER_OVERRIDE is not None:
+            return dict(_CONFIG_STATUS_PROVIDER_OVERRIDE.get_config_status(tenant_id))
+        return _new_projection_reader().get_config_status(tenant_id)
+
+
+#: The config-status provider handed to the domain service — a stable indirection that reads a
+#: fresh projection each call (see :class:`_ProjectionConfigStatusProvider`).
+_CONFIG_STATUS_PROVIDER: ConfigStatusProvider = _ProjectionConfigStatusProvider()
 
 #: The tenants' membership-lifecycle configuration, carried as **data** (design C2, never an
 #: ``if tenant == ...``): h-dcn is simply the first ``tenant_id`` the provider knows about
@@ -1073,6 +1106,7 @@ def _get_membership_service() -> MembershipService:
             view_contexts_provider=_VIEW_CONTEXTS_PROVIDER,
             scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
             mail_gate_provider=_MAIL_GATE_PROVIDER,
+            config_status_provider=_CONFIG_STATUS_PROVIDER,
             scheduler_port=EventBridgeSchedulerApi(),
         )
     return _SERVICE

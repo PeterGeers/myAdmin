@@ -676,6 +676,65 @@ class MembersProjectionReader:
             grants[dimension] = list(values)
         return grants
 
+    # ── Delivered/loaded status (Phase 0 step 3 — projection staleness surface) ────────
+
+    def get_config_status(self, tenant_id: str) -> dict:
+        """Return the DELIVERED/LOADED status of the tenant's projected ``config#*`` rows.
+
+        Phase 0 step 3 (impact-analysis §2 "No read-side version/staleness surface" / risk
+        #6). The projection is written one-directionally by the Flask-plane ``ProjectionSync``
+        (MySQL → DynamoDB); until now the SAM read side never exposed *what version it is
+        serving*, so a stale or never-delivered config was invisible to the authoring UI. A
+        Tenant Admin edits a ``members.*`` param on the Flask plane and has no way to see
+        whether that edit has actually been projected (delivered) and is what the module is
+        reading (loaded).
+
+        This method surfaces, per config row, the projected ``version`` the reader is serving
+        — the SAME monotonic ``version`` the conditional write and the version-bump-trap fix
+        advance (:data:`services.projection_schema.VERSION_ATTR`). The authoring editor
+        compares it to the source param's own revision (``parameters.updated_at`` on the Flask
+        plane) to render a delivered/stale/not-yet-delivered indicator:
+
+        - a row PRESENT with a ``version`` → that config has been DELIVERED and is what the
+          module LOADS; the version lets the editor detect staleness (source newer than
+          delivered);
+        - a row ABSENT (``version`` is ``None``) → that config has NEVER been projected for
+          this tenant (the editor shows "not yet delivered").
+
+        Read-only and empty-is-valid, same discipline as the sibling readers: one ``Query``
+        per partition (shared cache), a missing partition/row simply yields ``None`` versions,
+        never a raise.
+
+        Args:
+            tenant_id: The tenant (partition key) whose projection status to resolve.
+
+        Returns:
+            A dict mapping each config id (``"scope"``/``"fields"``/``"views"``/``"mail"``) to
+            its projected ``version`` (any JSON scalar — typically an ISO-8601 timestamp or an
+            int), or ``None`` when that row has not been delivered.
+        """
+        return {
+            config_id: self._config_row_version(tenant_id, config_id)
+            for config_id in (
+                _CONFIG_ID_SCOPE,
+                _CONFIG_ID_FIELDS,
+                _CONFIG_ID_VIEWS,
+                _CONFIG_ID_MAIL,
+            )
+        }
+
+    def _config_row_version(self, tenant_id: str, config_id: str):
+        """Return the projected ``version`` of a ``config#<config_id>`` row, or ``None``.
+
+        A missing row (never delivered) → ``None`` (empty-is-valid); otherwise the row's
+        :data:`~services.projection_schema.VERSION_ATTR` value, verbatim (the monotonic version
+        the write path advances), so the editor can compare it to the source param revision.
+        """
+        row = self._find_config_row(tenant_id, config_id)
+        if row is None:
+            return None
+        return row.get(schema.VERSION_ATTR)
+
     # ── internals ──────────────────────────────────────────────────────────────────────
 
     def _find_config_row(self, tenant_id: str, config_id: str) -> dict | None:

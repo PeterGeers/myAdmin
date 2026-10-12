@@ -503,15 +503,31 @@ class FakeParameterService:
     one-directional). Returns pre-set values keyed by (namespace, key, tenant).
     """
 
-    def __init__(self, params: dict[tuple, object] | None = None):
+    def __init__(
+        self,
+        params: dict[tuple, object] | None = None,
+        revisions: dict[tuple, object] | None = None,
+    ):
         self._params = params or {}
+        # Per-param revisions (the ``parameters.updated_at`` the real
+        # ``get_param_revision`` returns), keyed by (namespace, key, tenant). A key
+        # with no entry → None (un-authored / code-default: no per-param revision),
+        # exactly like the real method, so the builders fall back to the tenant row.
+        self._revisions = revisions or {}
         self.calls: list[dict] = []
+        self.revision_calls: list[dict] = []
 
     def get_param(self, namespace, key, tenant=None, role=None, user=None):
         self.calls.append(
             {"namespace": namespace, "key": key, "tenant": tenant}
         )
         return self._params.get((namespace, key, tenant))
+
+    def get_param_revision(self, namespace, key, tenant=None, role=None, user=None):
+        self.revision_calls.append(
+            {"namespace": namespace, "key": key, "tenant": tenant}
+        )
+        return self._revisions.get((namespace, key, tenant))
 
 
 def _hdcn_region_dimension():
@@ -888,6 +904,110 @@ def test_build_config_fields_row_malformed_functional_group_entries_are_skipped(
     assert [g["key"] for g in groups] == ["motor"]
     assert groups[0]["label"] == {}
     assert groups[0]["order"] == 0
+
+
+# --- Version-bump trap fix: config#* rows version off their SOURCE param ------
+# (impact-analysis §0.3 / Phase 0 step 2). A members.* param edit alone must bump
+# the relevant config row's version so the version-guarded conditional put WRITES
+# the change instead of silently skipping it (written=0 skipped=N was the bug).
+
+
+def test_build_config_fields_row_versions_off_param_revision_when_present():
+    """A field_overlay edit alone bumps config#fields' version (the trap fix).
+
+    The param's updated_at (get_param_revision) supersedes the tenant row's version:
+    editing the overlay without touching the tenant row still produces a NEW version.
+    """
+    params = FakeParameterService(
+        params={("members", "field_overlay", "h-dcn"): _hdcn_field_overlay()},
+        revisions={("members", "field_overlay", "h-dcn"): "2026-10-12T09:00:00"},
+    )
+
+    # Tenant row carries an OLD updated_at; the param revision is newer and wins.
+    item = build_config_fields_row(
+        {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}, params
+    )
+
+    assert item.version == "2026-10-12T09:00:00"
+
+
+def test_build_config_scope_and_views_version_off_their_own_param_revision():
+    """Each config row versions off ITS OWN param key, not a sibling's."""
+    params = FakeParameterService(
+        params={
+            ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
+            ("members", "view_contexts", "h-dcn"): [{"key": "c", "columns": []}],
+        },
+        revisions={
+            ("members", "scope_dimensions", "h-dcn"): "2026-05-01T00:00:00",
+            ("members", "view_contexts", "h-dcn"): "2026-06-01T00:00:00",
+        },
+    )
+    tenant = {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}
+
+    scope = build_config_scope_row(tenant, params)
+    views = build_config_views_row(tenant, params)
+
+    assert scope.version == "2026-05-01T00:00:00"
+    assert views.version == "2026-06-01T00:00:00"
+
+
+def test_build_config_mail_row_versions_off_max_of_four_param_revisions():
+    """config#mail is driven by four params — an edit to ANY bumps the row (max wins)."""
+    params = FakeParameterService(
+        params={("members", "mail_enabled", "h-dcn"): True},
+        revisions={
+            ("members", "mail_enabled", "h-dcn"): "2026-02-01T00:00:00",
+            # mail_certified was edited most recently → its revision must win.
+            ("members", "mail_certified", "h-dcn"): "2026-09-01T00:00:00",
+        },
+    )
+
+    item = build_config_mail_row(
+        {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}, params
+    )
+
+    assert item.version == "2026-09-01T00:00:00"
+
+
+def test_build_config_row_falls_back_to_tenant_version_without_param_revision():
+    """No per-param revision authored → fall back to the tenant row version (unchanged)."""
+    params = FakeParameterService(
+        params={("members", "field_overlay", "h-dcn"): _hdcn_field_overlay()},
+        # No revisions registered → get_param_revision returns None for every key.
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn", "version": 7}, params)
+
+    assert item.version == 7
+
+
+def test_sync_param_edit_alone_projects_the_change(sam_module):
+    """End-to-end: a field_overlay edit with an UNCHANGED tenant row still writes.
+
+    This is the exact #6/#7/#8 symptom the trap caused (written=0 skipped=N). After
+    the fix, re-syncing with a newer param revision supersedes the stored config#fields
+    version so the conditional put WRITES it — written>0 (impact-analysis acceptance).
+    """
+    table = FakeTable()
+    params = FakeParameterService(
+        params={("members", "field_overlay", "TenantA"): {"fields": {}}},
+        revisions={("members", "field_overlay", "TenantA"): "2026-01-01T00:00:00"},
+    )
+    source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module)})
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    sync.sync_administration("TenantA")
+    fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+    assert table.store[("TenantA", fields_sk)][schema.VERSION_ATTR] == "2026-01-01T00:00:00"
+
+    # Edit the param ONLY (tenant row untouched): a newer param revision.
+    params._revisions[("members", "field_overlay", "TenantA")] = "2026-10-12T12:00:00"
+    result = sync.sync_administration("TenantA")
+
+    # The edit propagated: config#fields was re-written with the newer version.
+    assert table.store[("TenantA", fields_sk)][schema.VERSION_ATTR] == "2026-10-12T12:00:00"
+    assert result.written >= 1
 
 
 # --- C2 scopegrant#<email>#<dimension> builder (S5b design.md C2, R2.1/R2.2) ---
