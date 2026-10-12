@@ -1,11 +1,10 @@
 """
-ZZP Trip Import/Export Routes: Import, export, and billing endpoints.
+ZZP Trip Import/Export Routes: Import and export endpoints.
 
 Extracted from zzp_trip_routes.py for file-size compliance (<500 lines).
-Provides export (PDF/CSV/XLSX), CSV/Excel import with validation,
-and invoice-from-trips billing endpoint.
+Provides export (PDF/CSV/XLSX) and CSV/Excel import with validation.
 
-Reference: .kiro/specs/ZZP/rittenregistratie/design.md §3.3, §3.4, §4.4
+Reference: .kiro/specs/ZZP/rittenregistratie/design.md §3.4, §4.4
 """
 
 import json
@@ -19,11 +18,8 @@ from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from services.module_registry import module_required
 from services.parameter_service import ParameterService
-from services.tax_rate_service import TaxRateService
-from services.zzp_invoice_service import ZZPInvoiceService
 from services.zzp_trip_export_service import TripExportService
 from services.zzp_trip_import_service import TripImportService
-from services.zzp_trip_service import TripService
 from services.zzp_vehicle_service import VehicleService
 
 logger = logging.getLogger(__name__)
@@ -35,21 +31,6 @@ def _get_vehicle_service() -> VehicleService:
     db = DatabaseManager()
     param_svc = ParameterService(db)
     return VehicleService(db=db, parameter_service=param_svc)
-
-
-def _get_trip_service() -> TripService:
-    db = DatabaseManager()
-    param_svc = ParameterService(db)
-    return TripService(db=db, parameter_service=param_svc)
-
-
-def _get_invoice_service() -> ZZPInvoiceService:
-    db = DatabaseManager()
-    tax_svc = TaxRateService(db)
-    param_svc = ParameterService(db)
-    return ZZPInvoiceService(
-        db=db, tax_rate_service=tax_svc, parameter_service=param_svc
-    )
 
 
 def _get_export_service() -> TripExportService:
@@ -75,7 +56,7 @@ def export_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
     """Export trips as PDF, CSV, or XLSX file download.
 
     Required query params: vehicle_id (int), year (int), format (pdf/csv/xlsx).
-    Optional: trip_category (str), contact_id (int).
+    Optional: trip_category (str).
 
     Reference: Design §3.4 GET /api/zzp/trips/export
     """
@@ -104,8 +85,6 @@ def export_trips(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         filters = {}
         if request.args.get("trip_category"):
             filters["trip_category"] = request.args.get("trip_category")
-        if request.args.get("contact_id"):
-            filters["contact_id"] = request.args.get("contact_id")
 
         export_svc = _get_export_service()
 
@@ -250,69 +229,4 @@ def get_import_template(
         return response
     except Exception as e:
         logger.error("get_import_template error for %s: %s", tenant, e)
-        return jsonify({"success": False, "error": "An internal error occurred"}), 500
-
-
-# ── Billing Endpoints (Design §3.3) ───────────────────────
-
-
-@zzp_trip_io_bp.route("/api/zzp/invoices/from-trips", methods=["POST"])
-@cognito_required(required_permissions=["zzp_crud"])
-@tenant_required()
-@module_required("ZZP")
-def create_invoice_from_trips(
-    user_email, user_roles, tenant, user_tenants
-) -> ResponseReturnValue:
-    """Create an invoice from selected trips.
-
-    Request body: {contact_id, trip_ids, km_rate, invoice_date, payment_terms_days}
-    Creates one invoice line per trip: description, quantity=distance_km, unit_price=km_rate.
-    Marks trips as billed after invoice creation.
-
-    Reference: Design §3.3 POST /api/zzp/invoices/from-trips
-    """
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "error": "Request body required"}), 400
-
-        # Validate required fields
-        required = ["contact_id", "trip_ids", "km_rate"]
-        missing = [f for f in required if f not in data or data[f] is None]
-        if missing:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": f"Missing required fields: {', '.join(missing)}",
-                }
-            ), 400
-
-        if not isinstance(data["trip_ids"], list) or len(data["trip_ids"]) == 0:
-            return jsonify(
-                {"success": False, "error": "trip_ids must be a non-empty list"}
-            ), 400
-
-        trip_service = _get_trip_service()
-        invoice_service = _get_invoice_service()
-
-        invoice = invoice_service.create_invoice_from_trips(
-            tenant=tenant,
-            contact_id=data["contact_id"],
-            trip_ids=data["trip_ids"],
-            km_rate=float(data["km_rate"]),
-            data={
-                "invoice_date": data.get("invoice_date"),
-                "payment_terms_days": data.get("payment_terms_days"),
-            },
-            created_by=user_email,
-            trip_service=trip_service,
-        )
-        return jsonify({"success": True, "data": invoice}), 201
-    except ValueError as ve:
-        return jsonify({"success": False, "error": str(ve)}), 400
-    except RuntimeError as re:
-        logger.error("create_invoice_from_trips runtime error for %s: %s", tenant, re)
-        return jsonify({"success": False, "error": str(re)}), 500
-    except Exception as e:
-        logger.error("create_invoice_from_trips error for %s: %s", tenant, e)
         return jsonify({"success": False, "error": "An internal error occurred"}), 500

@@ -1,0 +1,649 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Discover and record the actual FK constraint names on Local_Docker": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733512178
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733523862
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733679832
+      }
+    ],
+    "2.1 Write `backend/src/migrations/<timestamp>_zzp_trips_tax_log_redesign.json`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733512307
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733691290
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733785601
+      }
+    ],
+    "3.1 Write migration round-trip test": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733512417
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733792401
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734247539
+      }
+    ],
+    "4. Apply the migration on Local_Docker and verify": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733512526
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734253317
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734478067
+      }
+    ],
+    "5.1 Update `zzp_trip_import_service.py` mapping and commit INSERT": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733512642
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734485025
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735006766
+      }
+    ],
+    "5.2 Update/extend `test_zzp_trip_import_service.py` + `test_zzp_trip_import_commit.py` property tests": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733512828
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736050721
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736432105
+      }
+    ],
+    "6.1 Add preset seeding to `commit_import` in `zzp_trip_import_service.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733512983
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735137487
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735564494
+      }
+    ],
+    "6.2 Update/extend `test_zzp_route_preset_service.py` + import tests for preset learning": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513123
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736052286
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736433403
+      }
+    ],
+    "7.1 Add/keep date property tests in `test_zzp_trip_import_validate.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513289
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736053451
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736434891
+      }
+    ],
+    "8.1 Update `zzp_trip_crud_service.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513446
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734486479
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735009078
+      }
+    ],
+    "8.2 Update `test_zzp_trip_service.py` (crud paths) property + example tests": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513583
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736054553
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736436015
+      }
+    ],
+    "9.1 Update `zzp_trip_query_service.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513685
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734487877
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735010296
+      }
+    ],
+    "9.2 Update query tests (in `test_zzp_trip_service.py` query paths)": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513785
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736445718
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737254167
+      }
+    ],
+    "10.1 Update the facade": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513887
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735138907
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735565411
+      }
+    ],
+    "11.1 Update `zzp_trip_export_service.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733513995
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734489493
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735007775
+      }
+    ],
+    "11.2 Update `test_zzp_trip_export_service.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733514112
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736447107
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737251508
+      },
+      {
+        "executionId": "1442a548-ccf5-410d-ad84-70a824bced78",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738187224
+      },
+      {
+        "executionId": "1442a548-ccf5-410d-ad84-70a824bced78",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738276520
+      }
+    ],
+    "12.1 Update `zzp_trip_import_export_routes.py` and `zzp_trip_routes.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733514212
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735016708
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735130890
+      }
+    ],
+    "12.2 Add route-removal integration tests": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733514314
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736448075
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737255220
+      }
+    ],
+    "13. Checkpoint — backend green": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733514414
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738019629
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738064746
+      },
+      {
+        "executionId": "1442a548-ccf5-410d-ad84-70a824bced78",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738156268
+      },
+      {
+        "executionId": "1442a548-ccf5-410d-ad84-70a824bced78",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738304100
+      }
+    ],
+    "14.1 Update `frontend/src/types/zzpTrips.ts`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733514557
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734490351
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735005476
+      }
+    ],
+    "15.1 Update `frontend/src/services/tripService.ts`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733514658
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735139860
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735569504
+      }
+    ],
+    "15.2 Update `tripService.test.ts`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733514956
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736450412
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737252743
+      }
+    ],
+    "16.1 Update `frontend/src/pages/ZZPTrips.tsx`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733515256
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735141156
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735567166
+      }
+    ],
+    "16.2 Update `ZZPTrips` tests": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733515388
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736449426
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738000407
+      }
+    ],
+    "17.1 Update `frontend/src/pages/ZZPTripQuick.tsx`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733515673
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735142515
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735568288
+      }
+    ],
+    "17.2 Update/add `ZZPTripQuick` tests": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733515770
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737268491
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738001717
+      }
+    ],
+    "18.1 Update `frontend/src/pages/ZZPTripImport.tsx`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733515869
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735575574
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736044167
+      }
+    ],
+    "18.2 Update `ZZPTripImport` tests": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733515975
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737269450
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738002722
+      }
+    ],
+    "19.1 Static/smoke assertions": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733516091
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737270480
+      },
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738003802
+      }
+    ],
+    "20. Final checkpoint — full suite green": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733516249
+      },
+      {
+        "executionId": "1442a548-ccf5-410d-ad84-70a824bced78",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738305231
+      }
+    ],
+    "21. Railway production migration — MANUAL, HUMAN-GATED (do NOT run autonomously)": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733516464
+      }
+    ],
+    "2. Author the new JSON migration file": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791733785772
+      }
+    ],
+    "3. Migration up/down round-trip test (local scratch DB)": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791734247711
+      }
+    ],
+    "14. Frontend — types `zzpTrips.ts`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735005716
+      }
+    ],
+    "10. Backend — facade service `zzp_trip_service.py`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791735565537
+      }
+    ],
+    "5. Backend — `client_name` end-to-end in import service": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736432245
+      }
+    ],
+    "6. Backend — preset seeding from import": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736433645
+      }
+    ],
+    "7. Backend — confirm date validation unchanged (`_normalize_date`)": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736435096
+      }
+    ],
+    "8. Backend — CRUD service (create / gap-fill / update / cancel)": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791736436147
+      }
+    ],
+    "11. Backend — export service": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737251708
+      }
+    ],
+    "15. Frontend — `tripService.ts`": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737252891
+      }
+    ],
+    "9. Backend — query service": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737254268
+      }
+    ],
+    "12. Backend — route removals and filter passthroughs": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791737255316
+      }
+    ],
+    "16. Frontend — `ZZPTrips.tsx` list page": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738000609
+      }
+    ],
+    "17. Frontend — `ZZPTripQuick.tsx` quick entry": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738001840
+      }
+    ],
+    "18. Frontend — `ZZPTripImport.tsx` import preview": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738002828
+      }
+    ],
+    "19. Frontend — absence confirmations": [
+      {
+        "executionId": "a0b829ab-ac11-478c-884e-8b2d3517c650",
+        "chatSessionId": "sess_37f23f94-d904-46d7-a716-9fad6c64ba20",
+        "timestamp": 1791738003948
+      }
+    ]
+  }
+}

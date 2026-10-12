@@ -19,7 +19,6 @@ import {
 import { AddIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { getTrips, getTripSummary, exportTrips } from '../services/tripService';
-import { createInvoiceFromTrips } from '../services/zzpInvoiceService';
 import { getVehicles } from '../services/vehicleService';
 import type { Trip, TripFilters, TripSummary, Vehicle } from '../types/zzpTrips';
 import { TripModal } from '../components/zzp/TripModal';
@@ -30,6 +29,9 @@ import { useFilterableTable } from '../hooks/useFilterableTable';
 
 const ZZPVehicles = lazy(() => import('./ZZPVehicles'));
 const ZZPTripImport = lazy(() => import('./ZZPTripImport'));
+
+/** Server-side page size for the trips table. */
+const PAGE_SIZE = 50;
 
 /* ─── Helpers ─── */
 
@@ -81,6 +83,10 @@ const ZZPTrips: React.FC = () => {
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Server-side pagination state
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+
   // Server-side filter state (vehicle, year, category — triggers API reload)
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [category, setCategory] = useState('');
@@ -121,8 +127,7 @@ const ZZPTrips: React.FC = () => {
       return {
         ...trip,
         formatted_date: formatDate(trip.trip_date),
-        contact_name: trip.contact?.company_name || '',
-        billable_label: trip.is_billable ? 'Ja' : 'Nee',
+        client_label: trip.client_name || '',
         gap_flag: gapFlag,
       };
     });
@@ -143,26 +148,21 @@ const ZZPTrips: React.FC = () => {
       distance_km: '',
       trip_category: '',
       trip_purpose: '',
-      contact_name: '',
-      billable_label: '',
+      client_label: '',
       gap_flag: '',
     },
     defaultSort: { field: 'trip_date', direction: 'desc' },
   });
-
-  // Billable trips from the filtered/sorted view (for invoice button)
-  const billableTrips = useMemo(
-    () => processedData.filter(t => t.is_billable && !t.is_billed && !t.is_cancelled),
-    [processedData]
-  );
 
   // Build server-side filters
   const buildFilters = useCallback((): TripFilters => {
     const filters: TripFilters = {};
     if (selectedVehicle) filters.vehicle_id = selectedVehicle;
     if (category) filters.trip_category = category;
+    filters.limit = PAGE_SIZE;
+    filters.offset = page * PAGE_SIZE;
     return filters;
-  }, [selectedVehicle, category]);
+  }, [selectedVehicle, category, page]);
 
   // Load vehicles on mount
   useEffect(() => {
@@ -193,6 +193,7 @@ const ZZPTrips: React.FC = () => {
       const resp = await getTrips(filters);
       if (resp.success) {
         setTrips(resp.data || []);
+        setTotal(resp.total ?? 0);
       }
     } catch {
       toast({ title: 'Error loading trips', status: 'error', duration: 3000 });
@@ -202,6 +203,10 @@ const ZZPTrips: React.FC = () => {
   }, [selectedVehicle, buildFilters, toast]);
 
   useEffect(() => { loadTrips(); }, [loadTrips]);
+
+  // Reset to the first page whenever the server-side filters change, so a
+  // narrower result set never leaves the user stranded on an empty page.
+  useEffect(() => { setPage(0); }, [selectedVehicle, category, year]);
 
   // Load summary when vehicle or year changes
   const loadSummary = useCallback(async () => {
@@ -257,45 +262,6 @@ const ZZPTrips: React.FC = () => {
     onOpen();
   };
 
-  // Invoice from visible billable trips handler
-  const handleInvoiceSelected = async () => {
-    const billable = processedData.filter(trip => trip.is_billable && !trip.is_billed && !trip.is_cancelled);
-    if (billable.length === 0) {
-      toast({ title: t('trips.invoice.noContact'), status: 'warning', duration: 3000 });
-      return;
-    }
-    const contactIds = new Set(billable.map(trip => trip.contact_id).filter(Boolean));
-
-    if (contactIds.size === 0) {
-      toast({ title: t('trips.invoice.noContact'), status: 'warning', duration: 3000 });
-      return;
-    }
-    if (contactIds.size > 1) {
-      toast({ title: t('trips.invoice.multipleContacts'), status: 'warning', duration: 3000 });
-      return;
-    }
-
-    try {
-      const contactId = [...contactIds][0] as number;
-      const tripIds = billable.map(trip => trip.id);
-      const resp = await createInvoiceFromTrips({
-        contact_id: contactId,
-        trip_ids: tripIds,
-        km_rate: 0.23,
-        invoice_date: new Date().toISOString().split('T')[0],
-        payment_terms_days: 14,
-      });
-      if (resp.success) {
-        toast({ title: t('trips.invoice.created'), status: 'success', duration: 3000 });
-        loadTrips();
-      } else {
-        toast({ title: resp.error || 'Error', status: 'error', duration: 3000 });
-      }
-    } catch {
-      toast({ title: t('trips.invoice.error'), status: 'error', duration: 3000 });
-    }
-  };
-
   // Year options for selector
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -312,266 +278,286 @@ const ZZPTrips: React.FC = () => {
         <TabPanels>
           {/* Tab 1: Ritten (main trip table) */}
           <TabPanel p={0}>
-      {/* Header */}
-      <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={2}>
-        <Text fontSize="xl" fontWeight="bold">{t('trips.title')}</Text>
-        <HStack spacing={2}>
-          {billableTrips.length > 0 && (
-            <Button size="sm" colorScheme="green" onClick={handleInvoiceSelected}>
-              {t('trips.invoice.button')} ({billableTrips.length})
-            </Button>
-          )}
-          <Button
-            colorScheme="orange"
-            size="sm"
-            leftIcon={<AddIcon />}
-            onClick={handleNewTrip}
-          >
-            {t('trips.newTrip')}
-          </Button>
-          <Menu>
-            <MenuButton as={Button} size="sm" rightIcon={<ChevronDownIcon />}>
-              {t('trips.export.title')}
-            </MenuButton>
-            <MenuList bg="gray.700" borderColor="gray.600">
-              <MenuItem bg="gray.700" _hover={{ bg: 'gray.600' }} onClick={() => handleExport('pdf')}>
-                {t('trips.export.pdf')}
-              </MenuItem>
-              <MenuItem bg="gray.700" _hover={{ bg: 'gray.600' }} onClick={() => handleExport('csv')}>
-                {t('trips.export.csv')}
-              </MenuItem>
-              <MenuItem bg="gray.700" _hover={{ bg: 'gray.600' }} onClick={() => handleExport('xlsx')}>
-                {t('trips.export.excel')}
-              </MenuItem>
-            </MenuList>
-          </Menu>
-        </HStack>
-      </Flex>
-
-      {/* Vehicle Selector + Year */}
-      <Flex gap={3} mb={4} wrap="wrap">
-        <Select
-          size="sm"
-          w={{ base: '100%', md: '250px' }}
-          bg="gray.700"
-          color="white"
-          borderColor="gray.600"
-          value={selectedVehicle ?? ''}
-          onChange={(e) => setSelectedVehicle(Number(e.target.value) || null)}
-          placeholder={t('trips.filters.allVehicles')}
-        >
-          {vehicles.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.license_plate} — {v.make} {v.model}
-            </option>
-          ))}
-        </Select>
-        <Select
-          size="sm"
-          w={{ base: '50%', md: '120px' }}
-          bg="gray.700"
-          color="white"
-          borderColor="gray.600"
-          value={year}
-          onChange={(e) => setYear(Number(e.target.value))}
-        >
-          {yearOptions.map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </Select>
-      </Flex>
-
-      {/* Summary Bar */}
-      <SummaryBar summary={summary} t={t} />
-
-      {/* Bijtelling Widget (only shows for business vehicles) */}
-      <BijtellingWidget
-        summary={summary}
-        vehicleType={vehicles.find((v) => v.id === selectedVehicle)?.vehicle_type}
-      />
-
-      {/* Filter Panel — dropdown filters above table (server-side) */}
-      <Flex gap={3} mb={4} wrap="wrap" align="center">
-        <Select
-          size="sm"
-          w={{ base: '100%', md: '160px' }}
-          bg="gray.700"
-          color="white"
-          borderColor="gray.600"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder={t('trips.filters.allCategories')}
-        >
-          <option value="Zakelijk">{t('trips.categories.zakelijk')}</option>
-          <option value="Privé">{t('trips.categories.prive')}</option>
-          <option value="Woon-werk">{t('trips.categories.woonWerk')}</option>
-        </Select>
-      </Flex>
-
-      {/* Gap-Fill Banner */}
-      {selectedVehicle && (
-        <GapFillBanner
-          gapFillOffer={gapFillOffer}
-          gapWarning={gapWarning}
-          vehicleId={selectedVehicle}
-          onAccepted={() => {
-            setGapFillOffer(null);
-            setGapWarning(null);
-            loadTrips();
-          }}
-        />
-      )}
-
-      {/* Content */}
-      {loading ? (
-        <Flex justify="center" py={10}>
-          <Spinner color="orange.300" size="lg" />
-        </Flex>
-      ) : trips.length === 0 ? (
-        <Box textAlign="center" py={10}>
-          <Text color="gray.400">{t('trips.noTrips')}</Text>
-        </Box>
-      ) : (
-        <Box overflowX="auto">
-          <Table size="sm" variant="simple">
-            <Thead>
-              <Tr>
-                <FilterableHeader
-                  label="Fact."
-                  filterValue={filters.billable_label}
-                  onFilterChange={(v) => setFilter('billable_label', v)}
-                  sortable
-                  sortDirection={sortField === 'is_billable' ? sortDirection : null}
-                  onSort={() => handleSort('is_billable')}
-                  placeholder="Ja/Nee"
-                />
-                <FilterableHeader
-                  label={t('trips.labels.date')}
-                  filterValue={filters.trip_date}
-                  onFilterChange={(v) => setFilter('trip_date', v)}
-                  sortable
-                  sortDirection={sortField === 'trip_date' ? sortDirection : null}
-                  onSort={() => handleSort('trip_date')}
-                  placeholder="Filter..."
-                />
-                <FilterableHeader
-                  label={t('trips.labels.startAddress')}
-                  filterValue={filters.start_address}
-                  onFilterChange={(v) => setFilter('start_address', v)}
-                  sortable
-                  sortDirection={sortField === 'start_address' ? sortDirection : null}
-                  onSort={() => handleSort('start_address')}
-                  placeholder="Filter..."
-                />
-                <FilterableHeader
-                  label={t('trips.labels.endAddress')}
-                  filterValue={filters.end_address}
-                  onFilterChange={(v) => setFilter('end_address', v)}
-                  sortable
-                  sortDirection={sortField === 'end_address' ? sortDirection : null}
-                  onSort={() => handleSort('end_address')}
-                  placeholder="Filter..."
-                />
-                <FilterableHeader
-                  label={t('trips.labels.distance')}
-                  filterValue={filters.distance_km}
-                  onFilterChange={(v) => setFilter('distance_km', v)}
-                  sortable
-                  sortDirection={sortField === 'distance_km' ? sortDirection : null}
-                  onSort={() => handleSort('distance_km')}
-                  isNumeric
-                  placeholder="km"
-                />
-                <FilterableHeader
-                  label={t('trips.labels.category')}
-                  filterValue={filters.trip_category}
-                  onFilterChange={(v) => setFilter('trip_category', v)}
-                  sortable
-                  sortDirection={sortField === 'trip_category' ? sortDirection : null}
-                  onSort={() => handleSort('trip_category')}
-                  placeholder="Filter..."
-                />
-                <FilterableHeader
-                  label={t('trips.labels.purpose')}
-                  filterValue={filters.trip_purpose}
-                  onFilterChange={(v) => setFilter('trip_purpose', v)}
-                  sortable
-                  sortDirection={sortField === 'trip_purpose' ? sortDirection : null}
-                  onSort={() => handleSort('trip_purpose')}
-                  placeholder="Filter..."
-                />
-                <FilterableHeader
-                  label={t('trips.labels.client')}
-                  filterValue={filters.contact_name}
-                  onFilterChange={(v) => setFilter('contact_name', v)}
-                  sortable
-                  sortDirection={sortField === 'contact_name' ? sortDirection : null}
-                  onSort={() => handleSort('contact_name')}
-                  placeholder="Filter..."
-                />
-                <FilterableHeader
-                  label="Gap"
-                  filterValue={filters.gap_flag}
-                  onFilterChange={(v) => setFilter('gap_flag', v)}
-                  placeholder="+ / -"
-                />
-              </Tr>
-            </Thead>
-            <Tbody>
-              {processedData.map((trip) => (
-                <Tr
-                  key={trip.id}
-                  cursor="pointer"
-                  _hover={{ bg: 'gray.700' }}
-                  onClick={() => handleRowClick(trip)}
+            {/* Header */}
+            <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={2}>
+              <Text fontSize="xl" fontWeight="bold">{t('trips.title')}</Text>
+              <HStack spacing={2}>
+                <Button
+                  colorScheme="orange"
+                  size="sm"
+                  leftIcon={<AddIcon />}
+                  onClick={handleNewTrip}
                 >
-                  <Td>
-                    <Badge colorScheme={trip.is_billable ? 'green' : 'gray'} variant="subtle" fontSize="xs">
-                      {trip.is_billable ? 'Ja' : 'Nee'}
-                    </Badge>
-                  </Td>
-                  <Td maxW="50px">{formatDate(trip.trip_date)}</Td>
-                  <Td maxW="180px" isTruncated title={trip.start_address}>{trip.start_address}</Td>
-                  <Td maxW="180px" isTruncated title={trip.end_address}>{trip.end_address}</Td>
-                  <Td isNumeric maxW="60px">{trip.distance_km}</Td>
-                  <Td maxW="90px">
-                    <Badge
-                      colorScheme={
-                        trip.trip_category === 'Zakelijk' ? 'blue'
-                          : trip.trip_category === 'Privé' ? 'purple'
-                            : 'orange'
-                      }
-                      variant="subtle"
-                    >
-                      {trip.trip_category}
-                    </Badge>
-                  </Td>
-                  <Td maxW="130px" isTruncated title={trip.trip_purpose}>{trip.trip_purpose || '-'}</Td>
-                  <Td maxW="140px" isTruncated title={trip.contact_name}>{trip.contact_name || '-'}</Td>
-                  <Td>
-                    {trip.gap_flag ? (
-                      <Badge colorScheme="red" variant="subtle" fontSize="xs">
-                        {trip.gap_flag}
-                      </Badge>
-                    ) : null}
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </Box>
-      )}
+                  {t('trips.newTrip')}
+                </Button>
+                <Menu>
+                  <MenuButton as={Button} size="sm" rightIcon={<ChevronDownIcon />}>
+                    {t('trips.export.title')}
+                  </MenuButton>
+                  <MenuList bg="gray.700" borderColor="gray.600">
+                    <MenuItem bg="gray.700" _hover={{ bg: 'gray.600' }} onClick={() => handleExport('pdf')}>
+                      {t('trips.export.pdf')}
+                    </MenuItem>
+                    <MenuItem bg="gray.700" _hover={{ bg: 'gray.600' }} onClick={() => handleExport('csv')}>
+                      {t('trips.export.csv')}
+                    </MenuItem>
+                    <MenuItem bg="gray.700" _hover={{ bg: 'gray.600' }} onClick={() => handleExport('xlsx')}>
+                      {t('trips.export.excel')}
+                    </MenuItem>
+                  </MenuList>
+                </Menu>
+              </HStack>
+            </Flex>
 
-      {/* TripModal for create/edit */}
-      {selectedVehicle && (
-        <TripModal
-          isOpen={_isOpen}
-          onClose={_onClose}
-          trip={selectedTrip}
-          onSaved={() => { loadTrips(); loadSummary(); }}
-          vehicleId={selectedVehicle}
-        />
-      )}
+            {/* Vehicle Selector + Year */}
+            <Flex gap={3} mb={4} wrap="wrap">
+              <Select
+                size="sm"
+                w={{ base: '100%', md: '250px' }}
+                bg="gray.700"
+                color="white"
+                borderColor="gray.600"
+                value={selectedVehicle ?? ''}
+                onChange={(e) => setSelectedVehicle(Number(e.target.value) || null)}
+                placeholder={t('trips.filters.allVehicles')}
+              >
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.license_plate} — {v.make} {v.model}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                size="sm"
+                w={{ base: '50%', md: '120px' }}
+                bg="gray.700"
+                color="white"
+                borderColor="gray.600"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </Select>
+            </Flex>
+
+            {/* Summary Bar */}
+            <SummaryBar summary={summary} t={t} />
+
+            {/* Bijtelling Widget (only shows for business vehicles) */}
+            <BijtellingWidget
+              summary={summary}
+              vehicleType={vehicles.find((v) => v.id === selectedVehicle)?.vehicle_type}
+            />
+
+            {/* Filter Panel — dropdown filters above table (server-side) */}
+            <Flex gap={3} mb={4} wrap="wrap" align="center">
+              <Select
+                size="sm"
+                w={{ base: '100%', md: '160px' }}
+                bg="gray.700"
+                color="white"
+                borderColor="gray.600"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder={t('trips.filters.allCategories')}
+              >
+                <option value="Zakelijk">{t('trips.categories.zakelijk')}</option>
+                <option value="Privé">{t('trips.categories.prive')}</option>
+                <option value="Woon-werk">{t('trips.categories.woonWerk')}</option>
+              </Select>
+            </Flex>
+
+            {/* Gap-Fill Banner */}
+            {selectedVehicle && (
+              <GapFillBanner
+                gapFillOffer={gapFillOffer}
+                gapWarning={gapWarning}
+                vehicleId={selectedVehicle}
+                onAccepted={() => {
+                  setGapFillOffer(null);
+                  setGapWarning(null);
+                  loadTrips();
+                }}
+              />
+            )}
+
+            {/* Content */}
+            {loading ? (
+              <Flex justify="center" py={10}>
+                <Spinner color="orange.300" size="lg" />
+              </Flex>
+            ) : trips.length === 0 ? (
+              <Box textAlign="center" py={10}>
+                <Text color="gray.400">{t('trips.noTrips')}</Text>
+              </Box>
+            ) : (
+              <Box overflowX="auto">
+                <Table size="sm" variant="simple">
+                  <Thead>
+                    <Tr>
+                      <FilterableHeader
+                        label={t('trips.labels.date')}
+                        filterValue={filters.trip_date}
+                        onFilterChange={(v) => setFilter('trip_date', v)}
+                        sortable
+                        sortDirection={sortField === 'trip_date' ? sortDirection : null}
+                        onSort={() => handleSort('trip_date')}
+                        placeholder="Filter..."
+                      />
+                      <FilterableHeader
+                        label={t('trips.labels.startAddress')}
+                        filterValue={filters.start_address}
+                        onFilterChange={(v) => setFilter('start_address', v)}
+                        sortable
+                        sortDirection={sortField === 'start_address' ? sortDirection : null}
+                        onSort={() => handleSort('start_address')}
+                        placeholder="Filter..."
+                      />
+                      <FilterableHeader
+                        label={t('trips.labels.endAddress')}
+                        filterValue={filters.end_address}
+                        onFilterChange={(v) => setFilter('end_address', v)}
+                        sortable
+                        sortDirection={sortField === 'end_address' ? sortDirection : null}
+                        onSort={() => handleSort('end_address')}
+                        placeholder="Filter..."
+                      />
+                      <FilterableHeader
+                        label={t('trips.labels.distance')}
+                        filterValue={filters.distance_km}
+                        onFilterChange={(v) => setFilter('distance_km', v)}
+                        sortable
+                        sortDirection={sortField === 'distance_km' ? sortDirection : null}
+                        onSort={() => handleSort('distance_km')}
+                        isNumeric
+                        placeholder="km"
+                      />
+                      <FilterableHeader
+                        label={t('trips.labels.category')}
+                        filterValue={filters.trip_category}
+                        onFilterChange={(v) => setFilter('trip_category', v)}
+                        sortable
+                        sortDirection={sortField === 'trip_category' ? sortDirection : null}
+                        onSort={() => handleSort('trip_category')}
+                        placeholder="Filter..."
+                      />
+                      <FilterableHeader
+                        label={t('trips.labels.purpose')}
+                        filterValue={filters.trip_purpose}
+                        onFilterChange={(v) => setFilter('trip_purpose', v)}
+                        sortable
+                        sortDirection={sortField === 'trip_purpose' ? sortDirection : null}
+                        onSort={() => handleSort('trip_purpose')}
+                        placeholder="Filter..."
+                      />
+                      <FilterableHeader
+                        label={t('trips.labels.client')}
+                        filterValue={filters.client_label}
+                        onFilterChange={(v) => setFilter('client_label', v)}
+                        sortable
+                        sortDirection={sortField === 'client_label' ? sortDirection : null}
+                        onSort={() => handleSort('client_label')}
+                        placeholder="Filter..."
+                      />
+                      <FilterableHeader
+                        label="Gap"
+                        filterValue={filters.gap_flag}
+                        onFilterChange={(v) => setFilter('gap_flag', v)}
+                        placeholder="+ / -"
+                      />
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {processedData.map((trip) => (
+                      <Tr
+                        key={trip.id}
+                        cursor="pointer"
+                        _hover={{ bg: 'gray.700' }}
+                        onClick={() => handleRowClick(trip)}
+                      >
+                        <Td maxW="50px">{formatDate(trip.trip_date)}</Td>
+                        <Td maxW="180px" isTruncated title={trip.start_address}>{trip.start_address}</Td>
+                        <Td maxW="180px" isTruncated title={trip.end_address}>{trip.end_address}</Td>
+                        <Td isNumeric maxW="60px">{trip.distance_km}</Td>
+                        <Td maxW="90px">
+                          <Badge
+                            colorScheme={
+                              trip.trip_category === 'Zakelijk' ? 'blue'
+                                : trip.trip_category === 'Privé' ? 'purple'
+                                  : 'orange'
+                            }
+                            variant="subtle"
+                          >
+                            {trip.trip_category}
+                          </Badge>
+                        </Td>
+                        <Td maxW="130px" isTruncated title={trip.trip_purpose}>{trip.trip_purpose || '-'}</Td>
+                        <Td maxW="140px" isTruncated title={trip.client_name ?? ''}>{trip.client_name ?? ''}</Td>
+                        <Td>
+                          {trip.gap_flag ? (
+                            <Badge colorScheme="red" variant="subtle" fontSize="xs">
+                              {trip.gap_flag}
+                            </Badge>
+                          ) : null}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </Box>
+            )}
+
+            {/* Pagination controls (server-side next/prev) */}
+            {!loading && total > 0 && (
+              <Flex justify="space-between" align="center" mt={4} wrap="wrap" gap={2}>
+                <Text fontSize="sm" color="gray.400">
+                  {total === 0
+                    ? '0'
+                    : `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, total)}`} / {total}
+                </Text>
+                <HStack spacing={2}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    colorScheme="orange"
+                    color="orange.200"
+                    borderColor="orange.400"
+                    _hover={{ bg: 'orange.600', color: 'white' }}
+                    _disabled={{ opacity: 0.4, cursor: 'not-allowed', color: 'gray.500', borderColor: 'gray.600' }}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    isDisabled={page === 0}
+                  >
+                    {t('common.previous')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    colorScheme="orange"
+                    color="orange.200"
+                    borderColor="orange.400"
+                    _hover={{ bg: 'orange.600', color: 'white' }}
+                    _disabled={{ opacity: 0.4, cursor: 'not-allowed', color: 'gray.500', borderColor: 'gray.600' }}
+                    onClick={() => setPage((p) => p + 1)}
+                    isDisabled={(page + 1) * PAGE_SIZE >= total}
+                  >
+                    {t('common.next')}
+                  </Button>
+                </HStack>
+              </Flex>
+            )}
+
+            {/* TripModal for create/edit */}
+            {selectedVehicle && (
+              <TripModal
+                isOpen={_isOpen}
+                onClose={_onClose}
+                trip={selectedTrip}
+                onSaved={() => { loadTrips(); loadSummary(); }}
+                vehicleId={selectedVehicle}
+              />
+            )}
           </TabPanel>
 
           {/* Tab 2: Voertuigen */}

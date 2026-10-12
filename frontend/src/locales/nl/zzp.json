@@ -396,6 +396,8 @@
     "inactive": "Inactief",
     "loading": "Laden...",
     "noData": "Geen gegevens gevonden",
-    "confirm": "Bevestigen"
+    "confirm": "Bevestigen",
+    "previous": "Vorige",
+    "next": "Volgende"
   }
 }

@@ -1,0 +1,141 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. **H1. Update the stale expected-set in `test_parameter_admin_routes.py` for the three new Members `mail_*` config keys (F1, 1 failing test).** [S] — the parameter schema now returns `mail_certified` / `mail_domain` / `mail_local_part`; the test's hard-coded expected set was not updated. Fix is in the **test**, not production.": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644539517
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644548023
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644627492
+      }
+    ],
+    "2. **H2. Fix the Members tenant-switch role re-resolution so \"Members Overview\" surfaces after switching to `h-dcn` (F2, 1 failing test).** [M] — the accessible \"Members Overview\" button is not rendered after the in-app tenant switch.": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644539637
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644653557
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644763461
+      }
+    ],
+    "3. **H3. Fix Members session-column filter composition so excluded rows are filtered out (F3/F4, 2 failing tests — one cluster).** [M] — a row that should be filtered out (`Marie`) stays in the DOM when a chosen-column filter is AND-composed with the global search, and when the saved column list survives a view-context switch.": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644539746
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644783894
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644934324
+      }
+    ],
+    "4. **H4. Clear the 3 CI-blocking ruff-lint errors in the new Members routes (G201 ×2, RUF100 ×1).** [S] — all in new sender-identity / analytics-audit routes; 1 auto-fixable, 2 a trivial manual idiom swap.": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644539822
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644944571
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791645026758
+      }
+    ],
+    "5. **H5. Reformat the 2 ruff-format files from the new Members mail-config feature.** [S] — purely mechanical `ruff format`.": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644539898
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791645054655
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791645122581
+      }
+    ],
+    "6. **L1. Broaden the pre-push guard from `--collect-only` to also run `ruff check` + `ruff format --check` + a changed-path test subset.** [M] — carried forward from 10-03 / 10-04 / 10-05 L1 (**still open**); it would have blocked all of H1, H4, and H5 before push.": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644540011
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791645139470
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791645430943
+      }
+    ],
+    "7. **L2. Add a schema/enum key-set ↔ expected-set drift check so growing a key set can't silently break a frozen-set test.** [S] — durable prevention for the F1 class (feature-vs-test drift).": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644540090
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791645441641
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791646162823
+      }
+    ],
+    "8. **L3. Confirm ruff stays pinned to 0.16.5 (reproducibility guard).** [S] — standing guard carried forward from 10-03 / 10-04 / 10-05.": [
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791644540168
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791646190770
+      },
+      {
+        "executionId": "ef544cfb-adbd-4453-835e-65f3d7221f89",
+        "chatSessionId": "sess_9545cde2-9c71-4b10-ac89-0663f924fe52",
+        "timestamp": 1791646231269
+      }
+    ]
+  }
+}
