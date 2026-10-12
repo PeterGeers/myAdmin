@@ -86,9 +86,14 @@ def get_sender_identity(
             }
         ), 200
 
-    except Exception as e:
+    except Exception:
+        # Detail is captured server-side via logger.exception; do NOT return the
+        # exception text to the client (CodeQL: information exposure through an
+        # exception).
         logger.exception("Error reading sender identity for tenant %s", tenant)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify(
+            {"success": False, "error": "Failed to read sender identity"}
+        ), 500
 
 
 @members_sender_identity_bp.route("/api/members/sender-identities", methods=["POST"])
@@ -150,6 +155,11 @@ def create_sender_identity(
             }
         ), 400
 
-    except Exception as e:
+    except Exception:
+        # Detail is captured server-side via logger.exception; do NOT return the
+        # exception text to the client (CodeQL: information exposure through an
+        # exception).
         logger.exception("Error verifying sender identity for tenant %s", tenant)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify(
+            {"success": False, "error": "Failed to verify sender identity"}
+        ), 500

@@ -385,6 +385,12 @@ There is **NO `config#mail` row**. So the edge reads absent → fail-closed Fals
 4. Verify: `config#mail` row present with `mail_enabled: true` → edge offers the Mail action.
 
 ### Config-home architecture fork (CENTRAL Track 3 question) — where should members config live?
+> ✅ **DECIDED (user, 2026-10-12): Option B.** Flask authors; SAM reads a **first-class projection**
+> (auto-bump + delivered/loaded status); **steering 36 kept** (Option C rejected — no steering-level
+> change). Authoritative record + rationale live in the Track 3 config-redesign spec:
+> `.kiro/specs/Members/Parameter redesign/` (`recommendation.md` §4, `analysis.md` Q3,
+> `impact-analysis.md` Phase 4). The three options below are retained for the record.
+
 Members config (`field_overlay`, `scope_dimensions`, `view_contexts`, `mail_enabled`) is AUTHORED on
 Flask and CONSUMED on the SAM plane. Three options for the mechanism:
 - **Option A — status quo:** Flask `parameters` table = source of truth → projected to DynamoDB
