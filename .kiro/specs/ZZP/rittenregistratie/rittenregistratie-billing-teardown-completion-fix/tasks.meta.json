@@ -1,0 +1,126 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. **F1/F2. Remove billing/contact-link fields from trip types.** [S] — DONE in working": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896079323
+      },
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896086557
+      }
+    ],
+    "2. **F3. Harden the render-free absence guard to all three trip interfaces.** [S] — DONE.": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896079426
+      },
+      {
+        "executionId": "f67fe841-bd1a-4889-9729-47abcf5697c8",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791897106770
+      },
+      {
+        "executionId": "f67fe841-bd1a-4889-9729-47abcf5697c8",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791897213148
+      }
+    ],
+    "3. **B1. Drop `is_billable` from `UPDATABLE_FIELDS` in `zzp_trip_service.py`.** [S] —": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896079528
+      },
+      {
+        "executionId": "0dc61415-3ffd-49ac-bd24-e8ef890de155",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791897924618
+      }
+    ],
+    "4. **B2. Remove dead `is_billable`/`is_billed` coercion in trip `_serialize`.** [S] —": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896079662
+      },
+      {
+        "executionId": "80578fbd-8c05-424d-8c16-afb9700ee8db",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898154245
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898276833
+      }
+    ],
+    "5. **B3. Remove the trip `mark_as_billed` path (service + query service).** [M] —": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896079761
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898283122
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898434505
+      }
+    ],
+    "6. **B4. Remove the trip branch of `create_invoice_from_trips` (invoice service +": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896079859
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898441927
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898550864
+      }
+    ],
+    "7. **B5. Verify routes conform (and remove any residual).** [S] — parent Req 4.1–4.3.": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896079992
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898557021
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898647324
+      }
+    ],
+    "8. **V1. Full paired-plane verification.** [S]": [
+      {
+        "executionId": "5095e0c7-3225-41aa-9f21-971eb7bad928",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791896080094
+      },
+      {
+        "executionId": "259b7f2c-7725-4a50-b26f-9315c30f2e20",
+        "chatSessionId": "sess_69783726-52c9-400c-be88-7f7ca27ce45f",
+        "timestamp": 1791898652922
+      }
+    ]
+  }
+}
