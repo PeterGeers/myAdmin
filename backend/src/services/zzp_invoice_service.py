@@ -485,28 +485,6 @@ class ZZPInvoiceService(FieldConfigMixin):
             time_tracking_service=time_tracking_service,
         )
 
-    def create_invoice_from_trips(
-        self,
-        tenant: str,
-        contact_id: int,
-        trip_ids: list,
-        km_rate: float,
-        data: dict,
-        created_by: str,
-        trip_service=None,
-    ) -> dict:
-        """Create a draft invoice from selected trips (delegated to factory helper)."""
-        return self._factory.create_invoice_from_trips(
-            tenant,
-            contact_id,
-            trip_ids,
-            km_rate,
-            data,
-            created_by,
-            create_invoice_fn=self.create_invoice,
-            trip_service=trip_service,
-        )
-
     def copy_last_invoice(self, tenant: str, contact_id: int, created_by: str) -> dict:
         """Create a new draft by copying the most recent invoice (delegated to factory helper)."""
         return self._factory.copy_last_invoice(
