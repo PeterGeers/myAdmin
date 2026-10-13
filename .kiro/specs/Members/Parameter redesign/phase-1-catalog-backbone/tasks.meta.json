@@ -652,6 +652,11 @@
         "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
         "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
         "timestamp": 1791902677319
+      },
+      {
+        "executionId": "65bddccd-a16b-47e9-a1c6-065b5dfbceb1",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791910799515
       }
     ],
     "10.2 Run the paired tests locally before the PR (scoped, not a full-suite run) — the SAM + Flask tests from wave 5. _(43 bugfix-scope note; `34`)_": [
@@ -659,6 +664,16 @@
         "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
         "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
         "timestamp": 1791902677655
+      },
+      {
+        "executionId": "65bddccd-a16b-47e9-a1c6-065b5dfbceb1",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791910805332
+      },
+      {
+        "executionId": "65bddccd-a16b-47e9-a1c6-065b5dfbceb1",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791911002865
       }
     ],
     "10.3 PR into `test`; clear security gates (CodeQL + GitGuardian green, fix root cause). On merge to `test`, confirm `deploy-sam-members.yml` runs `--config-env test` and `test-sam-members` settles `UPDATE_COMPLETE`. _(43 deploy workflows)_": [
