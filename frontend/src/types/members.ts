@@ -355,6 +355,17 @@ export interface MemberColumnPreferences {
   sub: string;
   /** Ordered field-config keys the user chose to show as columns. */
   columns: string[];
+  /**
+   * The user's optional per-user rows-per-page preference (Members config
+   * redesign Phase 2, step (a) — the pagination re-home). The per-user
+   * column/table preference mechanism carries this as the HIGHEST-precedence
+   * input to the Members table page size: `userPreference ?? default_page_size
+   * ?? platformDefault` (R2.3). Absent/`null`/non-positive → the resolver falls
+   * through to the tenant `default_page_size`, then the platform default. The
+   * authoring UI for this preference is a later task; the read path consumes it
+   * defensively here.
+   */
+  page_size?: number | null;
   /** ISO-8601 UTC last-update timestamp (empty string when never saved). */
   updated_at: string;
 }
@@ -369,10 +380,10 @@ export type FieldOrigin = 'fixed' | 'variable' | 'calculated';
 
 /**
  * One field descriptor from the resolved field config
- * (`GET /members/field-config`). Drives which columns a view context / the
- * compact/full view switch shows, how they are labeled, and how their value is
- * rendered (parameter-driven overlay fields + calculated read-only fields are
- * first-class column candidates alongside the fixed base — R5.1, R5.2).
+ * (`GET /members/field-config`). Drives which columns the Members table shows,
+ * how they are labeled, and how their value is rendered (parameter-driven overlay
+ * fields + calculated read-only fields are first-class column candidates
+ * alongside the fixed base — R5.1, R5.2).
  */
 export interface FieldConfigField {
   /** Field key — matches a property on {@link Member}. */
@@ -399,8 +410,8 @@ export interface FieldConfigField {
   origin?: FieldOrigin;
   /**
    * Field-level visibility gate (the authoritative candidate-column gate, R5.1).
-   * When explicitly `false` the field is NOT a column candidate (a view context
-   * only chooses among visible fields). Omitted/`true` = visible.
+   * When explicitly `false` the field is NOT a column candidate (the Members
+   * table renders only visible fields). Omitted/`true` = visible.
    */
   visible?: boolean;
   /**
@@ -467,9 +478,9 @@ export interface MemberNumberFormat {
 }
 
 /**
- * One functional (display) group in the tenant's catalog (R4.9). The modals + view contexts
- * SECTION the resolved field set by these: each section is one entry, ordered by `order`. A
- * field whose `functional_group` is absent from this catalog falls back to a default section.
+ * One functional (display) group in the tenant's catalog (R4.9). The modals SECTION the
+ * resolved field set by these: each section is one entry, ordered by `order`. A field whose
+ * `functional_group` is absent from this catalog falls back to a default section.
  */
 export interface FunctionalGroup {
   key: string;
@@ -556,13 +567,15 @@ export interface FieldConfig {
    */
   lifecycle?: LifecycleConfigShape;
   /**
-   * Parameter-driven view contexts (s5c task 3.2/3.3, design C-VIEW). Each context is a
-   * named, permission-gated column-set over the resolved field config. A missing/empty
-   * value means the module returns exactly one default context (empty columns = all
-   * visible fields). The SPA renders a context dropdown (gated by `permission_roles`) and
-   * hands the selected context to the existing filterable-table toolkit.
+   * The tenant-level default rows-per-page for the Members table (Members config
+   * redesign Phase 2, step (a) — the `page_size` re-home). A single scalar that
+   * replaced the per-context `view_context.page_size` (view contexts were retired
+   * in Phase 2 step b). It is the MIDDLE tier of the page-size precedence
+   * `userPreference ?? default_page_size ?? platformDefault` (R2.2).
+   * Absent/`null`/non-positive → the resolver falls through to the platform table
+   * default (R2.4).
    */
-  view_contexts?: ViewContext[];
+  default_page_size?: number | null;
   /**
    * The tenant's analytics configuration (design C-CONFIG, R9.1), served additively by
    * the module. Absent for tenants that have not authored it — the analytics surface then
@@ -633,30 +646,6 @@ export interface ScopeDimension {
   enabled?: boolean;
   /** Allowed values (e.g. ["Noord", "Zuid", "Oost", "West"]). */
   values?: string[];
-}
-
-/**
- * A parameter-driven view context (design C-VIEW). `columns`/`filterable_columns` are
- * `field_key`s resolved against `FieldConfig.fields` at render (unresolvable keys are
- * SKIPPED, never a crash — Property 7). Empty `columns` = all visible fields (the
- * default-context sentinel). `permission_roles` gates the dropdown (view convenience
- * only; row scope is always enforced server-side).
- */
-export interface ViewContext {
-  /** Stable context key (never user-facing). The synthesized default uses `__default__`. */
-  key: string;
-  /** Bilingual display label. */
-  label?: LocalizedLabel;
-  /** Roles allowed to select this context in the dropdown. Empty = available to all. */
-  permission_roles?: string[];
-  /** Ordered field_key columns to show. Empty = all visible fields. */
-  columns?: string[];
-  /** Subset of field_keys that are filterable. */
-  filterable_columns?: string[];
-  /** Default sort for this context. */
-  default_sort?: { field: string; direction: 'asc' | 'desc' } | null;
-  /** Rows per page (renderer applies its own default when null/absent). */
-  page_size?: number | null;
 }
 
 /**

@@ -39,7 +39,7 @@ def _is_sysadmin(user_roles) -> bool:
     return "SysAdmin" in (user_roles or [])
 
 
-def _prepare_members_config(svc, namespace, key, value, tenant):
+def _prepare_members_config(_svc, namespace, key, value, _tenant):
     """Fold + fail-fast validate a members.* config value on save; return the value to store.
 
     Two steps, in order (s5c 2.4 + Phase-1 catalog-backbone R3.2):
@@ -49,10 +49,9 @@ def _prepare_members_config(svc, namespace, key, value, tenant):
        ``field_overlay`` and for an already-folded overlay). The FOLDED value is what gets
        validated and stored, so the stored (and served) label shape is the inline dict the
        SAM resolver + the governance projection builders consume (R2.2, shape unchanged).
-    2. **Validate** the folded value (``validate_members_param``). For members.view_contexts
-       the resolvable field set is widened by the tenant's sibling members.field_overlay and
-       members.scope_dimensions (read via the ParameterService), so a context may reference
-       the tenant's own parameter/overlay fields and scope dimensions.
+    2. **Validate** the folded value (``validate_members_param``) — a per-key fail-fast rule
+       (``field_overlay`` overlay invariants, the mail params, ``default_page_size``); keys
+       with no save-time rule are accepted as-is.
 
     Returns the (possibly folded) value to persist. Raises MembersConfigError (a ValueError
     → 400) if the config is invalid. For a non-members namespace the value is returned as-is.
@@ -68,19 +67,7 @@ def _prepare_members_config(svc, namespace, key, value, tenant):
     value = fold_members_param(key, value)
 
     # 2. Fail-fast validation of the value that will actually be stored.
-    sibling_overlay = None
-    sibling_scope = None
-    if key == "view_contexts":
-        # Read the tenant's sibling members.* values so the tenant's added fields resolve.
-        sibling_overlay = svc.get_param("members", "field_overlay", tenant=tenant)
-        sibling_scope = svc.get_param("members", "scope_dimensions", tenant=tenant)
-
-    validate_members_param(
-        key,
-        value,
-        sibling_field_overlay=sibling_overlay,
-        sibling_scope_dimensions=sibling_scope,
-    )
+    validate_members_param(key, value)
     return value
 
 

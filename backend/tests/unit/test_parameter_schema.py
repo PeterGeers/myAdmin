@@ -207,20 +207,23 @@ class TestMembersNamespaceGating:
     def test_members_namespace_declares_expected_params(self):
         """`members` declares the json config params, the mail-enabled gate, and the mail params.
 
-        field_overlay / scope_dimensions / view_contexts are json; mail_enabled is the
+        field_overlay / scope_dimensions are json; mail_enabled is the
         boolean per-tenant "mail-enabled / SES-certified" gate (pivot-output-actions R0,
         projected as config#mail) that fails closed to False. mail_domain / mail_local_part /
         mail_certified (mail spec Phase 0, R4/§5f) feed the per-tenant From + the fail-closed
-        pre-send certification gate in the SAME config#mail row.
+        pre-send certification gate in the SAME config#mail row. Phase 2 retired the
+        `view_contexts` param (R5.1), so the namespace no longer declares it.
         """
         result = get_schema_for_tenant(['MEMBERS'])
         params = result['members']['params']
 
         assert set(params.keys()) == {
-            'field_overlay', 'scope_dimensions', 'view_contexts', 'mail_enabled',
-            'mail_domain', 'mail_local_part', 'mail_certified',
+            'field_overlay', 'scope_dimensions', 'mail_enabled',
+            'mail_domain', 'mail_local_part', 'mail_certified', 'default_page_size',
         }
-        for key in ('field_overlay', 'scope_dimensions', 'view_contexts'):
+        # Phase 2 (R5.1): no `view_contexts` param in the members namespace.
+        assert 'view_contexts' not in params
+        for key in ('field_overlay', 'scope_dimensions'):
             assert params[key]['type'] == 'json', f"{key} must be a json param"
 
         mail = params['mail_enabled']
@@ -242,6 +245,22 @@ class TestMembersNamespaceGating:
 
         assert params['mail_certified']['type'] == 'boolean'
         assert params['mail_certified']['default'] is False
+
+    def test_members_namespace_declares_default_page_size(self):
+        """`members` declares the tenant-level `default_page_size` pagination DEFAULT.
+
+        Phase 2 re-homes pagination (the former per-context `page_size`) to ONE optional scalar
+        `members.default_page_size` — a number param, NOT required (unset → the table
+        toolkit's own default applies), authored as a tenant/field DEFAULT (steering 38
+        rule 3). After step (d) it is the sole pagination home (the `view_contexts` param
+        it rode alongside at step (a) is gone, R5.1).
+        """
+        params = get_schema_for_tenant(['MEMBERS'])['members']['params']
+
+        assert 'default_page_size' in params
+        page_size = params['default_page_size']
+        assert page_size['type'] == 'number'
+        assert page_size.get('required') is False
 
     def test_members_namespace_gated_by_members_module(self):
         """The namespace's module gate is exactly 'MEMBERS'."""

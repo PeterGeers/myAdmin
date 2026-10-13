@@ -34,12 +34,15 @@ import os
 import sys
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from sam.members.domain.field_resolver import (
+    FieldResolver,
     FixedFieldOverride,
     FunctionalGroup,
     OverlayField,
@@ -47,11 +50,14 @@ from sam.members.domain.field_resolver import (
     TenantOverlay,
     evaluate_show_when,
 )
+from sam.members.domain.field_resolver import _RESERVED_KEYS
+from sam.members.domain.fixed_fields import FieldType as _FieldType
 from sam.members.domain.fixed_fields import (
     EnumOption,
     FieldType,
     MemberNumberFormat,
 )
+from sam.members.domain.default_page_size import StaticDefaultPageSizeProvider
 from sam.members.domain.membership_service import (
     MembershipService,
     MemberValidationError,
@@ -174,6 +180,75 @@ class TestFieldConfigSurfacesTask44Attributes:
 
     def test_field_config_is_json_serializable(self, service):
         json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+
+# ── (1b) Phase 2 step (c): the server STOPS serializing view_contexts; keeps default_page_size ─
+#
+# Phase 2 re-homed the per-context `view_contexts.page_size` to a SINGLE tenant-level
+# `default_page_size` scalar on the field-config response (step (a), R2.1). Step (b) stripped
+# the SPA's reads of `view_contexts`; GATE CONFIRMED (no client reads it). Step (c) now removes
+# the inert `view_contexts` array from the response entirely (R4.1) while KEEPING
+# `default_page_size` (the step-(a) home, R4.4), so pagination remains served.
+#
+# These were the step-(a) ADDITIVITY tests (both keys present). Per the Change-With-Tests
+# contract they are MIGRATED to step-(c) reality: `view_contexts` is now ABSENT and
+# `default_page_size` is PRESENT — the assertions are FLIPPED to the intended new behaviour,
+# never weakened.
+
+
+class TestFieldConfigDefaultPageSizeStepA:
+    def test_default_page_size_present_and_view_contexts_absent_when_authored(
+        self, catalog_repo
+    ):
+        overlay = _overlay_with_groups_and_options()
+        service = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({"h-dcn": overlay}),
+            default_page_size_provider=StaticDefaultPageSizeProvider({"h-dcn": 50}),
+        )
+        config = service.get_field_config("h-dcn")
+        # Step (c): the authored tenant default is still surfaced (R4.4) …
+        assert config["default_page_size"] == 50
+        # … and the inert `view_contexts` array is now GONE from the response (R4.1).
+        assert "view_contexts" not in config
+
+    def test_default_page_size_none_when_unauthored_view_contexts_absent(self, service):
+        # The `service` fixture wires NO default-page-size provider → the empty default
+        # resolves every tenant to `None` (empty-is-valid, R2.4): the SPA then falls back to
+        # the per-user preference and finally the platform table-toolkit default.
+        config = service.get_field_config("h-dcn")
+        assert config["default_page_size"] is None
+        # `view_contexts` stays absent even with no authored default (R4.1).
+        assert "view_contexts" not in config
+
+    def test_default_page_size_is_json_serializable(self, catalog_repo):
+        service = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
+            default_page_size_provider=StaticDefaultPageSizeProvider({"h-dcn": 25}),
+        )
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+    def test_default_page_size_served_without_view_context_surface(self, catalog_repo):
+        # R4.1/R4.4: after step (c) the field-config response carries `default_page_size`
+        # (the pagination home) and NO `view_contexts` surface, in a SINGLE response that
+        # still serializes without raising. This pins the step-(c) contract explicitly: the
+        # inert array that `default_page_size` rode alongside at step (a) is gone, pagination
+        # stays. (Migrated from the former step-(a) additivity test — the assertions are
+        # flipped to the intended new behaviour, not weakened.)
+        service = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
+            default_page_size_provider=StaticDefaultPageSizeProvider({"h-dcn": 50}),
+        )
+        config = service.get_field_config("h-dcn")
+        assert "default_page_size" in config
+        assert config["default_page_size"] == 50
+        assert "view_contexts" not in config
+        # … and serializing that exact object does not raise.
+        round_tripped = json.loads(json.dumps(config))
+        assert "default_page_size" in round_tripped
+        assert "view_contexts" not in round_tripped
 
 
 # ── (2) evaluate_show_when unit behavior (shared predicate) ────────────────────────────
@@ -370,3 +445,85 @@ class TestCreateMintsMemberId:
             caller_roles=("Members_CRUD",),
         )
         assert a["member_id"] != b["member_id"]
+
+
+# ── (4) Property 4: no view-context surface after step (c), field set unchanged ────────
+#
+# Phase 2, Property 4 (task 4.2). *For any* tenant (configured or unconfigured), the
+# field-config response produced after step (c) carries NO `view_contexts` key and DOES carry
+# a `default_page_size` entry, and the resolved field SET it serves is identical to the field
+# set the resolver produces for that same overlay (the deletion removed an INERT array, not any
+# field — R1.6). We quantify over arbitrary tenants AND arbitrary overlays (varying overlay
+# fields + functional groups) to show the invariant is universal, not fixture-specific.
+#
+# The "field set unchanged" leg is pinned against the resolver directly: the served `fields`
+# list is driven SOLELY by `FieldResolver.resolve(...).fields` — `view_contexts` never fed it —
+# so the served key set must equal the resolver's key set for the same overlay, with no view
+# surface anywhere in the payload.
+#
+# **Validates: Requirements 4.1, 4.4, 1.6**
+
+_PROP_TENANT_ID = st.text(
+    alphabet="abcdefghijklmnopqrstuvwxyz0123456789-", min_size=1, max_size=24
+).filter(lambda s: s.strip() != "")
+
+# A small, resolver-safe set of overlay STRING fields keyed off generated names, each in the
+# base `membership` group so the overlay always validates (no dangling functional-group ref).
+# An overlay key may NOT collide with a fixed/calculated field key (the resolver rejects that
+# as a genuine config bug), so the generator excludes the reserved canonical keys — the
+# property is about the SURFACE, not re-proving the collision guard.
+_OVERLAY_FIELD_NAME = st.text(
+    alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=12
+).filter(lambda s: s.strip() != "" and s not in _RESERVED_KEYS)
+
+
+@st.composite
+def _arbitrary_overlay(draw) -> TenantOverlay:
+    """An arbitrary (resolver-safe) tenant overlay: 0..4 plain STRING overlay fields.
+
+    Kept deliberately simple — the property is about the SURFACE (no `view_contexts`, field set
+    == resolver's), not about exercising every overlay attribute. Plain string fields in the
+    base `membership` group always validate, so the generator never produces an OverlayError.
+    """
+    names = draw(
+        st.lists(_OVERLAY_FIELD_NAME, min_size=0, max_size=4, unique=True)
+    )
+    fields = {
+        name: OverlayField(
+            key=name,
+            type=_FieldType.STRING,
+            required=False,
+            label={"nl": name, "en": name},
+            functional_group="membership",
+            order=100 + i,
+        )
+        for i, name in enumerate(names)
+    }
+    return TenantOverlay(fields=fields)
+
+
+@settings(max_examples=100)
+@given(tenant_id=_PROP_TENANT_ID, overlay=_arbitrary_overlay())
+def test_property_field_config_has_no_view_context_surface_after_step_c(
+    tenant_id, overlay
+):
+    """Property 4: no `view_contexts` surface; `default_page_size` present; field set unchanged.
+
+    **Validates: Requirements 4.1, 4.4, 1.6**
+    """
+    repo = FakeCatalogRepository()
+    overlay_provider = StaticOverlayProvider({tenant_id: overlay})
+    service = MembershipService(repo, overlay_provider=overlay_provider)
+
+    config = service.get_field_config(tenant_id)
+
+    # R4.1 — no view-context surface anywhere in the response.
+    assert "view_contexts" not in config
+    # R4.4 — pagination remains served (the step-(a) home survives step (c)).
+    assert "default_page_size" in config
+    # R1.6 — the served field SET is exactly the resolver's field set for this overlay; the
+    # inert-array deletion removed no field. Independent resolve → compare key sets AND order.
+    resolver = FieldResolver(overlay_provider)
+    expected_keys = [f.key for f in resolver.resolve(tenant_id).fields]
+    served_keys = [f["key"] for f in config["fields"]]
+    assert served_keys == expected_keys

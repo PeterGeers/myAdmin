@@ -30,11 +30,11 @@ from sam.members.domain.scope_access import (
     resolve_scope_access_for_config,
 )
 from sam.members.domain.scope_dimensions import (
-    SAMPLE_SCOPE_CONFIG,
     WILDCARD,
     ScopeConfig,
     ScopeDimension,
 )
+from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
 
 TENANT = "h-dcn"
 REGION = SAMPLE_SCOPE_CONFIG[0]

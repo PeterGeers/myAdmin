@@ -1209,6 +1209,7 @@ export async function savePreferredList(
 interface RawColumnPreferences {
   sub?: string;
   columns?: unknown;
+  page_size?: unknown;
   updated_at?: string;
 }
 
@@ -1221,9 +1222,19 @@ function mapColumnPreferences(
       (c): c is string => typeof c === 'string' && c.length > 0
     )
     : [];
+  // The optional per-user rows-per-page preference (Phase 2 pagination re-home,
+  // R2.3). Carried through only when it is a finite number; anything else
+  // (absent, null, string, NaN) maps to `null` so the page-size resolver falls
+  // through to the tenant default / platform default. The resolver itself still
+  // guards for positivity — this map only preserves a well-typed value.
+  const pageSize =
+    typeof raw.page_size === 'number' && Number.isFinite(raw.page_size)
+      ? raw.page_size
+      : null;
   return {
     sub: typeof raw.sub === 'string' ? raw.sub : '',
     columns,
+    page_size: pageSize,
     updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : '',
   };
 }

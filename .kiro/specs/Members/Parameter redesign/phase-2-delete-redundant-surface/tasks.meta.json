@@ -1,0 +1,546 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add the tenant-level `default_page_size` default (Flask plane) — a `members`-namespace scalar param `members.default_page_size` (positive int, optional) in `backend/src/services/parameter_schema.py`, with a validator that rejects non-positive values. Conforms to `38` rule 3 (a default, not a view object) + `30`. _(R2.1, R2.6)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914975874
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914991436
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915377976
+      }
+    ],
+    "1.2 Thread `default_page_size` through the projection + reader so it is available to the field-config response — carry it on the existing config#fields-adjacent payload (NOT a new view row); read it in SAM. Keep `view_contexts` fully in place for now (additive). _(R2.1, R1.2)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914975973
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914996622
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915380317
+      }
+    ],
+    "1.3 Serve `default_page_size` on `GET /members/field-config` ALONGSIDE the still-present `view_contexts` array (`_membership_writes.get_field_config`). Additive — an old SPA ignores it. _(R1.2, R2.1)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976061
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915403784
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915986545
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915997141
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916159808
+      }
+    ],
+    "2.1 Implement the pagination precedence `userPreference ?? default_page_size ?? platformDefault` on the SPA read path (`MembersPage.tsx`), reading the user preference from the existing per-user column/table preference mechanism (`column_preferences`) and the tenant default from the field-config response. _(R2.2, R2.3, R2.4)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976167
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915406092
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915986658
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915999072
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916162153
+      }
+    ],
+    "2.2 Property test — pagination precedence (SAM + SPA). **Property 1: Pagination precedence is total and deterministic.** Generate the (userPref present/absent × tenantDefault present/absent) matrix with random positive ints; assert resolved == first present and always a positive int. **Validates: Requirements 2.2, 2.3, 2.4, 9.4** _(R9.4)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976245
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915414151
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915986813
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916001440
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916164546
+      }
+    ],
+    "2.3 Example test — step-(a) additivity: the field-config response at step (a) carries BOTH `view_contexts` and `default_page_size`; serializing does not raise. _(R1.2, R1.6)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976347
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915986908
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916186026
+      },
+      {
+        "executionId": "0ae6d25c-b433-4b0e-b384-1e2c0b89d1bb",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918454909
+      }
+    ],
+    "3.1 Remove the view-context machinery from `frontend/src/pages/MembersPage.tsx`: `normalizeViewContexts`, `isContextAvailable`, the `viewContexts`/`availableContexts`/`selectedContext`/`selectedContextKey` state + memos, the context `<Select>` dropdown (`aria-label={t('viewContext.label')}`), and the `ViewContext` import. Render the table over `FieldConfig.visible_fields()` directly (preserving the empty-`columns` default-context behaviour). Keep `useFilterableTable`/`FilterableHeader`. _(R3.1, R3.2, R3.6)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976450
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915986996
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916189317
+      },
+      {
+        "executionId": "0ae6d25c-b433-4b0e-b384-1e2c0b89d1bb",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918458280
+      }
+    ],
+    "3.2 Remove the view-context sub-editor from `frontend/src/components/TenantAdmin/MembersConfig/` (the `MembersConfigEditor.tsx` sub-section + any dedicated context editor component/import); keep every other sub-editor. Remove `ViewContext` + `view_contexts` from `frontend/src/types/members.ts` (add the optional `default_page_size`); remove the dead `viewContext.*` i18n keys. _(R3.3, R3.4, R3.5)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976540
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987131
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916191754
+      },
+      {
+        "executionId": "0ae6d25c-b433-4b0e-b384-1e2c0b89d1bb",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918460505
+      }
+    ],
+    "3.3 Change-With-Tests (SPA): **delete** `MembersPage.viewContexts.test.tsx`; **rewrite** the MembersConfig editor tests (`MembersConfig/__tests__/MembersConfigEditor.test.tsx`) to drop the view-context sub-editor cases and keep the rest; add/extend a Members-table test asserting it renders over `visible_fields()` with no dropdown and paginates by the precedence rule. _(R9.1, R3.2, R2.2)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976618
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987223
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791917112694
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918185257
+      }
+    ],
+    "4.1 **Step (c)** — in `sam/members/domain/_membership_writes.py` `get_field_config`: delete the `view_contexts` array entry (~L997) + the `_serialize_view_context` method (~L1178) + the `_view_contexts_provider` dependency and its handler wiring. Keep `default_page_size` in the response. _(R4.1, R4.2, R4.3, R4.4)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976710
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987311
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791917114597
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918180130
+      }
+    ],
+    "4.2 Change-With-Tests + **Property 4**: update `sam/tests/test_members_resolved_field_surface.py` to assert `view_contexts` is ABSENT and `default_page_size` is PRESENT; the served field SET is unchanged. **Property 4: field-config carries no view-context surface after step (c).** **Validates: Requirements 4.1, 4.4, 1.6** _(R9.2, R4.1)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976808
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987411
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791917116804
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918182889
+      }
+    ],
+    "4.3 **Step (d) Flask** — delete the `view_contexts` param (`parameter_schema.py`), `validate_view_contexts` + its dispatch branch (`members_config_validation.py`), `build_config_views_row`/`_map_view_context`/helper constants (`_projection_config_builders.py`), the `config#views` assembly + import + re-export (`projection_sync.py`), and the `config#views` entry (`projection_schema.py`). _(R5.1, R5.2, R5.3, R5.4)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976894
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987509
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918195560
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918516774
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920074812
+      }
+    ],
+    "4.4 **Step (d) SAM** — delete `get_view_contexts`/`_build_view_context`/`_CONFIG_ID_VIEWS` + the `ViewContext` import (`projection_config_reader.py`); **delete** `sam/members/domain/view_contexts.py` and `sam/members/domain/seed_view_contexts.py` in full; remove any view-contexts provider wiring in `handler/app.py`. _(R5.5, R5.6)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914976975
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987645
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918197858
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918514117
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920072501
+      }
+    ],
+    "4.5 Change-With-Tests (step d): **delete** `sam/tests/test_seed_view_contexts.py`; **rewrite** `sam/tests/test_config_roundtrip_props.py` to drop the views roundtrip (keep fields/scope/overrides); update `backend/tests/.../test_projection_sync.py` (no `config#views` item), `test_parameter_schema.py` (no `view_contexts` param), and members_config_validation tests (no view validator). _(R9.1, R9.2, R5.7)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977082
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987732
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918200323
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918519673
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920070016
+      }
+    ],
+    "5.1 Write the one-time migration under `backend/src/migrations/` (a `.py` migration like `migrate_tenant_config_to_parameters.py`): rewrite every stored `members.field_overlay` row carrying a legacy top-level `overrides` key into `fixed_overrides` (merge; `fixed_overrides` wins on collision). `administration`-scoped, parameterized queries, `--dry-run` default, idempotent, rewrites the KEY NAME only (never member records or override values). Applied via `DatabaseMigration.run_all_migrations()` (not auto-applied). Conforms to `31`. _(R6.1, R6.2, R6.3, R6.4, R6.5, R8.2)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977158
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914999890
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915383610
+      }
+    ],
+    "5.2 Property + example test for the migration (`backend/tests/`). **Property 2: migration preserves data and is idempotent.** Generate overlays with/without legacy `overrides` and overlapping keys; assert the merge invariant (`fixed_overrides` wins on collision), other keys + member records untouched, and `f(f(x)) == f(x)`; plus an example test that dry-run makes no change and the applied run performs the rename. **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 8.1, 8.3** _(R9.5)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977240
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915409402
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987830
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916004240
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916167796
+      }
+    ],
+    "5.3 Delete the dual-accept branches (ONLY after 5.1 lands): in `backend/src/services/_projection_config_builders.py` and `sam/members/repository/projection_config_reader.py`, read ONLY `fixed_overrides`. Do NOT rename the internal `TenantOverlay.overrides` field or the `config#fields.overrides` attribute. Change-With-Tests: update `sam/tests/test_field_resolver.py` override cases to the `fixed_overrides` key. _(R6.6, R6.7, R6.8, R9.3)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977354
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915987930
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916194054
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791917102341
+      }
+    ],
+    "6.1 Create a shared fixtures module `sam/tests/_scope_fixtures.py` defining `SAMPLE_SCOPE_CONFIG` (the synthetic region North/South/East/West dimension), and switch the five consumers (`test_scope_normalization_verify.py`, `test_scope_access.py`, `test_scope_dimensions.py`, `conftest.py`, `members_parity_harness.py`) to import from it. _(R7.2, R7.3)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977437
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915001901
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915386104
+      }
+    ],
+    "6.2 Delete `SAMPLE_SCOPE_CONFIG` from `sam/members/domain/scope_dimensions.py` (+ its `__all__` entry + the docstring references framing it as a domain sample). Keep the scope MODEL (`ScopeDimension`/`ScopeConfig`/`WILDCARD`/providers) unchanged. The `.aws-sam/build` mirror is a build artifact — do not hand-edit. _(R7.1, R7.4, R7.5)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977524
+      },
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791915412246
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915988063
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916006208
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916170151
+      }
+    ],
+    "7.1 Run the touched suites. SAM: `cd sam && pytest tests/test_members_resolved_field_surface.py tests/test_field_resolver.py tests/test_config_roundtrip_props.py tests/test_scope_dimensions.py tests/test_scope_access.py tests/test_scope_normalization_verify.py -q`. Flask (via `backend/.venv`): the projection_sync + parameter_schema + members_config_validation + migration tests. SPA: the Members-table + MembersConfig-editor Vitest suites. All green. _(R9.*)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977604
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915988173
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920085153
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920210637
+      }
+    ],
+    "7.2 Property 3 + close-out greps. **Property 3: member data is invariant across every Phase 2 step** — snapshot arbitrary member records before/after each step; assert byte-for-byte equality. Then the close-out greps (zero product-code matches for `view_contexts`/`ViewContext`/`get_view_contexts`/`build_config_views_row`/`config#views`/`_serialize_view_context`; zero legacy-`overrides` dual-accept branches; zero `SAMPLE_SCOPE_CONFIG` in `sam/members/domain`). **Validates: Requirements 8.1, 8.3** _(R5.7, R8.1, R8.3)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977690
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915988268
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920213343
+      },
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920547295
+      }
+    ],
+    "7.3 CI/CD + ship (per `43-cicd-deploys.md`). Feature branch (e.g. `spec/members-config-phase2-delete-surface`), never push to `test`/`main` directly. Run the paired tests locally first. PR into `test`; clear CodeQL + GitGuardian. **Ship step (b) frontend first** (`deploy-frontend.yml`) and confirm it is live on every client BEFORE merging the SAM step (c)/(d) removal (`deploy-sam-members.yml`). Preview the prod changeset (`--no-execute-changeset`) — confirm NO unexpected `Replacement: True` (no infra/table change). Promote `test → main` by MERGE commit. Run the one-time migration against TEST then PRODUCTION via `backend/scripts/railway-db.sh` (`#database` skill) — not auto-applied. Deploys touch the DATA account only; no Cognito/identity change. Tick `impact-analysis.md` §9 Phase 2 steps 6+7 done with a pointer to this spec folder. _(R10.1, R10.2, R10.3, R10.4, R10.5)_": [
+      {
+        "executionId": "98ec4b6b-8b29-46b5-99eb-0d40c9448afa",
+        "chatSessionId": "sess_bbf57413-273d-4653-b4d2-804074f1ddb6",
+        "timestamp": 1791914977769
+      },
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791915988372
+      },
+      {
+        "executionId": "4954b4a3-c62d-4b3b-a0e7-c69e1dd315c2",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920746954
+      }
+    ],
+    "1. Pagination default home (step a)": [
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916159931
+      }
+    ],
+    "6. Move `SAMPLE_SCOPE_CONFIG` into tests (step 7 / R7) — `35`, `34`": [
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791916170269
+      }
+    ],
+    "5. Legacy `overrides` dual-accept — migrate then delete (step 7 / R6)": [
+      {
+        "executionId": "2510dc20-6b25-42a7-99bd-f6c9974fca7d",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791917102567
+      }
+    ],
+    "2. Pagination resolution + its tests (step a) — SAM read side + SPA read side": [
+      {
+        "executionId": "0ae6d25c-b433-4b0e-b384-1e2c0b89d1bb",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918455061
+      }
+    ],
+    "3. Strip SPA view-context consumption (step b)": [
+      {
+        "executionId": "0ae6d25c-b433-4b0e-b384-1e2c0b89d1bb",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791918460619
+      }
+    ],
+    "4. Remove server serialization (c), then drop param + projection + domain (d)": [
+      {
+        "executionId": "7060e4dd-ef5b-4ad9-9f13-e3b78eec75ee",
+        "chatSessionId": "sess_7122c039-c1e9-4e1f-98b4-7f70576c000e",
+        "timestamp": 1791920074993
+      }
+    ]
+  }
+}

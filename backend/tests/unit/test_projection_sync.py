@@ -30,7 +30,6 @@ from services.projection_sync import (
     build_config_fields_row,
     build_config_mail_row,
     build_config_scope_row,
-    build_config_views_row,
     build_scopegrant_rows,
 )
 from services.projection_validator import ProjectionValidationError
@@ -240,12 +239,13 @@ def test_sync_administration_single_tenant_writes_expected_items(sam_module):
     # R1.6/R1.7/R5.1/R0):
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
-    # tenant + module + role + config#scope + config#fields + config#views +
-    # config#mail = 7 (no scopegrant: no scope_dimensions authored in the empty
+    # Phase 2 (R5.3): the config#views row is no longer emitted.
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") not in written
+    # tenant + module + role + config#scope + config#fields +
+    # config#mail = 6 (no scopegrant: no scope_dimensions authored in the empty
     # FakeParameterService).
-    assert result.written == 7
+    assert result.written == 6
     assert result.skipped == 0
 
 
@@ -699,6 +699,10 @@ def test_build_config_fields_row_no_param_yields_empty_overlay():
     assert item.sort_key == "config#fields"
     assert item.attributes["fields"] == {}
     assert item.attributes["overrides"] == {}
+    # Phase 2 step (a): the config#fields row always carries a default_page_size key
+    # (None when the tenant authored no members.default_page_size), so the SAM reader
+    # can surface it on the field-config response.
+    assert item.attributes["default_page_size"] is None
     assert item.version == 0  # deterministic fallback when the row has no version
 
 
@@ -723,16 +727,23 @@ def test_build_config_fields_row_partial_overlay_field_fills_safe_defaults():
 
 
 def test_build_config_fields_row_issues_zero_writes_and_reads_tenant_scope():
-    """One-directional (Property 1): only a read of the tenant-scope param."""
+    """One-directional (Property 1): only tenant-scoped READS, zero writes.
+
+    Phase 2 step (a) adds a second read — the tenant-level ``default_page_size`` scalar
+    carried on the SAME config#fields row — so the builder now reads BOTH ``field_overlay``
+    and ``default_page_size``. Both are tenant-scoped ``get_param`` reads; still zero writes
+    (``FakeParameterService`` exposes no write path).
+    """
     params = FakeParameterService(
         {("members", "field_overlay", "h-dcn"): _hdcn_field_overlay()}
     )
 
     build_config_fields_row({"administration": "h-dcn"}, params)
 
-    # Exactly one read, scoped to this tenant's members.field_overlay param.
+    # Two reads, both scoped to this tenant's members.* params (overlay + page-size default).
     assert params.calls == [
-        {"namespace": "members", "key": "field_overlay", "tenant": "h-dcn"}
+        {"namespace": "members", "key": "field_overlay", "tenant": "h-dcn"},
+        {"namespace": "members", "key": "default_page_size", "tenant": "h-dcn"},
     ]
 
 
@@ -823,11 +834,15 @@ def test_build_config_fields_row_ignores_legacy_overrides_when_fixed_overrides_a
     assert "personal.city" not in overrides
 
 
-def test_build_config_fields_row_legacy_overrides_key_still_projects_as_fallback():
-    """Back-compat: an overlay carrying only a legacy ``overrides`` key still projects.
+def test_build_config_fields_row_legacy_overrides_key_is_not_honored():
+    """Phase 2 (R6.7): the legacy top-level ``overrides`` input key is no longer accepted.
 
-    Older overlays authored under the legacy ``overrides`` key remain readable (fallback)
-    so an in-flight projection is not silently emptied on upgrade.
+    The dual-accept fallback was retired AFTER the one-time migration (R6.1) rewrote every
+    stored overlay's legacy top-level ``overrides`` into the canonical ``fixed_overrides``.
+    The builder now reads ONLY ``fixed_overrides`` from the authored overlay, so an overlay
+    carrying only the legacy key projects an EMPTY ``overrides`` map (no production row still
+    carries the legacy key after the migration). The PROJECTED attribute name stays
+    ``overrides`` (R6.8 — unchanged).
     """
     params = FakeParameterService(
         {
@@ -839,7 +854,7 @@ def test_build_config_fields_row_legacy_overrides_key_still_projects_as_fallback
 
     item = build_config_fields_row({"administration": "h-dcn"}, params)
 
-    assert item.attributes["overrides"] == {"personal.name": {"order": 2}}
+    assert item.attributes["overrides"] == {}
 
 
 def test_build_config_fields_row_projects_functional_groups_catalog():
@@ -906,6 +921,73 @@ def test_build_config_fields_row_malformed_functional_group_entries_are_skipped(
     assert groups[0]["order"] == 0
 
 
+# --- Phase 2 step (a): default_page_size carried on config#fields -------------
+# The per-context view_contexts.page_size re-homes to a single tenant-level
+# members.default_page_size scalar, projected onto the EXISTING config#fields row
+# (NOT a new config#views row) so the SAM reader can surface it on the
+# field-config response. Only a positive int survives; anything else → None.
+
+
+def test_build_config_fields_row_projects_authored_default_page_size():
+    """An authored positive members.default_page_size is carried onto config#fields (R2.1)."""
+    params = FakeParameterService(
+        {("members", "default_page_size", "h-dcn"): 50}
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["default_page_size"] == 50
+    # Carried verbatim onto the DynamoDB item under the config#fields row.
+    dynamo = item.to_dynamodb_item()
+    assert dynamo[schema.SORT_KEY_ATTR] == "config#fields"
+    assert dynamo["default_page_size"] == 50
+
+
+def test_build_config_fields_row_no_default_page_size_param_yields_none():
+    """Empty-is-valid (R2.4): an un-authored default_page_size → None (platform fallback)."""
+    params = FakeParameterService(
+        {("members", "field_overlay", "h-dcn"): _hdcn_field_overlay()}
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["default_page_size"] is None
+
+
+def test_build_config_fields_row_non_positive_or_malformed_default_page_size_yields_none():
+    """A non-positive / non-int / boolean default_page_size collapses to None (read-side guard).
+
+    The authoring validator (task 1.1) rejects a non-positive value at Save; this is the
+    symmetric projection-side guard so a stray stored value never projects a zero/negative
+    default that would violate the resolver's positive-int guarantee (R2.4).
+    """
+    for raw in (0, -5, "25", 3.5, True, False, [], {}, None):
+        params = FakeParameterService(
+            {("members", "default_page_size", "h-dcn"): raw}
+        )
+        item = build_config_fields_row({"administration": "h-dcn"}, params)
+        assert item.attributes["default_page_size"] is None, f"raw={raw!r} must collapse to None"
+
+
+def test_build_config_fields_row_versions_off_default_page_size_param_revision():
+    """A default_page_size edit ALONE bumps config#fields' version (the trap fix, R2.1).
+
+    config#fields is now driven by TWO params (field_overlay + default_page_size); an edit to
+    EITHER must advance the row's version so the version-guarded conditional put WRITES it.
+    Here only the default_page_size revision is newer than the tenant row.
+    """
+    params = FakeParameterService(
+        params={("members", "default_page_size", "h-dcn"): 25},
+        revisions={("members", "default_page_size", "h-dcn"): "2026-10-13T09:00:00"},
+    )
+
+    item = build_config_fields_row(
+        {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}, params
+    )
+
+    assert item.version == "2026-10-13T09:00:00"
+
+
 # --- Version-bump trap fix: config#* rows version off their SOURCE param ------
 # (impact-analysis §0.3 / Phase 0 step 2). A members.* param edit alone must bump
 # the relevant config row's version so the version-guarded conditional put WRITES
@@ -931,25 +1013,25 @@ def test_build_config_fields_row_versions_off_param_revision_when_present():
     assert item.version == "2026-10-12T09:00:00"
 
 
-def test_build_config_scope_and_views_version_off_their_own_param_revision():
+def test_build_config_scope_and_fields_version_off_their_own_param_revision():
     """Each config row versions off ITS OWN param key, not a sibling's."""
     params = FakeParameterService(
         params={
             ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
-            ("members", "view_contexts", "h-dcn"): [{"key": "c", "columns": []}],
+            ("members", "field_overlay", "h-dcn"): {"fields": {}, "fixed_overrides": {}},
         },
         revisions={
             ("members", "scope_dimensions", "h-dcn"): "2026-05-01T00:00:00",
-            ("members", "view_contexts", "h-dcn"): "2026-06-01T00:00:00",
+            ("members", "field_overlay", "h-dcn"): "2026-06-01T00:00:00",
         },
     )
     tenant = {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}
 
     scope = build_config_scope_row(tenant, params)
-    views = build_config_views_row(tenant, params)
+    fields = build_config_fields_row(tenant, params)
 
     assert scope.version == "2026-05-01T00:00:00"
-    assert views.version == "2026-06-01T00:00:00"
+    assert fields.version == "2026-06-01T00:00:00"
 
 
 def test_build_config_mail_row_versions_off_max_of_four_param_revisions():
@@ -1321,11 +1403,12 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
         schema.build_sort_key(schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read")
         in written
     )
-    # New C2/C-VIEW rows emitted alongside them.
+    # New C2 rows emitted alongside them.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
+    # Phase 2 (R5.3): the config#views row is no longer emitted.
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") not in written
     scopegrant_sk = schema.build_sort_key(
         schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
     )
@@ -1335,9 +1418,9 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     # The config#scope row carries the authored region dimension.
     scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
     assert written[scope_sk]["dimensions"][0]["key"] == "region"
-    # tenant + module + 1 role + config#scope + config#fields + config#views +
-    # config#mail + scopegrant = 8.
-    assert result.written == 8
+    # tenant + module + 1 role + config#scope + config#fields +
+    # config#mail + scopegrant = 7.
+    assert result.written == 7
 
 
 def test_sync_administration_non_sam_tenant_emits_no_c2_rows(sam_module):
@@ -1406,151 +1489,6 @@ def test_sync_administration_malformed_c2_item_aborts_before_any_write(sam_modul
     # No partial write: neither the valid base rows nor the valid C2 rows landed.
     assert table.store == {}
     assert table.put_calls == []
-
-
-# ═══════════════════════════════════════════════════════════════════════════════════════
-# S5c Task 3.1 — build_config_views_row (the sibling config#views row).
-#
-# Feature: s5c-members-runnable-in-spa, C-VIEW.
-# Validates: Requirements 5.1
-#
-# The projection-shape decision (Open Design Item 1) is settled: view contexts project as a
-# SIBLING config#views row (not folded into config#fields). These tests pin the Flask-plane
-# builder: authored members.view_contexts param -> config#views row, empty-is-valid, one-
-# directional (read-only), and the cross-tenant-hazard guard.
-# ═══════════════════════════════════════════════════════════════════════════════════════
-
-
-def _hdcn_view_contexts():
-    """Two view contexts as authored tenant-scope parameter data (design C-VIEW example)."""
-    return [
-        {
-            "key": "overview",
-            "label": {"nl": "Overzicht", "en": "Overview"},
-            "permission_roles": ["Members_Read", "Members_CRUD"],
-            "columns": ["member_number", "email", "status"],
-            "filterable_columns": ["status"],
-            "default_sort": {"field": "member_number", "direction": "asc"},
-            "page_size": 50,
-        },
-        {
-            "key": "financial",
-            "label": {"nl": "Financieel", "en": "Financial"},
-            "permission_roles": ["Members_CRUD"],
-            "columns": ["member_number", "iban", "payment_method"],
-            "filterable_columns": ["payment_method"],
-            "default_sort": {"field": "member_number", "direction": "asc"},
-            "page_size": 25,
-        },
-    ]
-
-
-def test_build_config_views_row_maps_authored_contexts_to_row_shape():
-    """Authored members.view_contexts param → config#views contexts shape (R5.1)."""
-    params = FakeParameterService(
-        {("members", "view_contexts", "h-dcn"): _hdcn_view_contexts()}
-    )
-
-    item = build_config_views_row({"administration": "h-dcn", "version": 7}, params)
-
-    assert item.tenant_id == "h-dcn"
-    assert item.sort_key == schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views")
-    assert item.version == 7
-
-    contexts = item.attributes["contexts"]
-    assert [c["key"] for c in contexts] == ["overview", "financial"]
-    overview = contexts[0]
-    assert overview["label"] == {"nl": "Overzicht", "en": "Overview"}
-    assert overview["permission_roles"] == ["Members_Read", "Members_CRUD"]
-    assert overview["columns"] == ["member_number", "email", "status"]
-    assert overview["filterable_columns"] == ["status"]
-    assert overview["default_sort"] == {"field": "member_number", "direction": "asc"}
-    assert overview["page_size"] == 50
-
-
-def test_build_config_views_row_no_param_yields_empty_contexts():
-    """Empty-is-valid (R5.1): an un-configured tenant → empty contexts, no raise.
-
-    The reader collapses an empty contexts list to exactly one default context.
-    """
-    params = FakeParameterService({})  # nothing authored
-
-    item = build_config_views_row({"administration": "h-dcn"}, params)
-
-    assert item.tenant_id == "h-dcn"
-    assert item.sort_key == schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views")
-    assert item.attributes["contexts"] == []
-
-
-def test_build_config_views_row_partial_context_fills_safe_defaults():
-    """A partially-authored context still yields a well-formed entry (never raises)."""
-    params = FakeParameterService(
-        {("members", "view_contexts", "h-dcn"): [{"key": "overview"}]}
-    )
-
-    item = build_config_views_row({"administration": "h-dcn"}, params)
-
-    ctx = item.attributes["contexts"][0]
-    assert ctx["key"] == "overview"
-    assert ctx["label"] == {}
-    assert ctx["permission_roles"] == []
-    assert ctx["columns"] == []
-    assert ctx["filterable_columns"] == []
-    assert ctx["default_sort"] is None
-    assert ctx["page_size"] is None
-
-
-def test_build_config_views_row_drops_unknown_keys():
-    """Unknown extra keys in the authored context are dropped (row carries only the shape)."""
-    params = FakeParameterService(
-        {
-            ("members", "view_contexts", "h-dcn"): [
-                {"key": "overview", "columns": ["email"], "not_a_field": "x"}
-            ]
-        }
-    )
-
-    item = build_config_views_row({"administration": "h-dcn"}, params)
-
-    ctx = item.attributes["contexts"][0]
-    assert "not_a_field" not in ctx
-    assert set(ctx) == set(
-        ["key", "label", "permission_roles", "columns", "filterable_columns",
-         "default_sort", "page_size"]
-    )
-
-
-def test_build_config_views_row_non_list_param_treated_as_empty():
-    """A malformed (non-list) authored value degrades to empty, never raises."""
-    params = FakeParameterService(
-        {("members", "view_contexts", "h-dcn"): "not-a-list"}
-    )
-
-    item = build_config_views_row({"administration": "h-dcn"}, params)
-
-    assert item.attributes["contexts"] == []
-
-
-def test_build_config_views_row_issues_zero_writes_and_reads_tenant_scope():
-    """One-directional (Property 1): only a read of the tenant-scope param."""
-    params = FakeParameterService(
-        {("members", "view_contexts", "h-dcn"): _hdcn_view_contexts()}
-    )
-
-    build_config_views_row({"administration": "h-dcn"}, params)
-
-    assert len(params.calls) == 1
-    assert params.calls[0] == {
-        "namespace": "members",
-        "key": "view_contexts",
-        "tenant": "h-dcn",
-    }
-
-
-def test_build_config_views_row_missing_tenant_key_raises():
-    """A tenant without administration/tenant_id is a cross-tenant hazard (R5.4)."""
-    with pytest.raises(ValueError):
-        build_config_views_row({}, FakeParameterService({}))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
