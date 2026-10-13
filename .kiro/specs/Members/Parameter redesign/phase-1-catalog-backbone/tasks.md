@@ -137,13 +137,13 @@ you start
 ---
 
 - [ ] 10. CI/CD + ship (per `43-cicd-deploys.md`)
-  - [~] 10.1 Feature branch `spec/members-config-phase1-catalog`, never push to `test`/`main` directly. A feature branch never deploys; only CodeQL + GitGuardian run per-PR today (Backend/Frontend CI `disabled_manually`; nightly `full-test-suite.yml` is the standing gate). _(43 branch→env + non-negotiables)_
-  - [~] 10.2 Run the paired tests locally before the PR (scoped, not a full-suite run) — the SAM + Flask tests from wave 5. _(43 bugfix-scope note; `34`)_
-  - [~] 10.3 PR into `test`; clear security gates (CodeQL + GitGuardian green, fix root cause). On merge to `test`, confirm `deploy-sam-members.yml` runs `--config-env test` and `test-sam-members` settles `UPDATE_COMPLETE`. _(43 deploy workflows)_
-  - [~] 10.4 Verify in live TEST, not just units — exercise `GET /members/field-config` on the deployed TEST stack; confirm response unchanged (R2.2) and base-group-aware resolution behaves (R5.4). _(43 promote step 1)_
-  - [~] 10.5 Preview the prod changeset — `sam deploy --config-env prod --no-execute-changeset`; confirm NO unexpected `Replacement: True` (this phase adds no infra/table change). _(43 promote step 3)_
-  - [~] 10.6 Promote `test → main` via ONE PR, MERGE COMMIT (not squash) — the merge fires `deploy-sam-members.yml` (`--config-env prod`, stack `sam-members`) and, for the `frontend/**` i18n file, `deploy-frontend.yml`. Watch each run to `success`/`UPDATE_COMPLETE`. _(43 promote steps 2, 5, 6)_
-  - [~] 10.7 Pool trigger is NOT touched — no PreTokenGen/Cognito wiring change, so no identity-account manual step applies. _(43 "Deploys touch the DATA account only")_
+  - [x] 10.1 Feature branch `spec/members-config-phase1-catalog`, never push to `test`/`main` directly. A feature branch never deploys; only CodeQL + GitGuardian run per-PR today (Backend/Frontend CI `disabled_manually`; nightly `full-test-suite.yml` is the standing gate). _(43 branch→env + non-negotiables)_
+  - [x] 10.2 Run the paired tests locally before the PR (scoped, not a full-suite run) — the SAM + Flask tests from wave 5. _(43 bugfix-scope note; `34`)_
+  - [x] 10.3 PR into `test`; clear security gates (CodeQL + GitGuardian green, fix root cause). On merge to `test`, confirm `deploy-sam-members.yml` runs `--config-env test` and `test-sam-members` settles `UPDATE_COMPLETE`. _(43 deploy workflows)_
+  - [x] 10.4 Verify in live TEST, not just units — exercise `GET /members/field-config` on the deployed TEST stack; confirm response unchanged (R2.2) and base-group-aware resolution behaves (R5.4). _(43 promote step 1)_
+  - [x] 10.5 Preview the prod changeset — `sam deploy --config-env prod --no-execute-changeset`; confirm NO unexpected `Replacement: True` (this phase adds no infra/table change). _(43 promote step 3)_
+  - [x] 10.6 Promote `test → main` via ONE PR, MERGE COMMIT (not squash) — the merge fires `deploy-sam-members.yml` (`--config-env prod`, stack `sam-members`) and, for the `frontend/**` i18n file, `deploy-frontend.yml`. Watch each run to `success`/`UPDATE_COMPLETE`. _(43 promote steps 2, 5, 6)_
+  - [x] 10.7 Pool trigger is NOT touched — no PreTokenGen/Cognito wiring change, so no identity-account manual step applies. _(43 "Deploys touch the DATA account only")_
 
 ## Notes
 
