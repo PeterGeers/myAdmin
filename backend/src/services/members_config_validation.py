@@ -11,10 +11,6 @@ the value is stored, so a bad config never corrupts the projected tenant config:
   (R4.9) — any ``functional_group`` (on a fixed override or a variable field) that is not present
   in the tenant's ``functional_groups`` catalog. It also rejects loosening a platform-required
   fixed field (optional-only tightening).
-- **``members.view_contexts``** — reject any ``columns`` / ``filterable_columns`` /
-  ``default_sort.field`` ``field_key`` that is NOT resolvable in the tenant's field set
-  (fixed ⊕ calculated ⊕ overlay-added ⊕ enabled scope-dimension keys), mirroring the same
-  fail-fast (R5.1a).
 
 Cross-plane reuse decision (task 2.4 guidance)
 ----------------------------------------------
@@ -41,7 +37,7 @@ fail-fast with a descriptive :class:`MembersConfigError` (mirroring ``OverlayErr
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 __all__ = [
@@ -51,12 +47,12 @@ __all__ = [
     "MembersConfigError",
     "fold_field_overlay_labels",
     "fold_members_param",
+    "validate_default_page_size",
     "validate_field_overlay",
     "validate_mail_certified",
     "validate_mail_domain",
     "validate_mail_local_part",
     "validate_members_param",
-    "validate_view_contexts",
 ]
 
 
@@ -155,17 +151,6 @@ _REQUIRED_FIXED_KEYS: frozenset[str] = frozenset(
 # ── helpers ───────────────────────────────────────────────────────────────────────────
 
 
-def _as_str_list(value: Any) -> list[str]:
-    """Coerce a value to a list of strings (tolerating a single string or None)."""
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, (list, tuple)):
-        return [v for v in value if isinstance(v, str)]
-    return []
-
-
 def _catalog_keys(overlay: Mapping[str, Any]) -> set[str]:
     """The set of functional-group keys declared in an overlay's functional_groups catalog."""
     catalog = overlay.get("functional_groups") or []
@@ -248,100 +233,6 @@ def validate_field_overlay(overlay: Any) -> None:
                 reasons[dotted] = "an enum variable field must declare choices/options"
             if isinstance(spec, Mapping):
                 _check_group(dotted, spec.get("functional_group"))
-
-    if reasons:
-        raise MembersConfigError(reasons)
-
-
-# ── view_contexts validation (R5.1a — every field_key must resolve) ────────────────────
-
-
-def _resolvable_field_keys(
-    field_overlay: Mapping[str, Any] | None,
-    scope_dimensions: Iterable[Any] | None,
-) -> set[str]:
-    """The full set of field_keys a view context may reference for this tenant.
-
-    Resolution set = fixed base ⊕ calculated ⊕ overlay-added variable fields ⊕ enabled
-    scope-dimension keys — accepting both the canonical dotted form (``personal.first_name``)
-    and the bare short key (``first_name``), since the design examples reference columns by
-    their short key. Scope-dimension keys (e.g. ``region``) are resolvable because a view
-    context may surface a scope value as a column (design C-VIEW / C-SCOPE).
-    """
-    keys: set[str] = set(_BASE_DOTTED_KEYS) | set(_BASE_BARE_KEYS)
-
-    # overlay-added variable fields (both overlay.<key> and bare <key>)
-    if isinstance(field_overlay, Mapping):
-        fields = field_overlay.get("fields") or {}
-        if isinstance(fields, Mapping):
-            for name, spec in fields.items():
-                key = (spec.get("key") if isinstance(spec, Mapping) else None) or name
-                if isinstance(key, str) and key:
-                    keys.add(key)
-                    keys.add(f"{OVERLAY_GROUP}.{key}")
-
-    # enabled scope-dimension keys
-    for dim in scope_dimensions or []:
-        if isinstance(dim, Mapping):
-            k = dim.get("key")
-            enabled = dim.get("enabled", True)
-            if isinstance(k, str) and k and enabled:
-                keys.add(k)
-
-    return keys
-
-
-def validate_view_contexts(
-    view_contexts: Any,
-    *,
-    field_overlay: Mapping[str, Any] | None = None,
-    scope_dimensions: Iterable[Any] | None = None,
-) -> None:
-    """Fail fast if any ``members.view_contexts`` field_key does not resolve (R5.1a).
-
-    Every ``columns`` / ``filterable_columns`` entry and the ``default_sort.field`` of each
-    context must resolve in the tenant's field set (fixed ⊕ calculated ⊕ overlay ⊕ enabled
-    scope dimensions). An unresolvable reference is rejected at Save (authoring) — mirroring
-    ``FieldResolver._reject_invalid_overlay`` fail-fast — so the projection never carries a
-    dangling column. An empty list is valid (→ one default context downstream).
-
-    ``field_overlay`` / ``scope_dimensions`` are the tenant's sibling ``members.*`` values,
-    used to widen the resolvable key set with the tenant's own parameter/overlay fields and
-    scope dimensions.
-
-    Raises :class:`MembersConfigError` (with a context.field → reason map) on any violation.
-    """
-    if view_contexts is None:
-        return
-    if not isinstance(view_contexts, (list, tuple)):
-        raise MembersConfigError({"view_contexts": "must be a list"})
-
-    resolvable = _resolvable_field_keys(field_overlay, scope_dimensions)
-    reasons: dict[str, str] = {}
-
-    for idx, ctx in enumerate(view_contexts):
-        if not isinstance(ctx, Mapping):
-            reasons[f"view_contexts[{idx}]"] = "must be an object"
-            continue
-        ctx_key = ctx.get("key") if isinstance(ctx.get("key"), str) else f"[{idx}]"
-
-        referenced: list[tuple[str, str]] = []  # (label, field_key)
-        for col in _as_str_list(ctx.get("columns")):
-            referenced.append(("columns", col))
-        for col in _as_str_list(ctx.get("filterable_columns")):
-            referenced.append(("filterable_columns", col))
-        default_sort = ctx.get("default_sort")
-        if isinstance(default_sort, Mapping):
-            sort_field = default_sort.get("field")
-            if isinstance(sort_field, str) and sort_field:
-                referenced.append(("default_sort.field", sort_field))
-
-        for label, field_key in referenced:
-            if field_key not in resolvable:
-                reasons[f"{ctx_key}.{label}.{field_key}"] = (
-                    f"references field_key {field_key!r} which does not resolve in the "
-                    "tenant's field set (fixed / parameter / calculated / scope dimension)"
-                )
 
     if reasons:
         raise MembersConfigError(reasons)
@@ -442,6 +333,41 @@ def validate_mail_certified(value: Any) -> None:
         return
     if not isinstance(value, bool):
         raise MembersConfigError({"mail_certified": "must be a boolean (true/false)"})
+
+
+# ── default_page_size validation (R2.1, R2.6 — a positive-int tenant DEFAULT) ──────────
+#
+# Phase 2 re-homes pagination (`view_contexts[*].page_size`) to ONE tenant-level scalar
+# `members.default_page_size` — a DEFAULT, not a stored view object (steering 38 rule 3).
+# The resolver's positive-integer guarantee (requirements Property 1) must hold at the
+# SOURCE too: a non-positive or non-integer default is rejected here on the authoring
+# (Flask writer) path, so an invalid default never reaches the projection. The param is
+# OPTIONAL — an unset/None value is accepted (the table toolkit's own default applies).
+
+
+def validate_default_page_size(value: Any) -> None:
+    """Fail fast if ``members.default_page_size`` is not a positive integer (R2.1, R2.6).
+
+    Accepts an unset/None value (optional param → the table toolkit's own default applies).
+    Otherwise the value must be a positive ``int`` (> 0): a boolean, a float, a string, or a
+    non-positive integer (0 or negative) is rejected, so the served tenant default can only
+    ever be a positive rows-per-page — honouring the resolver's positive-integer guarantee at
+    the authoring source. This is a tenant/field DEFAULT, not a stored view object
+    (``38-sam-module-field-config.md`` rule 3).
+
+    Raises :class:`MembersConfigError` (``{"default_page_size": reason}``) on any violation.
+    """
+    if value is None:
+        return
+    # bool is a subclass of int — reject it explicitly so True/False is never stored as 1/0.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise MembersConfigError(
+            {"default_page_size": "must be a positive integer"}
+        )
+    if value <= 0:
+        raise MembersConfigError(
+            {"default_page_size": f"must be a positive integer (got {value})"}
+        )
 
 
 # ── tenant-label fold: per-locale editor inputs → inline {nl,en,…} dict (R3.2) ─────────
@@ -578,19 +504,15 @@ def fold_members_param(key: str, value: Any) -> Any:
 def validate_members_param(
     key: str,
     value: Any,
-    *,
-    sibling_field_overlay: Mapping[str, Any] | None = None,
-    sibling_scope_dimensions: Iterable[Any] | None = None,
 ) -> None:
     """Validate one ``members.<key>`` value on save; no-op for keys with no save-time rule.
 
     Dispatches to the per-key validator:
     - ``field_overlay``    → :func:`validate_field_overlay`
-    - ``view_contexts``    → :func:`validate_view_contexts` (widened by the tenant's sibling
-      ``field_overlay`` / ``scope_dimensions`` so the tenant's own added fields resolve)
-    - ``mail_domain``      → :func:`validate_mail_domain`
-    - ``mail_local_part``  → :func:`validate_mail_local_part`
-    - ``mail_certified``   → :func:`validate_mail_certified`
+    - ``mail_domain``       → :func:`validate_mail_domain`
+    - ``mail_local_part``   → :func:`validate_mail_local_part`
+    - ``mail_certified``    → :func:`validate_mail_certified`
+    - ``default_page_size`` → :func:`validate_default_page_size`
 
     ``scope_dimensions`` has no cross-reference rule of its own here (its internal shape is
     validated by the SAM ``ScopeConfig`` on read); a PUT of it is accepted as-is. Raises
@@ -598,17 +520,11 @@ def validate_members_param(
     """
     if key == "field_overlay":
         validate_field_overlay(value)
-    elif key == "view_contexts":
-        # When validating view_contexts, the overlay/scope come from the sibling params (the
-        # value being saved is the view_contexts list itself).
-        validate_view_contexts(
-            value,
-            field_overlay=sibling_field_overlay,
-            scope_dimensions=sibling_scope_dimensions,
-        )
     elif key == "mail_domain":
         validate_mail_domain(value)
     elif key == "mail_local_part":
         validate_mail_local_part(value)
     elif key == "mail_certified":
         validate_mail_certified(value)
+    elif key == "default_page_size":
+        validate_default_page_size(value)

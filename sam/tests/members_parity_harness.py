@@ -67,10 +67,8 @@ from sam.members.domain.lifecycle_config import (
     StaticLifecycleConfigProvider,
 )
 from sam.members.domain.membership_service import MembershipService
-from sam.members.domain.scope_dimensions import (
-    SAMPLE_SCOPE_CONFIG,
-    StaticScopeConfigProvider,
-)
+from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
+from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
 from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
 from sam.members.domain.mail_run_status import MailRunStatusService
 from sam.members.domain.mail_sender_resolver import MailSenderResolver

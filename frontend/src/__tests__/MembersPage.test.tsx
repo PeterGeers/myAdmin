@@ -31,10 +31,10 @@ import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 
 vi.mock('../services/membersApiService');
 
-// MembersPage reads `useAuth().hasAnyRole` to gate the view-context dropdown
-// (task 3.3). These page tests exercise the default (all-visible-fields) context,
-// so a permissive stub keeps every context available and the dropdown hidden
-// (single/default-only context) — leaving the existing assertions unchanged.
+// MembersPage renders the single generic table over the resolved field config's
+// visible fields; the view-context dropdown was retired in Phase 2 step b
+// (task 3.3). `useAuth().hasAnyRole` is stubbed permissive — role gating is not
+// exercised by these table-focused tests.
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true }),
 }));
@@ -237,33 +237,20 @@ describe('MembersPage (Leden Overzicht)', () => {
       });
     });
 
-    it('renders the standard free-text region filter in an explicit-columns view context too (applies regardless of context)', async () => {
-      // A view context whose explicit columns include `region` drives the
-      // explicit-columns render path (design C-VIEW). The region filter must
-      // still be the standard free-text input there — a context chooses columns,
-      // never the region filter behavior.
-      mockGetFieldConfig.mockResolvedValue({
-        ...mockFieldConfig,
-        // The explicit-columns path resolves each column key against `fields`, so
-        // `region` must be a visible field descriptor there to render.
-        fields: [
-          ...mockFieldConfig.fields,
-          { key: 'region', label: 'Regio', order: 5 },
-        ],
-        view_contexts: [
-          { key: 'ctx-scoped', label: { nl: 'Regio', en: 'Region' }, columns: ['name', 'region'] },
-        ],
-      } as never);
-
+    it('renders a free-text region filter over the single generic table (applies regardless of render path)', async () => {
+      // Phase 2 step b (task 3.3) retired the view-context explicit-columns path;
+      // the single generic table renders over the resolved visible fields. The
+      // region column (a fixed flat alias → legacy `filters.region` label) must
+      // still carry the standard free-text input — the region filter behavior
+      // never depended on a context.
       render(<MembersPage />);
       await waitForRows();
 
-      // In the explicit-columns path the header label is the resolved FIELD label
-      // (here "Regio"), so the aria-label is "Filter by Regio".
-      const regionFilter = screen.getByLabelText('Filter by Regio') as HTMLInputElement;
+      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
       expect(regionFilter.tagName.toLowerCase()).toBe('input');
+      expect(regionFilter.tagName.toLowerCase()).not.toBe('select');
 
-      // And typing a value narrows the rows in this context as well.
+      // And typing a value narrows the rows.
       fireEvent.change(regionFilter, { target: { value: 'West' } });
       await waitFor(() => {
         expect(screen.getByText('Marie')).toBeInTheDocument();
@@ -377,57 +364,30 @@ describe('MembersPage (Leden Overzicht)', () => {
       expect(screen.getByTestId('stat-regions')).toHaveTextContent('1');
     });
 
-    it('follows a view-context switch (stats + filters recompute per selected context)', async () => {
-      // Two authored contexts open to everyone (the AuthContext stub grants all
-      // roles), so the context dropdown renders and a switch is observable. Both
-      // feed the SAME shared toolkit + `processedData`, so the strip must stay
-      // correct across the selection.
-      mockGetFieldConfig.mockResolvedValue({
-        ...mockFieldConfig,
-        fields: [
-          ...mockFieldConfig.fields,
-          { key: 'email', label: 'E-mail', order: 2 },
-          { key: 'status', label: 'Status', order: 3 },
-          { key: 'region', label: 'Regio', order: 5 },
-        ],
-        view_contexts: [
-          { key: 'ctx-a', label: { nl: 'Overzicht', en: 'Overview' }, columns: ['name', 'email'] },
-          {
-            key: 'ctx-b',
-            label: { nl: 'Regio', en: 'Region' },
-            columns: ['name', 'region'],
-            default_sort: { field: 'name', direction: 'desc' },
-          },
-        ],
-      } as never);
-
+    it('keeps the strip correct when a column filter narrows the single table', async () => {
+      // Phase 2 step b (task 3.3) retired the view-context dropdown; there is one
+      // generic table rendering over the resolved visible fields. The strip must
+      // stay correct as a column filter narrows `processedData` (the invariant
+      // the former context-switch case exercised, now without a context to pick).
       render(<MembersPage />);
       await waitForRows();
 
-      // Strip is present and correct in the first context.
-      expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
-      expect(screen.getByTestId('stat-filtered')).toHaveTextContent('3');
-
-      // Switch to the second context via the dropdown.
-      const dropdown = screen.getByLabelText('viewContext.label') as HTMLSelectElement;
-      fireEvent.change(dropdown, { target: { value: 'ctx-b' } });
-
-      // Stats still reflect the full processed set after the context switch, and a
-      // filter applied in the new context recomputes the strip. The switch to the
-      // explicit-columns context (`ctx-b`) re-renders asynchronously, so wait for
-      // its `region` header filter (label "Regio") to settle before driving it —
-      // `findByLabelText` retries until the post-switch render is stable.
+      // Strip is present and reports the full scoped set.
       await waitFor(() => {
         expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
       });
+      expect(screen.getByTestId('stat-filtered')).toHaveTextContent('3');
 
+      // Filtering the region column recomputes the strip (total stays the full
+      // set; filtered + regions collapse to the single match).
       const regionFilter =
-        (await screen.findByLabelText('Filter by Regio')) as HTMLInputElement;
+        screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
       fireEvent.change(regionFilter, { target: { value: 'Zuid' } });
 
       await waitFor(() => {
         expect(screen.getByTestId('stat-filtered')).toHaveTextContent('1');
       });
+      expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
       expect(screen.getByTestId('stat-regions')).toHaveTextContent('1');
     });
   });
@@ -546,6 +506,115 @@ describe('MembersPage (Leden Overzicht)', () => {
 
       const dialog = screen.getByRole('dialog');
       expect(within(dialog).getByText('jan@h-dcn.example')).toBeInTheDocument();
+    });
+  });
+
+  // ── Renders over visible_fields() with NO context dropdown + paginates by the ─
+  //    precedence rule (Members config redesign Phase 2 step b — task 3.3) ───────
+  //
+  // Phase 2 step b retired the view-context dropdown: the single generic table
+  // renders over the resolved `FieldConfig` visible fields directly, and the
+  // rows-per-page is the precedence `userPreference ?? default_page_size ??
+  // platformDefault` (resolver `resolvePageSize`, PLATFORM_DEFAULT_PAGE_SIZE =
+  // 25). This block exercises the no-dropdown render + each pagination leg over
+  // the REAL page (not the resolver unit, which `membersPagination.test.ts`
+  // covers) by asserting the number of rendered table body rows.
+  //
+  // **Validates: Requirements 3.2, 2.2, 2.3, 2.4**
+  describe('visible-fields render + pagination precedence (no view-context dropdown)', () => {
+    // 30 members (> the platform default of 25) so a page-size cap is observable
+    // as a cut in the rendered body-row count. Each carries a unique name so the
+    // name column stays a stable per-row cell.
+    const manyMembers: Member[] = Array.from({ length: 30 }, (_, i) => ({
+      member_id: `mm-${i + 1}`,
+      name: `Lid ${String(i + 1).padStart(2, '0')}`,
+      email: `lid${i + 1}@h-dcn.example`,
+      status: 'active',
+      membership_type: 'regulier',
+      region: 'Noord',
+    }));
+
+    /** Count rendered table BODY rows (all <tr> role=row minus the header row). */
+    const bodyRowCount = (): number => screen.getAllByRole('row').length - 1;
+
+    const waitForManyRows = async () => {
+      await waitFor(() => {
+        expect(screen.getByText('Lid 01')).toBeInTheDocument();
+      });
+    };
+
+    beforeEach(() => {
+      mockListMembers.mockResolvedValue(manyMembers as never);
+      mockGetMember.mockResolvedValue(manyMembers[0] as never);
+    });
+
+    it('renders the single generic table over visible_fields() with no context dropdown', async () => {
+      // A field config with a visible fixed field + a NOT-visible field: the table
+      // renders only the visible field as a column (visible_fields()), and no
+      // view-context dropdown is present (the surface was retired in step b).
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [
+          { key: 'name', label: 'Naam', compact: true, order: 1, visible: true },
+          { key: 'email', label: 'E-mail', order: 2, visible: true },
+          { key: 'secret_notes', label: 'Verborgen', order: 3, visible: false },
+        ],
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+
+      // NO view-context dropdown anywhere on the page.
+      expect(screen.queryByLabelText('viewContext.label')).not.toBeInTheDocument();
+
+      // The visible field's values render; the not-visible field never becomes a
+      // column header (visible_fields() gate).
+      expect(screen.getByText('lid1@h-dcn.example')).toBeInTheDocument();
+      expect(screen.queryByText('Verborgen')).not.toBeInTheDocument();
+    });
+
+    it('paginates by the platform default (25) when neither user pref nor tenant default is set', async () => {
+      // Default beforeEach: column prefs page_size absent, field config carries no
+      // default_page_size → the resolver falls through to PLATFORM_DEFAULT (25).
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+
+      // 30 rows available, capped to the platform default of 25.
+      await waitFor(() => expect(bodyRowCount()).toBe(25));
+    });
+
+    it('paginates by the tenant default_page_size leg when no user preference is set', async () => {
+      // No user page_size → the tenant field-config default (10) wins over the
+      // platform default (middle tier of the precedence).
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+        default_page_size: 10,
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+
+      await waitFor(() => expect(bodyRowCount()).toBe(10));
+    });
+
+    it('paginates by the per-user column_preferences page_size leg (highest precedence)', async () => {
+      // A user preference (5) wins over BOTH the tenant default (10) and the
+      // platform default (25) — the top tier of the precedence.
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+        default_page_size: 10,
+      } as never);
+      mockGetColumnPreferences.mockResolvedValue(
+        { sub: 'u-1', columns: [], page_size: 5, updated_at: '2024-01-01T00:00:00Z' } as never,
+      );
+
+      render(<MembersPage />);
+      await waitForManyRows();
+
+      await waitFor(() => expect(bodyRowCount()).toBe(5));
     });
   });
 });

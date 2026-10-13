@@ -310,14 +310,17 @@ PARAMETER_SCHEMA = {
                     "member rows are scoped (single list value)"
                 ),
             },
-            "view_contexts": {
-                "label": "View Contexts",
-                "label_nl": "Weergavecontexten",
-                "type": "json",
-                "default": [],
+            "default_page_size": {
+                "label": "Default Page Size",
+                "label_nl": "Standaard Paginagrootte",
+                "type": "number",
+                "required": False,
                 "description": (
-                    "Ordered list of named column-sets (ui.tables-shaped) selecting "
-                    "which fields show together (single list value)"
+                    "Tenant-level default rows-per-page for the Members table, served "
+                    "on the field-config response as a single scalar (a DEFAULT, not a "
+                    "stored view object). A per-user preference overrides it; when unset "
+                    "the table toolkit's own default applies. Must be a positive integer "
+                    "when set."
                 ),
             },
             "mail_enabled": {

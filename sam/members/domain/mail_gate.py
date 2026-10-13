@@ -11,7 +11,7 @@ never queries MySQL at request time (ADR 0005/0006, steering 36). The mail outpu
 This module owns only the **seam** — the ``Protocol`` the domain depends on plus a
 static reference provider — so the service that surfaces the flag (``get_field_config``)
 stays storage-agnostic and tenant-agnostic, exactly mirroring
-:mod:`sam.members.domain.view_contexts` / :mod:`sam.members.domain.scope_dimensions`. The
+:mod:`sam.members.domain.scope_dimensions`. The
 SAM-plane concrete provider is the DynamoDB-backed projection reader
 (:class:`sam.members.repository.projection_config_reader.MembersProjectionReader`, whose
 ``is_mail_enabled`` already satisfies this ``Protocol`` by duck-typing); tests pass a
@@ -41,9 +41,9 @@ __all__ = [
 class MailGateProvider(Protocol):
     """Read-only provider of a tenant's mail-enabled gate flag (the mail-gate seam).
 
-    Mirrors :class:`sam.members.domain.view_contexts.ViewContextsProvider` /
-    :class:`sam.members.domain.scope_dimensions.ScopeConfigProvider`: the domain depends on
-    this ``Protocol``, never on where the flag lives. The SAM-plane concrete provider is the
+    Mirrors :class:`sam.members.domain.scope_dimensions.ScopeConfigProvider`: the domain
+    depends on this ``Protocol``, never on where the flag lives. The SAM-plane concrete
+    provider is the
     DynamoDB-backed projection reader (``is_mail_enabled`` satisfies this by duck-typing);
     tests pass a static one.
     """

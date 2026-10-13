@@ -182,9 +182,9 @@ class TestFoldFieldOverlayLabels:
         assert "label_en" not in folded["fields"]["club"]
 
     def test_fold_members_param_only_folds_field_overlay(self):
-        contexts = [{"key": "c", "label_en": "C", "columns": ["email"]}]
+        dims = [{"key": "region", "label_en": "Region", "enabled": True}]
         # Not field_overlay → returned unchanged (the dispatch is key-scoped).
-        assert fold_members_param("view_contexts", contexts) is contexts
+        assert fold_members_param("scope_dimensions", dims) is dims
 
     def test_fold_members_param_non_mapping_overlay_passthrough(self):
         assert fold_members_param("field_overlay", None) is None
