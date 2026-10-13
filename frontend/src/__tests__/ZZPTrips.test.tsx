@@ -18,9 +18,9 @@
  * static-source-check pattern of ZZPTripsBillingAbsence.test.ts.
  */
 
-import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { describe, it, expect } from 'vitest';
 
 const readSource = (relFromThisFile: string): string =>
   fs.readFileSync(path.resolve(__dirname, relFromThisFile), 'utf-8');

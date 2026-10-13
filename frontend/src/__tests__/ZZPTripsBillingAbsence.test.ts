@@ -19,9 +19,9 @@
  * "static source check" pattern already used in ZZPTrips.test.tsx.
  */
 
-import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { describe, it, expect } from 'vitest';
 
 // All paths are resolved relative to this test file (frontend/src/__tests__).
 const readSource = (relFromThisFile: string): string =>
