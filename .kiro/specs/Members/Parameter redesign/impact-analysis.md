@@ -197,7 +197,7 @@ coordination across the three planes (SAM, Flask, SPA), not calendar estimates. 
 each lands safely on its own; the two "fix now" bugs are deliberately first because they de-risk
 everything after them and deliver value even if the redesign stalls.
 
-**Phase 0 — de-risk / quick wins (do first, independent of A/B/C)**
+**PR #89 DONE Phase 0 — de-risk / quick wins (do first, independent of A/B/C)**
 1. **Fix `CALCULATED_FIELD_KEYS` drift** (S). Single Flask file (`members_config_validation.py`);
    add the 4 missing calculated keys so valid configs stop being rejected. Pure bug fix.
 2. **Fix the version-bump trap** (M). `projection_sync.py` / `_scope_config_version` — thread a
@@ -206,12 +206,20 @@ everything after them and deliver value even if the redesign stalls.
 3. **Add read-side delivered/loaded status** (M). Expose the row `version`/last-synced through
    `MembersProjectionReader` and surface it in the editor. Makes stale/failed projection visible.
 
-**Phase 1 — catalog backbone (prerequisite for the UX)**
-4. **Author the canonical attribute catalog** (M). New first-class artifact derived from the
+**DONE Phase 1 — catalog backbone (prerequisite for the UX)** — implemented in
+`.kiro/specs/Members/Parameter redesign/phase-1-catalog-backbone/`.
+4. **DONE Author the canonical attribute catalog** (M). New first-class artifact derived from the
    already-existing registries (`fixed_fields`, `calculated_fields`, overlay schema). Mostly
    consolidation, not new logic. Resolve the **i18n label** question here.
-5. **Settle functional-group identity + ordering** (S–M). Decide first-class object vs field
+5. **DONE Settle functional-group identity + ordering** (S–M). Decide first-class object vs field
    attribute (analysis Q4.3); encode display order. Shapes the catalog, so do it alongside step 4.
+
+   > **R9 steering follow-up (done with Phase 1).** R9 added the new steering file
+   > `38-sam-module-field-config.md` (`inclusion: auto`) — the catalog-first,
+   > group→field→attribute + ordering, no view/analytics param objects, first-class
+   > versioned+observable projection, single authoring surface, i18n Option (b), and
+   > rule-of-three guidance for the next SAM modules (§11). It is registered in `00-index.md`
+   > (the `3x` row + the `auto` load-behavior table) and cross-referenced lightly from `35`/`37`.
 
 **Phase 2 — delete the redundant surface**
 6. **Retire `view_contexts`** (M, but gated on the SPA). Order matters: (a) move `page_size` to a

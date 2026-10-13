@@ -39,19 +39,35 @@ def _is_sysadmin(user_roles) -> bool:
     return "SysAdmin" in (user_roles or [])
 
 
-def _validate_members_config(svc, namespace, key, value, tenant) -> None:
-    """Fail-fast save-time validation for members.* config (s5c 2.4; no-op otherwise).
+def _prepare_members_config(svc, namespace, key, value, tenant):
+    """Fold + fail-fast validate a members.* config value on save; return the value to store.
 
-    Delegates to services.members_config_validation. For members.view_contexts the
-    resolvable field set is widened by the tenant's sibling members.field_overlay and
-    members.scope_dimensions (read via the ParameterService), so a context may reference
-    the tenant's own parameter/overlay fields and scope dimensions. Raises
-    MembersConfigError (a ValueError → 400) if the config is invalid.
+    Two steps, in order (s5c 2.4 + Phase-1 catalog-backbone R3.2):
+
+    1. **Fold** the editor's per-locale ``label_<locale>`` inputs into the stored inline
+       ``{nl,en,…}`` label dict (``fold_members_param`` — a no-op for every key but
+       ``field_overlay`` and for an already-folded overlay). The FOLDED value is what gets
+       validated and stored, so the stored (and served) label shape is the inline dict the
+       SAM resolver + the governance projection builders consume (R2.2, shape unchanged).
+    2. **Validate** the folded value (``validate_members_param``). For members.view_contexts
+       the resolvable field set is widened by the tenant's sibling members.field_overlay and
+       members.scope_dimensions (read via the ParameterService), so a context may reference
+       the tenant's own parameter/overlay fields and scope dimensions.
+
+    Returns the (possibly folded) value to persist. Raises MembersConfigError (a ValueError
+    → 400) if the config is invalid. For a non-members namespace the value is returned as-is.
     """
     if namespace != "members":
-        return
-    from services.members_config_validation import validate_members_param
+        return value
+    from services.members_config_validation import (
+        fold_members_param,
+        validate_members_param,
+    )
 
+    # 1. Fold per-locale label inputs into the inline {nl,en,…} dict (R3.2).
+    value = fold_members_param(key, value)
+
+    # 2. Fail-fast validation of the value that will actually be stored.
     sibling_overlay = None
     sibling_scope = None
     if key == "view_contexts":
@@ -65,6 +81,7 @@ def _validate_members_config(svc, namespace, key, value, tenant) -> None:
         sibling_field_overlay=sibling_overlay,
         sibling_scope_dimensions=sibling_scope,
     )
+    return value
 
 
 @parameter_admin_bp.route("/api/tenant-admin/parameters", methods=["GET"])
@@ -179,10 +196,12 @@ def create_parameter(
 
         svc = _get_service()
 
-        # s5c R5.1a/R4.9 (Property 7) — authoritative save-time validation for members.*
-        # config (fail-fast, before the write, so a dangling reference / invalid overlay
-        # never corrupts the stored config or the projection). No-op for other namespaces.
-        _validate_members_config(svc, namespace, key, value, tenant)
+        # s5c R5.1a/R4.9 (Property 7) + Phase-1 R3.2 — fold per-locale label inputs into the
+        # inline {nl,en,…} dict, then authoritative save-time validation (fail-fast, before
+        # the write, so a dangling reference / invalid overlay never corrupts the stored
+        # config or the projection). The FOLDED value is what gets stored. No-op for other
+        # namespaces (returns the value unchanged).
+        value = _prepare_members_config(svc, namespace, key, value, tenant)
 
         svc.set_param(
             scope,
@@ -251,9 +270,10 @@ def update_parameter(
 
         svc = _get_service()
 
-        # s5c R5.1a/R4.9 (Property 7) — authoritative save-time validation for members.*
-        # config on update (fail-fast, before the write). No-op for other namespaces.
-        _validate_members_config(
+        # s5c R5.1a/R4.9 (Property 7) + Phase-1 R3.2 — fold per-locale label inputs into the
+        # inline {nl,en,…} dict, then authoritative save-time validation on update (fail-fast,
+        # before the write). The FOLDED value is what gets stored. No-op for other namespaces.
+        value = _prepare_members_config(
             svc, row["namespace"], row["key"], value, row["scope_id"]
         )
 
