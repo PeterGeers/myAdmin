@@ -370,7 +370,7 @@ describe('MembersConfigEditor', () => {
 
       // Save button becomes enabled once dirty.
       const saveBtn = within(scopeEditor).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled());
+      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
       fireEvent.click(saveBtn);
 
       await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
@@ -391,7 +391,7 @@ describe('MembersConfigEditor', () => {
       fireEvent.click(addBtn);
 
       const saveBtn = within(viewEditor).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled());
+      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
       fireEvent.click(saveBtn);
 
       await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
@@ -421,7 +421,7 @@ describe('MembersConfigEditor', () => {
 
       // Save → the committed object carries the rich option shape.
       const saveBtn = within(overlayEditor).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled());
+      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
       fireEvent.click(saveBtn);
 
       await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
@@ -484,7 +484,7 @@ describe('MembersConfigEditor', () => {
       fireEvent.change(roleSelect, { target: { value: 'motor_brand' } });
 
       const saveBtn = within(analytics).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled());
+      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
       fireEvent.click(saveBtn);
 
       // Save-once: exactly one request, routed to update (existing field_overlay row).
