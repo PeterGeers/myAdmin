@@ -44,6 +44,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .attribute_catalog import BASE_FUNCTIONAL_GROUPS
 from .field_resolver import (
     FixedFieldOverride,
     FunctionalGroup,
@@ -59,15 +60,33 @@ __all__ = [
 ]
 
 
-#: The base functional-group catalog every tenant starts with (generic; a tenant edits it).
-#: ``group_a`` is a neutral placeholder custom group demonstrating the mechanism (NOT h-dcn's
-#: real "motor"/"financial" groups — those are authored as data at onboarding).
-SEED_FUNCTIONAL_GROUPS: tuple[dict[str, Any], ...] = (
-    {"key": "personal", "label": {"nl": "Persoonlijk", "en": "Personal"}, "order": 1},
-    {"key": "address", "label": {"nl": "Adres", "en": "Address"}, "order": 2},
-    {"key": "membership", "label": {"nl": "Lidmaatschap", "en": "Membership"}, "order": 3},
-    {"key": "administrative", "label": {"nl": "Administratie", "en": "Administrative"}, "order": 4},
+def _base_group_dict(group: FunctionalGroup) -> dict[str, Any]:
+    """Project a base :class:`FunctionalGroup` into the projection ``config#fields`` dict shape.
+
+    Keeps the seed's ``{"key","label","order"}`` dict form while sourcing the VALUES from the one
+    base-group definition (:data:`BASE_FUNCTIONAL_GROUPS`), so there is no second hand-maintained
+    copy of the base groups to drift (task 1.2 / R5.2).
+    """
+    return {"key": group.key, "label": dict(group.label), "order": group.order}
+
+
+#: One neutral placeholder custom group demonstrating the overlay mechanism — this is seed/test
+#: DATA, NOT a base group (NOT h-dcn's real "motor"/"financial" groups, which are authored as data
+#: at onboarding). Its ``order`` continues the base sequence so the seed renders predictably.
+_SEED_ONLY_FUNCTIONAL_GROUPS: tuple[dict[str, Any], ...] = (
     {"key": "group_a", "label": {"nl": "Groep A", "en": "Group A"}, "order": 5},
+)
+
+
+#: The base functional-group catalog every tenant starts with (generic; a tenant edits it).
+#:
+#: The base groups are DERIVED from :data:`BASE_FUNCTIONAL_GROUPS` (the single base-group
+#: definition for the module, in ``attribute_catalog.py``) rather than being a second hand-typed
+#: copy — task 1.2 / R5.2: ONE base-group definition, not two. The seed-only extras
+#: (:data:`_SEED_ONLY_FUNCTIONAL_GROUPS`, e.g. ``group_a``) stay seed/test data and are appended
+#: after the base groups.
+SEED_FUNCTIONAL_GROUPS: tuple[dict[str, Any], ...] = (
+    tuple(_base_group_dict(g) for g in BASE_FUNCTIONAL_GROUPS) + _SEED_ONLY_FUNCTIONAL_GROUPS
 )
 
 

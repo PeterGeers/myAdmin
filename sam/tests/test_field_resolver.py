@@ -388,7 +388,9 @@ def test_functional_group_is_overridable_for_a_calculated_field():
 
 
 def test_dangling_functional_group_reference_is_rejected():
-    # A functional_group not present in a non-empty catalog is rejected fail-fast (Property 7).
+    # A functional_group that is neither a base key nor in the tenant's authored catalog is
+    # rejected fail-fast (Property 7). Here the tenant authored `address` but references
+    # `not_in_catalog`, which is absent from BASE ⊕ tenant (R5.3).
     overlay = TenantOverlay(
         functional_groups={"address": FunctionalGroup(key="address")},
         overrides={"personal.city": FixedFieldOverride(functional_group="not_in_catalog")},
@@ -407,6 +409,96 @@ def test_variable_field_carries_its_functional_group():
     mb = cfg.field("overlay.motor_brand")
     assert mb.functional_group == "motor"
     assert mb.origin is FieldOrigin.VARIABLE
+
+
+# ── Base-group-aware reference validation: BASE_FUNCTIONAL_GROUPS ⊕ tenant (R4.2/R5.3/R5.4) ──
+#
+# Phase 1 task 4.1 (design §4): the resolver validates a field's `functional_group` against the
+# catalog's group set = `BASE_FUNCTIONAL_GROUPS` ⊕ the tenant's authored `functional_groups`.
+# A reference to a BASE key is valid even with NO authored catalog (R5.4), while a dangling
+# reference to a non-base key is still rejected whether or not a catalog is authored. Nothing
+# that resolved before this change fails now — every base-field default is a base key.
+#
+# Task 4.3 is the base-key-resolves / dangling-raises pair under R4.2/R5.4: a tenant with NO
+# authored catalog resolves WITHOUT OverlayError when a field OR an override references a BASE
+# key (both referencing paths below), and a dangling NON-base key still raises OverlayError.
+#   - override path  → test_base_key_reference_resolves_with_no_authored_catalog
+#   - field path     → test_base_key_variable_field_resolves_with_no_authored_catalog
+#   - dangling raises → test_dangling_non_base_reference_is_rejected_without_an_authored_catalog
+#
+# Validates: Requirements R4.2, R5.4
+
+
+def test_base_key_reference_resolves_with_no_authored_catalog():
+    # R5.4: a tenant that authored NO functional_groups catalog but references a BASE group key
+    # (here `administrative`, a base key) resolves WITHOUT OverlayError — the former
+    # "empty catalog ⇒ unchecked" path is now "validated against the base set", and the base
+    # set makes the reference valid.
+    overlay = TenantOverlay(
+        overrides={"personal.city": FixedFieldOverride(functional_group="administrative")},
+    )
+    assert not overlay.functional_groups  # no authored catalog
+    cfg = _resolver({"t": overlay}).resolve("t")
+    assert cfg.field("personal.city").functional_group == "administrative"
+
+
+def test_base_key_variable_field_resolves_with_no_authored_catalog():
+    # R5.4: a VARIABLE field referencing a base key (`membership`) also resolves against the base
+    # set with no authored catalog — this is exactly the shape the scope-dimension overlays use.
+    overlay = TenantOverlay(
+        fields={"motor_brand": OverlayField(key="motor_brand", functional_group="membership")},
+    )
+    assert not overlay.functional_groups
+    cfg = _resolver({"t": overlay}).resolve("t")
+    assert cfg.field("overlay.motor_brand").functional_group == "membership"
+
+
+def test_dangling_non_base_reference_is_rejected_without_an_authored_catalog():
+    # R5.4 (strict side): with NO authored catalog, a reference to a NON-base key is a dangling
+    # reference and is rejected — the base set does not make an arbitrary key valid.
+    overlay = TenantOverlay(
+        overrides={"personal.city": FixedFieldOverride(functional_group="not_a_base_group")},
+    )
+    assert not overlay.functional_groups
+    with pytest.raises(OverlayError) as exc:
+        _resolver({"t": overlay}).resolve("t")
+    assert "personal.city" in exc.value.reasons
+
+
+def test_group_set_is_base_merged_with_tenant_catalog():
+    # R5.3 (merge rule): the effective group set = BASE ⊕ tenant. A tenant that authored a
+    # custom group (`motor`) can reference BOTH a base key (`administrative`) and its own key
+    # in the same overlay and both resolve — base keys fill the set, the tenant key extends it.
+    overlay = TenantOverlay(
+        functional_groups={"motor": FunctionalGroup(key="motor", order=9)},
+        overrides={
+            "personal.city": FixedFieldOverride(functional_group="administrative"),  # base
+        },
+        fields={
+            "motor_brand": OverlayField(key="motor_brand", functional_group="motor"),  # tenant
+        },
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    assert cfg.field("personal.city").functional_group == "administrative"
+    assert cfg.field("overlay.motor_brand").functional_group == "motor"
+
+
+def test_tenant_may_reauthor_a_base_group_key_and_it_resolves():
+    # R5.3 (tenant key wins on collision): a tenant may author a group whose key equals a BASE
+    # key (`administrative`) — the reference still resolves (the key is in BASE ⊕ tenant), and
+    # the tenant's authored entry is surfaced in the served functional_groups catalog.
+    overlay = TenantOverlay(
+        functional_groups={
+            "administrative": FunctionalGroup(
+                key="administrative", label={"en": "Admin (tenant)"}, order=99
+            ),
+        },
+        overrides={"personal.city": FixedFieldOverride(functional_group="administrative")},
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    assert cfg.field("personal.city").functional_group == "administrative"
+    served = {g.key: g for g in cfg.functional_groups}
+    assert served["administrative"].label == {"en": "Admin (tenant)"}
 
 
 # ── options (rich enum {value,label,roles?}) surface on resolved fields (R4.11/R4.12) ──
@@ -565,3 +657,275 @@ class TestAnalyticsProjection:
         )
         config = _resolver({"h-dcn": overlay}).resolve("h-dcn")
         assert config.analytics.field_roles[AnalyticsRole.CLUBBLAD_DIGITAL] == "overlay.does_not_exist"
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+# Phase 1 — Catalog Backbone, Task 4.2 — resolve() regression lock (byte-for-byte stable)
+#
+# Task 4.1 extended `FieldResolver._reject_invalid_overlay` to validate a field's
+# `functional_group` against `BASE_FUNCTIONAL_GROUPS` ⊕ the tenant's authored catalog. R2.1/R2.4
+# require that change to be purely preservation-safe for inputs that already resolved: for every
+# existing fixture the resolve() OUTPUT is byte-for-byte identical to before — the change only
+# ADDS validity (a base-key reference with no authored catalog) and a stricter rejection of
+# dangling NON-base keys, never alters a successful resolve's output.
+#
+# These tests lock a stable structural projection of resolve() for the two representative
+# existing fixtures — the empty / no-overlay case (`h-dcn`) and the committed seed overlay
+# (`seed_overlay.build_seed_overlay()`, which exercises variable fields + address fixed-overrides
+# into the `address` display group). The projection is the full ordered tuple of every observable
+# resolved attribute, so ANY future change that alters the resolved output (a field added/removed,
+# a reorder, a relabel, an origin/type/required/read_only/functional_group flip) breaks the lock.
+#
+# Validates: Requirements R2.1, R2.4
+# ══════════════════════════════════════════════════════════════════════════════════════
+
+from sam.members.domain.seed_overlay import build_seed_overlay
+
+
+def _resolve_projection(cfg: FieldConfig):
+    """A stable, byte-for-byte structural projection of a resolved config's ordered fields.
+
+    One tuple per resolved field, in `cfg.fields` order (the resolver's deterministic
+    `(group, order, key)` sort), capturing every observable attribute the frontend renders:
+    `(dotted_key, origin, type, required, read_only, functional_group, order, sorted-label)`.
+    Equality against a committed expected list is the "identical FieldConfig" check (R2.1).
+    """
+    return [
+        (
+            f.dotted_key(),
+            f.origin.value,
+            f.type.value,
+            f.required,
+            f.read_only,
+            f.functional_group,
+            f.order,
+            tuple(sorted(f.label.items())),
+        )
+        for f in cfg.fields
+    ]
+
+
+# The resolve() output locked at Phase-1 task 4.1 (the base-group-aware reference validation),
+# which that change preserves exactly for passing inputs. Any drift here is a behavior change.
+_EMPTY_OVERLAY_PROJECTION = [
+    ('membership.member_number', 'fixed', 'string', False, False, 'membership', 10, (('en', 'Member number'), ('nl', 'Lidnummer'))),
+    ('membership.status', 'fixed', 'enum', True, False, 'membership', 20, (('en', 'Status'), ('nl', 'Status'))),
+    ('membership.membership_type', 'fixed', 'reference', True, False, 'membership', 30, (('en', 'Membership type'), ('nl', 'Lidmaatschapstype'))),
+    ('membership.joined_date', 'fixed', 'date', True, False, 'membership', 40, (('en', 'Joined date'), ('nl', 'Ingangsdatum'))),
+    ('membership.years_member', 'calculated', 'string', False, True, 'membership', 45, (('en', 'Years member'), ('nl', 'Jaren lid'))),
+    ('membership.created_at', 'fixed', 'string', False, False, 'administrative', 90, (('en', 'Created at'), ('nl', 'Aangemaakt op'))),
+    ('membership.application_year', 'calculated', 'string', False, True, 'membership', 95, (('en', 'Application year'), ('nl', 'Aanmeldingsjaar'))),
+    ('membership.updated_at', 'fixed', 'string', False, False, 'administrative', 100, (('en', 'Updated at'), ('nl', 'Bijgewerkt op'))),
+    ('personal.display_name', 'calculated', 'string', False, True, 'personal', 5, (('en', 'Display name'), ('nl', 'Korte naam'))),
+    ('personal.first_name', 'fixed', 'string', False, False, 'personal', 10, (('en', 'First name'), ('nl', 'Voornaam'))),
+    ('personal.last_name', 'fixed', 'string', True, False, 'personal', 20, (('en', 'Last name'), ('nl', 'Achternaam'))),
+    ('personal.name_infix', 'fixed', 'string', False, False, 'personal', 30, (('en', 'Name infix'), ('nl', 'Tussenvoegsel'))),
+    ('personal.initials', 'fixed', 'string', False, False, 'personal', 40, (('en', 'Initials'), ('nl', 'Initialen'))),
+    ('personal.birth_date', 'fixed', 'date', False, False, 'personal', 50, (('en', 'Date of birth'), ('nl', 'Geboortedatum'))),
+    ('personal.age', 'calculated', 'string', False, True, 'personal', 55, (('en', 'Age'), ('nl', 'Leeftijd'))),
+    ('personal.birthday', 'calculated', 'string', False, True, 'personal', 56, (('en', 'Birthday'), ('nl', 'Verjaardag'))),
+    ('personal.birth_day', 'calculated', 'string', False, True, 'personal', 57, (('en', 'Birth day'), ('nl', 'Geboortedag'))),
+    ('personal.birth_month', 'calculated', 'string', False, True, 'personal', 58, (('en', 'Birth month'), ('nl', 'Geboortemaand'))),
+    ('personal.birth_year', 'calculated', 'string', False, True, 'personal', 59, (('en', 'Birth year'), ('nl', 'Geboortejaar'))),
+    ('personal.birth_quarter', 'calculated', 'string', False, True, 'personal', 60, (('en', 'Birth quarter'), ('nl', 'Geboortekwartaal'))),
+    ('personal.gender', 'fixed', 'enum', False, False, 'personal', 60, (('en', 'Gender'), ('nl', 'Geslacht'))),
+    ('personal.email', 'fixed', 'string', False, False, 'personal', 70, (('en', 'Email'), ('nl', 'E-mail'))),
+    ('personal.phone', 'fixed', 'string', False, False, 'personal', 80, (('en', 'Phone'), ('nl', 'Telefoon'))),
+    ('personal.street', 'fixed', 'string', False, False, 'personal', 90, (('en', 'Street'), ('nl', 'Straat'))),
+    ('personal.postal_code', 'fixed', 'string', False, False, 'personal', 100, (('en', 'Postal code'), ('nl', 'Postcode'))),
+    ('personal.city', 'fixed', 'string', False, False, 'personal', 110, (('en', 'City'), ('nl', 'Woonplaats'))),
+    ('personal.country', 'fixed', 'string', False, False, 'personal', 120, (('en', 'Country'), ('nl', 'Land'))),
+]
+
+# The committed seed overlay (`seed_overlay.build_seed_overlay()`): the address fixed fields move
+# into the `address` DISPLAY group (storage stays `personal`), and two placeholder VARIABLE fields
+# (field_a string, field_b enum) land under `group_a`. The fixed/calculated base is otherwise
+# identical to the empty-overlay projection above.
+_SEED_OVERLAY_PROJECTION = [
+    ('membership.member_number', 'fixed', 'string', False, False, 'membership', 10, (('en', 'Member number'), ('nl', 'Lidnummer'))),
+    ('membership.status', 'fixed', 'enum', True, False, 'membership', 20, (('en', 'Status'), ('nl', 'Status'))),
+    ('membership.membership_type', 'fixed', 'reference', True, False, 'membership', 30, (('en', 'Membership type'), ('nl', 'Lidmaatschapstype'))),
+    ('membership.joined_date', 'fixed', 'date', True, False, 'membership', 40, (('en', 'Joined date'), ('nl', 'Ingangsdatum'))),
+    ('membership.years_member', 'calculated', 'string', False, True, 'membership', 45, (('en', 'Years member'), ('nl', 'Jaren lid'))),
+    ('membership.created_at', 'fixed', 'string', False, False, 'administrative', 90, (('en', 'Created at'), ('nl', 'Aangemaakt op'))),
+    ('membership.application_year', 'calculated', 'string', False, True, 'membership', 95, (('en', 'Application year'), ('nl', 'Aanmeldingsjaar'))),
+    ('membership.updated_at', 'fixed', 'string', False, False, 'administrative', 100, (('en', 'Updated at'), ('nl', 'Bijgewerkt op'))),
+    ('overlay.field_a', 'variable', 'string', False, False, 'group_a', 10, (('en', 'Field A'), ('nl', 'Veld A'))),
+    ('overlay.field_b', 'variable', 'enum', False, False, 'group_a', 20, (('en', 'Field B'), ('nl', 'Veld B'))),
+    ('personal.display_name', 'calculated', 'string', False, True, 'personal', 5, (('en', 'Display name'), ('nl', 'Korte naam'))),
+    ('personal.first_name', 'fixed', 'string', False, False, 'personal', 10, (('en', 'First name'), ('nl', 'Voornaam'))),
+    ('personal.last_name', 'fixed', 'string', True, False, 'personal', 20, (('en', 'Last name'), ('nl', 'Achternaam'))),
+    ('personal.name_infix', 'fixed', 'string', False, False, 'personal', 30, (('en', 'Name infix'), ('nl', 'Tussenvoegsel'))),
+    ('personal.initials', 'fixed', 'string', False, False, 'personal', 40, (('en', 'Initials'), ('nl', 'Initialen'))),
+    ('personal.birth_date', 'fixed', 'date', False, False, 'personal', 50, (('en', 'Date of birth'), ('nl', 'Geboortedatum'))),
+    ('personal.age', 'calculated', 'string', False, True, 'personal', 55, (('en', 'Age'), ('nl', 'Leeftijd'))),
+    ('personal.birthday', 'calculated', 'string', False, True, 'personal', 56, (('en', 'Birthday'), ('nl', 'Verjaardag'))),
+    ('personal.birth_day', 'calculated', 'string', False, True, 'personal', 57, (('en', 'Birth day'), ('nl', 'Geboortedag'))),
+    ('personal.birth_month', 'calculated', 'string', False, True, 'personal', 58, (('en', 'Birth month'), ('nl', 'Geboortemaand'))),
+    ('personal.birth_year', 'calculated', 'string', False, True, 'personal', 59, (('en', 'Birth year'), ('nl', 'Geboortejaar'))),
+    ('personal.birth_quarter', 'calculated', 'string', False, True, 'personal', 60, (('en', 'Birth quarter'), ('nl', 'Geboortekwartaal'))),
+    ('personal.gender', 'fixed', 'enum', False, False, 'personal', 60, (('en', 'Gender'), ('nl', 'Geslacht'))),
+    ('personal.email', 'fixed', 'string', False, False, 'personal', 70, (('en', 'Email'), ('nl', 'E-mail'))),
+    ('personal.phone', 'fixed', 'string', False, False, 'personal', 80, (('en', 'Phone'), ('nl', 'Telefoon'))),
+    ('personal.street', 'fixed', 'string', False, False, 'address', 90, (('en', 'Street'), ('nl', 'Straat'))),
+    ('personal.postal_code', 'fixed', 'string', False, False, 'address', 100, (('en', 'Postal code'), ('nl', 'Postcode'))),
+    ('personal.city', 'fixed', 'string', False, False, 'address', 110, (('en', 'City'), ('nl', 'Woonplaats'))),
+    ('personal.country', 'fixed', 'string', False, False, 'address', 120, (('en', 'Country'), ('nl', 'Land'))),
+]
+
+# The seed overlay's resolved functional-group catalog: BASE_FUNCTIONAL_GROUPS (personal/address/
+# membership/administrative) ⊕ the seed-only `group_a`, ordered by (order, key).
+_SEED_FUNCTIONAL_GROUPS_PROJECTION = [
+    ('personal', 1, (('en', 'Personal'), ('nl', 'Persoonlijk'))),
+    ('address', 2, (('en', 'Address'), ('nl', 'Adres'))),
+    ('membership', 3, (('en', 'Membership'), ('nl', 'Lidmaatschap'))),
+    ('administrative', 4, (('en', 'Administrative'), ('nl', 'Administratie'))),
+    ('group_a', 5, (('en', 'Group A'), ('nl', 'Groep A'))),
+]
+
+
+def test_resolve_empty_overlay_output_is_byte_for_byte_identical_to_locked_baseline():
+    # R2.1/R2.4: the no-overlay resolve (fixed base ⊕ calculated fields) is unchanged by task 4.1.
+    cfg = _resolver().resolve("h-dcn")
+    assert _resolve_projection(cfg) == _EMPTY_OVERLAY_PROJECTION
+
+
+def test_resolve_seed_overlay_output_is_byte_for_byte_identical_to_locked_baseline():
+    # R2.1/R2.4: the committed seed overlay — which exercises variable fields AND address
+    # fixed-overrides into the `address` display group (a passing input before task 4.1) —
+    # resolves to the identical FieldConfig after the base-group-aware validation change.
+    cfg = _resolver({"t": build_seed_overlay()}).resolve("t")
+    assert _resolve_projection(cfg) == _SEED_OVERLAY_PROJECTION
+
+
+def test_resolve_seed_overlay_functional_group_catalog_is_identical_to_locked_baseline():
+    # R2.1: the served functional_groups catalog (base ⊕ seed-only group_a) is unchanged.
+    cfg = _resolver({"t": build_seed_overlay()}).resolve("t")
+    served = [
+        (g.key, g.order, tuple(sorted(g.label.items()))) for g in cfg.functional_groups
+    ]
+    assert served == _SEED_FUNCTIONAL_GROUPS_PROJECTION
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+# Phase 1 — Catalog Backbone, Task 4.4 — the group merge RULE: resolved group set = BASE ⊕ tenant
+#
+# R5.3 states the merge rule the resolver's reference validation implements (design §4): the
+# effective functional-group set a field's `functional_group` resolves against is
+# `BASE_FUNCTIONAL_GROUPS` ⊕ the tenant's authored `functional_groups`, where
+#   (a) the resolved set == base keys ∪ tenant keys (merge by key),
+#   (b) on a key COLLISION the tenant's authored FunctionalGroup WINS (its label/order override
+#       the base) — surfaced in the served catalog,
+#   (c) base keys FILL THE REST — every base key stays a valid reference target even when the
+#       tenant authored other (or colliding) groups, and
+#   (d) a base group is ALWAYS present — all four base keys resolve even with NO authored catalog.
+#
+# These complement, and deliberately do NOT duplicate:
+#   - `test_group_set_is_base_merged_with_tenant_catalog` (one base key + one tenant key resolve),
+#   - `test_tenant_may_reauthor_a_base_group_key_and_it_resolves` (a single-key collision),
+#   - `test_base_key_reference_resolves_with_no_authored_catalog` (a single base key, override path).
+# They assert the rule HOLISTICALLY: the whole base set at once, and that a collision on one base
+# key does not displace the OTHER base keys (base keys still fill the rest).
+#
+# Observability note: the resolver surfaces the merge via its reference VALIDATION group set
+# (`_reject_invalid_overlay`) — a reference to a key in BASE ⊕ tenant resolves, one outside it
+# raises `OverlayError` — and via the SERVED `functional_groups` catalog carrying the tenant's
+# authored entry on a collision. The resolver does NOT inject un-authored base groups into the
+# served `functional_groups` tuple (design §7 / D5: the served shape is unchanged in Phase 1);
+# the merge rule is a VALIDATION/resolution contract, not a serve-shape change.
+#
+# Validates: Requirements R5.3
+
+from sam.members.domain.attribute_catalog import BASE_FUNCTIONAL_GROUPS
+
+_BASE_GROUP_KEYS = tuple(g.key for g in BASE_FUNCTIONAL_GROUPS)
+
+
+def test_every_base_group_is_always_present_with_no_authored_catalog():
+    # R5.3 (d) + "a base group is always present": with NO authored catalog, a field may
+    # reference ANY of the four base keys and resolve — the full base set fills the group set,
+    # not just the one base key the single-key tests exercise.
+    overlay = TenantOverlay(
+        overrides={
+            dotted: FixedFieldOverride(functional_group=base_key)
+            for dotted, base_key in zip(
+                ("personal.first_name", "personal.city", "membership.member_number", "membership.created_at"),
+                _BASE_GROUP_KEYS,
+            )
+        },
+    )
+    assert not overlay.functional_groups  # no authored catalog — base set alone fills the rest
+    cfg = _resolver({"t": overlay}).resolve("t")
+    for dotted, base_key in zip(
+        ("personal.first_name", "personal.city", "membership.member_number", "membership.created_at"),
+        _BASE_GROUP_KEYS,
+    ):
+        assert cfg.field(dotted).functional_group == base_key
+
+
+def test_tenant_collision_wins_without_displacing_the_other_base_keys():
+    # R5.3 (b) tenant wins on collision + (c) base keys fill the rest, asserted TOGETHER: a tenant
+    # re-authors ONE base key (`administrative`) and adds its own custom key (`motor`). In the same
+    # overlay, references to (i) the re-authored key, (ii) a DIFFERENT, non-collided base key
+    # (`membership`), and (iii) the tenant's custom key all resolve — the collision on one base key
+    # does not knock the OTHER base keys out of the merged set.
+    overlay = TenantOverlay(
+        functional_groups={
+            "administrative": FunctionalGroup(
+                key="administrative", label={"en": "Ops (tenant)"}, order=42
+            ),
+            "motor": FunctionalGroup(key="motor", label={"en": "Motor"}, order=9),
+        },
+        overrides={
+            "membership.created_at": FixedFieldOverride(functional_group="administrative"),  # collided base key
+            "personal.city": FixedFieldOverride(functional_group="membership"),              # other base key, still valid
+        },
+        fields={
+            "motor_brand": OverlayField(key="motor_brand", functional_group="motor"),         # tenant-only key
+        },
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    # (b) tenant wins on collision — the reference resolves AND the served catalog carries the
+    #     tenant's authored label/order for the collided base key (not the base `Administrative`/4).
+    assert cfg.field("membership.created_at").functional_group == "administrative"
+    served = {g.key: g for g in cfg.functional_groups}
+    assert served["administrative"].label == {"en": "Ops (tenant)"}
+    assert served["administrative"].order == 42
+    # (c) base keys fill the rest — a DIFFERENT base key the tenant did NOT author still resolves.
+    assert cfg.field("personal.city").functional_group == "membership"
+    # tenant key extends the set too.
+    assert cfg.field("overlay.motor_brand").functional_group == "motor"
+
+
+def test_merge_rule_resolved_set_is_exactly_base_union_tenant_keys():
+    # R5.3 (a): the resolved group set is EXACTLY base keys ∪ tenant keys — a reference to any key
+    # in that union resolves, and a reference to a key OUTSIDE it (neither base nor authored) is a
+    # dangling reference and raises. One overlay exercises both sides of the membership test.
+    tenant_only_key = "motor"
+    overlay_valid = TenantOverlay(
+        functional_groups={tenant_only_key: FunctionalGroup(key=tenant_only_key, order=9)},
+    )
+    cfg = _resolver(
+        {
+            "t": TenantOverlay(
+                functional_groups=overlay_valid.functional_groups,
+                overrides={
+                    "personal.city": FixedFieldOverride(functional_group="personal"),   # ∈ base
+                    "membership.created_at": FixedFieldOverride(functional_group=tenant_only_key),  # ∈ tenant
+                },
+            )
+        }
+    ).resolve("t")
+    assert cfg.field("personal.city").functional_group == "personal"
+    assert cfg.field("membership.created_at").functional_group == tenant_only_key
+
+    # A key in NEITHER base NOR the tenant catalog is outside the merged set → rejected.
+    outside = "neither_base_nor_tenant"
+    assert outside not in _BASE_GROUP_KEYS
+    overlay_bad = TenantOverlay(
+        functional_groups={tenant_only_key: FunctionalGroup(key=tenant_only_key, order=9)},
+        overrides={"personal.city": FixedFieldOverride(functional_group=outside)},
+    )
+    with pytest.raises(OverlayError) as exc:
+        _resolver({"t": overlay_bad}).resolve("t")
+    assert "personal.city" in exc.value.reasons

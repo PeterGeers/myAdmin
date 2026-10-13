@@ -1291,5 +1291,52 @@
       "size": "Grootte",
       "daysOrphaned": "Dagen verweesd"
     }
+  },
+  "membersConfig": {
+    "field": {
+      "first_name": "Voornaam",
+      "last_name": "Achternaam",
+      "name_infix": "Tussenvoegsel",
+      "initials": "Initialen",
+      "birth_date": "Geboortedatum",
+      "gender": "Geslacht",
+      "email": "E-mail",
+      "phone": "Telefoon",
+      "street": "Straat",
+      "postal_code": "Postcode",
+      "city": "Woonplaats",
+      "country": "Land",
+      "member_number": "Lidnummer",
+      "status": "Status",
+      "membership_type": "Lidmaatschapstype",
+      "joined_date": "Ingangsdatum",
+      "created_at": "Aangemaakt op",
+      "updated_at": "Bijgewerkt op",
+      "display_name": "Korte naam",
+      "age": "Leeftijd",
+      "birthday": "Verjaardag",
+      "birth_day": "Geboortedag",
+      "birth_month": "Geboortemaand",
+      "birth_year": "Geboortejaar",
+      "birth_quarter": "Geboortekwartaal",
+      "years_member": "Jaren lid",
+      "application_year": "Aanmeldingsjaar"
+    },
+    "group": {
+      "personal": "Persoonlijk",
+      "address": "Adres",
+      "membership": "Lidmaatschap",
+      "administrative": "Administratie"
+    },
+    "enum": {
+      "status": {
+        "application": "Aanmelding",
+        "pending": "In behandeling",
+        "active": "Actief",
+        "suspended": "Geschorst",
+        "lapsed": "Verlopen",
+        "left": "Uitgeschreven"
+      }
+    }
   }
 }

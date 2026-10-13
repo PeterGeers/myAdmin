@@ -130,7 +130,9 @@ DynamoDB emulator are **dev-only** and out of scope for the TEST environment (se
 - **Fixed vs. variable fields live in the domain layer:** the field-resolution service
   merges the platform **base registry** (fixed personal/membership fields) with the
   **per-tenant overlay** (variable club fields, via `tenant_template_config`/field-config),
-  and serves the resolved config to a presentation-only React frontend.
+  and serves the resolved config to a presentation-only React frontend. For the
+  tenant-configurable field-model pattern (catalog-first, group→field→attribute, derived
+  ordering, i18n), see `38-sam-module-field-config.md`.
 - **Tenancy lives in the repository/data layer:** `tenant_id` PK + `LeadingKeys`, one place.
 
 ## Why generic (reusable across app migrations)
