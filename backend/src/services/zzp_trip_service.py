@@ -64,7 +64,6 @@ class TripService(FieldConfigMixin):
         "client_name",
         "project_name",
         "notes",
-        "is_billable",
     ]
 
     # Miles-to-km conversion factor
