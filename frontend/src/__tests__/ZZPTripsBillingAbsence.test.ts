@@ -61,6 +61,29 @@ describe('Req 5.3 — no km_rate / 0.23 in trip UI or trip service', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Req 5.2 / 5.4 — the trips page must not import or invoke the billing
+// operations, and the trip service must not re-export them. (Migrated here from
+// ZZPTrips.test.tsx, which previously duplicated this static grep inside a heavy
+// full-page render test — see that file's slimming. These checks mount nothing.)
+// ---------------------------------------------------------------------------
+describe('Req 5.2 / 5.4 — no billing imports/usage in the trips page or service', () => {
+  it('ZZPTrips.tsx neither imports nor references createInvoiceFromTrips / getUnbilledTrips', () => {
+    const src = readSource('../pages/ZZPTrips.tsx');
+    expect(src).not.toContain('createInvoiceFromTrips');
+    expect(src).not.toContain('getUnbilledTrips');
+    expect(src).not.toContain('is_billable');
+    expect(src).not.toContain('is_billed');
+    expect(src).not.toContain('contact_id');
+  });
+
+  it('tripService.ts exposes no createInvoiceFromTrips or getUnbilledTrips', () => {
+    const src = readSource('../services/tripService.ts');
+    expect(src).not.toContain('createInvoiceFromTrips');
+    expect(src).not.toContain('getUnbilledTrips');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Req 5.5 — the frontend `Trip` type declares no billing fields and HAS
 // client_name. We read the type source and inspect the `Trip` interface block
 // specifically, so unrelated interfaces in the same file (e.g. TripFilters,
@@ -92,6 +115,44 @@ describe('Req 5.5 — Trip type: no billing fields, has client_name', () => {
     // Field declarations look like `  <field>?: ...` or `  <field>: ...`.
     const fieldDecl = new RegExp(`^\\s*${field}\\??\\s*:`, 'm');
     expect(tripBlock).not.toMatch(fieldDecl);
+  });
+
+  // Req 5.5 (cont.) — the TRIP-LIST FILTER type must also be billing-free. The
+  // redesigned trips list has no contact/billed filter, so TripFilters must not
+  // carry `contact_id` or `is_billed`. (These leftovers survived the Sunday
+  // redesign because the earlier check only inspected the `Trip` interface; this
+  // closes that blind spot.)
+  const filtersBlockMatch = typesSrc.match(/export interface TripFilters\s*\{([\s\S]*?)\n\}/);
+
+  it('has an identifiable TripFilters interface block', () => {
+    expect(filtersBlockMatch).not.toBeNull();
+  });
+
+  const filtersBlock = filtersBlockMatch ? filtersBlockMatch[1] : '';
+
+  it.each(['contact_id', 'is_billed', 'is_billable'])(
+    'TripFilters does not declare billing filter %s',
+    (field) => {
+      const fieldDecl = new RegExp(`^\\s*${field}\\??\\s*:`, 'm');
+      expect(filtersBlock).not.toMatch(fieldDecl);
+    },
+  );
+
+  // Req 5.5 (cont.) — RoutePreset is a live quick-entry feature, but the redesign
+  // severed the trip module from the formal `contacts` table (trips now carry the
+  // free-text `client_name` instead). A preset must therefore NOT carry a
+  // `contact_id` FK into the contacts table — no consumer reads it, and keeping it
+  // would re-introduce the formal-contact coupling the redesign removed.
+  const presetBlockMatch = typesSrc.match(/export interface RoutePreset\s*\{([\s\S]*?)\n\}/);
+
+  it('has an identifiable RoutePreset interface block', () => {
+    expect(presetBlockMatch).not.toBeNull();
+  });
+
+  const presetBlock = presetBlockMatch ? presetBlockMatch[1] : '';
+
+  it('RoutePreset does not declare a contact_id FK into the contacts table', () => {
+    expect(presetBlock).not.toMatch(/^\s*contact_id\??\s*:/m);
   });
 });
 
