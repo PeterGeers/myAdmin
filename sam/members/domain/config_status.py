@@ -3,7 +3,7 @@ Phase 0 step 3 (Members config redesign impact-analysis §2 / risk #6) — the *
 delivered/loaded status seam**.
 
 The ``members.*`` config is authored on the Flask/MySQL plane and projected one-directionally
-into ``governance_projection`` as the ``config#scope`` / ``config#fields`` / ``config#views`` /
+into ``governance_projection`` as the ``config#scope`` / ``config#fields`` /
 ``config#mail`` rows (steering 36, ADR 0005/0006). Until now the Members plane read those rows
 but never exposed *which version it is serving*, so a stale or never-delivered config was
 invisible: a Tenant Admin edits a param and has no way to see whether that edit has been
@@ -11,8 +11,8 @@ projected (delivered) and is what the module reads (loaded).
 
 This module owns only the **seam** — the ``Protocol`` the domain depends on plus a static
 reference provider — so the service that surfaces the status (``get_field_config``) stays
-storage-agnostic and tenant-agnostic, exactly mirroring :mod:`sam.members.domain.mail_gate` /
-:mod:`sam.members.domain.view_contexts`. The SAM-plane concrete provider is the DynamoDB-backed
+storage-agnostic and tenant-agnostic, exactly mirroring :mod:`sam.members.domain.mail_gate`.
+The SAM-plane concrete provider is the DynamoDB-backed
 projection reader
 (:class:`sam.members.repository.projection_config_reader.MembersProjectionReader`, whose
 ``get_config_status`` already satisfies this ``Protocol`` by duck-typing); tests pass a static
@@ -41,8 +41,7 @@ __all__ = [
 class ConfigStatusProvider(Protocol):
     """Read-only provider of a tenant's projected ``config#*`` delivered/loaded status.
 
-    Mirrors :class:`sam.members.domain.mail_gate.MailGateProvider` /
-    :class:`sam.members.domain.view_contexts.ViewContextsProvider`: the domain depends on this
+    Mirrors :class:`sam.members.domain.mail_gate.MailGateProvider`: the domain depends on this
     ``Protocol``, never on where the projection lives. The SAM-plane concrete provider is the
     DynamoDB-backed projection reader (``get_config_status`` satisfies this by duck-typing);
     tests pass a static one.

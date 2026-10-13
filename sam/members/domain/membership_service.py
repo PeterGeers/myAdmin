@@ -88,6 +88,10 @@ from sam.members.domain.lifecycle_config import (
 from sam.members.domain.scope_dimensions import (
     ScopeConfigProvider,
 )
+from sam.members.domain.default_page_size import (
+    DefaultPageSizeProvider,
+    StaticDefaultPageSizeProvider,
+)
 from sam.members.domain.config_status import (
     ConfigStatusProvider,
     StaticConfigStatusProvider,
@@ -98,10 +102,6 @@ from sam.members.domain.mail_gate import (
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.transition_hooks import TransitionHookRegistry
-from sam.members.domain.view_contexts import (
-    StaticViewContextsProvider,
-    ViewContextsProvider,
-)
 from sam.members.repository.members_repository import (
     MembersRepository,
 )
@@ -180,6 +180,12 @@ class MembershipService(
             (R1–R5) only when the tenant is cleared to send. Defaults to the empty,
             FAIL-CLOSED :class:`~sam.members.domain.mail_gate.StaticMailGateProvider` (every
             tenant resolves to ``False`` — mail not offered until the flag is projected).
+        default_page_size_provider: Supplies each tenant's default rows-per-page (Phase 2
+            step (a), R2.1), resolved by ``tenant_id``. ``get_field_config`` surfaces it as
+            ``default_page_size`` so the SPA resolves pagination as
+            ``userPreference ?? default_page_size ?? platformDefault``. Defaults to the empty
+            :class:`~sam.members.domain.default_page_size.StaticDefaultPageSizeProvider`
+            (every tenant resolves to ``None`` — the SPA falls back to the platform default).
         scheduler_port: The EventBridge-Scheduler management port the schedule CRUD surface
             (:class:`~sam.members.domain._membership_schedules.SchedulesMixin`) uses to
             materialize / update / delete the ONE EventBridge schedule behind each stored
@@ -197,10 +203,10 @@ class MembershipService(
         lifecycle_provider: LifecycleConfigProvider | None = None,
         transition_hooks: TransitionHookRegistry | None = None,
         tenant_hooks: TenantHookRegistry | None = None,
-        view_contexts_provider: ViewContextsProvider | None = None,
         scope_config_provider: ScopeConfigProvider | None = None,
         mail_gate_provider: MailGateProvider | None = None,
         config_status_provider: ConfigStatusProvider | None = None,
+        default_page_size_provider: DefaultPageSizeProvider | None = None,
         scheduler_port: "SchedulerApiPort | None" = None,
     ):
         self._repo = repository
@@ -222,18 +228,8 @@ class MembershipService(
         # from `scope_dimensions.values` (single source of truth). Optional — a service built
         # without it resolves exactly as before (no scope-sourced choices).
         self._scope_config_provider: ScopeConfigProvider | None = scope_config_provider
-        # The view-context seam (S5c task 3.2, design C-VIEW). Mirrors the overlay/scope
-        # provider injection: the service depends only on the ViewContextsProvider Protocol,
-        # never on where the contexts live. Defaults to the empty StaticViewContextsProvider,
-        # which yields exactly one default context per tenant (empty-is-valid, R5.1) — so a
-        # service built without a provider still surfaces a valid context on get_field_config.
-        self._view_contexts_provider: ViewContextsProvider = (
-            view_contexts_provider
-            if view_contexts_provider is not None
-            else StaticViewContextsProvider()
-        )
         # The mail-enabled gate seam (pivot-output-actions R0/R1 task 1.3, design §6.3).
-        # Mirrors the view-contexts/scope provider injection: the service depends only on the
+        # Mirrors the scope provider injection: the service depends only on the
         # MailGateProvider Protocol, never on where the per-tenant flag lives. Defaults to the
         # empty, FAIL-CLOSED StaticMailGateProvider — a service built without a provider
         # reports mail-enabled=False for every tenant (the mail output actions are not offered
@@ -254,6 +250,19 @@ class MembershipService(
             config_status_provider
             if config_status_provider is not None
             else StaticConfigStatusProvider()
+        )
+        # The default-page-size seam (Phase 2 step (a) — the former `view_contexts.page_size`
+        # re-home, R2.1). Mirrors the mail-gate provider injection: the service depends only on
+        # the DefaultPageSizeProvider Protocol, never on where the scalar lives. Defaults to the
+        # empty StaticDefaultPageSizeProvider — a service built without a provider reports `None`
+        # for every tenant (the SPA then falls back to the per-user preference and finally the
+        # platform default), matching the reader's empty-is-valid behaviour. After Phase 2
+        # step (c) `default_page_size` is the sole pagination home get_field_config serves — the
+        # `view_contexts` array it rode alongside has been removed.
+        self._default_page_size_provider: DefaultPageSizeProvider = (
+            default_page_size_provider
+            if default_page_size_provider is not None
+            else StaticDefaultPageSizeProvider()
         )
         self._lifecycle_provider: LifecycleConfigProvider = (
             lifecycle_provider

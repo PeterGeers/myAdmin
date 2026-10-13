@@ -37,12 +37,12 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.scope_dimensions import SAMPLE_SCOPE_CONFIG
 from sam.members.migration.scope_normalization_verify import (
     member_scope_value,
     members_matching_grant,
     verify_scope_normalization,
 )
+from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
 
 # The SYNTHETIC sample region dimension (canonical set North/South/East/West) — a test
 # fixture, NOT a tenant's real vocabulary (D17).

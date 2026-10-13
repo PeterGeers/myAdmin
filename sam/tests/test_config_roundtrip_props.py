@@ -67,14 +67,12 @@ from services import projection_schema as schema
 from services.projection_sync import (
     build_config_fields_row,
     build_config_scope_row,
-    build_config_views_row,
 )
 
 from sam.members.domain.calculated_fields import CALCULATED_FIELDS
 from sam.members.domain.field_resolver import TenantOverlay
 from sam.members.domain.fixed_fields import FIXED_FIELDS, FieldType
 from sam.members.domain.scope_dimensions import ScopeConfig
-from sam.members.domain.view_contexts import DEFAULT_CONTEXT_KEY
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
 # The canonical keys a variable overlay field may NOT collide with. The resolver rejects a
@@ -237,10 +235,13 @@ def _fixed_override(draw):
 
 @st.composite
 def _field_overlay(draw):
-    """A VALID authored ``field_overlay`` payload: ``{"fields": {...}, "overrides": {...}}``.
+    """A VALID authored ``field_overlay`` payload: ``{"fields": {...}, "fixed_overrides": {...}}``.
 
-    Variable-field keys never collide with a fixed-field key; overrides are keyed by a real
-    fixed dotted key.
+    The authored INPUT key for fixed-field overrides is ``fixed_overrides`` — the canonical,
+    validated input key the Flask builder now reads (R6.7; the legacy top-level ``overrides``
+    input dual-accept was retired). The PROJECTED attribute and the ``TenantOverlay.overrides``
+    consumer keep the name ``overrides`` (R6.8). Variable-field keys never collide with a
+    fixed-field key; overrides are keyed by a real fixed dotted key.
     """
     field_names = draw(
         st.lists(
@@ -255,7 +256,7 @@ def _field_overlay(draw):
         st.lists(st.sampled_from(_FIXED_DOTTED), max_size=4, unique=True)
     )
     overrides = {dotted: draw(_fixed_override()) for dotted in override_keys}
-    return {"fields": fields, "overrides": overrides}
+    return {"fields": fields, "fixed_overrides": overrides}
 
 
 # ---------------------------------------------------------------------------
@@ -420,7 +421,9 @@ def test_property_config_fields_round_trips(overlay):
         )
 
     # Fixed-field overrides equivalent to authored (present-only aspects; absent stay None).
-    authored_overrides = overlay["overrides"]
+    # Authored INPUT key is ``fixed_overrides`` (R6.7); the resolved overlay exposes them on the
+    # ``TenantOverlay.overrides`` map, whose name is unchanged (R6.8).
+    authored_overrides = overlay["fixed_overrides"]
     assert set(resolved.overrides.keys()) == set(authored_overrides.keys())
     for dotted, authored_spec in authored_overrides.items():
         assert _actual_override(resolved.overrides[dotted]) == _expected_override(
@@ -493,7 +496,9 @@ def _resolver_safe_field_overlay(draw):
         st.lists(st.sampled_from(_OPTIONAL_FIXED_DOTTED), max_size=4, unique=True)
     )
     overrides = {dotted: draw(_fixed_override()) for dotted in override_keys}
-    return {"fields": fields, "overrides": overrides}
+    # Authored INPUT key is the canonical ``fixed_overrides`` (R6.7); projected attribute +
+    # ``TenantOverlay.overrides`` consumer keep the name ``overrides`` (R6.8).
+    return {"fields": fields, "fixed_overrides": overrides}
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +588,7 @@ def test_property_functional_groups_catalog_round_trips(catalog):
     and the resolver still yields the whole broadened base over it — never a crash.
     """
     table = FakeTable()
-    table.put(_config_fields_item({"functional_groups": catalog, "fields": {}, "fixed_overrides": {}}))
+    table.put(_config_fields_item({"functional_groups": catalog, "fields": {}, "overrides": {}}))
     overlay = _Reader(table=table).get_overlay(_TENANT_ID)
     assert isinstance(overlay, TenantOverlay)
 
@@ -696,133 +701,3 @@ def test_property_new_overlay_attributes_surface_on_resolved_fields(built):
     # The member_number format surfaces on the resolved member_number field.
     mn = cfg.field("membership.member_number")
     assert mn.member_number_format == fmt
-
-
-# ═══════════════════════════════════════════════════════════════════════════════════════
-# S5c Task 3.1 — Property 2 EXTENDED: view_contexts round-trips MySQL → projection → reader
-# via the SIBLING config#views row (Open Design Item 1, settled).
-#
-# Feature: s5c-members-runnable-in-spa, Property 2 (view_contexts leg).
-# Validates: Requirements 5.1
-#
-# For any VALID authored members.view_contexts, building the config#views row via
-# build_config_views_row and reading it back through get_view_contexts yields ViewContexts
-# equivalent to the authored contexts. Plus the empty-is-valid collapse: no/empty
-# view_contexts → exactly one default context.
-# ═══════════════════════════════════════════════════════════════════════════════════════
-
-
-@st.composite
-def _view_context(draw, key: str):
-    """A single VALID authored view-context dict for a given (unique) ``key``."""
-    columns = draw(st.lists(_TOKEN, min_size=1, max_size=5, unique=True))
-    # filterable is a subset of columns (the common, well-formed case).
-    filterable = draw(st.lists(st.sampled_from(columns), max_size=len(columns), unique=True))
-    default_sort = draw(
-        st.one_of(
-            st.none(),
-            st.builds(
-                lambda f, d: {"field": f, "direction": d},
-                st.sampled_from(columns),
-                st.sampled_from(["asc", "desc"]),
-            ),
-        )
-    )
-    return {
-        "key": key,
-        "label": draw(_i18n_label()),
-        "permission_roles": draw(st.lists(_TOKEN, max_size=3, unique=True)),
-        "columns": columns,
-        "filterable_columns": filterable,
-        "default_sort": default_sort,
-        "page_size": draw(st.one_of(st.none(), st.integers(min_value=1, max_value=500))),
-    }
-
-
-@st.composite
-def _view_contexts(draw):
-    """A list of 1..4 VALID authored view contexts with UNIQUE keys (never DEFAULT_CONTEXT_KEY)."""
-    keys = draw(
-        st.lists(
-            _TOKEN.filter(lambda k: k != DEFAULT_CONTEXT_KEY),
-            min_size=1,
-            max_size=4,
-            unique=True,
-        )
-    )
-    return [draw(_view_context(key)) for key in keys]
-
-
-def _expected_view_context(authored: dict) -> dict:
-    """What a single authored view context collapses to after builder + reader normalisation."""
-    default_sort = authored.get("default_sort")
-    return {
-        "key": authored["key"],
-        "label": dict(authored.get("label") or {}),
-        "permission_roles": tuple(authored.get("permission_roles") or ()),
-        "columns": tuple(authored.get("columns") or ()),
-        "filterable_columns": tuple(authored.get("filterable_columns") or ()),
-        "default_sort": dict(default_sort) if isinstance(default_sort, dict) else None,
-        "page_size": authored.get("page_size"),
-    }
-
-
-def _actual_view_context(ctx) -> dict:
-    """The reader's resolved ``ViewContext`` projected to the comparable shape."""
-    return {
-        "key": ctx.key,
-        "label": dict(ctx.label),
-        "permission_roles": tuple(ctx.permission_roles),
-        "columns": tuple(ctx.columns),
-        "filterable_columns": tuple(ctx.filterable_columns),
-        "default_sort": dict(ctx.default_sort) if ctx.default_sort is not None else None,
-        "page_size": ctx.page_size,
-    }
-
-
-@settings(max_examples=100)
-@given(contexts=_view_contexts())
-def test_property_config_views_round_trips(contexts):
-    """Feature: s5c-members-runnable-in-spa, Property 2 (config#views leg).
-
-    Validates: Requirements 5.1
-
-    Authored ``members.view_contexts`` → ``build_config_views_row`` → ``to_dynamodb_item()`` →
-    reader ``get_view_contexts`` yields ``ViewContext``s equivalent to the authored contexts
-    (a projection round-trip through the sibling config#views row preserves the view contexts).
-    """
-    params = FakeParameterService(
-        {("members", "view_contexts", _TENANT_ID): contexts}
-    )
-
-    row = build_config_views_row({"administration": _TENANT_ID}, params)
-    assert row is not None
-
-    table = FakeTable()
-    table.put(row.to_dynamodb_item())
-    resolved = MembersProjectionReader(table=table).get_view_contexts(_TENANT_ID)
-
-    assert [_actual_view_context(c) for c in resolved] == [
-        _expected_view_context(a) for a in contexts
-    ]
-
-
-def test_property_config_views_empty_is_one_default_context():
-    """Feature: s5c-members-runnable-in-spa, Property 2 (empty-is-valid leg).
-
-    Validates: Requirements 5.1
-
-    A tenant that authored no view_contexts → builder emits an empty ``contexts`` row →
-    the reader collapses it to EXACTLY ONE default context (over all visible fields).
-    """
-    params = FakeParameterService({})  # nothing authored
-
-    row = build_config_views_row({"administration": _TENANT_ID}, params)
-    assert row.attributes["contexts"] == []
-
-    table = FakeTable()
-    table.put(row.to_dynamodb_item())
-    resolved = MembersProjectionReader(table=table).get_view_contexts(_TENANT_ID)
-
-    assert len(resolved) == 1
-    assert resolved[0].key == DEFAULT_CONTEXT_KEY

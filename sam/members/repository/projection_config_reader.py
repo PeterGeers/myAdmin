@@ -74,7 +74,6 @@ from sam.members.domain.field_resolver import (
 )
 from sam.members.domain.fixed_fields import EnumOption, FieldType, MemberNumberFormat
 from sam.members.domain.scope_dimensions import ScopeConfig, ScopeDimension
-from sam.members.domain.view_contexts import ViewContext, default_view_context
 
 __all__ = ["MembersProjectionReader"]
 
@@ -82,7 +81,6 @@ __all__ = ["MembersProjectionReader"]
 #: shared projection schema so the Flask-plane builder and this reader cannot drift.
 _CONFIG_ID_SCOPE = schema.CONFIG_ID_SCOPE
 _CONFIG_ID_FIELDS = schema.CONFIG_ID_FIELDS
-_CONFIG_ID_VIEWS = schema.CONFIG_ID_VIEWS
 _CONFIG_ID_MAIL = schema.CONFIG_ID_MAIL
 
 
@@ -95,8 +93,6 @@ class MembersProjectionReader:
       (``sam.members.domain.scope_dimensions``);
     - :meth:`get_overlay` → :class:`TenantOverlayProvider`
       (``sam.members.domain.field_resolver``);
-    - :meth:`get_view_contexts` → :class:`ViewContextsProvider`
-      (``sam.members.domain.view_contexts``, S5c task 3.1 — the ``config#views`` sibling row);
     - :meth:`is_mail_enabled` → the tenant's mail-enabled gate flag from the ``config#mail``
       row (pivot-output-actions R0, design §6.3 — the Members edge reads it at request time,
       NO live MySQL);
@@ -222,9 +218,12 @@ class MembersProjectionReader:
             return TenantOverlay()
 
         raw_fields = row.get("fields") or {}
-        # The authoring UI writes `fixed_overrides`; older projections used `overrides`. Accept
-        # either key so the reader is compatible with both shapes (empty-is-valid).
-        raw_overrides = row.get("fixed_overrides") or row.get("overrides") or {}
+        # Read the PROJECTED `config#fields.overrides` attribute. R6.8 keeps this projected
+        # attribute name as `overrides` until Phase 3, so this is the live canonical read path.
+        # The legacy INPUT dual-accept was dropped on the Flask builder side (it authors from
+        # `fixed_overrides` only); the dead `row.get("fixed_overrides")` read branch is removed
+        # here, since no builder emits that attribute onto the projected row.
+        raw_overrides = row.get("overrides") or {}
         raw_groups = row.get("functional_groups") or []
         fields = {
             name: self._build_overlay_field(name, spec)
@@ -447,72 +446,42 @@ class MembersProjectionReader:
             functional_group=str(functional_group) if functional_group else None,
         )
 
-    # ── ViewContextsProvider (S5c task 3.1) ────────────────────────────────────────────
+    # ── Pagination default (Phase 2 step (a) — the view_contexts.page_size re-home) ────
 
-    def get_view_contexts(self, tenant_id: str) -> tuple[ViewContext, ...]:
-        """Return the tenant's view contexts from the ``config#views`` row (S5c C-VIEW, R5.1).
+    def get_default_page_size(self, tenant_id: str) -> int | None:
+        """Return the tenant's default rows-per-page from the ``config#fields`` row (R2.1).
 
-        Reads the tenant partition, finds the sibling ``config#views`` row (the settled
-        projection shape — Open Design Item 1), and rebuilds its ``contexts`` list into
-        :class:`ViewContext` objects. **Empty-is-valid (R5.1):** a **missing** ``config#views``
-        row, an **empty** ``contexts`` list, or a row with no well-formed context all collapse
-        to **exactly one** :func:`~sam.members.domain.view_contexts.default_view_context` —
-        over all visible fields — never an error and never an empty tuple.
+        Phase 2 re-homes the per-context ``view_contexts.page_size`` to a SINGLE
+        tenant-level ``default_page_size`` scalar carried on the EXISTING ``config#fields``
+        row (NOT a new ``config#views`` row — ``38`` rule 3: pagination is a default, not a
+        stored view object). The Members edge surfaces this on the ``GET /members/field-config``
+        response so the SPA can resolve rows-per-page as
+        ``userPreference ?? default_page_size ?? platformDefault``.
 
-        Storage-agnostic per the module pattern: this reader reconstructs the plain
-        :class:`ViewContext` shape; it does NOT resolve column ``field_key``s against the field
-        config (that skip-on-unresolvable is the SPA's at render, and the fail-fast rejection is
-        the Flask-plane validator's at Save — R5.1a).
+        Shares the per-invocation partition cache with the sibling config reads (one Query
+        per tenant). Empty-is-valid / fail-safe (R2.4): a **missing** ``config#fields`` row,
+        a missing/``None`` ``default_page_size`` attribute, or any non-positive / non-int /
+        boolean value all resolve to ``None`` — the renderer then falls back to the per-user
+        preference and finally the platform table-toolkit default (today's behaviour when a
+        ``view_context.page_size`` was null). The Flask builder already guards the value to a
+        positive int at projection time; this is the symmetric read-side guard so a stray
+        stored value never surfaces a zero/negative default. Never raises on missing/empty
+        data.
 
         Args:
-            tenant_id: The tenant (partition key) whose view contexts to resolve.
+            tenant_id: The tenant (partition key) whose default page size to resolve.
 
         Returns:
-            The tenant's view contexts — always ≥1 (a single default when unconfigured).
+            The projected ``default_page_size`` as a positive int, or ``None`` when
+            absent/unusable (fall back to the per-user preference / platform default).
         """
-        row = self._find_config_row(tenant_id, _CONFIG_ID_VIEWS)
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
         if row is None:
-            return (default_view_context(),)
-
-        raw_contexts = row.get("contexts") or []
-        contexts = tuple(
-            self._build_view_context(raw)
-            for raw in raw_contexts
-            if isinstance(raw, dict) and raw.get("key")
-        )
-        # Empty-is-valid: an absent/empty/all-malformed contexts list → one default context.
-        return contexts if contexts else (default_view_context(),)
-
-    @staticmethod
-    def _build_view_context(raw: dict) -> ViewContext:
-        """Map a projected view-context dict onto a :class:`ViewContext` (1:1, R5.1).
-
-        Malformed sub-values degrade gracefully (projected config data, not user input):
-        non-list ``columns``/``filterable_columns``/``permission_roles`` fall back to empty,
-        a non-mapping ``default_sort`` to ``None``, a non-int ``page_size`` to ``None``.
-        """
-        def _str_list(value) -> tuple[str, ...]:
-            if not isinstance(value, (list, tuple)):
-                return ()
-            return tuple(str(v) for v in value if isinstance(v, str))
-
-        default_sort = raw.get("default_sort")
-        if not isinstance(default_sort, dict):
-            default_sort = None
-
-        page_size = raw.get("page_size")
-        if not isinstance(page_size, int) or isinstance(page_size, bool):
-            page_size = None
-
-        return ViewContext(
-            key=str(raw.get("key", "")),
-            label=dict(raw.get("label") or {}),
-            permission_roles=_str_list(raw.get("permission_roles")),
-            columns=_str_list(raw.get("columns")),
-            filterable_columns=_str_list(raw.get("filterable_columns")),
-            default_sort=dict(default_sort) if default_sort is not None else None,
-            page_size=page_size,
-        )
+            return None
+        page_size = row.get("default_page_size")
+        if isinstance(page_size, bool) or not isinstance(page_size, int):
+            return None
+        return page_size if page_size > 0 else None
 
     # ── Mail-enabled gate (pivot-output-actions R0, design §6.3) ───────────────────────
 
@@ -709,7 +678,7 @@ class MembersProjectionReader:
             tenant_id: The tenant (partition key) whose projection status to resolve.
 
         Returns:
-            A dict mapping each config id (``"scope"``/``"fields"``/``"views"``/``"mail"``) to
+            A dict mapping each config id (``"scope"``/``"fields"``/``"mail"``) to
             its projected ``version`` (any JSON scalar — typically an ISO-8601 timestamp or an
             int), or ``None`` when that row has not been delivered.
         """
@@ -718,7 +687,6 @@ class MembersProjectionReader:
             for config_id in (
                 _CONFIG_ID_SCOPE,
                 _CONFIG_ID_FIELDS,
-                _CONFIG_ID_VIEWS,
                 _CONFIG_ID_MAIL,
             )
         }
