@@ -44,7 +44,6 @@ export interface RoutePreset {
   to_address: string;
   default_category: string | null;
   default_purpose: string | null;
-  contact_id: number | null;
   typical_distance_km: number | null;
   use_count: number;
   is_manual: boolean;
@@ -68,8 +67,6 @@ export interface TripFilters {
   date_from?: string;
   date_to?: string;
   trip_category?: string;
-  contact_id?: number;
-  is_billed?: boolean;
   is_gap_fill?: boolean;
   limit?: number;
   offset?: number;
