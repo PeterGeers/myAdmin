@@ -133,10 +133,6 @@ class TripService(FieldConfigMixin):
         """Detect an odometer gap between the previous trip and the new trip."""
         return self._query.detect_gap(tenant, vehicle_id, start_odometer)
 
-    def mark_as_billed(self, tenant: str, trip_ids: list, invoice_id: int) -> int:
-        """Mark specified trips as billed by linking them to an invoice."""
-        return self._query.mark_as_billed(tenant, trip_ids, invoice_id)
-
     # ── Calculation operations (delegated to TripCalculationService) ──
 
     def get_summary(self, tenant: str, vehicle_id: int, year: int) -> dict:
