@@ -95,4 +95,7 @@ external list all fit. Component `frontend/src/components/common/LazySelect.tsx`
 - `32-frontend-ui.md` — frontend UI conventions + the detailed Filters pointer (single-plane). This
   file (`37`) is the cross-plane REGISTRY; it does not restate `32`'s content.
 - `36-config-and-parameters.md` — the config/parameter contract (a sibling cross-cutting standard).
+- `38-sam-module-field-config.md` — the tenant-configurable field-model pattern for a SAM module
+  (catalog-first, group→field→attribute, i18n); shape it module-neutrally and extract to a shared
+  block from here only on the third consumer (rule of three).
 - `00-index.md` — lists this file in the `3x` layer / `auto` load set.

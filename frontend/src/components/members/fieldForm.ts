@@ -84,15 +84,24 @@ export interface FieldSection {
   fields: FieldConfigField[];
 }
 
-/** Resolve a possibly-localized label to a plain string for the current lang, else `fallback`. */
+/**
+ * Resolve a possibly-localized label to a plain string for the current lang, else `fallback`.
+ *
+ * The missing-locale fallback chain is the Option-(b) i18n contract (R3.5, design §3): the active
+ * locale, then `en`, then `nl`, then the canonical key (`fallback`) — NEVER blank. The
+ * locale-independent tail (`en` → `nl`) matches the SAM artifact's recorded
+ * `LABEL_FALLBACK_ORDER = ("en", "nl")` (`sam/members/domain/attribute_catalog.py`), so the
+ * serializer and the frontend resolve a missing locale the SAME way. A blank/empty value at a
+ * higher-precedence tier is treated as ABSENT so the next tier fills it (never render "").
+ */
 export function resolveLabel(
   label: string | LocalizedLabel | undefined,
   lang: string,
   fallback: string,
 ): string {
   if (!label) return fallback;
-  if (typeof label === 'string') return label;
-  return label[lang] || label.nl || label.en || fallback;
+  if (typeof label === 'string') return label || fallback;
+  return label[lang] || label.en || label.nl || fallback;
 }
 
 /**
@@ -243,7 +252,10 @@ export function formFields(config: FieldConfig | null): FieldConfigField[] {
     .filter((f) => f.visible !== false)
     .filter((f) => !NON_INPUT_KEYS.has(f.key))
     .slice()
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // Within-section field order = `(order, key)` — the `key` tiebreak makes equal-`order` ties
+    // deterministic (R6.4, design §5): display position is stable across re-renders/re-projections
+    // and permutation-invariant, rather than leaking the input order through a stable sort.
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.key.localeCompare(b.key));
 }
 
 /**
@@ -256,7 +268,8 @@ const NON_INPUT_KEYS = new Set<string>(['member_id', 'created_at', 'updated_at']
 
 /**
  * Bucket the given fields into ordered SECTIONS keyed by `functional_group` (R4.9, design
- * C-SURFACE). Section order follows the tenant's `functional_groups` catalog `order`; a field
+ * C-SURFACE). Section order follows the tenant's `functional_groups` catalog `(order, key)` — the
+ * group `key` is the deterministic tiebreak for equal `order` (R6.4, design §5); a field
  * whose group is undefined or dangling (not in the catalog) falls into a single default section
  * appended last (Property 7 — never a crash). Sections with no fields are dropped.
  */
@@ -277,7 +290,10 @@ export function groupFieldsBySection(
 
   const orderedCatalog = (catalog ?? [])
     .slice()
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // Section order = `(group.order, group.key)` — the `key` tiebreak makes equal-`order` group
+    // ties deterministic (R6.4, design §5), so section order does not depend on the catalog's
+    // input order.
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.key.localeCompare(b.key));
 
   const sections: FieldSection[] = [];
   for (const g of orderedCatalog) {
