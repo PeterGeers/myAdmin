@@ -66,38 +66,33 @@ export default defineConfig(async ({ command }) => {
         '@chakra-ui/react': path.resolve(__dirname, './src/__mocks__/chakra-ui-react.tsx'),
         '@chakra-ui/icons': path.resolve(__dirname, './src/__mocks__/chakra-ui-icons.tsx'),
       },
-      // Worker-pool memory sizing. The suite grew to ~3660 tests / 264 files and a
-      // forks worker OOM-crashed the nightly run (JS heap out of memory) with zero
-      // failing assertions. Root cause is cross-file memory accumulation inside a
-      // reused forks worker (a worker runs a batch of files and heap grows across
-      // them), NOT a single pathological file -- so the levers that actually help are:
+      // Worker-pool concurrency cap. The suite (~3660 tests / 264 files) flakily
+      // OOM-crashed the nightly Frontend job (JS heap out of memory) with ZERO
+      // failing assertions -- a forks worker died, vitest reported it as an
+      // unhandled error, reddening the run (e.g. runs #62 2026-10-12 and #64
+      // 2026-10-13; #63 2026-10-11 passed with ~the same suite -> intermittent).
       //
-      //  - isolate: true -- reset each file's module registry/context so module-level
-      //    state (the classic leak: a module-level Map/Set that grows per file) does
-      //    not pin memory for the whole worker lifetime. This is the primary guard.
-      //  - maxForks cap -- bound concurrency so the aggregate heap across workers fits
-      //    the runner RAM (the forks pool otherwise spawns one worker per CPU).
+      // ROOT CAUSE (measured, not guessed): running the whole suite SEQUENTIALLY in
+      // one isolated worker with --logHeapUsage shows per-file retained heap
+      // oscillating ~60-380 MB and GC-ing back down every few files -- NO monotonic
+      // climb, NO OOM. So there is no cross-file leak; `isolate` already reclaims
+      // per-file state. The crash is AGGREGATE CONCURRENCY: the forks pool defaults
+      // to one worker per CPU, and on a many-vCPU CI runner N workers each holding
+      // 100-400 MB (plus Vite transform/module caches) sum past the heap ceiling.
+      // Which worker gets over-committed depends on scheduling -> the flakiness.
       //
-      // NOTE on the per-worker heap ceiling: vitest does NOT forward a custom
-      // `execArgv` (e.g. --max-old-space-size) to pool workers -- that was verified to
-      // be a no-op here (the worker launched without the flag). The worker heap is
-      // instead raised via NODE_OPTIONS on the test *process*, which the workers DO
-      // inherit; that budget is pinned in CI in .github/workflows/full-test-suite.yml.
-      // If accumulation ever outgrows a reasonable NODE_OPTIONS budget, the next
-      // structural lever is `fileParallelism: false` (serialise files so a worker
-      // recycles) or the `vmForks` pool (vmMemoryLimit recycles a worker when it
-      // exceeds the limit) -- deferred because both carry speed / sandbox tradeoffs.
+      // FIX: cap worker concurrency. NOTE the shape -- this project is on vitest 4,
+      // where `test.poolOptions.{forks}` was REMOVED (it prints a DEPRECATED warning
+      // and is silently ignored); the knobs are now TOP-LEVEL `maxWorkers`/
+      // `minWorkers` (verified against node_modules/vitest config types). An earlier
+      // poolOptions.forks.maxForks attempt was a no-op for exactly this reason.
+      // 2 workers => ~2 x ~400 MB peak, well under the ceiling; NODE_OPTIONS in CI
+      // (.github/workflows/full-test-suite.yml) stays as belt-and-suspenders.
       pool: 'forks',
-      poolOptions: {
-        forks: {
-          // Cap concurrency so total heap across workers stays bounded on
-          // high-core CI runners (default = one fork per CPU).
-          maxForks: 4,
-          minForks: 1,
-        },
-      },
-      // Reset each file's module registry/context between files -- the primary guard
-      // against cross-file module-state accumulation in a reused worker.
+      maxWorkers: 2,
+      minWorkers: 1,
+      // isolate (default true in vitest 4) already reclaims per-file module state --
+      // the sequential heap trace confirms no cross-file accumulation to fix here.
       isolate: true,
     },
   };
