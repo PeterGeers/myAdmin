@@ -4,16 +4,21 @@
  * Feature: rittenregistratie-tax-log-redesign — frontend trips list surface.
  *
  * Covers Requirement 2.6 (Client column sourced from client_name, empty cell when
- * null), 5.1 (no "Fact." / is_billable column), 5.2 (no invoice-from-trips button,
- * no createInvoiceFromTrips handler), 5.4 (trip service exposes no billing surface),
- * and the change-with-tests contract (10.7).
+ * null), 5.1 (no "Fact." / is_billable column), 5.2 (no invoice-from-trips button).
+ *
+ * NOTE (memory): this file mounts the full 582-line ZZPTrips page, which is heavy
+ * in jsdom (the Chakra Tabs mock renders every TabPanel). To keep its footprint
+ * small it mounts the page EXACTLY ONCE and asserts every DOM fact against that
+ * single tree — do not add more render(<ZZPTrips />) calls here. The render-free
+ * billing-ABSENCE invariants (Req 5.2/5.3/5.4/5.5/5.6 static source checks) live
+ * in ZZPTripsBillingAbsence.test.ts, which mounts nothing.
  *
  * Follows .kiro/steering/33-frontend-testing.md: Vitest + jsdom + React Testing
  * Library, Chakra auto-mocked via vite alias, `render` from `@/test-utils`.
  */
 
 import React from 'react';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { render, screen, waitFor, cleanup } from '../test-utils';
 
 import type { Trip, Vehicle } from '../types/zzpTrips';
@@ -147,55 +152,48 @@ function setupMocks(trips: Trip[]) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Single shared mount. The page is heavy, so we render it ONCE for the whole
+// file and assert every DOM fact against that one tree (both trips are present,
+// one with a client_name and one without, so a single render covers Req 2.6's
+// present/empty cases plus the 5.1/5.2 absence checks).
+// ---------------------------------------------------------------------------
 describe('ZZPTrips — tax-log redesign list surface', () => {
-  beforeEach(() => {
+  beforeAll(async () => {
     vi.clearAllMocks();
     setupMocks([TRIP_WITH_CLIENT, TRIP_WITHOUT_CLIENT]);
+    render(<ZZPTrips />);
+    // Wait until the table has loaded both rows before any assertion runs.
+    await waitFor(() => {
+      expect(screen.getByText('Amsterdam')).toBeTruthy();
+      expect(screen.getByText('Rotterdam')).toBeTruthy();
+    });
   });
 
-  afterEach(() => {
+  afterAll(() => {
     cleanup();
   });
 
   // Req 2.6 — Client column sourced from client_name; value shown when present.
-  it('renders the client_name value in the Client column', async () => {
-    render(<ZZPTrips />);
-
-    // Table renders once trips have loaded.
-    await waitFor(() => {
-      expect(screen.getByText('Amsterdam')).toBeTruthy();
-    });
-
+  it('renders the client_name value in the Client column', () => {
     expect(screen.getByText('Acme BV')).toBeTruthy();
   });
 
   // Req 2.6 — empty Client cell (no text) when client_name is null.
-  it('shows an empty Client cell when client_name is null', async () => {
-    render(<ZZPTrips />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Rotterdam')).toBeTruthy();
-    });
-
-    // The null-client trip's row renders without any client text; find its row
-    // via a unique address cell and assert the client column cell is empty.
+  it('shows an empty Client cell when client_name is null', () => {
+    // Find the null-client trip's row via a unique address cell and assert the
+    // client column cell is empty. Column order: date, start, end, distance,
+    // category, purpose, client, gap.
     const nullRow = screen.getByText('Den Haag').closest('tr');
     expect(nullRow).toBeTruthy();
     const cells = Array.from(nullRow!.querySelectorAll('td'));
-    // Column order: date, start, end, distance, category, purpose, client, gap.
     const clientCell = cells[6];
     expect(clientCell).toBeTruthy();
     expect(clientCell!.textContent).toBe('');
   });
 
-  // Req 2.6 — the Client column header is present and sourced from the client label.
-  it('renders a Client column header and no billing "Fact." column', async () => {
-    render(<ZZPTrips />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Amsterdam')).toBeTruthy();
-    });
-
+  // Req 2.6 / 5.1 — the Client column header is present; no billing "Fact." column.
+  it('renders a Client column header and no billing "Fact." column', () => {
     // Client header is rendered (translation key echoed by the mocked hook).
     expect(screen.getByText('trips.labels.client')).toBeTruthy();
 
@@ -206,51 +204,11 @@ describe('ZZPTrips — tax-log redesign list surface', () => {
   });
 
   // Req 5.2 — no invoice-from-trips button anywhere in the trips UI.
-  it('renders no invoice-from-trips button', async () => {
-    render(<ZZPTrips />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Amsterdam')).toBeTruthy();
-    });
-
-    // No button whose label references invoicing.
+  it('renders no invoice-from-trips button', () => {
     const buttons = screen.queryAllByRole('button');
     for (const btn of buttons) {
       expect(btn.textContent ?? '').not.toMatch(/invoice|factuur|factureren/i);
     }
     expect(screen.queryByText(/create invoice|invoice selected/i)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Req 5.2 / 5.4 — the page source must not import or invoke createInvoiceFromTrips,
-// and the trip service must not expose a billing operation. A static read of the
-// real source files (not the mocked module) keeps this invariant from silently
-// regressing.
-// ---------------------------------------------------------------------------
-describe('ZZPTrips — no billing imports/usage (static source check)', () => {
-  const readSource = (relFromThisFile: string): string => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fs = require('fs');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const path = require('path');
-    return fs.readFileSync(path.resolve(__dirname, relFromThisFile), 'utf-8');
-  };
-
-  it('ZZPTrips.tsx neither imports nor references createInvoiceFromTrips', () => {
-    const src = readSource('../pages/ZZPTrips.tsx');
-    expect(src).not.toContain('createInvoiceFromTrips');
-    expect(src).not.toContain('getUnbilledTrips');
-    expect(src).not.toContain('is_billable');
-    expect(src).not.toContain('is_billed');
-    expect(src).not.toContain('contact_id');
-    expect(src).not.toContain('km_rate');
-  });
-
-  it('tripService.ts exposes no createInvoiceFromTrips or getUnbilledTrips export', () => {
-    const src = readSource('../services/tripService.ts');
-    expect(src).not.toContain('createInvoiceFromTrips');
-    expect(src).not.toContain('getUnbilledTrips');
-    expect(src).not.toContain('km_rate');
   });
 });
