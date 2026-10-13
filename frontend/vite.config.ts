@@ -66,6 +66,39 @@ export default defineConfig(async ({ command }) => {
         '@chakra-ui/react': path.resolve(__dirname, './src/__mocks__/chakra-ui-react.tsx'),
         '@chakra-ui/icons': path.resolve(__dirname, './src/__mocks__/chakra-ui-icons.tsx'),
       },
+      // Worker-pool memory sizing. The suite grew to ~3660 tests / 264 files and a
+      // forks worker OOM-crashed the nightly run (JS heap out of memory) with zero
+      // failing assertions. Root cause is cross-file memory accumulation inside a
+      // reused forks worker (a worker runs a batch of files and heap grows across
+      // them), NOT a single pathological file -- so the levers that actually help are:
+      //
+      //  - isolate: true -- reset each file's module registry/context so module-level
+      //    state (the classic leak: a module-level Map/Set that grows per file) does
+      //    not pin memory for the whole worker lifetime. This is the primary guard.
+      //  - maxForks cap -- bound concurrency so the aggregate heap across workers fits
+      //    the runner RAM (the forks pool otherwise spawns one worker per CPU).
+      //
+      // NOTE on the per-worker heap ceiling: vitest does NOT forward a custom
+      // `execArgv` (e.g. --max-old-space-size) to pool workers -- that was verified to
+      // be a no-op here (the worker launched without the flag). The worker heap is
+      // instead raised via NODE_OPTIONS on the test *process*, which the workers DO
+      // inherit; that budget is pinned in CI in .github/workflows/full-test-suite.yml.
+      // If accumulation ever outgrows a reasonable NODE_OPTIONS budget, the next
+      // structural lever is `fileParallelism: false` (serialise files so a worker
+      // recycles) or the `vmForks` pool (vmMemoryLimit recycles a worker when it
+      // exceeds the limit) -- deferred because both carry speed / sandbox tradeoffs.
+      pool: 'forks',
+      poolOptions: {
+        forks: {
+          // Cap concurrency so total heap across workers stays bounded on
+          // high-core CI runners (default = one fork per CPU).
+          maxForks: 4,
+          minForks: 1,
+        },
+      },
+      // Reset each file's module registry/context between files -- the primary guard
+      // against cross-file module-state accumulation in a reused worker.
+      isolate: true,
     },
   };
 });

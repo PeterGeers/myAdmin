@@ -1,0 +1,103 @@
+{
+  "specId": "f3c1a9e2-7b84-4d16-9a2e-1c7d5b084f31",
+  "spec": "full-test-suite-fixes-2026-10-13",
+  "ciRun": 38368671026,
+  "ciRunNumber": 64,
+  "ciConclusion": "failure",
+  "ciHeadSha": "660ad3a877f40763ed4abe202a70a5ab6d0432e6",
+  "ciHeadBranch": "main",
+  "ciEvent": "schedule",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #64, 2026-10-13)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1"
+    ],
+    "medium": [
+      "M1"
+    ],
+    "low": [
+      "L1",
+      "L2",
+      "L3"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Clear the 1 CI-blocking ruff RUF100 in members_analytics_audit.py (unused # noqa: BLE001)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "backend",
+      "type": "fix",
+      "rootCause": "Backend Lint job red on a single ruff error (ruff 0.16.5, CI-blocking). src/routes/members_analytics_audit.py:106:29 = RUF100 unused '# noqa' directive for the non-enabled rule BLE001. The line is the route-boundary guard 'except Exception as e:  # noqa: BLE001 — route boundary: never leak a 500 stack'. BLE001 (blind-except) is not enabled in backend/ruff.toml, so the '# noqa: BLE001' suppresses nothing and ruff flags the directive as dead. Auto-fixable (1 of 1 with --fix), but prefer a surgical edit that removes only the '# noqa: BLE001' token and keeps the explanatory comment. Same file carried an RUF100 + a format finding at 10-10 (recurring ruff-finding file)."
+    },
+    {
+      "id": "M1",
+      "title": "Stop the frontend vitest forks worker from OOM-crashing the run (E1)",
+      "priority": "medium",
+      "effort": "M",
+      "plane": "frontend",
+      "type": "flaky-mitigation",
+      "rootCause": "Frontend job red with 0 assertion failures: 3642 passed, 12 skipped, 1 unhandled error. A vitest forks worker died with 'FATAL ERROR: ... JavaScript heap out of memory' (node 22.23.3); vitest raised '[vitest-pool]: Worker forks emitted error' / 'Worker exited unexpectedly' then 'Timeout terminating forks worker for test files .../src/__tests__/ZZPTrips.test.tsx'. 263 of 264 test files passed; the crash lost one file's result and reddened the job. ZZPTrips.test.tsx is only the file assigned to the dead worker, NOT a failing assertion. The frontend suite grew 2756 -> 3660 across the arc with no change to the worker memory budget, pushing the forks pool to its heap ceiling. Non-deterministic (may not reproduce locally). Mitigation: raise NODE_OPTIONS=--max-old-space-size, cap poolOptions.forks.maxForks, and/or shard the run. Files: frontend/vitest.config.ts, frontend/package.json, .github/workflows/full-test-suite.yml."
+    },
+    {
+      "id": "L1",
+      "title": "Broaden pre-push guard from collect-only to ruff check + ruff format --check + changed-path tests",
+      "priority": "low",
+      "effort": "M",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "Carried forward from 10-03/10-04/10-05/10-10 L1 (STILL open). FIFTH consecutive cycle this guard would have prevented the red Backend Lint job: the single RUF100 is exactly the mechanical finding a pre-push 'cd backend && ruff check src/ && ruff format --check src/' plus a changed-path pytest subset (edited src/** -> paired tests, e.g. test_maintenance scoped_runner --git-diff) would have blocked before it landed on main. Keep the SKIP_PREPUSH_* escape hatch; fail on non-zero."
+    },
+    {
+      "id": "L2",
+      "title": "Add an explicit, committed frontend test memory budget so a growing suite can't silently OOM a worker",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "prevention",
+      "rootCause": "Durable prevention for the E1 class. The frontend suite grew to 3660 tests against a fixed/implicit worker memory budget; nothing warned before the forks worker OOM-crashed. Pin an explicit NODE_OPTIONS=--max-old-space-size=<N> for the frontend test step (version-controlled, not inherited), document the forks-pool sizing, and optionally emit peak RSS / worker count in frontend SUMMARY.md so headroom is visible each run. Files: frontend/vitest.config.ts, .github/workflows/full-test-suite.yml."
+    },
+    {
+      "id": "L3",
+      "title": "Confirm ruff stays pinned to 0.16.5 (reproducibility guard)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "Standing reproducibility guard carried forward from 10-03 L3 / 10-04 L4 / 10-05 L4 / 10-10 L3. CI ran ruff 0.16.5; the single RUF100 is real new debt on the branch, NOT a version drift. Keep local 0.16.5 == CI 0.16.5 so results stay reproducible and a silent version bump can't reintroduce a wall of findings."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L1",
+      "type": "recommended-after",
+      "reason": "H1 is exactly the un-linted RUF100 a pre-push ruff gate would have blocked; wire L1 once the lint job is green"
+    },
+    {
+      "from": "M1",
+      "to": "L2",
+      "type": "recommended-after",
+      "reason": "mitigate the worker OOM first, then pin an explicit memory budget so the E1 class can't silently recur as the suite grows"
+    }
+  ],
+  "recommendedOrder": [
+    "H1",
+    "M1",
+    "L1",
+    "L2",
+    "L3"
+  ],
+  "notes": [
+    "CI run #64 (id 38368671026, 2026-10-13 @ 660ad3a8 on main, schedule) is RED with TWO red jobs: Backend Lint & Static Analysis (1 ruff RUF100) and Frontend (0 assertion failures, 1 vitest worker JS-heap OOM crash). Backend Full Test Suite is GREEN (7152 passed, 14 skip, 0 fail) and SAM Module-Plane is GREEN. This is the cleanest run of the recent arc.",
+    "The frontend 'failure' is NOT an assertion failure. 3642 tests passed; the job is red because a forks worker crashed with 'JavaScript heap out of memory' and vitest surfaced it as an unhandled error. ZZPTrips.test.tsx is named only because it was the file assigned to the dead worker when the terminate-timeout fired. Classify as Medium (flaky/non-deterministic), per runbook Lesson 2.",
+    "DIRECTION vs 10-10: strong convergence toward green. Backend 1 -> 0, Frontend assertions 3 -> 0, Ruff format 2 -> 0, Ruff lint 3 -> 1. The only new red is the frontend worker OOM (infra/memory), not a product regression.",
+    "HELD GREEN: all 10-10 H-fixes held. Backend F1 (stale Members mail_* expected-set in test_parameter_admin_routes.py) did NOT recur; the frontend Members-UI cluster F2/F3/F4 (tenant-switch role re-resolution, session-column filter composition) did NOT recur; the 10-10 ruff/format clean-ups held (format back to 0). SAM held green for a fifth consecutive cycle; Vulture green across the arc.",
+    "RECURRING FILE: members_analytics_audit.py carried an RUF100 + a format finding at 10-10 (H4/H5) and is back with another RUF100 (# noqa: BLE001) at 10-13. Different lines, same pattern: '# noqa:' comments written against a rule the project does not enable, which ruff then flags as dead. When adding an exception-boundary # noqa, confirm the rule is enabled in backend/ruff.toml, else keep the comment without the # noqa: token.",
+    "META-PATTERN: the single lint error landed on main un-linted. The 10-03->10-10 L1 pre-push broadening (ruff + changed-path tests) is STILL open and would have blocked H1 pre-push - FIFTH consecutive cycle it would have helped. Carried forward as L1; E1 adds L2 (explicit frontend memory budget).",
+    "No Critical tasks (no collection/import errors - backend and SAM both collect and pass, frontend collected and ran). No High test tasks (no assertion failures); the single High item is the CI-blocking RUF100. The sole test-plane item is the Medium flaky-worker OOM mitigation (M1).",
+    "Ruff version: CI 0.16.5 == local 0.16.5. The RUF100 is genuine new debt, not a version-mismatch artifact (L3 standing guard)."
+  ]
+}

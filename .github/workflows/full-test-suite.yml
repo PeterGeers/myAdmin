@@ -353,6 +353,15 @@ jobs:
           npx vitest run --reporter=verbose --reporter=junit --outputFile=reports/junit-results.xml \
             2>&1 | tee reports/test-output.txt
         env:
+          # V8 old-space budget for the whole frontend test run. vitest's forks
+          # workers INHERIT this NODE_OPTIONS (vitest does not forward a custom
+          # execArgv to workers, so NODE_OPTIONS is the supported way to raise the
+          # worker heap), and it also covers the heavy main process (the 2026-10-13
+          # run spent import 368s / transform 20s there). 6 GB gives the reused
+          # worker headroom above the cross-file accumulation that OOM'd the default
+          # ceiling; isolate:true + maxForks in vite.config.ts bound how fast it
+          # grows. Raise this deliberately as the suite grows (ubuntu-latest has 16 GB).
+          NODE_OPTIONS: "--max-old-space-size=6144"
           VITE_API_URL: http://localhost:5000
           VITE_COGNITO_USER_POOL_ID: eu-west-1_TestPool123
           VITE_COGNITO_CLIENT_ID: test-client-id
