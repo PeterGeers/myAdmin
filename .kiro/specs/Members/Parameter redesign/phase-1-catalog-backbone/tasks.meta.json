@@ -1,0 +1,763 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Define `BASE_FUNCTIONAL_GROUPS` in the SAM domain (`attribute_catalog.py` or a small sibling): frozen tuple of `FunctionalGroup(key,label{nl,en},order)` for personal(1), address(2), membership(3), administrative(4) (design §4). Pure, import-time safe. _(R5.1)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902663943
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903528272
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903658463
+      }
+    ],
+    "1.2 Reconcile the seed fixture so `seed_overlay.SEED_FUNCTIONAL_GROUPS` is defined in terms of `BASE_FUNCTIONAL_GROUPS` (seed-only extras like `group_a` stay seed/test data). One base-group definition, not two. _(R5.2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902664349
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903673790
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903813496
+      }
+    ],
+    "1.3 Base-group closure test (`sam/tests/test_attribute_catalog.py`): every `FIXED_FIELDS` + `CALCULATED_FIELDS` field's `default_functional_group()` is a key in `BASE_FUNCTIONAL_GROUPS`. _(R5.2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902664658
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903818737
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903900052
+      }
+    ],
+    "2.1 Define `AttributeApplies`, `AttributeSpec`, `CatalogField`, `AttributeCatalog` dataclasses in `sam/members/domain/attribute_catalog.py` (design §2). Frozen, pure. _(R1.1)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902665023
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903904694
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904079839
+      }
+    ],
+    "2.2 Author the attribute vocabulary — one `AttributeSpec` per attribute the model carries today (design §2 table): key, type, required, label, visible, order, functional_group, choices, options, show_when, member_number_format, calculated_from, plus the Phase-3-declared scope_binding + alias. _(R1.1, R1.2, R1.5, R8.1)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902665333
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904084741
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904212662
+      }
+    ],
+    "2.3 Encode the enum rule — `choices`/`options` carry `required_when=((\"type\",\"enum\"),)` so an enum field must declare values, mirroring `_reject_invalid_overlay` (document the scope-dimension-backed exception). _(R1.3)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902665728
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904217813
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904324398
+      }
+    ],
+    "2.4 Mark `scope_binding` + `alias` as declared-only — a `note` stating they are wired in Phase 3 (resolver/render), not Phase 1. _(R8.1, R8.2, R8.3)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902666089
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904328991
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904439469
+      }
+    ],
+    "3.1 Implement `build_attribute_catalog()` — iterate `FIXED_FIELDS` then `CALCULATED_FIELDS`, projecting each into a `CatalogField` via the SAME accessors the resolver uses (`dotted_key()`, `type.value`, `required`, `label`, `default_functional_group()`, `order`, `read_only`). Re-type NO field names/labels. Assemble `AttributeCatalog(..., label_convention=\"i18n-keys+tenant-inline-override\")`. _(R1.4, R1.6, R3.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902666378
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904445392
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904589413
+      }
+    ],
+    "3.2 Import-time self-validation in `build_attribute_catalog()`: raise `ValueError` on a duplicate `AttributeSpec.key`, a `CatalogField.functional_group` not in the base group keys, or an enum-rule inconsistency — same fail-fast discipline as `fixed_fields.py`. _(R7.1)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902666756
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904593741
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904750093
+      }
+    ],
+    "3.3 Drift-guard test (`test_attribute_catalog.py`): catalog field inventory == `{f.dotted_key() for f in FIXED_FIELDS} | {c.dotted_key() for c in CALCULATED_FIELDS}`; each `CatalogField`'s platform-fixed attributes == the registry's. _(R1.4, R7.2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902667125
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904755728
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904864327
+      }
+    ],
+    "3.4 Vocabulary-completeness test: every attribute the `FixedField`/`CalculatedField`/`OverlayField`/`FixedFieldOverride` dataclasses expose has a matching `AttributeSpec`. _(R1.1, R7.2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902667503
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904868708
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905032314
+      }
+    ],
+    "3.5 Self-validation raises test: inject an inconsistent catalog (dup key / dangling group) and assert `build_attribute_catalog()` raises. _(R7.1)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902667821
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905036469
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905129305
+      }
+    ],
+    "4.1 Extend the group set used for reference validation so the resolver validates a field's `functional_group` against `BASE_FUNCTIONAL_GROUPS` ⊕ the tenant's authored catalog (design §4). A base-key reference is valid even with no authored catalog. Keep the empty-catalog path non-raising for everything that passes today. _(R4.2, R5.3, R5.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902668239
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905135091
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905344802
+      }
+    ],
+    "4.2 Resolver regression test (`test_field_resolver.py`): `resolve()` output is byte-for-byte identical to before for existing fixtures. _(R2.1, R2.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902668573
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905349452
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905850891
+      }
+    ],
+    "4.3 Base-key-resolves test: a tenant with NO authored catalog but a field/override referencing a base key resolves WITHOUT `OverlayError`; a dangling non-base key still raises. _(R4.2, R5.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902668930
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905856998
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905937186
+      }
+    ],
+    "4.4 Group merge-rule test: resolved groups = base ⊕ tenant, tenant key wins on collision, base keys fill the rest; a base group is always present. _(R5.3)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902669261
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905941649
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906118102
+      }
+    ],
+    "5.1 Define the shipped-label key scheme (conform to the i18n convention) + seed the resource namespace — keys under the `admin` namespace per `TRANSLATION_KEY_CONVENTIONS.md`/`32`: `admin:membersConfig.field.<fieldKey>` / `.group.<groupKey>` / `.enum.<fieldKey>.<optionValue>`. CONFIRM the exact namespace/category before coding. Seed the `admin` i18n files (nl+en) from the existing `{nl,en}` registry values; keep those dicts as the fallback. _(R3.1, R3.7, R2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902669585
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906124434
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906475647
+      }
+    ],
+    "5.2 Implement the resolve-with-precedence rule — label = `tenant_inline[locale] ?? resource(key)[locale] ?? fallback(locale)`. Served label stays an inline `{nl,en,…}` dict so the response shape + `resolveLabel` are unchanged. _(R3.3, R2.2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902669955
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906486710
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906737368
+      }
+    ],
+    "5.3 Enum value/label split guardrail — an enum option's canonical `value` is never translated or language-keyed; only its `label` is per-language. Test a stored `value` is stable across locales. _(R3.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902670283
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906741774
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906921633
+      }
+    ],
+    "5.4 Tenant-label save: per-locale inputs → inline dict — the Flask save folds per-locale inputs into the stored `{nl,en,…}` dict. Round-trip test: inputs → stored → served. _(R3.2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902670662
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906927229
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907357435
+      }
+    ],
+    "5.5 Missing-locale fallback test — a label with no value for the active locale falls back `active → en → nl → key`, never blank. _(R3.5)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902671022
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907362704
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907562138
+      }
+    ],
+    "5.6 Add-a-language proof test — add a `de` resource entry for ONE base key and assert it resolves with NO domain code change; a tenant field with no `de` label falls back per 5.5. _(R3.6)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902671329
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907566987
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907751323
+      }
+    ],
+    "5.7 Record the convention in the artifact — `label_convention=\"i18n-keys+tenant-inline-override\"` + the fallback order + key scheme on the catalog. _(R3.7)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902671647
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907756446
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907988058
+      }
+    ],
+    "6.1 Editor-schema conformance test (`backend/tests/unit/`): read `backend/src/config/members_parameters.json` and a locally-transcribed view of the catalog's `tenant_authorable` attribute keys (NOT imported from `sam.*`); assert the editor field-def attribute keys ⊆ the authorable catalog attributes. The `36` rule-5 cross-plane vocabulary guard. _(R7.2, R7.3)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902672077
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907993877
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908157117
+      }
+    ],
+    "7.1 Document the display-ordering contract in `design.md`/the catalog note: display position = `(functional_group.order, field.order, field.key)`; distinct from the resolver's storage-bucket sort; derived by the consumer, no new response field. _(R6.1, R6.2, R6.3, R6.5)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902672421
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908162742
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908256857
+      }
+    ],
+    "7.2 Ordering determinism test: computing display position by `(group.order, field.order, key)` is stable and ties break by `key`. _(R6.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902672729
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908261208
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908481363
+      }
+    ],
+    "8.1 Shaping review — confirm NO Members-only concept is baked into the catalog model SHAPE (Members-specific DATA stays Members-specific). Record in the design decision log. _(R9.1)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902673047
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908486805
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908580759
+      }
+    ],
+    "8.2 Confirm no shared library is built — the catalog stays in `sam/members/domain/`; no `sam/shared` extraction in Phase 1. _(R9.2)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902673389
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908585291
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908719007
+      }
+    ],
+    "8.3 Write `38-sam-module-field-config.md` — new steering file, front-matter `inclusion: auto`. A THIN guidance file: catalog-first; group→field→attribute + ordering; no view/analytics param objects; first-class versioned+observable projection; single authoring surface; i18n Option (b); + the rule-of-three extraction boundary. Point at Members as the reference impl. _(R9.3)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902673702
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908724250
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908836559
+      }
+    ],
+    "8.4 Register `38` in `00-index.md` — add to the `3x` row + the `auto` load-behavior table with a one-line rationale. _(R9.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902674041
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908841536
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908887247
+      }
+    ],
+    "8.5 Cross-reference from `35`/`37` (light) — a one-line pointer to `38`, no duplicated content. _(R9.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902674340
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908892585
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908948411
+      }
+    ],
+    "8.6 Confirm R9 adds no runtime surface — only the steering file + a design note, no code behavior change. _(R9.5)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902674718
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908953211
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909063787
+      }
+    ],
+    "9.1 Run the SAM suite: `cd sam && pytest tests/test_attribute_catalog.py tests/test_field_resolver.py tests/test_members_resolved_field_surface.py -q`. All green. _(R2.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902675083
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909069342
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909203155
+      }
+    ],
+    "9.2 Run the Flask suite for the touched files: the fold round-trip + the schema-conformance test + `test_members_config_validation.py`. All green. _(R2.4)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902675387
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909207852
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909278675
+      }
+    ],
+    "9.3 Confirm non-breaking — `GET /members/field-config` response shape unchanged (diff a serialized sample); stored `members.field_overlay` shape unchanged; no data migration. _(R2.1, R2.2, R2.3)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902675683
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909283585
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909444839
+      }
+    ],
+    "9.4 Update the impact analysis — tick `impact-analysis.md` §9 Phase 1 steps 4 + 5 as done, pointer to this spec folder; note R9 added steering `38`.": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902676059
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909449920
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909513490
+      }
+    ],
+    "9.5 End-user-documentation close-out (per `Common/end-user-documentation/`): Phase 1 has NO end-user-visible surface (UI is Phase 3), so no manual page is due; record the obligation as carried forward to the Phase 3 authoring-UI spec. Deliberate deferral, not an omission.": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902676408
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909518350
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909639750
+      }
+    ],
+    "9.6 Governance definition-of-done (per `00-index.md`/`40-spec-workflow.md`): confirm `38-sam-module-field-config.md` added + registered in `00-index.md` (8.3/8.4) with `35`/`37` cross-refs (8.5). A phase is not complete until its steering is updated.": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902676829
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909645249
+      },
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909765088
+      }
+    ],
+    "10.1 Feature branch `spec/members-config-phase1-catalog`, never push to `test`/`main` directly. A feature branch never deploys; only CodeQL + GitGuardian run per-PR today (Backend/Frontend CI `disabled_manually`; nightly `full-test-suite.yml` is the standing gate). _(43 branch→env + non-negotiables)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902677319
+      }
+    ],
+    "10.2 Run the paired tests locally before the PR (scoped, not a full-suite run) — the SAM + Flask tests from wave 5. _(43 bugfix-scope note; `34`)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902677655
+      }
+    ],
+    "10.3 PR into `test`; clear security gates (CodeQL + GitGuardian green, fix root cause). On merge to `test`, confirm `deploy-sam-members.yml` runs `--config-env test` and `test-sam-members` settles `UPDATE_COMPLETE`. _(43 deploy workflows)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902678026
+      }
+    ],
+    "10.4 Verify in live TEST, not just units — exercise `GET /members/field-config` on the deployed TEST stack; confirm response unchanged (R2.2) and base-group-aware resolution behaves (R5.4). _(43 promote step 1)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902678361
+      }
+    ],
+    "10.5 Preview the prod changeset — `sam deploy --config-env prod --no-execute-changeset`; confirm NO unexpected `Replacement: True` (this phase adds no infra/table change). _(43 promote step 3)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902678723
+      }
+    ],
+    "10.6 Promote `test → main` via ONE PR, MERGE COMMIT (not squash) — the merge fires `deploy-sam-members.yml` (`--config-env prod`, stack `sam-members`) and, for the `frontend/**` i18n file, `deploy-frontend.yml`. Watch each run to `success`/`UPDATE_COMPLETE`. _(43 promote steps 2, 5, 6)_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902679079
+      }
+    ],
+    "10.7 Pool trigger is NOT touched — no PreTokenGen/Cognito wiring change, so no identity-account manual step applies. _(43 \"Deploys touch the DATA account only\")_": [
+      {
+        "executionId": "8e643f03-8e1e-40d6-b437-ed05eff049a4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791902679408
+      }
+    ],
+    "1. Base functional-group set (R4, R5)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791903900172
+      }
+    ],
+    "2. The attribute vocabulary (R1)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791904439600
+      }
+    ],
+    "3. Build + guard the field inventory (R1.4, R7)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791905129541
+      }
+    ],
+    "4. Base-group-aware reference validation — the one resolver-adjacent change (R4.2, R5.4)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791906118259
+      }
+    ],
+    "5. The i18n label model — Option (b) (R3)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791907988237
+      }
+    ],
+    "6. Flask ⇄ catalog conformance (no cross-plane import) (R7.2)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908157257
+      }
+    ],
+    "7. Display-ordering contract (R6)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791908481525
+      }
+    ],
+    "8. Module-neutral shape + the `38` steering file (R9)": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909063931
+      }
+    ],
+    "9. Verification + close-out": [
+      {
+        "executionId": "49682b26-c5fa-45b2-9c86-58e5f0253af4",
+        "chatSessionId": "sess_822a31ca-4e6e-4b74-b4dd-00879d9ecf51",
+        "timestamp": 1791909765253
+      }
+    ]
+  }
+}

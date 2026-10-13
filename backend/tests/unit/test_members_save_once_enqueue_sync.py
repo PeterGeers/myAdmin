@@ -15,7 +15,8 @@ COMPOSITE payloads the typed editor commits:
   fields + fixed_overrides) saved once → one enqueue_sync;
 - ``members.view_contexts`` — the whole ``list<object>`` saved once → one enqueue_sync;
 
-and it exercises the REAL save-time validation (``_validate_members_config`` is NOT mocked), so a
+and it exercises the REAL save-time fold + validation (``_prepare_members_config`` is NOT mocked),
+so a
 valid composite object saves once and an invalid one (dangling functional_group / unresolvable
 view-context field_key, Property 7) is rejected 400 with ZERO enqueue_sync — proving the fail-fast
 guard runs before the write and before the sync.
@@ -239,10 +240,30 @@ class TestMembersCompositeSaveOnceEnqueuesSyncOnce:
             )
 
         assert resp.status_code == 200
-        # Exactly one write of the whole object (not one write per field/group).
+        # Exactly one write of the WHOLE object (not one write per field/group).
         assert mock_svc.set_param.call_count == 1
         saved_value = mock_svc.set_param.call_args.args[4]
-        assert saved_value == VALID_FIELD_OVERLAY
+        # Phase-1 R3.2: the save FOLDS the editor's per-locale ``label_<locale>`` inputs into
+        # the stored inline ``{nl,en,…}`` label dict — so the persisted value is the WHOLE
+        # object with labels folded (not the raw per-locale editor inputs). Every other key is
+        # carried through unchanged (one write, whole composite).
+        assert saved_value["functional_groups"] == [
+            {"key": "personal", "order": 1, "label": {"en": "Personal"}},
+            {"key": "motor", "order": 2, "label": {"en": "Motorcycle"}},
+        ]
+        assert saved_value["fields"]["motor_brand"] == {
+            "type": "string",
+            "functional_group": "motor",
+            "visible": True,
+            "label": {"en": "Motor brand"},
+        }
+        # A fixed override with no label input is carried through untouched (no empty label).
+        assert saved_value["fixed_overrides"] == {
+            "personal.street": {"functional_group": "personal"},
+        }
+        # No raw per-locale editor input survives the fold.
+        assert "label_en" not in saved_value["functional_groups"][0]
+        assert "label_en" not in saved_value["fields"]["motor_brand"]
         assert injected_trigger.admin_calls == ["TestTenant"]
 
 
