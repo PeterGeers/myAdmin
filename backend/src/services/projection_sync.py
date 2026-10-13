@@ -59,12 +59,12 @@ Internal layout (code-quality split M2 — a pure structural refactor, no behavi
 change). This module is the **stable facade**: its full public import surface
 (``ProjectionSync`` / ``SyncResult`` / ``TenantSource`` / ``SourceProvider`` /
 ``DatabaseSourceProvider`` / ``build_config_scope_row`` / ``build_config_fields_row`` /
-``build_config_views_row`` / ``build_config_mail_row`` / ``build_scopegrant_rows`` /
+``build_config_mail_row`` / ``build_scopegrant_rows`` /
 ``_supersedes`` / ``_SCOPEGRANT_MODULE`` …) is preserved and re-exported here. The pure, read-only
 builders and the source seam live in cohesive sub-modules:
 
 - :mod:`services._projection_config_builders` — the tenant-level ``config#*`` row
-  builders (``config#scope`` / ``config#fields`` / ``config#views``) + their maps
+  builders (``config#scope`` / ``config#fields``) + their maps
   and the shared ``_scope_config_version``.
 - :mod:`services._projection_scopegrant` — the per-user ``scopegrant#…`` builder
   (``build_scopegrant_rows`` + its freshness/parse helpers + ``_SCOPEGRANT_MODULE``).
@@ -94,7 +94,6 @@ from services._projection_config_builders import (
     build_config_fields_row,
     build_config_mail_row,
     build_config_scope_row,
-    build_config_views_row,
 )
 
 # ── Pure per-user scopegrant#… builder (+ the module token the route layer references) ─
@@ -267,8 +266,8 @@ class ProjectionSync:
            has no SAM-backed module enabled -> nothing to project).
         3. **Only when the tenant has something to project** (base items
            non-empty, i.e. the SAM/MEMBERS module is enabled) also build the S5b
-           C2 Members rows — ``config#scope``, ``config#fields``, ``config#views``
-           (S5c), ``config#mail`` (pivot-output-actions R0) and the per-user
+           C2 Members rows — ``config#scope``, ``config#fields``,
+           ``config#mail`` (pivot-output-actions R0) and the per-user
            ``scopegrant#…`` grants — by READING the tenant-scope ``members.*``
            config through the read-only :attr:`parameter_service`. A non-SAM
            tenant (empty base items) emits **no** C2 rows either, matching the
@@ -315,9 +314,6 @@ class ProjectionSync:
         config_fields = build_config_fields_row(source.tenant, param_svc)
         if config_fields is not None:
             items.append(config_fields)
-        config_views = build_config_views_row(source.tenant, param_svc)
-        if config_views is not None:
-            items.append(config_views)
         # R0 (pivot-output-actions, design §6.3): the per-tenant mail-enabled gate.
         # Projected as config#mail so the Members edge reads the flag via the
         # projection reader (no live MySQL at request time); fail-closed to False.
@@ -525,6 +521,5 @@ __all__ = [
     "build_config_fields_row",
     "build_config_mail_row",
     "build_config_scope_row",
-    "build_config_views_row",
     "build_scopegrant_rows",
 ]

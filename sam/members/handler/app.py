@@ -100,9 +100,9 @@ from sam.members.domain.scope_dimensions import (
     ScopeDimension,
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
-from sam.members.domain.view_contexts import ViewContext, ViewContextsProvider
 from sam.members.domain.mail_gate import MailGateProvider
 from sam.members.domain.config_status import ConfigStatusProvider
+from sam.members.domain.default_page_size import DefaultPageSizeProvider
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
@@ -186,15 +186,8 @@ _SCOPE_CONFIG_PROVIDER_OVERRIDE: ScopeConfigProvider | None = None
 #: Test-only override for the overlay provider (``None`` in production → fresh reader).
 _OVERLAY_PROVIDER_OVERRIDE: TenantOverlayProvider | None = None
 
-#: Test-only override for the view-contexts provider (``None`` in production → fresh reader).
-#: Mirrors :data:`_OVERLAY_PROVIDER_OVERRIDE` — a test injects a ``StaticViewContextsProvider``
-#: (or a ``MembersProjectionReader`` over a fake table) so the field-config endpoint's
-#: ``view_contexts`` can be driven without an AWS round-trip. When unset (production), each read
-#: builds a fresh projection reader (see :class:`_ProjectionViewContextsProvider`).
-_VIEW_CONTEXTS_PROVIDER_OVERRIDE: ViewContextsProvider | None = None
-
 #: Test-only override for the mail-gate provider (``None`` in production → fresh reader).
-#: Mirrors :data:`_VIEW_CONTEXTS_PROVIDER_OVERRIDE` — a test injects a
+#: Mirrors :data:`_OVERLAY_PROVIDER_OVERRIDE` — a test injects a
 #: ``StaticMailGateProvider`` (or a ``MembersProjectionReader`` over a fake table) so the
 #: field-config endpoint's ``mail_enabled`` flag (pivot-output-actions R0/R1, design §6.3)
 #: can be driven without an AWS round-trip. When unset (production), each read builds a fresh
@@ -208,6 +201,15 @@ _MAIL_GATE_PROVIDER_OVERRIDE: MailGateProvider | None = None
 #: without an AWS round-trip. When unset (production), each read builds a fresh projection
 #: reader (see :class:`_ProjectionConfigStatusProvider`).
 _CONFIG_STATUS_PROVIDER_OVERRIDE: ConfigStatusProvider | None = None
+
+#: Test-only override for the default-page-size provider (``None`` in production → fresh reader).
+#: Mirrors :data:`_CONFIG_STATUS_PROVIDER_OVERRIDE` — a test injects a
+#: ``StaticDefaultPageSizeProvider`` (or a ``MembersProjectionReader`` over a fake table) so the
+#: field-config endpoint's ``default_page_size`` scalar (Phase 2 step (a) — the
+#: ``view_contexts.page_size`` re-home, R2.1) can be driven without an AWS round-trip. When
+#: unset (production), each read builds a fresh projection reader (see
+#: :class:`_ProjectionDefaultPageSizeProvider`).
+_DEFAULT_PAGE_SIZE_PROVIDER_OVERRIDE: DefaultPageSizeProvider | None = None
 
 
 def _new_projection_reader() -> MembersProjectionReader:
@@ -315,35 +317,11 @@ _SCOPE_CONFIG_PROVIDER_FOR_SERVICE: ScopeConfigProvider = (
 )
 
 
-class _ProjectionViewContextsProvider:
-    """A thin :class:`ViewContextsProvider` indirection over a per-call fresh reader (C-VIEW).
-
-    S5c task 3.2 — the view-contexts seam wired at the module edge, EXACTLY mirroring
-    :class:`_ProjectionOverlayProvider`. The :class:`MembershipService` is a lazy module-level
-    singleton that captures its providers once; to reflect a re-projected ``config#views`` edit
-    without rebuilding the service per request, its view-contexts provider is this stable
-    indirection: every ``get_view_contexts`` call delegates to a FRESH
-    :class:`MembersProjectionReader` (or the test override), so the field-config endpoint's
-    ``view_contexts`` always reflects the current projection while the domain and the service
-    singleton stay UNCHANGED. Empty-is-valid is owned by the reader (≥1 default context, R5.1).
-    """
-
-    def get_view_contexts(self, tenant_id: str) -> tuple[ViewContext, ...]:
-        if _VIEW_CONTEXTS_PROVIDER_OVERRIDE is not None:
-            return _VIEW_CONTEXTS_PROVIDER_OVERRIDE.get_view_contexts(tenant_id)
-        return _new_projection_reader().get_view_contexts(tenant_id)
-
-
-#: The view-contexts provider handed to the domain service — a stable indirection that reads a
-#: fresh projection each call (see :class:`_ProjectionViewContextsProvider`).
-_VIEW_CONTEXTS_PROVIDER: ViewContextsProvider = _ProjectionViewContextsProvider()
-
-
 class _ProjectionMailGateProvider:
     """A thin :class:`MailGateProvider` indirection over a per-call fresh reader (§6.3).
 
     pivot-output-actions R0/R1 task 1.3 — the mail-enabled gate seam wired at the module edge,
-    EXACTLY mirroring :class:`_ProjectionViewContextsProvider`. The :class:`MembershipService`
+    EXACTLY mirroring :class:`_ProjectionOverlayProvider`. The :class:`MembershipService`
     is a lazy module-level singleton that captures its providers once; to reflect a
     re-projected ``config#mail`` edit (the tenant-admin module flips the flag, it re-projects)
     without rebuilding the service per request, its mail-gate provider is this stable
@@ -386,6 +364,32 @@ class _ProjectionConfigStatusProvider:
 #: The config-status provider handed to the domain service — a stable indirection that reads a
 #: fresh projection each call (see :class:`_ProjectionConfigStatusProvider`).
 _CONFIG_STATUS_PROVIDER: ConfigStatusProvider = _ProjectionConfigStatusProvider()
+
+
+class _ProjectionDefaultPageSizeProvider:
+    """A thin :class:`DefaultPageSizeProvider` indirection over a per-call fresh reader.
+
+    Phase 2 step (a) — the default-page-size seam wired at the module edge, EXACTLY mirroring
+    :class:`_ProjectionConfigStatusProvider`. The :class:`MembershipService` is a lazy
+    module-level singleton that captures its providers once; to reflect a freshly re-projected
+    ``config#fields`` edit (the tenant re-authors ``members.default_page_size``, it
+    re-projects) without rebuilding the service per request, its default-page-size provider is
+    this stable indirection: every ``get_default_page_size`` call delegates to a FRESH
+    :class:`MembersProjectionReader` (or the test override), so the field-config endpoint's
+    ``default_page_size`` always reflects the current projection while the domain and the
+    service singleton stay UNCHANGED. Empty-is-valid is owned by the reader (missing row /
+    unset / non-positive → ``None``, R2.4).
+    """
+
+    def get_default_page_size(self, tenant_id: str) -> int | None:
+        if _DEFAULT_PAGE_SIZE_PROVIDER_OVERRIDE is not None:
+            return _DEFAULT_PAGE_SIZE_PROVIDER_OVERRIDE.get_default_page_size(tenant_id)
+        return _new_projection_reader().get_default_page_size(tenant_id)
+
+
+#: The default-page-size provider handed to the domain service — a stable indirection that
+#: reads a fresh projection each call (see :class:`_ProjectionDefaultPageSizeProvider`).
+_DEFAULT_PAGE_SIZE_PROVIDER: DefaultPageSizeProvider = _ProjectionDefaultPageSizeProvider()
 
 #: The tenants' membership-lifecycle configuration, carried as **data** (design C2, never an
 #: ``if tenant == ...``): h-dcn is simply the first ``tenant_id`` the provider knows about
@@ -1103,10 +1107,10 @@ def _get_membership_service() -> MembershipService:
             overlay_provider=_OVERLAY_PROVIDER,
             lifecycle_provider=_LIFECYCLE_PROVIDER,
             tenant_hooks=_TENANT_HOOKS,
-            view_contexts_provider=_VIEW_CONTEXTS_PROVIDER,
             scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
             mail_gate_provider=_MAIL_GATE_PROVIDER,
             config_status_provider=_CONFIG_STATUS_PROVIDER,
+            default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
             scheduler_port=EventBridgeSchedulerApi(),
         )
     return _SERVICE

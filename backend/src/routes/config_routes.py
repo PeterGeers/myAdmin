@@ -84,7 +84,7 @@ def get_members_parameters() -> ResponseReturnValue:
 
     The definition language extends the ledger def set (key, type, label_en/
     label_nl, description, depends_on, options, module) with two composite
-    types Members needs: ``list<object>`` (scope_dimensions, view_contexts,
+    types Members needs: ``list<object>`` (scope_dimensions and
     the functional_groups catalog) and ``map<field_def>`` (field_overlay,
     each field carrying a functional_group).
 

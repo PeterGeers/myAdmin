@@ -13,20 +13,19 @@ COMPOSITE payloads the typed editor commits:
 
 - ``members.field_overlay`` — the whole ``map<field_def>`` object (functional_groups catalog +
   fields + fixed_overrides) saved once → one enqueue_sync;
-- ``members.view_contexts`` — the whole ``list<object>`` saved once → one enqueue_sync;
 
 and it exercises the REAL save-time fold + validation (``_prepare_members_config`` is NOT mocked),
 so a
-valid composite object saves once and an invalid one (dangling functional_group / unresolvable
-view-context field_key, Property 7) is rejected 400 with ZERO enqueue_sync — proving the fail-fast
-guard runs before the write and before the sync.
+valid composite object saves once and an invalid one (dangling functional_group, Property 7) is
+rejected 400 with ZERO enqueue_sync — proving the fail-fast guard runs before the write and before
+the sync.
 
 Mirrors the auth-mock + injected-trigger setup of the passing s5b trigger tests. No real DB, no
 real AWS: the ParameterService is mocked (its ``set_param`` is a no-op) and the projection trigger
 is an in-memory ``FakeSync`` injected via ``set_default_trigger``.
 
 Feature: s5c-members-runnable-in-spa
-Validates: Requirements R3, R3.5, R4.9, R5.1a (Property 7, Property 8)
+Validates: Requirements R3, R3.5, R4.9 (Property 7, Property 8)
 """
 
 from unittest.mock import MagicMock, patch
@@ -129,19 +128,6 @@ VALID_FIELD_OVERLAY = {
     },
 }
 
-#: A whole, VALID members.view_contexts list: one context referencing base fields only
-#: (resolvable with no sibling overlay).
-VALID_VIEW_CONTEXTS = [
-    {
-        "key": "overview",
-        "label_en": "Overview",
-        "columns": ["member_number", "email", "status"],
-        "filterable_columns": ["status"],
-        "default_sort": {"field": "last_name", "direction": "asc"},
-    }
-]
-
-
 # ===========================================================================
 # Property 8 — one composite save → exactly one enqueue_sync
 # ===========================================================================
@@ -176,26 +162,24 @@ class TestMembersCompositeSaveOnceEnqueuesSyncOnce:
         # Property 8: the whole-object save fired EXACTLY ONE re-projection, for own tenant.
         assert injected_trigger.admin_calls == ["TestTenant"]
 
-    def test_update_view_contexts_composite_enqueues_sync_exactly_once(
+    def test_update_field_overlay_composite_enqueues_sync_exactly_once(
         self, param_client, injected_trigger
     ):
-        """PUT the whole members.view_contexts list object → one enqueue_sync for own tenant."""
+        """PUT the whole members.field_overlay map object → one enqueue_sync for own tenant."""
         mock_db = MagicMock()
-        # The PUT handler reads the existing row to learn scope/scope_id + validates
-        # view_contexts against the sibling members.field_overlay/scope_dimensions, which
-        # the mocked ParameterService returns as None (base field set only → base cols resolve).
+        # The PUT handler reads the existing row to learn scope/scope_id.
         mock_db.execute_query.return_value = [
             {
                 "scope": "tenant",
                 "scope_id": "TestTenant",
                 "namespace": "members",
-                "key": "view_contexts",
+                "key": "field_overlay",
                 "value_type": "json",
                 "is_secret": False,
             }
         ]
         mock_svc = MagicMock()
-        mock_svc.get_param.return_value = None  # no sibling overlay/scope → base keys only
+        mock_svc.get_param.return_value = None
         mocks = _admin_auth_mocks() + [
             patch(
                 "routes.parameter_admin_routes.DatabaseManager",
@@ -209,7 +193,7 @@ class TestMembersCompositeSaveOnceEnqueuesSyncOnce:
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
             resp = param_client.put(
                 "/api/tenant-admin/parameters/55",
-                json={"value": VALID_VIEW_CONTEXTS, "value_type": "json"},
+                json={"value": VALID_FIELD_OVERLAY, "value_type": "json"},
                 headers=_AUTH_HEADERS,
             )
 
@@ -305,43 +289,3 @@ class TestInvalidCompositeSaveRejectedBeforeSync:
         assert resp.status_code == 400
         # Rejected before the write → no projection sync fired at all.
         assert injected_trigger.admin_calls == []
-
-    def test_update_view_contexts_unresolvable_field_rejected_no_enqueue_sync(
-        self, param_client, injected_trigger
-    ):
-        """A view_contexts referencing an unresolvable field_key → 400, NO sync (Property 7)."""
-        bad_contexts = [{"key": "c", "columns": ["member_number", "not_a_field"]}]
-        mock_db = MagicMock()
-        mock_db.execute_query.return_value = [
-            {
-                "scope": "tenant",
-                "scope_id": "TestTenant",
-                "namespace": "members",
-                "key": "view_contexts",
-                "value_type": "json",
-                "is_secret": False,
-            }
-        ]
-        mock_svc = MagicMock()
-        mock_svc.get_param.return_value = None  # no sibling overlay/scope
-        mocks = _admin_auth_mocks() + [
-            patch(
-                "routes.parameter_admin_routes.DatabaseManager",
-                return_value=mock_db,
-            ),
-            patch(
-                "routes.parameter_admin_routes._get_service",
-                return_value=mock_svc,
-            ),
-        ]
-        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
-            resp = param_client.put(
-                "/api/tenant-admin/parameters/55",
-                json={"value": bad_contexts, "value_type": "json"},
-                headers=_AUTH_HEADERS,
-            )
-
-        assert resp.status_code == 400
-        assert injected_trigger.admin_calls == []
-        # And the invalid value was never written.
-        mock_svc.set_param.assert_not_called()

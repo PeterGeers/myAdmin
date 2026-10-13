@@ -37,7 +37,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Flex, Button, Text, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, HStack, Checkbox, Select, useDisclosure,
+  Table, Thead, Tbody, Tr, Th, Td, HStack, Checkbox, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalCloseButton, ModalFooter, VStack,
   Input, InputGroup, InputLeftElement, InputRightElement, IconButton,
@@ -62,8 +62,9 @@ import { generateCsv, downloadCsv } from '../utils/csvExport';
 import { renderFieldValue, isColumnCandidate, valueFor } from '../components/members/fieldValue';
 import { coerceByType, shouldFlatten } from '../components/members/columnValue';
 import { formFields, groupFieldsBySection } from '../components/members/fieldForm';
+import { resolvePageSize } from './membersPagination';
 import type {
-  Member, MemberRow, FieldConfig, FieldConfigField, LocalizedLabel, ViewContext, ScopeDimension,
+  Member, MemberRow, FieldConfig, FieldConfigField, LocalizedLabel, ScopeDimension,
   MembershipType,
 } from '../types/members';
 
@@ -114,42 +115,13 @@ function resolveLabel(
   return label[lang] || label.nl || label.en || fallback;
 }
 
-/** The stable key of the synthesized default (empty-columns = all visible fields) context. */
-const DEFAULT_CONTEXT_KEY = '__default__';
-
 /**
  * One column in the unified column model (session-columns design C3). A thin
  * wrapper over a resolved `FieldConfigField` in render order — the single shape
- * the one header map + one cell map iterate, so fixed / context / session
- * columns all flow through identical FilterableHeader wiring (OQ-2).
+ * the one header map + one cell map iterate, so fixed / session columns all flow
+ * through identical FilterableHeader wiring (OQ-2).
  */
 type OverviewColumn = { field: FieldConfigField };
-
-/**
- * Normalize the field-config `view_contexts` (design C-VIEW) to a NON-EMPTY list:
- * the module already returns exactly one default context (key `__default__`,
- * empty `columns`) when a tenant authored none, but we synthesize the same
- * sentinel defensively so the page always has ≥1 context to render.
- */
-function normalizeViewContexts(cfg: FieldConfig | null): ViewContext[] {
-  const authored = cfg?.view_contexts ?? [];
-  if (authored.length > 0) return authored;
-  return [{ key: DEFAULT_CONTEXT_KEY, columns: [] }];
-}
-
-/**
- * A context is selectable when it has no `permission_roles` (available to all)
- * or the caller holds any of them. `hasAnyRole` is passed in so the pure logic
- * stays testable and the hook is only called once at the component root.
- */
-function isContextAvailable(
-  ctx: ViewContext,
-  hasAnyRole: (roles: string[]) => boolean,
-): boolean {
-  const roles = ctx.permission_roles ?? [];
-  if (roles.length === 0) return true;
-  return hasAnyRole(roles);
-}
 
 const MembersPage: React.FC = () => {
   const { t, i18n } = useTypedTranslation('members');
@@ -173,10 +145,6 @@ const MembersPage: React.FC = () => {
   // stats, column filters, sort, selection and export all follow automatically.
   // Scope-safe: it only ever narrows the already scope-authorized row set.
   const [globalSearch, setGlobalSearch] = useState('');
-
-  // Selected view context (design C-VIEW). Defaults to the first AVAILABLE
-  // context once the field config resolves (see the effect below).
-  const [selectedContextKey, setSelectedContextKey] = useState<string>(DEFAULT_CONTEXT_KEY);
 
   // Read-only view modal (task 19.1).
   const { isOpen: isViewOpen, onOpen: onViewOpen, onClose: onViewClose } = useDisclosure();
@@ -215,6 +183,14 @@ const MembersPage: React.FC = () => {
   // resolves (C8) — empty for a first-time user (R6.4). The unified column model
   // + flatten that CONSUME this list are tasks 4.2/4.3/4.4.
   const [chosenKeys, setChosenKeys] = useState<string[]>([]);
+
+  // The user's own per-user rows-per-page preference (Members config redesign
+  // Phase 2, step (a) — the pagination re-home). Seeded from the SAME per-user
+  // column/table preference record (`getColumnPreferences`) that seeds
+  // `chosenKeys`, so it is the HIGHEST-precedence input to the page-size resolver
+  // (`userPreference ?? default_page_size ?? platformDefault`, R2.3). `null` =
+  // the user has no explicit preference → fall through to the tenant default.
+  const [userPageSize, setUserPageSize] = useState<number | null>(null);
 
   // Row selection for bulk actions (task 20.4): the set of selected member_ids.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -266,6 +242,12 @@ const MembersPage: React.FC = () => {
           key => key !== ALWAYS_ON_COLUMN_KEY && resolvable.has(key),
         );
         setChosenKeys(seeded);
+        // Seed the per-user page-size preference (R2.3). The resolver guards for
+        // positivity, so a null/absent/non-positive stored value simply falls
+        // through to the tenant default — pass it through verbatim here.
+        setUserPageSize(
+          typeof prefs.page_size === 'number' ? prefs.page_size : null,
+        );
       })
       .catch(() => {
         // Non-fatal: keep the empty first-time default; the user can still choose.
@@ -310,8 +292,7 @@ const MembersPage: React.FC = () => {
   // `resolve_scope_access` returns only in-scope rows from `GET /members`); the
   // region text filter is purely a client-side narrowing of the already-scoped
   // rows and NEVER invents scope. The filter is wired through the shared
-  // `useFilterableTable` on the `region` key, so it applies IN EVERY view
-  // context (a context chooses columns, never rows).
+  // `useFilterableTable` on the `region` key, so it narrows columns, never rows.
   const scopeDimension = useMemo<ScopeDimension | undefined>(() => {
     const dims = fieldConfig?.dimensions ?? [];
     // Prefer the `region` dimension (h-dcn's one wired dimension); otherwise the
@@ -322,86 +303,12 @@ const MembersPage: React.FC = () => {
     );
   }, [fieldConfig]);
 
-  // ── View contexts (design C-VIEW) ────────────────────────────────────────────
-  // The full list of authored contexts (or a single synthesized default when the
-  // tenant authored none / the module returned nothing).
-  const viewContexts: ViewContext[] = useMemo(
-    () => normalizeViewContexts(fieldConfig),
-    [fieldConfig],
-  );
-
-  // The contexts the current user may select: a context with empty/absent
-  // `permission_roles` is available to everyone; otherwise it needs `hasAnyRole`.
-  // We always keep at least ONE context available (fall back to the first context
-  // — the default — so the dropdown is never empty and the page always renders).
-  const availableContexts: ViewContext[] = useMemo(() => {
-    const allowed = viewContexts.filter(ctx => isContextAvailable(ctx, hasAnyRole));
-    return allowed.length > 0 ? allowed : [viewContexts[0]];
-  }, [viewContexts, hasAnyRole]);
-
-  // Keep the selection valid: default to (and snap back to) the first available
-  // context whenever the resolved set changes or the current pick is no longer
-  // permitted (e.g. after the field config / roles resolve).
-  useEffect(() => {
-    if (availableContexts.length === 0) return;
-    const stillAvailable = availableContexts.some(c => c.key === selectedContextKey);
-    if (!stillAvailable) {
-      setSelectedContextKey(availableContexts[0].key);
-    }
-  }, [availableContexts, selectedContextKey]);
-
-  // The context currently in effect (always resolves to an available context).
-  const selectedContext: ViewContext = useMemo(
-    () =>
-      availableContexts.find(c => c.key === selectedContextKey)
-      ?? availableContexts[0]
-      ?? { key: DEFAULT_CONTEXT_KEY, columns: [] },
-    [availableContexts, selectedContextKey],
-  );
-
-  // Does the selected context specify an explicit column set? Empty/absent
-  // `columns` is the "all visible fields" sentinel → keep today's compact/full
-  // derivation. A non-empty set drives a parameter-driven column list instead.
-  const hasExplicitColumns = (selectedContext.columns?.length ?? 0) > 0;
-
-  // Resolve the selected context's `columns` (field_keys) to actual field
-  // descriptors, PRESERVING context order and SKIPPING any key not present in
-  // `fieldConfig.fields` (Property 7 / R5.1a — never crash, just omit). A field
-  // resolves the SAME whether it is fixed, parameter-driven (overlay), or
-  // calculated (read-only) — they all live in `fieldConfig.fields` uniformly
-  // (R5.1, R5.2). Field-level `visible === false` additionally drops the field
-  // as a candidate (R5.1) — a context may name it, but a hidden field is skipped.
-  const contextColumns: FieldConfigField[] = useMemo(() => {
-    if (!hasExplicitColumns) return [];
-    const byKey = new Map<string, FieldConfigField>(
-      (fieldConfig?.fields ?? []).map(f => [f.key, f]),
-    );
-    return (selectedContext.columns ?? [])
-      .map(key => byKey.get(key))
-      .filter((f): f is FieldConfigField => f !== undefined && isColumnCandidate(f));
-  }, [hasExplicitColumns, selectedContext, fieldConfig]);
-
-  // Filterable-column gate: when the context lists `filterable_columns`, only
-  // those keys render a FilterableHeader filter input; an empty/absent list keeps
-  // today's filterable behavior (all headers that already carry filters).
-  const filterableSet: Set<string> | null = useMemo(() => {
-    const fc = selectedContext.filterable_columns;
-    return fc && fc.length > 0 ? new Set(fc) : null;
-  }, [selectedContext]);
-
-  // The RAW user-chosen column keys (session-columns C6). A key the user
-  // explicitly surfaced via the chooser is treated as filterable even when the
-  // active context defines a `filterable_columns` allow-list that omits it — the
-  // user asked to work with it (R2.1). Built from `chosenKeys` (the raw user
-  // selection), NOT `effectiveChosenKeys`/the first-time default, so only the
-  // user's OWN picks earn the exemption; member_number stays filterable as today.
-  const chosenKeySet = useMemo(() => new Set(chosenKeys), [chosenKeys]);
-
-  const isFilterable = useCallback(
-    (key: string): boolean =>
-      (filterableSet ? filterableSet.has(key) || chosenKeySet.has(key) : true),
-    [filterableSet, chosenKeySet],
-  );
+  // Every shown header carries a FilterableHeader filter input. The former
+  // per-view-context `filterable_columns` allow-list is gone (Phase 2 step b —
+  // view contexts retired); the Members table now renders over the resolved
+  // `FieldConfig` visible fields directly, exactly as the empty-`columns` default
+  // context did, so every column is filterable (member_number + the chosen set).
+  const isFilterable = useCallback((_key: string): boolean => true, []);
 
   // Build flat rows; promote the region display value for the region column + stats.
   const memberRows: MemberRow[] = useMemo(
@@ -414,11 +321,12 @@ const MembersPage: React.FC = () => {
 
   // ── Unified column model (session-columns task 4.2, design C3; R1.2, R1.3, ────
   //    R4.4, R7.1, R7.3) ─────────────────────────────────────────────────────────
-  // One ordered column model replaces BOTH legacy render paths (the explicit-
-  // columns `contextColumns` path AND the compact/full `COMPACT_FIELD_KEYS` +
-  // overlay path). `columns = [member_number] ⊕ chosenColumns`, rendered by a
-  // single header map + a single cell map, so every column flows through
-  // identical FilterableHeader wiring (full unification, OQ-2).
+  // One ordered column model `columns = [member_number] ⊕ chosenColumns`,
+  // rendered by a single header map + a single cell map, so every column flows
+  // through identical FilterableHeader wiring (full unification, OQ-2). With
+  // view contexts retired (Phase 2 step b) the table renders over the resolved
+  // `FieldConfig` visible fields directly — the behaviour the empty-`columns`
+  // default context produced today.
   //
   // Fast lookup of every resolved field descriptor by key.
   const fieldByKey = useMemo(
@@ -429,28 +337,23 @@ const MembersPage: React.FC = () => {
   );
 
   // The admin default/compact column KEYS a FIRST-TIME user (empty `chosenKeys`)
-  // sees (R6.4 / OQ-A → (a)): when the active context has no explicit `columns`,
-  // the hardcoded COMPACT set + `region` (the compact/full toggle was removed —
-  // a first-time user starts compact and surfaces more fields via the chooser);
-  // when the context DOES define `columns`, exactly those context keys. Once the
-  // user saves a selection their own list is authoritative and this is unused.
+  // sees (R6.4 / OQ-A → (a)): the hardcoded COMPACT set + `region` (the
+  // compact/full toggle was removed — a first-time user starts compact and
+  // surfaces more fields via the chooser). This is the empty-`columns`
+  // default-context behaviour, now unconditional. Once the user saves a
+  // selection their own list is authoritative and this is unused.
   const defaultColumnKeys: string[] = useMemo(() => {
-    if (hasExplicitColumns) {
-      return contextColumns.map(f => f.key);
-    }
     // The compact set carries member_number first; it is prepended separately by
     // the model below, so drop it here to avoid a duplicate. `region` is a
     // dimension-backed column (no field descriptor needed) surfaced after the
     // compact fixed fields, exactly as the legacy compact path did.
     const compact = COMPACT_FIELD_KEYS.filter(k => k !== MEMBER_NUMBER_KEY);
     return [...compact, 'region'];
-  }, [hasExplicitColumns, contextColumns]);
+  }, []);
 
   // The user's effective chosen keys: THEIR saved list when non-empty, else the
-  // first-time admin default (above). A context switch does NOT rebuild a saved
-  // user's list (OQ-1) — `chosenKeys` is owned by the user; the context only
-  // feeds the default when the user has none, plus default_sort / filterable_
-  // columns / page_size elsewhere.
+  // first-time admin default (above). `chosenKeys` is owned by the user; the
+  // default feeds in only when the user has none.
   const effectiveChosenKeys: string[] = useMemo(
     () => (chosenKeys.length > 0 ? chosenKeys : defaultColumnKeys),
     [chosenKeys, defaultColumnKeys],
@@ -496,27 +399,19 @@ const MembersPage: React.FC = () => {
   // Resolve a column's header label (session-columns C3). member_number keeps
   // its legacy i18n label unconditionally (it is the pinned fixed column). The
   // other fixed compact keys (name/email/status/membership_type/region) keep
-  // their legacy i18n label ONLY in the default/compact path — matching the
-  // pre-unification compact render path; in an EXPLICIT-columns context those
-  // keys resolve through the field-config label exactly as the legacy explicit
-  // path did (so e.g. `email` renders "E-mail", `region` renders "Regio"). Every
-  // other column always uses its field-config `resolveLabel`.
+  // their legacy i18n label — matching the default/compact render path the
+  // empty-`columns` default context produced. Every other column uses its
+  // field-config `resolveLabel`.
   const columnLabel = useCallback(
     (field: FieldConfigField): string => {
       if (field.key === MEMBER_NUMBER_KEY) {
         return t(FIXED_COLUMN_LABEL_KEYS[MEMBER_NUMBER_KEY]);
       }
       const legacyKey = FIXED_COLUMN_LABEL_KEYS[field.key];
-      if (legacyKey && !hasExplicitColumns) return t(legacyKey);
-      // In an explicit context, `region` has a field descriptor; the compact
-      // default's dimension-backed `region` has none — fall back to its legacy
-      // i18n label so it is never a bare key.
-      if (field.key === 'region' && !fieldByKey.has('region')) {
-        return t(FIXED_COLUMN_LABEL_KEYS.region);
-      }
+      if (legacyKey) return t(legacyKey);
       return resolveLabel(field.label, lang, field.key);
     },
-    [t, lang, hasExplicitColumns, fieldByKey],
+    [t, lang],
   );
 
   // Resolve a column's cell value for a row. member_number + region keep their
@@ -592,17 +487,12 @@ const MembersPage: React.FC = () => {
     });
   }, [searchedRows, chosenColumns]);
 
-  // Feed the selected context's `default_sort` to the EXISTING toolkit; fall
-  // back to today's default (name asc) when the context specifies none. The
-  // context's `{field, direction}` shape matches `useFilterableTable`'s
-  // `defaultSort` (direction is a `SortDirection`).
-  const contextDefaultSort = selectedContext.default_sort;
+  // The Members table sorts by name ascending by default (the behaviour the
+  // empty-`columns` default context produced). The per-view-context
+  // `default_sort` is gone with view contexts (Phase 2 step b).
   const defaultSort = useMemo(
-    () =>
-      contextDefaultSort
-        ? { field: contextDefaultSort.field, direction: contextDefaultSort.direction }
-        : { field: 'name', direction: 'asc' as const },
-    [contextDefaultSort],
+    () => ({ field: 'name', direction: 'asc' as const }),
+    [],
   );
 
   // ── Dynamic filter key set (session-columns task 4.4, design C5; R2.1, ────────
@@ -639,13 +529,24 @@ const MembersPage: React.FC = () => {
     defaultSort,
   });
 
-  // Apply the selected context's `page_size` (design C-VIEW) as a simple client
-  // slice over the already filtered+sorted rows. The page currently shows all
-  // rows (no pager control yet); a positive `page_size` caps the first page in
-  // the least-invasive way. Null/absent/≤0 keeps today's show-all behavior.
-  const pageSize = selectedContext.page_size ?? null;
+  // ── Rows-per-page precedence (Members config redesign Phase 2, step (a); ──────
+  //    R2.2, R2.3, R2.4) ──────────────────────────────────────────────────────
+  // Resolve the page size by `userPreference ?? default_page_size ??
+  // platformDefault`, honouring a tier only when it is a positive integer and
+  // always resolving to a positive integer (the resolver mirrors the backend
+  // read-side guard — never 0/blank, Property 1):
+  //   - `userPageSize`                    — the per-user column/table preference,
+  //   - `fieldConfig.default_page_size`   — the tenant field-config default,
+  //   - the platform table default        — the final fallback.
+  // NOTE: step (a) re-homed pagination to `default_page_size`; view contexts
+  // (incl. their per-context `page_size`) are now retired (step b — this task),
+  // so the page size no longer reads any `view_context.page_size`.
+  const pageSize = useMemo(
+    () => resolvePageSize(userPageSize, fieldConfig?.default_page_size),
+    [userPageSize, fieldConfig],
+  );
   const visibleData: MemberRow[] = useMemo(
-    () => (pageSize && pageSize > 0 ? processedData.slice(0, pageSize) : processedData),
+    () => (pageSize > 0 ? processedData.slice(0, pageSize) : processedData),
     [processedData, pageSize],
   );
 
@@ -825,40 +726,18 @@ const MembersPage: React.FC = () => {
   // into `columns` (design C3).
   const colSpan = columns.length + 1;
 
-  // Only the default (all-visible-fields) context uses the compact/full switch;
-  // an explicit-columns context defines its own column set, so the switch is
-  // hidden for it. The context dropdown is shown whenever ≥2 contexts are
-  // selectable (a single/default-only context needs no picker).
-  const showContextDropdown = availableContexts.length > 1;
-
   return (
     <Box p={6}>
       {/* Header: title + view switch + primary actions (orange) */}
       <Flex wrap="wrap" justify="space-between" align="center" mb={4} gap={2}>
         <Text fontSize="xl" fontWeight="bold" color="white">{t('overview.title')}</Text>
         <HStack spacing={3}>
-          {/* View-context dropdown (design C-VIEW) — lists only the contexts the
-              user's roles permit; selecting one re-renders its column set via
-              the shared toolkit. Shown only when ≥2 contexts are selectable. */}
-          {showContextDropdown && (
-            <Select
-              size="sm"
-              w="auto"
-              color="white"
-              bg="gray.700"
-              aria-label={t('viewContext.label')}
-              value={selectedContextKey}
-              onChange={(e) => setSelectedContextKey(e.target.value)}
-            >
-              {availableContexts.map(ctx => (
-                <option key={ctx.key} value={ctx.key}>
-                  {resolveLabel(ctx.label, lang, ctx.key)}
-                </option>
-              ))}
-            </Select>
-          )}
-          {/* The former compact/full view switch was removed (findings): the
-              user now defines their own columns via the Columns chooser, which
+          {/* The view-context dropdown was removed (Phase 2 step b — view
+              contexts retired). The table renders over the resolved field
+              config's visible fields directly; the user narrows columns via the
+              Columns chooser. The former compact/full view switch was removed
+              (findings): the user now defines their own columns via the Columns
+              chooser, which
               fully supersedes the two-state toggle. A first-time user still gets
               the compact set as the default (defaultColumnKeys). */}
           {/* Global all-fields search (member-field-search Option 1), now INLINE

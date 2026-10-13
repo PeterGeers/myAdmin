@@ -566,13 +566,16 @@ class TestParameterSchemaEndpointMembersGating:
         assert 'members' in data['schema']
 
         params = data['schema']['members']['params']
+        # Phase 2 (R5.1) retired the `view_contexts` param; `default_page_size` is the
+        # pagination DEFAULT re-home (step a).
         assert set(params.keys()) == {
-            'field_overlay', 'scope_dimensions', 'view_contexts', 'mail_enabled',
+            'field_overlay', 'scope_dimensions', 'default_page_size', 'mail_enabled',
             'mail_domain', 'mail_local_part', 'mail_certified'
         }
-        # The three config overlays are json; mail_enabled/mail_certified are
+        assert 'view_contexts' not in params
+        # The config overlays are json; mail_enabled/mail_certified are
         # booleans; mail_domain/mail_local_part are strings.
-        for key in ('field_overlay', 'scope_dimensions', 'view_contexts'):
+        for key in ('field_overlay', 'scope_dimensions'):
             assert params[key]['type'] == 'json'
         assert params['mail_enabled']['type'] == 'boolean'
         assert params['mail_certified']['type'] == 'boolean'
