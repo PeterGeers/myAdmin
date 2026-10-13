@@ -175,8 +175,8 @@ class FakeParameterService:
 
     def get_param(self, namespace, key, tenant=None, role=None, user=None):
         # The authoring service + the scopegrant builder read (members, scope_dimensions);
-        # the projection also builds config#fields / config#views (members.field_overlay /
-        # members.view_contexts) — those are un-authored here → None (empty-is-valid).
+        # the projection also builds config#fields (members.field_overlay) — those are
+        # un-authored here → None (empty-is-valid).
         if namespace == "members" and key == "scope_dimensions":
             return self._dims.get(tenant)
         return None

@@ -25,9 +25,8 @@ Design constraints honoured here (per the design of record):
   sub-scoping pay nothing. :func:`enabled_dimensions` filters those out.
 - **Tenant-agnostic + storage-agnostic** — no ``if tenant == "h-dcn"``, no DynamoDB/boto3, and
   NO tenant's real vocabulary baked in (Decision D17). A tenant's scope config is *injected*
-  via the provider (from ``members.scope_dimensions`` → projection). :data:`SAMPLE_SCOPE_CONFIG`
-  is a neutral, clearly-synthetic fixture for the provider seam + unit tests ONLY — never a
-  tenant's production data.
+  via the provider (from ``members.scope_dimensions`` → projection); the domain ships no
+  sample vocabulary of its own.
 
 The overlay/provider seam mirrors ``field_resolver.py``: the config is *injected* via a
 :class:`ScopeConfigProvider` ``Protocol``; the SAM-plane concrete provider is DynamoDB-backed
@@ -50,7 +49,6 @@ from dataclasses import field as dataclass_field
 from typing import Protocol, runtime_checkable
 
 __all__ = [
-    "SAMPLE_SCOPE_CONFIG",
     "WILDCARD",
     "ScopeConfig",
     "ScopeConfigError",
@@ -265,8 +263,8 @@ class ScopeConfigProvider(Protocol):
 class StaticScopeConfigProvider:
     """An in-memory :class:`ScopeConfigProvider` backed by a ``{tenant_id: [dimensions]}`` map.
 
-    The storage-agnostic default: used by tests and any caller that already holds the config
-    (e.g. a synthetic :data:`SAMPLE_SCOPE_CONFIG`), and the reference against which the
+    The storage-agnostic default: used by tests and any caller that already holds the config,
+    and the reference against which the
     DynamoDB-backed provider is later swapped in. Unknown tenants resolve to an **empty**
     config (tenant-wide) — the fail-safe default (a missing scope config is not an error;
     it simply means the tenant is un-partitioned).
@@ -286,39 +284,3 @@ class StaticScopeConfigProvider:
         if tenant_id in self._configs:
             return self._configs[tenant_id]
         return ScopeConfig(tenant_id=tenant_id, dimensions=())
-
-
-# ── Sample scope config (SYNTHETIC fixture — NOT tenant data; Decision D17) ───────────
-
-#: REFERENCE / TEST FIXTURE ONLY — **not** any tenant's config and **not** a runtime source.
-#: A tenant's real region vocabulary lives ONLY in its ``members.scope_dimensions`` parameter
-#: (MySQL, authored at onboarding) → projected to ``config#scope`` → read by the SAM edge via
-#: the ``ScopeConfigProvider``. The generic core must NOT ship any tenant's vocabulary, so this
-#: fixture uses ABSTRACT synthetic values (``North/South/East/West``) that are obviously not a
-#: real Dutch region set — just enough to exercise the scope MECHANISM in unit tests. The
-#: runtime has NO fallback to this constant (Decision D16): a missing/failed projection is a
-#: system error, not a silent substitution.
-#:
-#: This is tenant-agnostic *shape* data — the generic core has no ``if tenant == "h-dcn"``.
-#: Setting ``enabled=False`` (or an empty list) collapses to tenant-wide with no code path
-#: change (R3.2). s5d clean break (R2.2/R8.1): the ``Regio_*`` role encoding is REMOVED — a
-#: member user's scope is authored in ``user_tenant_scope`` and all-access is the projected
-#: ``["*"]`` grant, not a role name.
-SAMPLE_SCOPE_CONFIG: tuple[ScopeDimension, ...] = (
-    ScopeDimension(
-        key="region",
-        # field defaults to key ("region") — binds to the member's `region` field.
-        label={"en": "Region"},
-        enabled=True,
-        # ABSTRACT synthetic values ONLY (D17) — deliberately NOT a real region set, so no
-        # tenant's vocabulary lives in the core. A tenant's real regions are authored in its
-        # `members.scope_dimensions` param / the onboarding data file, never here.
-        values=(
-            "North",
-            "South",
-            "East",
-            "West",
-        ),
-        required_for=("Members_CRUD",),
-    ),
-)

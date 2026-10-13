@@ -20,7 +20,6 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from sam.members.domain.scope_dimensions import (
-    SAMPLE_SCOPE_CONFIG,
     WILDCARD,
     ScopeConfig,
     ScopeConfigError,
@@ -29,6 +28,7 @@ from sam.members.domain.scope_dimensions import (
     StaticScopeConfigProvider,
     enabled_dimensions,
 )
+from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
 
 # ── Model shape ───────────────────────────────────────────────────────────────────────
 

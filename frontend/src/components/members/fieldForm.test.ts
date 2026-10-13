@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { FieldConfigField, FunctionalGroup } from '../../types/members';
+import type { FieldConfig, FieldConfigField, FunctionalGroup } from '../../types/members';
 import {
   evaluateShowWhen,
   optionsForCaller,
