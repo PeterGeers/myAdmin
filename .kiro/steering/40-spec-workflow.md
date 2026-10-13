@@ -64,7 +64,7 @@ Optional/supporting docs when useful: a `README.md` navigation guide, `analysis.
 - Start with architecture overview and data flow
 - Specify API contracts (request/response schemas)
 - Document security, performance, and key technical decisions
-- **Reference reusable patterns and frameworks**:
+- **Reference relevant reusable patterns and frameworks NOTE when applicable**:
   - Generic filter framework (`.kiro/specs/Common/Filters a generic approach/`)
   - Authentication patterns (`backend/src/auth/`, `22-authentication.md`)
   - Multi-tenant patterns (`tenant_context.py`; module plane: `35-sam-module-architecture-sam.md`)
