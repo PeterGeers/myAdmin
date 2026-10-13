@@ -289,7 +289,7 @@ class TripService(FieldConfigMixin):
                 row[key] = int(row[key])
 
         # Ensure boolean fields
-        for key in ("is_billable", "is_billed", "is_gap_fill", "is_cancelled"):
+        for key in ("is_gap_fill", "is_cancelled"):
             if key in row:
                 row[key] = bool(row[key])
 

@@ -40,12 +40,9 @@ def _trip_row(overrides=None):
         "trip_category": "Zakelijk",
         "trip_purpose": "Klantbezoek",
         "route_description": None,
-        "contact_id": 5,
+        "client_name": "Acme BV",
         "project_name": "Project Alpha",
         "notes": None,
-        "is_billable": 1,
-        "is_billed": 0,
-        "invoice_id": None,
         "is_gap_fill": 0,
         "is_cancelled": 0,
         "cancel_reason": None,
@@ -72,9 +69,8 @@ def _valid_trip_data(overrides=None):
         "trip_purpose": "Klantbezoek",
         "start_time": "08:30",
         "end_time": "09:15",
-        "contact_id": 5,
+        "client_name": "Acme BV",
         "project_name": "Project Alpha",
-        "is_billable": True,
     }
     if overrides:
         data.update(overrides)
@@ -111,7 +107,9 @@ class TestCreateTrip:
         assert result["data"]["id"] == 1
         assert result["data"]["trip_category"] == "Zakelijk"
         assert result["data"]["distance_km"] == 45
-        assert result["data"]["is_billable"] is True
+        # Trips are billing-free post-redesign: no is_billable/is_billed surfaced (Req 4.5, 4.6).
+        assert "is_billable" not in result["data"]
+        assert "is_billed" not in result["data"]
         assert "warnings" not in result
         assert "gap_fill_offer" not in result
 
@@ -1465,12 +1463,9 @@ class TestUpdateTrip:
             "trip_category": "Zakelijk",
             "trip_purpose": "Klantbezoek",
             "route_description": None,
-            "contact_id": 5,
+            "client_name": "Acme BV",
             "project_name": "Project Alpha",
             "notes": None,
-            "is_billable": True,
-            "is_billed": False,
-            "invoice_id": None,
             "is_gap_fill": False,
             "is_cancelled": False,
             "cancel_reason": None,
@@ -1747,12 +1742,9 @@ class TestCancelTrip:
             "trip_category": "Zakelijk",
             "trip_purpose": "Klantbezoek",
             "route_description": None,
-            "contact_id": 5,
+            "client_name": "Acme BV",
             "project_name": "Project Alpha",
             "notes": None,
-            "is_billable": True,
-            "is_billed": False,
-            "invoice_id": None,
             "is_gap_fill": False,
             "is_cancelled": False,
             "cancel_reason": None,
