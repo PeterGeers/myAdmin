@@ -64,7 +64,6 @@ class TripService(FieldConfigMixin):
         "client_name",
         "project_name",
         "notes",
-        "is_billable",
     ]
 
     # Miles-to-km conversion factor
@@ -133,10 +132,6 @@ class TripService(FieldConfigMixin):
     ) -> dict | None:
         """Detect an odometer gap between the previous trip and the new trip."""
         return self._query.detect_gap(tenant, vehicle_id, start_odometer)
-
-    def mark_as_billed(self, tenant: str, trip_ids: list, invoice_id: int) -> int:
-        """Mark specified trips as billed by linking them to an invoice."""
-        return self._query.mark_as_billed(tenant, trip_ids, invoice_id)
 
     # ── Calculation operations (delegated to TripCalculationService) ──
 
@@ -290,7 +285,7 @@ class TripService(FieldConfigMixin):
                 row[key] = int(row[key])
 
         # Ensure boolean fields
-        for key in ("is_billable", "is_billed", "is_gap_fill", "is_cancelled"):
+        for key in ("is_gap_fill", "is_cancelled"):
             if key in row:
                 row[key] = bool(row[key])
 

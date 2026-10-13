@@ -40,12 +40,9 @@ def _trip_row(overrides=None):
         "trip_category": "Zakelijk",
         "trip_purpose": "Klantbezoek",
         "route_description": None,
-        "contact_id": 5,
+        "client_name": "Acme BV",
         "project_name": "Project Alpha",
         "notes": None,
-        "is_billable": 1,
-        "is_billed": 0,
-        "invoice_id": None,
         "is_gap_fill": 0,
         "is_cancelled": 0,
         "cancel_reason": None,
@@ -72,9 +69,8 @@ def _valid_trip_data(overrides=None):
         "trip_purpose": "Klantbezoek",
         "start_time": "08:30",
         "end_time": "09:15",
-        "contact_id": 5,
+        "client_name": "Acme BV",
         "project_name": "Project Alpha",
-        "is_billable": True,
     }
     if overrides:
         data.update(overrides)
@@ -111,7 +107,9 @@ class TestCreateTrip:
         assert result["data"]["id"] == 1
         assert result["data"]["trip_category"] == "Zakelijk"
         assert result["data"]["distance_km"] == 45
-        assert result["data"]["is_billable"] is True
+        # Trips are billing-free post-redesign: no is_billable/is_billed surfaced (Req 4.5, 4.6).
+        assert "is_billable" not in result["data"]
+        assert "is_billed" not in result["data"]
         assert "warnings" not in result
         assert "gap_fill_offer" not in result
 
@@ -1465,12 +1463,9 @@ class TestUpdateTrip:
             "trip_category": "Zakelijk",
             "trip_purpose": "Klantbezoek",
             "route_description": None,
-            "contact_id": 5,
+            "client_name": "Acme BV",
             "project_name": "Project Alpha",
             "notes": None,
-            "is_billable": True,
-            "is_billed": False,
-            "invoice_id": None,
             "is_gap_fill": False,
             "is_cancelled": False,
             "cancel_reason": None,
@@ -1747,12 +1742,9 @@ class TestCancelTrip:
             "trip_category": "Zakelijk",
             "trip_purpose": "Klantbezoek",
             "route_description": None,
-            "contact_id": 5,
+            "client_name": "Acme BV",
             "project_name": "Project Alpha",
             "notes": None,
-            "is_billable": True,
-            "is_billed": False,
-            "invoice_id": None,
             "is_gap_fill": False,
             "is_cancelled": False,
             "cancel_reason": None,
@@ -2113,152 +2105,6 @@ class TestGetTripHistory:
 # unbilled-trips service path (Req 4.4). The absence is pinned by
 # TestQueryExamplesTaxLog.test_get_unbilled_trips_not_callable below.
 
-
-# ── mark_as_billed ──────────────────────────────────────────
-
-
-class TestMarkAsBilled:
-    """Tests for TripService.mark_as_billed (Requirement 6).
-
-    Behavior:
-    - Accept a list of trip IDs and an invoice_id
-    - UPDATE trips: set is_billed=TRUE and invoice_id
-    - Only update trips belonging to tenant, not already billed, not cancelled
-    - Return the number of trips actually marked as billed
-    - Already-billed trips are silently skipped (no error)
-    """
-
-    def test_happy_path_marks_trips(self):
-        """Marks multiple trips as billed and returns count of affected rows."""
-        db = Mock()
-        db.execute_query = Mock(return_value=3)  # 3 rows updated
-        svc = _make_service(db=db)
-
-        result = svc.mark_as_billed(TENANT, [10, 12, 15], invoice_id=42)
-
-        assert result == 3
-        # Verify the query was called
-        call_args = db.execute_query.call_args
-        query = call_args[0][0]
-        params = call_args[0][1]
-        # Check UPDATE structure
-        assert "UPDATE zzp_trips" in query
-        assert "SET is_billed = TRUE" in query
-        assert "invoice_id = %s" in query
-        assert "administration = %s" in query
-        assert "IN" in query
-        assert "is_billed = FALSE" in query
-        assert "is_cancelled = FALSE" in query
-        # Check params: invoice_id, tenant, then trip_ids
-        assert params[0] == 42       # invoice_id
-        assert params[1] == TENANT   # administration
-        assert params[2] == 10       # trip_id 1
-        assert params[3] == 12       # trip_id 2
-        assert params[4] == 15       # trip_id 3
-        # Verify commit=True
-        assert call_args[1]["fetch"] is False
-        assert call_args[1]["commit"] is True
-
-    def test_returns_count_of_affected_rows(self):
-        """Return value matches the number of rows actually updated."""
-        db = Mock()
-        db.execute_query = Mock(return_value=2)  # Only 2 of 3 eligible
-        svc = _make_service(db=db)
-
-        result = svc.mark_as_billed(TENANT, [10, 12, 15], invoice_id=42)
-
-        assert result == 2
-
-    def test_already_billed_trips_skipped(self):
-        """Already-billed trips are not updated (WHERE is_billed = FALSE)."""
-        db = Mock()
-        # Simulate: 3 IDs passed but only 1 was eligible (2 already billed)
-        db.execute_query = Mock(return_value=1)
-        svc = _make_service(db=db)
-
-        result = svc.mark_as_billed(TENANT, [10, 12, 15], invoice_id=42)
-
-        assert result == 1
-        # Verify the WHERE clause includes is_billed = FALSE filter
-        query = db.execute_query.call_args[0][0]
-        assert "is_billed = FALSE" in query
-
-    def test_cancelled_trips_skipped(self):
-        """Cancelled trips are not updated (WHERE is_cancelled = FALSE)."""
-        db = Mock()
-        # Simulate: all trips are cancelled, 0 affected
-        db.execute_query = Mock(return_value=0)
-        svc = _make_service(db=db)
-
-        result = svc.mark_as_billed(TENANT, [10, 12, 15], invoice_id=42)
-
-        assert result == 0
-        # Verify the WHERE clause includes is_cancelled = FALSE filter
-        query = db.execute_query.call_args[0][0]
-        assert "is_cancelled = FALSE" in query
-
-    def test_tenant_isolation(self):
-        """Only trips belonging to the tenant are updated."""
-        db = Mock()
-        db.execute_query = Mock(return_value=0)
-        svc = _make_service(db=db)
-
-        svc.mark_as_billed("other_tenant", [10, 12], invoice_id=42)
-
-        # Verify tenant is in the params
-        params = db.execute_query.call_args[0][1]
-        assert params[1] == "other_tenant"
-        # Verify WHERE administration = %s is in query
-        query = db.execute_query.call_args[0][0]
-        assert "administration = %s" in query
-
-    def test_empty_trip_ids_returns_zero(self):
-        """Empty trip_ids list returns 0 without hitting the database."""
-        db = Mock()
-        svc = _make_service(db=db)
-
-        result = svc.mark_as_billed(TENANT, [], invoice_id=42)
-
-        assert result == 0
-        db.execute_query.assert_not_called()
-
-    def test_single_trip_id(self):
-        """Works correctly with a single trip ID."""
-        db = Mock()
-        db.execute_query = Mock(return_value=1)
-        svc = _make_service(db=db)
-
-        result = svc.mark_as_billed(TENANT, [10], invoice_id=99)
-
-        assert result == 1
-        params = db.execute_query.call_args[0][1]
-        assert params == (99, TENANT, 10)
-
-    def test_parameterized_query_no_sql_injection(self):
-        """Query uses %s placeholders for IN clause (no string interpolation of IDs)."""
-        db = Mock()
-        db.execute_query = Mock(return_value=2)
-        svc = _make_service(db=db)
-
-        svc.mark_as_billed(TENANT, [10, 12], invoice_id=42)
-
-        query = db.execute_query.call_args[0][0]
-        # IDs should be %s placeholders, not literal numbers
-        assert "10" not in query
-        assert "12" not in query
-        assert "42" not in query
-        # Should have multiple %s placeholders for the IN clause
-        assert "%s, %s" in query or "IN (%s, %s)" in query
-
-    def test_returns_zero_when_db_returns_none(self):
-        """Handles edge case where execute_query returns None."""
-        db = Mock()
-        db.execute_query = Mock(return_value=None)
-        svc = _make_service(db=db)
-
-        result = svc.mark_as_billed(TENANT, [10], invoice_id=42)
-
-        assert result == 0
 
 # ════════════════════════════════════════════════════════════
 # Property-based + example tests — CRUD paths (task 8.2)

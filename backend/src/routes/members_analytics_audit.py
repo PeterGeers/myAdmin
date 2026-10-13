@@ -103,7 +103,7 @@ def record_analytics_output(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, "audit": record})
 
-    except Exception as e:  # noqa: BLE001 — route boundary: never leak a 500 stack
+    except Exception as e:  # route boundary: never leak a 500 stack
         # Log the detail server-side; do NOT return the exception text to the client
         # (CodeQL: information exposure through an exception).
         logger.error("Error recording analytics output audit: %s", e)
