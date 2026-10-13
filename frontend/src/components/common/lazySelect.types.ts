@@ -61,8 +61,8 @@ export interface UseLazyOptionsResult<V extends string = string> {
 /**
  * Resolve an option's display label to a plain string, matching the Members `resolveLabel`
  * convention (`components/members/fieldForm.ts`): a localized `Record<string, string>` map picks
- * the current `lang` with an `nl`/`en` fallback chain; a plain string passes through; otherwise we
- * fall back to the option's raw `value`.
+ * the current `lang` with the `en` → `nl` fallback chain (R3.5); a plain string passes through;
+ * otherwise we fall back to the option's raw `value`.
  *
  * A caller-supplied `getOptionLabel` takes precedence over the built-in resolution (R1.2).
  */
@@ -78,5 +78,5 @@ export function resolveOptionLabel<V extends string = string>(
   if (typeof label === 'string') return label;
 
   const l = lang ?? 'nl';
-  return label[l] || label.nl || label.en || value;
+  return label[l] || label.en || label.nl || value;
 }

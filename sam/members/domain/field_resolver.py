@@ -227,9 +227,10 @@ class FunctionalGroup:
     A functional group is a presentation-only bucket the frontend sections view contexts /
     modals by (e.g. "address", "motor", "financial"). It is orthogonal to the STORAGE bucket
     (``personal`` / ``membership`` / ``overlay``, fixed by origin). Every field's
-    ``functional_group`` must reference the ``key`` of one of these catalog entries
-    (reference-validated, Property 7). ``label`` is the localized ``{nl,en}`` section heading;
-    ``order`` sorts the sections.
+    ``functional_group`` must reference the ``key`` of a group in the catalog's group set —
+    ``attribute_catalog.BASE_FUNCTIONAL_GROUPS`` ⊕ the tenant's authored entries (Phase 1, R5.3) —
+    else the resolver rejects it as a dangling reference (Property 7). ``label`` is the localized
+    ``{nl,en}`` section heading; ``order`` sorts the sections.
     """
 
     key: str
@@ -349,8 +350,12 @@ class TenantOverlay:
 
     ``functional_groups`` is the tenant's display-group catalog (R4.9): a ``functional_group``
     referenced by any field (fixed override, calculated override, or a variable field) MUST be
-    one of these keys — the resolver rejects a dangling reference (Property 7). An **empty**
-    catalog disables that check (a tenant that authors no catalog uses only base defaults).
+    one of the catalog's group keys — the resolver rejects a dangling reference (Property 7).
+    The catalog's group set is ``BASE_FUNCTIONAL_GROUPS`` ⊕ this tenant catalog (Phase 1, R5.3):
+    a reference to a BASE key (``personal`` / ``address`` / ``membership`` / ``administrative``)
+    is valid even when this catalog is **empty** (a tenant that authors no catalog resolves
+    against the base set; R5.4), while a reference to a NON-base key absent from the tenant
+    catalog is still a dangling reference and is rejected.
     """
 
     #: New variable fields, keyed by their canonical key (lands under the ``overlay`` group).
@@ -652,14 +657,39 @@ class FieldResolver:
         ``{field: values}`` map the caller derives from the tenant's enabled scope dimensions).
         Such a field legitimately sources its choices from ``scope_dimensions.values``. A
         choiceless enum NOT in the map is still rejected (fail-fast preserved).
+
+        Functional-group reference validation (Phase 1, R4.2 / R5.3 / R5.4, design §4): a field's
+        ``functional_group`` is validated against the catalog's group set, which is
+        ``BASE_FUNCTIONAL_GROUPS`` ⊕ the tenant's authored ``functional_groups`` (base keys fill
+        the set, tenant keys extend it). A reference to a BASE group key (``personal`` /
+        ``address`` / ``membership`` / ``administrative``) is therefore reference-VALID even when
+        the tenant authored NO catalog — closing the former "empty catalog ⇒ unchecked" gap
+        (R5.4). Because every base-field default (``default_functional_group()`` →
+        ``personal`` / ``membership`` / ``administrative``) is a base key, everything that
+        resolved before still resolves (strictly preservation-safe); a dangling reference to a
+        NON-base key is still rejected, with or without an authored catalog.
+
+        The base set is imported lazily (function-local) rather than at module top level on
+        purpose: ``attribute_catalog`` imports :class:`FunctionalGroup` from THIS module, so a
+        top-level ``from .attribute_catalog import BASE_FUNCTIONAL_GROUPS`` would form an import
+        cycle. The deferred import keeps the base-group set single-sourced in
+        ``attribute_catalog.py`` (no duplicated constant) and runs only at resolve time, by which
+        point both modules are fully loaded.
         """
+        from .attribute_catalog import BASE_FUNCTIONAL_GROUPS
+
         reasons: dict[str, str] = {}
-        catalog = set(overlay.functional_groups.keys())
+        # The catalog's effective group set = BASE ⊕ the tenant's authored catalog (design §4):
+        # base keys are always present, tenant keys extend/override them. Unlike before, this set
+        # is never empty, so a dangling non-base reference is caught even with no authored catalog
+        # (R5.4) while every base-key reference stays valid (preservation-safe).
+        catalog = {g.key for g in BASE_FUNCTIONAL_GROUPS} | set(overlay.functional_groups.keys())
         vocab_keys = set((scope_vocab or {}).keys())
 
         def _check_group(dotted: str, group: str | None) -> None:
-            # Reference-validate only when the tenant authored a catalog (empty → base defaults).
-            if group and catalog and group not in catalog:
+            # Reference-validate against BASE ⊕ tenant. A base key is valid even with no authored
+            # catalog; a non-base key absent from both base and tenant is a dangling reference.
+            if group and group not in catalog:
                 reasons[dotted] = (
                     f"functional_group {group!r} is not in the functional_groups catalog"
                 )

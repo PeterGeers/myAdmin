@@ -1295,5 +1295,52 @@
       "size": "Size",
       "daysOrphaned": "Days Orphaned"
     }
+  },
+  "membersConfig": {
+    "field": {
+      "first_name": "First name",
+      "last_name": "Last name",
+      "name_infix": "Name infix",
+      "initials": "Initials",
+      "birth_date": "Date of birth",
+      "gender": "Gender",
+      "email": "Email",
+      "phone": "Phone",
+      "street": "Street",
+      "postal_code": "Postal code",
+      "city": "City",
+      "country": "Country",
+      "member_number": "Member number",
+      "status": "Status",
+      "membership_type": "Membership type",
+      "joined_date": "Joined date",
+      "created_at": "Created at",
+      "updated_at": "Updated at",
+      "display_name": "Display name",
+      "age": "Age",
+      "birthday": "Birthday",
+      "birth_day": "Birth day",
+      "birth_month": "Birth month",
+      "birth_year": "Birth year",
+      "birth_quarter": "Birth quarter",
+      "years_member": "Years member",
+      "application_year": "Application year"
+    },
+    "group": {
+      "personal": "Personal",
+      "address": "Address",
+      "membership": "Membership",
+      "administrative": "Administrative"
+    },
+    "enum": {
+      "status": {
+        "application": "Application",
+        "pending": "Pending",
+        "active": "Active",
+        "suspended": "Suspended",
+        "lapsed": "Lapsed",
+        "left": "Left"
+      }
+    }
   }
 }
