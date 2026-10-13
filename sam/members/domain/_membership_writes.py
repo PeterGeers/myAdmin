@@ -43,9 +43,6 @@ from sam.members.domain.fixed_fields import (
     validate_member_number_format,
 )
 from sam.members.domain.tenant_hooks import HookName
-from sam.members.domain.view_contexts import (
-    ViewContext,
-)
 from sam.members.repository.members_repository import (
     Member,
     Membership,
@@ -986,18 +983,21 @@ class WritesMixin:
             # tenant has no enabled dimension (or no provider is wired).
             "dimensions": self._serialize_scope_dimensions(tenant_id),
             "membership_type_options": options,
-            # The tenant's selectable view contexts (S5c task 3.2, design C-VIEW). Sourced from
-            # the injected ViewContextsProvider (the projection reader's config#views row in
-            # production, a StaticViewContextsProvider in tests), keyed by the verified
-            # tenant_id. Empty-is-valid (R5.1): a tenant that authored none surfaces exactly one
-            # default context over all visible fields — the provider guarantees ≥1, so this list
-            # is never empty and never crashes on an unconfigured tenant. Presentation-only: the
-            # frontend renders these; the module enforces nothing off them (row scope stays
-            # server-side, orthogonal).
-            "view_contexts": [
-                self._serialize_view_context(vc)
-                for vc in self._view_contexts_provider.get_view_contexts(tenant_id)
-            ],
+            # The tenant-level default rows-per-page (Phase 2 step (a) — the former
+            # `view_contexts.page_size` re-home, R2.1/R1.2). Sourced from the injected
+            # DefaultPageSizeProvider (the projection reader's `config#fields`
+            # `default_page_size` scalar in production, a StaticDefaultPageSizeProvider in
+            # tests), keyed by the verified tenant_id. After Phase 2 step (c) the `view_contexts`
+            # array is gone (the SPA stopped reading it in step (b)); `default_page_size` is now
+            # the sole pagination home the module serves. The new SPA resolves pagination as
+            # `userPreference ?? default_page_size ?? platformDefault`. Empty-is-valid (R2.4): a
+            # tenant that authored no default surfaces `None` here — the renderer then applies the
+            # per-user preference and finally the platform table-toolkit default (today's
+            # behaviour when a `view_context.page_size` was null). Presentation-only: the module
+            # serves it, enforces nothing off it (mirrors `mail_enabled`).
+            "default_page_size": self._default_page_size_provider.get_default_page_size(
+                tenant_id
+            ),
             # The tenant's membership lifecycle, as DECLARED BY THE MODULE (design C2, R5.7).
             # The single + bulk transition modals read their candidate target states from this
             # block ONLY — never a hardcoded status list. A tenant with no configured lifecycle
@@ -1039,7 +1039,7 @@ class WritesMixin:
             # means that config has NEVER been projected for the tenant ("not yet delivered").
             # Presentation-only: the authoring UI compares each version to the source param's
             # own revision to render a delivered / stale / not-yet-delivered indicator; the
-            # module enforces nothing off it (mirrors `mail_enabled` / `view_contexts`).
+            # module enforces nothing off it (mirrors `mail_enabled`).
             # Empty-is-valid: an unconfigured tenant yields all-None, never a crash.
             "config_status": dict(
                 self._config_status_provider.get_config_status(tenant_id)
@@ -1172,28 +1172,6 @@ class WritesMixin:
             "key": group.key,
             "label": dict(group.label),
             "order": int(group.order),
-        }
-
-    @staticmethod
-    def _serialize_view_context(vc: ViewContext) -> dict[str, Any]:
-        """Project a :class:`ViewContext` into the JSON-friendly shape the frontend renders.
-
-        Carries the context's key / bilingual ``{nl,en}`` label / ``permission_roles`` (the
-        view-convenience dropdown gate) plus the ``ui.tables``-shaped presentation primitives
-        (``columns`` / ``filterable_columns`` / ``default_sort`` / ``page_size``). Sequences are
-        flattened to plain lists and the label to a plain dict so the payload is pure JSON (the
-        edge ``json.dumps`` it). ``is_default`` rides along so the SPA can tell the synthesized
-        empty-is-valid default context apart from an authored one.
-        """
-        return {
-            "key": vc.key,
-            "label": dict(vc.label),
-            "permission_roles": list(vc.permission_roles),
-            "columns": list(vc.columns),
-            "filterable_columns": list(vc.filterable_columns),
-            "default_sort": dict(vc.default_sort) if vc.default_sort is not None else None,
-            "page_size": vc.page_size,
-            "is_default": vc.is_default,
         }
 
     def _active_membership_type_options(self, tenant_id: str) -> list[dict[str, Any]]:

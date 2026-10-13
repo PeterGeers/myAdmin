@@ -41,7 +41,6 @@ from services import projection_schema as schema
 from sam.members.domain.field_resolver import AnalyticsRole, TenantOverlay
 from sam.members.domain.fixed_fields import FieldType
 from sam.members.domain.scope_dimensions import ScopeConfig
-from sam.members.domain.view_contexts import DEFAULT_CONTEXT_KEY, ViewContext
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
 # ---------------------------------------------------------------------------
@@ -314,6 +313,86 @@ class TestGetOverlay:
 
 
 # ---------------------------------------------------------------------------
+# get_default_page_size — the Phase 2 step (a) pagination default on config#fields
+#
+# The per-context view_contexts.page_size re-homes to a SINGLE tenant-level
+# default_page_size scalar carried on the EXISTING config#fields row (NOT a new
+# config#views row). The reader surfaces it so the field-config response can resolve
+# rows-per-page as `userPreference ?? default_page_size ?? platformDefault`.
+# Empty-is-valid / fail-safe: absent/missing/non-positive/non-int → None.
+#
+# Validates: Requirements R2.1, R1.2
+# ---------------------------------------------------------------------------
+
+
+def _config_fields_item_with_page_size(tenant_id, page_size, version=1):
+    """A config#fields row carrying a default_page_size scalar (empty fields/overrides)."""
+    item = _config_fields_item(tenant_id, fields={}, overrides={}, version=version)
+    item["default_page_size"] = page_size
+    return item
+
+
+class TestGetDefaultPageSize:
+    def test_get_default_page_size_returns_authored_positive_int(self):
+        """A projected positive default_page_size is returned verbatim (R2.1)."""
+        table = FakeTable()
+        table.put(_config_fields_item_with_page_size("h-dcn", 50))
+
+        reader = MembersProjectionReader(table=table)
+
+        assert reader.get_default_page_size("h-dcn") == 50
+
+    def test_get_default_page_size_missing_row_returns_none(self):
+        """No config#fields row at all → None (platform fallback), never raises (R2.4)."""
+        table = FakeTable()  # nothing seeded
+
+        reader = MembersProjectionReader(table=table)
+
+        assert reader.get_default_page_size("unconfigured") is None
+
+    def test_get_default_page_size_missing_attribute_returns_none(self):
+        """A config#fields row without default_page_size → None (today's null-page_size behaviour)."""
+        table = FakeTable()
+        table.put(_config_fields_item("h-dcn", fields={}, overrides={}))
+
+        reader = MembersProjectionReader(table=table)
+
+        assert reader.get_default_page_size("h-dcn") is None
+
+    def test_get_default_page_size_non_positive_or_malformed_returns_none(self):
+        """A non-positive / non-int / boolean value collapses to None (read-side guard, R2.4)."""
+        for raw in (0, -10, "25", 3.5, True, False, [], {}, None):
+            table = FakeTable()
+            table.put(_config_fields_item_with_page_size("h-dcn", raw))
+            reader = MembersProjectionReader(table=table)
+            assert (
+                reader.get_default_page_size("h-dcn") is None
+            ), f"raw={raw!r} must resolve to None"
+
+    def test_get_default_page_size_shares_partition_cache_with_other_reads(self):
+        """The page-size read shares the per-invocation partition cache (one Query per tenant)."""
+        table = FakeTable()
+        table.put(_config_fields_item_with_page_size("h-dcn", 25))
+
+        reader = MembersProjectionReader(table=table)
+        reader.get_overlay("h-dcn")
+        reader.get_default_page_size("h-dcn")
+
+        assert table.query_counts["h-dcn"] == 1
+
+    def test_get_default_page_size_tenant_isolation(self):
+        """Each tenant's default answers only from its own partition — no cross-tenant bleed."""
+        table = FakeTable()
+        table.put(_config_fields_item_with_page_size("tenant-a", 25))
+        table.put(_config_fields_item_with_page_size("tenant-b", 100))
+
+        reader = MembersProjectionReader(table=table)
+
+        assert reader.get_default_page_size("tenant-a") == 25
+        assert reader.get_default_page_size("tenant-b") == 100
+
+
+# ---------------------------------------------------------------------------
 # member-analytics (R9, C-CONFIG) — the analytics slice on config#fields → TenantOverlay.analytics
 #
 # ODI-2: the analytics config rides on the SAME config#fields row (an `analytics` object), so the
@@ -523,151 +602,6 @@ def test_scope_and_grants_are_partition_scoped_across_tenants():
     assert b_grants == {"region": ["Zuid"]}
     # Exactly one Query per tenant partition.
     assert table.query_counts == {"tenant-a": 1, "tenant-b": 1}
-
-
-# ═══════════════════════════════════════════════════════════════════════════════════════
-# S5c Task 3.1 — get_view_contexts (the sibling config#views row).
-#
-# Feature: s5c-members-runnable-in-spa, C-VIEW.
-# Validates: Requirements 5.1
-#
-# The reader consumes the SETTLED projection shape (Open Design Item 1): a sibling config#views
-# row carrying a `contexts` list. Empty/absent → EXACTLY ONE default context (empty-is-valid),
-# over all visible fields (empty columns = the "all visible fields" sentinel).
-# ═══════════════════════════════════════════════════════════════════════════════════════
-
-
-def _config_views_item(tenant_id, contexts, version=1):
-    return {
-        schema.PARTITION_KEY_ATTR: tenant_id,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views"),
-        "contexts": contexts,
-        schema.VERSION_ATTR: version,
-    }
-
-
-def _overview_context_dict():
-    return {
-        "key": "overview",
-        "label": {"nl": "Overzicht", "en": "Overview"},
-        "permission_roles": ["Members_Read", "Members_CRUD"],
-        "columns": ["member_number", "email", "status"],
-        "filterable_columns": ["status"],
-        "default_sort": {"field": "member_number", "direction": "asc"},
-        "page_size": 50,
-    }
-
-
-class TestGetViewContexts:
-    def test_get_view_contexts_round_trips_authored_contexts(self):
-        table = FakeTable()
-        financial = {
-            "key": "financial",
-            "label": {"en": "Financial"},
-            "permission_roles": ["Members_CRUD"],
-            "columns": ["member_number", "iban"],
-            "filterable_columns": [],
-            "default_sort": None,
-            "page_size": 25,
-        }
-        table.put(_config_views_item("h-dcn", [_overview_context_dict(), financial]))
-
-        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
-
-        assert all(isinstance(c, ViewContext) for c in contexts)
-        assert [c.key for c in contexts] == ["overview", "financial"]
-        overview = contexts[0]
-        assert overview.label == {"nl": "Overzicht", "en": "Overview"}
-        assert tuple(overview.permission_roles) == ("Members_Read", "Members_CRUD")
-        assert tuple(overview.columns) == ("member_number", "email", "status")
-        assert tuple(overview.filterable_columns) == ("status",)
-        assert overview.default_sort == {"field": "member_number", "direction": "asc"}
-        assert overview.page_size == 50
-        assert contexts[1].page_size == 25
-        assert contexts[1].default_sort is None
-
-    def test_get_view_contexts_missing_row_collapses_to_one_default_context(self):
-        # No config#views row at all → exactly one default context (empty-is-valid, R5.1).
-        table = FakeTable()
-        table.put(_config_scope_item("h-dcn", []))  # some other row present, but no views row
-
-        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
-
-        assert len(contexts) == 1
-        ctx = contexts[0]
-        assert ctx.key == DEFAULT_CONTEXT_KEY
-        assert ctx.is_default is True
-        # Over all visible fields: empty columns = the "all visible fields" sentinel.
-        assert tuple(ctx.columns) == ()
-        assert tuple(ctx.filterable_columns) == ()
-
-    def test_get_view_contexts_empty_contexts_list_collapses_to_one_default(self):
-        # A present config#views row with an EMPTY contexts list → one default context.
-        table = FakeTable()
-        table.put(_config_views_item("h-dcn", []))
-
-        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
-
-        assert len(contexts) == 1
-        assert contexts[0].key == DEFAULT_CONTEXT_KEY
-
-    def test_get_view_contexts_all_malformed_contexts_collapse_to_one_default(self):
-        # Every entry malformed (non-dict / no key) → skipped → one default context.
-        table = FakeTable()
-        table.put(_config_views_item("h-dcn", ["nope", {"no_key": 1}, 42]))
-
-        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
-
-        assert len(contexts) == 1
-        assert contexts[0].key == DEFAULT_CONTEXT_KEY
-
-    def test_get_view_contexts_skips_malformed_but_keeps_well_formed(self):
-        table = FakeTable()
-        table.put(
-            _config_views_item("h-dcn", [{"no_key": 1}, _overview_context_dict()])
-        )
-
-        contexts = MembersProjectionReader(table=table).get_view_contexts("h-dcn")
-
-        assert [c.key for c in contexts] == ["overview"]
-
-    def test_get_view_contexts_degrades_malformed_subvalues(self):
-        # Non-list columns / non-mapping default_sort / non-int page_size degrade gracefully.
-        table = FakeTable()
-        table.put(
-            _config_views_item(
-                "h-dcn",
-                [
-                    {
-                        "key": "overview",
-                        "columns": "not-a-list",
-                        "filterable_columns": None,
-                        "default_sort": "not-a-map",
-                        "page_size": "50",
-                    }
-                ],
-            )
-        )
-
-        ctx = MembersProjectionReader(table=table).get_view_contexts("h-dcn")[0]
-
-        assert ctx.key == "overview"
-        assert tuple(ctx.columns) == ()
-        assert tuple(ctx.filterable_columns) == ()
-        assert ctx.default_sort is None
-        assert ctx.page_size is None
-
-    def test_get_view_contexts_tenant_isolation(self):
-        table = FakeTable()
-        table.put(_config_views_item("tenant-a", [_overview_context_dict()]))
-        # tenant-b has no views row.
-
-        reader = MembersProjectionReader(table=table)
-        a = reader.get_view_contexts("tenant-a")
-        b = reader.get_view_contexts("tenant-b")
-
-        assert [c.key for c in a] == ["overview"]
-        assert [c.key for c in b] == [DEFAULT_CONTEXT_KEY]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
@@ -964,9 +898,10 @@ class TestGetConfigStatus:
 
         assert status["scope"] == 5
         assert status["fields"] == "2026-10-12T09:00:00"
-        # views + mail were never delivered for this tenant → None.
-        assert status["views"] is None
+        # mail was never delivered for this tenant → None. Phase 2 (R5.3/R5.5) retired the
+        # config#views row, so the status map no longer carries a "views" key.
         assert status["mail"] is None
+        assert "views" not in status
 
     def test_get_config_status_all_absent_is_all_none(self):
         """A tenant with no projection at all → every config id maps to None (empty-is-valid)."""
@@ -974,10 +909,11 @@ class TestGetConfigStatus:
 
         status = MembersProjectionReader(table=table).get_config_status("unconfigured")
 
-        assert status == {"scope": None, "fields": None, "views": None, "mail": None}
+        # Phase 2 (R5.3/R5.5): no "views" key — the config#views row was retired.
+        assert status == {"scope": None, "fields": None, "mail": None}
 
     def test_get_config_status_shares_partition_cache(self):
-        """All four config rows resolve from ONE partition Query (per-invocation cache)."""
+        """All config rows resolve from ONE partition Query (per-invocation cache)."""
         table = FakeTable()
         table.put(_config_scope_item("h-dcn", [], version=1))
         table.put(_config_fields_item("h-dcn", fields={}, overrides={}, version=1))

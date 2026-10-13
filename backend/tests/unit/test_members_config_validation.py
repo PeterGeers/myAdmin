@@ -1,12 +1,13 @@
 """
 Unit tests for s5c Phase-2 tasks 2.2 / 2.3 / 2.4 (Flask/MySQL plane).
 
-- 2.2 / 2.3: the members-parameters definition endpoint serves the three params with the
-  composite types (`map<field_def>` for field_overlay, `list<object>` for scope_dimensions
-  and view_contexts, plus the nested functional_groups `list<object>`).
-- 2.4 (Property 7, R5.1a / R4.9): authoritative save-time validation rejects a view_contexts
-  referencing an unresolvable field_key and a field_overlay with a dangling functional_group
-  (or an invalid overlay), and ACCEPTS a valid one — fail-fast, no config corruption.
+- 2.2 / 2.3: the members-parameters definition endpoint serves the config params with the
+  composite types (`map<field_def>` for field_overlay, `list<object>` for scope_dimensions,
+  plus the nested functional_groups `list<object>`). Phase 2 (R5.1) retired the
+  `view_contexts` param/definition.
+- 2.4 (Property 7, R4.9): authoritative save-time validation rejects a field_overlay with a
+  dangling functional_group (or an invalid overlay), and ACCEPTS a valid one — fail-fast, no
+  config corruption.
 
 These are pure Flask-plane tests: the endpoint is exercised via a minimal blueprint-only app
 (no auth, no DB); the validator is a pure function (no DB, no mocks).
@@ -25,8 +26,8 @@ from services.members_config_validation import (
     validate_mail_certified,
     validate_mail_domain,
     validate_mail_local_part,
-    validate_view_contexts,
     validate_members_param,
+    validate_default_page_size,
     FIXED_FIELD_KEYS,
     CALCULATED_FIELD_KEYS,
 )
@@ -62,14 +63,15 @@ class TestMembersParametersEndpoint:
         assert isinstance(data, list)
 
         by_key = {d["key"]: d for d in data}
-        # All three members.* params are present.
-        assert set(by_key) == {"field_overlay", "scope_dimensions", "view_contexts"}
+        # The members.* definition params the typed editor renders (Phase 2 R5.1 retired
+        # the `view_contexts` definition).
+        assert set(by_key) == {"field_overlay", "scope_dimensions"}
+        assert "view_contexts" not in by_key
 
         # field_overlay is a map<field_def> composite.
         assert by_key["field_overlay"]["type"] == "map<field_def>"
-        # scope_dimensions and view_contexts are list<object> composites.
+        # scope_dimensions is a list<object> composite.
         assert by_key["scope_dimensions"]["type"] == "list<object>"
-        assert by_key["view_contexts"]["type"] == "list<object>"
 
         # Each carries the ledger-def language fields (labels + module gate).
         for d in data:
@@ -175,71 +177,6 @@ class TestFieldOverlayValidation:
 
 
 # ---------------------------------------------------------------------------
-# 2.4 — view_contexts save validation (R5.1a, Property 7)
-# ---------------------------------------------------------------------------
-
-
-class TestViewContextsValidation:
-
-    def test_validate_view_contexts_valid_context_accepts(self):
-        contexts = [
-            {
-                "key": "overview",
-                "columns": ["member_number", "email", "status"],
-                "filterable_columns": ["status"],
-                "default_sort": {"field": "last_name", "direction": "asc"},
-            }
-        ]
-        validate_view_contexts(contexts)  # all base keys resolve
-
-    def test_validate_view_contexts_unresolvable_field_key_raises(self):
-        contexts = [{"key": "overview", "columns": ["member_number", "not_a_field"]}]
-        with pytest.raises(MembersConfigError) as exc:
-            validate_view_contexts(contexts)
-        assert any("not_a_field" in k for k in exc.value.reasons)
-
-    def test_validate_view_contexts_calculated_field_resolves(self):
-        contexts = [{"key": "c", "columns": ["display_name", "age", "years_member"]}]
-        validate_view_contexts(contexts)  # calculated fields resolve
-
-    def test_validate_view_contexts_birth_part_calculated_fields_resolve(self):
-        # Drift regression: the four birth_* calculated keys are real
-        # (calculated_fields.CALCULATED_FIELDS) and must resolve, not be rejected.
-        contexts = [
-            {
-                "key": "c",
-                "columns": ["birth_day", "birth_month", "birth_year", "birth_quarter"],
-            }
-        ]
-        validate_view_contexts(contexts)  # must not raise
-
-    def test_validate_view_contexts_overlay_field_resolves(self):
-        overlay = {"fields": {"motor_brand": {"type": "string"}}}
-        contexts = [{"key": "c", "columns": ["member_number", "motor_brand"]}]
-        validate_view_contexts(contexts, field_overlay=overlay)
-
-    def test_validate_view_contexts_scope_dimension_key_resolves(self):
-        scope = [{"key": "region", "enabled": True, "values": ["A", "B"]}]
-        contexts = [{"key": "c", "columns": ["member_number", "region"]}]
-        validate_view_contexts(contexts, scope_dimensions=scope)
-
-    def test_validate_view_contexts_unresolvable_overlay_field_still_raises(self):
-        overlay = {"fields": {"motor_brand": {"type": "string"}}}
-        contexts = [{"key": "c", "columns": ["motor_brand", "ghost_field"]}]
-        with pytest.raises(MembersConfigError) as exc:
-            validate_view_contexts(contexts, field_overlay=overlay)
-        assert any("ghost_field" in k for k in exc.value.reasons)
-
-    def test_validate_view_contexts_default_sort_field_validated(self):
-        contexts = [{"key": "c", "columns": ["email"], "default_sort": {"field": "ghost"}}]
-        with pytest.raises(MembersConfigError):
-            validate_view_contexts(contexts)
-
-    def test_validate_view_contexts_empty_list_accepts(self):
-        validate_view_contexts([])  # empty-is-valid
-
-
-# ---------------------------------------------------------------------------
 # mail/0.1 — mail config save validation (R4 / §5f: per-tenant From + cert gate)
 # ---------------------------------------------------------------------------
 
@@ -332,24 +269,47 @@ class TestMailCertifiedValidation:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 step (a) — default_page_size save validation (R2.1, R2.6)
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultPageSizeValidation:
+    """`members.default_page_size`: an optional positive-int tenant DEFAULT (not a view object)."""
+
+    def test_validate_default_page_size_none_accepts(self):
+        # Optional param — unset defers to the table toolkit's own default.
+        validate_default_page_size(None)
+
+    @pytest.mark.parametrize("value", [1, 10, 25, 50, 100, 1000])
+    def test_validate_default_page_size_positive_int_accepts(self, value):
+        validate_default_page_size(value)  # should not raise
+
+    @pytest.mark.parametrize("value", [0, -1, -25])
+    def test_validate_default_page_size_non_positive_raises(self, value):
+        with pytest.raises(MembersConfigError) as exc:
+            validate_default_page_size(value)
+        assert "default_page_size" in exc.value.reasons
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_validate_default_page_size_bool_raises(self, value):
+        # bool is an int subclass — reject so True/False is never stored as 1/0.
+        with pytest.raises(MembersConfigError) as exc:
+            validate_default_page_size(value)
+        assert "default_page_size" in exc.value.reasons
+
+    @pytest.mark.parametrize("value", [25.0, "25", "fifty", [25], {"size": 25}])
+    def test_validate_default_page_size_non_int_raises(self, value):
+        with pytest.raises(MembersConfigError) as exc:
+            validate_default_page_size(value)
+        assert "default_page_size" in exc.value.reasons
+
+
+# ---------------------------------------------------------------------------
 # 2.4 — dispatch entry point
 # ---------------------------------------------------------------------------
 
 
 class TestValidateMembersParamDispatch:
-
-    def test_validate_members_param_view_contexts_uses_sibling_overlay(self):
-        overlay = {"fields": {"motor_brand": {"type": "string"}}}
-        contexts = [{"key": "c", "columns": ["motor_brand"]}]
-        # With the sibling overlay, motor_brand resolves.
-        validate_members_param(
-            "view_contexts", contexts, sibling_field_overlay=overlay
-        )
-
-    def test_validate_members_param_view_contexts_without_sibling_raises(self):
-        contexts = [{"key": "c", "columns": ["motor_brand"]}]
-        with pytest.raises(MembersConfigError):
-            validate_members_param("view_contexts", contexts)
 
     def test_validate_members_param_field_overlay_dispatches(self):
         overlay = {
@@ -377,6 +337,12 @@ class TestValidateMembersParamDispatch:
         validate_members_param("mail_certified", True)  # valid → no raise
         with pytest.raises(MembersConfigError):
             validate_members_param("mail_certified", "true")
+
+    def test_validate_members_param_default_page_size_dispatches(self):
+        validate_members_param("default_page_size", 25)   # valid → no raise
+        validate_members_param("default_page_size", None)  # optional → no raise
+        with pytest.raises(MembersConfigError):
+            validate_members_param("default_page_size", 0)
 
     def test_validate_members_param_unknown_key_is_noop(self):
         # A key with no save-time rule is accepted as-is (no raise).

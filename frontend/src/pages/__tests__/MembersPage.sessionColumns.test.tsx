@@ -15,8 +15,6 @@
  *  - no flat-alias collision: surfacing a field never clobbers an existing flat
  *    alias (region/name) value — R3.4.
  *  - member_number is always first + not removable — R7.1.
- *  - the OQ-1 context-switch rule: a user with a saved column list keeps it
- *    across a view-context switch — R3.3.
  *  - the persistence round-trip: `getColumnPreferences` seeds columns on load; a
  *    chooser change calls `saveColumnPreferences` with the FULL ordered list —
  *    R6.5 / C8.
@@ -30,8 +28,8 @@
  * `saveColumnPreferences` can be stubbed per test and the save call asserted);
  * the page is rendered with the shared `@/test-utils` `render` helper
  * (ChakraProvider); `useTypedTranslation` returns raw i18n keys so labels/buttons
- * are asserted by their raw keys. `useAuth` is permissive so every context is
- * selectable.
+ * are asserted by their raw keys. `useAuth` is permissive (role gating is not
+ * exercised here; the view-context dropdown was retired — task 3.3).
  *
  * HARNESS NOTE — the centralized Chakra mock (`src/__mocks__/chakra-ui-react.tsx`)
  * renders `Checkbox` WITHOUT honoring `isDisabled` (the prop is stripped by the
@@ -50,8 +48,8 @@ import { render, screen, waitFor, fireEvent, within } from '@/test-utils';
 
 vi.mock('../../services/membersApiService');
 
-// Permissive auth so every view context is selectable (the dropdown renders
-// only when ≥2 contexts are available — exercised by the context-switch test).
+// Permissive auth (role gating is not exercised by these column-chooser tests;
+// the view-context dropdown was retired in Phase 2 step b — task 3.3).
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true }),
 }));
@@ -424,49 +422,13 @@ describe('MembersPage — session columns (user column chooser)', () => {
     });
   });
 
-  // ── OQ-1 context switch retains a saved column list (R3.3) ────────────────────
-  describe('context switch retains a saved column list (OQ-1, R3.3)', () => {
-    it('keeps the user chosen columns after switching the view context', async () => {
-      // Two contexts open to everyone → the dropdown renders. Each defines its
-      // own columns, but a user WITH a saved list keeps that list across the
-      // switch (the context only drives default_sort / filterable_columns /
-      // page_size, not the column set).
-      mockGetFieldConfig.mockResolvedValue({
-        ...mockFieldConfig,
-        view_contexts: [
-          { key: 'ctx-a', label: { nl: 'Overzicht', en: 'Overview' }, columns: ['name', 'email'] },
-          { key: 'ctx-b', label: { nl: 'Financieel', en: 'Financial' }, columns: ['name', 'status'] },
-        ],
-      } as never);
-      mockGetColumnPreferences.mockResolvedValue(prefs(['name', 'years_member']) as never);
-
-      render(<MembersPage />);
-      await waitForRows();
-      await waitForColumn(YEARS_LABEL);
-
-      // The saved chosen column is shown in the first context.
-      expect(screen.getByText(YEARS_LABEL)).toBeInTheDocument();
-
-      // Switch context.
-      const dropdown = screen.getByLabelText('viewContext.label') as HTMLSelectElement;
-      fireEvent.change(dropdown, { target: { value: 'ctx-b' } });
-
-      // The chosen column is RETAINED (not rebuilt from the new context). The
-      // context switch re-renders asynchronously, so wait for the retained
-      // column's filter to settle (findBy retries) before driving it.
-      await waitFor(() => {
-        expect(screen.getByText(YEARS_LABEL)).toBeInTheDocument();
-      });
-      // Its filter still works post-switch (the column is still wired).
-      const yearsFilter =
-        (await screen.findByLabelText(`Filter by ${YEARS_LABEL}`)) as HTMLInputElement;
-      fireEvent.change(yearsFilter, { target: { value: '12' } });
-      await waitFor(() => {
-        expect(screen.getByText('Piet')).toBeInTheDocument();
-        expect(screen.queryByText('Jan')).not.toBeInTheDocument();
-      });
-    });
-  });
+  // ── Saved column list persists across re-render (R3.3) ───────────────────────
+  // NOTE (Phase 2 step b — task 3.3): the view-context dropdown was retired, so
+  // the former OQ-1 "retain the saved list across a context SWITCH" case no
+  // longer has a switch to drive. The surviving invariant — a user's saved column
+  // list is applied from the single generic table render over visible_fields() —
+  // is exercised by the persistence round-trip + surfacing cases below (the saved
+  // list seeds `chosenKeys` and renders regardless of any context).
 
   // ── Persistence round-trip (R6.5 / C8) ───────────────────────────────────────
   describe('persistence round-trip (R6.5, C8)', () => {

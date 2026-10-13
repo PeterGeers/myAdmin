@@ -2,8 +2,8 @@
 ``projection_sync`` for cohesion).
 
 The pure, read-only builders that shape a tenant's authored ``members.*`` tenant-scope
-parameters into the ``config#scope`` / ``config#fields`` / ``config#views`` projection
-rows the SAM/Lambda module plane reads (S5b design.md C2 / S5c C-VIEW). They are
+parameters into the ``config#scope`` / ``config#fields`` / ``config#mail`` projection
+rows the SAM/Lambda module plane reads (S5b design.md C2). They are
 re-exported from :mod:`services.projection_sync`; its public import surface is unchanged.
 
 One-directional discipline (Property 1): every builder here issues **zero** MySQL writes
@@ -55,15 +55,14 @@ _SCOPE_DIMENSIONS_PARAM_KEY = "scope_dimensions"
 #: this builder only READS whatever value exists (Property 1, one-directional).
 _FIELD_OVERLAY_PARAM_KEY = "field_overlay"
 
-#: The single tenant-scope parameter key that holds the Members view-context
-#: definitions as a JSON list, one entry per context. Authored by Tenant Admin
-#: (``members.view_contexts``, S5c Phase 2); read here and shaped into the
-#: sibling ``config#views`` row's ``contexts`` list — the shape the SAM-plane
-#: view-contexts reader (``projection_config_reader.get_view_contexts``) consumes
-#: (``key`` / ``label`` / ``permission_roles`` / ``columns`` /
-#: ``filterable_columns`` / ``default_sort`` / ``page_size``). This builder only
-#: READS whatever value exists (Property 1, one-directional).
-_VIEW_CONTEXTS_PARAM_KEY = "view_contexts"
+#: The single tenant-scope parameter key that holds the tenant-level default
+#: rows-per-page for the Members table (``members.default_page_size``, Phase 2
+#: step (a)). A single scalar DEFAULT — not a stored view object (``38`` rule 3) —
+#: carried onto the EXISTING ``config#fields`` row (NOT a new ``config#views`` row)
+#: so the SAM reader can surface it on the field-config response alongside the
+#: overlay. Read here read-only (Property 1); a per-user preference overrides it at
+#: render and an unset value falls back to the platform table-toolkit default.
+_DEFAULT_PAGE_SIZE_PARAM_KEY = "default_page_size"
 
 #: The single tenant-scope parameter key that holds the per-tenant "mail-enabled /
 #: SES-certified" onboarding gate flag as a boolean (pivot-output-actions R0,
@@ -456,15 +455,15 @@ def build_config_fields_row(
                 if isinstance(entry, Mapping):
                     fields[name] = _map_overlay_field(name, entry)
 
-        # The AUTHORED/validated key is ``fixed_overrides`` (design Data Models,
+        # The AUTHORED/validated input key is ``fixed_overrides`` (design Data Models,
         # ``members_parameters.json``, ``members_config_validation.validate_field_overlay``).
-        # Honor it as canonical; fall back to a legacy ``overrides`` key only if an
-        # older overlay still carries one. The PROJECTED attribute stays ``overrides``
-        # (the ``config#fields`` row shape + ``TenantOverlay.overrides`` consumer are
-        # unchanged) — only the SOURCE key read from the authored overlay changes.
+        # Phase 2 (R6.7) retired the legacy top-level ``overrides`` dual-accept: every stored
+        # overlay was migrated to ``fixed_overrides`` first (R6.1, the one-time migration under
+        # ``backend/src/migrations/``), so the builder now reads ONLY the canonical input key.
+        # The PROJECTED attribute stays ``overrides`` (the ``config#fields`` row shape +
+        # ``TenantOverlay.overrides`` consumer are unchanged, R6.8) — only the acceptance of the
+        # legacy SOURCE key is dropped.
         raw_overrides = raw_overlay.get("fixed_overrides")
-        if not isinstance(raw_overrides, Mapping):
-            raw_overrides = raw_overlay.get("overrides")
         if isinstance(raw_overrides, Mapping):
             for dotted_key, entry in raw_overrides.items():
                 if isinstance(entry, Mapping):
@@ -480,137 +479,61 @@ def build_config_fields_row(
                 if isinstance(entry, Mapping) and entry.get("key"):
                     functional_groups.append(_map_functional_group(entry))
 
+    # Phase 2 step (a): the tenant-level default rows-per-page is a scalar DEFAULT
+    # (NOT a stored view object, `38` rule 3) carried on this EXISTING config#fields
+    # row so the SAM reader can surface it on the field-config response alongside the
+    # overlay — no new config#views row. Read from its own `members.default_page_size`
+    # param (sibling to `field_overlay`). Only a positive int survives; any other
+    # value (absent/None/non-int/<=0) collapses to `None` so an unconfigured or
+    # malformed default falls back to the per-user preference / platform toolkit
+    # default at render (R2.1/R2.4 — the resolver's positive-int guarantee).
+    default_page_size = _resolve_default_page_size(
+        parameter_service.get_param(
+            _MEMBERS_PARAM_NAMESPACE,
+            _DEFAULT_PAGE_SIZE_PARAM_KEY,
+            tenant=tenant_id,
+        )
+    )
+
     return ProjectionItem(
         tenant_id=tenant_id,
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
         ),
+        # config#fields is now driven by TWO params — the field overlay AND the
+        # default_page_size scalar — so an edit to EITHER must bump the row (the
+        # version-bump-trap fix): the version is the max of their per-param revisions,
+        # falling back to the tenant row only when neither is authored.
         version=_config_row_version(
-            tenant, parameter_service, tenant_id, (_FIELD_OVERLAY_PARAM_KEY,)
+            tenant,
+            parameter_service,
+            tenant_id,
+            (_FIELD_OVERLAY_PARAM_KEY, _DEFAULT_PAGE_SIZE_PARAM_KEY),
         ),
         attributes={
             "fields": fields,
             "overrides": overrides,
             "functional_groups": functional_groups,
+            "default_page_size": default_page_size,
         },
     )
 
 
-# --- C-VIEW config#views builder (S5c design.md C-VIEW, R5.1) ---------------
+def _resolve_default_page_size(raw: Any) -> int | None:
+    """Coerce an authored ``members.default_page_size`` value to a positive int or ``None``.
 
-#: The fields a single projected view-context entry carries — the exact shape the
-#: SAM-plane view-contexts reader consumes and the Phase-2 authoring UI writes
-#: (``members.view_contexts``): ``key`` / ``label`` (i18n ``{nl,en}``) /
-#: ``permission_roles`` / ``columns`` / ``filterable_columns`` / ``default_sort``
-#: (``{field, direction}``) / ``page_size``. Each is mapped from the authored
-#: parameter dict with a safe default so a partially authored context still yields
-#: a well-formed entry rather than raising (empty-is-valid — the reader collapses a
-#: missing/empty list to one default context, so the projection never forces a
-#: context the tenant did not author).
-_VIEW_CONTEXT_DEFAULTS: dict[str, Any] = {
-    "key": None,
-    "label": dict,
-    "permission_roles": list,
-    "columns": list,
-    "filterable_columns": list,
-    "default_sort": None,
-    "page_size": None,
-}
-
-
-def _map_view_context(raw: Mapping[str, Any]) -> dict[str, Any]:
-    """Map one authored view-context dict to the ``config#views`` context shape.
-
-    Pure mapping of a single tenant-authored view context into the exact field set
-    the view-contexts reader consumes (``key``, ``label``, ``permission_roles``,
-    ``columns``, ``filterable_columns``, ``default_sort``, ``page_size``). Unknown
-    extra keys in the authored dict are dropped (the row carries only the shape the
-    module reads); absent fields fall back to a safe default so a partially authored
-    context still yields a well-formed entry rather than raising.
+    The projected default is a single scalar (Phase 2 step (a)): a **positive integer**
+    when the tenant has authored a usable value, else ``None`` so the field-config
+    response omits a meaningful default and the renderer falls back to the per-user
+    preference then the platform table-toolkit default (R2.1/R2.4). Degrades gracefully
+    on projected config data — an absent (``None``), non-int, boolean, or non-positive
+    value all collapse to ``None`` rather than raising. The authoring-plane validator
+    (task 1.1) already rejects a non-positive value at Save; this is the symmetric
+    read-side guard so a stray stored value never projects a zero/negative default.
     """
-    context: dict[str, Any] = {}
-    for field_name, default in _VIEW_CONTEXT_DEFAULTS.items():
-        if field_name in raw and raw[field_name] is not None:
-            context[field_name] = raw[field_name]
-        else:
-            context[field_name] = default() if callable(default) else default
-    return context
-
-
-def build_config_views_row(
-    tenant: Mapping[str, Any],
-    parameter_service: Any,
-) -> ProjectionItem | None:
-    """Build the tenant-level ``config#views`` projection item (S5c C-VIEW, R5.1).
-
-    Reads the tenant's Members view-context definitions from the tenant-scope
-    parameter system (``ParameterService.get_param`` on the ``members`` namespace,
-    key ``view_contexts``) and shapes them into the **sibling ``config#views``**
-    row's ``contexts`` list — the shape the SAM-plane view-contexts reader
-    (``sam/members/repository/projection_config_reader.get_view_contexts``)
-    consumes (each context = ``key`` / ``label`` / ``permission_roles`` /
-    ``columns`` / ``filterable_columns`` / ``default_sort`` / ``page_size``).
-
-    Projection-shape decision (S5c task 3.1, Open Design Item 1 — settled): view
-    contexts project as a **sibling ``config#views`` row**, not folded into
-    ``config#fields`` — see :data:`services.projection_schema.RECORD_TYPE_CONFIG`
-    for the rationale (separation of concern + independent versioning).
-
-    One-directional discipline (Property 1): this builder issues **zero** MySQL
-    writes and does **not** write the projection itself — it only READS via
-    ``ParameterService`` (which resolves the tenant-scope rows read-only) and
-    RETURNS the item for :class:`ProjectionSync` (the sole writer), mirroring the
-    sibling ``config#scope`` / ``config#fields`` builders.
-
-    Empty-is-valid (R5.1): a tenant that has authored no ``members.view_contexts``
-    parameter — or a malformed one — yields a row with an empty ``contexts`` list.
-    The reader then resolves that to **exactly one default context** over all
-    visible fields, never an error. Returning the row (rather than ``None``) keeps
-    the projection self-describing; the empty list is the default-context collapse.
-
-    Args:
-        tenant: The tenant row. Must carry ``administration`` (or ``tenant_id``)
-            — the partition key / tenancy boundary (R5.4).
-        parameter_service: A ``ParameterService`` (or anything exposing
-            ``get_param(namespace, key, tenant=...)``). Read-only.
-
-    Returns:
-        The ``config#views`` :class:`ProjectionItem` for this tenant. ``None`` is
-        never returned for a present tenant — an un-configured tenant still gets a
-        well-formed empty-``contexts`` row.
-
-    Raises:
-        ValueError: The tenant is missing its ``administration``/``tenant_id`` key.
-    """
-    tenant_id = tenant.get("administration") or tenant.get(schema.PARTITION_KEY_ATTR)
-    if not tenant_id:
-        raise ValueError(
-            "tenant is missing its 'administration'/'tenant_id' key — a blank "
-            "partition key is a cross-tenant hazard (R5.4)"
-        )
-
-    raw_contexts = parameter_service.get_param(
-        _MEMBERS_PARAM_NAMESPACE,
-        _VIEW_CONTEXTS_PARAM_KEY,
-        tenant=tenant_id,
-    )
-
-    contexts: list[dict[str, Any]] = []
-    if isinstance(raw_contexts, Sequence) and not isinstance(raw_contexts, str):
-        for entry in raw_contexts:
-            if isinstance(entry, Mapping):
-                contexts.append(_map_view_context(entry))
-
-    return ProjectionItem(
-        tenant_id=tenant_id,
-        sort_key=schema.build_sort_key(
-            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS
-        ),
-        version=_config_row_version(
-            tenant, parameter_service, tenant_id, (_VIEW_CONTEXTS_PARAM_KEY,)
-        ),
-        attributes={"contexts": contexts},
-    )
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return None
+    return raw if raw > 0 else None
 
 
 # --- R0 config#mail builder (pivot-output-actions R0, design §6.3, task 0.4) --
@@ -650,7 +573,7 @@ def build_config_mail_row(
     writes and does **not** write the projection itself — it only READS via
     ``ParameterService`` (which resolves the tenant-scope rows read-only) and
     RETURNS the item for :class:`ProjectionSync` (the sole writer), mirroring the
-    sibling ``config#scope`` / ``config#fields`` / ``config#views`` builders.
+    sibling ``config#scope`` / ``config#fields`` builders.
 
     Fail-closed defaults (R0/R4/R5): a tenant that has authored no parameter — or a
     malformed value — yields a safe, non-permissive row. ``mail_enabled`` and
@@ -752,6 +675,7 @@ def build_config_mail_row(
 
 
 __all__ = [
+    "_DEFAULT_PAGE_SIZE_PARAM_KEY",
     "_DIMENSION_DEFAULTS",
     "_FIELD_OVERLAY_PARAM_KEY",
     "_FIXED_OVERRIDE_FIELDS",
@@ -765,17 +689,14 @@ __all__ = [
     "_OVERLAY_FIELD_DEFAULTS",
     "_SCOPE_DIMENSIONS_PARAM_KEY",
     "_SCOPE_VERSION_FIELDS",
-    "_VIEW_CONTEXTS_PARAM_KEY",
-    "_VIEW_CONTEXT_DEFAULTS",
     "_config_row_version",
     "_map_fixed_override",
     "_map_functional_group",
     "_map_overlay_field",
     "_map_scope_dimension",
-    "_map_view_context",
+    "_resolve_default_page_size",
     "_scope_config_version",
     "build_config_fields_row",
     "build_config_mail_row",
     "build_config_scope_row",
-    "build_config_views_row",
 ]

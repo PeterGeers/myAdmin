@@ -2,13 +2,18 @@
  * Tests for the Members typed authoring UI (s5c tasks 2.5/2.6, task 2.7).
  *
  * Covers:
- *  - the four sub-editors render the composite types from the definition
+ *  - the sub-editors render the composite types from the definition
  *    (functional-group catalog list<object>, field overlay map<field_def>,
- *    scope dimensions list<object>, view contexts list<object>);
+ *    scope dimensions list<object>, analytics object slice);
  *  - a picker offers only defined groups / resolvable field keys (Property 7);
  *  - an enum option is authored as { value, label{nl,en}, roles };
  *  - saving issues exactly ONE PUT per param object (Property 8);
  *  - the unsaved-changes guard warns on navigate-away.
+ *
+ * NOTE (Members config redesign Phase 2, step b — task 3.3): the `view_contexts`
+ * sub-editor was retired, so its definition/fixture/cases were removed here per the
+ * Change-With-Tests contract. Every OTHER sub-editor case (Functional Groups, Field
+ * Overlay, Scope Dimensions, Analytics) is kept, with its assertions unchanged.
  *
  * Uses the project's inline Chakra mock (steering 33): Chakra is auto-aliased to the
  * centralized mock, which renders all TabPanels (no Tab state), so every sub-editor is in
@@ -174,20 +179,6 @@ const DEFS: MembersParamDefinition[] = [
       { key: 'required_for', type: 'string[]', label_en: 'Required For', label_nl: 'Vereist voor' },
     ],
   },
-  {
-    key: 'view_contexts',
-    type: 'list<object>',
-    label_en: 'View Contexts',
-    label_nl: 'Weergavecontexten',
-    module: 'MEMBERS',
-    object_fields: [
-      { key: 'key', type: 'string', label_en: 'Context Key', label_nl: 'Contextsleutel' },
-      { key: 'label_en', type: 'string', label_en: 'Label (English)', label_nl: 'Label (Engels)' },
-      { key: 'permission_roles', type: 'string[]', label_en: 'Permission Roles', label_nl: 'Toegestane rollen' },
-      { key: 'columns', type: 'string[]', label_en: 'Columns', label_nl: 'Kolommen' },
-      { key: 'filterable_columns', type: 'string[]', label_en: 'Filterable Columns', label_nl: 'Filterbare kolommen' },
-    ],
-  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -232,23 +223,10 @@ const scopeRow = {
   is_secret: false,
 };
 
-const viewRow = {
-  id: 103,
-  namespace: 'members',
-  key: 'view_contexts',
-  value: [
-    { key: 'overview', label_en: 'Overview', label_nl: 'Overzicht', columns: ['motor_brand'] },
-  ],
-  value_type: 'json' as const,
-  scope_origin: 'tenant' as const,
-  is_secret: false,
-};
-
 function allRows() {
   return {
     field_overlay: overlayRow,
     scope_dimensions: scopeRow,
-    view_contexts: viewRow,
   };
 }
 
@@ -300,13 +278,12 @@ describe('MembersConfigEditor', () => {
     });
   });
 
-  describe('composite-type rendering (four sub-editors)', () => {
-    it('renders all four sub-editors from the definition', async () => {
+  describe('composite-type rendering (sub-editors)', () => {
+    it('renders the kept sub-editors from the definition', async () => {
       await renderEditor();
       expect(screen.getByTestId('sub-editor-field_overlay-functional_groups')).toBeInTheDocument();
       expect(screen.getByTestId('sub-editor-field_overlay-fields-fixed_overrides')).toBeInTheDocument();
       expect(screen.getByTestId('sub-editor-scope_dimensions')).toBeInTheDocument();
-      expect(screen.getByTestId('sub-editor-view_contexts')).toBeInTheDocument();
     });
 
     it('renders the functional-group catalog list<object> rows', async () => {
@@ -321,10 +298,9 @@ describe('MembersConfigEditor', () => {
       expect(screen.getByTestId('fields-entry-motor_brand')).toBeInTheDocument();
     });
 
-    it('renders scope dimensions and view contexts as list<object> rows', async () => {
+    it('renders scope dimensions as list<object> rows', async () => {
       await renderEditor();
       expect(screen.getByTestId('scope_dimensions-row-0')).toBeInTheDocument();
-      expect(screen.getByTestId('view_contexts-row-0')).toBeInTheDocument();
     });
   });
 
@@ -339,22 +315,6 @@ describe('MembersConfigEditor', () => {
       expect(optionValues).toContain('personal');
       expect(optionValues).toContain('motor');
       expect(optionValues.filter((v) => v !== '')).toEqual(['personal', 'motor']);
-    });
-
-    it('view-context column picker offers ONLY resolvable field keys', async () => {
-      await renderEditor();
-      const viewEditor = screen.getByTestId('sub-editor-view_contexts');
-      // The column picker Select(s) inside the view context row.
-      const selects = Array.from(viewEditor.querySelectorAll('select')) as HTMLSelectElement[];
-      const columnSelect = selects.find((s) =>
-        Array.from(s.options).some((o) => o.value === 'motor_brand'),
-      );
-      expect(columnSelect).toBeTruthy();
-      const values = Array.from(columnSelect!.options).map((o) => o.value).filter(Boolean);
-      // Resolvable set = overlay field (motor_brand) + scope dim key (region); no others.
-      expect(values).toContain('motor_brand');
-      expect(values).toContain('region');
-      expect(values).not.toContain('nonexistent_field');
     });
   });
 
@@ -384,20 +344,20 @@ describe('MembersConfigEditor', () => {
     });
 
     it('an unauthored param creates the tenant row in exactly one request', async () => {
-      // No existing rows → view_contexts is unauthored.
+      // No existing rows → scope_dimensions is unauthored.
       await renderEditor({});
-      const viewEditor = screen.getByTestId('sub-editor-view_contexts');
-      const addBtn = within(viewEditor).getByRole('button', { name: /Add View Contexts/i });
+      const scopeEditor = screen.getByTestId('sub-editor-scope_dimensions');
+      const addBtn = within(scopeEditor).getByRole('button', { name: /Add Scope Dimensions/i });
       fireEvent.click(addBtn);
 
-      const saveBtn = within(viewEditor).getByRole('button', { name: 'Save' });
+      const saveBtn = within(scopeEditor).getByRole('button', { name: 'Save' });
       await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
       fireEvent.click(saveBtn);
 
       await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
       expect(mockUpdate).not.toHaveBeenCalled();
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ scope: 'tenant', namespace: 'members', key: 'view_contexts', value_type: 'json' }),
+        expect.objectContaining({ scope: 'tenant', namespace: 'members', key: 'scope_dimensions', value_type: 'json' }),
       );
     });
   });
