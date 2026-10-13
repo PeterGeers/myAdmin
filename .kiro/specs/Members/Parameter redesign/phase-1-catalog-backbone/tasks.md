@@ -1,24 +1,29 @@
-# Phase 1 — Catalog Backbone — Tasks
+# Implementation Plan
 
-> **Status: TASKS.** Implements `design.md` against `requirements.md`. Each task is additive and
-> non-breaking (R2); after each, the full existing SAM + Flask + frontend field-model suites must
-> stay green. Tasks are ordered so each lands safely on its own.
->
-> Planes: SAM = `sam/members/...` (pytest via `sam/pytest.ini`); Flask = `backend/src` +
-> `backend/tests` (pytest via `backend/pytest.ini`). Do NOT import `sam.*` into `backend/src`
-> (steering 30/31 cross-plane boundary) — Flask-side conformance tests read JSON + a transcribed
-> view and compare, never import the SAM catalog.
->
-> **Testing conventions (per `40-spec-workflow.md` "include testing per phase" + `34`/`33`).**
-> Each phase below states its testing requirement inline (the `_test_` tasks). All tests follow
-> `34-backend-testing.md` (naming `test_{function}_{scenario}_{expected}`; SAM tests under
-> `sam/tests/` run via `sam/pytest.ini`; Flask unit tests under `backend/tests/unit/` with the
-> `mock_db`/`mock_env` isolation fixtures, never a real DB) and `33-frontend-testing.md` for any
-> frontend-touching i18n-resolution test. The **Change-With-Tests Contract** (`30`/`32`) applies:
-> any behavior/markup change updates its paired test in the SAME task. A phase is not done until its
-> stated tests are green.
+Phase 1 — Catalog Backbone — tasks. Implements `design.md` against `requirements.md`.
 
-## 1. Base functional-group set (R4, R5)
+## Overview
+
+Each task is additive and non-breaking (R2); after each, the full existing SAM + Flask + frontend
+field-model suites must stay green. Tasks are ordered so each lands safely on its own.
+
+Planes: SAM = `sam/members/...` (pytest via `sam/pytest.ini`); Flask = `backend/src` +
+`backend/tests` (pytest via `backend/pytest.ini`). Do NOT import `sam.*` into `backend/src`
+(steering 30/31 cross-plane boundary) — Flask-side conformance tests read JSON + a transcribed view
+and compare, never import the SAM catalog.
+
+**Testing conventions (per `40-spec-workflow.md` "include testing per phase" + `34`/`33`).** Each
+phase below states its testing requirement inline (the `_test_` tasks). All tests follow
+`34-backend-testing.md` (naming `test_{function}_{scenario}_{expected}`; SAM tests under
+`sam/tests/` run via `sam/pytest.ini`; Flask unit tests under `backend/tests/unit/` with the
+`mock_db`/`mock_env` isolation fixtures, never a real DB) and `33-frontend-testing.md` for any
+frontend-touching i18n-resolution test. The **Change-With-Tests Contract** (`30`/`32`) applies: any
+behavior/markup change updates its paired test in the SAME task. A phase is not done until its
+stated tests are green.
+
+## Tasks
+
+### 1. Base functional-group set (R4, R5)
 > *Testing (R5):* 1.3 is this phase's test — the base-group closure guard.
 
 - [ ] **1.1 Define `BASE_FUNCTIONAL_GROUPS`** in the SAM domain (`attribute_catalog.py` or a small
@@ -32,7 +37,7 @@
   `FIXED_FIELDS` + `CALCULATED_FIELDS` field's `default_functional_group()` is a key in
   `BASE_FUNCTIONAL_GROUPS`. Fails if a registry field names a group absent from the base set. _(R5.2)_
 
-## 2. The attribute vocabulary (R1)
+### 2. The attribute vocabulary (R1)
 > *Testing (R1/R7):* covered by phase 3's drift + completeness tests (3.3, 3.4) once the inventory
 > is built on this vocabulary.
 
@@ -49,7 +54,7 @@
 - [ ] **2.4 Mark `scope_binding` + `alias` as declared-only** — set a `note` stating they are wired
   in Phase 3 (resolver/render), not Phase 1. _(R8.1, R8.2, R8.3)_
 
-## 3. The field inventory (computed, drift-guarded) (R1.4, R7)
+### 3. The field inventory (computed, drift-guarded) (R1.4, R7)
 > *Testing (R1/R7):* 3.3 (inventory ⇄ registry drift guard), 3.4 (vocabulary completeness),
 > 3.5 (self-validation raises) — `sam/tests/test_attribute_catalog.py`.
 
@@ -57,8 +62,8 @@
   `CALCULATED_FIELDS`, projecting each into a `CatalogField` via the SAME accessors the resolver uses
   (`dotted_key()`, `type.value`, `required`, `label`, `default_functional_group()`, `order`,
   `read_only` for calculated). Re-type NO field names/labels. Assemble `AttributeCatalog(attributes,
-  fields, functional_groups=BASE_FUNCTIONAL_GROUPS, label_convention="inline-i18n-dict")`. _(R1.4,
-  R1.6, R3.4)_
+  fields, functional_groups=BASE_FUNCTIONAL_GROUPS, label_convention="i18n-keys+tenant-inline-override")`.
+  _(R1.4, R1.6, R3.4)_
 - [ ] **3.2 Import-time self-validation** in `build_attribute_catalog()` (or module import): raise
   `ValueError` on a duplicate `AttributeSpec.key`, a `CatalogField.functional_group` not in the base
   group keys, or an enum-rule inconsistency — same fail-fast discipline as `fixed_fields.py`. _(R7.1)_
@@ -73,7 +78,7 @@
 - [ ] **3.5 Self-validation raises test**: inject an inconsistent catalog (dup key / dangling group)
   in a test and assert `build_attribute_catalog()` raises. _(R7.1)_
 
-## 4. Base-group-aware reference validation (the one resolver-adjacent change) (R4.2, R5.4)
+### 4. Base-group-aware reference validation (the one resolver-adjacent change) (R4.2, R5.4)
 > *Testing (R2/R4/R5):* 4.2 (resolver output unchanged — the non-breaking guard), 4.3 (base-key
 > resolves / dangling still raises), 4.4 (group merge rule) — extend `sam/tests/test_field_resolver.py`.
 
@@ -90,7 +95,7 @@
 - [ ] **4.4 Group merge-rule test**: resolved groups = base ⊕ tenant, tenant key wins on collision,
   base keys fill the rest; a base group is always present (no hiding in Phase 1). _(R5.3)_
 
-## 5. The i18n label model — Option (b) (R3)
+### 5. The i18n label model — Option (b) (R3)
 > *Testing (R3):* 5.3 (value/label split), 5.4 (tenant-label save round-trip, `backend/tests/unit/`
 > with `mock_db`), 5.5 (missing-locale fallback), 5.6 (add-a-language proof) — follow `33`/`34`.
 
@@ -127,7 +132,7 @@
   `label_convention="i18n-keys+tenant-inline-override"` + the fallback order + the key scheme on the
   catalog. _(R3.7)_
 
-## 6. Flask ⇄ catalog conformance (no cross-plane import) (R7.2)
+### 6. Flask ⇄ catalog conformance (no cross-plane import) (R7.2)
 > *Testing (R7 / `36` rule 5):* 6.1 IS the test — a cross-plane vocabulary guard, the `36` rule-5
 > pattern (one source, agreement enforced by a test), mirroring `members_config_validation`'s
 > field-key guard. `backend/tests/unit/`, no `sam.*` import.
@@ -139,7 +144,7 @@
   (`analysis.md` 2.4). Add a note pointing at `attribute_catalog.py` as the source of truth to
   re-transcribe from on change. _(R7.2, R7.3)_
 
-## 7. Display-ordering contract (R6)
+### 7. Display-ordering contract (R6)
 
 - [ ] **7.1 Document the display-ordering contract** in `design.md`/the catalog `note`: display
   position = `(functional_group.order, field.order, field.key)`; distinct from the resolver's
@@ -148,7 +153,7 @@
 - [ ] **7.2 Ordering determinism test**: given base groups + fields, computing display position by
   `(group.order, field.order, key)` is stable and ties break by `key`. _(R6.4)_
 
-## 8. Module-neutral shape + the `38` steering file (R9)
+### 8. Module-neutral shape + the `38` steering file (R9)
 
 - [ ] **8.1 Shaping review** — review the catalog model (`AttributeSpec`/`CatalogField`/
   `AttributeCatalog`, the functional-group model, the i18n rule, the drift-guard) and confirm NO
@@ -172,7 +177,7 @@
 - [ ] **8.6 Confirm R9 adds no runtime surface** — R9 is a shaping + docs requirement; verify it
   introduced only the steering file + a design note, no code behavior change. _(R9.5)_
 
-## 9. Verification + close-out
+### 9. Verification + close-out
 
 - [ ] **9.1 Run the SAM suite**: `cd sam && pytest tests/test_attribute_catalog.py
   tests/test_field_resolver.py tests/test_members_resolved_field_surface.py -q` (via `sam/pytest.ini`).
@@ -195,32 +200,7 @@
   `00-index.md` (tasks 8.3/8.4), with `35`/`37` cross-refs (8.5). A phase is not complete until its
   steering is updated.
 
-## Deferred to later phases (recorded, not done here)
-
-- Serving the catalog to the authoring UI + building the group → field → attribute UI — **Phase 3**
-  (`impact-analysis.md` §9 step 11).
-- Wiring `scope_binding` into the resolver + folding `alias`/analytics into field attributes at
-  runtime — **Phase 3** (steps 9–10).
-- Collapsing fixed/overlay → one list + provenance badge; "only `member_id` is fixed" (4.1) —
-  **Phase 3** (high blast radius).
-- Retiring `view_contexts` + the pagination model — **Phase 2**.
-- Role-gating of a functional group; letting a tenant hide a base group — deferred (design D8).
-
-## Requirements coverage
-
-| Requirement | Tasks |
-|---|---|
-| R1 (catalog exists, first-class) | 2.1, 2.2, 2.3, 3.1, 3.3, 3.4 |
-| R2 (additive, non-breaking) | 4.2, 9.1, 9.2, 9.3 |
-| R3 (i18n = Option b: resource keys + tenant inline override) | 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7 |
-| R4 (functional group = first-class) | 1.1, 4.1, 4.3, 4.4 |
-| R5 (base functional-group set) | 1.1, 1.2, 1.3, 4.1, 4.3, 4.4 |
-| R6 (explicit display ordering) | 7.1, 7.2 |
-| R7 (self-validating, drift-guarded) | 3.2, 3.3, 3.4, 3.5, 6.1 |
-| R8 (scope-binding + alias declared) | 2.2, 2.4 |
-| R9 (module-neutral shape + steering `38`) | 8.1, 8.2, 8.3, 8.4, 8.5, 8.6 |
-
-## 10. CI/CD + ship (per `43-cicd-deploys.md`)
+### 10. CI/CD + ship (per `43-cicd-deploys.md`)
 
 > **What this phase actually deploys.** Phase 1 is additive and non-runtime-breaking (R2). The code
 > touches: `sam/members/domain/**` (the catalog + the one resolver-adjacent change), `backend/src`
@@ -261,3 +241,53 @@
 - [ ] **10.7 Pool trigger is NOT touched** — note for the record: this phase changes no PreTokenGen
   / Cognito wiring, so no identity-account (`344561557829`) manual step applies. _(43 "Deploys touch
   the DATA account only")_
+
+## Task Dependency Graph
+
+Phases are mostly sequential on the catalog artifact, with two independent legs (i18n §5 and the
+steering/docs §8) that can proceed in parallel once the catalog exists.
+
+```
+1 (base groups)
+└─> 2 (attribute vocabulary)
+      └─> 3 (field inventory + drift guard)   ── depends on 1 (base-group closure) + 2 (vocabulary)
+            ├─> 4 (base-group-aware reference validation)   ── depends on 1 + 3
+            ├─> 6 (Flask ⇄ catalog conformance test)        ── depends on 2 (authorable attrs)
+            └─> 7 (display-ordering contract)                ── depends on 1 (group order) + 3
+
+5 (i18n Option b)        ── independent leg; depends on 1 (base-group labels) + 3 (field inventory)
+8 (module-neutral + steering 38)  ── independent leg; depends on 2 + 3 existing (reviews the shape)
+
+9 (verification + close-out)   ── depends on ALL of 1–8
+10 (CI/CD + ship)              ── depends on 9 (green locally) before any PR/deploy
+```
+
+Critical path: **1 → 2 → 3 → 4 → 9 → 10**. Legs **5** and **8** join at **9**. No task in a later
+phase may be checked done before its listed dependencies.
+
+## Notes
+
+### Requirements coverage
+
+| Requirement | Tasks |
+|---|---|
+| R1 (catalog exists, first-class) | 2.1, 2.2, 2.3, 3.1, 3.3, 3.4 |
+| R2 (additive, non-breaking) | 4.2, 9.1, 9.2, 9.3 |
+| R3 (i18n = Option b: resource keys + tenant inline override) | 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7 |
+| R4 (functional group = first-class) | 1.1, 4.1, 4.3, 4.4 |
+| R5 (base functional-group set) | 1.1, 1.2, 1.3, 4.1, 4.3, 4.4 |
+| R6 (explicit display ordering) | 7.1, 7.2 |
+| R7 (self-validating, drift-guarded) | 3.2, 3.3, 3.4, 3.5, 6.1 |
+| R8 (scope-binding + alias declared) | 2.2, 2.4 |
+| R9 (module-neutral shape + steering `38`) | 8.1, 8.2, 8.3, 8.4, 8.5, 8.6 |
+
+### Deferred to later phases (recorded, not done here)
+
+- Serving the catalog to the authoring UI + building the group → field → attribute UI — **Phase 3**
+  (`impact-analysis.md` §9 step 11).
+- Wiring `scope_binding` into the resolver + folding `alias`/analytics into field attributes at
+  runtime — **Phase 3** (steps 9–10).
+- Collapsing fixed/overlay → one list + provenance badge; "only `member_id` is fixed" (4.1) —
+  **Phase 3** (high blast radius).
+- Retiring `view_contexts` + the pagination model — **Phase 2**.
+- Role-gating of a functional group; letting a tenant hide a base group — deferred (design D8).
