@@ -596,5 +596,10 @@
       "success": "Status gewijzigd voor {{count}} leden",
       "error": "Bulk status wijzigen mislukt"
     }
+  },
+  "pagination": {
+    "previous": "Vorige",
+    "next": "Volgende",
+    "pageOf": "Pagina {{page}} van {{total}}"
   }
 }

@@ -50,7 +50,6 @@ services:
       - "5000:5000"
     depends_on:
       - mysql
-      - dynamodb-local
     env_file:
       - ./backend/.env
     environment:
@@ -76,11 +75,22 @@ services:
       - COGNITO_USER_POOL_ID=eu-west-1_xyrlzfqbl
       - COGNITO_CLIENT_ID=43s15cm8qcgg8an85udt0e087u
       - COGNITO_CLIENT_SECRET=
-      # Point the S3 projection's DynamoDB client at the local container. This
-      # var is the SOLE switch for local DynamoDB (S3 R4.1) — when it is unset,
-      # boto3 resolves real AWS. In-network hostname, not localhost.
-      - AWS_ENDPOINT_URL_DYNAMODB=http://dynamodb-local:8000
+      # TEST runs against REAL DynamoDB in the data account (nonprofit-deploy,
+      # 506221081911) — NOT the local emulator (that is DEV-only). So
+      # AWS_ENDPOINT_URL_DYNAMODB is intentionally UNSET here (unset => real AWS).
+      #
+      # IMPORTANT: the data-account profile is scoped to the DynamoDB PROJECTION
+      # client ONLY (GOVERNANCE_PROJECTION_AWS_PROFILE), NOT a container-wide
+      # AWS_PROFILE — because Cognito (user-pool admin, e.g. the USERS screen)
+      # lives in the IDENTITY account and must keep the container's default
+      # credentials. A container-wide profile would send Cognito to the data
+      # account and fail with 'user pool does not exist'. The read-only ~/.aws
+      # mount below lets the projection client resolve the nonprofit-deploy profile.
+      - GOVERNANCE_PROJECTION_AWS_PROFILE=nonprofit-deploy
     volumes:
+      # Read-only AWS config so the container resolves the data-account profile
+      # (nonprofit-deploy) for the real-DynamoDB projection. Never committed.
+      - ~/.aws:/root/.aws:ro
       - ./backend:/app
       - ./frontend/build:/app/frontend/build
       - ./docs/site:/app/docs-site

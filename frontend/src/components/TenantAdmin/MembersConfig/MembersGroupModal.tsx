@@ -82,13 +82,31 @@ interface GroupForm {
 
 const EMPTY_FORM: GroupForm = { key: '', label_en: '', label_nl: '', order: '' };
 
-/** Read a group's current attributes into the editable form shape. */
+/**
+ * Read a group's current attributes into the editable form shape.
+ *
+ * Fold-aware label read (fixes the group-label round-trip bug): a FRESH (unsaved) group
+ * carries the editor's flat per-locale `label_en`/`label_nl` inputs, but a RELOADED group
+ * carries the SERVER-FOLDED inline `label{ nl, en }` dict (the save path folds the per-locale
+ * inputs into `label{}` and drops `label_<locale>`; see members_config_validation
+ * `_fold_entry_labels`). Seed from the flat input when present, else fall through to the folded
+ * `label{}` — so a saved Dutch/English label survives reopen instead of appearing blank.
+ */
 function formFromGroup(group: OverlayGroup | undefined): GroupForm {
   if (!group) return { ...EMPTY_FORM };
+  const folded =
+    group.label && typeof group.label === 'object' && !Array.isArray(group.label)
+      ? (group.label as Record<string, unknown>)
+      : {};
+  const loc = (flat: unknown, key: string): string => {
+    if (typeof flat === 'string') return flat;
+    const v = folded[key];
+    return typeof v === 'string' ? v : '';
+  };
   return {
     key: group.key ?? '',
-    label_en: typeof group.label_en === 'string' ? group.label_en : '',
-    label_nl: typeof group.label_nl === 'string' ? group.label_nl : '',
+    label_en: loc(group.label_en, 'en'),
+    label_nl: loc(group.label_nl, 'nl'),
     order: typeof group.order === 'number' ? String(group.order) : '',
   };
 }
