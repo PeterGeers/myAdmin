@@ -474,6 +474,16 @@ export interface FieldConfigField {
    */
   options?: Array<string | EnumOptionConfig> | null;
   /**
+   * The SCOPE-AXIS attribute (R3.5/R3.6, single-vocabulary). When the field is a scope axis the
+   * resolved config serves `scope = { enabled, required_for? }`. The scope VALUES are NOT carried
+   * here — they ARE the field's enum values ({@link options}), the ONE vocabulary (R3.2/R3.3). The
+   * field modal reads this to seed the scope section (an `enabled` toggle + a `required_for` roles
+   * control); it does NOT render a separate scope-values list. Absent/null → the field is not a
+   * scope axis. A legacy stored `scope.values` is honoured by the server as a migration fallback
+   * only — never served back here.
+   */
+  scope?: { enabled?: boolean; required_for?: string[] } | null;
+  /**
    * Whether the field belongs to the compact (always-visible) view. When
    * omitted, the page treats the field as full-view-only (overlay column).
    */
