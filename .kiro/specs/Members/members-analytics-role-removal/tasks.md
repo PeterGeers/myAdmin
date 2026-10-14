@@ -338,7 +338,8 @@ dependencies are satisfied.
   - **Verify:** `config#fields` no longer carries the `analytics` role-config slice; the resolved field
     SET/ordering/other slices unchanged; `sam-members` untouched.
 
-- [ ] 7. **MANUAL human sign-off gate** — re-run inventoried pivots in TEST before any PROD promotion
+- [x] 7. **MANUAL human sign-off gate** — re-run inventoried pivots in TEST before any PROD promotion
+  - **DONE (owner sign-off):** PR #103 merged to `test` (merge commit `f694efd`), `Deploy SAM Members` to the data account GREEN. Owner manually verified on the deployed TEST env: Member Analytics **pivot**, **analytics**, and **member-overview** all work correctly with the preset/role/jubilee/address machinery removed — the generic Dynamic Pivot Views mechanism covers the subsets end-to-end. CodeQL did NOT run on the `test` PR (default-setup PR trigger not firing on `test`-base PRs today); merged via owner authorization with per-step gates + GitGuardian green. CodeQL will gate the `test → main` promotion.
   - **Depends on:** Task 5 (inventory report) + Task 6 (TEST re-projection).
   - A **person** manually re-runs each pivot/set from the Task 5 inventory **in TEST** and confirms each
     still produces the intended result. This is an explicit human checklist, not an automated claim —
@@ -355,7 +356,7 @@ dependencies are satisfied.
 
 ## Completeness
 
-- [ ] 8. **Fix-Checking completeness** — manifest clean, drift guard green, touched suites green
+- [x] 8. **Fix-Checking completeness** — manifest clean, drift guard green, touched suites green
   - **Depends on:** gates 1.G / 2.G / 3.G / 4.G.
   - **Property 1: Expected Behavior** — Role/Jubilee/Address/Preset machinery fully removed
   - **IMPORTANT:** re-run the SAME manifest + suites from the gates — do not write new ones. This
@@ -379,7 +380,7 @@ dependencies are satisfied.
 
 ## Ship (steering 43)
 
-- [ ] 9. Ship — feature branch → PR into `test` → promote by merge to `main` (DATA account only)
+- [-] 9. Ship postponed to .kiro\specs\Members\Parameter redesign\phase-3-reshape-model-and-ui Ship — feature branch → PR into `test` → promote by merge to `main` (DATA account only)
   - **Depends on:** Task 7 (manual TEST sign-off) + Task 8 (completeness) — both MUST pass first.
   - Commit the removal on the feature branch (`spec/...`); **never push straight to `main`**. Open a PR
     into **`test`**; let the per-PR gates (CodeQL + GitGuardian) go green. Promotion to TEST is by

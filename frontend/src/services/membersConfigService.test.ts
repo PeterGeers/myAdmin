@@ -15,9 +15,7 @@ import {
   saveMembersParameter,
   getMembersParameterDefinitions,
   MEMBERS_NAMESPACE,
-  LABEL_KEY_SCHEME,
-  resolveShippedLabel,
-  type LabelTranslator,
+  resolveFieldConfigLabel,
 } from './membersConfigService';
 import * as parameterService from './parameterService';
 import * as apiService from './apiService';
@@ -136,162 +134,45 @@ describe('membersConfigService', () => {
   });
 
   // -------------------------------------------------------------------------
-  // i18n Option (b) — task 4.2 (R4.4, `38` rule 6). The shipped-label resource
-  // key SCHEME and the resolve-with-precedence rule.
+  // Label resolution — plain per-language value over the served `label{}` (R4).
+  // The drill-down resolves labels STRAIGHT from the resolved config's stored
+  // `label{nl,en}` dict — there is no resource-key indirection on the server
+  // (the retired `useMembersLabels`/`resolveShippedLabel`/`LABEL_KEY_SCHEME`
+  // resolver is no longer the drill-down's label authority).
   // -------------------------------------------------------------------------
-  describe('LABEL_KEY_SCHEME (shipped-label resource-key scheme, R4.4)', () => {
-    it('builds the field / group / enum keys exactly as the SAM catalog pins them', () => {
-      // Mirrors `attribute_catalog.LABEL_KEY_SCHEME` byte-for-byte (no sam.* import — the
-      // frontend half of the rule-5 shared-vocabulary guard). The key SEGMENT is the
-      // canonical snake_case field key / enum value, verbatim (never translated, R3.4).
-      expect(LABEL_KEY_SCHEME.fieldKey('first_name')).toBe('admin:membersConfig.field.first_name');
-      expect(LABEL_KEY_SCHEME.fieldKey('member_number')).toBe(
-        'admin:membersConfig.field.member_number',
+  describe('resolveFieldConfigLabel (label[lang] ?? label.en ?? label.nl ?? key, R4.1/R4.2/R4.4)', () => {
+    const label = { en: 'First name', nl: 'Voornaam' };
+
+    it('reads the served per-language dict for the active language (R4.4 — the selector picks the variant)', () => {
+      // The viewer's active UI language selects the variant directly off the served dict.
+      expect(resolveFieldConfigLabel(label, 'nl', 'personal.first_name')).toBe('Voornaam');
+      expect(resolveFieldConfigLabel(label, 'en', 'personal.first_name')).toBe('First name');
+    });
+
+    it('falls through active → en → nl when the active variant is absent', () => {
+      // NL-only dict, EN-active viewer → the en→nl fallback tail yields the NL value.
+      expect(resolveFieldConfigLabel({ nl: 'Voornaam' }, 'en', 'first_name')).toBe('Voornaam');
+      // EN-only dict, NL-active viewer → en supplies it.
+      expect(resolveFieldConfigLabel({ en: 'First name' }, 'nl', 'first_name')).toBe('First name');
+    });
+
+    it('honours a plain-string label verbatim (language-neutral legacy/flat value)', () => {
+      expect(resolveFieldConfigLabel('Region', 'nl', 'region')).toBe('Region');
+    });
+
+    it('NEVER returns blank — falls through to the stable key (R4.4)', () => {
+      // No dict, empty dict, blank-only entries, and a nullish label all land on the key.
+      expect(resolveFieldConfigLabel(undefined, 'en', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel(null, 'nl', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel({}, 'en', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel({ en: '   ', nl: '' }, 'en', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel('   ', 'en', 'region')).toBe('region');
+    });
+
+    it('ignores the active variant when it is blank and falls through to a non-blank one', () => {
+      expect(resolveFieldConfigLabel({ nl: '', en: 'First name' }, 'nl', 'first_name')).toBe(
+        'First name',
       );
-      expect(LABEL_KEY_SCHEME.groupKey('administrative')).toBe(
-        'admin:membersConfig.group.administrative',
-      );
-      expect(LABEL_KEY_SCHEME.enumKey('status', 'active')).toBe(
-        'admin:membersConfig.enum.status.active',
-      );
-      expect(LABEL_KEY_SCHEME.namespace).toBe('admin');
-    });
-  });
-
-  describe('resolveShippedLabel (Option-b precedence: inline ?? resource(key) ?? fallback, R4.4)', () => {
-    /** A fake translator over a tiny per-language resource table. */
-    function fakeTranslator(table: Record<string, Record<string, string>>): LabelTranslator {
-      return {
-        exists: (key, options) => {
-          const lng = options?.lng ?? 'en';
-          return typeof table[key]?.[lng] === 'string';
-        },
-        t: (key, options) => {
-          const lng = options?.lng ?? 'en';
-          return table[key]?.[lng] ?? key;
-        },
-      };
-    }
-
-    const RESOURCES = {
-      'admin:membersConfig.field.first_name': { en: 'First name', nl: 'Voornaam' },
-      'admin:membersConfig.enum.status.active': { en: 'Active', nl: 'Actief' },
-    };
-
-    it('resolves the SHIPPED resource-key label for the active locale when there is no override', () => {
-      const translator = fakeTranslator(RESOURCES);
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.fieldKey('first_name'),
-          inline: undefined,
-          lang: 'nl',
-          translator,
-          fallback: 'first_name',
-        }),
-      ).toBe('Voornaam');
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.fieldKey('first_name'),
-          inline: undefined,
-          lang: 'en',
-          translator,
-          fallback: 'first_name',
-        }),
-      ).toBe('First name');
-    });
-
-    it('lets the tenant INLINE per-language override win over the shipped resource key', () => {
-      const translator = fakeTranslator(RESOURCES);
-      // Tenant relabels the field in NL only; EN still falls through to the resource key.
-      const inline = { nl: 'Roepnaam' };
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.fieldKey('first_name'),
-          inline,
-          lang: 'nl',
-          translator,
-          fallback: 'first_name',
-        }),
-      ).toBe('Roepnaam');
-      // EN has no inline entry → shipped resource key supplies it.
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.fieldKey('first_name'),
-          inline,
-          lang: 'en',
-          translator,
-          fallback: 'first_name',
-        }),
-      ).toBe('First name');
-    });
-
-    it('falls back active → en → nl, then to the key, never blank', () => {
-      const translator = fakeTranslator(RESOURCES);
-      // A `de`-active user over an en/nl-only resource: en wins (the fallback tail head).
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.fieldKey('first_name'),
-          inline: undefined,
-          lang: 'de',
-          translator,
-          fallback: 'first_name',
-        }),
-      ).toBe('First name');
-      // No resource, no inline → the stable key fallback (never blank).
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.fieldKey('unknown_field'),
-          inline: undefined,
-          lang: 'en',
-          translator,
-          fallback: 'unknown_field',
-        }),
-      ).toBe('unknown_field');
-    });
-
-    it('treats an enum option value as language-neutral — only the label resolves', () => {
-      const translator = fakeTranslator(RESOURCES);
-      // The option VALUE ('active') is the key segment, never translated; its label resolves.
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.enumKey('status', 'active'),
-          inline: undefined,
-          lang: 'nl',
-          translator,
-          fallback: 'active',
-        }),
-      ).toBe('Actief');
-      // An inline per-language override on the option label still wins.
-      expect(
-        resolveShippedLabel({
-          resourceKey: LABEL_KEY_SCHEME.enumKey('status', 'active'),
-          inline: { nl: 'Lopend' },
-          lang: 'nl',
-          translator,
-          fallback: 'active',
-        }),
-      ).toBe('Lopend');
-    });
-
-    it('skips the resource lookup when no resource key / translator is supplied', () => {
-      // A purely tenant-added field with an inline label and no shipped key.
-      expect(
-        resolveShippedLabel({
-          resourceKey: null,
-          inline: { en: 'Nickname', nl: 'Bijnaam' },
-          lang: 'en',
-          fallback: 'nickname',
-        }),
-      ).toBe('Nickname');
-      // No inline, no key → fallback.
-      expect(
-        resolveShippedLabel({
-          resourceKey: null,
-          inline: undefined,
-          lang: 'en',
-          fallback: 'nickname',
-        }),
-      ).toBe('nickname');
     });
   });
 });

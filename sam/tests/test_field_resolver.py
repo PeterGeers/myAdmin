@@ -41,6 +41,7 @@ from sam.members.domain.field_resolver import (
     FieldOrigin,
     FieldProvenance,
     FieldResolver,
+    FieldScope,
     FixedFieldOverride,
     OverlayError,
     OverlayField,
@@ -687,6 +688,56 @@ def test_member_number_format_surfaces_via_override():
 def test_member_number_has_no_format_by_default():
     cfg = _resolver().resolve("t")
     assert cfg.field("membership.member_number").member_number_format is None
+
+
+# ── scope surfaces on resolved fields (remediation R3.5) ──────────────────────────────
+#
+# Previously DEAD on read: `scope` was never carried onto `ResolvedField` and never serialized
+# (defect I-6). The resolver now CARRIES the overlay/override scope onto the resolved field so the
+# authoring UI can read the current scope state back. Scope RESOLUTION (`handler/app.py` →
+# `allowed_scopes`) is untouched — see test_scope_access.py (P3).
+
+
+def test_scope_surfaces_on_a_fixed_field_via_override():
+    # A tenant marks a fixed enum field (e.g. `gender`) as a scope axis via an override's scope.
+    scope = FieldScope(enabled=True, required_for=("Members_CRUD",))
+    overlay = TenantOverlay(
+        overrides={"personal.gender": FixedFieldOverride(scope=scope)}
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    gender = cfg.field("personal.gender")
+    assert gender.scope is scope
+    assert gender.scope.enabled is True
+    assert tuple(gender.scope.required_for) == ("Members_CRUD",)
+
+
+def test_scope_surfaces_on_a_variable_field():
+    scope = FieldScope(enabled=True, required_for=("Members_CRUD",))
+    overlay = TenantOverlay(
+        fields={
+            "team": OverlayField(
+                key="team",
+                type=FieldType.ENUM,
+                options=(
+                    EnumOption(value="a", label={"nl": "A"}),
+                    EnumOption(value="b", label={"nl": "B"}),
+                ),
+                scope=scope,
+            )
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    team = cfg.field("overlay.team")
+    assert team.scope is scope
+    assert team.scope.enabled is True
+    assert tuple(team.scope.required_for) == ("Members_CRUD",)
+
+
+def test_field_has_no_scope_by_default():
+    # A field that is not a scope axis carries no scope attribute (stays `None`).
+    cfg = _resolver().resolve("t")
+    assert cfg.field("personal.gender").scope is None
+    assert cfg.field("membership.status").scope is None
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════

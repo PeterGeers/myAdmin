@@ -116,8 +116,8 @@
             "type": "object",
             "label_en": "Scope Axis",
             "label_nl": "Scope-as",
-            "description_en": "Make this field a scope axis (Phase 3 step 9): members are row-scoped by this field's value. The dimension key and bound field are the field's own key. Leave unset for a normal (non-scoping) field.",
-            "description_nl": "Maak dit veld een scope-as (fase 3 stap 9): leden worden op rijniveau gescoped op de waarde van dit veld. De dimensiesleutel en het gekoppelde veld zijn de eigen sleutel van het veld. Laat leeg voor een normaal (niet-scopend) veld.",
+            "description_en": "Make this field a scope axis (Phase 3 step 9): members are row-scoped by this field's value. The scope values ARE the field's enum values (single vocabulary) — enable scope only on an enum field with values. The dimension key and bound field are the field's own key. Leave unset for a normal (non-scoping) field.",
+            "description_nl": "Maak dit veld een scope-as (fase 3 stap 9): leden worden op rijniveau gescoped op de waarde van dit veld. De scope-waarden ZIJN de enum-waarden van het veld (één vocabulaire) — schakel scope alleen in op een enum-veld met waarden. De dimensiesleutel en het gekoppelde veld zijn de eigen sleutel van het veld. Laat leeg voor een normaal (niet-scopend) veld.",
             "object_fields": [
               {
                 "key": "enabled",
@@ -126,14 +126,6 @@
                 "label_nl": "Ingeschakeld",
                 "description_en": "False collapses this axis to tenant-wide (a no-op).",
                 "description_nl": "False laat deze as terugvallen op tenant-breed (geen effect)."
-              },
-              {
-                "key": "values",
-                "type": "string[]",
-                "label_en": "Values",
-                "label_nl": "Waarden",
-                "description_en": "The closed set of scope values for this axis.",
-                "description_nl": "De gesloten verzameling scope-waarden voor deze as."
               },
               {
                 "key": "required_for",
@@ -200,8 +192,8 @@
             "type": "object",
             "label_en": "Scope Axis",
             "label_nl": "Scope-as",
-            "description_en": "Make this fixed field a scope axis (Phase 3 step 9): members are row-scoped by this field's value. The dimension key and bound field are the field's own (bare) key. Leave unset for a normal (non-scoping) field.",
-            "description_nl": "Maak dit vaste veld een scope-as (fase 3 stap 9): leden worden op rijniveau gescoped op de waarde van dit veld. De dimensiesleutel en het gekoppelde veld zijn de eigen (kale) sleutel van het veld. Laat leeg voor een normaal (niet-scopend) veld.",
+            "description_en": "Make this fixed field a scope axis (Phase 3 step 9): members are row-scoped by this field's value. The scope values ARE the field's enum values (single vocabulary) — enable scope only on an enum field with values. The dimension key and bound field are the field's own (bare) key. Leave unset for a normal (non-scoping) field.",
+            "description_nl": "Maak dit vaste veld een scope-as (fase 3 stap 9): leden worden op rijniveau gescoped op de waarde van dit veld. De scope-waarden ZIJN de enum-waarden van het veld (één vocabulaire) — schakel scope alleen in op een enum-veld met waarden. De dimensiesleutel en het gekoppelde veld zijn de eigen (kale) sleutel van het veld. Laat leeg voor een normaal (niet-scopend) veld.",
             "object_fields": [
               {
                 "key": "enabled",
@@ -210,14 +202,6 @@
                 "label_nl": "Ingeschakeld",
                 "description_en": "False collapses this axis to tenant-wide (a no-op).",
                 "description_nl": "False laat deze as terugvallen op tenant-breed (geen effect)."
-              },
-              {
-                "key": "values",
-                "type": "string[]",
-                "label_en": "Values",
-                "label_nl": "Waarden",
-                "description_en": "The closed set of scope values for this axis.",
-                "description_nl": "De gesloten verzameling scope-waarden voor deze as."
               },
               {
                 "key": "required_for",

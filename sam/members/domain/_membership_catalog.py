@@ -246,6 +246,10 @@ class CatalogMixin:
         - ``read_only`` — ``True`` for calculated (derived) fields, which are never editable (R4.4);
         - ``show_when`` (R4.12) — the per-field conditional-visibility condition (a hidden field
           is not required, mirrored authoritatively server-side);
+        - ``scope`` (remediation R3.5) — ``{enabled, required_for}`` when the field is a scope
+          axis, so the authoring UI can read the current scope state back; omitted otherwise. The
+          scope VALUES are the field's enum values (single vocabulary, R3.2), so no ``values``
+          sub-key is emitted; scope RESOLUTION (``allowed_scopes``) is unchanged (R3.8);
         - ``member_number_format`` (R4.8) — the tenant format pattern for the ``member_number``
           manual-entry string field (immediate frontend feedback; server authoritative);
         - ``options`` — the dropdown source per R4.11: for ``membership_type`` the ACTIVE catalog
@@ -271,6 +275,17 @@ class CatalogMixin:
         }
         if field.show_when is not None:
             payload["show_when"] = dict(field.show_when)
+        if field.scope is not None:
+            # Remediation R3.5: surface the field's SCOPE attribute as ``{enabled, required_for}``
+            # so the authoring UI can READ the current scope state back (it was previously DEAD on
+            # read — never populated on ``ResolvedField``, never serialized). The ``values`` sub-key
+            # is deliberately NOT emitted: scope values ARE the field's enum values (single
+            # vocabulary, R3.2) — the Flask builder derives ``config#scope`` from the enum. Scope
+            # RESOLUTION (``allowed_scopes``) is unaffected — it reads ``config#scope``, not this.
+            payload["scope"] = {
+                "enabled": bool(field.scope.enabled),
+                "required_for": list(field.scope.required_for),
+            }
         if field.member_number_format is not None and not field.member_number_format.is_empty():
             payload["member_number_format"] = (
                 CatalogMixin._serialize_member_number_format(field.member_number_format)

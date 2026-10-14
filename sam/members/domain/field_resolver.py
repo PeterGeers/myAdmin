@@ -143,6 +143,12 @@ class ResolvedField:
     member_number_format: MemberNumberFormat | None = None  # only on member_number (task 1.4b)
     show_when: Mapping[str, Any] | None = None            # per-field conditional visibility (R4.12)
     calculated_from: Sequence[str] | None = None          # inputs of a CALCULATED field (R4.4), else None
+    #: The field's SCOPE attribute (remediation R3.5), carried from the overlay/override onto the
+    #: resolved field so the serializer can emit it and the authoring UI can READ the current scope
+    #: state back. ``None`` when the field is not a scope axis. This is read re-presentation ONLY —
+    #: scope RESOLUTION (``handler/app.py`` → ``allowed_scopes``) still consumes the ``config#scope``
+    #: row via ``ScopeConfig`` UNCHANGED (R3.8); the authoritative projection is unaffected.
+    scope: FieldScope | None = None
     visible: bool = True
     read_only: bool = False                                  # True for CALCULATED fields (derived, never stored)
     order: int = 0
@@ -228,7 +234,9 @@ class OverlayField:
     #: ONLY — scope RESOLUTION (``handler/app.py`` → ``allowed_scopes``) continues to consume
     #: the ``config#scope`` row via ``ScopeConfig`` UNCHANGED (R2.3), and the ``config#scope``
     #: dimensions are the authoritative projection the resolver reads (semantic equivalence,
-    #: Property 2). Carried verbatim; the resolver does not read it.
+    #: Property 2). The resolver CARRIES this attribute onto the resolved field (remediation
+    #: R3.5) so the serializer emits it and the authoring UI can read the current scope state
+    #: back; it does not drive scope RESOLUTION.
     scope: FieldScope | None = None
 
 
@@ -271,8 +279,10 @@ class FixedFieldOverride:
     order: int | None = None
     #: Phase 3 step 9 (R2.1) — the SAM READ representation of scope-binding as a field attribute
     #: on a FIXED field (e.g. ``region``). ``None`` when the fixed field is not re-presented as a
-    #: scope axis. Read-only re-presentation only; scope RESOLUTION stays on ``config#scope`` /
-    #: ``ScopeConfig`` (R2.3), kept semantically equivalent by the Flask builder (Property 2).
+    #: scope axis. Read re-presentation only; scope RESOLUTION stays on ``config#scope`` /
+    #: ``ScopeConfig`` (R2.3), kept semantically equivalent by the Flask builder (Property 2). The
+    #: resolver CARRIES this attribute onto the resolved field (remediation R3.5) so the serializer
+    #: emits it and the authoring UI can read the current scope state back.
     scope: FieldScope | None = None
 
 
@@ -471,6 +481,7 @@ class FieldResolver:
         options = fixed.options
         show_when = fixed.show_when
         member_number_format = fixed.member_number_format
+        scope: FieldScope | None = None  # a fixed field carries no base scope; only an override can
         if override is not None:
             if override.label is not None:
                 label = override.label
@@ -488,6 +499,8 @@ class FieldResolver:
                 show_when = override.show_when
             if override.member_number_format is not None:
                 member_number_format = override.member_number_format
+            if override.scope is not None:
+                scope = override.scope
         # Keep `choices` (the bare value list) coherent with rich `options` when a tenant
         # supplies them (so consumers that read either stay consistent).
         choices = fixed.choices
@@ -506,6 +519,7 @@ class FieldResolver:
             functional_group=functional_group,
             member_number_format=member_number_format,
             show_when=show_when,
+            scope=scope,
             visible=visible,
             order=order,
         )
@@ -595,6 +609,7 @@ class FieldResolver:
             options=of.options,
             functional_group=of.functional_group or OVERLAY_GROUP,
             show_when=of.show_when,
+            scope=of.scope,
             visible=of.visible,
             order=of.order,
         )
