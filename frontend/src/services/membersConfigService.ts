@@ -237,115 +237,53 @@ export function groupResolvedFields(cfg: FieldConfig | null | undefined): FieldH
 }
 
 // ---------------------------------------------------------------------------
-// i18n Option (b) — shipped-label resolution via resource keys + inline override
-// (Members config redesign Phase 3 step 11 — task 4.2, R4.4; `38` rule 6).
+// Label resolution — plain per-language value over the served `label{}` (R4).
 // ---------------------------------------------------------------------------
 
 /**
- * The shipped-label resource-key SCHEME (`38-sam-module-field-config.md` rule 6, i18n Option b).
+ * Resolve a drill-down field/group label straight from the RESOLVED config's stored per-language
+ * `label{}` dict (`38-sam-module-field-config.md` rule 6, as rewritten for the stored-config model;
+ * remediation R4.1/R4.2/R4.4).
  *
- * This is the frontend half of the rule-5 "guard a shared vocabulary" pair: it mirrors the SAM
- * catalog's `LABEL_KEY_SCHEME` (`sam/members/domain/attribute_catalog.py` / the Phase-1 catalog's
- * `attribute_catalog.LABEL_KEY_SCHEME`) BYTE-FOR-BYTE, without importing `sam.*`. Shipped field /
- * group / enum-option labels resolve from keys under the `admin` namespace, `membersConfig.*`
- * category:
+ * The server already serves a plain inline `label{nl,en}` on every resolved field/group — there is
+ * NO resource-key indirection on the server (verified server-truth pass, design §Server truth). The
+ * drill-down therefore does NOT go through the former shipped-resource-key resolver
+ * (`useMembersLabels`/`resolveShippedLabel`/`LABEL_KEY_SCHEME`, retired here); it reads the served
+ * dict directly with the plain precedence:
  *
- *   fields → admin:membersConfig.field.<fieldKey>
- *   groups → admin:membersConfig.group.<groupKey>
- *   enums  → admin:membersConfig.enum.<fieldKey>.<optionValue>
+ *     label[lang]  ??  label.en  ??  label.nl  ??  fallbackKey
  *
- * The `<fieldKey>` / `<groupKey>` / `<optionValue>` segments are the canonical, `snake_case`
- * field keys / enum VALUES verbatim — the ONE deliberate deviation from the convention's
- * camelCase-keys guidance (design §3): the segment IS the stored key/value, so translating it
- * would break the key (R3.4). An enum option's `value` is thus a language-neutral KEY SEGMENT,
- * never translated; only its `label` is per-language (R4.4).
+ * The viewer's active UI language selects the variant (R4.4); when it carries no entry the stable
+ * `en` then `nl` fallbacks apply, and when NOTHING resolves the field/group KEY is shown — the
+ * fallback is NEVER blank (R4.4). A plain-string `label` (a legacy/flat value) is honoured verbatim
+ * as a language-neutral label. The shipped `locales` `admin.json` `membersConfig` entries MAY
+ * remain as an onboarding/default seed for base fields, but are NOT the runtime resolution source
+ * for a tenant-editable label (R4.3).
+ *
+ * @param label the served per-language label dict (or a plain string / nullish).
+ * @param lang the viewer's active UI language (`'nl' | 'en'`).
+ * @param fallbackKey the non-blank fallback shown when nothing resolves (the stable field/group key).
  */
-export const LABEL_KEY_SCHEME = {
-  /** The i18n namespace shipped labels resolve from. */
-  namespace: 'admin',
-  /** `admin:membersConfig.field.<fieldKey>` — the resource key for a shipped FIELD label. */
-  fieldKey: (fieldKey: string): string => `admin:membersConfig.field.${fieldKey}`,
-  /** `admin:membersConfig.group.<groupKey>` — the resource key for a shipped GROUP label. */
-  groupKey: (groupKey: string): string => `admin:membersConfig.group.${groupKey}`,
-  /** `admin:membersConfig.enum.<fieldKey>.<optionValue>` — a shipped ENUM-OPTION label. */
-  enumKey: (fieldKey: string, optionValue: string): string =>
-    `admin:membersConfig.enum.${fieldKey}.${optionValue}`,
-} as const;
-
-/** The locale-independent fallback TAIL applied after the active locale (R3.5): `en` then `nl`. */
-const FALLBACK_LOCALE_TAIL = ['en', 'nl'] as const;
-
-/**
- * A minimal `t`-shape (an i18next translator) the resolver needs: look a key up and tell whether
- * it exists. Taking it as a parameter (rather than calling `useTranslation` here) keeps the
- * resolver a PURE, framework-free function the service tests can exercise with a fake translator,
- * and lets the component inject the real `admin`-namespace translator.
- */
-export interface LabelTranslator {
-  /** Translate a key for an explicit language (i18next `t(key, { lng })`). */
-  t: (key: string, options?: { lng?: string }) => string;
-  /** True when the key actually resolves to a shipped value (i18next `exists(key, { lng })`). */
-  exists: (key: string, options?: { lng?: string }) => boolean;
-}
-
-/** Pick the active-then-fallback locale order for a UI language (active, then `en`, then `nl`). */
-function localeChain(lang: string): string[] {
-  const chain = [lang, ...FALLBACK_LOCALE_TAIL];
-  // De-dupe while preserving order (e.g. lang === 'en' must not probe 'en' twice).
-  return chain.filter((l, i) => chain.indexOf(l) === i);
-}
-
-/**
- * Resolve a shipped label with the Option-(b) PRECEDENCE rule (R4.4, mirrors the Phase-1
- * `resolve_label` precedence `tenant_inline[locale] ?? resource(key)[locale] ?? fallback`):
- *
- *   1. the tenant INLINE override for the active locale, then its `en`/`nl` fallback tail;
- *   2. the shipped RESOURCE-key value for the active locale, then its `en`/`nl` fallback tail;
- *   3. the caller `fallback` (the raw key) — never blank.
- *
- * The inline override wins so a tenant can relabel a shipped field per-language WITHOUT editing a
- * resource file; when it carries no entry for a locale, the shipped resource key supplies the
- * label; when neither resolves, the stable key is shown rather than an empty cell.
- *
- * `resourceKey` null/absent → resource lookup is skipped (a field/group with no shipped key, e.g.
- * a purely tenant-added field, resolves from its inline label or the fallback).
- */
-export function resolveShippedLabel(params: {
-  /** The `admin:membersConfig.*` resource key, or null when the entry ships no key. */
-  resourceKey: string | null | undefined;
-  /** The tenant inline per-language override (`{nl,en,…}`), or a plain string / undefined. */
-  inline?: string | LocalizedLabel | null;
-  /** Active UI language. */
-  lang: string;
-  /** The injected `admin`-namespace translator. */
-  translator?: LabelTranslator | null;
-  /** The non-blank fallback shown when nothing resolves (typically the stable key). */
-  fallback: string;
-}): string {
-  const { resourceKey, inline, lang, translator, fallback } = params;
-  const chain = localeChain(lang);
-  const inlineLoc = inline && typeof inline === 'object' ? (inline as LocalizedLabel) : null;
-
-  // A plain-string inline label is language-neutral — honour it as the override outright.
-  if (typeof inline === 'string' && inline.trim()) return inline;
-
-  // Precedence PER LOCALE (mirrors the Phase-1 `resolve_label` rule
-  // `tenant_inline[locale] ?? resource(key)[locale]`), walked active-locale-first then the
-  // `en`/`nl` fallback tail (R3.5): for each candidate locale, the tenant INLINE override wins,
-  // then the shipped RESOURCE key. This is deliberately NOT "all inline locales, then all resource
-  // locales" — a tenant that relabels only NL must NOT shadow the shipped EN label (R4.4).
-  for (const l of chain) {
-    const inlineVal = inlineLoc?.[l];
-    if (typeof inlineVal === 'string' && inlineVal.trim()) return inlineVal;
-
-    if (resourceKey && translator && translator.exists(resourceKey, { lng: l })) {
-      const v = translator.t(resourceKey, { lng: l });
-      if (typeof v === 'string' && v.trim() && v !== resourceKey) return v;
-    }
+export function resolveFieldConfigLabel(
+  label: string | LocalizedLabel | null | undefined,
+  lang: 'nl' | 'en',
+  fallbackKey: string,
+): string {
+  // A plain-string label is language-neutral — honour it outright.
+  if (typeof label === 'string') {
+    return label.trim() ? label : fallbackKey;
   }
 
-  // Fallback — never blank.
-  return fallback;
+  if (label && typeof label === 'object') {
+    // Active language first, then the stable en → nl fallback tail (R4.4).
+    const active = label[lang];
+    if (typeof active === 'string' && active.trim()) return active;
+    if (typeof label.en === 'string' && label.en.trim()) return label.en;
+    if (typeof label.nl === 'string' && label.nl.trim()) return label.nl;
+  }
+
+  // Nothing resolved — the stable key, never blank (R4.4).
+  return fallbackKey;
 }
 
 /**
@@ -358,13 +296,13 @@ export async function getMembersParameterDefinitions(): Promise<MembersParamDefi
   // ("https://host" + "https://host/api/...") and fail with "Failed to fetch".
   const resp = await authenticatedGet('/api/config/members-parameters', { skipAuth: true });
   if (!resp.ok) {
-    throw new Error(`Failed to load members parameter definitions (${resp.status})`);
+    throw new Error(`Failed to load members parameter definitions(${resp.status})`);
   }
   return resp.json();
 }
 
 /**
- * Fetch the current `members.*` parameter values for the tenant, keyed by param key.
+ * Fetch the current `members.* ` parameter values for the tenant, keyed by param key.
  * A key absent from the response has never been authored (treat as an empty value).
  */
 export async function getMembersParameters(): Promise<Record<string, Parameter>> {

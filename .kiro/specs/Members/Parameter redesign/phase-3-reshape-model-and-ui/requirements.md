@@ -294,9 +294,10 @@ authoring changes reach production without risk to the runtime (`43-cicd-deploys
 4. WHERE a config-row migration is required (R7.3) THEN it SHALL be run against TEST then PRODUCTION via
    the documented wrapper (`backend/scripts/railway-db.sh`, `#database` skill) — not auto-applied.
 5. THE Phase_3_Plan SHALL update the steering it changes (definition-of-done, `40-spec-workflow.md`):
-   if the authoring model documented in `38-sam-module-field-config.md` evolves (e.g. provenance badge,
-   scope-as-attribute become part of the reference pattern), that steering SHALL be updated in the same
-   change; if nothing changes, the close-out SHALL record "no steering change due" with evidence.
+   if the authoring model documented in `38-sam-module-field-config.md` evolves (e.g. the
+   group → field → attribute drill-down, provenance-driven field-modal actions, scope-as-attribute
+   become part of the reference pattern), that steering SHALL be updated in the same change; if nothing
+   changes, the close-out SHALL record "no steering change due" with evidence.
 
 ## Correctness Properties
 
@@ -366,7 +367,7 @@ byte-for-byte unchanged.
 
 | Req | Source |
 |-----|--------|
-| R1 | impact-analysis §9 step 8 (collapse fixed/overlay → one list + provenance badge); §5 (sub-editors already write one object); §4 (`_apply_override` simplifies) |
+| R1 | impact-analysis §9 step 8 (collapse fixed/overlay → one field model; the §9 label says "one list + provenance badge", but the delivered form per `design.md` is the group → field drill-down with provenance DRIVING the field-modal actions, not a shown badge); §5 (sub-editors already write one object); §4 (`_apply_override` simplifies) |
 | R2 | impact-analysis §9 step 9 (fold scope-binding into a field attribute); §3 (scope already field-bound, resolution code stays) |
 | R3 | impact-analysis §9 step 10 (fold analytics into fields/calculated); §0.2 (analytics already not a param), §4 |
 | R4 | impact-analysis §9 step 11 (rebuild group → field → attribute UI); §10 (the main investment) |
