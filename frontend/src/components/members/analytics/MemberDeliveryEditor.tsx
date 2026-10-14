@@ -79,12 +79,12 @@ import {
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
   type LabelAlignment,
-  type LabelSortOrder,
 } from './addressLabelService';
 import {
   defaultLabelOptions,
   normalizeLabelOptions,
   type LabelOptions,
+  type LabelSortOrder,
 } from './labelOptions';
 import { isValidEmail, parseExternalRecipients } from './MemberMailCompose';
 

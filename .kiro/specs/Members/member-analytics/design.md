@@ -240,8 +240,19 @@ MAX, parsing numeric strings via `toNumber`), emits `columns` as `PivotColumnMet
 `groupColumns` is empty (a **filtered-list** set, R4.8), it returns the filtered rows as
 `PivotResult.data` (column per chosen field, one row per member). Pure, unit-tested (R6.5).
 
-**NEW `memberPivotPresets.ts`** — the predefined sets (R4.2). Each preset has:
+> **[RETIRED — members-analytics-role-removal]** Removed by members-analytics-role-removal
+> (Option A: no predefined presets; analytics role/jubilee/address machinery retired — superseded
+> by the generic pivot). The **entire C4 preset subsystem** below — the `MemberPivotPreset` type
+> (with its `requiresRoles: AnalyticsRole[]` / `usesJubileeRule` / `requiresFields` fields), the
+> `memberPivotPresets.ts` serving functions, the Pivot Views preset dropdown, and the eight-row
+> **preset table** (both the fixed/calculated and the role-backed sets) — is removed. No predefined
+> preset is baked in; every listed subset is reachable by building the view generically
+> (group/filter on field names, filter the calculated `years_member` / `joined_date`). Retained
+> below struck-through for traceability only.
+
+~~**NEW `memberPivotPresets.ts`** — the predefined sets (R4.2). Each preset has:~~
 ```ts
+// RETIRED — members-analytics-role-removal (preset subsystem removed; see annotation above)
 interface MemberPivotPreset {
   key: string;
   label: LocalizedLabel;
@@ -252,20 +263,20 @@ interface MemberPivotPreset {
   kind: 'count' | 'list';
 }
 ```
-A role-backed preset resolves its field via `fieldConfig.analytics.field_roles[role]`, then checks
+~~A role-backed preset resolves its field via `fieldConfig.analytics.field_roles[role]`, then checks
 presence in `fieldConfig.fields`. Unresolvable → hidden with reason (R4.3). Jubilee year selector
-reads `fieldConfig.analytics.jubilee_rule` (default multiples-of-5).
+reads `fieldConfig.analytics.jubilee_rule` (default multiples-of-5).~~
 
-| Preset | groupColumns | kind | field source |
+| ~~Preset~~ (RETIRED) | groupColumns | kind | field source |
 | --- | --- | --- | --- |
-| Members per type | `membership_type` | count | fixed — always |
-| Birthday / birth month | `birth_month` | list | calculated — always |
-| Jubilees | `years_member` | list | calculated + jubilee_rule |
-| New members | `joined_date` year | list | fixed — always |
-| Cancellations | role `cancellation_date` | list | role-mapped |
-| Clubblad paper / country | `country` + role `clubblad_paper` | count | role-mapped |
-| Clubblad digital | role `clubblad_digital` | list | role-mapped |
-| Referral source | role `referral_source` × year | count | role-mapped |
+| ~~Members per type~~ | `membership_type` | count | fixed — always |
+| ~~Birthday / birth month~~ | `birth_month` | list | calculated — always |
+| ~~Jubilees~~ | `years_member` | list | calculated + jubilee_rule |
+| ~~New members~~ | `joined_date` year | list | fixed — always |
+| ~~Cancellations~~ | role `cancellation_date` | list | role-mapped |
+| ~~Clubblad paper / country~~ | `country` + role `clubblad_paper` | count | role-mapped |
+| ~~Clubblad digital~~ | role `clubblad_digital` | list | role-mapped |
+| ~~Referral source~~ | role `referral_source` × year | count | role-mapped |
 
 **NEW `MemberFieldPicker.tsx`** — modal listing groupable/aggregatable fields from `fieldConfig`
 (fixed ⊕ overlay ⊕ calculated), bilingual, for composing a user-defined `PivotConfig` (R4.5).

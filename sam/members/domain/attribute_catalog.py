@@ -380,10 +380,10 @@ ATTRIBUTE_VOCABULARY: tuple[AttributeSpec, ...] = (
         ),
         tenant_authorable=True,
         note=(
-            "DECLARED ONLY in Phase 1 (R8.1). Wired into render (and analytics) in Phase 3 — not "
-            "consumed by any Phase-1 runtime path (R8.2/R8.3). Phase-3 open question (R8.3): "
-            "whether it is a label variant or a separate attribute — the catalog is forward-"
-            "compatible with either resolution."
+            "An optional per-language ({nl,en,…}) alias a tenant may pin ON a field. It is a "
+            "label-variant-style attribute carried on the SAME config#fields row — it introduces "
+            "NO new members.* param (there never was one; `38` rule 3 / R3.4) — and it changes an "
+            "alternate name a tenant gives a field, not the field's rendered display label."
         ),
     ),
 )

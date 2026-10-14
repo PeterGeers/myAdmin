@@ -62,7 +62,6 @@ function makeProps(
     processedData,
     members: processedData,
     fieldConfig,
-    hasAnalyticsConfig: true,
     language: 'en',
     capabilities: { canExport: false },
   };

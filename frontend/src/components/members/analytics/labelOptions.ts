@@ -12,10 +12,8 @@
  * This module is that single definition. It does NOT invent a parallel shape: it
  * is built directly on the existing, shipped generator primitives in
  * {@link module:components/members/analytics/addressLabelService} —
- * {@link LabelStyleOptions} (the per-run style the interactive
- * {@link AddressLabelGenerator} already collects and
- * {@link generateAddressLabelPdf} already consumes) plus a format KEY (a
- * {@link LabelFormat.key}). So:
+ * {@link LabelStyleOptions} (the per-run style the template-driven label
+ * generator consumes) plus a format KEY (a {@link LabelFormat.key}). So:
  *
  *   - **Interactive R6** uses {@link LabelOptions} as its in-memory options bag and
  *     feeds it straight to the generator via {@link toStyleOptions} +
@@ -42,13 +40,20 @@ import {
   getLabelFormat,
   type LabelAlignment,
   type LabelFormat,
-  type LabelSortOrder,
   type LabelStyleOptions,
 } from './addressLabelService';
 
+/**
+ * Sort order applied before layout (name / postcode / region). Owned by the
+ * shared label-options model: the address-mapping label path that used to define
+ * it in the service was removed, but the stored `label_options` block + the
+ * interactive labels UI still carry a sort choice, so the vocabulary lives here.
+ */
+export type LabelSortOrder = 'name' | 'postcode' | 'region';
+
 // Re-export the primitive unions so a consumer of the shared model never has to
-// reach past it into the service for the alignment / sort / format vocabulary.
-export type { LabelAlignment, LabelSortOrder, LabelFormat } from './addressLabelService';
+// reach past it into the service for the alignment / format vocabulary.
+export type { LabelAlignment, LabelFormat } from './addressLabelService';
 export { MIN_FONT_SIZE, MAX_FONT_SIZE } from './addressLabelService';
 
 /** The default font size (points) used when none is supplied. Matches the service clamp band. */
@@ -185,18 +190,20 @@ export function normalizeLabelOptions(input?: Partial<LabelOptions> | null): Lab
 
 /**
  * Project the shared model onto the generator's {@link LabelStyleOptions} (the
- * per-run style {@link generateAddressLabelPdf} consumes). The `format` key is
+ * per-run style {@link generateLabelTemplatePdf} consumes). The `format` key is
  * resolved separately via {@link resolveLabelFormat} — the generator takes the
- * {@link LabelFormat} object as a distinct argument.
+ * {@link LabelFormat} object as a distinct argument. The `sortOrder` /
+ * `showCountry` members of the shared model are not part of the generator's
+ * per-run style (the template layout does not sort or inject a country line);
+ * they are retained on {@link LabelOptions} / {@link StoredLabelOptions} for the
+ * labels UI + stored delivery, but are not forwarded here.
  */
 export function toStyleOptions(options: LabelOptions): LabelStyleOptions {
   return {
     fontSize: options.fontSize,
     alignment: options.alignment,
     showBorder: options.showBorder,
-    showCountry: options.showCountry,
     startPosition: options.startPosition,
-    sortOrder: options.sortOrder,
   };
 }
 

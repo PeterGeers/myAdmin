@@ -35,13 +35,7 @@
  *      of the analytics panel — explicitly not an error. Shown both when the
  *      initial scoped set is empty and when the page's own filter narrows to
  *      zero rows.
- *   2. **No analytics config** — the tenant has not authored the analytics
- *      config (R9). The fixed/calculated areas (Overview, Distributions over
- *      age/years_member) still render; the config-DEPENDENT sets degrade with a
- *      bilingual reason inside the Pivot Views area (`analytics.degradation.*`),
- *      never an error. Signalled by the `hasAnalyticsConfig` flag derived here
- *      and plumbed to the panel.
- *   3. **Load failure** — `GET /members` failed. An explicit ERROR state
+ *   2. **Load failure** — `GET /members` failed. An explicit ERROR state
  *      (`analytics-load-error`, `analytics.states.loadError`) with a retry
  *      affordance, visually + semantically distinct from the neutral empty state.
  *
@@ -66,7 +60,7 @@ import { FilterableHeader } from '../components/filters/FilterableHeader';
 import { useFilterableTable } from '../hooks/useFilterableTable';
 import { listMembers, getFieldConfig } from '../services/membersApiService';
 import type { Member, MemberRow, FieldConfig, LocalizedLabel } from '../types/members';
-import { MemberAnalyticsPanel, hasAnalyticsConfig, assessDataVolume } from '../components/members/analytics';
+import { MemberAnalyticsPanel, assessDataVolume } from '../components/members/analytics';
 import AnalyticsStateNotice from '../components/members/analytics/areas/AnalyticsStateNotice';
 
 /** Roles that satisfy the `members:read` capability for this page (R1.2). */
@@ -259,15 +253,6 @@ const MemberAnalyticsPage: React.FC = () => {
   const columnSortDirection = (field: string): 'asc' | 'desc' | null =>
     sortField === field ? sortDirection : null;
 
-  // The "no analytics config" signal (R1.4, state 2): whether the tenant
-  // authored any analytics config block. Derived once here and plumbed to the
-  // panel so the config-dependent sets degrade with a reason while the
-  // fixed/calculated areas keep working. NOT an error/empty signal.
-  const analyticsConfigPresent = useMemo(
-    () => hasAnalyticsConfig(fieldConfig),
-    [fieldConfig],
-  );
-
   // Whether the page's own filtered dataset is empty (R1.4, state 1) — drives
   // the NEUTRAL empty state that replaces the analytics panel, kept distinct
   // from the load-failure error state (state 3).
@@ -448,8 +433,7 @@ const MemberAnalyticsPage: React.FC = () => {
                     (Overview default), each area lazy-mounted on selection (R1.6).
                     It consumes the page's OWN filtered dataset (`processedData`),
                     the full scope-authorized `members`, the resolved `fieldConfig`,
-                    the `hasAnalyticsConfig` degradation signal (state 2), the active
-                    `language`, and the caller `capabilities`. */}
+                    the active `language`, and the caller `capabilities`. */}
                 <Box
                   bg="gray.900"
                   borderWidth="1px"
@@ -461,7 +445,6 @@ const MemberAnalyticsPage: React.FC = () => {
                     processedData={processedData}
                     members={members}
                     fieldConfig={fieldConfig}
-                    hasAnalyticsConfig={analyticsConfigPresent}
                     language={lang}
                     capabilities={{ canExport, canWrite, isAdmin }}
                   />
