@@ -1,0 +1,54 @@
+# CodeQL — ADVANCED SETUP (committed, dispatchable).
+#
+# Replaces GitHub's default-setup CodeQL so the scan is a real workflow we control:
+#   - runs on pull_request + push to test/main (same coverage default setup gave),
+#   - adds `workflow_dispatch` so it can be triggered manually: `gh workflow run codeql.yml --ref <branch>`,
+#   - adds a weekly schedule as a backstop.
+#
+# IMPORTANT: GitHub default setup for CodeQL must be TURNED OFF in
+# Settings -> Security -> Code scanning (otherwise it conflicts/duplicates with this).
+# Languages mirror what default setup analyzed: python, javascript-typescript, actions.
+name: CodeQL
+
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    branches: [main, test]
+  workflow_dispatch:
+  schedule:
+    # Weekly backstop (Mon 03:17 UTC) — off-the-hour to dodge the scheduler queue.
+    - cron: "17 3 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload CodeQL results
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

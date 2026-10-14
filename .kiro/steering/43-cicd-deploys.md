@@ -45,8 +45,31 @@ gates (today: CodeQL + GitGuardian). CI mapping is separate from app source (Req
 | `full-test-suite.yml` ("Full Test Suite") | **ACTIVE — sole lint/test gate today** | Full backend+SAM+frontend suites + artifacts (SAM/frontend lint report-only). Nightly cron `37 1 * * *` + dispatch (scope: all/backend/sam/frontend). |
 | CodeQL + GitGuardian | ACTIVE (only per-PR gates today) | Code scanning + secret scanning. Must be green on a PR before merge. |
 
-CodeQL + GitGuardian are GitHub UI/app setup, not committed YAML. (`gh workflow list --all`
-also shows a legacy `disabled_manually` CodeQL entry; the active scan is the default-setup one.)
+**CodeQL is an ADVANCED-SETUP workflow** (`.github/workflows/codeql.yml`, committed) — it runs
+on push/PR to `test`/`main`, on a weekly schedule, AND on manual dispatch. GitGuardian is
+secret scanning enforced LOCALLY by the git hooks (pre-commit `ggshield` + pre-push
+`scripts/scan-secrets-local.sh`); the `GitGuardian Security Checks` entry on a PR is the
+GitGuardian App (`app.slug=gitguardian`) mirroring that scan.
+
+> **Advanced vs default setup:** this committed workflow REPLACES GitHub's default-setup CodeQL
+> (the old `event: dynamic` / `dynamic/github-code-scanning/codeql` scan, which had NO
+> `workflow_dispatch` — `gh workflow run` on it returned HTTP 422). Default setup MUST be turned
+> OFF in Settings → Security → Code scanning or the two conflict/duplicate.
+
+Trigger CodeQL manually (now possible via advanced setup):
+
+```bash
+gh workflow run codeql.yml --ref <branch>     # e.g. --ref test
+gh run list --workflow codeql.yml --limit 5   # watch it
+```
+
+Check a commit's PR gate results (CodeQL + GitGuardian) with:
+
+```bash
+# <sha> = the commit to inspect (for a PR, its head commit):
+SHA=$(gh pr view <PR> --json headRefOid --jq .headRefOid)   # or: git rev-parse origin/test
+gh api repos/PeterGeers/myAdmin/commits/$SHA/check-runs
+```
 
 > **Bugfix scope note:** a full-suite run is not always warranted. For a scoped bugfix prefer
 > the paired tests for changed files (change-with-tests contract, `34-backend-testing.md` /
