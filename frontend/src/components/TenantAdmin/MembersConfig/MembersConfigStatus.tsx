@@ -44,6 +44,37 @@ const CONFIG_ORDER: string[] = [
   'mail',
 ];
 
+/**
+ * Render the projected `version` with an EXPLICIT timezone so it can't be misread.
+ *
+ * The projected version is a monotonic marker that, for the config rows, is a UTC ISO-8601
+ * timestamp (e.g. `2026-10-14T21:51:03`) — stored WITHOUT a `Z`, but it IS UTC (the Flask
+ * builder derives it from `parameters.updated_at`, a UTC column). Shown raw, a viewer in a
+ * non-UTC zone (e.g. CEST = UTC+2) reads it as local time and thinks a fresh projection is
+ * stale. So we label it `UTC` and, when it parses as a timestamp, also show the viewer's
+ * LOCAL equivalent + zone abbreviation. A non-timestamp version (e.g. an integer `0`) is
+ * returned as-is with no timezone claim.
+ */
+function formatVersion(version: string | number): string {
+  const raw = String(version);
+  // Only treat it as a timestamp when it looks like an ISO date-time (not a bare int/counter).
+  const looksIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw);
+  if (!looksIso) return raw;
+  // The stored value is UTC but carries no `Z`; append it so Date parses it as UTC.
+  const asUtc = raw.endsWith('Z') ? raw : `${raw}Z`;
+  const d = new Date(asUtc);
+  if (Number.isNaN(d.getTime())) return `${raw} UTC`;
+  // Local time + zone abbreviation (e.g. "23:51:03 CEST") for the viewer's reference.
+  const local = d.toLocaleString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  });
+  // Show the UTC source value (authoritative) with the local equivalent in parentheses.
+  return `${raw} UTC (${local})`;
+}
+
 export const MembersConfigStatus: React.FC<MembersConfigStatusProps> = ({ status, lang }) => {
   // Status unavailable (older module build, or the fetch failed → empty map): claim nothing.
   if (!status || Object.keys(status).length === 0) {
@@ -87,8 +118,12 @@ export const MembersConfigStatus: React.FC<MembersConfigStatusProps> = ({ status
               </Text>
               <HStack spacing={2}>
                 {isDelivered && (
-                  <Text fontSize="xs" color="gray.500">
-                    {loadedPrefix}: {String(version)}
+                  <Text
+                    fontSize="xs"
+                    color="gray.500"
+                    data-testid={`members-config-status-${configId}-version`}
+                  >
+                    {loadedPrefix}: {formatVersion(version as string | number)}
                   </Text>
                 )}
                 <Badge

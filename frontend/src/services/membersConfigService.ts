@@ -329,7 +329,7 @@ export async function saveMembersParameter(
   key: MembersParamKey,
   value: MembersConfigValue,
   existing?: Parameter | null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; projected?: boolean | null; projection_error?: string }> {
   // A members.* object param is always an object or list; never a bare null.
   // Normalize a nullish value to the right empty container so it satisfies the
   // parameter request value type (which does not accept null).

@@ -192,6 +192,12 @@ const MembersPage: React.FC = () => {
   // the user has no explicit preference → fall through to the tenant default.
   const [userPageSize, setUserPageSize] = useState<number | null>(null);
 
+  // Current (zero-based) page index for the client-side prev/next pager. All
+  // scope-authorized rows are already loaded in `processedData`; pagination is a
+  // pure in-memory slice by (pageIndex * pageSize). Reset/clamped when the
+  // filtered set or page size changes (see the clamp effect below).
+  const [pageIndex, setPageIndex] = useState(0);
+
   // Row selection for bulk actions (task 20.4): the set of selected member_ids.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -545,9 +551,26 @@ const MembersPage: React.FC = () => {
     () => resolvePageSize(userPageSize, fieldConfig?.default_page_size),
     [userPageSize, fieldConfig],
   );
+  // Total number of pages for the current filtered/searched set at the resolved
+  // page size (at least 1; a non-positive page size means "show all" → 1 page).
+  const pageCount = useMemo(
+    () => (pageSize > 0 ? Math.max(1, Math.ceil(processedData.length / pageSize)) : 1),
+    [processedData.length, pageSize],
+  );
+  // Keep the current page in range when the data set or page size changes. A
+  // filter/search that shrinks the list to one page clamps back to page 0, so the
+  // user is never stranded on an empty page (and the first page still shows
+  // `pageSize` rows — the pre-existing page-size behaviour is preserved).
+  useEffect(() => {
+    setPageIndex(i => Math.min(i, pageCount - 1));
+  }, [pageCount]);
   const visibleData: MemberRow[] = useMemo(
-    () => (pageSize > 0 ? processedData.slice(0, pageSize) : processedData),
-    [processedData, pageSize],
+    () => {
+      if (pageSize <= 0) return processedData;
+      const start = pageIndex * pageSize;
+      return processedData.slice(start, start + pageSize);
+    },
+    [processedData, pageSize, pageIndex],
   );
 
   const columnSortDirection = (field: string): 'asc' | 'desc' | null =>
@@ -951,6 +974,39 @@ const MembersPage: React.FC = () => {
             </Tbody>
           </Table>
         </Box>
+      )}
+
+      {/* Client-side prev/next pager (mirrors the ZZPTrips footer pattern). All
+          scope-authorized rows are loaded; this navigates in-memory pages of the
+          filtered/sorted set. Hidden when everything fits on one page. */}
+      {!loading && pageSize > 0 && pageCount > 1 && (
+        <Flex justify="space-between" align="center" mt={4} wrap="wrap" gap={2}>
+          <Text color="gray.400" fontSize="sm" data-testid="members-pagination-status">
+            {t('pagination.pageOf', { page: pageIndex + 1, total: pageCount })}
+          </Text>
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              variant="ghost"
+              colorScheme="orange"
+              onClick={() => setPageIndex(i => Math.max(0, i - 1))}
+              isDisabled={pageIndex <= 0}
+              data-testid="members-pagination-prev"
+            >
+              {t('pagination.previous')}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              colorScheme="orange"
+              onClick={() => setPageIndex(i => Math.min(pageCount - 1, i + 1))}
+              isDisabled={pageIndex >= pageCount - 1}
+              data-testid="members-pagination-next"
+            >
+              {t('pagination.next')}
+            </Button>
+          </HStack>
+        </Flex>
       )}
 
       {/* Read-only view modal (task 19.1) */}

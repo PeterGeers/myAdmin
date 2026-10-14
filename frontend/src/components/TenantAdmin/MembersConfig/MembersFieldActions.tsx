@@ -81,7 +81,17 @@ export const MembersFieldActions: React.FC<MembersFieldActionsProps> = ({
     .filter((g) => g.key !== currentGroupKey)
     .map((g) => ({
       value: g.key,
-      label: resolveFieldConfigLabel({ en: g.label_en, nl: g.label_nl }, lang, g.key),
+      // Fold-aware: a reloaded group carries the server-folded `label{nl,en}` dict (the save
+      // path drops the flat `label_<locale>` inputs). Prefer the flat input (fresh edit), else
+      // the folded dict, so a saved group name still shows in the move-to-group picker.
+      label: resolveFieldConfigLabel(
+        {
+          en: (g.label_en as string | undefined) ?? (g.label as { en?: string } | undefined)?.en,
+          nl: (g.label_nl as string | undefined) ?? (g.label as { nl?: string } | undefined)?.nl,
+        },
+        lang,
+        g.key,
+      ),
     }));
 
   const handleDelete = () => {

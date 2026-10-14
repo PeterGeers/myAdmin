@@ -590,3 +590,62 @@ class TestParameterSchemaEndpointMembersGating:
         assert resp.status_code == 200
         assert data['success'] is True
         assert 'members' not in data['schema']
+
+
+class TestProjectTenantChangeReliability:
+    """The projection DELIVERY-REPORTING contract (reliability fix).
+
+    A tenant-scope parameter save must project SYNCHRONOUSLY and report the outcome, instead
+    of the historic best-effort ``enqueue_sync`` that SWALLOWED failures and let the route
+    return a bare "Saved" while the config never reached the module. These lock the helper
+    ``_project_tenant_change`` that every write route (POST/PUT/DELETE) now folds into its
+    response:
+
+      - tenant + projection OK      → {"projected": True}
+      - tenant + projection FAILS   → {"projected": False, "projection_error": <reason>}
+                                      and it does NOT raise (the committed write is kept)
+      - non-tenant scope            → {"projected": None} (not applicable), no trigger call
+    """
+
+    def test_tenant_projection_success_reports_projected_true(self):
+        from routes.parameter_admin_routes import _project_tenant_change
+
+        fake_trigger = Mock()
+        with patch(
+            "services.projection_sync_trigger.get_default_trigger",
+            return_value=fake_trigger,
+        ):
+            result = _project_tenant_change("tenant", "h-dcn")
+
+        assert result == {"projected": True}
+        fake_trigger.enqueue.assert_called_once_with("h-dcn")
+
+    def test_tenant_projection_failure_is_reported_not_swallowed_and_does_not_raise(self):
+        from routes.parameter_admin_routes import _project_tenant_change
+
+        fake_trigger = Mock()
+        fake_trigger.enqueue.side_effect = RuntimeError(
+            "ResourceNotFoundException: table not found"
+        )
+        with patch(
+            "services.projection_sync_trigger.get_default_trigger",
+            return_value=fake_trigger,
+        ):
+            # Must NOT raise — the MySQL write already committed; the failure is reported.
+            result = _project_tenant_change("tenant", "h-dcn")
+
+        assert result["projected"] is False
+        assert "ResourceNotFoundException" in result["projection_error"]
+        fake_trigger.enqueue.assert_called_once_with("h-dcn")
+
+    def test_system_scope_is_not_projected(self):
+        from routes.parameter_admin_routes import _project_tenant_change
+
+        # No trigger should be constructed/called for a non-tenant scope.
+        with patch(
+            "services.projection_sync_trigger.get_default_trigger"
+        ) as get_trigger:
+            result = _project_tenant_change("system", "_system_")
+
+        assert result == {"projected": None}
+        get_trigger.assert_not_called()

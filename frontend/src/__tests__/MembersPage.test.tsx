@@ -617,4 +617,144 @@ describe('MembersPage (Leden Overzicht)', () => {
       await waitFor(() => expect(bodyRowCount()).toBe(5));
     });
   });
+
+  // ── Client-side prev/next pager (in-memory pagination over processedData) ─────
+  //
+  // All scope-authorized rows are already loaded; the pager slices the
+  // filtered/sorted set by (pageIndex * pageSize). The FIRST page still shows
+  // `pageSize` rows (the pre-existing page-size tests above remain valid); these
+  // cases exercise navigating to later pages, the boundary-disabled states, and
+  // the reset-to-page-1 when a filter collapses the set. In the test env
+  // `useTypedTranslation` returns raw i18n keys, so the controls are queried by
+  // their stable `data-testid`s, not label text.
+  describe('prev/next pagination (client-side, in-memory)', () => {
+    const manyMembers: Member[] = Array.from({ length: 30 }, (_, i) => ({
+      member_id: `pg-${i + 1}`,
+      name: `Lid ${String(i + 1).padStart(2, '0')}`,
+      email: `lid${i + 1}@h-dcn.example`,
+      status: 'active',
+      membership_type: 'regulier',
+      region: 'Noord',
+    }));
+
+    const bodyRowCount = (): number => screen.getAllByRole('row').length - 1;
+
+    const waitForManyRows = async () => {
+      await waitFor(() => {
+        expect(screen.getByText('Lid 01')).toBeInTheDocument();
+      });
+    };
+
+    beforeEach(() => {
+      mockListMembers.mockResolvedValue(manyMembers as never);
+      mockGetMember.mockResolvedValue(manyMembers[0] as never);
+    });
+
+    it('shows the first page capped to the page size, with prev disabled and next enabled', async () => {
+      // 30 rows, platform default 25 → page 1 of 2.
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+
+      await waitFor(() => expect(bodyRowCount()).toBe(25));
+      expect(screen.getByTestId('members-pagination-status')).toBeInTheDocument();
+      expect(screen.getByTestId('members-pagination-prev')).toBeDisabled();
+      expect(screen.getByTestId('members-pagination-next')).not.toBeDisabled();
+    });
+
+    it('next advances to the remaining rows on the last page; next then disabled, prev enabled', async () => {
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+      await waitFor(() => expect(bodyRowCount()).toBe(25));
+
+      fireEvent.click(screen.getByTestId('members-pagination-next'));
+
+      // Page 2 of 2 → the trailing 5 rows (30 - 25).
+      await waitFor(() => expect(bodyRowCount()).toBe(5));
+      expect(screen.getByTestId('members-pagination-next')).toBeDisabled();
+      expect(screen.getByTestId('members-pagination-prev')).not.toBeDisabled();
+      // The last member is now visible; the first is not.
+      expect(screen.getByText('Lid 30')).toBeInTheDocument();
+      expect(screen.queryByText('Lid 01')).not.toBeInTheDocument();
+    });
+
+    it('prev returns to the first page', async () => {
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+      await waitFor(() => expect(bodyRowCount()).toBe(25));
+
+      fireEvent.click(screen.getByTestId('members-pagination-next'));
+      await waitFor(() => expect(bodyRowCount()).toBe(5));
+
+      fireEvent.click(screen.getByTestId('members-pagination-prev'));
+      await waitFor(() => expect(bodyRowCount()).toBe(25));
+      expect(screen.getByText('Lid 01')).toBeInTheDocument();
+      expect(screen.getByTestId('members-pagination-prev')).toBeDisabled();
+    });
+
+    it('walks three pages with a tenant default_page_size of 10 (10/10/10)', async () => {
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+        default_page_size: 10,
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+      await waitFor(() => expect(bodyRowCount()).toBe(10));
+      expect(screen.getByText('Lid 01')).toBeInTheDocument();
+
+      // → page 2
+      fireEvent.click(screen.getByTestId('members-pagination-next'));
+      await waitFor(() => expect(screen.getByText('Lid 11')).toBeInTheDocument());
+      expect(bodyRowCount()).toBe(10);
+      expect(screen.queryByText('Lid 01')).not.toBeInTheDocument();
+
+      // → page 3 (last)
+      fireEvent.click(screen.getByTestId('members-pagination-next'));
+      await waitFor(() => expect(screen.getByText('Lid 21')).toBeInTheDocument());
+      expect(bodyRowCount()).toBe(10);
+      expect(screen.getByText('Lid 30')).toBeInTheDocument();
+      expect(screen.getByTestId('members-pagination-next')).toBeDisabled();
+    });
+
+    it('resets to page 1 and hides the pager when a filter collapses the set to one page', async () => {
+      // Give rows distinct regions so a region filter can collapse to a single row.
+      const mixed: Member[] = manyMembers.map((m, i) => ({
+        ...m,
+        region: i === 0 ? 'Zuid' : 'Noord',
+      }));
+      mockListMembers.mockResolvedValue(mixed as never);
+      mockGetFieldConfig.mockResolvedValue({
+        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
+      } as never);
+
+      render(<MembersPage />);
+      await waitForManyRows();
+      await waitFor(() => expect(bodyRowCount()).toBe(25));
+
+      // Navigate to page 2 first so the reset is observable.
+      fireEvent.click(screen.getByTestId('members-pagination-next'));
+      await waitFor(() => expect(bodyRowCount()).toBe(5));
+
+      // Filter region to the single 'Zuid' row → one page, pager removed.
+      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
+      fireEvent.change(regionFilter, { target: { value: 'Zuid' } });
+
+      await waitFor(() => expect(bodyRowCount()).toBe(1));
+      expect(screen.queryByTestId('members-pagination-next')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('members-pagination-prev')).not.toBeInTheDocument();
+    });
+  });
+
 });
