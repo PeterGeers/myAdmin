@@ -380,7 +380,7 @@ dependencies are satisfied.
 
 ## Ship (steering 43)
 
-- [-] 9. Ship — feature branch → PR into `test` → promote by merge to `main` (DATA account only)
+- [-] 9. Ship postponed to .kiro\specs\Members\Parameter redesign\phase-3-reshape-model-and-ui Ship — feature branch → PR into `test` → promote by merge to `main` (DATA account only)
   - **Depends on:** Task 7 (manual TEST sign-off) + Task 8 (completeness) — both MUST pass first.
   - Commit the removal on the feature branch (`spec/...`); **never push straight to `main`**. Open a PR
     into **`test`**; let the per-PR gates (CodeQL + GitGuardian) go green. Promotion to TEST is by

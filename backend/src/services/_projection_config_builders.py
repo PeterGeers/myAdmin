@@ -138,8 +138,10 @@ def _map_scope_dimension(raw: Mapping[str, Any]) -> dict[str, Any]:
 #: ``members.field_overlay`` field expresses that it is a SCOPE AXIS. Authoring moves
 #: from the standalone ``members.scope_dimensions`` list onto the field itself: a field
 #: (a fixed field via ``fixed_overrides``, or an added variable field via ``fields``)
-#: carries a ``scope`` sub-object ``{enabled, values, label?, required_for?}``. The
-#: dimension ``key`` and the bound ``field`` BOTH derive from the field's own key, so a
+#: carries a ``scope`` sub-object ``{enabled, required_for?, label?}`` — single-vocabulary
+#: (R3.4): the dimension ``values`` are DERIVED from the field's own enum values
+#: (``options[].value`` / ``choices``), NOT a separate ``scope.values`` (legacy fallback only).
+#: The dimension ``key`` and the bound ``field`` BOTH derive from the field's own key, so a
 #: field is a scope axis bound to itself — exactly how every current dimension already
 #: binds (``ScopeDimension.field`` defaults to its ``key``). The builder DERIVES the
 #: ``config#scope`` row from these attributes, keeping the PROJECTED row — and therefore
@@ -148,23 +150,75 @@ def _map_scope_dimension(raw: Mapping[str, Any]) -> dict[str, Any]:
 _FIELD_SCOPE_ATTR = "scope"
 
 
-def _scope_dimension_from_field(field_key: str, scope: Mapping[str, Any]) -> dict[str, Any]:
-    """Derive one ``config#scope`` dimension from a field's ``scope`` attribute.
+def _enum_values_from_field(spec: Mapping[str, Any]) -> list[str] | None:
+    """Extract a field's ENUM VALUES — the single scope vocabulary (R3.4).
+
+    The single-vocabulary rule (R3.2/R3.4): a scope-axis field's dimension values ARE the
+    field's own enum values. They are read from the field's enum vocabulary, in priority
+    order:
+
+    - rich ``options`` — a list of ``{value, label?, roles?}`` dicts (or bare strings): the
+      per-option ``value`` (or the bare string) is the vocabulary;
+    - a bare ``choices`` string list.
+
+    Returns the ordered, de-duplicated list of non-blank string values, or ``None`` when the
+    field declares no usable enum vocabulary (not an enum / value-less) — the caller treats
+    ``None`` as "no enum vocabulary", which is a validation error at save for an ENABLED
+    scope axis (R3.4).
+    """
+    def _collect_values(raw: Any) -> list[str] | None:
+        if not isinstance(raw, (list, tuple)):
+            return None
+        values: list[str] = []
+        seen: set[str] = set()
+        for entry in raw:
+            if isinstance(entry, Mapping):
+                value = entry.get("value")
+            else:
+                value = entry
+            if not isinstance(value, str) or not value.strip():
+                continue
+            if value in seen:
+                continue
+            seen.add(value)
+            values.append(value)
+        return values or None
+
+    # Rich `options` first (the canonical enum vocabulary), then bare `choices`.
+    return _collect_values(spec.get("options")) or _collect_values(spec.get("choices"))
+
+
+def _scope_dimension_from_field(
+    field_key: str, scope: Mapping[str, Any], spec: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Derive one ``config#scope`` dimension from a field's ``scope`` attribute (R3.4).
 
     The dimension ``key`` and bound ``field`` are the field's own key — a field authored
     as a scope axis binds the dimension to itself (matching the domain default where
-    ``ScopeDimension.field`` falls back to its ``key``). The remaining dimension aspects
-    (``enabled`` / ``values`` / ``label`` / ``required_for``) come from the field's
-    ``scope`` sub-object, defaulted exactly as :func:`_map_scope_dimension` defaults a
-    standalone dimension — so a field-authored dimension and the equivalent standalone one
-    project to the SAME row (Property 2, semantic equivalence).
+    ``ScopeDimension.field`` falls back to its ``key``).
+
+    **Single-vocabulary (R3.2/R3.4):** the dimension ``values`` are DERIVED from the field's
+    ENUM VALUES (:func:`_enum_values_from_field` — ``options[].value`` / ``choices``) when the
+    scope axis is ENABLED, NOT from ``scope.values``. The field's enum-values editor is the ONE
+    vocabulary; marking the field a scope axis references that list. A legacy stored
+    ``scope.values`` is honoured as a FALLBACK ONLY — used when the field carries no enum
+    vocabulary (a tenant whose authoring predates the single-vocabulary model). The remaining
+    dimension aspects (``enabled`` / ``label`` / ``required_for``) come from the ``scope``
+    sub-object, defaulted exactly as :func:`_map_scope_dimension` defaults a standalone
+    dimension — so a field-authored dimension and the equivalent standalone one project to the
+    SAME row (Property 2, semantic equivalence).
     """
+    # Single-vocabulary: the enum values ARE the scope values. `scope.values` is a legacy
+    # fallback only (honoured when the field carries no enum vocabulary).
+    values = _enum_values_from_field(spec)
+    if values is None:
+        values = scope.get("values")
     raw = {
         "key": field_key,
         "field": field_key,
         "label": scope.get("label"),
         "enabled": scope.get("enabled", True),
-        "values": scope.get("values"),
+        "values": values,
         "required_for": scope.get("required_for"),
     }
     return _map_scope_dimension(raw)
@@ -205,7 +259,9 @@ def _scope_dimensions_from_overlay(overlay: Any) -> list[dict[str, Any]]:
             if bare_key in seen_keys:
                 continue
             seen_keys.add(bare_key)
-            dimensions.append(_scope_dimension_from_field(bare_key, scope))
+            # Single-vocabulary (R3.4): the dimension values derive from the field's OWN enum
+            # vocabulary (`spec`), not from `scope.values` — so `spec` is threaded through.
+            dimensions.append(_scope_dimension_from_field(bare_key, scope, spec))
 
     # Fixed-override scope axes first (authored order), then variable-field scope axes.
     _collect(overlay.get("fixed_overrides"))
@@ -429,12 +485,31 @@ _OVERLAY_FIELD_DEFAULTS: dict[str, Any] = {
 
 #: The fields a single projected fixed-field override entry carries — the exact
 #: set ``FixedFieldOverride`` consumes (``label``, ``visible``, ``required``,
-#: ``order``, ``functional_group``). A ``None``/absent value means "leave the
-#: fixed base as-is", so only the keys the tenant actually authored are carried
-#: onto the row (the override is presentation-only and additive). ``functional_group``
-#: is the R4.9 display-group reassignment (``config#fields.overrides[dotted].functional_group``
-#: → ``FixedFieldOverride.functional_group`` → resolved onto the field).
-_FIXED_OVERRIDE_FIELDS = ("label", "visible", "required", "order", "functional_group")
+#: ``order``, ``functional_group``, plus the enum vocabulary ``options``/``choices``
+#: and the ``scope`` attribute). A ``None``/absent value means "leave the fixed base
+#: as-is", so only the keys the tenant actually authored are carried onto the row (the
+#: override is presentation-only and additive). ``functional_group`` is the R4.9
+#: display-group reassignment (``config#fields.overrides[dotted].functional_group`` →
+#: ``FixedFieldOverride.functional_group`` → resolved onto the field).
+#:
+#: I-9 (R5.1): ``options`` (the rich enum vocabulary ``{value,label,roles?}``), its
+#: coherent bare ``choices`` list, and ``scope`` ({enabled, required_for}) are ALSO
+#: carried, so a tenant's fixed-field enum relabel / scope-axis binding survives
+#: projection to ``config#fields`` instead of being silently dropped (defect I-9: the
+#: fixed-override builder previously dropped these). Still presentation-only + additive
+#: — carrying an authored attribute never WEAKENS a platform invariant; the resolver's
+#: rejection semantics stay authoritative (R5.3). ``member_number_format`` is DELIBERATELY
+#: NOT carried here — deferred to the follow-up spec (R5.2).
+_FIXED_OVERRIDE_FIELDS = (
+    "label",
+    "visible",
+    "required",
+    "order",
+    "functional_group",
+    "options",
+    "choices",
+    "scope",
+)
 
 #: The fields a single projected functional-group catalog entry carries — the exact
 #: set ``FunctionalGroup`` consumes (``key``, ``label`` i18n ``{nl,en}``, ``order``).
@@ -472,17 +547,37 @@ def _map_fixed_override(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Map one authored fixed-field override dict to the ``config#fields`` shape.
 
     Presentation-only + additive: only the aspects the tenant actually authored
-    (``label``/``visible``/``required``/``order``/``functional_group``) are carried
-    onto the row; an unauthored aspect is simply absent (``FixedFieldOverride`` reads
-    a missing attribute as "leave the fixed base as-is"). ``functional_group`` (R4.9)
-    reassigns the field's display group — it MUST be carried through so an authored
-    fixed/calculated-field group reassignment reaches the resolved field. Unknown
-    extra keys are dropped.
+    (``label``/``visible``/``required``/``order``/``functional_group`` plus the enum
+    vocabulary ``options``/``choices`` and ``scope``) are carried onto the row; an
+    unauthored aspect is simply absent (``FixedFieldOverride`` reads a missing attribute
+    as "leave the fixed base as-is"). ``functional_group`` (R4.9) reassigns the field's
+    display group — it MUST be carried through so an authored fixed/calculated-field group
+    reassignment reaches the resolved field. Unknown extra keys are dropped.
+
+    I-9 fix (R5.1): ``options``/``choices`` (the enum vocabulary) and ``scope`` are carried
+    so a tenant's fixed-field enum relabel or scope-axis binding survives projection instead
+    of being silently dropped. The two enum representations are kept COHERENT: when ``options``
+    (the rich ``{value,label,roles?}`` vocabulary) is authored, the bare ``choices`` list is
+    DERIVED from it (:func:`_enum_values_from_field`) so the two never disagree — an authored
+    ``choices`` is overwritten by the options-derived list rather than left inconsistent. When
+    only ``choices`` is authored it is carried verbatim.
+
+    This stays presentation-only + additive — carrying an authored attribute never WEAKENS a
+    platform invariant; the resolver's existing rejection semantics stay authoritative (R5.3).
+    ``member_number_format`` is DELIBERATELY not carried (deferred, R5.2).
     """
     override: dict[str, Any] = {}
     for field_name in _FIXED_OVERRIDE_FIELDS:
         if field_name in raw and raw[field_name] is not None:
             override[field_name] = raw[field_name]
+
+    # Coherent enum vocabulary (R5.1): when rich `options` are authored, the bare `choices`
+    # list MUST be the per-option values in order (single, consistent vocabulary). Derive it
+    # from `options` so a stale/absent `choices` can never disagree with the rich options.
+    if "options" in override:
+        coherent_choices = _enum_values_from_field({"options": override["options"]})
+        if coherent_choices is not None:
+            override["choices"] = coherent_choices
     return override
 
 
@@ -809,6 +904,7 @@ __all__ = [
     "_SCOPE_DIMENSIONS_PARAM_KEY",
     "_SCOPE_VERSION_FIELDS",
     "_config_row_version",
+    "_enum_values_from_field",
     "_map_fixed_override",
     "_map_functional_group",
     "_map_overlay_field",

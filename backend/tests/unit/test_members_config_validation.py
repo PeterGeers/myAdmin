@@ -194,12 +194,27 @@ class TestFieldOverlayValidation:
         validate_field_overlay(overlay)  # should not raise
 
     def test_validate_field_overlay_valid_variable_field_scope_axis_accepts(self):
+        # Single-vocabulary (R3.4): an enum field with `choices` IS a value-ful scope axis —
+        # no separate `scope.values` needed; the enum is the one vocabulary.
         overlay = {
             "fields": {
                 "region": {
                     "type": "enum",
                     "choices": ["Noord", "Zuid"],
-                    "scope": {"enabled": True, "values": ["Noord", "Zuid"]},
+                    "scope": {"enabled": True},
+                }
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    def test_validate_field_overlay_scope_axis_on_rich_options_enum_accepts(self):
+        # Single-vocabulary (R3.4): rich `options` ({value,...}) are a valid enum vocabulary.
+        overlay = {
+            "fields": {
+                "region": {
+                    "type": "enum",
+                    "options": [{"value": "Noord"}, {"value": "Zuid"}],
+                    "scope": {"enabled": True},
                 }
             }
         }
@@ -215,6 +230,39 @@ class TestFieldOverlayValidation:
         with pytest.raises(MembersConfigError) as exc:
             validate_field_overlay(overlay)
         assert "personal.city" in exc.value.reasons
+
+    def test_validate_field_overlay_enabled_scope_on_non_enum_field_raises(self):
+        # Single-vocabulary (R3.4): an enabled scope axis must sit on an enum field WITH values.
+        # A plain string field (no choices/options, no legacy scope.values) is rejected at save.
+        overlay = {
+            "fields": {
+                "region": {"type": "string", "scope": {"enabled": True}}
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.region" in exc.value.reasons
+
+    def test_validate_field_overlay_enabled_scope_on_valueless_enum_raises(self):
+        # An enum field with an EMPTY choices list carries no vocabulary → enabled scope rejected.
+        overlay = {
+            "fields": {
+                "region": {"type": "enum", "choices": [], "scope": {"enabled": True}}
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.region" in exc.value.reasons
+
+    def test_validate_field_overlay_enabled_scope_legacy_values_fallback_accepts(self):
+        # Migration fallback (R3.4): a value-less/non-enum field with a legacy `scope.values`
+        # is still accepted — pre-single-vocabulary authoring keeps validating.
+        overlay = {
+            "fixed_overrides": {
+                "personal.city": {"scope": {"enabled": True, "values": ["Noord", "Zuid"]}}
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
 
     def test_validate_field_overlay_scope_not_an_object_raises(self):
         overlay = {"fixed_overrides": {"personal.city": {"scope": "region"}}}
