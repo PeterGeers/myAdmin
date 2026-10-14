@@ -38,7 +38,6 @@ function makeAreaMock(name: string) {
           data-language={props.language ?? 'none'}
           data-can-export={String(props.capabilities?.canExport)}
           data-has-field-config={String(props.fieldConfig != null)}
-          data-has-analytics-config={String(props.hasAnalyticsConfig)}
         >
           {name}
         </div>
@@ -77,7 +76,6 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof MemberAnalyt
       processedData={processedData}
       members={members}
       fieldConfig={fieldConfig}
-      hasAnalyticsConfig={true}
       language="en"
       capabilities={{ canExport: true }}
       {...overrides}
@@ -132,16 +130,6 @@ describe('MemberAnalyticsPanel (view switch)', () => {
     expect(area).toHaveAttribute('data-language', 'en');
     expect(area).toHaveAttribute('data-can-export', 'true');
     expect(area).toHaveAttribute('data-has-field-config', 'true');
-    expect(area).toHaveAttribute('data-has-analytics-config', 'true');
-  });
-
-  it('plumbs the no-analytics-config degradation signal through to the area (R1.4)', async () => {
-    renderPanel({ hasAnalyticsConfig: false });
-    const area = await screen.findByTestId('mock-area-overview');
-    // The "no analytics config" signal reaches the area unchanged, so the
-    // config-dependent sets can degrade with a reason while the
-    // fixed/calculated areas keep working (R1.4 / R9.5).
-    expect(area).toHaveAttribute('data-has-analytics-config', 'false');
   });
 
   it('mounts a different area ONLY when it is selected (click)', async () => {

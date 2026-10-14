@@ -1,44 +1,35 @@
 /**
- * Tests for the Members typed authoring UI (s5c tasks 2.5/2.6, task 2.7).
+ * Tests for the Members config editor — the group → field → attribute DRILL-DOWN integration
+ * (Members config redesign Phase 3, task 4.9, rebuilt from the superseded slice-editor suite).
  *
- * Covers:
- *  - the sub-editors render the composite types from the definition
- *    (functional-group catalog list<object>, field overlay map<field_def>,
- *    scope dimensions list<object>, analytics object slice);
- *  - a picker offers only defined groups / resolvable field keys (Property 7);
- *  - an enum option is authored as { value, label{nl,en}, roles };
- *  - saving issues exactly ONE PUT per param object (Property 8);
- *  - the unsaved-changes guard warns on navigate-away.
+ * The editor wires the drill-down together and owns the ONE save path. These assert the
+ * integration seams (the per-tier behaviour is covered by the groups-table / fields-table /
+ * field-modal / field-actions suites):
+ *  - the projection STATUS banner renders from the module `config_status` (Phase 0 step 3);
+ *  - the drill-down navigates groups table → (open group) → fields table → field modal, and back;
+ *  - provenance from the resolved field-config GOVERNS the field modal's actions (R1.3 — delete vs
+ *    reset/hide, never a badge);
+ *  - every edit flows through the SINGLE save path: one Save → exactly one create/update request
+ *    (Property 8 / R4.8), the real `saveMembersParameter` un-mocked.
  *
- * NOTE (Members config redesign Phase 2, step b — task 3.3): the `view_contexts`
- * sub-editor was retired, so its definition/fixture/cases were removed here per the
- * Change-With-Tests contract. Every OTHER sub-editor case (Functional Groups, Field
- * Overlay, Scope Dimensions, Analytics) is kept, with its assertions unchanged.
- *
- * Uses the project's inline Chakra mock (steering 33): Chakra is auto-aliased to the
- * centralized mock, which renders all TabPanels (no Tab state), so every sub-editor is in
- * the DOM at once and testable directly.
+ * Uses the project's real i18n + test-utils render (the drill-down resolves shipped labels via the
+ * `admin` namespace, so a stubbed translator would hide label behaviour).
  */
-import { vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, fireEvent, within } from '../../../../test-utils';
-import type { MembersParamDefinition } from '../../../../types/membersConfig';
+import { I18nextProvider } from 'react-i18next';
+import { render, screen, within, fireEvent, waitFor } from '../../../../test-utils';
+import i18n from '../../../../i18n';
+import type { Parameter } from '../../../../types/parameterTypes';
+import type { FieldConfig } from '../../../../types/members';
 
 /* ------------------------------------------------------------------ */
-/*  react-i18next stub (en)                                            */
+/*  Service mocks — the data edges; the real save-once primitive runs. */
 /* ------------------------------------------------------------------ */
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ i18n: { language: 'en' } }),
-}));
-
-/* ------------------------------------------------------------------ */
-/*  Service mocks                                                      */
-/* ------------------------------------------------------------------ */
-const mockGetDefs = vi.fn();
 const mockGetParams = vi.fn();
+const mockGetFieldConfig = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
-const mockGetStatus = vi.fn();
 
 vi.mock('../../../../services/membersConfigService', async () => {
   const actual = await vi.importActual<
@@ -46,18 +37,14 @@ vi.mock('../../../../services/membersConfigService', async () => {
   >('../../../../services/membersConfigService');
   return {
     ...actual,
-    getMembersParameterDefinitions: (...a: unknown[]) => mockGetDefs(...a),
     getMembersParameters: (...a: unknown[]) => mockGetParams(...a),
-    // The delivered/loaded status fetch (Phase 0 step 3) — mocked so the editor test does
-    // not hit the module field-config endpoint; defaults to the all-None status below.
-    getMembersConfigStatus: (...a: unknown[]) => mockGetStatus(...a),
-    // saveMembersParameter is the REAL implementation — it must route to exactly one of
-    // create/update below, which is what Property 8 (save-once → one request) asserts.
+    getMembersFieldConfig: (...a: unknown[]) => mockGetFieldConfig(...a),
+    // REAL save-once primitive — Property 8 (one save → one request) is asserted through it.
     saveMembersParameter: actual.saveMembersParameter,
   };
 });
 
-// The save-once primitive delegates to parameterService; mock those to count requests.
+// The save-once primitive delegates to parameterService; mock those to COUNT requests.
 vi.mock('../../../../services/parameterService', () => ({
   getParameters: vi.fn(),
   createParameter: (...a: unknown[]) => mockCreate(...a),
@@ -69,125 +56,10 @@ vi.mock('../../../../services/parameterService', () => ({
 import MembersConfigEditor from '../MembersConfigEditor';
 
 /* ------------------------------------------------------------------ */
-/*  Definition fixture (mirrors backend/src/config/members_parameters.json)  */
+/*  Fixtures — one field_overlay row (id 202) + the resolved config.   */
 /* ------------------------------------------------------------------ */
-const DEFS: MembersParamDefinition[] = [
-  {
-    key: 'field_overlay',
-    type: 'map<field_def>',
-    label_en: 'Field Overlay',
-    label_nl: 'Veldoverlay',
-    module: 'MEMBERS',
-    object_fields: [
-      {
-        key: 'functional_groups',
-        type: 'list<object>',
-        label_en: 'Functional Groups',
-        label_nl: 'Functionele groepen',
-        object_fields: [
-          { key: 'key', type: 'string', label_en: 'Group Key', label_nl: 'Groepssleutel' },
-          { key: 'label_en', type: 'string', label_en: 'Label (English)', label_nl: 'Label (Engels)' },
-          { key: 'label_nl', type: 'string', label_en: 'Label (Dutch)', label_nl: 'Label (Nederlands)' },
-          { key: 'order', type: 'number', label_en: 'Order', label_nl: 'Volgorde' },
-        ],
-      },
-      {
-        key: 'fields',
-        type: 'map<field_def>',
-        label_en: 'Parameter Fields',
-        label_nl: 'Parametervelden',
-        field_def: [
-          { key: 'type', type: 'string', label_en: 'Type', label_nl: 'Type', options: ['string', 'date', 'enum', 'reference'] },
-          { key: 'label_en', type: 'string', label_en: 'Label (English)', label_nl: 'Label (Engels)' },
-          { key: 'label_nl', type: 'string', label_en: 'Label (Dutch)', label_nl: 'Label (Nederlands)' },
-          { key: 'required', type: 'boolean', label_en: 'Required', label_nl: 'Verplicht' },
-          { key: 'visible', type: 'boolean', label_en: 'Visible', label_nl: 'Zichtbaar' },
-          { key: 'functional_group', type: 'string', label_en: 'Functional Group', label_nl: 'Functionele groep' },
-          { key: 'choices', type: 'string[]', label_en: 'Choices', label_nl: 'Keuzes', depends_on: 'type' },
-          { key: 'order', type: 'number', label_en: 'Order', label_nl: 'Volgorde' },
-        ],
-      },
-      {
-        key: 'fixed_overrides',
-        type: 'map<field_def>',
-        label_en: 'Fixed Field Overrides',
-        label_nl: 'Overrides van vaste velden',
-        field_def: [
-          { key: 'label_en', type: 'string', label_en: 'Label (English)', label_nl: 'Label (Engels)' },
-          { key: 'functional_group', type: 'string', label_en: 'Functional Group', label_nl: 'Functionele groep' },
-        ],
-      },
-      // Analytics slice (member-analytics R9, C-CONFIG) — authored beside the overlay slices.
-      {
-        key: 'analytics',
-        type: 'object',
-        label_en: 'Analytics',
-        label_nl: 'Analyse',
-        object_fields: [
-          {
-            key: 'jubilee_rule',
-            type: 'object',
-            label_en: 'Jubilee Rule',
-            label_nl: 'Jubileumregel',
-            object_fields: [
-              { key: 'years', type: 'string[]', label_en: 'Jubilee Years', label_nl: 'Jubileumjaren' },
-              { key: 'multiple_of', type: 'number', label_en: 'Every Nth year', label_nl: 'Elk Nde jaar' },
-            ],
-          },
-          {
-            key: 'field_roles',
-            type: 'object',
-            label_en: 'Analytics Field Roles',
-            label_nl: 'Analyse-veldrollen',
-            object_fields: [
-              { key: 'cancellation_date', type: 'string', label_en: 'Cancellation date field', label_nl: 'Veld opzegdatum' },
-              { key: 'referral_source', type: 'string', label_en: 'Referral source field', label_nl: 'Veld aanmeldbron' },
-              { key: 'clubblad_paper', type: 'string', label_en: 'Clubblad paper field', label_nl: 'Veld clubblad papier' },
-              { key: 'clubblad_digital', type: 'string', label_en: 'Clubblad digital field', label_nl: 'Veld clubblad digitaal' },
-              { key: 'country_detail', type: 'string', label_en: 'Country detail field', label_nl: 'Veld landdetail' },
-            ],
-          },
-          {
-            key: 'address_mapping',
-            type: 'object',
-            label_en: 'Address Label Mapping',
-            label_nl: 'Adreslabelkoppeling',
-            object_fields: [
-              { key: 'name', type: 'string', label_en: 'Name field', label_nl: 'Veld naam' },
-              { key: 'street', type: 'string', label_en: 'Street field', label_nl: 'Veld straat' },
-              { key: 'postcode', type: 'string', label_en: 'Postcode field', label_nl: 'Veld postcode' },
-              { key: 'city', type: 'string', label_en: 'City field', label_nl: 'Veld plaats' },
-              { key: 'country', type: 'string', label_en: 'Country field', label_nl: 'Veld land' },
-              { key: 'region', type: 'string', label_en: 'Region field', label_nl: 'Veld regio' },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'scope_dimensions',
-    type: 'list<object>',
-    label_en: 'Scope Dimensions',
-    label_nl: 'Scope-dimensies',
-    module: 'MEMBERS',
-    object_fields: [
-      { key: 'key', type: 'string', label_en: 'Dimension Key', label_nl: 'Dimensiesleutel' },
-      { key: 'label_en', type: 'string', label_en: 'Label (English)', label_nl: 'Label (Engels)' },
-      { key: 'enabled', type: 'boolean', label_en: 'Enabled', label_nl: 'Ingeschakeld' },
-      { key: 'values', type: 'string[]', label_en: 'Values', label_nl: 'Waarden' },
-      { key: 'required_for', type: 'string[]', label_en: 'Required For', label_nl: 'Vereist voor' },
-    ],
-  },
-];
-
-/* ------------------------------------------------------------------ */
-/*  Value fixtures                                                     */
-/* ------------------------------------------------------------------ */
-
-/** A field_overlay row with a defined group + one field, so pickers have data. */
-const overlayRow = {
-  id: 101,
+const overlayRow: Parameter = {
+  id: 202,
   namespace: 'members',
   key: 'field_overlay',
   value: {
@@ -196,267 +68,168 @@ const overlayRow = {
       { key: 'motor', label_en: 'Motorcycle', label_nl: 'Motor', order: 2 },
     ],
     fields: {
-      motor_brand: {
+      motor_brand: { type: 'string', label_en: 'Motor brand', functional_group: 'motor', visible: true },
+      region: {
         type: 'string',
-        label_en: 'Motor brand',
-        label_nl: 'Motormerk',
-        functional_group: 'motor',
-        visible: true,
+        label_en: 'Region',
+        functional_group: 'personal',
+        scope: { enabled: true, values: ['A'] },
       },
     },
     fixed_overrides: {},
   },
-  value_type: 'json' as const,
-  scope_origin: 'tenant' as const,
+  value_type: 'json',
+  scope_origin: 'tenant',
   is_secret: false,
-};
+} as unknown as Parameter;
 
-const scopeRow = {
-  id: 102,
-  namespace: 'members',
-  key: 'scope_dimensions',
-  value: [
-    { key: 'region', label_en: 'Region', label_nl: 'Regio', enabled: true, values: ['Region A'] },
+const FIELD_CONFIG: FieldConfig = {
+  fields: [
+    { key: 'motor_brand', functional_group: 'motor', provenance: 'tenant_added', type: 'string', label: { en: 'Motor brand', nl: 'Motormerk' } },
+    { key: 'region', functional_group: 'personal', provenance: 'tenant_added', type: 'string', label: { en: 'Region', nl: 'Regio' } },
+    { key: 'personal.first_name', functional_group: 'personal', provenance: 'base', type: 'string', label: { en: 'First name', nl: 'Voornaam' } },
   ],
-  value_type: 'json' as const,
-  scope_origin: 'tenant' as const,
-  is_secret: false,
+  functional_groups: [
+    { key: 'personal', order: 1 },
+    { key: 'motor', order: 2 },
+  ],
+  config_status: { fields: '2026-10-12T09:00:00', scope: 3, views: null, mail: null },
 };
 
-function allRows() {
-  return {
-    field_overlay: overlayRow,
-    scope_dimensions: scopeRow,
-  };
-}
-
-const ROLES = ['Members_CRUD', 'Members_Read'];
-
-async function renderEditor(rows: Record<string, unknown> = allRows()) {
-  mockGetDefs.mockResolvedValue(DEFS);
+function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, cfg: FieldConfig | null = FIELD_CONFIG) {
   mockGetParams.mockResolvedValue(rows);
-  render(<MembersConfigEditor tenant="t1" availableRoles={ROLES} />);
-  await waitFor(() =>
-    expect(screen.getByTestId('members-config-editor')).toBeInTheDocument(),
-  );
+  mockGetFieldConfig.mockResolvedValue(cfg);
+  mockCreate.mockResolvedValue({ success: true });
+  mockUpdate.mockResolvedValue({ success: true });
 }
 
-describe('MembersConfigEditor', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockCreate.mockResolvedValue({ success: true });
-    mockUpdate.mockResolvedValue({ success: true });
-    // Default: a delivered fields/scope/views projection so the status banner renders.
-    mockGetStatus.mockResolvedValue({
-      fields: '2026-10-12T09:00:00',
-      scope: 3,
-      views: null,
-      mail: null,
-    });
+async function renderEditor(
+  rows: Record<string, Parameter> = { field_overlay: overlayRow },
+  cfg: FieldConfig | null = FIELD_CONFIG,
+) {
+  seed(rows, cfg);
+  i18n.changeLanguage('en');
+  const utils = render(
+    <I18nextProvider i18n={i18n}>
+      <MembersConfigEditor tenant="t-1" />
+    </I18nextProvider>,
+  );
+  await screen.findByTestId('members-config-editor');
+  // wait for the async load() to settle (groups table rendered)
+  await screen.findByTestId('members-groups-table');
+  return utils;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('MembersConfigEditor — status banner', () => {
+  it('renders the delivered/loaded status from the module config_status', async () => {
+    await renderEditor();
+    expect(screen.getByTestId('members-config-status')).toBeInTheDocument();
+    expect(screen.getByTestId('members-config-status-fields-badge')).toHaveTextContent('Delivered');
+    expect(screen.getByTestId('members-config-status-views-badge')).toHaveTextContent('Not yet delivered');
   });
 
-  describe('projection status banner (Phase 0 step 3)', () => {
-    it('renders the delivered/loaded status from the module config_status', async () => {
-      await renderEditor();
-      const banner = await screen.findByTestId('members-config-status');
-      // fields was delivered → a Delivered badge; views was never delivered → Not yet delivered.
-      expect(
-        within(screen.getByTestId('members-config-status-fields')).getByText('Delivered'),
-      ).toBeInTheDocument();
-      expect(
-        within(screen.getByTestId('members-config-status-views')).getByText(
-          'Not yet delivered',
-        ),
-      ).toBeInTheDocument();
-      expect(banner).toBeInTheDocument();
-    });
+  it('hides the banner when the field-config fetch fails (null)', async () => {
+    await renderEditor({ field_overlay: overlayRow }, null);
+    expect(screen.queryByTestId('members-config-status')).not.toBeInTheDocument();
+    // authoring still works — the groups table is present
+    expect(screen.getByTestId('members-groups-table')).toBeInTheDocument();
+  });
+});
 
-    it('hides the banner when status is unavailable (older module build)', async () => {
-      mockGetStatus.mockResolvedValue({});
-      await renderEditor();
-      expect(screen.queryByTestId('members-config-status')).not.toBeInTheDocument();
-    });
+describe('MembersConfigEditor — drill-down navigation', () => {
+  it('starts on the groups table and drills into a group\'s fields and back', async () => {
+    await renderEditor();
+    // groups table is the entry point
+    expect(screen.getByTestId('members-groups-row-personal')).toBeInTheDocument();
+    // open the group modal → Fields → fields table of `personal`
+    fireEvent.click(screen.getByTestId('members-groups-row-personal'));
+    fireEvent.click(screen.getByTestId('members-group-modal-fields-btn'));
+    expect(await screen.findByTestId('members-fields-table-personal')).toBeInTheDocument();
+    expect(screen.getByTestId('members-fields-row-region')).toBeInTheDocument();
+    // back to the groups table
+    fireEvent.click(screen.getByTestId('members-drilldown-back'));
+    expect(screen.getByTestId('members-groups-table')).toBeInTheDocument();
   });
 
-  describe('composite-type rendering (sub-editors)', () => {
-    it('renders the kept sub-editors from the definition', async () => {
-      await renderEditor();
-      expect(screen.getByTestId('sub-editor-field_overlay-functional_groups')).toBeInTheDocument();
-      expect(screen.getByTestId('sub-editor-field_overlay-fields-fixed_overrides')).toBeInTheDocument();
-      expect(screen.getByTestId('sub-editor-scope_dimensions')).toBeInTheDocument();
-    });
-
-    it('renders the functional-group catalog list<object> rows', async () => {
-      await renderEditor();
-      // two seeded groups → two list rows in the functional_groups slice
-      expect(screen.getByTestId('functional_groups-row-0')).toBeInTheDocument();
-      expect(screen.getByTestId('functional_groups-row-1')).toBeInTheDocument();
-    });
-
-    it('renders the field overlay map<field_def> entry (keyed by field key)', async () => {
-      await renderEditor();
-      expect(screen.getByTestId('fields-entry-motor_brand')).toBeInTheDocument();
-    });
-
-    it('renders scope dimensions as list<object> rows', async () => {
-      await renderEditor();
-      expect(screen.getByTestId('scope_dimensions-row-0')).toBeInTheDocument();
-    });
+  it('opens the field modal from a field row with provenance-driven actions (R1.3)', async () => {
+    await renderEditor();
+    fireEvent.click(screen.getByTestId('members-groups-row-personal'));
+    fireEvent.click(screen.getByTestId('members-group-modal-fields-btn'));
+    fireEvent.click(await screen.findByTestId('members-fields-row-region'));
+    // field modal open; region is tenant_added → the actions offer destructive Delete, not reset
+    expect(screen.getByTestId('members-field-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('members-field-action-delete')).toBeInTheDocument();
+    expect(screen.queryByTestId('members-field-action-reset')).not.toBeInTheDocument();
   });
 
-  describe('pickers offer only defined / resolvable references (Property 7)', () => {
-    it('functional_group picker offers ONLY the defined catalog groups', async () => {
-      await renderEditor();
-      // The motor_brand field entry carries a functional_group Select (aria-labelled).
-      const entry = screen.getByTestId('fields-entry-motor_brand');
-      const select = within(entry).getByLabelText('Functional Group') as HTMLSelectElement;
-      const optionValues = Array.from(select.options).map((o) => o.value);
-      // '' placeholder + the two defined groups only — no arbitrary values.
-      expect(optionValues).toContain('personal');
-      expect(optionValues).toContain('motor');
-      expect(optionValues.filter((v) => v !== '')).toEqual(['personal', 'motor']);
-    });
+  it('a base field offers reset/hide, never destructive delete (R1.3)', async () => {
+    // personal.first_name is a base field in the resolved config; author an override entry so it
+    // is editable in the overlay, then open it.
+    const withOverride = {
+      field_overlay: {
+        ...overlayRow,
+        value: {
+          ...(overlayRow.value as Record<string, unknown>),
+          fixed_overrides: {
+            'personal.first_name': { functional_group: 'personal', label_en: 'First name' },
+          },
+        },
+      } as unknown as Parameter,
+    };
+    await renderEditor(withOverride);
+    fireEvent.click(screen.getByTestId('members-groups-row-personal'));
+    fireEvent.click(screen.getByTestId('members-group-modal-fields-btn'));
+    fireEvent.click(await screen.findByTestId('members-fields-row-personal.first_name'));
+    // base → reset + hide, no destructive delete
+    expect(screen.getByTestId('members-field-action-reset')).toBeInTheDocument();
+    expect(screen.getByTestId('members-field-action-hide')).toBeInTheDocument();
+    expect(screen.queryByTestId('members-field-action-delete')).not.toBeInTheDocument();
+  });
+});
+
+describe('MembersConfigEditor — single save path (Property 8 / R4.8)', () => {
+  it('one Save commits the WHOLE field_overlay in EXACTLY one request (PUT the tenant row)', async () => {
+    await renderEditor();
+    // Author an edit through the drill-down: add a new group.
+    fireEvent.click(screen.getByTestId('members-groups-add-btn'));
+    fireEvent.change(screen.getByLabelText('Group key'), { target: { value: 'address' } });
+    fireEvent.click(screen.getByTestId('members-group-modal-save-btn'));
+
+    // The Save button is now enabled (unsaved changes); click it.
+    const save = screen.getByTestId('members-config-save');
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+
+    // EXACTLY one request — a PUT to the existing tenant row (id 202), never a create.
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(mockCreate).not.toHaveBeenCalled();
+    const saved = mockUpdate.mock.calls[0][1].value as Record<string, any>;
+    // The whole object was committed with the new group added to the one field_overlay.
+    expect(saved.functional_groups.some((g: any) => g.key === 'address')).toBe(true);
+    expect(saved.fields.region).toBeTruthy();
   });
 
-  describe('save-once (Property 8): exactly ONE request per param object', () => {
-    it('editing then saving the scope dimensions issues exactly one PUT', async () => {
-      await renderEditor();
-      const scopeEditor = screen.getByTestId('sub-editor-scope_dimensions');
+  it('an unauthored tenant creates the single field_overlay row in exactly one request', async () => {
+    await renderEditor({}); // no existing row
+    fireEvent.click(screen.getByTestId('members-groups-add-btn'));
+    fireEvent.change(screen.getByLabelText('Group key'), { target: { value: 'personal' } });
+    fireEvent.click(screen.getByTestId('members-group-modal-save-btn'));
 
-      // Make an edit: toggle the dimension `enabled` switch (a boolean control).
-      const checkbox = scopeEditor.querySelector('input[type="checkbox"]') as HTMLInputElement;
-      expect(checkbox).toBeTruthy();
-      fireEvent.click(checkbox);
+    const save = screen.getByTestId('members-config-save');
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
 
-      // Save button becomes enabled once dirty.
-      const saveBtn = within(scopeEditor).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
-      fireEvent.click(saveBtn);
-
-      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
-      // Exactly one request total (an existing tenant row → PUT/update, never create).
-      expect(mockCreate).not.toHaveBeenCalled();
-      // The WHOLE object was committed under the scope_dimensions param.
-      expect(mockUpdate).toHaveBeenCalledWith(
-        102,
-        expect.objectContaining({ value_type: 'json' }),
-      );
-    });
-
-    it('an unauthored param creates the tenant row in exactly one request', async () => {
-      // No existing rows → scope_dimensions is unauthored.
-      await renderEditor({});
-      const scopeEditor = screen.getByTestId('sub-editor-scope_dimensions');
-      const addBtn = within(scopeEditor).getByRole('button', { name: /Add Scope Dimensions/i });
-      fireEvent.click(addBtn);
-
-      const saveBtn = within(scopeEditor).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
-      fireEvent.click(saveBtn);
-
-      await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
-      expect(mockUpdate).not.toHaveBeenCalled();
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ scope: 'tenant', namespace: 'members', key: 'scope_dimensions', value_type: 'json' }),
-      );
-    });
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  describe('enum options authored as { value, label{nl,en}, roles }', () => {
-    it('adds a rich enum option with per-option role restriction', async () => {
-      await renderEditor();
-      const overlayEditor = screen.getByTestId('sub-editor-field_overlay-fields-fixed_overrides');
-      const entry = within(overlayEditor).getByTestId('fields-entry-motor_brand');
-
-      // Add an enum option (the `choices` string[] renders the EnumOptionsEditor).
-      const addOption = within(entry).getByRole('button', { name: 'Add option' });
-      fireEvent.click(addOption);
-
-      const option = within(entry).getByTestId('enum-option-0');
-      fireEvent.change(within(option).getByLabelText('Option 1 value'), { target: { value: 'harley' } });
-      fireEvent.change(within(option).getByLabelText('Option 1 label nl'), { target: { value: 'Harley' } });
-      fireEvent.change(within(option).getByLabelText('Option 1 label en'), { target: { value: 'Harley' } });
-      // Role restriction toggle (R4.12)
-      fireEvent.click(within(option).getByLabelText('Option 1 role Members_CRUD'));
-
-      // Save → the committed object carries the rich option shape.
-      const saveBtn = within(overlayEditor).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
-      fireEvent.click(saveBtn);
-
-      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
-      const savedValue = mockUpdate.mock.calls[0][1].value as any;
-      const choices = savedValue.fields.motor_brand.choices;
-      expect(choices).toEqual([
-        { value: 'harley', label: { nl: 'Harley', en: 'Harley' }, roles: ['Members_CRUD'] },
-      ]);
-    });
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Analytics config slice (member-analytics R9, C-CONFIG, task 6.3) */
-  /* ---------------------------------------------------------------- */
-  describe('analytics config slice (R9 / C-CONFIG)', () => {
-    it('renders the Analytics sub-editor as a slice of field_overlay', async () => {
-      await renderEditor();
-      // The fifth tab is backed by its own field_overlay slice sub-editor.
-      expect(
-        screen.getByTestId('sub-editor-field_overlay-analytics'),
-      ).toBeInTheDocument();
-    });
-
-    it('renders the jubilee rule, field-role, and address-mapping controls', async () => {
-      await renderEditor();
-      const analytics = screen.getByTestId('sub-editor-field_overlay-analytics');
-      // jubilee_rule: a multiple-of number input + a years list editor
-      expect(within(analytics).getByLabelText('Every Nth year')).toBeInTheDocument();
-      // field_roles: each role is a resolvable-field-key picker
-      expect(within(analytics).getByLabelText('Cancellation date field')).toBeInTheDocument();
-      expect(within(analytics).getByLabelText('Clubblad paper field')).toBeInTheDocument();
-      // address_mapping: each label line is a resolvable-field-key picker
-      expect(within(analytics).getByLabelText('Name field')).toBeInTheDocument();
-      expect(within(analytics).getByLabelText('Postcode field')).toBeInTheDocument();
-    });
-
-    it('a field-role picker offers ONLY resolvable field keys (R9.4 reference help)', async () => {
-      await renderEditor();
-      const analytics = screen.getByTestId('sub-editor-field_overlay-analytics');
-      const roleSelect = within(analytics).getByLabelText(
-        'Cancellation date field',
-      ) as HTMLSelectElement;
-      const values = Array.from(roleSelect.options)
-        .map((o) => o.value)
-        .filter(Boolean);
-      // Resolvable set = overlay field (motor_brand) + scope dim key (region); nothing else.
-      expect(values).toContain('motor_brand');
-      expect(values).toContain('region');
-      expect(values).not.toContain('nonexistent_field');
-    });
-
-    it('authoring a role mapping + saving commits the WHOLE field_overlay in one PUT', async () => {
-      await renderEditor();
-      const analytics = screen.getByTestId('sub-editor-field_overlay-analytics');
-
-      // Map the cancellation_date role to a resolvable field key.
-      const roleSelect = within(analytics).getByLabelText(
-        'Cancellation date field',
-      ) as HTMLSelectElement;
-      fireEvent.change(roleSelect, { target: { value: 'motor_brand' } });
-
-      const saveBtn = within(analytics).getByRole('button', { name: 'Save' });
-      await waitFor(() => expect(saveBtn).not.toBeDisabled(), { timeout: 5000 });
-      fireEvent.click(saveBtn);
-
-      // Save-once: exactly one request, routed to update (existing field_overlay row).
-      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
-      expect(mockCreate).not.toHaveBeenCalled();
-
-      const savedValue = mockUpdate.mock.calls[0][1].value as any;
-      // The analytics slice serializes to the backend-read shape (field_roles keyed by role).
-      expect(savedValue.analytics.field_roles.cancellation_date).toBe('motor_brand');
-      // The sibling overlay slices are preserved in the same whole-object commit.
-      expect(savedValue.fields.motor_brand).toBeTruthy();
-      expect(savedValue.functional_groups).toHaveLength(2);
-    });
+  it('Save is disabled until there is an unsaved edit', async () => {
+    await renderEditor();
+    expect(screen.getByTestId('members-config-save')).toBeDisabled();
+    expect(screen.queryByTestId('members-unsaved-indicator')).not.toBeInTheDocument();
   });
 });

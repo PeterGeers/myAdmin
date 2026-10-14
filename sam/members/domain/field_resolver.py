@@ -57,13 +57,11 @@ from .fixed_fields import (
 
 __all__ = [
     "OVERLAY_GROUP",
-    "AnalyticsConfig",
-    "AnalyticsRole",
-    "AddressMapping",
-    "JubileeRule",
     "FieldConfig",
     "FieldOrigin",
+    "FieldProvenance",
     "FieldResolver",
+    "FieldScope",
     "FixedFieldOverride",
     "FunctionalGroup",
     "OverlayError",
@@ -92,6 +90,32 @@ class FieldOrigin(str, Enum):
     CALCULATED = "calculated"  # derived read-only field, NEVER stored (calculated_fields.py, R4.4)
 
 
+class FieldProvenance(str, Enum):
+    """The single-list PROVENANCE marker (Phase 3 step 8, R1.2) — derived at resolve time.
+
+    Phase 3 collapses the former two-section fixed/overlay presentation into ONE unified field
+    list, where each field shows a badge indicating its origin. That badge is this marker,
+    DERIVED from how the field resolved — it is NOT a new stored shape (R1.4) and introduces no
+    new field position (R1.3): the resolved field SET and the ``(group, order, key)`` order are
+    unchanged by its addition (Property 1, R1.6).
+
+    It is orthogonal to :class:`FieldOrigin` (the STORAGE/source layer, kept verbatim so no
+    existing consumer breaks). Provenance refines origin with whether a base field carries a
+    tenant presentation override:
+
+    - :attr:`BASE` — a platform base field (fixed OR calculated) with NO tenant override applied.
+    - :attr:`BASE_OVERRIDDEN` — a platform base field re-presented by a tenant ``fixed_overrides``
+      entry (relabelled / reordered / hidden / regrouped / tightened). Still immovable: Phase 3
+      keeps every current fixed field in the resolved set (it does NOT adopt
+      "only ``member_id`` is fixed", R1.5).
+    - :attr:`TENANT_ADDED` — a tenant-defined variable (overlay) field ("club detail").
+    """
+
+    BASE = "base"                        # platform base field, no tenant override
+    TENANT_ADDED = "tenant_added"        # tenant-defined variable (overlay) field
+    BASE_OVERRIDDEN = "base_overridden"  # platform base field re-presented by a tenant override
+
+
 @dataclass(frozen=True)
 class ResolvedField:
     """One field in the resolved config — a fixed field (possibly overlaid) or a variable one.
@@ -107,6 +131,11 @@ class ResolvedField:
     type: FieldType
     required: bool
     origin: FieldOrigin
+    # Single-list PROVENANCE badge (Phase 3 step 8, R1.2), DERIVED at resolve time from how the
+    # field resolved — base / tenant-added / base-overridden. Orthogonal to `origin` (the storage
+    # layer); defaults to BASE so adding it changes neither the resolved field SET nor the
+    # `(group, order, key)` ordering (Property 1, R1.6).
+    provenance: FieldProvenance = FieldProvenance.BASE
     label: Mapping[str, str] = field(default_factory=dict)   # i18n {"nl": ..., "en": ...}
     choices: Sequence[str] | None = None                  # for FieldType.ENUM (bare value list)
     options: Sequence[EnumOption] | None = None           # rich enum options {value,label,roles?} (R4.11/R4.12)
@@ -114,6 +143,12 @@ class ResolvedField:
     member_number_format: MemberNumberFormat | None = None  # only on member_number (task 1.4b)
     show_when: Mapping[str, Any] | None = None            # per-field conditional visibility (R4.12)
     calculated_from: Sequence[str] | None = None          # inputs of a CALCULATED field (R4.4), else None
+    #: The field's SCOPE attribute (remediation R3.5), carried from the overlay/override onto the
+    #: resolved field so the serializer can emit it and the authoring UI can READ the current scope
+    #: state back. ``None`` when the field is not a scope axis. This is read re-presentation ONLY —
+    #: scope RESOLUTION (``handler/app.py`` → ``allowed_scopes``) still consumes the ``config#scope``
+    #: row via ``ScopeConfig`` UNCHANGED (R3.8); the authoritative projection is unaffected.
+    scope: FieldScope | None = None
     visible: bool = True
     read_only: bool = False                                  # True for CALCULATED fields (derived, never stored)
     order: int = 0
@@ -140,11 +175,6 @@ class FieldConfig:
     #: Modals / view contexts SECTION by these (design C-SURFACE); a field whose
     #: ``functional_group`` is absent from this catalog falls back to a default section at render.
     functional_groups: tuple[FunctionalGroup, ...] = ()
-    #: The tenant's analytics config (member-analytics R9, C-CONFIG), projected one-directionally
-    #: from the overlay slice. ``None`` when the tenant authored none → the analytics consumer
-    #: applies the documented defaults (R9.5). Read-only tenant data: the module serves it, it
-    #: enforces nothing off it (mirrors ``functional_groups`` / view contexts / lifecycle).
-    analytics: AnalyticsConfig | None = None
 
     def by_group(self) -> Mapping[str, tuple[ResolvedField, ...]]:
         buckets: dict[str, list[ResolvedField]] = {}
@@ -198,6 +228,35 @@ class OverlayField:
     show_when: Mapping[str, Any] | None = None
     visible: bool = True
     order: int = 0
+    #: Phase 3 step 9 (R2.1) — the SAM READ representation of scope-binding as a field
+    #: attribute: when this field is authored as a scope axis, its scope config
+    #: (:class:`FieldScope`); ``None`` otherwise. This is the authoring/read re-presentation
+    #: ONLY — scope RESOLUTION (``handler/app.py`` → ``allowed_scopes``) continues to consume
+    #: the ``config#scope`` row via ``ScopeConfig`` UNCHANGED (R2.3), and the ``config#scope``
+    #: dimensions are the authoritative projection the resolver reads (semantic equivalence,
+    #: Property 2). The resolver CARRIES this attribute onto the resolved field (remediation
+    #: R3.5) so the serializer emits it and the authoring UI can read the current scope state
+    #: back; it does not drive scope RESOLUTION.
+    scope: FieldScope | None = None
+
+
+@dataclass(frozen=True)
+class FieldScope:
+    """The SAM read shape of a field's ``scope`` attribute (Phase 3 step 9, R2.1).
+
+    Expresses, as a field attribute, that a field is a scope axis — ``enabled``, with its value
+    vocabulary (``values``), an optional i18n ``label``, and the capabilities that REQUIRE a
+    grant (``required_for``). It mirrors the aspects of a :class:`ScopeDimension` that are
+    authored per field (the dimension ``key``/``field`` derive from the field's own key, so they
+    are NOT carried here). Read-only re-presentation: the authoritative scope projection the
+    resolver consumes is still the ``config#scope`` row (``ScopeConfig``), kept semantically
+    equivalent by the Flask builder (Property 2).
+    """
+
+    enabled: bool = True
+    values: Sequence[str] = ()
+    label: Mapping[str, str] = field(default_factory=dict)
+    required_for: Sequence[str] = ()
 
 
 @dataclass(frozen=True)
@@ -218,6 +277,13 @@ class FixedFieldOverride:
     show_when: Mapping[str, Any] | None = None   # per-field conditional visibility (R4.12)
     member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
     order: int | None = None
+    #: Phase 3 step 9 (R2.1) — the SAM READ representation of scope-binding as a field attribute
+    #: on a FIXED field (e.g. ``region``). ``None`` when the fixed field is not re-presented as a
+    #: scope axis. Read re-presentation only; scope RESOLUTION stays on ``config#scope`` /
+    #: ``ScopeConfig`` (R2.3), kept semantically equivalent by the Flask builder (Property 2). The
+    #: resolver CARRIES this attribute onto the resolved field (remediation R3.5) so the serializer
+    #: emits it and the authoring UI can read the current scope state back.
+    scope: FieldScope | None = None
 
 
 @dataclass(frozen=True)
@@ -236,108 +302,6 @@ class FunctionalGroup:
     key: str
     label: Mapping[str, str] = field(default_factory=dict)
     order: int = 0
-
-
-# ── Analytics config (member-analytics C-CONFIG, R9) — a slice of the members.* overlay ──
-#
-# ODI-2 (resolved): the analytics block is authored as a SLICE of the existing
-# ``members.field_overlay`` param (the ``config#fields`` row), NOT a separate param — it rides
-# on :class:`TenantOverlay` beside ``fields`` / ``overrides`` / ``functional_groups``, is read by
-# the one projection reader, and is projected one-directionally onto ``FieldConfig.analytics``
-# and served on ``GET /members/field-config``. The served ``FieldConfig.analytics`` shape is held
-# stable regardless of this authoring choice (the shape in design C-CONFIG).
-#
-# This is **read-only tenant data** for the presentation layer: the module serves it; it enforces
-# nothing off it (jubilee semantics / which overlay field backs which analytics set are the
-# frontend's to apply — exactly like ``view_contexts`` / ``lifecycle``). Absent → documented
-# defaults (jubilee multiples-of-5; unmapped roles → their sets hidden; no address mapping → PDF
-# labels unavailable), applied by the consumer, never invented here.
-
-
-class AnalyticsRole(str, Enum):
-    """The analytics field ROLES a tenant maps to its own overlay/field keys (R9.3, C-CONFIG).
-
-    A role is the GENERIC analytics meaning ("the cancellation-date field", "the paper-clubblad
-    flag"); a tenant maps it to whichever of ITS field keys fills that meaning via
-    :attr:`AnalyticsConfig.field_roles`. Analytics resolves a role → key → presence in the
-    resolved ``fields`` to decide whether a role-backed set is offered or hidden (R4.3). Generic +
-    multi-tenant: no tenant conditionals, no hardcoded overlay key names.
-    """
-
-    CANCELLATION_DATE = "cancellation_date"
-    REFERRAL_SOURCE = "referral_source"
-    CLUBBLAD_PAPER = "clubblad_paper"
-    CLUBBLAD_DIGITAL = "clubblad_digital"
-    COUNTRY_DETAIL = "country_detail"
-
-
-@dataclass(frozen=True)
-class JubileeRule:
-    """What counts as a jubilee year (R9.2) — a configured set OR a multiple-of rule.
-
-    ``years`` is an explicit list of jubilee years (e.g. ``[25, 40, 50]``); ``multiple_of`` is the
-    "every Nth year" rule (e.g. every 5th year). A tenant authors at most one meaningfully; when
-    BOTH are absent the consumer applies the documented default (``multiple_of = 5``) — the
-    default is NOT materialized here (an empty rule stays empty so the served shape mirrors what
-    the tenant authored).
-    """
-
-    years: tuple[int, ...] | None = None
-    multiple_of: int | None = None
-
-    def is_empty(self) -> bool:
-        return not self.years and self.multiple_of is None
-
-
-@dataclass(frozen=True)
-class AddressMapping:
-    """Which resolvable field keys fill each line of a printed address label (R9.4, C5).
-
-    Each attribute is a field KEY (resolved against the field config at render), not a value.
-    All optional + empty-is-valid: an absent mapping → PDF address labels are unavailable with a
-    clear reason (the consumer's degradation, R4.10); CSV export is always available.
-    """
-
-    name: str | None = None
-    street: str | None = None
-    postcode: str | None = None
-    city: str | None = None
-    country: str | None = None
-    region: str | None = None
-
-    def is_empty(self) -> bool:
-        return not any(
-            (self.name, self.street, self.postcode, self.city, self.country, self.region)
-        )
-
-
-@dataclass(frozen=True)
-class AnalyticsConfig:
-    """The tenant-authored analytics semantics (R9, C-CONFIG) — a slice of the members overlay.
-
-    Three additive, all-optional pieces:
-
-    - :attr:`jubilee_rule` — what a jubilee year is (R9.2);
-    - :attr:`field_roles` — generic analytics ROLE → tenant field key (R9.3);
-    - :attr:`address_mapping` — which keys fill a printed address label (R9.4).
-
-    Empty-is-valid: a tenant that authored none yields :meth:`is_empty` ``True`` and the consumer
-    falls back to the documented defaults (R9.5). The resolver carries this verbatim — it does not
-    validate role targets against the resolved ``fields`` (that reference check / skip-on-
-    unresolvable is the SPA's at render and the Flask-plane validator's at Save, exactly as for
-    view-context columns), so an unmapped/dangling role never crashes the field-config read.
-    """
-
-    jubilee_rule: JubileeRule | None = None
-    field_roles: Mapping[AnalyticsRole, str] = field(default_factory=dict)
-    address_mapping: AddressMapping | None = None
-
-    def is_empty(self) -> bool:
-        return (
-            (self.jubilee_rule is None or self.jubilee_rule.is_empty())
-            and not self.field_roles
-            and (self.address_mapping is None or self.address_mapping.is_empty())
-        )
 
 
 @dataclass(frozen=True)
@@ -364,11 +328,6 @@ class TenantOverlay:
     overrides: Mapping[str, FixedFieldOverride] = field(default_factory=dict)
     #: The tenant's functional-group (display) catalog, keyed by group ``key`` (R4.9).
     functional_groups: Mapping[str, FunctionalGroup] = field(default_factory=dict)
-    #: The tenant's analytics config (member-analytics R9, C-CONFIG) — a SLICE of this overlay
-    #: (ODI-2). ``None``/empty when the tenant authored none → the consumer applies the documented
-    #: defaults (R9.5). Carried verbatim (not validated against ``fields`` here) and projected
-    #: one-directionally onto ``FieldConfig.analytics``.
-    analytics: AnalyticsConfig | None = None
 
 
 class OverlayError(Exception):
@@ -493,27 +452,27 @@ class FieldResolver:
         groups = tuple(
             sorted(overlay.functional_groups.values(), key=lambda g: (g.order, g.key))
         )
-        # Project the analytics config (R9, C-CONFIG) ONE-DIRECTIONALLY off the overlay slice
-        # (ODI-2): carried verbatim onto the resolved config, never validated against `resolved`
-        # here (the role→key reference check is the SPA's at render / the validator's at Save,
-        # like view-context columns). An empty/absent block collapses to `None` so the served
-        # shape mirrors what the tenant authored (empty-is-valid → consumer defaults, R9.5).
-        analytics = overlay.analytics
-        if analytics is not None and analytics.is_empty():
-            analytics = None
         return FieldConfig(
             tenant_id=tenant_id,
             fields=tuple(resolved),
             functional_groups=groups,
-            analytics=analytics,
         )
 
     # ── internals ─────────────────────────────────────────────────────────────────────
 
     @staticmethod
     def _apply_override(fixed: FixedField, overlay: TenantOverlay) -> ResolvedField:
-        """Project a fixed field into a resolved field, applying any presentation override."""
+        """Project a fixed field into a resolved field, applying any presentation override.
+
+        Phase 3 step 8 (R1.2): the single-list provenance marker is DERIVED here — a base field
+        with a tenant ``fixed_overrides`` entry is ``BASE_OVERRIDDEN``, else ``BASE``. The field
+        stays in the resolved set and keeps its ``(group, order, key)`` ordering regardless (the
+        collapse re-presents, it does not add/remove/reorder — Property 1, R1.5/R1.6).
+        """
         override = overlay.overrides.get(fixed.dotted_key())
+        provenance = (
+            FieldProvenance.BASE_OVERRIDDEN if override is not None else FieldProvenance.BASE
+        )
         label: Mapping[str, str] = fixed.label
         required = fixed.required
         visible = True
@@ -522,6 +481,7 @@ class FieldResolver:
         options = fixed.options
         show_when = fixed.show_when
         member_number_format = fixed.member_number_format
+        scope: FieldScope | None = None  # a fixed field carries no base scope; only an override can
         if override is not None:
             if override.label is not None:
                 label = override.label
@@ -539,6 +499,8 @@ class FieldResolver:
                 show_when = override.show_when
             if override.member_number_format is not None:
                 member_number_format = override.member_number_format
+            if override.scope is not None:
+                scope = override.scope
         # Keep `choices` (the bare value list) coherent with rich `options` when a tenant
         # supplies them (so consumers that read either stay consistent).
         choices = fixed.choices
@@ -550,12 +512,14 @@ class FieldResolver:
             type=fixed.type,
             required=required,
             origin=FieldOrigin.FIXED,
+            provenance=provenance,
             label=label,
             choices=choices,
             options=options,
             functional_group=functional_group,
             member_number_format=member_number_format,
             show_when=show_when,
+            scope=scope,
             visible=visible,
             order=order,
         )
@@ -567,8 +531,14 @@ class FieldResolver:
         Calculated fields are NEVER stored. Like fixed fields they may be re-presented by a
         ``fixed_overrides`` entry keyed by their dotted key (relabel / reorder / hide / reassign
         functional group), but their type/required/read-only nature is fixed by the platform.
+
+        Provenance (R1.2) is derived like a fixed field: a calculated base field re-presented by
+        a tenant override is ``BASE_OVERRIDDEN``, else ``BASE`` — it is never a tenant-added one.
         """
         override = overlay.overrides.get(calc.dotted_key())
+        provenance = (
+            FieldProvenance.BASE_OVERRIDDEN if override is not None else FieldProvenance.BASE
+        )
         label: Mapping[str, str] = calc.label
         visible = True
         order = calc.order
@@ -591,6 +561,7 @@ class FieldResolver:
             type=calc.type,
             required=False,            # a derived field is never required input
             origin=FieldOrigin.CALCULATED,
+            provenance=provenance,
             label=label,
             functional_group=functional_group,
             show_when=show_when,
@@ -612,6 +583,8 @@ class FieldResolver:
         a scope dimension (present in ``scope_vocab``) sources its ``choices`` from that
         dimension's values — ``scope_dimensions.values`` is the single source of truth, so the
         overlay stores no duplicate list.
+
+        Provenance (R1.2): a variable field is always ``TENANT_ADDED`` in the unified list.
         """
         key = of.key or name
         choices = of.choices
@@ -630,11 +603,13 @@ class FieldResolver:
             type=of.type,
             required=of.required,
             origin=FieldOrigin.VARIABLE,
+            provenance=FieldProvenance.TENANT_ADDED,
             label=of.label,
             choices=choices,
             options=of.options,
             functional_group=of.functional_group or OVERLAY_GROUP,
             show_when=of.show_when,
+            scope=of.scope,
             visible=of.visible,
             order=of.order,
         )

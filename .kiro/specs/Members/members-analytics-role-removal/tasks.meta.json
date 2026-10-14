@@ -1,0 +1,205 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0. **EQUIVALENCE GATE** — prove every removed capability is reachable generically (code level, BEFORE any deletion)": [
+      {
+        "executionId": "88d622aa-b281-4f04-a9ff-5615ebf8b3e8",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791973657884
+      },
+      {
+        "executionId": "88d622aa-b281-4f04-a9ff-5615ebf8b3e8",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791973860361
+      }
+    ],
+    "1. Remove the frontend role/jubilee/address/preset surface (consumers re-wired first, then leaves deleted/sliced)": [
+      {
+        "executionId": "88d622aa-b281-4f04-a9ff-5615ebf8b3e8",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791973874460
+      },
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976841815
+      }
+    ],
+    "1.1 Re-wire `MemberPivotViews.tsx` consumer + build the **empty Pivot Views entry point**": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976814437
+      }
+    ],
+    "1.2 Re-wire `MemberMailCompose.tsx` consumer": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976815742
+      }
+    ],
+    "1.3 Delete the two full-delete leaf modules + their paired tests": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976817171
+      }
+    ],
+    "1.4 Slice `analytics/analyticsConfig.ts`": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976818562
+      }
+    ],
+    "1.5 Slice `analytics/addressLabelService.ts`": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976819611
+      }
+    ],
+    "1.6 Slice the `analytics/index.ts` barrel": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976824364
+      }
+    ],
+    "1.8 Slice `types/members.ts`": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976825749
+      }
+    ],
+    "1.7 Remove the Members config **Analytics** tab": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976827220
+      }
+    ],
+    "1.9 Locale keys: remove removed keys, add the empty-hint keys": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976828237
+      }
+    ],
+    "1.G **Green gate A** — frontend compiles and the touched frontend suites are green": [
+      {
+        "executionId": "c3690a4d-7b63-4d94-8bf3-0fd14c3ed464",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791976828332
+      }
+    ],
+    "2. Remove the SAM serve/read of the analytics role-config slice + the Flask param schema slice": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977049995
+      },
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977353975
+      }
+    ],
+    "2.1 SAM writer — remove `_serialize_analytics` and the served `\"analytics\"` key": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977346433
+      }
+    ],
+    "2.2 SAM reader — remove `_build_analytics` / `_build_jubilee_rule` / `_build_address_mapping`": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977347823
+      }
+    ],
+    "2.3 Flask param schema — remove the `analytics` object slice": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977348797
+      }
+    ],
+    "2.G **Green gate B** — SAM serve/read suites green": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977348909
+      }
+    ],
+    "3. Remove the SAM domain role/jubilee/address classes + catalog prose": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977362206
+      },
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977678397
+      }
+    ],
+    "3.1 Remove the domain classes and their wiring": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977672336
+      }
+    ],
+    "3.2 Remove the analytics role/alias prose from the attribute catalog": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977673290
+      }
+    ],
+    "3.G **Green gate C** — SAM domain + drift-guard suites green": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977673383
+      }
+    ],
+    "4. Clean fixtures and retire the `member-analytics` ACs/tasks": [
+      {
+        "executionId": "8f5a3f7d-311d-46d3-8374-9629812f7785",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791977687778
+      }
+    ],
+    "5. Read-only stored-reference inventory in TEST **and** PROD (member records never touched)": [
+      {
+        "executionId": "2b46055a-da08-4d69-864f-4977f46fd2cb",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791979690610
+      }
+    ],
+    "9. Ship — feature branch → PR into `test` → promote by merge to `main` (DATA account only)": [
+      {
+        "executionId": "433f4d73-4671-4c75-8445-ed860cf34961",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791982971055
+      }
+    ],
+    "8. **Fix-Checking completeness** — manifest clean, drift guard green, touched suites green": [
+      {
+        "executionId": "afe75d5e-a9cd-4a47-8540-f31b6baa6375",
+        "chatSessionId": "sess_b432477e-a3fe-46b1-9b34-677f26365f09",
+        "timestamp": 1791984557377
+      },
+      {
+        "executionId": "afe75d5e-a9cd-4a47-8540-f31b6baa6375",
+        "chatSessionId": "sess_b432477e-a3fe-46b1-9b34-677f26365f09",
+        "timestamp": 1791984924189
+      }
+    ]
+  }
+}

@@ -211,7 +211,6 @@ describe('Member Analytics perf — Overview memoization + render budget (R6.7, 
     const baseProps = {
       members: rows as unknown as Member[],
       fieldConfig,
-      hasAnalyticsConfig: true,
       language: 'en',
       capabilities: { canExport: false },
     };
@@ -311,7 +310,6 @@ describe('Member Analytics perf — only the visible area recomputes on filter c
         processedData={first}
         members={members}
         fieldConfig={fieldConfig}
-        hasAnalyticsConfig
         language="en"
         capabilities={{ canExport: true }}
       />,
@@ -333,7 +331,6 @@ describe('Member Analytics perf — only the visible area recomputes on filter c
         processedData={filtered}
         members={members}
         fieldConfig={fieldConfig}
-        hasAnalyticsConfig
         language="en"
         capabilities={{ canExport: true }}
       />,

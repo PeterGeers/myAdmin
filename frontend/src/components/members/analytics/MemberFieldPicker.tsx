@@ -96,8 +96,23 @@ import type {
   PivotConfig,
 } from '../../../types/pivot';
 import { saveAnalyticsSet, updateAnalyticsSet } from '../../../services/membersApiService';
-import { MEMBER_PIVOT_DATA_SOURCE, type MemberPivotPreset } from './memberPivotPresets';
 import FieldChecklist from '../FieldChecklist';
+
+/** The data source tag the client pivot adapter resolves member rows against. */
+export const MEMBER_PIVOT_DATA_SOURCE = 'members';
+
+/**
+ * A starting-point SEED for a NEW set (the Save-as flow): the config to
+ * pre-populate the picker from, plus an optional default name. This is the
+ * generic analytics-SET seed — a user saving a variant of the selected set —
+ * NOT a predefined preset (the preset subsystem was removed).
+ */
+export interface PivotSeed {
+  /** The config whose group columns / measures / list columns / filters seed the picker. */
+  config: PivotConfig;
+  /** Optional default name to pre-fill (e.g. the source set's name). */
+  name?: string;
+}
 
 /** The aggregate functions the framework supports (mirrors `AggregateFunction`). */
 const AGGREGATE_FUNCTIONS: readonly AggregateFunction[] = [
@@ -267,12 +282,13 @@ export interface MemberFieldPickerProps {
   /** Active language for bilingual label resolution. */
   language: string;
   /**
-   * Optional preset to SEED the picker from (R4.6). When provided, the group
-   * columns + measures + default name are pre-populated from its config so the
-   * predefined set is a starting point the user can tweak and save. Ignored when
-   * `existingModel` is supplied (an edit opens from the saved model, not a preset).
+   * Optional seed to pre-populate the picker from — the Save-as flow (R4.6).
+   * When provided, the group columns + measures + list columns + filters + a
+   * default name are pre-populated from its config so the selected set is a
+   * starting point the user can tweak and save as a NEW set. Ignored when
+   * `existingModel` is supplied (an edit opens from the saved model).
    */
-  seedPreset?: MemberPivotPreset;
+  seedPreset?: PivotSeed;
   /**
    * Optional existing saved set to EDIT (task 7.5 — update path). When
    * supplied, the picker opens pre-populated from this set's own definition and
@@ -372,7 +388,7 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
     setMeasures(toDrafts(cfg?.aggregateMeasures));
     setListColumns(seedListColumns(cfg, fieldConfig));
     setFilterDrafts(toFilterDrafts(cfg?.filters));
-    setName(seedPreset ? t(`analytics.pivotViews.presetNames.${presetLeaf(seedPreset)}`) : '');
+    setName(seedPreset?.name ?? '');
     setSaving(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, existingModel, seedPreset]);
@@ -510,7 +526,7 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
             {seedPreset && (
               <Text fontSize="sm" color="orange.300" data-testid="field-picker-seeded">
                 {t(`${T}.seededFrom`, {
-                  preset: t(`analytics.pivotViews.presetNames.${presetLeaf(seedPreset)}`),
+                  preset: seedPreset.name ?? '',
                 })}
               </Text>
             )}
@@ -743,17 +759,6 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
     </Modal>
   );
 };
-
-/**
- * The preset's i18n leaf key under `analytics.pivotViews.presetNames.*`. A
- * preset's `labelKey` is the full path `analytics.pivotViews.presetNames.<leaf>`;
- * this returns `<leaf>` so the modal resolves the bilingual name the same way the
- * Pivot Views dropdown does (no hardcoded English).
- */
-function presetLeaf(preset: MemberPivotPreset): string {
-  const parts = preset.labelKey.split('.');
-  return parts[parts.length - 1] || preset.key;
-}
 
 /**
  * Seed the list-column selection when the picker opens on a (list) set.

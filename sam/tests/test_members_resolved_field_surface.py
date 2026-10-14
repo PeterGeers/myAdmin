@@ -43,6 +43,7 @@ if _REPO_ROOT not in sys.path:
 
 from sam.members.domain.field_resolver import (
     FieldResolver,
+    FieldScope,
     FixedFieldOverride,
     FunctionalGroup,
     OverlayField,
@@ -180,6 +181,70 @@ class TestFieldConfigSurfacesTask44Attributes:
 
     def test_field_config_is_json_serializable(self, service):
         json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+
+# ── (1c) Remediation R3.5 — the served `scope` attribute (I-6: was DEAD on read) ──────
+#
+# Before this remediation the field `scope` attribute was never carried onto `ResolvedField` and
+# never serialized, so the authoring UI could not read the current scope state back. The resolver
+# now carries it and `_serialize_field` emits `scope` as `{enabled, required_for}` (the `values`
+# sub-key is deliberately dropped — scope values ARE the field's enum values, single vocabulary).
+# Scope RESOLUTION (`allowed_scopes`) stays unchanged (test_scope_access.py pins P3).
+
+
+def _overlay_with_scope() -> TenantOverlay:
+    """A tenant overlay marking a FIXED enum field and a VARIABLE enum field as scope axes."""
+    return TenantOverlay(
+        fields={
+            "team": OverlayField(
+                key="team",
+                type=FieldType.ENUM,
+                label={"nl": "Team", "en": "Team"},
+                options=(
+                    EnumOption(value="a", label={"nl": "A", "en": "A"}),
+                    EnumOption(value="b", label={"nl": "B", "en": "B"}),
+                ),
+                functional_group="membership",
+                scope=FieldScope(enabled=True, required_for=("Members_CRUD",)),
+            ),
+        },
+        overrides={
+            # Mark the fixed `gender` enum as a scope axis via an override.
+            "personal.gender": FixedFieldOverride(
+                scope=FieldScope(enabled=True, required_for=("Members_Read",)),
+            ),
+        },
+    )
+
+
+class TestFieldConfigSurfacesScope:
+    @pytest.fixture()
+    def scope_service(self, catalog_repo) -> MembershipService:
+        return MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_scope()}),
+        )
+
+    def test_scope_surfaced_on_a_variable_field_as_enabled_required_for(self, scope_service):
+        config = scope_service.get_field_config("h-dcn")
+        team = next(f for f in config["fields"] if f["key"] == "team")
+        assert team["scope"] == {"enabled": True, "required_for": ["Members_CRUD"]}
+        # The single-vocabulary rule: scope carries NO `values` sub-key (R3.2).
+        assert "values" not in team["scope"]
+
+    def test_scope_surfaced_on_a_fixed_field_via_override(self, scope_service):
+        config = scope_service.get_field_config("h-dcn")
+        gender = next(f for f in config["fields"] if f["key"] == "gender")
+        assert gender["scope"] == {"enabled": True, "required_for": ["Members_Read"]}
+
+    def test_scope_absent_when_field_is_not_a_scope_axis(self, scope_service):
+        config = scope_service.get_field_config("h-dcn")
+        # `status` is a fixed enum but was never marked a scope axis → no `scope` key.
+        status = next(f for f in config["fields"] if f["key"] == "status")
+        assert "scope" not in status
+
+    def test_scope_bearing_config_is_json_serializable(self, scope_service):
+        json.dumps(scope_service.get_field_config("h-dcn"))  # must not raise
 
 
 # ── (1b) Phase 2 step (c): the server STOPS serializing view_contexts; keeps default_page_size ─

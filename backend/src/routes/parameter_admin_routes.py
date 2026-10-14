@@ -39,6 +39,47 @@ def _is_sysadmin(user_roles) -> bool:
     return "SysAdmin" in (user_roles or [])
 
 
+def _project_tenant_change(scope: str, scope_id: str) -> dict:
+    """Synchronously project a committed tenant-scope parameter change, reporting outcome.
+
+    RELIABILITY (not best-effort-and-forget): the historic ``enqueue_sync`` wrapper SWALLOWS
+    any projection failure and returns ``False`` with only a log line — so a save whose
+    MySQL write succeeded but whose DynamoDB projection FAILED still reported a bare
+    "Saved", and the config silently never reached the module that reads it. That invisible
+    failure is the whole class of "config won't save" bug.
+
+    This helper instead drives the trigger's RAW :meth:`ProjectionSyncTrigger.enqueue`
+    (which drains in-process and lets errors surface), CATCHES any failure HERE, and returns
+    a structured outcome the route folds into its JSON response so the caller is told the
+    truth: delivered, or saved-but-not-delivered + why. The MySQL write already committed and
+    is the system of record (never rolled back on a projection miss); the reconciliation
+    backstop still re-projects later, but the user no longer gets a false success.
+
+    Only tenant-scope writes touch the tenant projection (system scope is not tenant-specific),
+    so a non-tenant scope is a no-op that reports ``projected=None`` (not applicable).
+
+    Returns:
+        ``{"projected": True}`` on a delivered projection;
+        ``{"projected": False, "projection_error": "<reason>"}`` on a projection failure
+        (the write is still saved); ``{"projected": None}`` when projection does not apply.
+    """
+    if scope != "tenant":
+        return {"projected": None}
+    try:
+        from services.projection_sync_trigger import get_default_trigger
+
+        get_default_trigger().enqueue(scope_id)
+        return {"projected": True}
+    except Exception as exc:  # noqa: BLE001 — surface the real projection error to the caller
+        logger.error(
+            "projection delivery FAILED for tenant %r (write is saved; reconciliation "
+            "will retry): %s",
+            scope_id,
+            exc,
+        )
+        return {"projected": False, "projection_error": str(exc)}
+
+
 def _prepare_members_config(_svc, namespace, key, value, _tenant):
     """Fold + fail-fast validate a members.* config value on save; return the value to store.
 
@@ -201,18 +242,18 @@ def create_parameter(
             created_by=user_email,
         )
 
-        # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
-        # parameter committed above; signal a projection sync for the affected
-        # tenant (the write's own scope, never a default). Only tenant-scope
-        # writes touch the tenant projection — system scope is not tenant-specific.
-        # Best-effort: never breaks the parameter write (reconciliation backstops).
-        if scope == "tenant":
-            from services.projection_sync_trigger import enqueue_sync
-
-            enqueue_sync(scope_id)
+        # Project the committed tenant-scope change SYNCHRONOUSLY and report the
+        # outcome (reliability — no silent swallow). The MySQL write already
+        # committed; a projection failure does NOT roll it back, but it IS surfaced
+        # in the response so the caller never sees a false "Saved".
+        projection = _project_tenant_change(scope, scope_id)
 
         return jsonify(
-            {"success": True, "message": f"Parameter {namespace}.{key} created"}
+            {
+                "success": True,
+                "message": f"Parameter {namespace}.{key} created",
+                **projection,
+            }
         )
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -275,18 +316,14 @@ def update_parameter(
             created_by=user_email,
         )
 
-        # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
-        # parameter committed above; signal a projection sync for the affected
-        # tenant (the row's own scope_id, verified to equal this tenant above).
-        # Only tenant-scope writes touch the tenant projection — system scope is
-        # not tenant-specific. Best-effort: never breaks the parameter write
-        # (reconciliation backstops a missed signal).
-        if row["scope"] == "tenant":
-            from services.projection_sync_trigger import enqueue_sync
+        # Project the committed change SYNCHRONOUSLY and report delivery (reliability —
+        # no silent swallow). The write is saved regardless; a projection failure is
+        # surfaced in the response, never hidden behind a bare "Saved".
+        projection = _project_tenant_change(row["scope"], row["scope_id"])
 
-            enqueue_sync(row["scope_id"])
-
-        return jsonify({"success": True, "message": "Parameter updated"})
+        return jsonify(
+            {"success": True, "message": "Parameter updated", **projection}
+        )
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
@@ -329,18 +366,14 @@ def delete_parameter(
         )
 
         if deleted:
-            # S3 R5.1 — on-change projection sync trigger. A tenant-scope config
-            # parameter override was deleted and committed above; signal a
-            # projection sync for the affected tenant (the row's own scope_id,
-            # verified to equal this tenant above). Only tenant-scope writes touch
-            # the tenant projection — system scope is not tenant-specific.
-            # Best-effort: never breaks the delete (reconciliation backstops).
-            if row["scope"] == "tenant":
-                from services.projection_sync_trigger import enqueue_sync
+            # Project the committed delete SYNCHRONOUSLY and report delivery
+            # (reliability — no silent swallow). The delete is committed regardless;
+            # a projection failure is surfaced in the response.
+            projection = _project_tenant_change(row["scope"], row["scope_id"])
 
-                enqueue_sync(row["scope_id"])
-
-            return jsonify({"success": True, "message": "Parameter deleted"})
+            return jsonify(
+                {"success": True, "message": "Parameter deleted", **projection}
+            )
         return jsonify({"success": False, "error": "Delete failed"}), 500
     except Exception as e:
         logger.error("Error deleting parameter %s: %s", param_id, e)

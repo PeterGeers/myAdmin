@@ -40,10 +40,25 @@ on purpose — it points at the reference impl and the spec for detail, it does 
    **one save → one re-projection**. Never grow two doors to the same rows (no raw param table edits
    alongside the typed editor for the module's namespace).
 
-6. **i18n = Option (b).** Shipped labels via **resource keys** (namespace per module, e.g.
-   `<module>.field.<key>`; add a language = add a resource file, translator-owned). Tenant-authored
-   labels via an **inline per-language override**. An enum `value` is **language-neutral**; only its
-   `label` is per-language. Fallback order: active → `en` → `nl` → key.
+6. **i18n = labels are plain per-language values stored in config; shipped resource files are a
+   SEED/DEFAULT only.** A field's / group's / enum-option's label is a plain inline per-language
+   value (`{nl, en, …}`) stored ON the config (the tenant overlay → projection) and resolved from
+   there at RUNTIME. A tenant edits a label in the config editor and it takes effect on the next
+   re-projection — **no app rebuild, no new deploy**. Shipped i18n resource files
+   (`locales/*/<ns>.json`) are ONLY a one-time SEED/DEFAULT for the platform's own base fields (so a
+   fresh tenant sees sensible labels without typing); they are **NOT** the runtime resolution source
+   for a tenant-editable label (a tenant can't write the build-time bundle, and it is global, not
+   per-tenant). An enum `value` is **language-neutral** (never translated — it is the stored key);
+   only its `label` is per-language. Resolve order: `stored label[active locale] → en → nl → key`
+   (never blank).
+
+   > **Guardrail — why NOT resource-key resolution for tenant labels (reversed 2026, Members
+   > drill-down remediation).** The earlier "Option (b): shipped labels via resource keys" model was
+   > unsustainable for a tenant-editable label: resource files are baked into the SPA build and are
+   > global, so a tenant's rename would require a code change + redeploy and could not be per-tenant.
+   > Tenant-authorable labels therefore live in config and resolve at runtime; resource files are
+   > seed-only. A new module (Events/Webshop) MUST follow this — do not reintroduce resource-key
+   > resolution as the authority for tenant labels.
 
 7. **Extraction boundary — rule of three.** Keep the catalog in the module's own `domain/`
    (e.g. `sam/members/domain/`). Do NOT extract a `sam/shared` field-config library until a **THIRD**

@@ -96,14 +96,6 @@ const fieldConfig = {
     { key: 'postcode', origin: 'fixed', label: { en: 'Postcode' } },
     { key: 'city', origin: 'fixed', label: { en: 'City' } },
   ],
-  analytics: {
-    address_mapping: {
-      name: 'display_name',
-      street: 'street',
-      postcode: 'postcode',
-      city: 'city',
-    },
-  },
 } as unknown as FieldConfig;
 
 /** Four result rows; two share an email so de-dup drops one → 3 recipients. */
@@ -173,15 +165,18 @@ describe('MemberMailCompose', () => {
     );
   });
 
-  it('renders both attach toggles when builders + address mapping are present', () => {
+  it('renders both attach toggles when both builders are supplied', () => {
     render(<MemberMailCompose {...makeProps()} />);
     expect(screen.getByTestId('member-mail-attach-csv')).toBeInTheDocument();
     expect(screen.getByTestId('member-mail-attach-pdf')).toBeInTheDocument();
   });
 
-  it('hides the PDF toggle when the tenant has no resolvable address mapping (R4.10)', () => {
-    const noMapping = { ...fieldConfig, analytics: {} } as unknown as FieldConfig;
-    render(<MemberMailCompose {...makeProps({ fieldConfig: noMapping })} />);
+  it('hides the PDF toggle when the panel supplies no PDF builder (gated on label-template presence, not analytics config)', () => {
+    // The panel supplies `buildPdfBase64` only when the tenant has a label
+    // template (like MemberLabelsPanel) — NOT based on any `analytics.*`
+    // address mapping (the address-mapping label path was removed). An absent
+    // builder → the toggle is hidden.
+    render(<MemberMailCompose {...makeProps({ buildPdfBase64: undefined })} />);
     expect(screen.getByTestId('member-mail-attach-csv')).toBeInTheDocument();
     expect(screen.queryByTestId('member-mail-attach-pdf')).not.toBeInTheDocument();
   });

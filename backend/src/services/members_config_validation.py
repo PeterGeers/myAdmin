@@ -151,6 +151,105 @@ _REQUIRED_FIXED_KEYS: frozenset[str] = frozenset(
 # ── helpers ───────────────────────────────────────────────────────────────────────────
 
 
+#: Phase 3 step 9 (R2.1/R2.5) — the field-attribute key under which a field declares it is a
+#: scope axis. The authoring representation of scope-binding moves from the standalone
+#: ``members.scope_dimensions`` list onto the field itself; the projection builder
+#: (``_projection_config_builders._scope_dimensions_from_overlay``) derives the ``config#scope``
+#: dimensions from these attributes, keeping the resolver's ``ScopeConfig`` semantically
+#: equivalent (Property 2).
+_FIELD_SCOPE_ATTR = "scope"
+
+
+def _field_enum_values(spec: Mapping[str, Any]) -> list | None:
+    """The field's ENUM VALUES — the single scope vocabulary (R3.4).
+
+    Mirrors ``_projection_config_builders._enum_values_from_field``: a field's enum
+    vocabulary is read from rich ``options`` (``{value,...}`` dicts or bare strings)
+    first, then from a bare ``choices`` string list. Returns the ordered list of
+    non-blank string values, or ``None`` when the field declares no usable enum
+    vocabulary (not an enum / value-less). The builder derives the ``config#scope``
+    dimension values from exactly this list, so the validator checks presence here —
+    an enabled scope axis on a value-less/non-enum field is rejected at save (R3.4).
+    """
+    def _collect(raw: Any) -> list | None:
+        if not isinstance(raw, (list, tuple)):
+            return None
+        values: list = []
+        for entry in raw:
+            value = entry.get("value") if isinstance(entry, Mapping) else entry
+            if isinstance(value, str) and value.strip():
+                values.append(value)
+        return values or None
+
+    return _collect(spec.get("options")) or _collect(spec.get("choices"))
+
+
+def _validate_field_scope(
+    dotted: str, spec: Mapping[str, Any], reasons: dict[str, str]
+) -> None:
+    """Validate one field's ``scope`` attribute (Phase 3 step 9, R2.1 / R3.4).
+
+    Mirrors the SAM-domain ``ScopeConfig`` / ``_reject_invalid_config`` invariants on the
+    authoring plane, so a malformed scope axis is rejected at Save rather than silently
+    projecting a broken ``config#scope`` dimension. A field expresses that it IS a scope axis
+    by carrying a ``scope`` object; the dimension ``key``/``field`` derive from the field's own
+    key (the builder's job), so this validator checks the scope BODY and — under the
+    single-vocabulary model — the field's ENUM VOCABULARY:
+
+    - ``scope`` must be an object;
+    - ``enabled`` (optional, default ``True``) must be a boolean;
+    - a legacy ``scope.values`` (optional, honoured as a FALLBACK ONLY) must be a list of
+      non-blank, unique strings when present;
+    - **single-vocabulary (R3.4):** an ENABLED scope axis must sit on an ENUM FIELD WITH VALUES
+      — the dimension values ARE the field's enum values (``options[].value`` / ``choices``), so
+      an enabled axis on a value-less / non-enum field can never grant anything and is a save
+      error. A legacy stored ``scope.values`` satisfies this as the migration fallback;
+    - ``required_for`` (optional) must be a list of strings.
+
+    Appends a reason under ``dotted`` on any violation (never raises here — the caller collects
+    all reasons and raises once, mirroring the batched ``MembersConfigError``).
+    """
+    scope = spec.get(_FIELD_SCOPE_ATTR)
+    if not isinstance(scope, Mapping):
+        reasons[dotted] = "scope must be an object"
+        return
+
+    enabled = scope.get("enabled", True)
+    if not isinstance(enabled, bool):
+        reasons[dotted] = "scope.enabled must be a boolean"
+        return
+
+    # Legacy `scope.values` (fallback only) — still well-formedness-checked when present.
+    values = scope.get("values")
+    if values is not None:
+        if not isinstance(values, (list, tuple)):
+            reasons[dotted] = "scope.values must be a list"
+            return
+        if any((not isinstance(v, str)) or (not v.strip()) for v in values):
+            reasons[dotted] = "scope.values must be non-blank strings"
+            return
+        if len(set(values)) != len(values):
+            reasons[dotted] = "scope.values must be unique"
+            return
+
+    # Single-vocabulary (R3.4): an enabled scope axis derives its values from the field's enum
+    # vocabulary. The field must therefore be an enum WITH values; a legacy `scope.values` is
+    # honoured as the migration fallback.
+    if enabled and not _field_enum_values(spec) and not values:
+        reasons[dotted] = (
+            "an enabled scope axis must sit on an enum field with values "
+            "(the scope values are the field's enum values)"
+        )
+        return
+
+    required_for = scope.get("required_for")
+    if required_for is not None and (
+        not isinstance(required_for, (list, tuple))
+        or any(not isinstance(r, str) for r in required_for)
+    ):
+        reasons[dotted] = "scope.required_for must be a list of strings"
+
+
 def _catalog_keys(overlay: Mapping[str, Any]) -> set[str]:
     """The set of functional-group keys declared in an overlay's functional_groups catalog."""
     catalog = overlay.get("functional_groups") or []
@@ -178,7 +277,12 @@ def validate_field_overlay(overlay: Any) -> None:
     - an ``enum`` variable field must declare ``choices``;
     - every ``functional_group`` referenced (fixed override or variable field) must be present
       in the tenant's ``functional_groups`` catalog (checked only when a non-empty catalog is
-      authored — an empty catalog uses base defaults, exactly like the domain resolver).
+      authored — an empty catalog uses base defaults, exactly like the domain resolver);
+    - a field-level ``scope`` attribute (Phase 3 step 9, R2.1 / single-vocabulary R3.4) — the
+      authoring representation that expresses "this field is a scope axis" — must be a
+      well-formed scope object AND, when ENABLED, sit on an enum field with values (the scope
+      values ARE the field's enum values; :func:`_validate_field_scope`), so a malformed or
+      value-less scope axis never reaches the derived ``config#scope`` projection.
 
     Raises :class:`MembersConfigError` (with a key → reason map) on any violation.
     """
@@ -213,6 +317,8 @@ def validate_field_overlay(overlay: Any) -> None:
                         "cannot make a platform-required fixed field optional"
                     )
                 _check_group(dotted, spec.get("functional_group"))
+                if _FIELD_SCOPE_ATTR in spec:
+                    _validate_field_scope(dotted, spec, reasons)
 
     # fields — the added variable fields, keyed by canonical key (lands under `overlay`).
     fields = overlay.get("fields") or {}
@@ -233,6 +339,8 @@ def validate_field_overlay(overlay: Any) -> None:
                 reasons[dotted] = "an enum variable field must declare choices/options"
             if isinstance(spec, Mapping):
                 _check_group(dotted, spec.get("functional_group"))
+                if _FIELD_SCOPE_ATTR in spec:
+                    _validate_field_scope(dotted, spec, reasons)
 
     if reasons:
         raise MembersConfigError(reasons)

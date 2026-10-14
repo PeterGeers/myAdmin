@@ -14,6 +14,12 @@ Unit tests cover the observable behaviour:
 - the resolver is **tenant-agnostic** (Property 5): two tenants differ only by their overlay
   data, never by a code path.
 
+Phase 3 step 8 (R1.2) collapses the former two-section fixed/overlay presentation into ONE
+unified field list where each resolved field carries a DERIVED ``provenance`` marker
+(``base`` / ``tenant_added`` / ``base_overridden``). The provenance cases below assert that
+marker; crucially they do NOT touch the resolved field SET or the ``(group, order, key)``
+ordering (Property 1, R1.6) — the collapse re-presents, it adds/removes/reorders nothing.
+
 Property-based tests assert the merge invariants hold across arbitrary overlays:
 - the resolved config always **contains every fixed field** (an overlay is additive, never
   destructive); and
@@ -33,7 +39,9 @@ from sam.members.domain.field_resolver import (
     OVERLAY_GROUP,
     FieldConfig,
     FieldOrigin,
+    FieldProvenance,
     FieldResolver,
+    FieldScope,
     FixedFieldOverride,
     OverlayError,
     OverlayField,
@@ -81,6 +89,8 @@ def test_resolve_empty_overlay_returns_exactly_the_fixed_base():
         f.dotted_key() for f in cfg.fields if f.origin is FieldOrigin.CALCULATED
     } == _CALCULATED_DOTTED
     assert cfg.variable_fields() == ()
+    # Single-list provenance (R1.2): with NO overrides, every base field's badge is BASE.
+    assert all(f.provenance is FieldProvenance.BASE for f in cfg.fields)
 
 
 def test_resolve_unknown_tenant_is_failsafe_not_error():
@@ -117,6 +127,8 @@ def test_overlay_adds_variable_field_under_overlay_group():
     assert mt is not None
     assert mt.group == OVERLAY_GROUP
     assert mt.origin is FieldOrigin.VARIABLE
+    # Single-list provenance (R1.2): a tenant-defined overlay field badges as TENANT_ADDED.
+    assert mt.provenance is FieldProvenance.TENANT_ADDED
     assert mt.label == {"nl": "Motortype"}
     # The fixed base is untouched — the overlay is purely additive.
     assert _FIXED_DOTTED.issubset({f.dotted_key() for f in cfg.fields})
@@ -165,19 +177,30 @@ def test_override_relabels_reorders_and_hides_a_fixed_field():
     name = cfg.field("personal.first_name")
     assert name is not None and name.label == {"nl": "Volledige naam"} and name.order == 5
     assert name.origin is FieldOrigin.FIXED  # still a fixed field, just re-presented
+    # Single-list provenance (R1.2): an overridden base field badges as BASE_OVERRIDDEN.
+    assert name.provenance is FieldProvenance.BASE_OVERRIDDEN
 
     birthdate = cfg.field("personal.birth_date")
     assert birthdate is not None and birthdate.visible is False
+    assert birthdate.provenance is FieldProvenance.BASE_OVERRIDDEN
     # A hidden fixed field is still present in the config, just excluded from visible_fields().
     assert birthdate not in cfg.visible_fields()
     assert birthdate in cfg.fields
+
+    # A base field with NO override in the same config still badges as plain BASE — the collapse
+    # marks provenance per-field, it does not flip untouched base fields.
+    last = cfg.field("personal.last_name")
+    assert last is not None and last.provenance is FieldProvenance.BASE
 
 
 def test_override_can_tighten_optional_fixed_field_to_required():
     # 'personal.street' is optional in the base; a tenant may require it.
     overlay = TenantOverlay(overrides={"personal.street": FixedFieldOverride(required=True)})
     cfg = _resolver({"t": overlay}).resolve("t")
-    assert cfg.field("personal.street").required is True
+    street = cfg.field("personal.street")
+    assert street.required is True
+    # Tightening is a presentation override, so the field badges as BASE_OVERRIDDEN (R1.2).
+    assert street.provenance is FieldProvenance.BASE_OVERRIDDEN
 
 
 # ── Overlay may NEVER weaken a platform invariant ─────────────────────────────────────
@@ -243,6 +266,73 @@ def test_fields_are_deterministically_ordered():
     cfg = _resolver({"t": overlay}).resolve("t")
     keys = [(f.group, f.order, f.key) for f in cfg.fields]
     assert keys == sorted(keys)
+
+
+# ── Single-list provenance (Phase 3 step 8, R1.2) ─────────────────────────────────────
+#
+# The former two-section fixed/overlay split is collapsed into ONE unified field list; each
+# resolved field carries a DERIVED `provenance` badge (base / tenant_added / base_overridden).
+# These cases pin that marker across all three origins coexisting in one config, and lock the
+# Property-1 invariant at the unit level: adding provenance changes NEITHER the resolved field
+# SET nor the `(group.order, field.order, key)` ordering (R1.3/R1.6).
+#
+# Validates: Requirements R1.6, R1.2
+
+
+def test_single_list_carries_all_three_provenance_markers():
+    # One config exercising all three: an overridden base field, an untouched base field, and a
+    # tenant-added variable field — all in the SINGLE resolved list.
+    overlay = TenantOverlay(
+        overrides={"personal.first_name": FixedFieldOverride(label={"nl": "Naam"})},
+        fields={"motor_type": OverlayField(key="motor_type")},
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+
+    assert cfg.field("personal.first_name").provenance is FieldProvenance.BASE_OVERRIDDEN
+    assert cfg.field("personal.last_name").provenance is FieldProvenance.BASE  # untouched base
+    assert cfg.field("overlay.motor_type").provenance is FieldProvenance.TENANT_ADDED
+    # Every resolved field has exactly one of the three single-list provenance markers.
+    assert all(
+        f.provenance in (
+            FieldProvenance.BASE,
+            FieldProvenance.TENANT_ADDED,
+            FieldProvenance.BASE_OVERRIDDEN,
+        )
+        for f in cfg.fields
+    )
+
+
+def test_provenance_collapse_preserves_resolved_set_and_order():
+    # Property 1 at the unit level (R1.6): the provenance marker is PURELY additive — projecting
+    # the resolved fields WITHOUT provenance (dotted key + the `(group, order, key)` sort key)
+    # yields the same SET and the same order whether or not any field is overridden/added. The
+    # badge re-presents; it adds, removes, and reorders nothing.
+    base_overlay = TenantOverlay(fields={"motor_type": OverlayField(key="motor_type", order=5)})
+    overridden_overlay = TenantOverlay(
+        # Same variable field, PLUS presentation overrides on base fields that only flip
+        # provenance to BASE_OVERRIDDEN — never the dotted key, group, order, or membership.
+        fields={"motor_type": OverlayField(key="motor_type", order=5)},
+        overrides={
+            "personal.first_name": FixedFieldOverride(label={"nl": "Naam"}),
+            "membership.status": FixedFieldOverride(label={"nl": "Toestand"}),
+        },
+    )
+    base_cfg = _resolver({"t": base_overlay}).resolve("t")
+    over_cfg = _resolver({"t": overridden_overlay}).resolve("t")
+
+    # Resolved field SET identical.
+    assert {f.dotted_key() for f in base_cfg.fields} == {
+        f.dotted_key() for f in over_cfg.fields
+    }
+    # `(group.order, field.order, key)` ordering identical (the derived order, R1.3).
+    assert [(f.group, f.order, f.key) for f in base_cfg.fields] == [
+        (f.group, f.order, f.key) for f in over_cfg.fields
+    ]
+    # The only observable difference is the provenance badge on the two overridden base fields.
+    assert over_cfg.field("personal.first_name").provenance is FieldProvenance.BASE_OVERRIDDEN
+    assert over_cfg.field("membership.status").provenance is FieldProvenance.BASE_OVERRIDDEN
+    assert base_cfg.field("personal.first_name").provenance is FieldProvenance.BASE
+    assert base_cfg.field("membership.status").provenance is FieldProvenance.BASE
 
 
 # ── The provider seam is a structural Protocol (mirrors FieldConfigMixin) ─────────────
@@ -336,6 +426,8 @@ def test_empty_overlay_yields_fixed_plus_calculated_zero_variable():
     assert all(f.read_only for f in calc)
     assert all(f.required is False for f in calc)
     assert all(f.calculated_from for f in calc)
+    # With no override, a calculated base field badges as BASE (R1.2) — never TENANT_ADDED.
+    assert all(f.provenance is FieldProvenance.BASE for f in calc)
 
 
 def test_calculated_field_carries_its_inputs():
@@ -385,6 +477,8 @@ def test_functional_group_is_overridable_for_a_calculated_field():
     ay = cfg.field("membership.application_year")
     assert ay.functional_group == "admin2"
     assert ay.origin is FieldOrigin.CALCULATED
+    # A re-presented calculated base field badges as BASE_OVERRIDDEN, never TENANT_ADDED (R1.2).
+    assert ay.provenance is FieldProvenance.BASE_OVERRIDDEN
 
 
 def test_dangling_functional_group_reference_is_rejected():
@@ -596,67 +690,54 @@ def test_member_number_has_no_format_by_default():
     assert cfg.field("membership.member_number").member_number_format is None
 
 
-# ── member-analytics Task 6.1 — one-directional projection of the analytics slice (R9, C-CONFIG) ──
+# ── scope surfaces on resolved fields (remediation R3.5) ──────────────────────────────
 #
-# ODI-2: the analytics config rides on `TenantOverlay.analytics` (a slice of the members.* overlay)
-# and the resolver projects it ONE-DIRECTIONALLY onto `FieldConfig.analytics` — carried verbatim,
-# never validated against the resolved `fields` here (the role→key reference check is the SPA's at
-# render / the Flask-plane validator's at Save, like view-context columns). Empty/absent → None.
-#
-# Validates: Requirements R9.1, R9.5
-
-from sam.members.domain.field_resolver import (
-    AddressMapping,
-    AnalyticsConfig,
-    AnalyticsRole,
-    JubileeRule,
-)
+# Previously DEAD on read: `scope` was never carried onto `ResolvedField` and never serialized
+# (defect I-6). The resolver now CARRIES the overlay/override scope onto the resolved field so the
+# authoring UI can read the current scope state back. Scope RESOLUTION (`handler/app.py` →
+# `allowed_scopes`) is untouched — see test_scope_access.py (P3).
 
 
-class TestAnalyticsProjection:
-    def test_absent_analytics_resolves_to_none(self):
-        config = _resolver({"h-dcn": TenantOverlay()}).resolve("h-dcn")
-        assert config.analytics is None
+def test_scope_surfaces_on_a_fixed_field_via_override():
+    # A tenant marks a fixed enum field (e.g. `gender`) as a scope axis via an override's scope.
+    scope = FieldScope(enabled=True, required_for=("Members_CRUD",))
+    overlay = TenantOverlay(
+        overrides={"personal.gender": FixedFieldOverride(scope=scope)}
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    gender = cfg.field("personal.gender")
+    assert gender.scope is scope
+    assert gender.scope.enabled is True
+    assert tuple(gender.scope.required_for) == ("Members_CRUD",)
 
-    def test_analytics_projected_verbatim_onto_field_config(self):
-        analytics = AnalyticsConfig(
-            jubilee_rule=JubileeRule(years=(25, 50)),
-            field_roles={AnalyticsRole.REFERRAL_SOURCE: "overlay.bron"},
-            address_mapping=AddressMapping(name="personal.display_name"),
-        )
-        overlay = TenantOverlay(analytics=analytics)
-        config = _resolver({"h-dcn": overlay}).resolve("h-dcn")
 
-        assert config.analytics is analytics
-        assert config.analytics.jubilee_rule.years == (25, 50)
-        assert config.analytics.field_roles[AnalyticsRole.REFERRAL_SOURCE] == "overlay.bron"
-        assert config.analytics.address_mapping.name == "personal.display_name"
-
-    def test_empty_analytics_block_collapses_to_none(self):
-        overlay = TenantOverlay(analytics=AnalyticsConfig())
-        config = _resolver({"h-dcn": overlay}).resolve("h-dcn")
-        assert config.analytics is None
-
-    def test_analytics_does_not_affect_the_resolved_fields(self):
-        # Projection is additive + orthogonal: the fixed base ⊕ calculated set is unchanged.
-        plain = _resolver({"h-dcn": TenantOverlay()}).resolve("h-dcn")
-        with_analytics = _resolver(
-            {"h-dcn": TenantOverlay(analytics=AnalyticsConfig(jubilee_rule=JubileeRule(multiple_of=5)))}
-        ).resolve("h-dcn")
-        assert [f.dotted_key() for f in plain.fields] == [
-            f.dotted_key() for f in with_analytics.fields
-        ]
-
-    def test_analytics_not_validated_against_fields_at_resolve(self):
-        # A role mapped to a key that is NOT present in the resolved fields is carried anyway
-        # (reference check is the SPA's at render / the validator's at Save) — never raises here.
-        overlay = TenantOverlay(
-            analytics=AnalyticsConfig(
-                field_roles={AnalyticsRole.CLUBBLAD_DIGITAL: "overlay.does_not_exist"}
+def test_scope_surfaces_on_a_variable_field():
+    scope = FieldScope(enabled=True, required_for=("Members_CRUD",))
+    overlay = TenantOverlay(
+        fields={
+            "team": OverlayField(
+                key="team",
+                type=FieldType.ENUM,
+                options=(
+                    EnumOption(value="a", label={"nl": "A"}),
+                    EnumOption(value="b", label={"nl": "B"}),
+                ),
+                scope=scope,
             )
-        )
-        config = _resolver({"h-dcn": overlay}).resolve("h-dcn")
-        assert config.analytics.field_roles[AnalyticsRole.CLUBBLAD_DIGITAL] == "overlay.does_not_exist"
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    team = cfg.field("overlay.team")
+    assert team.scope is scope
+    assert team.scope.enabled is True
+    assert tuple(team.scope.required_for) == ("Members_CRUD",)
+
+
+def test_field_has_no_scope_by_default():
+    # A field that is not a scope axis carries no scope attribute (stays `None`).
+    cfg = _resolver().resolve("t")
+    assert cfg.field("personal.gender").scope is None
+    assert cfg.field("membership.status").scope is None
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════

@@ -88,6 +88,12 @@ AUTHORABLE_CATALOG_ATTRIBUTES: frozenset[str] = frozenset(
 #   order             → order
 #   functional_group  → functional_group
 #   choices           → choices
+#   scope             → scope_binding (Phase 3 step 9, task 2.1 — the per-field
+#                                     `scope` object attribute is the WIRING of
+#                                     the already-declared `scope_binding` catalog
+#                                     AttributeSpec; mapped by the renamed key,
+#                                     mirroring the dataclass→vocabulary map in
+#                                     sam/tests/test_attribute_catalog.py)
 #
 # `key` is handled separately below: it is the field/group IDENTITY the tenant
 # names (the map key under which a field def is stored), NOT an attribute the
@@ -105,6 +111,12 @@ EDITOR_KEY_TO_CATALOG_ATTRIBUTE: dict[str, str] = {
     "order": "order",
     "functional_group": "functional_group",
     "choices": "choices",
+    # Phase 3 step 9 (task 2.1): the per-field `scope` object attribute is the WIRING of the
+    # already-declared `scope_binding` catalog AttributeSpec — mapped by the renamed key
+    # `scope` → `scope_binding` (mirroring the dataclass→vocabulary map in
+    # sam/tests/test_attribute_catalog.py), so the new editor attribute is CLASSIFIED
+    # rather than surfacing as an un-sanctioned drift.
+    "scope": "scope_binding",
 }
 
 #: Editor keys that are structural IDENTITY, not a tenant-authorable field

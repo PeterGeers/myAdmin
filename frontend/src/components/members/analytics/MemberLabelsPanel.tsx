@@ -7,8 +7,8 @@
  * tunes the shared per-run {@link LabelStyleOptions} (font size, alignment,
  * border, start position, shrink-to-fit), then Generates. On Generate the panel
  * composes the CURRENT result rows through the chosen template via
- * {@link generateLabelTemplatePdf} — which uses {@link composeLabelLines}, NOT
- * `composeAddresses`/`resolveAddressMapping`, so it reads NO `analytics.*`
+ * {@link generateLabelTemplatePdf} — which uses {@link composeLabelLines} and
+ * reads NO `analytics.*`
  * (R6 / Property 4) — lays them onto the chosen format with the ONE shared Avery
  * generator (R-L5, no forked options shape / no second draw loop), and downloads
  * the PDF (R-L4; a Print affordance opens the blob for printing).
