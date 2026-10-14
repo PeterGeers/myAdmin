@@ -95,7 +95,6 @@ const mockFieldConfig: FieldConfig = {
   dimensions: [
     { key: 'region', label: 'Regio', enabled: true, values: ['Noord', 'Zuid', 'West'] },
   ],
-  analytics: { jubilee_rule: { multiple_of: 5 } },
 };
 
 /** Default happy-path service stubs; individual tests override as needed. */

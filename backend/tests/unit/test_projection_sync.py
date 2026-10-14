@@ -599,16 +599,23 @@ def test_build_config_scope_row_partial_dimension_fills_safe_defaults():
 
 
 def test_build_config_scope_row_issues_zero_writes_and_reads_tenant_scope():
-    """One-directional (Property 1): only a read of the tenant-scope param."""
+    """One-directional (Property 1): only tenant-scoped READS, zero writes.
+
+    Phase 3 step 9: the builder reads the field_overlay FIRST (scope-as-field-attribute, the
+    canonical authoring surface) and falls back to the standalone scope_dimensions param — both
+    tenant-scoped READS, both on this tenant's members.* namespace, no writes.
+    """
     params = FakeParameterService(
         {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
     )
 
     build_config_scope_row({"administration": "h-dcn"}, params)
 
-    # Exactly one read, scoped to this tenant's members.scope_dimensions param.
+    # Two reads (overlay-first, then the standalone fallback), both scoped to this tenant's
+    # members.* params. No field scope authored → the fallback drives the row.
     assert params.calls == [
-        {"namespace": "members", "key": "scope_dimensions", "tenant": "h-dcn"}
+        {"namespace": "members", "key": "field_overlay", "tenant": "h-dcn"},
+        {"namespace": "members", "key": "scope_dimensions", "tenant": "h-dcn"},
     ]
 
 
@@ -627,6 +634,208 @@ def test_build_config_scope_row_non_list_param_treated_as_empty():
     item = build_config_scope_row({"administration": "h-dcn"}, params)
 
     assert item.attributes["dimensions"] == []
+
+
+# --- Phase 3 step 9 (R2.1/R2.5): scope-binding authored as a field attribute ----------
+#
+# The authoring representation moves from the standalone members.scope_dimensions list onto a
+# `scope` attribute on a members.field_overlay field. The builder DERIVES config#scope from
+# those field attributes, keeping the projected row — and so the resolver's ScopeConfig —
+# SEMANTICALLY EQUIVALENT (Property 2). The standalone param stays the fallback source so the
+# scopegrant grants / grant-validation / picker (which read members.scope_dimensions) are
+# untouched (R2.3/R2.4).
+
+
+def test_build_config_scope_row_derives_dimensions_from_fixed_field_scope_attribute():
+    """A fixed field's `scope` attribute → the same config#scope dimension shape (R2.1)."""
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.region": {
+                        "scope": {
+                            "enabled": True,
+                            "values": ["Noord", "Zuid", "Oost", "West"],
+                            "label": {"nl": "Regio", "en": "Region"},
+                            "required_for": ["Members_CRUD"],
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_scope_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["dimensions"] == [_hdcn_region_dimension()]
+
+
+def test_build_config_scope_row_derived_equals_standalone_scope_dimensions():
+    """Property 2 (semantic equivalence): field-authored scope projects the SAME row as the
+    equivalent standalone members.scope_dimensions."""
+    overlay_params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.region": {
+                        "scope": {
+                            "enabled": True,
+                            "values": ["Noord", "Zuid", "Oost", "West"],
+                            "label": {"nl": "Regio", "en": "Region"},
+                            "required_for": ["Members_CRUD"],
+                        }
+                    }
+                }
+            }
+        }
+    )
+    standalone_params = FakeParameterService(
+        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+    )
+
+    derived = build_config_scope_row({"administration": "h-dcn"}, overlay_params)
+    standalone = build_config_scope_row({"administration": "h-dcn"}, standalone_params)
+
+    assert derived.attributes["dimensions"] == standalone.attributes["dimensions"]
+
+
+def test_build_config_scope_row_derives_from_variable_field_scope_attribute():
+    """An added variable field's `scope` attribute also derives a dimension (R2.1).
+
+    Single-vocabulary (R3.4): the dimension values are the field's ENUM VALUES (`choices`),
+    not `scope.values`. A `scope` object with no `values` is sufficient — the enum is the
+    one vocabulary.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "region": {
+                        "type": "enum",
+                        "choices": ["Noord", "Zuid"],
+                        "scope": {"enabled": True},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_scope_row({"administration": "h-dcn"}, params)
+
+    dim = item.attributes["dimensions"][0]
+    assert dim["key"] == "region"
+    assert dim["field"] == "region"
+    assert dim["values"] == ["Noord", "Zuid"]
+
+
+def test_build_config_scope_row_derives_values_from_enum_not_scope_values():
+    """Single-vocabulary (R3.4): when the field has enum values AND a legacy `scope.values`,
+    the dimension values come from the ENUM — `scope.values` is ignored (not the authority)."""
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "region": {
+                        "type": "enum",
+                        "choices": ["Noord", "Zuid", "Oost"],
+                        # Stale legacy scope.values — MUST be ignored in favour of the enum.
+                        "scope": {"enabled": True, "values": ["STALE"]},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_scope_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["dimensions"][0]["values"] == ["Noord", "Zuid", "Oost"]
+
+
+def test_build_config_scope_row_derives_values_from_rich_options():
+    """Single-vocabulary (R3.4): rich enum `options` ({value,label,roles?}) are the vocabulary —
+    the dimension values are the per-option `value`s, in order."""
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "region": {
+                        "type": "enum",
+                        "options": [
+                            {"value": "Noord", "label": {"nl": "Noord"}},
+                            {"value": "Zuid", "label": {"nl": "Zuid"}},
+                        ],
+                        "scope": {"enabled": True},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_scope_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["dimensions"][0]["values"] == ["Noord", "Zuid"]
+
+
+def test_build_config_scope_row_honours_legacy_scope_values_when_no_enum():
+    """Migration fallback (R3.4): a field with NO enum vocabulary still derives its dimension
+    values from a legacy `scope.values` — pre-single-vocabulary authoring keeps working."""
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.region": {
+                        "scope": {"enabled": True, "values": ["Noord", "Zuid"]}
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_scope_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["dimensions"][0]["values"] == ["Noord", "Zuid"]
+
+
+def test_build_config_scope_row_falls_back_to_standalone_param_when_no_field_scope():
+    """A tenant that has not moved authoring onto fields still drives config#scope from the
+    standalone members.scope_dimensions param (R2.4 — grant machinery untouched)."""
+    params = FakeParameterService(
+        {
+            # An overlay with NO scope attribute on any field.
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {"motor_type": {"type": "string"}}
+            },
+            ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
+        }
+    )
+
+    item = build_config_scope_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["dimensions"] == [_hdcn_region_dimension()]
+
+
+def test_build_config_scope_row_field_scope_takes_precedence_over_standalone_param():
+    """When the overlay declares a scope axis, it drives the row (the two are not merged)."""
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.region": {
+                        "scope": {"enabled": True, "values": ["A", "B"]}
+                    }
+                }
+            },
+            # A stale standalone param that must be IGNORED once field scope is authored.
+            ("members", "scope_dimensions", "h-dcn"): [
+                {"key": "season", "values": ["2024"]}
+            ],
+        }
+    )
+
+    item = build_config_scope_row({"administration": "h-dcn"}, params)
+
+    keys = [d["key"] for d in item.attributes["dimensions"]]
+    assert keys == ["region"]
 
 
 # --- C2 config#fields builder (S5b design.md C2, R1.3) ---------------------
@@ -809,6 +1018,128 @@ def test_build_config_fields_row_honors_authored_fixed_overrides_key_with_functi
     assert overrides["personal.name"] == {"label": {"nl": "Naam"}, "order": 1}
 
 
+def test_build_config_fields_row_fixed_override_enum_relabel_survives_projection():
+    """I-9 (R5.1): a fixed-override enum relabel carries ``options`` + a coherent ``choices``.
+
+    A tenant that relabels a FIXED enum field (e.g. ``personal.status``) authors rich
+    ``options`` ({value, label}). Those options — and a bare ``choices`` list COHERENT with
+    them (the per-option values, in order) — MUST survive projection to ``config#fields``
+    rather than being silently dropped (the defect: the fixed-override builder dropped enum
+    values). This is presentation-only (relabelling existing values), never a weakening.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.status": {
+                        "label": {"nl": "Status", "en": "Status"},
+                        "options": [
+                            {"value": "active", "label": {"nl": "Actief", "en": "Active"}},
+                            {"value": "lapsed", "label": {"nl": "Verlopen", "en": "Lapsed"}},
+                        ],
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    status = item.attributes["overrides"]["personal.status"]
+    assert status["label"] == {"nl": "Status", "en": "Status"}
+    # Rich options survive verbatim.
+    assert status["options"] == [
+        {"value": "active", "label": {"nl": "Actief", "en": "Active"}},
+        {"value": "lapsed", "label": {"nl": "Verlopen", "en": "Lapsed"}},
+    ]
+    # The bare `choices` list is COHERENT with the rich options (per-option values, in order).
+    assert status["choices"] == ["active", "lapsed"]
+
+
+def test_build_config_fields_row_fixed_override_options_overwrite_incoherent_choices():
+    """R5.1 coherence: an authored ``choices`` that disagrees with ``options`` is corrected.
+
+    When both ``options`` and a stale/incoherent ``choices`` are authored, the projected
+    ``choices`` is DERIVED from ``options`` (the single, consistent vocabulary) so the two
+    representations can never disagree downstream.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.status": {
+                        "options": [
+                            {"value": "active", "label": {"nl": "Actief"}},
+                            {"value": "lapsed", "label": {"nl": "Verlopen"}},
+                        ],
+                        # Stale/incoherent bare list — must be corrected to the options values.
+                        "choices": ["STALE"],
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    status = item.attributes["overrides"]["personal.status"]
+    assert status["choices"] == ["active", "lapsed"]
+
+
+def test_build_config_fields_row_fixed_override_bare_choices_carried_verbatim():
+    """R5.1: a fixed override with only a bare ``choices`` list carries it through verbatim."""
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.region": {"choices": ["Noord", "Zuid", "Oost"]}
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["overrides"]["personal.region"]["choices"] == [
+        "Noord",
+        "Zuid",
+        "Oost",
+    ]
+
+
+def test_build_config_fields_row_fixed_override_scope_survives_projection():
+    """I-9 (R5.1): a fixed-override ``scope`` attribute survives projection to config#fields.
+
+    A tenant that marks a FIXED field a scope axis authors ``scope`` ({enabled, required_for}
+    — the single-vocabulary shape, values live on the field's enum). That attribute MUST reach
+    ``config#fields`` so the SAM read path (3.1) can serialize it back onto the resolved field
+    for the modal to read, instead of the builder dropping it. config#scope stays the
+    authoritative resolver source (R3); carrying the read representation here never weakens it.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "personal.region": {
+                        "options": [
+                            {"value": "Noord", "label": {"nl": "Noord"}},
+                            {"value": "Zuid", "label": {"nl": "Zuid"}},
+                        ],
+                        "scope": {"enabled": True, "required_for": ["Members_CRUD"]},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    region = item.attributes["overrides"]["personal.region"]
+    assert region["scope"] == {"enabled": True, "required_for": ["Members_CRUD"]}
+    # The enum vocabulary (the scope's single vocabulary) also survives, coherently.
+    assert region["choices"] == ["Noord", "Zuid"]
+
+
 def test_build_config_fields_row_ignores_legacy_overrides_when_fixed_overrides_authored():
     """When ``fixed_overrides`` is authored, a stray legacy ``overrides`` key is not honored.
 
@@ -928,6 +1259,40 @@ def test_build_config_fields_row_malformed_functional_group_entries_are_skipped(
 # field-config response. Only a positive int survives; anything else → None.
 
 
+def test_build_config_fields_row_carries_field_scope_attribute():
+    """Phase 3 step 9 (R2.1): a field's `scope` attribute is carried onto config#fields so the
+    SAM read representation expresses scope-binding as a field attribute too."""
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "region": {
+                        "type": "enum",
+                        "choices": ["Noord", "Zuid"],
+                        "scope": {"enabled": True, "values": ["Noord", "Zuid"]},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    field = item.attributes["fields"]["region"]
+    assert field["scope"] == {"enabled": True, "values": ["Noord", "Zuid"]}
+
+
+def test_build_config_fields_row_non_scope_field_carries_none_scope():
+    """A field with no scope attribute carries `scope: None` (not a scope axis)."""
+    params = FakeParameterService(
+        {("members", "field_overlay", "h-dcn"): _hdcn_field_overlay()}
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["fields"]["motor_type"]["scope"] is None
+
+
 def test_build_config_fields_row_projects_authored_default_page_size():
     """An authored positive members.default_page_size is carried onto config#fields (R2.1)."""
     params = FakeParameterService(
@@ -1013,8 +1378,14 @@ def test_build_config_fields_row_versions_off_param_revision_when_present():
     assert item.version == "2026-10-12T09:00:00"
 
 
-def test_build_config_scope_and_fields_version_off_their_own_param_revision():
-    """Each config row versions off ITS OWN param key, not a sibling's."""
+def test_build_config_scope_and_fields_version_off_their_source_params():
+    """Each config row versions off ITS OWN source param set (Phase 3 step 9).
+
+    After scope-as-field-attribute, config#scope is driven by BOTH field_overlay (the new
+    authoring surface) AND scope_dimensions (the fallback source), so an edit to EITHER bumps
+    it — the version is the MAX of their revisions. config#fields is driven by field_overlay
+    (+ default_page_size). A scope_dimensions-only edit must NOT bump config#fields.
+    """
     params = FakeParameterService(
         params={
             ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
@@ -1030,8 +1401,24 @@ def test_build_config_scope_and_fields_version_off_their_own_param_revision():
     scope = build_config_scope_row(tenant, params)
     fields = build_config_fields_row(tenant, params)
 
-    assert scope.version == "2026-05-01T00:00:00"
+    # config#scope: max(field_overlay=06-01, scope_dimensions=05-01) = 06-01.
+    assert scope.version == "2026-06-01T00:00:00"
+    # config#fields: driven by field_overlay (+ default_page_size) = 06-01.
     assert fields.version == "2026-06-01T00:00:00"
+
+
+def test_build_config_scope_row_versions_off_scope_dimensions_edit_alone():
+    """A scope_dimensions-only edit still bumps config#scope (the fallback source, R2.4)."""
+    params = FakeParameterService(
+        params={("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]},
+        revisions={("members", "scope_dimensions", "h-dcn"): "2026-05-01T00:00:00"},
+    )
+
+    item = build_config_scope_row(
+        {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}, params
+    )
+
+    assert item.version == "2026-05-01T00:00:00"
 
 
 def test_build_config_mail_row_versions_off_max_of_four_param_revisions():

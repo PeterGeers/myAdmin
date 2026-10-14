@@ -53,6 +53,24 @@ describe('MembersConfigStatus', () => {
     expect(screen.queryByTestId('members-config-status-mail')).not.toBeInTheDocument();
   });
 
+  it('labels a timestamp version as UTC to prevent local-time misreading (regression)', () => {
+    // The projected version is a UTC ISO-8601 string stored without a `Z`. Rendered raw it
+    // was misread as local time (a fresh projection looked hours old to a CEST viewer). The
+    // banner must label it `UTC` explicitly. We assert on the per-config version node's text.
+    render(<MembersConfigStatus status={{ fields: '2026-10-14T21:51:03' }} lang="en" />);
+    const versionNode = screen.getByTestId('members-config-status-fields-version');
+    // The authoritative UTC value is shown AND explicitly labelled UTC.
+    expect(versionNode).toHaveTextContent('2026-10-14T21:51:03 UTC');
+  });
+
+  it('does NOT attach a timezone label to a non-timestamp (integer) version', () => {
+    // An integer counter version is not a wall-clock time, so no `UTC` claim is made.
+    render(<MembersConfigStatus status={{ fields: 7 }} lang="en" />);
+    const versionNode = screen.getByTestId('members-config-status-fields-version');
+    expect(versionNode).toHaveTextContent('loaded version: 7');
+    expect(versionNode).not.toHaveTextContent('UTC');
+  });
+
   it('renders Dutch labels when lang is nl', () => {
     render(<MembersConfigStatus status={{ fields: null }} lang="nl" />);
     const fields = screen.getByTestId('members-config-status-fields');

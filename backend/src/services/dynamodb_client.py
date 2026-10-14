@@ -49,6 +49,16 @@ ENDPOINT_URL_ENV_VAR = "AWS_ENDPOINT_URL_DYNAMODB"
 # explicitly rather than defaulting so misconfiguration fails loudly.
 REGION_ENV_VAR = "AWS_REGION"
 
+# OPTIONAL projection-only AWS profile. The governance projection table lives in the
+# DATA account (nonprofit-deploy), while OTHER services in the same process (notably
+# Cognito user-pool admin) live in the IDENTITY account. A container-wide AWS_PROFILE
+# would force Cognito at the data account too (ResourceNotFoundException: user pool
+# does not exist). So the data-account profile is scoped to THIS client ONLY, via a
+# dedicated var: when set, the projection resource is built from a boto3 Session for
+# that profile; every other client keeps the process-default (identity-account) creds.
+# Unset => use the ambient default chain (local emulator / single-account dev).
+PROJECTION_AWS_PROFILE_ENV_VAR = "GOVERNANCE_PROJECTION_AWS_PROFILE"
+
 
 class DynamoDBConfigError(RuntimeError):
     """A required DynamoDB projection env var is missing or blank.
@@ -121,6 +131,19 @@ def get_dynamodb_resource(*, region: str | None = None):
     resolved_region = region or require_env(REGION_ENV_VAR)
     endpoint_url = get_endpoint_url()
 
+    # Scope the DATA-account profile to this client only (see
+    # PROJECTION_AWS_PROFILE_ENV_VAR). When set — and NOT using the local emulator —
+    # build the resource from a boto3 Session bound to that profile, so the
+    # projection targets the data account while the rest of the process (Cognito,
+    # etc.) keeps the identity-account default credentials. When unset, use the
+    # default session (ambient chain) exactly as before.
+    projection_profile = os.environ.get(PROJECTION_AWS_PROFILE_ENV_VAR, "").strip()
+    session = (
+        boto3.Session(profile_name=projection_profile)
+        if projection_profile and endpoint_url is None
+        else boto3
+    )
+
     kwargs = {"region_name": resolved_region}
     if endpoint_url is not None:
         # Local / offline path: talk to the dynamodb-local container. Dummy
@@ -137,7 +160,7 @@ def get_dynamodb_resource(*, region: str | None = None):
             os.environ.get("AWS_SECRET_ACCESS_KEY", "local"),
         )
 
-    return boto3.resource("dynamodb", **kwargs)
+    return session.resource("dynamodb", **kwargs)
 
 
 def get_projection_table(*, region: str | None = None):

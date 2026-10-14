@@ -60,25 +60,13 @@
       "manageSet": "Manage set",
       "more": "More",
       "savedSets": "Saved sets",
-      "presets": "Predefined sets",
       "newSet": "New set",
       "save": "Save",
       "saveAs": "Save as",
       "update": "Update",
       "delete": "Delete",
-      "jubileeYear": "Jubilee year",
-      "jubileeYearPlaceholder": "Select a jubilee year",
-      "joinedAfter": "Joined since (year)",
-      "joinedAfterPlaceholder": "Select a start year",
-      "presetNames": {
-        "membershipTypes": "Members per membership type",
-        "birthdayBirthMonth": "Birthday / birth month",
-        "jubilees": "Jubilees (years-member)",
-        "newMembers": "New members (joined date)",
-        "cancellations": "Cancellations (cancellation date)",
-        "clubbladPaperCountry": "Clubblad: paper / country",
-        "clubbladDigital": "Clubblad: digital",
-        "referralSource": "Referral source"
+      "emptyHint": {
+        "message": "No saved sets yet. Build a view by picking fields to group or filter on, then save it as a set."
       },
       "fieldPicker": {
         "title": "Select fields",
@@ -436,10 +424,6 @@
       "notEnoughPoints": "Not enough data to show a distribution"
     },
     "degradation": {
-      "noConfig": "No analytics config set; config-dependent sets are unavailable",
-      "roleUnmapped": "This set is unavailable: the field is not configured for this organization",
-      "fieldAbsent": "This set is unavailable: the required field is missing",
-      "addressMappingAbsent": "Address labels are unavailable: address fields are not configured",
       "mailNotEnabled": "Mailing is unavailable: email is not yet enabled for this organization"
     },
     "overLimit": {
@@ -612,5 +596,10 @@
       "success": "Status changed for {{count}} members",
       "error": "Bulk status change failed"
     }
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{total}}"
   }
 }

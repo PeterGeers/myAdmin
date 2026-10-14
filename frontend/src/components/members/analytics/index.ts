@@ -3,15 +3,8 @@
  *
  * Barrel for the Member Analytics surface (a separate page beside the member
  * table) — Overview summary, violin distributions, and pivot/list views with
- * CSV / PDF-label / SES-mail exports. Spec: `.kiro/specs/Members/member-analytics`
- * (design C1–C8 + C-CONFIG).
- *
- * Scaffolding only (task 0.1). Component exports are added by later phases:
- *   - MemberAnalyticsPanel (C1, task 3.3)
- *   - MemberOverviewStats + memberAggregations (C2, tasks 1.1 / 4.1)
- *   - MemberDistributions (C3, task 5.1)
- *   - MemberPivotViews / MemberFieldPicker / memberPivotAdapter / memberPivotPresets (C4, phase 7)
- *   - AddressLabelGenerator + addressLabelService (C5, phase 8)
+ * CSV / template-label / SES-mail exports. Spec:
+ * `.kiro/specs/Members/member-analytics`.
  */
 
 // C1 — the analytics view-switch panel (task 3.3).
@@ -39,38 +32,22 @@ export {
 } from './MemberDistributions';
 export type { GroupByDimension } from './MemberDistributions';
 
-// C-CONFIG — analytics-config consumption helpers (task 6.4).
+// Generic analytics-config consumption helpers: email-field + definition-filter
+// resolution. The role / jubilee / address-mapping helpers were removed.
 export {
-    resolveRole,
     resolveEmailField,
-    isJubileeYear,
-    candidateJubileeYears,
-    selectedJubileeYear,
-    applyJubileeYearFilter,
-    resolveAddressMapping,
-    hasAnalyticsConfig,
-    DEFAULT_JUBILEE_MULTIPLE,
-    MAX_JUBILEE_YEAR,
-    JUBILEE_YEAR_FILTER_KEY,
+    applyDefinitionFilters,
     CONVENTIONAL_EMAIL_KEYS,
 } from './analyticsConfig';
-export type { AddressSlot, ResolvedAddressMapping } from './analyticsConfig';
-
-// C4 — predefined pivot/list presets (task 7.2).
-export {
-    getAllPresets,
-    getAvailablePresets,
-    materializePreset,
-    MEMBER_PIVOT_DATA_SOURCE,
-} from './memberPivotPresets';
-export type { MemberPivotPreset, MemberPivotPresetKind } from './memberPivotPresets';
 
 // C4 — client-side pivot/list adapter (task 7.1).
 export { executeMemberPivot, aggregateColumnName } from './memberPivotAdapter';
 
-// C4 — field picker modal: compose + save a member PivotConfig (task 7.4).
-export { default as MemberFieldPicker } from './MemberFieldPicker';
-export type { MemberFieldPickerProps } from './MemberFieldPicker';
+// C4 — field picker modal: compose + save a member PivotConfig (task 7.4). The
+// member data-source tag + the Save-as seed shape live here (the removed preset
+// subsystem used to own the constant).
+export { default as MemberFieldPicker, MEMBER_PIVOT_DATA_SOURCE } from './MemberFieldPicker';
+export type { MemberFieldPickerProps, PivotSeed } from './MemberFieldPicker';
 
 // C4 — the pivot/list views sub-panel + full save lifecycle (tasks 7.3 + 7.5).
 export { default as MemberPivotViews } from './MemberPivotViews';
@@ -125,32 +102,25 @@ export type {
 // C4 — an existing saved model the field picker edits in place (task 7.5).
 export type { ExistingPivotModel } from './MemberFieldPicker';
 
-// C5 — the address-label generator UI (task 8.2).
-export { default as AddressLabelGenerator } from './AddressLabelGenerator';
-export type { AddressLabelGeneratorProps } from './AddressLabelGenerator';
-
-// C5 — the pure address-label service: Avery formats, address composition,
-// incomplete-address filtering, and jsPDF output (task 8.2).
+// The pure label service: Avery formats, template-driven label composition, and
+// jsPDF output. The address-mapping-driven path (`composeAddresses` /
+// `generateAddressLabelPdf` / the `AddressLabelGenerator` UI) was removed; only
+// the template path survives.
 export {
     AVERY_LABEL_FORMATS,
     DEFAULT_LABEL_FORMAT_KEY,
     MIN_FONT_SIZE,
     MAX_FONT_SIZE,
     getLabelFormat,
-    composeAddresses,
     clampFontSize,
     cellPosition,
     labelsPerPage,
     pageCount,
-    generateAddressLabelPdf,
 } from './addressLabelService';
 export type {
     LabelFormat,
     LabelAlignment,
-    LabelSortOrder,
     LabelStyleOptions,
-    ComposedAddress,
-    ComposeResult,
     GenerateResult,
 } from './addressLabelService';
 

@@ -60,25 +60,13 @@
       "manageSet": "Set beheren",
       "more": "Meer",
       "savedSets": "Opgeslagen sets",
-      "presets": "Voorgedefinieerde sets",
       "newSet": "Nieuwe set",
       "save": "Opslaan",
       "saveAs": "Opslaan als",
       "update": "Bijwerken",
       "delete": "Verwijderen",
-      "jubileeYear": "Jubileumjaar",
-      "jubileeYearPlaceholder": "Kies een jubileumjaar",
-      "joinedAfter": "Lid sinds (jaar)",
-      "joinedAfterPlaceholder": "Kies een beginjaar",
-      "presetNames": {
-        "membershipTypes": "Leden per lidmaatschapstype",
-        "birthdayBirthMonth": "Verjaardag / geboortemaand",
-        "jubilees": "Jubilea (lidjaren)",
-        "newMembers": "Nieuwe leden (inschrijfdatum)",
-        "cancellations": "Opzeggingen (opzegdatum)",
-        "clubbladPaperCountry": "Clubblad: papier / land",
-        "clubbladDigital": "Clubblad: digitaal",
-        "referralSource": "Verwijzingsbron"
+      "emptyHint": {
+        "message": "Nog geen opgeslagen sets. Bouw een weergave door velden te kiezen om op te groeperen of te filteren en sla deze op als een set."
       },
       "fieldPicker": {
         "title": "Velden kiezen",
@@ -436,10 +424,6 @@
       "notEnoughPoints": "Onvoldoende gegevens om een verdeling te tonen"
     },
     "degradation": {
-      "noConfig": "Geen analyseconfiguratie ingesteld; configuratie-afhankelijke sets zijn niet beschikbaar",
-      "roleUnmapped": "Deze set is niet beschikbaar: het veld is niet geconfigureerd voor deze organisatie",
-      "fieldAbsent": "Deze set is niet beschikbaar: het benodigde veld ontbreekt",
-      "addressMappingAbsent": "Adreslabels zijn niet beschikbaar: adresvelden zijn niet geconfigureerd",
       "mailNotEnabled": "E-mailen is niet beschikbaar: e-mail is nog niet geactiveerd voor deze organisatie"
     },
     "overLimit": {
@@ -612,5 +596,10 @@
       "success": "Status gewijzigd voor {{count}} leden",
       "error": "Bulk status wijzigen mislukt"
     }
+  },
+  "pagination": {
+    "previous": "Vorige",
+    "next": "Volgende",
+    "pageOf": "Pagina {{page}} van {{total}}"
   }
 }

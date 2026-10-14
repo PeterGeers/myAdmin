@@ -15,6 +15,7 @@ import {
   saveMembersParameter,
   getMembersParameterDefinitions,
   MEMBERS_NAMESPACE,
+  resolveFieldConfigLabel,
 } from './membersConfigService';
 import * as parameterService from './parameterService';
 import * as apiService from './apiService';
@@ -129,6 +130,49 @@ describe('membersConfigService', () => {
 
       expect(parameterService.createParameter).toHaveBeenCalledTimes(1);
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Label resolution — plain per-language value over the served `label{}` (R4).
+  // The drill-down resolves labels STRAIGHT from the resolved config's stored
+  // `label{nl,en}` dict — there is no resource-key indirection on the server
+  // (the retired `useMembersLabels`/`resolveShippedLabel`/`LABEL_KEY_SCHEME`
+  // resolver is no longer the drill-down's label authority).
+  // -------------------------------------------------------------------------
+  describe('resolveFieldConfigLabel (label[lang] ?? label.en ?? label.nl ?? key, R4.1/R4.2/R4.4)', () => {
+    const label = { en: 'First name', nl: 'Voornaam' };
+
+    it('reads the served per-language dict for the active language (R4.4 — the selector picks the variant)', () => {
+      // The viewer's active UI language selects the variant directly off the served dict.
+      expect(resolveFieldConfigLabel(label, 'nl', 'personal.first_name')).toBe('Voornaam');
+      expect(resolveFieldConfigLabel(label, 'en', 'personal.first_name')).toBe('First name');
+    });
+
+    it('falls through active → en → nl when the active variant is absent', () => {
+      // NL-only dict, EN-active viewer → the en→nl fallback tail yields the NL value.
+      expect(resolveFieldConfigLabel({ nl: 'Voornaam' }, 'en', 'first_name')).toBe('Voornaam');
+      // EN-only dict, NL-active viewer → en supplies it.
+      expect(resolveFieldConfigLabel({ en: 'First name' }, 'nl', 'first_name')).toBe('First name');
+    });
+
+    it('honours a plain-string label verbatim (language-neutral legacy/flat value)', () => {
+      expect(resolveFieldConfigLabel('Region', 'nl', 'region')).toBe('Region');
+    });
+
+    it('NEVER returns blank — falls through to the stable key (R4.4)', () => {
+      // No dict, empty dict, blank-only entries, and a nullish label all land on the key.
+      expect(resolveFieldConfigLabel(undefined, 'en', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel(null, 'nl', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel({}, 'en', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel({ en: '   ', nl: '' }, 'en', 'region')).toBe('region');
+      expect(resolveFieldConfigLabel('   ', 'en', 'region')).toBe('region');
+    });
+
+    it('ignores the active variant when it is blank and falls through to a non-blank one', () => {
+      expect(resolveFieldConfigLabel({ nl: '', en: 'First name' }, 'nl', 'first_name')).toBe(
+        'First name',
+      );
     });
   });
 });
