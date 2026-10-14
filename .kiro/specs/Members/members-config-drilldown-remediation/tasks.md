@@ -129,7 +129,7 @@ independent. Verify (6), ship (7) last.
     no member-data path). Confirm `config#fields`/`TenantOverlay.overrides` names unchanged (Phase-2
     R6.8). _(R8.1, R7.2)_
 - [ ] 7. Ship (per `43`, `40`)
-  - [-] 7.1 Feature branch → PR into `test`; CodeQL + GitGuardian green; preview the prod changeset
+  - [ ] 7.1 Feature branch → PR into `test`; CodeQL + GitGuardian green; preview the prod changeset
     (no unexpected replacement); promote `test → main` by merge. DATA account only. Tick the
     remediated issues (I-3/I-4/I-5/I-6/I-8/I-9 + I-2 SPA half) in `review-issues.md`; note Phase-3
     `tasks.md` that 4.x shipped-with-defects were remediated here. The follow-up spec (steering `38`

@@ -47,4 +47,14 @@ export interface ParameterMutationResponse {
   error?: string;
   /** Present on create: the id of the newly created parameter row. */
   id?: number;
+  /**
+   * Projection DELIVERY status for a tenant-scope config write (reliability):
+   * `true` = the change was projected to DynamoDB and the module will read it;
+   * `false` = the write was SAVED but projection FAILED (see `projection_error`) —
+   * the change is persisted in MySQL but not yet live to the module; `null`/absent =
+   * not applicable (non-tenant scope / older backend).
+   */
+  projected?: boolean | null;
+  /** Human-readable reason a projection failed (only when `projected === false`). */
+  projection_error?: string;
 }
