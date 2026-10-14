@@ -181,6 +181,25 @@
         "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
         "timestamp": 1791979690610
       }
+    ],
+    "9. Ship — feature branch → PR into `test` → promote by merge to `main` (DATA account only)": [
+      {
+        "executionId": "433f4d73-4671-4c75-8445-ed860cf34961",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791982971055
+      }
+    ],
+    "8. **Fix-Checking completeness** — manifest clean, drift guard green, touched suites green": [
+      {
+        "executionId": "afe75d5e-a9cd-4a47-8540-f31b6baa6375",
+        "chatSessionId": "sess_b432477e-a3fe-46b1-9b34-677f26365f09",
+        "timestamp": 1791984557377
+      },
+      {
+        "executionId": "afe75d5e-a9cd-4a47-8540-f31b6baa6375",
+        "chatSessionId": "sess_b432477e-a3fe-46b1-9b34-677f26365f09",
+        "timestamp": 1791984924189
+      }
     ]
   }
 }
