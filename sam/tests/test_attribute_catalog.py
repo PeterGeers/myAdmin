@@ -513,23 +513,30 @@ def test_scope_binding_is_declared_only_with_phase_3_note():
     assert "filtering" in spec.note.lower()
 
 
-def test_alias_is_declared_only_with_phase_3_note():
-    # R8.1: alias is declared in the vocabulary but wired in Phase 3, per the note.
+def test_alias_is_an_optional_i18n_field_attribute():
+    # `alias` is an optional, tenant-authorable, per-language ({nl,en,…}) alias authored ON a
+    # field. (The analytics field-ROLE representation it once documented was removed by
+    # `members-analytics-role-removal` — the generic Dynamic Pivot Views mechanism supersedes it.)
     spec = _spec("alias")
     assert spec.value_type == "i18n"
     assert spec.required is False
-    assert "Phase 3" in spec.note
-    # R8.2: the Phase-3 wiring of the alias is into RENDER — the note must name it.
-    assert "render" in spec.note.lower()
-    # R8.3: the note carries the deferred open question (label variant vs separate attribute).
-    assert "label variant" in spec.note.lower()
+    assert spec.tenant_authorable is True
+    # R3.4 / `38` rule 3: the alias rides on config#fields — NO new members.* param.
+    assert "config#fields" in spec.note
+    assert "no new members.*" in spec.note.lower()
+    # The analytics role/jubilee/address-mapping prose is gone (removed with the role machinery).
+    assert "analytics" not in spec.note.lower()
+    assert "jubilee" not in spec.note.lower()
 
 
-def test_only_scope_binding_and_alias_are_marked_phase_3():
-    # The Phase-3-declared-only attributes are EXACTLY scope_binding + alias — no other attribute
-    # should carry a "wired in Phase 3" note (they are all live in Phase 1).
-    phase_3 = {s.key for s in ATTRIBUTE_VOCABULARY if "Phase 3" in s.note}
-    assert phase_3 == {"scope_binding", "alias"}
+def test_only_scope_binding_remains_a_declared_only_forward_compat_attribute():
+    # After Phase 3 step 9 wires scope-binding (task 2.1), the only attribute still carrying the
+    # "declared only ... wired in Phase 3" forward-compat marker is scope_binding.
+    # (A spec is forward-compat only when its note explicitly says it is DECLARED ONLY.)
+    declared_only = {s.key for s in ATTRIBUTE_VOCABULARY if "DECLARED ONLY" in s.note}
+    assert declared_only == {"scope_binding"}
+    # The alias is not a declared-only placeholder — it carries a real generic-attribute note.
+    assert "DECLARED ONLY" not in _spec("alias").note
 
 
 # ── build_attribute_catalog(): the computed field inventory + assembly (task 3.1) ──────
@@ -951,6 +958,15 @@ _DATACLASS_FIELD_TO_ATTRIBUTE: dict[str, str] = {
     "show_when": "show_when",
     "member_number_format": "member_number_format",
     "inputs": "calculated_from",
+    # Phase 3 step 9 (task 2.1): the `scope` dataclass field added to OverlayField /
+    # FixedFieldOverride is the WIRING of the ALREADY-DECLARED `scope_binding` AttributeSpec
+    # (its note: "DECLARED ONLY in Phase 1 … Wired into the resolver … in Phase 3"). It maps by
+    # the renamed key `scope` → `scope_binding` (like `inputs` → `calculated_from`): the dataclass
+    # field carries the field's scope config (a FieldScope), the vocabulary entry declares the
+    # attribute. Mapping it classifies the field WITHOUT changing the spec's declared-only status —
+    # the drift guard asserts key presence, not type-shape equivalence (the spec's forward-compat
+    # value_type="bool" stays as pinned by test_scope_binding_is_declared_only_with_phase_3_note).
+    "scope": "scope_binding",
 }
 
 #: EXPLICIT allow-list of dataclass fields that are deliberately NOT modelled catalog attributes

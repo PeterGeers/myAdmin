@@ -317,21 +317,39 @@ intervention**. Saved filter values travel with the set (R4.4); the live page fi
   module returns (D3 — Option 2), and **saved sets persist on the Members module's own DynamoDB
   plane** (R4.4), not as registered Flask/MySQL pivot data sources (finding F-012). The reuse is of
   the framework's presentation + type layers, not its storage or SQL engine.
-- **R4.2 (predefined sets).** The following **predefined** pivot/report sets SHALL be available
+> **[RETIRED — members-analytics-role-removal]** Removed by members-analytics-role-removal
+> (Option A: no predefined presets; analytics role/jubilee/address machinery retired — superseded
+> by the generic pivot). The **entire** R4.2 predefined-set list is retired: both the
+> role-backed sets (cancellations / clubblad-paper / clubblad-digital / referral-source) **and**
+> the fixed/calculated sets (membership-types / birthday-birth-month / jubilees / new-members).
+> No predefined preset is baked in. Each listed subset is reachable by the user building the view
+> in the generic Dynamic Pivot Views mechanism (group/filter on field names directly). This AC no
+> longer mandates any preset machinery; it is retained below struck-through for traceability only.
+
+- ~~**R4.2 (predefined sets).** The following **predefined** pivot/report sets SHALL be available
   out of the box for a Members-enabled tenant (each respecting the filtered dataset / its own
-  filters, scope-safe, generic):
-  - **Membership types** — number of members per membership type.
-  - **Birthday / birth month** — a list of members by their birthday or birth-month
-    (predefined, list-style set over the calculated `birthday` / `birth_month`).
-  - **Jubilees (years-member)** — a list of members at jubilee years, with a **year selector**.
+  filters, scope-safe, generic):~~
+  - ~~**Membership types** — number of members per membership type.~~
+  - ~~**Birthday / birth month** — a list of members by their birthday or birth-month
+    (predefined, list-style set over the calculated `birthday` / `birth_month`).~~
+  - ~~**Jubilees (years-member)** — a list of members at jubilee years, with a **year selector**.
     What counts as a jubilee year SHALL be read from the tenant's **analytics config** (R9), not
-    hardcoded (over the calculated `years_member`).
-  - **New members (joined date)** — a list of members by join date / join year.
-  - **Cancellations (cancellation date)** — a list of members by cancellation date.
-  - **Clubblad: paper / country** — members per country among paper-clubblad recipients.
-  - **Clubblad: digital** — members receiving the digital clubblad.
-  - **Referral source** — number of members by referral source and by year.
-- **R4.3 (graceful degradation of overlay-only sets, resolved via config).** The predefined sets
+    hardcoded (over the calculated `years_member`).~~
+  - ~~**New members (joined date)** — a list of members by join date / join year.~~
+  - ~~**Cancellations (cancellation date)** — a list of members by cancellation date.~~
+  - ~~**Clubblad: paper / country** — members per country among paper-clubblad recipients.~~
+  - ~~**Clubblad: digital** — members receiving the digital clubblad.~~
+  - ~~**Referral source** — number of members by referral source and by year.~~
+> **[RETIRED — members-analytics-role-removal]** Removed by members-analytics-role-removal
+> (Option A: no predefined presets; analytics role/jubilee/address machinery retired — superseded
+> by the generic pivot). Both the role/jubilee/address-mapping clause (the field-role mapping
+> resolution of cancellation-date / referral-source / clubblad-paper / clubblad-digital /
+> country-detail sets) **and** the fixed/calculated preset clause (membership-types /
+> birthday-birth-month / jubilees / new-members "SHALL always be available") are retired: with no
+> predefined presets, there is no set to offer, degrade, or always-make-available. Retained below
+> struck-through for traceability only.
+
+- ~~**R4.3 (graceful degradation of overlay-only sets, resolved via config).** The predefined sets
   that depend on **overlay-only** fields (`cancellation_date`, referral source, clubblad
   paper/digital, and any country detail not covered by the fixed `country`) SHALL resolve the field
   they use from the tenant's **analytics config field-role mapping** (R9) — because a tenant's own
@@ -340,7 +358,7 @@ intervention**. Saved filter values travel with the set (R4.4); the live page fi
   config**, and SHALL be hidden/disabled with a clear reason otherwise — never shown as a broken or
   empty-forever set. The sets backed by fixed/calculated fields (membership types,
   birthday/birth-month, jubilees, new members) SHALL always be available. When a tenant has not
-  configured a role, the set degrades (hidden) exactly as if the field were absent.
+  configured a role, the set degrades (hidden) exactly as if the field were absent.~~
 - **R4.4 (user-defined + saved sets, including saved filter values).** A user SHALL be able to
   define a set by selecting member data fields **and setting filter values**, and save it for future
   use. Saved member sets SHALL be persisted **by the Members module itself, in DynamoDB**
@@ -402,8 +420,17 @@ intervention**. Saved filter values travel with the set (R4.4); the live page fi
     via the analytics field-role / address mapping (R4.10 / R9), not hardcoded.
   Aggregate sets SHALL at minimum support CSV export; PDF-label export is meaningful only for the
   filtered-list (member-rows) kind.
-- **R4.10 (label generator feature set — ported from h-dcn, generic + tenant-configurable).** The
-  label generator SHALL provide the h-dcn reference's capabilities, generalized:
+> **[RETIRED — members-analytics-role-removal]** Removed by members-analytics-role-removal
+> (Option A: no predefined presets; analytics role/jubilee/address machinery retired — superseded
+> by the generic pivot). The address-mapping-driven label path this AC describes
+> (`AddressLabelGenerator` → `resolveAddressMapping` / `composeAddresses` / `generateAddressLabelPdf`,
+> address lines filled via the tenant `address_mapping` field-role mapping) is retired. Address
+> labels are produced only through the surviving template-driven path (`composeLabelLines` /
+> `generateLabelTemplatePdf` / `MemberLabelsPanel`), which reads **no** `analytics.*`. Retained
+> below struck-through for traceability only.
+
+- ~~**R4.10 (label generator feature set — ported from h-dcn, generic + tenant-configurable).** The
+  label generator SHALL provide the h-dcn reference's capabilities, generalized:~~
   - **Standard label formats** — ship the Avery stock the h-dcn generator defines (L7160 = 21/sheet,
     L7163 = 14, L7162 = 16, L7161 = 18, and a Custom Large = 8/sheet), each a `LabelFormat` record
     (columns, rows, label width/height, gaps/margins). A tenant MAY add/select formats; the standard
@@ -443,6 +470,16 @@ intervention**. Saved filter values travel with the set (R4.4); the live page fi
   be resolved from the field config / analytics field-role mapping (R9), not hardcoded. Bulk send
   volume / rate limits and bounce handling SHALL be noted in the design (SES has send-rate quotas).
   (The Google-Contacts / client-side distribution-list flavor is **NOT** part of this feature.)
+
+  > **[RETIRED — members-analytics-role-removal]** Removed by members-analytics-role-removal
+  > (Option A: no predefined presets; analytics role/jubilee/address machinery retired —
+  > superseded by the generic pivot). Only the **role-based email-resolution clause** of this AC is
+  > retired: the recipient email field (and which members are mailable, e.g. only digital-clubblad
+  > recipients) is **no longer** resolved via the `analytics.field_roles` mapping. It is resolved
+  > from the field config alone (typed-`email` field, then the conventional email keys). The rest
+  > of the mail function (server-side SES send, optional CSV/PDF attachment, scope + saved-filter
+  > respect, `members:export` gate, BCC default) is part of the preserved generic analytics-SET
+  > feature and is **not** retired.
 
 ### R5 — Driven by the filtered dataset and/or the pivot view selection
 
@@ -569,26 +606,38 @@ field configurator** (`MembersConfigEditor.tsx` → the `members.*` params), so 
 them once and analytics reads the result — never a hardcoded rule and never a platform-forced
 overlay key. This is the ideal multi-tenant resolution of what were otherwise open questions.
 
-- **R9.1 (analytics config slice).** The Members field configurator SHALL gain an **Analytics**
+> **[RETIRED — members-analytics-role-removal]** Removed by members-analytics-role-removal
+> (Option A: no predefined presets; analytics role/jubilee/address machinery retired — superseded
+> by the generic pivot). Acceptance criteria **R9.1–R9.4 are retired in full**: the Members field
+> configurator **Analytics** authoring area (the analytics-config slice: `jubilee_rule`,
+> `field_roles`, `address_mapping`) is removed. No jubilee rule, no analytics field-role mapping,
+> and no address mapping are authored or served — the entire role-config vocabulary is gone, so
+> there is nothing for a tenant to configure. Jubilee/anniversary lists, role-backed subsets, and
+> address labels are reached generically (filter the calculated `years_member`, filter/group on
+> field names directly, and the template-driven label path). R9.5 (treat analytics config as
+> read-only) is moot with no config to read. R9.1–R9.4 retained below struck-through for
+> traceability only.
+
+- ~~**R9.1 (analytics config slice).** The Members field configurator SHALL gain an **Analytics**
   authoring area that writes an analytics-config slice through the same save-once / typed-editor /
   bilingual mechanism as the existing `field_overlay` / `scope_dimensions` / `view_contexts`
   editors (`MembersParamSubEditor`), persisted as part of the `members.*` tenant parameters and
-  projected/served alongside the field config so analytics can read it.
-- **R9.2 (jubilee rule).** The analytics config SHALL let a tenant define the **jubilee rule** —
+  projected/served alongside the field config so analytics can read it.~~
+- ~~**R9.2 (jubilee rule).** The analytics config SHALL let a tenant define the **jubilee rule** —
   what counts as a jubilee year of `years_member` (e.g. a configured set like `{5,10,15,…}`, or a
   multiple-of-N rule) — and SHALL make the Jubilees set + its year selector (R4.2) read this rule.
   Absent config SHALL fall back to a documented sensible default (e.g. multiples of 5), never a
-  crash.
-- **R9.3 (analytics field-role mapping).** The analytics config SHALL let a tenant map each
+  crash.~~
+- ~~**R9.3 (analytics field-role mapping).** The analytics config SHALL let a tenant map each
   **analytics field role** — `cancellation_date`, `referral_source`, `clubblad_paper`,
   `clubblad_digital`, and (optionally) a `country`-detail role — to one of the tenant's own
   **resolved field keys** (fixed / overlay / calculated), chosen from a picker that offers only
   resolvable keys (mirroring the configurator's existing key pickers). The predefined sets (R4.2)
   SHALL resolve their field through this mapping (R4.3). A role left unmapped means its set is
-  simply not offered (graceful degradation), with a clear reason.
-- **R9.4 (authoring is generic + bilingual).** The analytics config editor SHALL be generic (no
+  simply not offered (graceful degradation), with a clear reason.~~
+- ~~**R9.4 (authoring is generic + bilingual).** The analytics config editor SHALL be generic (no
   tenant literals), bilingual (`nl`/`en`), and SHALL validate references on Save the same way the
-  existing sub-editors do (offer-only-resolvable at authoring; backend authoritative on Save).
+  existing sub-editors do (offer-only-resolvable at authoring; backend authoritative on Save).~~
 - **R9.5 (consumption).** Analytics SHALL treat the analytics config as read-only tenant data,
   exactly like the field config and scope dimensions; it SHALL NOT write it (authoring is the
   configurator's job).

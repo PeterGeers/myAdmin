@@ -263,6 +263,10 @@ class CatalogMixin:
             "read_only": bool(field.read_only),
             "order": int(field.order),
             "origin": field.origin.value,
+            # Single-list PROVENANCE badge (Phase 3 step 8, R1.2) — base / tenant_added /
+            # base_overridden, derived at resolve time. Additive to the serialized shape; the
+            # resolved field SET + `(group, order, key)` order are unchanged (Property 1, R1.6).
+            "provenance": field.provenance.value,
             "functional_group": field.functional_group or field.group,
         }
         if field.show_when is not None:

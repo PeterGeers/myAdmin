@@ -4,7 +4,7 @@
  * The three areas (Overview / Distributions / Pivot Views) all receive the same
  * prop bundle from `MemberAnalyticsPanel` (task 3.3): the page's OWN filtered
  * dataset (`processedData`), the full scope-authorized `members` set, the
- * resolved `fieldConfig` (incl. analytics config), the active `language`, and
+ * resolved `fieldConfig`, the active `language`, and
  * the caller's `capabilities`. Keeping one shape here keeps the panel's prop
  * plumbing and each area's signature in lock-step as the real areas land in
  * phases 4/5/7.
@@ -54,18 +54,8 @@ export interface MemberAnalyticsAreaProps {
    * need the unfiltered-but-scoped baseline (e.g. excluded-count context).
    */
   members: Member[];
-  /** Resolved field config (fixed ⊕ overlay ⊕ calculated + analytics config). */
+  /** Resolved field config (fixed ⊕ overlay ⊕ calculated). */
   fieldConfig: FieldConfig | null;
-  /**
-   * Whether the tenant authored an analytics config block (R1.4 "no analytics
-   * config" signal, derived once by the page via `hasAnalyticsConfig`). When
-   * `false`, the fixed/calculated areas (Overview, Distributions over
-   * age/years_member) still render, but the config-DEPENDENT sets (role-backed
-   * presets etc.) degrade with a bilingual reason rather than erroring/crashing.
-   * This is NOT an error or empty signal — it is the third, distinct non-happy
-   * state (R1.4 / R9.5, design C1 "Error handling").
-   */
-  hasAnalyticsConfig: boolean;
   /** Active language ('nl' | 'en' …) for bilingual label resolution. */
   language: string;
   /** Caller capabilities (e.g. `canExport`). */

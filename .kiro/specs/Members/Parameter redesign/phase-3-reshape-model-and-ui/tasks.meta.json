@@ -1,0 +1,290 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Simplify the SAM `_apply_override` / `_as_variable_field` branch in `sam/members/domain/field_resolver.py` to the bounded extent the single-list provenance needs — DERIVE a provenance marker (base / tenant-added / base-overridden) at resolve time; keep the merge+sort+project pipeline and keep EVERY current fixed field immovable (do NOT adopt \"only `member_id` is fixed\"). The resolved field SET + order stay invariant. Conforms to `35`, `38` rule 2. _(R1.5, R6.1, R6.2)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924227606
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924238743
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924924765
+      }
+    ],
+    "1.2 Change-With-Tests (SAM): update `sam/tests/test_field_resolver.py` provenance/override cases to the single-list representation; keep the resolved-field-SET and `(group.order, field.order, key)` order assertions UNCHANGED (do not weaken). Conforms to `34`, `30` Change-With-Tests. _(R8.1, R1.6)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924227715
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924241063
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924927067
+      }
+    ],
+    "1.3 SPA re-presentation (`frontend/src/components/TenantAdmin/MembersConfig/MembersConfigEditor.tsx`): render base + tenant fields as ONE ordered list (order `(group.order, field.order, key)`, no new position field) with a provenance badge per field; keep authoring ONE `field_overlay` object (one save → one re-projection). Change-With-Tests: rewrite the fixed/overlay-split cases in `MembersConfig/__tests__/MembersConfigEditor.test.tsx`. Conforms to `32`, `33`, `38` rules 2/5. _(R1.1, R1.2, R1.3, R1.4, R8.4)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924227797
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925094631
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925556014
+      }
+    ],
+    "2.1 Author scope-binding as a field attribute on the Flask writer + the SAM read representation: express \"field is a scope axis / enabled / value vocabulary\" as field attributes; keep the projected config the resolver consumes SEMANTICALLY EQUIVALENT. If the `config#...` row shape changes, move schema + validator + builder + reader together (`36` rule 1); do NOT touch `handler/app.py` scope resolution or the `scopegrant#<email>#<dim>` grants. Conforms to `36`, `30`, `35`, `38`. _(R2.1, R2.3, R2.4, R2.5, R6.2)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924227925
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924243959
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924930386
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924971641
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925088019
+      }
+    ],
+    "2.2 SPA: retire the standalone `scope_dimensions` sub-editor and author scope as a field attribute in the typed editor; pickers offer only catalog-resolvable fields. Change-With-Tests: rewrite the scope sub-editor cases in `MembersConfigEditor.test.tsx`. Conforms to `32`, `33`, `38`. _(R2.1, R2.2, R8.4)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228055
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925096730
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925990163
+      }
+    ],
+    "2.3 Change-With-Tests + **Property 2** (SAM): keep `sam/tests/test_scope_access.py` / `test_scope_dimensions.py` asserting the SAME `allowed_scopes`; update only the authoring/config-shape setup. Add a scope-equivalence property test: for any tenant scope config + user grants, `allowed_scopes` after scope-as-attribute == before. **Property 2: scope resolution equivalent across the authoring-representation change.** **Validates: Requirements 2.3, 2.5, 2.6** Conforms to `34`. _(R8.2, R2.6)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228164
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925099519
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925559011
+      }
+    ],
+    "3.1 Represent jubilee-years-type analytics needs as **calculated fields** (the `sam/members/domain/calculated_fields.py` registry — unchanged in mechanism, import-time-guarded, never stored) and analytics field-role aliases (cancellation-date, referral-source, address-mapping) as **field attributes**. Data continues to ride on `config#fields` — do NOT introduce a `members.*` analytics param (`38` rule 3). Conforms to `35`, `36`, `38` rule 3. _(R3.1, R3.2, R3.4, R3.5, R3.6)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228307
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924246158
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924933310
+      }
+    ],
+    "3.2 SPA + Change-With-Tests: remove the separate analytics sub-editor section from `MembersConfigEditor.tsx`, authoring the folded representation instead; rewrite the analytics sub-editor cases in `MembersConfigEditor.test.tsx`; keep `sam/tests/test_calculated_fields.py` green (extend only if a jubilee calculated field is added). Add an analytics value-equivalence test (**Property 3**). **Validates: Requirements 3.6** Conforms to `32`, `33`, `34`. _(R3.3, R8.3, R8.4)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228392
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925102046
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791926499858
+      }
+    ],
+    "4.1 Build the group → field → attribute authoring hierarchy on the Phase 1 attribute catalog (`sam/members/domain/attribute_catalog.py`): author functional groups (`key`/`label`/`order`), fields within groups, and per-field attributes; display order DERIVED `(group.order, field.order, key)` (no stored absolute position); pickers offer only catalog-resolvable field keys / defined groups (keep the drift guard green). Conforms to `38` rules 1/2, `32`. _(R4.1, R4.2, R4.3, R8.7)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228488
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791926511236
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791926934474
+      }
+    ],
+    "4.2 i18n (Option b) + composition: render shipped labels via resource keys (`members.field.<key>`) with an inline per-language tenant override (enum `value` language-neutral, `label` per-language); compose from the registered building blocks (Table Filter Framework v2, LazySelect, API/error standard) rather than bespoke equivalents; meet `32` table/modal/i18n/row-click + accessibility. Conforms to `38` rule 6, `37`, `32`. _(R4.4, R4.5, R4.6)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228599
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791926508873
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927496421
+      }
+    ],
+    "4.3 Single save path + Change-With-Tests: the new UI saves through ONE typed save → one re-projection, through which the provenance badge (8), scope-as-attribute (9), and analytics-as-fields (10) all author. Add Vitest + RTL tests for the group→field→attribute flow, the provenance badge, the picker-resolvability guard, and the single-save path. Conforms to `38` rule 5, `33`. _(R4.7, R8.4)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228723
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927504926
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927861041
+      }
+    ],
+    "5.1 Exclude the `members.*` namespace from the raw generic parameter editor (`frontend/src/components/TenantAdmin/ParameterManagement.tsx`, mounted via `AdvancedTab.tsx`) so the typed `MembersConfig` editor is the single authoring surface for `members.*`; keep EVERY other namespace served (do NOT remove the component). Change-With-Tests: add a test asserting `members.*` is not editable there and other namespaces still are. Conforms to `32`, `33`, `38` rule 5. _(R5.1, R5.2, R5.3, R5.4, R8.5)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228848
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927502753
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927863735
+      }
+    ],
+    "6.1 Run the touched suites. SAM: `cd sam && pytest tests/test_field_resolver.py tests/test_scope_access.py tests/test_scope_dimensions.py tests/test_calculated_fields.py tests/test_members_projection_reader.py -q`. Flask (via `backend/.venv`): the members_config_validation + projection_sync + parameter_schema tests (+ any config-row migration test). SPA: the MembersConfig editor + new authoring-UI + raw-editor-exclusion Vitest suites. All green; the Phase 1 catalog drift guard stays green. Conforms to `34`, `33`, `41`. _(R8.7, R8.1, R8.2, R8.3, R8.4, R8.5)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924228983
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927871878
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791928078281
+      }
+    ],
+    "6.2 **Property 1 + Property 4** + behaviour-invariance close-out. **Property 1: the provenance collapse preserves the resolved field set and order** — snapshot the resolved field set + `(group.order, field.order, key)` order before/after step 8; assert identical. **Property 4: member data invariant across every Phase 3 step** — snapshot arbitrary member records before/after each step; assert byte-for-byte equality. Confirm no `members.*` analytics param was introduced and the `config#fields`/`TenantOverlay.overrides` names are unchanged (Phase 2 R6.8 guard continued). **Validates: Requirements 1.6, 6.1, 7.1, 7.2** _(R7.1, R7.2, R6.4)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924229075
+      },
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791928081808
+      }
+    ],
+    "6.3 CI/CD + ship + governance (per `43-cicd-deploys.md`, `40-spec-workflow.md`). Feature branch (e.g. `spec/members-config-phase3-reshape`); never push to `test`/`main` directly. Run the paired tests locally first. PR into `test`; clear CodeQL + GitGuardian. Preview the prod changeset (`--no-execute-changeset`) — confirm NO unexpected `Replacement: True` (Phase 3 adds no infra/table change). Promote `test → main` by MERGE commit. IF a config-row migration is needed, run it against TEST then PRODUCTION via `backend/scripts/railway-db.sh` (`#database` skill) — not auto-applied, never member data. Deploys touch the DATA account only; no Cognito/identity change. **Governance DoD:** update `38-sam-module-field-config.md` (+ `35`/`37`/`00-index.md` cross-refs) IF the authoring model evolved, ELSE record \"no steering change due\" with evidence. Tick `impact-analysis.md` §9 Phase 3 steps 8–11 done with a pointer to this spec folder. _(R9.1, R9.2, R9.3, R9.4, R9.5)_": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791924229192
+      }
+    ],
+    "1. Fixed/overlay → one list + provenance badge": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925556134
+      }
+    ],
+    "2. Scope-binding as a field attribute (resolver UNCHANGED)": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791925990343
+      }
+    ],
+    "3. Fold analytics into calculated fields / field attributes": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791926499982
+      }
+    ],
+    "4. Rebuild the group → field → attribute authoring UI": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927861226
+      }
+    ],
+    "5. Retire the dual editing surface (one door)": [
+      {
+        "executionId": "4577c462-3467-4de6-92b6-0283db3de710",
+        "chatSessionId": "sess_7ad6da4d-1e3a-4f7e-9975-04e8960b7e51",
+        "timestamp": 1791927863884
+      }
+    ]
+  }
+}

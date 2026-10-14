@@ -327,14 +327,14 @@ export interface MemberSchedule {
  * A user's preferred list of analytics-set references (R11.2 layer 2 — one list
  * per user, keyed by the authenticated Cognito `sub`, NOT a member id: user ≠
  * member, R11.1). `refs` is an ORDERED list of TAGGED references, never copies:
- * `preset:<key>` points at a predefined preset (code, `memberPivotPresets.ts`),
  * `set:<id>` points at a tenant-shared analytics-set (`set_id`). Dangling refs
- * (a set another user deleted) are skipped by the UI, not an error.
+ * (a set another user deleted) are skipped by the UI, not an error. A legacy
+ * `preset:<key>` ref (the removed preset subsystem) is likewise skipped.
  */
 export interface MemberPreferredList {
   /** The owning user's Cognito `sub` (echoed by the backend; informational). */
   sub: string;
-  /** Ordered tagged references: `preset:<key>` or `set:<id>`. */
+  /** Ordered tagged references: `set:<id>` (legacy `preset:<key>` refs are ignored). */
   refs: string[];
   /** ISO-8601 UTC last-update timestamp (empty string when never saved). */
   updated_at: string;
@@ -379,6 +379,24 @@ export interface MemberColumnPreferences {
 export type FieldOrigin = 'fixed' | 'variable' | 'calculated';
 
 /**
+ * The single-list PROVENANCE marker (Members config redesign Phase 3 step 8, R1.2),
+ * mirroring the module's `FieldProvenance`. Phase 3 collapses the former two-section
+ * fixed/overlay authoring split into ONE unified field list; each resolved field carries
+ * this DERIVED badge indicating its origin for display:
+ *
+ *  - `base`            — a platform base field (fixed or calculated) with NO tenant override;
+ *  - `tenant_added`    — a tenant-authored overlay field (added by the tenant);
+ *  - `base_overridden` — a platform base field the tenant re-presents via a `fixed_overrides`
+ *                        entry (relabel / regroup / tighten) — it stays a base field, immovable.
+ *
+ * Orthogonal to {@link FieldOrigin} (the STORAGE/source layer): provenance refines origin with
+ * whether a base field carries a tenant presentation override. Additive to the served field
+ * shape — the resolved field SET and `(group.order, field.order, key)` ordering are unchanged
+ * (Property 1, R1.6). Absent on an older module build → the UI treats the field as `base`.
+ */
+export type FieldProvenance = 'base' | 'tenant_added' | 'base_overridden';
+
+/**
  * One field descriptor from the resolved field config
  * (`GET /members/field-config`). Drives which columns the Members table shows,
  * how they are labeled, and how their value is rendered (parameter-driven overlay
@@ -408,6 +426,15 @@ export interface FieldConfigField {
    * renders its value like any other field but never offers it for edit.
    */
   origin?: FieldOrigin;
+  /**
+   * The single-list PROVENANCE badge (Members config redesign Phase 3 step 8, R1.2):
+   * `base` / `tenant_added` / `base_overridden`, DERIVED at resolve time by the module and
+   * surfaced on the served field. The typed editor renders this as a per-field badge in the
+   * unified field list that replaced the two-section fixed/overlay split. Additive — the
+   * resolved field SET + `(group.order, field.order, key)` order are unchanged (Property 1).
+   * Absent on an older module build → treated as `base`.
+   */
+  provenance?: FieldProvenance;
   /**
    * Field-level visibility gate (the authoritative candidate-column gate, R5.1).
    * When explicitly `false` the field is NOT a column candidate (the Members
@@ -489,60 +516,6 @@ export interface FunctionalGroup {
 }
 
 /**
- * The analytics roles a tenant may map to a resolvable field key (design C-CONFIG,
- * R9.1). Each role names a semantic the analytics surface needs but whose concrete
- * field key varies per tenant: the cancellation date, the referral source, the two
- * clubblad (newsletter) delivery flags, and a detailed country field. An unmapped
- * role → the sets that depend on it are hidden with a bilingual reason (R9.5), never
- * an error.
- */
-export type AnalyticsRole =
-  | 'cancellation_date'
-  | 'referral_source'
-  | 'clubblad_paper'
-  | 'clubblad_digital'
-  | 'country_detail';
-
-/**
- * The tenant's analytics configuration block, served additively on
- * `GET /members/field-config` as {@link FieldConfig.analytics} (design C-CONFIG, R9.1).
- * Authored in the Members configurator "Analytics" tab, projected one-directionally
- * from the `members.*` param schema. Read-only tenant data on the analytics surface.
- *
- * All three members are optional; an absent block (or absent member) falls back to
- * documented defaults (R9.5):
- *   - `jubilee_rule` absent → `{ multiple_of: 5 }` (jubilees are multiples of 5 years).
- *   - a role unmapped in `field_roles` → sets depending on it are hidden with a reason.
- *   - `address_mapping` absent → PDF address labels are unavailable; CSV export still works.
- */
-export interface MemberAnalyticsConfig {
-  /**
-   * How a jubilee (anniversary) year is decided. Either an explicit set of qualifying
-   * years-member values (`years`) or an "every Nth year" rule (`multiple_of`). Default
-   * when the whole block is absent: `{ multiple_of: 5 }`.
-   */
-  jubilee_rule?: { years?: number[]; multiple_of?: number };
-  /**
-   * Maps each {@link AnalyticsRole} to a resolvable field key (a key present in
-   * {@link FieldConfig.fields}). Partial — a tenant maps only the roles it has fields for.
-   */
-  field_roles?: Partial<Record<AnalyticsRole, string>>;
-  /**
-   * Which resolvable field keys fill each slot of a printed address label. Each slot is
-   * optional; an incomplete mapping degrades the label generator (and is reported) rather
-   * than crashing.
-   */
-  address_mapping?: {
-    name?: string;
-    street?: string;
-    postcode?: string;
-    city?: string;
-    country?: string;
-    region?: string;
-  };
-}
-
-/**
  * The resolved field configuration returned by `GET /members/field-config`:
  * the fixed base ⊕ tenant overlay, plus the scope dimensions the tenant
  * configured (used for the region/subgroup badge + filters).
@@ -576,13 +549,6 @@ export interface FieldConfig {
    * default (R2.4).
    */
   default_page_size?: number | null;
-  /**
-   * The tenant's analytics configuration (design C-CONFIG, R9.1), served additively by
-   * the module. Absent for tenants that have not authored it — the analytics surface then
-   * falls back to documented defaults (see {@link MemberAnalyticsConfig}). Mirrors the
-   * backend-served shape (task 6.1).
-   */
-  analytics?: MemberAnalyticsConfig;
   /**
    * The tenant's mail-enabled gate flag (pivot-output-actions R0/R1, design §6.3). `true`
    * when the tenant is cleared to send mail (the per-tenant "mail-enabled / SES-certified"

@@ -37,6 +37,14 @@ interface Props {
   sliceKey?: string;
   /** Render only these top-level object children (e.g. `fields`, `fixed_overrides`). */
   sliceKeys?: string[];
+  /**
+   * Optional pure transform applied to the WHOLE working value immediately before Save (and
+   * only on the committed object — the live working copy the pickers see is untouched). Used by
+   * the field-overlay sub-editor to FOLD the per-field analytics `alias` attributes into the
+   * `analytics` slice on serialize (Phase 3 step 10, R3.4 / Property 3) — the resolved mapping
+   * still rides on the single `field_overlay` object (one save → one re-projection, Property 8).
+   */
+  serializeValue?: (value: MembersConfigValue) => MembersConfigValue;
 }
 
 /** Default empty value for a param type. */
@@ -54,6 +62,7 @@ export const MembersParamSubEditor: React.FC<Props> = ({
   onValueChange,
   sliceKey,
   sliceKeys,
+  serializeValue,
 }) => {
   const lang = ctx.lang;
   const toast = useToast();
@@ -91,8 +100,12 @@ export const MembersParamSubEditor: React.FC<Props> = ({
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save-once: the WHOLE param object in a single request (Property 8).
-      const res = await saveMembersParameter(paramKey, value, existing);
+      // Save-once: the WHOLE param object in a single request (Property 8). The optional
+      // serialize transform runs HERE (fold the per-field analytics `alias` attributes into the
+      // `analytics` slice, R3.4 / Property 3) so the committed object carries the derived slice,
+      // without disturbing the live working copy the pickers read.
+      const committed = serializeValue ? serializeValue(value) : value;
+      const res = await saveMembersParameter(paramKey, committed, existing);
       if (res.success) {
         toast({
           title: lang === 'nl' ? 'Opgeslagen' : 'Saved',

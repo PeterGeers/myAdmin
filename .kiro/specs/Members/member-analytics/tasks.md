@@ -105,25 +105,35 @@ CSV/PDF-label/SES-mail exports — all scope-authorized and tenant-isolated.
 
 ### Phase 6 — Analytics config in the field configurator
 
-- [x] 6.1 Declare the analytics config on the `members.*` param schema in the SAM module
-  (additive: `jubilee_rule`, `field_roles`, `address_mapping`). Project one-directionally and
-  serve on `GET /members/field-config` as `FieldConfig.analytics`. SAM test for the endpoint.
+> **[RETIRED — members-analytics-role-removal]** Removed by members-analytics-role-removal
+> (Option A: no predefined presets; analytics role/jubilee/address machinery retired — superseded
+> by the generic pivot). **Tasks 6.1–6.4 are retired in full**: the analytics-config slice
+> (`jubilee_rule` / `field_roles` / `address_mapping`) and its authoring tab, type, SAM
+> param-schema declaration, projection/serving, and consumption helpers are all removed. These
+> tasks no longer describe work to do or maintain.
+
+- [x] 6.1 **[RETIRED — members-analytics-role-removal]** ~~Declare the analytics config on the
+  `members.*` param schema in the SAM module (additive: `jubilee_rule`, `field_roles`,
+  `address_mapping`). Project one-directionally and serve on `GET /members/field-config` as
+  `FieldConfig.analytics`. SAM test for the endpoint.~~
   - _Requirements: R9.1, R9.5, R6.2 | Design: C-CONFIG_
 
-- [x] 6.2 Extend `frontend/src/types/members.ts` `FieldConfig` with
-  `analytics?: MemberAnalyticsConfig` (jubilee_rule, field_roles, address_mapping).
+- [x] 6.2 **[RETIRED — members-analytics-role-removal]** ~~Extend `frontend/src/types/members.ts`
+  `FieldConfig` with `analytics?: MemberAnalyticsConfig` (jubilee_rule, field_roles,
+  address_mapping).~~
   - _Requirements: R9.1 | Design: C-CONFIG_
 
-- [x] 6.3 Add an **Analytics** tab to `MembersConfigEditor.tsx` (new `MembersParamSubEditor`
-  slice): author `jubilee_rule` (configured set or multiple-of), `field_roles` (role → resolvable
-  field key using the existing `resolvableFieldKeys` picker), and `address_mapping` (name / street
-  / postcode / city / country / region → resolvable keys). Bilingual, save-once,
-  reference-validated on Save.
+- [x] 6.3 **[RETIRED — members-analytics-role-removal]** ~~Add an **Analytics** tab to
+  `MembersConfigEditor.tsx` (new `MembersParamSubEditor` slice): author `jubilee_rule` (configured
+  set or multiple-of), `field_roles` (role → resolvable field key using the existing
+  `resolvableFieldKeys` picker), and `address_mapping` (name / street / postcode / city / country /
+  region → resolvable keys). Bilingual, save-once, reference-validated on Save.~~
   - _Requirements: R9.1, R9.2, R9.3, R9.4, R4.10 | Design: C-CONFIG_
 
-- [x] 6.4 Unit-test config consumption helpers: resolve a role → key via `analytics.field_roles`
-  + check presence in `fieldConfig.fields`; evaluate `jubilee_rule` (set vs. multiple-of vs.
-  default multiples-of-5); resolve `address_mapping` fields.
+- [x] 6.4 **[RETIRED — members-analytics-role-removal]** ~~Unit-test config consumption helpers:
+  resolve a role → key via `analytics.field_roles` + check presence in `fieldConfig.fields`;
+  evaluate `jubilee_rule` (set vs. multiple-of vs. default multiples-of-5); resolve
+  `address_mapping` fields.~~
   - _Requirements: R9.2, R9.3, R6.5 | Design: C-CONFIG_
 
 ### Phase 7 — Pivot/list views: client adapter + presets
@@ -135,23 +145,37 @@ CSV/PDF-label/SES-mail exports — all scope-authorized and tenant-isolated.
   (grouping, each aggregate, filtered-list mode, numeric-string parse, nested-key read).
   - _Requirements: R4.1, R4.7, R4.8, R5.3, R6.5 | Design: C4_
 
-- [x] 7.2 Implement `analytics/memberPivotPresets.ts`: predefined sets (members-per-type,
-  birthday/birth-month, jubilees, new-members, cancellations, clubblad paper/country, clubblad
-  digital, referral source) with bilingual labels, `requiresFields`, `requiresRoles`,
-  `usesJubileeRule`. Materialize role-backed configs by substituting tenant key. Unit-test:
-  role-backed presets hidden when unmapped/unresolvable; fixed/calculated always present.
+- [x] 7.2 **[RETIRED — members-analytics-role-removal]** ~~Implement
+  `analytics/memberPivotPresets.ts`: predefined sets (members-per-type, birthday/birth-month,
+  jubilees, new-members, cancellations, clubblad paper/country, clubblad digital, referral source)
+  with bilingual labels, `requiresFields`, `requiresRoles`, `usesJubileeRule`. Materialize
+  role-backed configs by substituting tenant key. Unit-test: role-backed presets hidden when
+  unmapped/unresolvable; fixed/calculated always present.~~
+  > Removed by members-analytics-role-removal (Option A: no predefined presets; analytics
+  > role/jubilee/address machinery retired — superseded by the generic pivot). The **entire**
+  > `memberPivotPresets.ts` preset subsystem is removed — the preset table (all eight sets), the
+  > serving functions, the `MemberPivotPreset` type with its `requiresRoles` / `usesJubileeRule` /
+  > `requiresFields` fields — not just the role-backed parts.
   - _Requirements: R4.2, R4.3, R9.3, R6.1, R6.5 | Design: C4_
 
 - [x] 7.3 Create `analytics/MemberPivotViews.tsx`: dropdown of [presets] + [saved member models
   from `pivotService.listPivotModels` filtered to `data_source === 'members'`]. Execute button →
   `executeMemberPivot` → reuse `PivotResultTable`. Shows on the Pivot Views area; nothing runs
   until explicit Execute (R1.6).
+  > **[RETIRED (preset part) — members-analytics-role-removal]** The **preset `<optgroup>` /
+  > preset-dropdown wiring** of this task is removed (no predefined presets). `MemberPivotViews`
+  > becomes saved-models-only, with the empty-state hint as the entry point when no saved sets
+  > exist. The generic surface (Execute → `executeMemberPivot` → `PivotResultTable`) is preserved.
   - _Requirements: R4.1, R4.6, R4.7, R5.2 | Design: C4_
 
 - [x] 7.4 Create `analytics/MemberFieldPicker.tsx`: modal listing groupable/aggregatable fields
   from `fieldConfig.fields` (fixed ⊕ overlay ⊕ calculated), bilingual. Compose a `PivotConfig`
   and save via `pivotService.savePivotModel` (`data_source: 'members'`). Presets seed the picker
   as starting points.
+  > **[RETIRED (preset-seeding part) — members-analytics-role-removal]** The "**Presets seed the
+  > picker as starting points**" clause is removed (no predefined presets to seed from). The
+  > generic field picker (compose a `PivotConfig` from the resolved field config, save it) is
+  > preserved.
   - _Requirements: R4.4, R4.5, R4.6, R6.1 | Design: C4_
 
 - [x] 7.5 Wire save / save-as / update / delete of member sets through the unchanged
@@ -160,9 +184,14 @@ CSV/PDF-label/SES-mail exports — all scope-authorized and tenant-isolated.
   tenant-scoped.
   - _Requirements: R4.4, R4.4a, R4.4b | Design: C4_
 
-- [x] 7.6 Jubilee year selector: reads `analytics.jubilee_rule`, renders a year filter on the
-  Jubilees preset, and is savable as a definition filter (R4.4). Unit-test jubilee selection
-  (configured set, multiple-of rule, default).
+- [x] 7.6 **[RETIRED — members-analytics-role-removal]** ~~Jubilee year selector: reads
+  `analytics.jubilee_rule`, renders a year filter on the Jubilees preset, and is savable as a
+  definition filter (R4.4). Unit-test jubilee selection (configured set, multiple-of rule,
+  default).~~
+  > Removed by members-analytics-role-removal (Option A: no predefined presets; analytics
+  > role/jubilee/address machinery retired — superseded by the generic pivot). The jubilee-rule
+  > selector/filter machinery is removed entirely; a jubilee/anniversary list is reached by
+  > filtering the calculated `years_member` field in the generic pivot.
   - _Requirements: R4.2, R9.2, R6.5 | Design: C4_
 
 ### Phase 8 — Exports: CSV + PDF labels
@@ -171,17 +200,28 @@ CSV/PDF-label/SES-mail exports — all scope-authorized and tenant-isolated.
   `members:export`. Available for both aggregate and filtered-list results.
   - _Requirements: R4.9, R4.11 | Design: C4_
 
-- [x] 8.2 Port `AddressLabelGenerator.tsx` + `addressLabelService.ts` from h-dcn
+- [x] 8.2 **[RETIRED (address_mapping part) — members-analytics-role-removal]** ~~Port
+  `AddressLabelGenerator.tsx` + `addressLabelService.ts` from h-dcn
   (`frontend/src/components/reporting/` + `frontend/src/services/`) into
   `frontend/src/components/members/analytics/`, generically + multi-tenant. Replace h-dcn
   field literals (`korte_naam`, `straat`, etc.) with resolved keys from
   `analytics.address_mapping`. Ship the five standard Avery formats as defaults. Gated by
-  `members:export`.
+  `members:export`.~~
+  > Removed by members-analytics-role-removal (Option A: no predefined presets; analytics
+  > role/jubilee/address machinery retired — superseded by the generic pivot). The
+  > `address_mapping`-driven `AddressLabelGenerator` + the address path of `addressLabelService.ts`
+  > (`composeAddresses` / `generateAddressLabelPdf` / `resolveAddressMapping`) are removed. Address
+  > labels are produced via the surviving template-driven path (`composeLabelLines` /
+  > `generateLabelTemplatePdf` / `MemberLabelsPanel`), which reads **no** `analytics.*`; the Avery
+  > formats/geometry survive there.
   - _Requirements: R4.9, R4.10, R4.11, R6.1 | Design: C5_
 
-- [x] 8.3 Address-label tests: label-format grid calculations, address formatting from resolved
-  field keys, incomplete-address filtering + count, jsPDF output (smoke test), start-position /
-  sort-order. Verify the generator is unavailable (with reason) when `address_mapping` is absent.
+- [x] 8.3 **[RETIRED (address_mapping part) — members-analytics-role-removal]** ~~Address-label
+  tests: label-format grid calculations, address formatting from resolved field keys,
+  incomplete-address filtering + count, jsPDF output (smoke test), start-position / sort-order.
+  Verify the generator is unavailable (with reason) when `address_mapping` is absent.~~
+  > The address-mapping generator tests are removed with the generator; the surviving
+  > template-path + Avery geometry tests remain under `addressLabelService.test.ts`.
   - _Requirements: R4.10, R6.5 | Design: C5_
 
 ### Phase 9 — SES mail function
@@ -195,6 +235,13 @@ CSV/PDF-label/SES-mail exports — all scope-authorized and tenant-isolated.
 - [x] 9.2 Frontend mail compose UI on a filtered-list result: editable subject/body (bilingual
   template), optional attach CSV / attach PDF labels, BCC by default, recipient count shown for
   confirmation before send. Resolve the email field from `fieldConfig` / `analytics.field_roles`.
+  > **[RETIRED (field_roles recipient-resolution part) — members-analytics-role-removal]** Removed
+  > by members-analytics-role-removal (Option A: no predefined presets; analytics
+  > role/jubilee/address machinery retired — superseded by the generic pivot). Only the
+  > "`/ analytics.field_roles`" recipient-resolution branch is removed: the email field is resolved
+  > from `fieldConfig` alone (typed-`email` field, then conventional email keys). The rest of the
+  > mail compose UI (bilingual subject/body, CSV/PDF attach, BCC default, recipient count) is
+  > preserved as part of the generic analytics-SET feature.
   - _Requirements: R4.12, R8.4 | Design: C6_
 
 - [x] 9.3 Surface a clear error if SES rate-limits the send. Ensure transient artifacts (CSV/PDF
