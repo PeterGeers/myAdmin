@@ -129,7 +129,25 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
     try {
       const res = await saveMembersParameter('field_overlay', overlay, existingRow);
       if (res.success) {
-        toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
+        // Honest delivery status (reliability): the save committed to MySQL, but if the
+        // projection to the module's DynamoDB config FAILED, say so instead of a false
+        // "Saved" — the edit is persisted but not yet live to the Members module.
+        if (res.projected === false) {
+          toast({
+            title: t('Opgeslagen, maar niet geprojecteerd', 'Saved, but not delivered'),
+            description:
+              res.projection_error ??
+              t(
+                'De wijziging is opgeslagen maar nog niet naar de module geprojecteerd.',
+                'The change was saved but has not yet been projected to the module.',
+              ),
+            status: 'warning',
+            duration: 9000,
+            isClosable: true,
+          });
+        } else {
+          toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
+        }
         await load();
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });

@@ -596,5 +596,10 @@
       "success": "Status changed for {{count}} members",
       "error": "Bulk status change failed"
     }
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{total}}"
   }
 }
