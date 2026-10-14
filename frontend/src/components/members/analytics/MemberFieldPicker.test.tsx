@@ -49,7 +49,7 @@ import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import MemberFieldPicker from './MemberFieldPicker';
 import { MemberFieldPicker as FromBarrel } from './index';
 import type { FieldConfig } from '../../../types/members';
-import type { MemberPivotPreset } from './memberPivotPresets';
+import type { PivotSeed } from './MemberFieldPicker';
 
 /** A field config exposing a fixed, an overlay, and a calculated field. */
 const fieldConfig = {
@@ -62,12 +62,9 @@ const fieldConfig = {
   ],
 } as unknown as FieldConfig;
 
-/** A role-seeded preset: group by membership type with a COUNT(*) measure. */
-const membershipPreset: MemberPivotPreset = {
-  key: 'membership-types',
-  labelKey: 'analytics.pivotViews.presetNames.membershipTypes',
-  kind: 'count',
-  requiresFields: ['membership_type'],
+/** A Save-as seed: a config to pre-populate from, plus a default name (the source set's name). */
+const membershipSeed: PivotSeed = {
+  name: 'Members by type',
   config: {
     dataSource: 'members',
     groupColumns: ['membership_type'],
@@ -209,21 +206,20 @@ describe('MemberFieldPicker', () => {
     );
   });
 
-  it('seeds the picker from a preset as a starting point (R4.6)', () => {
-    render(<MemberFieldPicker {...makeProps({ seedPreset: membershipPreset })} />);
+  it('seeds the picker from a Save-as seed as a starting point (R4.6)', () => {
+    render(<MemberFieldPicker {...makeProps({ seedPreset: membershipSeed })} />);
 
     // The seeded-from hint names the preset (bilingual key + interpolation).
+    // The seeded-from hint names the source set (bilingual key + interpolation of the seed name).
     expect(screen.getByTestId('field-picker-seeded')).toHaveTextContent(
-      'analytics.pivotViews.fieldPicker.seededFrom:analytics.pivotViews.presetNames.membershipTypes',
+      'analytics.pivotViews.fieldPicker.seededFrom:Members by type',
     );
-    // The preset's group column is pre-checked.
+    // The seed's group column is pre-checked.
     expect(screen.getByRole('checkbox', { name: 'Membership type' })).toBeChecked();
-    // The preset's single measure is pre-populated (two selects: function + column).
+    // The seed's single measure is pre-populated (two selects: function + column).
     expect(screen.getByTestId('field-picker-measures').querySelectorAll('select').length).toBe(2);
-    // The name is seeded from the preset label so Save is immediately possible.
-    expect(screen.getByTestId('field-picker-name')).toHaveValue(
-      'analytics.pivotViews.presetNames.membershipTypes',
-    );
+    // The name is seeded from the source set's name so Save is immediately possible.
+    expect(screen.getByTestId('field-picker-name')).toHaveValue('Members by type');
   });
 
   it('composes and saves a members PivotConfig via the mocked Members API (R4.4/R4.5)', async () => {

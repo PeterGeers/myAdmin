@@ -471,147 +471,33 @@ def test_field_config_route_lifecycle_none_without_provider(inject_service):
 
 
 # ---------------------------------------------------------------------------
-# member-analytics Task 6.1 — the analytics config served on the field-config payload
-# (design C-CONFIG, R9.1/R9.5/R6.2).
+# members-analytics-role-removal Step B (task 2.1) — the served field-config payload
+# OMITS the `analytics` role-config key.
 #
-# ODI-2 (resolved): the analytics block is authored as a SLICE of the existing
-# `members.*` overlay (it rides on `TenantOverlay.analytics`), projected ONE-DIRECTIONALLY
-# onto `FieldConfig.analytics`, and served here as a sibling top-level `analytics` field:
-#
-#   - a tenant WITH an authored analytics config → `analytics` carries only the sub-blocks
-#     authored (`jubilee_rule` / `field_roles` / `address_mapping`), pure JSON, roles keyed by
-#     their string value;
-#   - a tenant with NO analytics config → `analytics` is `None`, so the SPA applies the
-#     documented defaults (jubilee multiples-of-5; unmapped roles → sets hidden; no address
-#     mapping → PDF labels unavailable, R9.5).
-#
-# Read-only tenant data: the module serves it; it enforces nothing off it (mirrors view_contexts
-# / lifecycle). The role→key references are NOT validated against `fields` here (that is the SPA's
-# at render / the Flask-plane validator's at Save).
-#
-# Validates: Requirements R9.1, R9.5, R6.2
+# The analytics role-config slice (jubilee_rule / field_roles / address_mapping) is removed:
+# the SAM writer no longer serializes it and no longer carries an `analytics` key on the
+# served field-config payload. The former `TestGetFieldConfigAnalyticsDomain` domain cases
+# and the two edge-dispatch cases that round-tripped the authored/None analytics block were
+# removed with the surface they covered. These replacement cases pin the omission — the
+# payload is otherwise identical (the surrounding fixed/overlay/lifecycle/mail cases above
+# are unchanged). (The SAM domain classes AnalyticsConfig/AnalyticsRole/JubileeRule/
+# AddressMapping are removed later in Step C, task 3.)
 # ---------------------------------------------------------------------------
 
-from sam.members.domain.field_resolver import (
-    AddressMapping,
-    AnalyticsConfig,
-    AnalyticsRole,
-    JubileeRule,
-)
 
-
-def _analytics_overlay() -> TenantOverlay:
-    """An overlay carrying a fully-authored analytics slice (all three blocks)."""
-    return TenantOverlay(
-        analytics=AnalyticsConfig(
-            jubilee_rule=JubileeRule(years=(25, 40, 50)),
-            field_roles={
-                AnalyticsRole.CANCELLATION_DATE: "overlay.opzegdatum",
-                AnalyticsRole.CLUBBLAD_PAPER: "overlay.clubblad_papier",
-            },
-            address_mapping=AddressMapping(
-                name="personal.display_name",
-                street="overlay.straat",
-                postcode="overlay.postcode",
-                city="overlay.woonplaats",
-            ),
-        )
-    )
-
-
-class TestGetFieldConfigAnalyticsDomain:
-    def test_analytics_absent_when_no_config_authored(self, repo):
-        # Empty overlay → no analytics slice → `analytics: None` (empty-is-valid, R9.5).
+class TestGetFieldConfigOmitsAnalytics:
+    def test_served_config_has_no_analytics_key(self, repo):
+        # The served field-config payload no longer carries an `analytics` role-config key.
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("h-dcn")
-        assert config["analytics"] is None
+        assert "analytics" not in config
 
-    def test_analytics_projects_all_three_authored_blocks(self, repo):
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({"h-dcn": _analytics_overlay()}),
-        )
-        analytics = service.get_field_config("h-dcn")["analytics"]
-
-        assert analytics is not None
-        assert analytics["jubilee_rule"] == {"years": [25, 40, 50]}
-        # Roles keyed by the generic role's STRING value (pure JSON — never the enum).
-        assert analytics["field_roles"] == {
-            "cancellation_date": "overlay.opzegdatum",
-            "clubblad_paper": "overlay.clubblad_papier",
-        }
-        assert analytics["address_mapping"] == {
-            "name": "personal.display_name",
-            "street": "overlay.straat",
-            "postcode": "overlay.postcode",
-            "city": "overlay.woonplaats",
-        }
-        # An absent address line is omitted (not emitted as null) so the shape mirrors authoring.
-        assert "country" not in analytics["address_mapping"]
-        assert "region" not in analytics["address_mapping"]
-
-    def test_analytics_jubilee_multiple_of_rule_projected(self, repo):
-        overlay = TenantOverlay(
-            analytics=AnalyticsConfig(jubilee_rule=JubileeRule(multiple_of=5))
-        )
-        service = MembershipService(
-            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
-        )
-        analytics = service.get_field_config("h-dcn")["analytics"]
-        assert analytics == {"jubilee_rule": {"multiple_of": 5}}
-
-    def test_analytics_empty_config_collapses_to_none(self, repo):
-        # An authored-but-empty analytics block (all sub-blocks empty) → None (R9.5).
-        overlay = TenantOverlay(analytics=AnalyticsConfig())
-        service = MembershipService(
-            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
-        )
-        assert service.get_field_config("h-dcn")["analytics"] is None
-
-    def test_analytics_is_tenant_scoped(self, repo):
-        # 'other' authored no analytics config → its own None, never h-dcn's block.
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({"h-dcn": _analytics_overlay()}),
-        )
-        assert service.get_field_config("h-dcn")["analytics"] is not None
-        assert service.get_field_config("other")["analytics"] is None
-
-    def test_analytics_block_is_json_serializable(self, repo):
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({"h-dcn": _analytics_overlay()}),
-        )
-        json.dumps(service.get_field_config("h-dcn"))  # must not raise (no enum/dataclass leaks)
+    def test_config_without_analytics_is_json_serializable(self, repo):
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise
 
 
-# ---------------------------------------------------------------------------
-# member-analytics Task 6.1 — edge dispatch: GET /members/field-config carries `analytics`
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def inject_service_with_analytics(monkeypatch, repo):
-    service = MembershipService(
-        repo,
-        overlay_provider=StaticOverlayProvider({"h-dcn": _analytics_overlay()}),
-    )
-    monkeypatch.setattr(app, "_get_membership_service", lambda: service)
-    return service
-
-
-def test_field_config_route_carries_the_analytics_config(inject_service_with_analytics):
+def test_field_config_route_omits_the_analytics_key(inject_service):
     resp = app.handler(_event("GET", "/members/field-config"))
     assert resp["statusCode"] == 200
-    data = _data(resp)
-    assert data["analytics"] is not None
-    assert data["analytics"]["jubilee_rule"] == {"years": [25, 40, 50]}
-    assert data["analytics"]["field_roles"]["cancellation_date"] == "overlay.opzegdatum"
-    assert data["analytics"]["address_mapping"]["name"] == "personal.display_name"
-
-
-def test_field_config_route_analytics_none_when_unconfigured(inject_service):
-    # inject_service wires a service whose h-dcn overlay has no analytics slice → `analytics: None`.
-    resp = app.handler(_event("GET", "/members/field-config"))
-    assert resp["statusCode"] == 200
-    assert _data(resp)["analytics"] is None
+    assert "analytics" not in _data(resp)

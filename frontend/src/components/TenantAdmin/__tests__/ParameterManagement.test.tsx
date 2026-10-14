@@ -156,6 +156,27 @@ const mockParams = {
   },
 };
 
+/**
+ * Mix of `members.*` rows (which the raw editor must EXCLUDE — authored only in
+ * the typed MembersConfig editor) and non-members rows (which must still show).
+ */
+const mockParamsWithMembers = {
+  success: true,
+  tenant: 'T1',
+  parameters: {
+    members: [
+      { id: 100, namespace: 'members', key: 'field_overlay', value: { fields: [] }, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false },
+      { id: 101, namespace: 'members', key: 'scope_dimensions', value: { dimensions: [] }, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false },
+    ],
+    storage: [
+      { id: 1, namespace: 'storage', key: 'provider', value: 'google_drive', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false },
+    ],
+    fin: [
+      { id: 2, namespace: 'fin', key: 'currency', value: 'EUR', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false },
+    ],
+  },
+};
+
 /* ------------------------------------------------------------------ */
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
@@ -182,7 +203,7 @@ describe('ParameterManagement', () => {
 
   describe('Rendering', () => {
     test('shows loading spinner initially', () => {
-      vi.mocked(getParameters).mockReturnValue(new Promise(() => {}));
+      vi.mocked(getParameters).mockReturnValue(new Promise(() => { }));
       render(<ParameterManagement tenant="T1" />);
       expect(screen.getByText('Loading parameters...')).toBeInTheDocument();
     });
@@ -259,6 +280,73 @@ describe('ParameterManagement', () => {
       await renderAndWait();
       expect(screen.queryByLabelText('Customize')).not.toBeInTheDocument();
       expect(screen.queryByLabelText('Reset to default')).not.toBeInTheDocument();
+    });
+  });
+
+  // ========================================================================
+  // One Authoring Door — members.* namespace excluded (R5.1-R5.4, R8.5)
+  //
+  // The typed MembersConfig editor is the single authoring surface for the
+  // `members.*` namespace. The raw generic editor must EXCLUDE those rows while
+  // continuing to serve every OTHER namespace unchanged.
+  // ========================================================================
+
+  describe('Excludes members.* namespace (one authoring door)', () => {
+    test('does not render members.* parameter rows', async () => {
+      vi.mocked(getParameters).mockResolvedValue(mockParamsWithMembers);
+      render(<ParameterManagement tenant="T1" />);
+      await waitFor(() => {
+        expect(screen.queryByText('Loading parameters...')).not.toBeInTheDocument();
+        // A non-members row confirms the table finished loading.
+        expect(screen.getByText('provider')).toBeInTheDocument();
+      });
+
+      // members.* keys must NOT be editable in the raw editor
+      expect(screen.queryByText('field_overlay')).not.toBeInTheDocument();
+      expect(screen.queryByText('scope_dimensions')).not.toBeInTheDocument();
+    });
+
+    test('still renders every other namespace', async () => {
+      vi.mocked(getParameters).mockResolvedValue(mockParamsWithMembers);
+      render(<ParameterManagement tenant="T1" />);
+      await waitFor(() => {
+        expect(screen.queryByText('Loading parameters...')).not.toBeInTheDocument();
+        expect(screen.getByText('provider')).toBeInTheDocument();
+      });
+
+      // Non-members namespaces are served unchanged (component NOT removed)
+      expect(screen.getByText('provider')).toBeInTheDocument();
+      expect(screen.getByText('currency')).toBeInTheDocument();
+    });
+
+    test('no members.* row is clickable to open the edit modal', async () => {
+      vi.mocked(getParameters).mockResolvedValue(mockParamsWithMembers);
+      render(<ParameterManagement tenant="T1" />);
+      await waitFor(() => {
+        expect(screen.queryByText('Loading parameters...')).not.toBeInTheDocument();
+        expect(screen.getByText('provider')).toBeInTheDocument();
+      });
+
+      // There is no `members.*` row to click, so the edit modal can never open
+      // for a members parameter outside the typed editor (R5.4).
+      expect(screen.queryByText('field_overlay')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
+    });
+
+    test('shows empty state when ONLY members.* rows exist', async () => {
+      vi.mocked(getParameters).mockResolvedValue({
+        success: true, tenant: 'T1',
+        parameters: {
+          members: [
+            { id: 100, namespace: 'members', key: 'field_overlay', value: {}, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false },
+          ],
+        },
+      });
+      render(<ParameterManagement tenant="T1" />);
+      await waitFor(() => {
+        expect(screen.getByText('tenantAdmin.parameters.noParameters')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('field_overlay')).not.toBeInTheDocument();
     });
   });
 

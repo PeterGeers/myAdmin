@@ -63,12 +63,9 @@ from __future__ import annotations
 from services import projection_schema as schema
 
 from sam.members.domain.field_resolver import (
-    AddressMapping,
-    AnalyticsConfig,
-    AnalyticsRole,
+    FieldScope,
     FixedFieldOverride,
     FunctionalGroup,
-    JubileeRule,
     OverlayField,
     TenantOverlay,
 )
@@ -240,106 +237,11 @@ class MembersProjectionReader:
             for g in raw_groups
             if isinstance(g, dict) and g.get("key")
         }
-        # member-analytics R9 / C-CONFIG (ODI-2): the analytics config is authored as a SLICE of
-        # this same `config#fields` row (an `analytics` object beside `fields`/`fixed_overrides`/
-        # `functional_groups`), so it is read here — one projection reader, one row. Empty/absent
-        # → `None` (empty-is-valid; the consumer falls back to the documented R9.5 defaults).
-        analytics = self._build_analytics(row.get("analytics"))
         return TenantOverlay(
             fields=fields,
             overrides=overrides,
             functional_groups=functional_groups,
-            analytics=analytics,
         )
-
-    @classmethod
-    def _build_analytics(cls, spec) -> AnalyticsConfig | None:
-        """Map a projected analytics slice onto :class:`AnalyticsConfig` (R9, C-CONFIG).
-
-        Degrades gracefully (projected config data, not user input): a missing/non-dict spec, or
-        one whose three sub-blocks are all empty, returns ``None`` (empty-is-valid → consumer
-        defaults, R9.5). Unknown role keys and malformed sub-values are skipped rather than
-        raising — a stray projected token never crashes the field-config read.
-        """
-        if not isinstance(spec, dict):
-            return None
-
-        jubilee = cls._build_jubilee_rule(spec.get("jubilee_rule"))
-
-        field_roles: dict[AnalyticsRole, str] = {}
-        raw_roles = spec.get("field_roles")
-        if isinstance(raw_roles, dict):
-            for role_key, field_key in raw_roles.items():
-                if not isinstance(field_key, str) or not field_key:
-                    continue
-                try:
-                    role = AnalyticsRole(role_key)
-                except (ValueError, TypeError):
-                    continue  # unknown role token → skip (degrade gracefully)
-                field_roles[role] = field_key
-
-        address = cls._build_address_mapping(spec.get("address_mapping"))
-
-        config = AnalyticsConfig(
-            jubilee_rule=jubilee,
-            field_roles=field_roles,
-            address_mapping=address,
-        )
-        return None if config.is_empty() else config
-
-    @staticmethod
-    def _build_jubilee_rule(spec) -> JubileeRule | None:
-        """Map a projected ``jubilee_rule`` dict onto :class:`JubileeRule` (R9.2).
-
-        ``years`` keeps only int-coercible entries; ``multiple_of`` keeps a positive int. An
-        empty/absent/all-malformed spec → ``None`` (the consumer applies the default multiples-
-        of-5, R9.5 — not materialized here).
-        """
-        if not isinstance(spec, dict):
-            return None
-        years: list[int] = []
-        raw_years = spec.get("years")
-        if isinstance(raw_years, (list, tuple)):
-            for y in raw_years:
-                if isinstance(y, bool):
-                    continue
-                try:
-                    years.append(int(y))
-                except (ValueError, TypeError):
-                    continue
-        multiple_of = spec.get("multiple_of")
-        if isinstance(multiple_of, bool) or not isinstance(multiple_of, int) or multiple_of <= 0:
-            multiple_of = None
-        rule = JubileeRule(
-            years=tuple(years) if years else None,
-            multiple_of=multiple_of,
-        )
-        return None if rule.is_empty() else rule
-
-    @staticmethod
-    def _build_address_mapping(spec) -> AddressMapping | None:
-        """Map a projected ``address_mapping`` dict onto :class:`AddressMapping` (R9.4).
-
-        Each line is a resolvable field KEY (a string); non-string/empty values are dropped. An
-        empty/absent spec → ``None`` (the consumer makes PDF labels unavailable with a reason,
-        R4.10; CSV always works).
-        """
-        if not isinstance(spec, dict):
-            return None
-
-        def _key(name: str) -> str | None:
-            v = spec.get(name)
-            return v if isinstance(v, str) and v else None
-
-        mapping = AddressMapping(
-            name=_key("name"),
-            street=_key("street"),
-            postcode=_key("postcode"),
-            city=_key("city"),
-            country=_key("country"),
-            region=_key("region"),
-        )
-        return None if mapping.is_empty() else mapping
 
     @staticmethod
     def _build_functional_group(spec: dict) -> FunctionalGroup:
@@ -399,6 +301,33 @@ class MembersProjectionReader:
         except (ValueError, TypeError):
             return FieldType.STRING
 
+    @staticmethod
+    def _build_field_scope(spec) -> FieldScope | None:
+        """Map a projected field ``scope`` attribute onto :class:`FieldScope` (Phase 3 step 9, R2.1).
+
+        The SAM READ representation of scope-binding as a field attribute: a projected
+        ``config#fields`` field (added variable field or a fixed-field override) may carry a
+        ``scope`` object ``{enabled, values, label?, required_for?}``. A missing/non-dict spec →
+        ``None`` (the field is not a scope axis). Degrades gracefully (projected config data, not
+        user input): non-string values are dropped. Read-only re-presentation only — scope
+        RESOLUTION continues to consume the ``config#scope`` row (``ScopeConfig``) UNCHANGED
+        (R2.3); this attribute is carried verbatim and the resolver never reads it.
+        """
+        if not isinstance(spec, dict):
+            return None
+        values = tuple(
+            v for v in (spec.get("values") or ()) if isinstance(v, str) and v
+        )
+        required_for = tuple(
+            r for r in (spec.get("required_for") or ()) if isinstance(r, str) and r
+        )
+        return FieldScope(
+            enabled=bool(spec.get("enabled", True)),
+            values=values,
+            label=dict(spec.get("label") or {}),
+            required_for=required_for,
+        )
+
     @classmethod
     def _build_overlay_field(cls, name: str, spec: dict) -> OverlayField:
         """Map a projected variable-field spec onto an :class:`OverlayField`.
@@ -421,10 +350,12 @@ class MembersProjectionReader:
             show_when=spec.get("show_when") or None,
             visible=bool(spec.get("visible", True)),
             order=int(spec.get("order", 0) or 0),
+            # Phase 3 step 9 (R2.1): carry the field's scope-axis attribute (SAM read repr).
+            scope=cls._build_field_scope(spec.get("scope")),
         )
 
-    @staticmethod
-    def _build_override(spec: dict) -> FixedFieldOverride:
+    @classmethod
+    def _build_override(cls, spec: dict) -> FixedFieldOverride:
         """Map a projected fixed-field override onto a :class:`FixedFieldOverride`.
 
         Only the aspects actually present are passed through; a missing aspect stays ``None``
@@ -444,6 +375,8 @@ class MembersProjectionReader:
             required=bool(required) if required is not None else None,
             order=int(order) if order is not None else None,
             functional_group=str(functional_group) if functional_group else None,
+            # Phase 3 step 9 (R2.1): carry a fixed field's scope-axis attribute (SAM read repr).
+            scope=cls._build_field_scope(spec.get("scope")),
         )
 
     # ── Pagination default (Phase 2 step (a) — the view_contexts.page_size re-home) ────

@@ -62,15 +62,8 @@ export interface MemberAnalyticsPanelProps {
   processedData: MemberRow[];
   /** The full scope-authorized member set (pre page-filter). */
   members: Member[];
-  /** Resolved field config (fixed ⊕ overlay ⊕ calculated + analytics config). */
+  /** Resolved field config (fixed ⊕ overlay ⊕ calculated). */
   fieldConfig: FieldConfig | null;
-  /**
-   * Whether the tenant authored an analytics config block (R1.4 "no analytics
-   * config" signal). Plumbed unchanged to every area so the config-dependent
-   * sets can degrade with a bilingual reason while the fixed/calculated areas
-   * keep working — the third distinct non-happy state (R1.4 / R9.5).
-   */
-  hasAnalyticsConfig: boolean;
   /** Active language for bilingual label resolution. */
   language: string;
   /** Caller capabilities (e.g. `canExport`). */
@@ -81,7 +74,6 @@ const MemberAnalyticsPanel: React.FC<MemberAnalyticsPanelProps> = ({
   processedData,
   members,
   fieldConfig,
-  hasAnalyticsConfig,
   language,
   capabilities,
 }) => {
@@ -134,8 +126,8 @@ const MemberAnalyticsPanel: React.FC<MemberAnalyticsPanelProps> = ({
 
   // The prop bundle handed to whichever area is active (one shape, task 3.3).
   const areaProps = useMemo(
-    () => ({ processedData, members, fieldConfig, hasAnalyticsConfig, language, capabilities }),
-    [processedData, members, fieldConfig, hasAnalyticsConfig, language, capabilities],
+    () => ({ processedData, members, fieldConfig, language, capabilities }),
+    [processedData, members, fieldConfig, language, capabilities],
   );
 
   const ActiveComponent = AREAS[activeIndex].Component;

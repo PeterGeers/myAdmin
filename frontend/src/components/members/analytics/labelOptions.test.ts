@@ -39,7 +39,7 @@ import {
 import {
   AVERY_LABEL_FORMATS,
   DEFAULT_LABEL_FORMAT_KEY,
-  generateAddressLabelPdf,
+  generateLabelTemplatePdf,
 } from './addressLabelService';
 
 describe('defaultLabelOptions', () => {
@@ -124,7 +124,7 @@ describe('normalizeLabelOptions', () => {
 });
 
 describe('toStyleOptions / resolveLabelFormat feed the existing generator', () => {
-  it('projects onto the generator LabelStyleOptions shape', () => {
+  it('projects onto the generator LabelStyleOptions shape (per-run style only)', () => {
     const options: LabelOptions = {
       format: AVERY_LABEL_FORMATS[0].key,
       sortOrder: 'postcode',
@@ -134,13 +134,15 @@ describe('toStyleOptions / resolveLabelFormat feed the existing generator', () =
       showCountry: false,
       startPosition: 4,
     };
+    // The generator's per-run style no longer carries `sortOrder` / `showCountry`
+    // (the template layout neither sorts nor injects a country line — those were
+    // part of the removed address-mapping path). They stay on the shared model
+    // for the labels UI + stored delivery, but are NOT forwarded to the style.
     expect(toStyleOptions(options)).toEqual({
       fontSize: 11,
       alignment: 'center',
       showBorder: true,
-      showCountry: false,
       startPosition: 4,
-      sortOrder: 'postcode',
     });
   });
 
@@ -152,16 +154,17 @@ describe('toStyleOptions / resolveLabelFormat feed the existing generator', () =
     expect(bad.key).toBe(AVERY_LABEL_FORMATS[0].key);
   });
 
-  it('drives generateAddressLabelPdf end-to-end (no parallel shape)', () => {
+  it('drives the template-label generator end-to-end (no parallel shape)', () => {
     const options = defaultLabelOptions();
-    const result = generateAddressLabelPdf(
+    const result = generateLabelTemplatePdf(
       [],
       undefined,
+      { lines: [['display_name']] },
       resolveLabelFormat(options),
       toStyleOptions(options),
     );
     // Empty input → a valid doc with zero labels; proves the shared model's
-    // output is exactly what the existing generator consumes.
+    // output is exactly what the surviving generator consumes.
     expect(result.labelCount).toBe(0);
     expect(result.doc).toBeTruthy();
   });

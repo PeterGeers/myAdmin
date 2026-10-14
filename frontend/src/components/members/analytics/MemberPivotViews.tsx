@@ -20,31 +20,26 @@
  * The Pivot Views area lets a user run a member pivot/list *set* against the
  * page's OWN scope-authorized, filtered dataset (`processedData`, Option A /
  * R1.5 / R5.1) and render the result through the framework's existing
- * `PivotResultTable` (REUSE — no bespoke result table, R4.7). A "set" is one of:
+ * `PivotResultTable` (REUSE — no bespoke result table, R4.7). A "set" is a
+ * **saved member set** (R4.6 / R5.2) — a tenant-saved analytics set from the
+ * Members API `listAnalyticsSets()`. The Members Lambda returns ONLY this
+ * tenant's member sets, so no client-side data-source filter is needed (another
+ * module's sets can never leak into the member surface). There are no predefined
+ * presets: every view is one the user built generically (group/filter on field
+ * names directly) and saved.
  *
- *   - a **predefined preset** (R4.2) — the fixed/calculated + role-backed sets
- *     from `getAvailablePresets(fieldConfig)` (task 7.2), already materialized
- *     for the tenant (role placeholders substituted, unavailable sets omitted);
- *   - a **saved member set** (R4.6 / R5.2) — a tenant-saved analytics set from
- *     the Members API `listAnalyticsSets()`. The Members Lambda returns ONLY this
- *     tenant's member sets, so no client-side data-source filter is needed
- *     (another module's sets can never leak into the member surface).
+ * Selecting a set does NOT run anything — running is an EXPLICIT action (R1.6):
+ * the user picks a set, then clicks Execute, and only then is
+ * `executeMemberPivot(processedData, config, fieldConfig)` (task 7.1, the client
+ * adapter) called and its `PivotResult` rendered. Nothing is pivoted/listed on
+ * open, and nothing auto-runs on selection (R1.6 — no auto-run).
  *
- * Both kinds are offered in ONE dropdown (R4.6/R5.2). Selecting a set does NOT
- * run anything — running is an EXPLICIT action (R1.6): the user picks a set, then
- * clicks Execute, and only then is `executeMemberPivot(processedData, config,
- * fieldConfig)` (task 7.1, the client adapter) called and its `PivotResult`
- * rendered. Nothing is pivoted/listed on open, and nothing auto-runs on
- * selection (R1.6 — no auto-run).
- *
- * Resolving the chosen set's `PivotConfig`:
- *   - a preset carries its `config` inline (already materialized);
- *   - a saved set carries only summary metadata in the list, so its full
- *     definition is fetched on Execute via `getAnalyticsSet(id)` (which converts
- *     the module's snake_case definition into a camelCase `PivotConfig`). The
- *     saved set's own definition filters travel with it
- *     (R4.4); the page's live filter is NOT baked in (R4.4a) — the adapter runs
- *     over `processedData` as-is.
+ * Resolving the chosen set's `PivotConfig`: a saved set carries only summary
+ * metadata in the list, so its full definition is fetched on Execute via
+ * `getAnalyticsSet(id)` (which converts the module's snake_case definition into a
+ * camelCase `PivotConfig`). The saved set's own definition filters travel with it
+ * (R4.4); the page's live filter is NOT baked in (R4.4a) — the adapter runs over
+ * `processedData` as-is.
  *
  * Exports mount into the capability-gated, test-visible `pivot-result-actions`
  * slot (gated by `capabilities.canExport` = members:export). Within the slot the
@@ -52,7 +47,7 @@
  * 1.3): the compose/send path is OFFERED only when the tenant is mail-enabled —
  * the R0 `config#mail` flag surfaced on the field config as `mail_enabled`;
  * otherwise the action is HIDDEN with the shared degradation reason (mirroring how
- * the labels action degrades on an absent address mapping). Task 8.1 wires CSV
+ * the labels action degrades when the tenant has no label template). Task 8.1 wires CSV
  * export of the produced `PivotResult` here, REUSING `csvExport.ts` (no bespoke
  * CSV): a result column's `name` is the util's key + header, so the SAME mapping
  * exports an AGGREGATE result (group + aggregate columns) and a filtered-LIST
@@ -128,40 +123,24 @@ import {
 } from '../../../services/membersApiService';
 import { applyApiError } from '../../../shared/api/applyApiError';
 import type { MemberAnalyticsAreaProps } from './areas/types';
-import { getAvailablePresets } from './memberPivotPresets';
-import type { MemberPivotPreset } from './memberPivotPresets';
 import { executeMemberPivot } from './memberPivotAdapter';
 import { generateCsvFromObjects, downloadCsv } from '../../../utils/csvExport';
 import { recordAnalyticsOutput } from '../../../services/memberAnalyticsAuditService';
-import MemberFieldPicker, { type ExistingPivotModel } from './MemberFieldPicker';
+import MemberFieldPicker, {
+  type ExistingPivotModel,
+  type PivotSeed,
+} from './MemberFieldPicker';
 import MemberMailCompose from './MemberMailCompose';
 import MemberMailStatus from './MemberMailStatus';
 import MemberDeliveryEditor from './MemberDeliveryEditor';
 import MemberScheduleEditor from './MemberScheduleEditor';
-import {
-  AVERY_LABEL_FORMATS,
-  DEFAULT_LABEL_FORMAT_KEY,
-  getLabelFormat,
-  generateAddressLabelPdf,
-} from './addressLabelService';
-import { resolveAddressMapping } from './analyticsConfig';
 import MemberLabelsPanel from './MemberLabelsPanel';
 import {
   listMemberTemplates as realListMemberTemplates,
   type MemberTemplateDto,
 } from '../../../services/memberTemplateService';
 import AnalyticsStateNotice from './areas/AnalyticsStateNotice';
-import {
-  candidateJubileeYears,
-  selectedJubileeYear,
-  applyJubileeYearFilter,
-  JUBILEE_YEAR_FILTER_KEY,
-  candidateJoinedYears,
-  selectedJoinedAfterYear,
-  applyJoinedAfterFilter,
-  JOINED_AFTER_FILTER_KEY,
-  applyDefinitionFilters,
-} from './analyticsConfig';
+import { applyDefinitionFilters } from './analyticsConfig';
 import type { FieldConfigField, LocalizedLabel } from '../../../types/members';
 import type { AggregateFunction } from '../../../types/pivot';
 
@@ -170,48 +149,30 @@ import type { AggregateFunction } from '../../../types/pivot';
  * model — flattened to the small shape the dropdown + Execute need.
  */
 interface SelectableSet {
-  /** Stable, collision-free option value (`preset:<key>` / `model:<id>`). */
+  /** Stable, collision-free option value (`model:<id>`). */
   optionValue: string;
-  /** Already-resolved display label (bilingual, resolved from i18n / the model name). */
+  /** Already-resolved display label (the saved model name). */
   label: string;
-  /** Which group the option belongs to (for the two `<optgroup>`s). */
-  source: 'preset' | 'model';
-  /** A preset's inline, materialized config (presets only). */
-  config?: PivotConfig;
-  /** A saved set's id (the backend `set_id` string), loaded on Execute (models only). */
+  /** Which group the option belongs to (saved member models only). */
+  source: 'model';
+  /** A saved set's id (the backend `set_id` string), loaded on Execute. */
   modelId?: string;
-  /**
-   * The preset reads `analytics.jubilee_rule` at run time (the Jubilees preset,
-   * task 7.2 `usesJubileeRule`). Only such a set shows the jubilee year selector
-   * (task 7.6). Saved models never set this.
-   */
-  usesJubileeRule?: boolean;
-  /**
-   * The New-members preset offers a "joined in or after <year>" selector
-   * (findings F-010). Only such a set shows the join-year selector. Saved models
-   * never set this.
-   */
-  usesJoinedAfterFilter?: boolean;
 }
 
-const PRESET_PREFIX = 'preset:';
 const MODEL_PREFIX = 'model:';
 
-// The preferred list (R11.2) stores TAGGED references, not copies: a preset is
-// `preset:<key>` and a saved tenant-shared set is `set:<id>`. The dropdown's
-// internal option scheme uses `model:<id>` for a saved set; these two helpers
-// bridge the two so the preferred list speaks the backend's `set:` vocabulary.
+// The preferred list (R11.2) stores TAGGED references, not copies: a saved
+// tenant-shared set is `set:<id>`. The dropdown's internal option scheme uses
+// `model:<id>` for a saved set; these two helpers bridge the two so the
+// preferred list speaks the backend's `set:` vocabulary.
 const SET_PREFIX = 'set:';
 
 /**
- * Convert a dropdown option value (`preset:<key>` / `model:<id>`) into the
- * backend preferred-list tagged reference (`preset:<key>` / `set:<id>`). Returns
- * null when the option value is not a recognizable set reference.
+ * Convert a dropdown option value (`model:<id>`) into the backend preferred-list
+ * tagged reference (`set:<id>`). Returns null when the option value is not a
+ * recognizable saved-set reference.
  */
 function optionValueToRef(optionValue: string): string | null {
-  if (optionValue.startsWith(PRESET_PREFIX)) {
-    return optionValue; // presets share the same `preset:<key>` form
-  }
   if (optionValue.startsWith(MODEL_PREFIX)) {
     return `${SET_PREFIX}${optionValue.slice(MODEL_PREFIX.length)}`;
   }
@@ -256,17 +217,13 @@ function parseAggregateName(
 
 
 /**
- * Resolve the `PivotConfig` for the chosen set. A preset carries its config
- * inline (already materialized by `getAvailablePresets`); a saved set's full
- * definition is fetched via the Members API `getAnalyticsSet` (which converts the
- * module's snake_case `definition` into a camelCase `PivotConfig`), so the saved
- * set's own definition filters travel with it (R4.4), never the page's live
- * filter (R4.4a).
+ * Resolve the `PivotConfig` for the chosen set. A saved set's full definition is
+ * fetched via the Members API `getAnalyticsSet` (which converts the module's
+ * snake_case `definition` into a camelCase `PivotConfig`), so the saved set's own
+ * definition filters travel with it (R4.4), never the page's live filter
+ * (R4.4a).
  */
 async function resolveConfig(set: SelectableSet): Promise<PivotConfig | undefined> {
-  if (set.source === 'preset') {
-    return set.config;
-  }
   if (typeof set.modelId === 'string') {
     const saved = await getAnalyticsSet(set.modelId);
     return saved.definition;
@@ -295,14 +252,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   const { t } = useTypedTranslation('members');
   const toast = useToast();
 
-  // The materialized, available presets for this tenant (R4.2/R4.3). Pure +
-  // memoized on the field config — role-backed presets are already substituted
-  // or omitted; nothing tenant-specific is hardcoded.
-  const presets: MemberPivotPreset[] = useMemo(
-    () => getAvailablePresets(fieldConfig ?? undefined),
-    [fieldConfig],
-  );
-
   // Saved member sets (R4.6/R5.2) — fetched from the Members API, which returns
   // ONLY this tenant's member sets (member-owned DynamoDB store, F-012). No
   // client-side data-source filter is needed: the Members Lambda never returns
@@ -318,16 +267,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
 
   // The currently SELECTED option value — selection alone runs nothing (R1.6).
   const [selectedValue, setSelectedValue] = useState<string>('');
-
-  // The chosen jubilee year (empty = all jubilee-eligible members). Shown only
-  // for the Jubilees preset (task 7.6). Stored as a string (native <select>
-  // value) and parsed to a number when written into the config filter.
-  const [jubileeYear, setJubileeYear] = useState<string>('');
-
-  // The chosen "joined in or after" year (empty = all members). Shown only for
-  // the New-members preset (findings F-010). Stored as a string (native <select>
-  // value), parsed to a number when written into the config filter.
-  const [joinedAfterYear, setJoinedAfterYear] = useState<string>('');
 
   // The produced result (null until the user explicitly Executes). Also tracks
   // the config that produced it so the result table formats correctly.
@@ -351,7 +290,7 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // click (R4.4b).
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [pickerModel, setPickerModel] = useState<ExistingPivotModel | undefined>(undefined);
-  const [pickerSeed, setPickerSeed] = useState<MemberPivotPreset | undefined>(undefined);
+  const [pickerSeed, setPickerSeed] = useState<PivotSeed | undefined>(undefined);
 
   // Delete confirmation (explicit, never implicit — R4.4b). Holds the summary of
   // the set pending deletion, or null when no confirmation is open.
@@ -362,8 +301,7 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // --- Mail compose state (task 9.2). ----------------------------------------
   // The SES mail compose modal is opened from the Mail button in the
   // capability-gated `pivot-result-actions` slot (beside the CSV button). It
-  // mails the CURRENT result rows; a tenant whose `address_mapping` resolves can
-  // additionally attach PDF labels.
+  // mails the CURRENT result rows.
   const [isMailOpen, setIsMailOpen] = useState(false);
 
   // --- Delivery editor state (task 3.4 / R3). --------------------------------
@@ -572,59 +510,23 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   }, [listTemplates]);
 
   // The flat list of selectable sets, keyed by a collision-free option value.
+  // Saved-member-sets only (the preset subsystem was removed): every view the
+  // user runs is one they built in the generic Dynamic Pivot Views mechanism and
+  // saved (group/filter on field names directly).
   const sets: SelectableSet[] = useMemo(() => {
-    const presetSets: SelectableSet[] = presets.map((preset) => ({
-      optionValue: `${PRESET_PREFIX}${preset.key}`,
-      label: t(preset.labelKey),
-      source: 'preset',
-      config: preset.config,
-      usesJubileeRule: preset.usesJubileeRule,
-      usesJoinedAfterFilter: preset.usesJoinedAfterFilter,
-    }));
-    const modelSets: SelectableSet[] = savedModels.map((model) => ({
+    return savedModels.map((model) => ({
       optionValue: `${MODEL_PREFIX}${model.id}`,
       // A saved model's name is user-authored tenant data, shown as-is.
       label: model.name,
-      source: 'model',
+      source: 'model' as const,
       modelId: model.id,
     }));
-    return [...presetSets, ...modelSets];
-  }, [presets, savedModels, t]);
+  }, [savedModels]);
 
   const selectedSet = useMemo(
     () => sets.find((s) => s.optionValue === selectedValue),
     [sets, selectedValue],
   );
-
-  // The jubilee year selector appears ONLY for the Jubilees preset — the set
-  // flagged `usesJubileeRule` in task 7.2 (R4.2). Every other preset and every
-  // saved model hides it.
-  const showsJubileeSelector = selectedSet?.usesJubileeRule === true;
-
-  // The selectable jubilee years come from the tenant's `analytics.jubilee_rule`
-  // — a configured `years` set, a `multiple_of` rule, or the default
-  // multiples-of-5 (task 6.4 jubilee logic, reused — not reimplemented). Memoized
-  // on the rule so the list is stable across renders.
-  const jubileeYearOptions = useMemo(
-    () => candidateJubileeYears(fieldConfig?.analytics?.jubilee_rule),
-    [fieldConfig],
-  );
-
-  // The join-year selector appears ONLY for the New-members preset — the set
-  // flagged `usesJoinedAfterFilter` (findings F-010). Every other preset and
-  // every saved model hides it.
-  const showsJoinedAfterSelector = selectedSet?.usesJoinedAfterFilter === true;
-
-  // The selectable "joined in or after" years: current year back ~15 years,
-  // descending (findings F-010). Memoized so the list is stable across renders.
-  const joinedYearOptions = useMemo(() => candidateJoinedYears(), []);
-
-  // Reset the chosen years whenever the selected set changes, so a year chosen
-  // for one set never leaks into a different set's Execute.
-  useEffect(() => {
-    setJubileeYear('');
-    setJoinedAfterYear('');
-  }, [selectedValue]);
 
   // Run a set end-to-end given an EXPLICIT set object (never reading selection
   // from state). This is the single execute core both the Execute button and a
@@ -636,80 +538,30 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // year filter, runs the client adapter over `processedData` (R4.4a — the
   // page's live filter is not re-baked), and renders the result.
   //
-  // `selectors` carries the Jubilees / New-members year choices ONLY for the
-  // Execute button path (where the selector UI exists for the currently-selected
-  // set). A preferred/library Run has no selector UI, so it passes no selectors
-  // and simply runs the set's own saved config (incl. its saved filters, issue
-  // 3).
+  // A preferred/library Run and the Execute button both run the set's own saved
+  // config (incl. its saved generic definition filters, issue 3).
   const executeSet = useCallback(
-    async (
-      set: SelectableSet,
-      selectors?: { jubileeYear?: string; joinedAfterYear?: string },
-    ) => {
+    async (set: SelectableSet) => {
       setIsExecuting(true);
       try {
-        const resolved = await resolveConfig(set);
-        if (!resolved) {
+        const config = await resolveConfig(set);
+        if (!config) {
           return;
         }
 
-        // For the Jubilees preset with a chosen year (Execute button only), write
-        // the year into the config's definition filters (R4.4) so it (a) travels
-        // with the set when saved by task 7.5 and (b) narrows the executed rows
-        // below. No chosen year → config untouched (all jubilee-eligible members).
-        let config = resolved;
-        const usesJubilee = set.usesJubileeRule === true;
-        const usesJoined = set.usesJoinedAfterFilter === true;
-
-        if (usesJubilee && selectors?.jubileeYear !== undefined) {
-          const parsedYear = selectedJubileeYear({
-            [JUBILEE_YEAR_FILTER_KEY]: selectors.jubileeYear,
-          });
-          config = {
-            ...config,
-            filters: {
-              ...config.filters,
-              ...(parsedYear !== undefined
-                ? { [JUBILEE_YEAR_FILTER_KEY]: parsedYear }
-                : {}),
-            },
-          };
-        }
-
-        // For the New-members preset with a chosen join year (Execute button
-        // only), write it into the definition filters (findings F-010).
-        if (usesJoined && selectors?.joinedAfterYear !== undefined) {
-          const parsedJoined = selectedJoinedAfterYear({
-            [JOINED_AFTER_FILTER_KEY]: selectors.joinedAfterYear,
-          });
-          config = {
-            ...config,
-            filters: {
-              ...config.filters,
-              ...(parsedJoined !== undefined
-                ? { [JOINED_AFTER_FILTER_KEY]: parsedJoined }
-                : {}),
-            },
-          };
-        }
-
         // The client adapter aggregates/lists its input rows as-is and does not
-        // itself apply `config.filters`, so every definition filter is applied
-        // HERE, narrowing the page's own filtered dataset (R4.4a — the page's
-        // live filter is NOT re-baked; we run over processedData as-is):
-        //   - the jubilee / joined-after year selectors have their own year-aware
-        //     appliers (applied only for their preset);
-        //   - every OTHER saved equality filter (e.g. {clubblad:'Papier'}, issue
-        //     3) is applied generically via applyDefinitionFilters. That helper
-        //     SKIPS the reserved jubilee/joined keys, so applying it for all sets
-        //     never double-handles the year filters.
-        let rows: MemberRow[] = processedData;
-        if (usesJubilee) {
-          rows = applyJubileeYearFilter(rows, config.filters, fieldConfig ?? undefined);
-        } else if (usesJoined) {
-          rows = applyJoinedAfterFilter(rows, config.filters, fieldConfig ?? undefined);
-        }
-        rows = applyDefinitionFilters(rows, config.filters, fieldConfig ?? undefined);
+        // itself apply `config.filters`, so every saved equality definition
+        // filter (e.g. {clubblad:'Papier'}, issue 3) is applied HERE via
+        // applyDefinitionFilters, narrowing the page's own filtered dataset
+        // (R4.4a — the page's live filter is NOT re-baked; we run over
+        // processedData as-is). A jubilee / new-member list is reached by the
+        // user filtering the calculated years-member / joined_date field in the
+        // generic set definition — no dedicated selector machinery.
+        const rows = applyDefinitionFilters(
+          processedData,
+          config.filters,
+          fieldConfig ?? undefined,
+        );
 
         const pivotResult = executeMemberPivot(
           rows,
@@ -726,23 +578,13 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   );
 
   // Execute is the ONLY thing the Execute button runs (R1.6 — explicit action).
-  // It runs the currently-SELECTED set, passing the live selector year choices.
+  // It runs the currently-SELECTED set.
   const handleExecute = useCallback(() => {
     if (!selectedSet) {
       return;
     }
-    void executeSet(selectedSet, {
-      ...(showsJubileeSelector ? { jubileeYear } : {}),
-      ...(showsJoinedAfterSelector ? { joinedAfterYear } : {}),
-    });
-  }, [
-    selectedSet,
-    executeSet,
-    showsJubileeSelector,
-    jubileeYear,
-    showsJoinedAfterSelector,
-    joinedAfterYear,
-  ]);
+    void executeSet(selectedSet);
+  }, [selectedSet, executeSet]);
 
   // The currently-selected saved set's summary (undefined for a preset or when
   // nothing is selected) — gates the Update / Delete actions, which apply only to
@@ -765,14 +607,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   const preferredItems = useMemo(() => {
     const items: { ref: string; optionValue: string; label: string }[] = [];
     for (const ref of preferredRefs) {
-      if (ref.startsWith(PRESET_PREFIX)) {
-        const key = ref.slice(PRESET_PREFIX.length);
-        const preset = presets.find((p) => p.key === key);
-        if (preset) {
-          items.push({ ref, optionValue: ref, label: t(preset.labelKey) });
-        }
-        continue; // dangling preset ref → skip (R11.6)
-      }
       if (ref.startsWith(SET_PREFIX)) {
         const id = ref.slice(SET_PREFIX.length);
         const model = savedModels.find((m) => m.id === id);
@@ -785,9 +619,11 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
         }
         continue; // dangling set ref → skip (R11.6)
       }
+      // A legacy `preset:<key>` ref (the removed preset subsystem) resolves to
+      // nothing and is skipped silently (R11.6) — never an error.
     }
     return items;
-  }, [preferredRefs, presets, savedModels, t]);
+  }, [preferredRefs, savedModels]);
 
   // The preferred items narrowed by the name filter, PRESERVING the user's saved
   // order (issue 2 — the preferred list stays in the user's own order; the
@@ -831,11 +667,9 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
         label: s.label,
         ref,
         alreadyPreferred: ref !== null && preferredRefs.includes(ref),
-        // A custom saved set (source 'model') can be permanently DELETED from the
-        // library; a prefab/predefined preset (source 'preset') cannot (it lives
-        // in code). `savedSetId` is the backend set_id for a saved set, else null.
-        savedSetId:
-          s.source === 'model' && typeof s.modelId === 'string' ? s.modelId : null,
+        // A custom saved set can be permanently DELETED from the library.
+        // `savedSetId` is the backend set_id for the saved set.
+        savedSetId: typeof s.modelId === 'string' ? s.modelId : null,
       };
     });
     return items.sort((a, b) =>
@@ -974,28 +808,12 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // from the preset directly; for a saved model, load its definition and wrap it
   // as a one-off seed preset.
   const handleSaveAs = useCallback(async () => {
-    if (!selectedSet) {
+    if (!selectedSet || typeof selectedSet.modelId !== 'string') {
       return;
     }
-    let seed: MemberPivotPreset | undefined;
-    if (selectedSet.source === 'preset' && selectedSet.config) {
-      seed = {
-        key: 'save-as',
-        labelKey: 'analytics.pivotViews.newSet',
-        kind: 'count',
-        config: selectedSet.config,
-      };
-    } else if (typeof selectedSet.modelId === 'string') {
-      const saved = await getAnalyticsSet(selectedSet.modelId);
-      seed = {
-        key: 'save-as',
-        labelKey: 'analytics.pivotViews.newSet',
-        kind: 'count',
-        config: saved.definition,
-      };
-    }
+    const saved = await getAnalyticsSet(selectedSet.modelId);
     setPickerModel(undefined);
-    setPickerSeed(seed);
+    setPickerSeed({ config: saved.definition, name: saved.name });
     setIsPickerOpen(true);
   }, [selectedSet]);
 
@@ -1342,13 +1160,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
     }
   }, [selectedModelSummary, isDeliveringNow, result, exportRows, selectedSet, toast, t]);
 
-  // Whether the tenant has a resolvable address mapping — gates the mail
-  // compose's "attach PDF labels" toggle (R4.10). Memoized on the field config.
-  const hasAddressMapping = useMemo(
-    () => Object.keys(resolveAddressMapping(fieldConfig ?? undefined)).length > 0,
-    [fieldConfig],
-  );
-
   // Whether the tenant has at least one LABEL template (`kind:"label"`). This —
   // NOT the address mapping — is now the content precondition the labels action
   // depends on (labels sub-spec R-L2 / Property 3; R6 "no analytics config": the
@@ -1360,12 +1171,12 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
   // R-L2 / Property 3). The action is OFFERED only when the caller holds
   // `members:export` AND at least one LABEL template exists. This is the NEW
   // gate: it depends ONLY on `capabilities.canExport` + `hasLabelTemplate`, and
-  // deliberately NOT on the address mapping / any `analytics.*` config (R6). The
-  // mail compose's SEPARATE "attach PDF labels" path keeps using
-  // `hasAddressMapping` (below) — that is a different feature, left intact. When
+  // deliberately NOT on any `analytics.*` config (R6). When
   // either condition is false the action is HIDDEN with a bilingual degradation
   // reason (below). `canGenerateLabels` is the single predicate the labels action
-  // and its modal mount render on.
+  // and its modal mount render on. It reads NO `analytics.*` config (R6) — the
+  // address-mapping-driven label path was removed; only the template path
+  // survives.
   const canGenerateLabels = capabilities.canExport && hasLabelTemplate;
 
   // The tenant's mail-enabled gate flag (pivot-output-actions R0/R1 task 1.3, design §6.3).
@@ -1402,29 +1213,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
     return btoa(unescape(encodeURIComponent(withBom)));
   }, [result, exportRows, columnLabels]);
 
-  // Build the PDF address-label bytes for the CURRENT result rows, base64-encoded,
-  // for the mail compose "attach PDF labels" toggle (task 9.2). Uses the jsPDF
-  // address-label generator (task 8.2) with the default Avery format; the labels
-  // are composed from the tenant's resolved `address_mapping`. Returns null when
-  // there is no result or no resolvable address mapping (R4.10).
-  const buildPdfBase64 = useCallback((): string | null => {
-    if (!result || !hasAddressMapping) {
-      return null;
-    }
-    const format =
-      getLabelFormat(DEFAULT_LABEL_FORMAT_KEY) ?? AVERY_LABEL_FORMATS[0];
-    const { doc } = generateAddressLabelPdf(
-      exportRows as MemberRow[],
-      fieldConfig ?? undefined,
-      format,
-    );
-    // jsPDF emits a base64 datauristring (`data:...;base64,<payload>`); strip the
-    // prefix so the backend receives raw base64 (task 9.1 base64-decodes it).
-    const dataUri = doc.output('datauristring');
-    const comma = dataUri.indexOf(',');
-    return comma >= 0 ? dataUri.slice(comma + 1) : dataUri;
-  }, [result, hasAddressMapping, fieldConfig, exportRows]);
-
   return (
     <Box data-testid="member-pivot-views">
       <VStack align="stretch" spacing={4}>
@@ -1433,9 +1221,10 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
             <FormLabel htmlFor="member-pivot-set-select" color="gray.300" fontSize="sm" mb={1}>
               {t('analytics.pivotViews.selectSet')}
             </FormLabel>
-            {/* The dropdown lists ONLY the user's preferred sets (in saved order),
-                plus the always-reachable jubilee/new-members selector presets.
-                The full library is behind the "All sets" button beside it. */}
+            {/* The dropdown lists ONLY the user's preferred saved sets (in saved
+                order). There are no predefined presets — every view is one the
+                user built generically and saved. The full library is behind the
+                "All sets" button beside it. */}
             <Select
               id="member-pivot-set-select"
               placeholder={t('analytics.pivotViews.selectSetPlaceholder')}
@@ -1452,73 +1241,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
               ))}
             </Select>
           </FormControl>
-
-          {/* Jubilee year selector — shown ONLY for the Jubilees preset (the set
-              flagged usesJubileeRule, task 7.2 / R4.2). The chosen year becomes a
-              definition filter on the set (R4.4) and narrows the Execute result
-              to members at that jubilee. Native <select> → keyboard-accessible,
-              bilingual label from the members namespace (no hardcoded English). */}
-          {showsJubileeSelector && (
-            <FormControl maxW="xs">
-              <FormLabel
-                htmlFor="member-pivot-jubilee-year"
-                color="gray.300"
-                fontSize="sm"
-                mb={1}
-              >
-                {t('analytics.pivotViews.jubileeYear')}
-              </FormLabel>
-              <Select
-                id="member-pivot-jubilee-year"
-                placeholder={t('analytics.pivotViews.jubileeYearPlaceholder')}
-                value={jubileeYear}
-                onChange={(e) => setJubileeYear(e.target.value)}
-                bg="gray.700"
-                color="white"
-                data-testid="member-pivot-jubilee-year"
-              >
-                {jubileeYearOptions.map((year) => (
-                  <option key={year} value={String(year)}>
-                    {year}
-                  </option>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
-          {/* Join-year selector — shown ONLY for the New-members preset (the set
-              flagged usesJoinedAfterFilter, findings F-010). The chosen year
-              becomes a definition filter on the set (R4.4) and narrows the
-              Execute result to members who joined in or after that year. Native
-              <select> → keyboard-accessible, bilingual label from the members
-              namespace (no hardcoded English). */}
-          {showsJoinedAfterSelector && (
-            <FormControl maxW="xs">
-              <FormLabel
-                htmlFor="member-pivot-joined-after"
-                color="gray.300"
-                fontSize="sm"
-                mb={1}
-              >
-                {t('analytics.pivotViews.joinedAfter')}
-              </FormLabel>
-              <Select
-                id="member-pivot-joined-after"
-                placeholder={t('analytics.pivotViews.joinedAfterPlaceholder')}
-                value={joinedAfterYear}
-                onChange={(e) => setJoinedAfterYear(e.target.value)}
-                bg="gray.700"
-                color="white"
-                data-testid="member-pivot-joined-after"
-              >
-                {joinedYearOptions.map((year) => (
-                  <option key={year} value={String(year)}>
-                    {year}
-                  </option>
-                ))}
-              </Select>
-            </FormControl>
-          )}
 
           {/* Execute — sits right next to the selected pivot (R1.6: nothing runs
               until clicked; disabled until a set is chosen). */}
@@ -1685,6 +1407,34 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
                 ))}
             </MenuList>
           </Menu>
+        )}
+
+        {/* Empty Pivot Views entry point (bugfix §3). With the preset subsystem
+            removed, a tenant with NO saved sets would otherwise see an empty
+            dropdown and no obvious next step. Instead of a dead control, reuse
+            the shared AnalyticsStateNotice in its EMPTY variant to explain that
+            the user builds a view by picking fields to group/filter, with the
+            existing MemberFieldPicker "New set" button as the single CTA (gated
+            on the same create permission the Manage-set menu uses). Composed from
+            existing building blocks only — no new component (steering 32/37). */}
+        {sets.length === 0 && (
+          <Box data-testid="member-pivot-empty-hint">
+            <AnalyticsStateNotice
+              kind="empty"
+              message={t('analytics.pivotViews.emptyHint.message')}
+              testId="member-pivot-empty-hint-notice"
+            />
+            {canManageSets && (
+              <Button
+                mt={3}
+                colorScheme="orange"
+                onClick={handleNewSet}
+                data-testid="member-pivot-empty-hint-new-set"
+              >
+                {t('analytics.pivotViews.newSet')}
+              </Button>
+            )}
+          </Box>
         )}
 
         {/* The produced result (REUSE PivotResultTable, R4.7). Rendered only
@@ -2000,8 +1750,8 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
 
       {/* SES mail compose modal (task 9.2, C6). Opened from the Mail button in
           the capability-gated result-actions slot; mails the CURRENT result rows
-          (recipient email resolved from fieldConfig / analytics.field_roles,
-          R4.12), optionally attaching the result CSV / PDF labels. BCC-by-default
+          (recipient email resolved from the field config, R4.12), optionally
+          attaching the result CSV. BCC-by-default
           + recipient-count confirmation are enforced in the modal + backend
           (R8.4). Mounted only when there is a result so `recipients` is defined. */}
       {/* Mounted only when there is a result AND the tenant is mail-enabled (R1,
@@ -2019,7 +1769,6 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
           recipients={exportRows as MemberRow[]}
           language={language}
           buildCsvBase64={buildCsvBase64}
-          buildPdfBase64={hasAddressMapping ? buildPdfBase64 : undefined}
           enableTemplates={mailEnabled}
         />
       )}
@@ -2067,8 +1816,7 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
           shrink-to-fit), and Generates. The panel composes the CURRENT result
           rows (`exportRows`, the table's post-filter visible rows — R2/R3)
           through the template via `generateLabelTemplatePdf`, which uses
-          `composeLabelLines` (NOT `composeAddresses`/`resolveAddressMapping`) and
-          reads NO `analytics.*` (R6 / Property 4), then downloads/prints the PDF
+          `composeLabelLines` and reads NO `analytics.*` (R6 / Property 4), then downloads/prints the PDF
           (R-L4). The `labelTemplates` list (loaded for the gate) is passed in so
           no extra fetch is needed — the list DTO already carries each template's
           `lines`.
