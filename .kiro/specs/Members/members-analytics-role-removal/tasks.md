@@ -404,6 +404,8 @@ dependencies are satisfied.
 
 ## Notes
 
+- **CodeQL trigger (undocumented — recorded here).** CodeQL is GitHub default-setup (no committed YAML, no `workflow_dispatch` — `gh workflow run` returns 422). On a feature→`test` PR it normally fires automatically on the `pull_request` open/synchronize event (confirmed: PRs #91/#92 base=`test` got `refs/pull/NNN/head` CodeQL runs). If it does NOT attach to a PR, a REAL content push (fires `synchronize`) re-triggers it; an empty commit / `gh pr reopen` may not. A manual run on the DEFAULT branch (`main`) can be forced with `gh api --method PATCH repos/<owner>/<repo>/code-scanning/default-setup -f state=configured` (returns a `run_id`), but that analyzes `main`, not the PR head — it does not post the PR check. Do NOT `gh pr close` a PR to "re-trigger": it leaves the PR in a stale state and no checks fire.
+
 - **Removal, not feature build.** "Exploratory" (Task 0) means confirming the current manifest hits
   exist and the 11-row EQUIVALENCE GATE holds *before* deleting; "fix-checking" (Task 8) means the
   manifest is clean after; "preservation-checking" means the surviving suites and the generic pivot
