@@ -1,49 +1,36 @@
 /**
  * addressLabelService — client-side Avery address-label generation (C5, task 8.2).
  *
- * Ported from the h-dcn `AddressLabelService.ts` reference, generalized to be
- * **generic + multi-tenant**: the h-dcn Dutch field literals (`korte_naam`,
- * `straat`, `postcode`, `woonplaats`, `land`, `regio`) are gone — every address
- * line is composed from the tenant's RESOLVED field keys, read from
- * `analytics.address_mapping` via {@link resolveAddressMapping} (task 6.4). No
- * `if tenant === …` branch, no hardcoded field list (R6.1).
+ * This module is PURE: label-grid geometry, label-line composition, and jsPDF
+ * document construction — no React, no I/O beyond handing back the jsPDF
+ * document (the caller triggers the browser download / print). That keeps the
+ * grid math and composition unit-testable in isolation (task 8.3).
  *
- * This module is PURE: label-grid geometry, address formatting, member
- * filtering/sorting, and jsPDF document construction — no React, no I/O beyond
- * handing back the jsPDF document (the caller triggers the browser download /
- * print). That keeps the grid math and address formatting unit-testable in
- * isolation (task 8.3).
+ * The address-mapping-driven label path (`composeAddresses` /
+ * `generateAddressLabelPdf` / `resolveAddressMapping`) has been removed; the
+ * surviving label path is TEMPLATE-DRIVEN (`composeLabelLines` /
+ * `generateLabelTemplatePdf`) and reads NO `analytics.*`.
  *
- * What it provides (design C5 / R4.9 / R4.10):
+ * What it provides:
  *   - **Shipped Avery formats** — the five standard stock labels
  *     ({@link AVERY_LABEL_FORMATS}: L7160 / L7163 / L7162 / L7161 + a Custom
  *     Large), each a {@link LabelFormat} record of grid geometry in millimetres.
  *     These are shipped DEFAULTS — a tenant need not configure a format to get
- *     labels; only the field→line mapping must resolve.
- *   - **Address composition** — compose up to five display lines (name / street /
- *     postcode + city / country / region) from the resolved field keys, dropping
- *     slots the tenant did not map. Country is uppercased for international rows.
- *   - **Incomplete-address filtering** — members missing the minimum address
- *     lines (name + at least one locating line) are DROPPED and COUNTED, so the
- *     caller can report "N excluded" (R4.10, as the h-dcn generator does).
- *   - **Sorting** — by name, postcode, or region (postcode supports bulk-mail
- *     ordering).
+ *     labels.
+ *   - **Template-driven composition** — compose each row's label lines from a
+ *     stored label template's ordered field keys ({@link composeLabelLines}),
+ *     reading NO `analytics.*`.
  *   - **jsPDF output** — lay the composed labels onto the chosen grid, honoring a
  *     start position (skip the first N cells of a partial sheet) and the per-run
  *     style options (font size, alignment, border).
  *
  * @module components/members/analytics/addressLabelService
- * @see .kiro/specs/Members/member-analytics (design C5; requirements R4.9, R4.10, R4.11, R6.1)
+ * @see .kiro/specs/Members/members-analytics-role-removal (design Step A.5)
  */
 
 import { jsPDF } from 'jspdf';
-import type { FieldConfig, FieldConfigField, MemberRow } from '../../../types/members';
+import type { FieldConfig, MemberRow } from '../../../types/members';
 import { valueFor, groupForKey } from '../fieldValue';
-import {
-  resolveAddressMapping,
-  type AddressSlot,
-  type ResolvedAddressMapping,
-} from './analyticsConfig';
 
 /**
  * One printable label-stock format: the grid geometry (in millimetres) needed to
@@ -157,9 +144,6 @@ export function getLabelFormat(key: string): LabelFormat | undefined {
 /** Text alignment within a label cell. */
 export type LabelAlignment = 'left' | 'center' | 'right';
 
-/** Sort order applied before layout (name / postcode / region). */
-export type LabelSortOrder = 'name' | 'postcode' | 'region';
-
 /** Per-run style + layout options for a generation (all have sensible defaults). */
 export interface LabelStyleOptions {
   /** Font size in points, clamped to 8–12 (R4.10). Default 10. */
@@ -168,15 +152,11 @@ export interface LabelStyleOptions {
   alignment?: LabelAlignment;
   /** Draw a thin border around each cell (cutting guide). Default `false`. */
   showBorder?: boolean;
-  /** Include the country line (uppercased for international). Default `true`. */
-  showCountry?: boolean;
   /** Skip the first N label cells to reuse a partially used sheet. Default 0. */
   startPosition?: number;
-  /** Sort order before layout. Default `'name'`. */
-  sortOrder?: LabelSortOrder;
   /**
    * OPT-IN per-sheet shrink-to-fit (labels sub-spec R-L3, Property 6). When
-   * `true`, {@link generateAddressLabelPdf} computes the LARGEST uniform font
+   * `true`, {@link generateLabelTemplatePdf} computes the LARGEST uniform font
    * size (≤ the user's clamped {@link fontSize}) at which EVERY label on the
    * sheet fits — all lines within the cell inner width AND the line block within
    * the cell inner height — and applies that one size across the whole sheet. It
@@ -203,161 +183,6 @@ const PT_TO_MM = 0.3528;
 const LINE_SPACING = 1.15;
 
 /**
- * One member's composed address, ready to lay out: the display lines (already
- * dropped-of-empty, country uppercased) plus the sort keys used to order it.
- */
-export interface ComposedAddress {
-  /** The non-empty display lines, top to bottom. */
-  lines: string[];
-  /** Lower-cased name sort key (`''` when absent). */
-  nameKey: string;
-  /** Lower-cased postcode sort key (`''` when absent). */
-  postcodeKey: string;
-  /** Lower-cased region sort key (`''` when absent). */
-  regionKey: string;
-}
-
-/** The outcome of composing a member set: the kept addresses + the dropped count. */
-export interface ComposeResult {
-  /** The addresses that passed the completeness check, in input order. */
-  addresses: ComposedAddress[];
-  /** How many members were dropped for an incomplete address (R4.10). */
-  excludedCount: number;
-}
-
-/**
- * Read a resolved slot's raw string value off a member row, via the shared
- * nested-or-flat {@link valueFor} accessor (so a value is read the SAME way the
- * table reads it). Returns a trimmed string, or `''` when absent/blank.
- */
-function readSlot(
-  row: MemberRow,
-  slot: AddressSlot,
-  mapping: ResolvedAddressMapping,
-  fieldsByKey: Map<string, FieldConfigField>,
-): string {
-  const key = mapping[slot];
-  if (!key) {
-    return '';
-  }
-  const group = fieldsByKey.get(key)?.group;
-  const raw = valueFor(row, group, key);
-  if (raw === null || raw === undefined) {
-    return '';
-  }
-  return String(raw).trim();
-}
-
-/**
- * Compose one member's address lines from the resolved mapping.
- *
- * Lines, in order: name, street, `postcode city` (joined), country, region.
- * Country is uppercased for international mailing convention. Empty slots are
- * dropped so a missing middle line never leaves a blank gap.
- */
-function composeAddress(
-  row: MemberRow,
-  mapping: ResolvedAddressMapping,
-  fieldsByKey: Map<string, FieldConfigField>,
-  showCountry: boolean,
-): ComposedAddress {
-  const name = readSlot(row, 'name', mapping, fieldsByKey);
-  const street = readSlot(row, 'street', mapping, fieldsByKey);
-  const postcode = readSlot(row, 'postcode', mapping, fieldsByKey);
-  const city = readSlot(row, 'city', mapping, fieldsByKey);
-  const country = readSlot(row, 'country', mapping, fieldsByKey);
-  const region = readSlot(row, 'region', mapping, fieldsByKey);
-
-  const cityLine = [postcode, city].filter((p) => p !== '').join('  ').trim();
-
-  const lines: string[] = [];
-  if (name) lines.push(name);
-  if (street) lines.push(street);
-  if (cityLine) lines.push(cityLine);
-  if (showCountry && country) lines.push(country.toUpperCase());
-  if (region) lines.push(region);
-
-  return {
-    lines,
-    nameKey: name.toLowerCase(),
-    postcodeKey: postcode.toLowerCase(),
-    regionKey: region.toLowerCase(),
-  };
-}
-
-/**
- * Is a composed address complete enough to print? It must carry a name AND at
- * least one locating line (street or postcode+city). A name-only or empty
- * address is dropped and counted (R4.10).
- */
-function isComplete(address: ComposedAddress): boolean {
-  if (address.lines.length === 0) {
-    return false;
-  }
-  const hasName = address.nameKey !== '';
-  // At least one line beyond the name is a locating line (street / city line).
-  const hasLocator = address.lines.length >= 2;
-  return hasName && hasLocator;
-}
-
-/**
- * Compose + filter + sort a member set into print-ready addresses.
- *
- * - composes each row via the resolved {@link ResolvedAddressMapping};
- * - DROPS members with an incomplete address and reports the count (R4.10);
- * - sorts the survivors by the chosen order (name / postcode / region).
- *
- * Pure: inputs are never mutated. An empty mapping yields zero addresses (and an
- * excluded count equal to the input length) — the caller treats that as "labels
- * unavailable" (R4.10).
- */
-export function composeAddresses(
-  rows: MemberRow[],
-  fieldConfig: FieldConfig | undefined,
-  options: LabelStyleOptions = {},
-): ComposeResult {
-  const safeRows = Array.isArray(rows) ? rows : [];
-  const mapping = resolveAddressMapping(fieldConfig);
-  const showCountry = options.showCountry !== false;
-
-  // Index fields by key once so each slot read is O(1).
-  const fieldsByKey = new Map<string, FieldConfigField>();
-  for (const field of fieldConfig?.fields ?? []) {
-    if (field?.key) {
-      fieldsByKey.set(field.key, field);
-    }
-  }
-
-  // No resolvable address mapping → nothing can be composed; every row is excluded.
-  if (Object.keys(mapping).length === 0) {
-    return { addresses: [], excludedCount: safeRows.length };
-  }
-
-  const kept: ComposedAddress[] = [];
-  let excludedCount = 0;
-  for (const row of safeRows) {
-    const address = composeAddress(row, mapping, fieldsByKey, showCountry);
-    if (isComplete(address)) {
-      kept.push(address);
-    } else {
-      excludedCount += 1;
-    }
-  }
-
-  const sortOrder: LabelSortOrder = options.sortOrder ?? 'name';
-  const sortKey = (a: ComposedAddress): string =>
-    sortOrder === 'postcode'
-      ? a.postcodeKey
-      : sortOrder === 'region'
-        ? a.regionKey
-        : a.nameKey;
-  // Stable sort on a copy — never mutate the caller's array.
-  const addresses = [...kept].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
-
-  return { addresses, excludedCount };
-}
-
-/**
  * The minimal label-template content a {@link composeLabelLines} run needs: the
  * ordered `lines`, each line an ordered list of pivot-result field keys (the
  * whole label content model — see the labels sub-spec data model). A local,
@@ -377,8 +202,7 @@ export interface ComposedLabel {
 
 /**
  * Compose label lines from a stored label template (labels sub-spec R-L3,
- * Properties 1 / 2 / 4) — the analytics-free counterpart to
- * {@link composeAddresses}.
+ * Properties 1 / 2 / 4) — the analytics-free label composition path.
  *
  * For each row, for each `template.lines[i]` (an ordered list of field keys):
  * resolve EACH key via the shared nested-or-flat accessor
@@ -649,8 +473,8 @@ export interface GenerateResult {
 
 /**
  * Lay a set of already-composed label line-blocks onto a jsPDF Avery sheet — the
- * SINGLE jsPDF draw loop shared by the address path ({@link generateAddressLabelPdf})
- * and the template path ({@link generateLabelTemplatePdf}). Pure w.r.t. its
+ * SINGLE jsPDF draw loop used by the template path
+ * ({@link generateLabelTemplatePdf}). Pure w.r.t. its
  * inputs beyond constructing + returning the document (it never reads
  * `analytics.*`, member rows, or any field config — only the already-composed
  * `labelLineBlocks`, the format, and the style options).
@@ -736,44 +560,16 @@ export function layoutLabelPdf(
 }
 
 /**
- * Build the Avery address-label PDF for a member set.
- *
- * Composes + filters + sorts the rows (via {@link composeAddresses}), then lays
- * the surviving addresses onto the chosen {@link LabelFormat} grid via the shared
- * {@link layoutLabelPdf} draw loop, honoring the per-run {@link LabelStyleOptions}
- * (font size, alignment, border, country, start position). Returns the document
- * plus the label/excluded/page counts the UI surfaces as text badges (R6.6).
- *
- * The caller decides what to do with `result.doc` — `doc.save(filename)` to
- * download, `doc.output('bloburl')` to preview/print, or
- * `doc.output('arraybuffer')` to attach to a mail (task 9.x).
- */
-export function generateAddressLabelPdf(
-  rows: MemberRow[],
-  fieldConfig: FieldConfig | undefined,
-  format: LabelFormat,
-  options: LabelStyleOptions = {},
-): GenerateResult {
-  const { addresses, excludedCount } = composeAddresses(rows, fieldConfig, options);
-  const { doc, labelCount, pages } = layoutLabelPdf(
-    addresses.map((a) => a.lines),
-    format,
-    options,
-  );
-  return { doc, labelCount, excludedCount, pages };
-}
-
-/**
  * Build the Avery label PDF from a stored LABEL TEMPLATE (labels sub-spec R-L2 /
- * R-L3 / R-L4) — the analytics-free counterpart to {@link generateAddressLabelPdf}.
+ * R-L3 / R-L4) — the surviving, analytics-free label path.
  *
  * Composes the current result rows through the chosen label `template` via
- * {@link composeLabelLines} (NOT `composeAddresses`/`resolveAddressMapping` — it
- * reads NO `analytics.*`, Property 4), DROPS rows whose composed `lines` are all
+ * {@link composeLabelLines} (reads NO `analytics.*`, Property 4), DROPS rows
+ * whose composed `lines` are all
  * empty (counting them as `excludedCount` so the UI can report "N excluded"),
  * then lays the surviving label line-blocks onto the chosen {@link LabelFormat}
- * via the SAME shared {@link layoutLabelPdf} draw loop the address path uses
- * (one layout code path, no second draw loop — R-L5). Returns the document plus
+ * via the shared {@link layoutLabelPdf} draw loop
+ * (one layout code path — R-L5). Returns the document plus
  * the label/excluded/page counts the UI surfaces as badges.
  *
  * It reads ONLY `rows` / `fieldConfig` / `template` / `format` / `options`

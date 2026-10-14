@@ -31,6 +31,18 @@ import { useTableConfig } from '../../hooks/useTableConfig';
 interface Props { tenant: string; }
 
 /**
+ * Namespace excluded from the raw generic parameter editor.
+ *
+ * The `members.*` namespace is authored exclusively through the typed
+ * `MembersConfig` editor (one authoring door — Phase 3 §5, retire the dual
+ * editing surface; `38-sam-module-field-config.md` rule 5). Rows in this
+ * namespace are filtered out here so there is no path in the SPA to edit a
+ * `members.*` parameter row outside the typed editor (R5.1, R5.3, R5.4).
+ * EVERY other namespace is served unchanged (R5.2).
+ */
+const EXCLUDED_NAMESPACE = 'members';
+
+/**
  * Extended parameter with a display-friendly value string for filtering.
  * Secrets show '********', objects are JSON-stringified.
  */
@@ -100,14 +112,23 @@ export default function ParameterManagement({ tenant }: Props) {
 
   useEffect(() => { load(); }, [load, tenant]);
 
-  // Build flat parameter array with pre-computed display value
+  // Build flat parameter array with pre-computed display value.
+  // The `members.*` namespace is excluded so the typed MembersConfig editor is
+  // the single authoring surface for it (Phase 3 §5 — one door). Every other
+  // namespace is served unchanged.
   const allParams: ParameterRow[] = useMemo(() => {
-    const namespaces = Object.keys(params).sort();
+    const namespaces = Object.keys(params)
+      .filter(ns => ns !== EXCLUDED_NAMESPACE)
+      .sort();
     return namespaces.flatMap(ns =>
-      (params[ns] || []).map(p => ({
-        ...p,
-        displayValue: toDisplayValue(p),
-      }))
+      (params[ns] || [])
+        // Guard on each row's own namespace too, so a `members.*` row can never
+        // leak into the raw editor regardless of how it is grouped (R5.1/R5.4).
+        .filter(p => p.namespace !== EXCLUDED_NAMESPACE)
+        .map(p => ({
+          ...p,
+          displayValue: toDisplayValue(p),
+        }))
     );
   }, [params]);
 

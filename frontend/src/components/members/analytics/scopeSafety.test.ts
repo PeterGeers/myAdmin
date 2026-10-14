@@ -28,7 +28,7 @@
  *     the subset size (no out-of-scope row contributes to any bucket).
  *   - **CSV export** (R4.9) — the CSV rows are exactly the pivot result rows
  *     (the subset), so no out-of-scope member_id appears in the generated CSV.
- *   - **PDF labels** (R4.10) — `composeAddresses` composes a label only from a
+ *   - **PDF labels** (R4.10) — `composeLabelLines` composes a label only from a
  *     subset member; no out-of-scope name/city/postcode appears in any label.
  *   - **Mail recipients** (R4.12 / R8.2) — the de-duplicated recipient list
  *     resolved off the subset rows contains only in-scope emails; no
@@ -36,7 +36,7 @@
  *
  * This is a VERIFICATION test over the real pure helpers (no mocks, no fakes):
  * it reuses `memberAggregations`, `memberPivotAdapter`, `analyticsConfig`
- * (`resolveEmailField`), `addressLabelService` (`composeAddresses`), and the
+ * (`resolveEmailField`), `addressLabelService` (`composeLabelLines`), and the
  * exported `buildMetricData` from `MemberDistributions`, exactly as the page
  * mounts them.
  *
@@ -48,7 +48,7 @@ import { describe, it, expect } from 'vitest';
 import { mean, countExcluded } from './memberAggregations';
 import { executeMemberPivot } from './memberPivotAdapter';
 import { resolveEmailField } from './analyticsConfig';
-import { composeAddresses } from './addressLabelService';
+import { composeLabelLines } from './addressLabelService';
 import { buildMetricData } from './MemberDistributions';
 import { generateCsvFromObjects } from '../../../utils/csvExport';
 import type {
@@ -163,15 +163,16 @@ const FIELD_CONFIG: FieldConfig = {
     field('postcode'),
     field('city'),
   ],
-  analytics: {
-    address_mapping: {
-      name: 'name',
-      street: 'street',
-      postcode: 'postcode',
-      city: 'city',
-    },
-  },
 } as FieldConfig;
+
+/**
+ * A label template referencing the address fields directly (the template-driven
+ * label path reads field keys, NOT any `analytics.address_mapping`): name line,
+ * street line, postcode+city line.
+ */
+const LABEL_TEMPLATE = {
+  lines: [['name'], ['street'], ['postcode', 'city']],
+};
 
 /** Does a candidate value match any out-of-scope member? */
 function mentionsOutOfScope(haystack: string): boolean {
@@ -342,15 +343,16 @@ describe('Member Analytics — scope safety (R5.3 / R8.2)', () => {
     });
   });
 
-  // -- PDF address labels (R4.10) -------------------------------------------
-  describe('Address labels compose only from subset members', () => {
+  // -- Template-driven labels (R4.10) ---------------------------------------
+  describe('Labels compose only from subset members', () => {
     it('no label line mentions an out-of-scope member', () => {
-      const { addresses } = composeAddresses(SCOPED_SUBSET, FIELD_CONFIG);
+      const composed = composeLabelLines(SCOPED_SUBSET, FIELD_CONFIG, LABEL_TEMPLATE);
 
-      // One label per in-scope member (all four North addresses are complete).
-      expect(addresses.length).toBe(SCOPED_SUBSET.length);
+      // One composed label per in-scope member (all four North rows carry the
+      // template fields).
+      expect(composed.length).toBe(SCOPED_SUBSET.length);
 
-      const allLines = addresses.flatMap((a) => a.lines).join('\n');
+      const allLines = composed.flatMap((c) => c.lines).join('\n');
       expect(allLines).toContain('Alice North');
       expect(allLines).toContain('Noordstad');
       // No out-of-scope name / city / postcode leaked into any label.
@@ -361,11 +363,12 @@ describe('Member Analytics — scope safety (R5.3 / R8.2)', () => {
       // Scope-equivalence: whether the server pre-filters (subset in) or we filter
       // the superset to North, the label output is identical — the surface adds no
       // row and drops no in-scope row.
-      const fromSubset = composeAddresses(SCOPED_SUBSET, FIELD_CONFIG).addresses;
-      const fromFilteredSuperset = composeAddresses(
+      const fromSubset = composeLabelLines(SCOPED_SUBSET, FIELD_CONFIG, LABEL_TEMPLATE);
+      const fromFilteredSuperset = composeLabelLines(
         ALL_MEMBERS.filter((m) => m.region === 'North'),
         FIELD_CONFIG,
-      ).addresses;
+        LABEL_TEMPLATE,
+      );
       expect(fromSubset).toEqual(fromFilteredSuperset);
     });
   });

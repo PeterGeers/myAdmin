@@ -95,7 +95,6 @@ function renderDistributions(processedData: MemberRow[], fieldConfig: FieldConfi
       processedData={processedData}
       members={processedData as unknown as Member[]}
       fieldConfig={fieldConfig}
-      hasAnalyticsConfig={false}
       language="en"
       capabilities={{ canExport: false }}
     />
