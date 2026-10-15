@@ -74,3 +74,23 @@ describe('Req 5.2 - no invoice-from-trips button or billing action', () => {
     expect(src).not.toContain('getUnbilledTrips');
   });
 });
+
+// Feature: end-odometer column — the trips table exposes a sortable/filterable
+// "Eind km-stand" column (trips.labels.endOdometer) so the list can be ordered by
+// end odometer to reconstruct the real driven sequence. The value comes straight
+// from trip.end_odometer. (Static source check — the page is render-free here.)
+describe('End-odometer column (sortable "Eind km-stand")', () => {
+  it('renders an end-odometer column header (trips.labels.endOdometer)', () => {
+    expect(src).toContain('trips.labels.endOdometer');
+  });
+
+  it('wires the end_odometer column into the filter/sort framework', () => {
+    expect(src).toMatch(/onSort=\{\(\) => handleSort\('end_odometer'\)\}/);
+    expect(src).toContain("setFilter('end_odometer'");
+    expect(src).toMatch(/end_odometer:\s*''/); // present in initialFilters
+  });
+
+  it('renders the end-odometer cell from trip.end_odometer', () => {
+    expect(src).toMatch(/\{trip\.end_odometer\}/);
+  });
+});
