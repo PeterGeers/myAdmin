@@ -15,47 +15,13 @@ import {
   ServicesBlock,
 } from './blocks';
 import NotFoundPage from './NotFoundPage';
+import {
+  fetchLandingData,
+  getCloudFrontBaseUrl,
+  type LandingPageData,
+} from '../../services/publicLandingService';
 
 // ---------- Types ----------
-
-interface LandingPageData {
-  tenant_slug: string;
-  published_at: string;
-  version: number;
-  branding: {
-    name: string;
-    tagline: string;
-    logo_url: string;
-    color_primary: string;
-    color_accent: string;
-  };
-  footer: {
-    company_name: string;
-    address: string;
-    postal_city: string;
-    country: string;
-    phone: string;
-    email: string;
-    coc: string;
-    vat: string;
-    social_links: Record<string, string>;
-  };
-  seo: {
-    title: string;
-    description: string;
-    og_image: string;
-    canonical_url: string;
-  };
-  settings: {
-    show_share_buttons: boolean;
-  };
-  sections: Array<{
-    id: string;
-    type: string;
-    layout: string;
-    properties: Record<string, unknown>;
-  }>;
-}
 
 type FetchState =
   | { status: 'loading' }
@@ -64,13 +30,6 @@ type FetchState =
   | { status: 'error'; message: string };
 
 // ---------- Helpers ----------
-
-function getCloudFrontBaseUrl(): string {
-  const envUrl = import.meta.env.VITE_CLOUDFRONT_PUBLIC_PAGES_URL;
-  if (envUrl) return envUrl.replace(/\/$/, '');
-  // Fallback: use current origin (dev/local)
-  return window.location.origin;
-}
 
 function getTenantSlugFromPath(): string | null {
   // Strip base path (/myAdmin) if present
@@ -222,42 +181,19 @@ const PublicLandingPage: React.FC = () => {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
 
-    async function fetchLandingData() {
-      try {
-        const url = `${cloudFrontUrl}/${tenantSlug}/landing.json`;
-        const response = await fetch(url);
-
-        if (cancelled) return;
-
-        if (response.status === 404 || response.status === 403) {
-          setFetchState({ status: 'not_found' });
-          return;
-        }
-
-        if (!response.ok) {
-          setFetchState({
-            status: 'error',
-            message: `Failed to load page (${response.status})`,
-          });
-          return;
-        }
-
-        const data: LandingPageData = await response.json();
-
-        if (cancelled) return;
-        setFetchState({ status: 'success', data });
-      } catch {
-        if (cancelled) return;
-        setFetchState({ status: 'error', message: 'Failed to load page' });
-      }
-    }
-
-    fetchLandingData();
+    (async () => {
+      const result = await fetchLandingData(tenantSlug, {
+        baseUrl: cloudFrontUrl,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setFetchState(result);
+    })();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [tenantSlug, cloudFrontUrl]);
 

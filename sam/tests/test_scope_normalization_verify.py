@@ -247,7 +247,7 @@ class _FakeRepo:
     def __init__(self, members):
         self._members = list(members)
 
-    def list_members(self, tenant_id, *, filters=None, scope_filter=None):
+    def list_members(self, tenant_id, *, filters=None):
         # tenant-scoped by construction (the fake only holds one tenant's members)
         return list(self._members)
 
