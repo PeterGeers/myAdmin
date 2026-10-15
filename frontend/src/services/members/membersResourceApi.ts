@@ -1,0 +1,932 @@
+/**
+ * Members Module API — members resource group (task 5, pure move).
+ *
+ * The bulk of the Members seam: member CRUD + export, membership
+ * create/transition, the saved analytics-sets (incl. the dedicated delivery
+ * route, deliver-now, and ad-hoc mail send), the send-run status/history
+ * surface, schedules, and the per-user preferred list.
+ *
+ * Extracted verbatim from `membersApiService.ts`; behaviour unchanged. See the
+ * original module header + the per-wrapper docs for the full contract.
+ *
+ * _Requirements: R7.3, R7.4_
+ */
+
+import {
+  fromStored as labelOptionsFromStored,
+  toStored as labelOptionsToStored,
+} from '../../components/members/analytics/labelOptions';
+import type { StoredLabelOptions } from '../../components/members/analytics/labelOptions';
+import type {
+  DeliveryRunResult,
+  MailRunDetail,
+  MailRunFailure,
+  MailRunStatus,
+  MailFailureStatus,
+  MailRunSummary,
+  Member,
+  MemberAnalyticsSet,
+  MemberAnalyticsSetSummary,
+  MemberDelivery,
+  MemberDeliveryAttachment,
+  MemberDeliveryMode,
+  MemberPreferredList,
+  MemberSchedule,
+  MemberScheduleCadence,
+} from '../../types/members';
+import type { PivotConfig } from '../../types/pivot';
+import { fromBackendConfig, toBackendConfig } from '../pivotService';
+import { getJson, postJson, putJson, deleteJson, unwrapData } from './membersApiClient';
+
+// ============================================================================
+// Member flattening
+//
+// Member records are NESTED (`personal`/`membership`/`scope_values`), not flat.
+// These helpers normalise them so the page/types keep their flat-shape reads.
+// ============================================================================
+
+/**
+ * The `personal` bucket of a nested member record. The module stores fixed
+ * personal fields under their REAL keys (`first_name`/`last_name`/`email`/...),
+ * not the legacy `name`/`contact` aliases. `display_name`/`name_infix` are
+ * optional convenience/derived keys used to build the table's `name` column.
+ */
+interface NestedPersonal {
+  display_name?: string;
+  first_name?: string;
+  name_infix?: string;
+  last_name?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
+/** The nested member record shape as returned by the module (pre-flatten). */
+interface NestedMemberRecord {
+  member_id?: string;
+  personal?: NestedPersonal | null;
+  membership?: {
+    membership_id?: string;
+    member_number?: string;
+    membership_type?: string;
+    status?: string;
+  } | null;
+  //: The tenant OVERLAY bucket — where region now lives as a plain scalar
+  //: (`overlay.region`) since s5d retired the `scope_values` bucket.
+  overlay?: Record<string, unknown> | null;
+  //: LEGACY (retired s5d) — kept only as a fallback so an old-shaped record still resolves.
+  scope_values?: { region?: string[] } | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Build the `name` display value from the REAL personal shape.
+ *
+ * Prefers an explicit `display_name`; else joins `first_name`/`name_infix`/
+ * `last_name` (dropping blanks); else falls back to whichever single name part
+ * is present. Returns `undefined` when nothing is available so callers/render
+ * fall through to the placeholder dash.
+ */
+function personalDisplayName(personal: NestedPersonal | null | undefined): string | undefined {
+  if (!personal) return undefined;
+  if (personal.display_name) return personal.display_name;
+  const joined = [personal.first_name, personal.name_infix, personal.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  if (joined) return joined;
+  return personal.first_name || personal.last_name || undefined;
+}
+
+/**
+ * Normalise a member record to the `Member` shape the page/types read, WITHOUT
+ * discarding the nested storage buckets.
+ *
+ * The bug this fixes: the previous implementation DESTRUCTURED OUT
+ * `personal`/`membership`/`scope_values`, so the returned object no longer
+ * carried those buckets — and the shared `valueFor(member, group, key)`
+ * accessor (used by the view modal AND the overview table cells) reads
+ * `member[group][key]` first, then falls back to `member[key]`. With the
+ * buckets gone AND no flat aliases for the fixed personal/membership fields
+ * (first_name, last_name, birth_date, street, joined_date, ...), every fixed
+ * field resolved to nothing → a dash. Only `overlay`/top-level scalars (which
+ * rode along in `...rest`) displayed.
+ *
+ * The fix: spread the WHOLE record (`...rec`) so `personal`/`membership`/
+ * `overlay`/`scope_values` survive intact for the nested-first accessor, then
+ * layer the flat CONVENIENCE keys the default table columns read
+ * (`name`/`email`/`status`/`membership_type`/`member_number`/`membership_id`/
+ * `region`) ON TOP — now mapped to the REAL nested shape.
+ *
+ * @param raw - The (possibly nested) member record from the API.
+ * @returns The normalised `Member` (nested buckets retained + flat aliases).
+ */
+function flattenMember(raw: unknown): Member {
+  const rec = (raw ?? {}) as NestedMemberRecord;
+  const { personal, membership, overlay, scope_values } = rec;
+
+  // Region is a PLAIN overlay scalar since s5d (`member.overlay.region`); the old
+  // `scope_values.region` ARRAY bucket was retired. Read overlay first (the current shape),
+  // fall back to the legacy array only for an old-shaped record. This flat alias is what the
+  // table's `region_display` column + the region filter depend on (the modal reads the nested
+  // `overlay.region` directly via `valueFor`, which is why the modal was never affected).
+  const overlayRegion = overlay && typeof overlay === 'object' ? overlay.region : undefined;
+  const legacyRegion = Array.isArray(scope_values?.region) ? scope_values?.region[0] : undefined;
+  const region =
+    typeof overlayRegion === 'string' && overlayRegion ? overlayRegion : legacyRegion;
+
+  return {
+    // Retain the nested buckets (personal/membership/overlay/scope_values) AND
+    // any top-level scalars/overlay fields so the nested-or-flat `valueFor`
+    // accessor can resolve fixed fields (personal.first_name, ...) and overlay
+    // fields alike.
+    ...rec,
+    member_id: rec.member_id ?? '',
+    // Convenience flat aliases for the table's default columns — mapped to the
+    // REAL nested shape (personal.email, a composed display name), not the
+    // stale personal.name/personal.contact keys that never existed.
+    name: personalDisplayName(personal),
+    email: personal?.email,
+    status: membership?.status,
+    membership_type: membership?.membership_type,
+    member_number: membership?.member_number,
+    // Surface the primary membership id (when the module returns one on the
+    // nested `membership` object) so the single-transition action can target it
+    // (POST /members/{id}/memberships/{membership_id}/transition). A top-level
+    // `membership_id` on the record still wins if present.
+    membership_id: rec.membership_id ?? membership?.membership_id,
+    region,
+  } as Member;
+}
+
+// ============================================================================
+// Typed route wrappers (component C7 + module API contract C13)
+//
+// Every wrapper unwraps the `{ data: ... }` envelope so callers get the payload,
+// not the envelope. `listMembers`/`getMember` additionally flatten member
+// records to the flat `Member` shape. The remaining wrappers keep their generic
+// `<T>` signatures.
+// ============================================================================
+
+/**
+ * GET /members — list members visible in the caller's allowed scopes.
+ *
+ * Unwraps the `{ data: [...] }` envelope, ensures the result is an array, and
+ * flattens each nested member record to the flat `Member` shape. Returns a
+ * `Member[]` regardless of the caller's generic `T` so the page's
+ * `Array.isArray` check and flat field reads always resolve.
+ */
+export async function listMembers<T = Member[]>(): Promise<T> {
+  const payload = await getJson<unknown>('/members');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? rows : [];
+  return list.map(flattenMember) as unknown as T;
+}
+
+/** POST /members/search — filtered member search. */
+export async function searchMembers<T = unknown>(filters: unknown): Promise<T> {
+  return unwrapData<T>(await postJson<unknown>('/members/search', filters));
+}
+
+/**
+ * GET /members/{member_id} — a single member.
+ *
+ * Unwraps the `{ data: {...} }` envelope and flattens the nested record.
+ */
+export async function getMember<T = Member>(memberId: string): Promise<T> {
+  const payload = await getJson<unknown>(`/members/${encodeURIComponent(memberId)}`);
+  const record = unwrapData<unknown>(payload);
+  return flattenMember(record) as unknown as T;
+}
+
+/** POST /members — create a member. */
+export async function createMember<T = unknown>(body: unknown): Promise<T> {
+  return unwrapData<T>(await postJson<unknown>('/members', body));
+}
+
+/** PUT /members/{member_id} — update a member. */
+export async function updateMember<T = unknown>(memberId: string, body: unknown): Promise<T> {
+  return unwrapData<T>(await putJson<unknown>(`/members/${encodeURIComponent(memberId)}`, body));
+}
+
+/** DELETE /members/{member_id} — delete a member. */
+export async function deleteMember<T = unknown>(memberId: string): Promise<T> {
+  return unwrapData<T>(await deleteJson<unknown>(`/members/${encodeURIComponent(memberId)}`));
+}
+
+/**
+ * GET /members/export — export the caller's members (scope-narrowed server-side).
+ *
+ * The `export_members` module action is AUTHORITATIVE for scope + resolved
+ * fields: it returns the same list-of-records shape as `GET /members`, already
+ * narrowed to the caller's scope server-side (R5.6, R8.7 — the SPA never invents
+ * scope). We unwrap the `{ data: [...] }` envelope and flatten each nested
+ * record to the flat `Member` shape (exactly like `listMembers`) so callers can
+ * serialize the resolved flat + overlay keys straight to CSV. Returns a
+ * `Member[]` regardless of the caller's generic `T`.
+ */
+export async function exportMembers<T = Member[]>(): Promise<T> {
+  const payload = await getJson<unknown>('/members/export');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? rows : [];
+  return list.map(flattenMember) as unknown as T;
+}
+
+/** POST /members/{member_id}/memberships — create a membership for a member. */
+export async function createMembership<T = unknown>(memberId: string, body: unknown): Promise<T> {
+  return unwrapData<T>(
+    await postJson<unknown>(`/members/${encodeURIComponent(memberId)}/memberships`, body)
+  );
+}
+
+/**
+ * POST /members/{member_id}/memberships/{membership_id}/transition —
+ * transition a single membership's state.
+ */
+export async function transitionMembership<T = unknown>(
+  memberId: string,
+  membershipId: string,
+  body: unknown
+): Promise<T> {
+  return unwrapData<T>(
+    await postJson<unknown>(
+      `/members/${encodeURIComponent(memberId)}/memberships/${encodeURIComponent(
+        membershipId
+      )}/transition`,
+      body
+    )
+  );
+}
+
+/** POST /memberships/transition — bulk transition over multiple memberships. */
+export async function bulkTransition<T = unknown>(body: unknown): Promise<T> {
+  return unwrapData<T>(await postJson<unknown>('/memberships/transition', body));
+}
+
+// ============================================================================
+// Member analytics-sets (saved pivot/list definitions, F-012)
+//
+// The Members module OWNS member saved-sets in DynamoDB now, replacing the Flask
+// `/api/pivot/models` (MySQL) store for the member saved-set path (F-012). These
+// wrappers unwrap the `{ data }` envelope and convert the backend snake_case
+// `definition` <-> the camelCase `PivotConfig` via `toBackendConfig` /
+// `fromBackendConfig` (reused from `pivotService`). The backend `set_id` is a
+// STRING (server-chosen uuid4 hex), mapped to the summary/full shape's `id`.
+// ============================================================================
+
+/**
+ * The raw backend `delivery` block (R3, design §2.1) — the snake_case STORED/wire
+ * form the SAM entity persists: `{ mode, template_id, attachment, recipients,
+ * label_options }`. `label_options` is the shared snake_case {@link StoredLabelOptions}
+ * (one label-options model with R6 — task 6.3). Absent/`null` on a set with no
+ * delivery (a legacy set).
+ */
+interface RawDelivery {
+  mode: 'per_recipient' | 'to_fixed';
+  template_id?: string | null;
+  attachment?: 'csv' | 'pdf_labels' | null;
+  recipients?: string[] | null;
+  label_options?: Partial<StoredLabelOptions> | null;
+}
+
+/** The raw backend analytics-set shape (snake_case `definition`, string `set_id`). */
+interface RawAnalyticsSet {
+  set_id: string;
+  name: string;
+  kind: 'count' | 'list';
+  definition: Record<string, unknown>;
+  delivery?: RawDelivery | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Map a stored (snake_case) `delivery` block to the camelCase {@link MemberDelivery},
+ * the frontend ↔ backend set mapper's delivery half (R3, design §2.1). Returns
+ * `undefined` for an absent/`null` block (a set with no delivery) so the field is
+ * simply omitted on the resolved set.
+ *
+ * The `label_options` sub-block is loaded via the shared model's
+ * {@link labelOptionsFromStored} — the SAME label-options model R6 uses, never a
+ * fork (task 6.3). It is carried only when the attachment is `pdf_labels`.
+ */
+export function deliveryFromBackend(raw?: RawDelivery | null): MemberDelivery | undefined {
+  if (!raw || (raw.mode !== 'per_recipient' && raw.mode !== 'to_fixed')) {
+    return undefined;
+  }
+  const attachment = raw.attachment ?? null;
+  return {
+    mode: raw.mode,
+    templateId: raw.template_id ?? null,
+    attachment,
+    recipients: Array.isArray(raw.recipients) ? raw.recipients : [],
+    labelOptions:
+      attachment === 'pdf_labels'
+        ? labelOptionsFromStored(raw.label_options ?? null)
+        : null,
+  };
+}
+
+/**
+ * Map a camelCase {@link MemberDelivery} to the stored (snake_case) `delivery`
+ * block the backend persists (R3, design §2.1) — the inverse of
+ * {@link deliveryFromBackend}, used when writing a set's delivery (task 3.3/3.4).
+ *
+ * `per_recipient` stores NO recipients (addresses resolve from the dataset at run
+ * time — design §2.1); `to_fixed` stores the explicit list. `label_options` is
+ * emitted (via the shared model's {@link labelOptionsToStored}) only for the
+ * `pdf_labels` attachment, `null` otherwise.
+ */
+export function deliveryToBackend(delivery: MemberDelivery): RawDelivery {
+  return {
+    mode: delivery.mode,
+    template_id: delivery.templateId ?? null,
+    attachment: delivery.attachment ?? null,
+    recipients: delivery.mode === 'to_fixed' ? delivery.recipients : [],
+    label_options:
+      delivery.attachment === 'pdf_labels' && delivery.labelOptions
+        ? labelOptionsToStored(delivery.labelOptions)
+        : null,
+  };
+}
+
+/** Map a raw backend analytics-set to the full `MemberAnalyticsSet` (camelCase config). */
+function mapAnalyticsSet(raw: RawAnalyticsSet): MemberAnalyticsSet {
+  const delivery = deliveryFromBackend(raw.delivery);
+  return {
+    id: raw.set_id,
+    name: raw.name,
+    kind: raw.kind,
+    definition: fromBackendConfig(raw.definition ?? {}),
+    ...(delivery ? { delivery } : {}),
+    created_at: raw.created_at,
+    updated_at: raw.updated_at,
+  };
+}
+
+/**
+ * GET /members/analytics-sets — list the tenant's member analytics-sets.
+ *
+ * Unwraps the `{ data: [...] }` envelope and maps each raw entry's
+ * `{ set_id, name, kind }` to the summary `{ id, name, kind }` shape. The list is
+ * already member-only + tenant-scoped by the Lambda (no client-side filter).
+ */
+export async function listAnalyticsSets(): Promise<MemberAnalyticsSetSummary[]> {
+  const payload = await getJson<unknown>('/members/analytics-sets');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? (rows as RawAnalyticsSet[]) : [];
+  return list.map((raw) => ({
+    id: raw.set_id,
+    name: raw.name,
+    kind: raw.kind,
+    // Surface whether the set has a stored delivery block (R3) so the UI can gate
+    // the Schedule action (R5) off the list feed — a schedule needs a delivery.
+    hasDelivery: deliveryFromBackend(raw.delivery) !== undefined,
+  }));
+}
+
+/** GET /members/analytics-sets/{id} — a single analytics-set (full definition). */
+export async function getAnalyticsSet(id: string): Promise<MemberAnalyticsSet> {
+  const payload = await getJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}`
+  );
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/** POST /members/analytics-sets — create a new analytics-set. */
+export async function saveAnalyticsSet(
+  name: string,
+  config: PivotConfig,
+  kind: 'count' | 'list'
+): Promise<MemberAnalyticsSet> {
+  const payload = await postJson<unknown>('/members/analytics-sets', {
+    name,
+    kind,
+    definition: toBackendConfig(config),
+  });
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/** PUT /members/analytics-sets/{id} — update an existing analytics-set. */
+export async function updateAnalyticsSet(
+  id: string,
+  name: string,
+  config: PivotConfig,
+  kind: 'count' | 'list'
+): Promise<MemberAnalyticsSet> {
+  const payload = await putJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}`,
+    { name, kind, definition: toBackendConfig(config) }
+  );
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/** DELETE /members/analytics-sets/{id} — delete an analytics-set. */
+export async function deleteAnalyticsSet(id: string): Promise<void> {
+  await deleteJson<unknown>(`/members/analytics-sets/${encodeURIComponent(id)}`);
+}
+
+/**
+ * PUT /members/analytics-sets/{id}/delivery — set/replace a saved set's optional
+ * `delivery` block (R3, design §3; route built concurrently in task 3.3). This is
+ * the DEDICATED delivery route: the create/update set bodies (`saveAnalyticsSet`/
+ * `updateAnalyticsSet`) deliberately do NOT carry delivery — only this route
+ * writes it. The gate is `members:export` + the existing scope (a stored delivery
+ * can send only what the user could already export — no new permission).
+ *
+ * The camelCase {@link MemberDelivery} is mapped to the stored snake_case block
+ * via {@link deliveryToBackend} (which also projects the shared `label_options`
+ * for a `pdf_labels` attachment and stores NO recipients for `per_recipient`).
+ * Returns the updated set with its resolved delivery block.
+ */
+export async function putAnalyticsSetDelivery(
+  id: string,
+  delivery: MemberDelivery
+): Promise<MemberAnalyticsSet> {
+  // The backend reads the request body AS the delivery block itself
+  // (`_write_body(request)` → the entity's `{mode, template_id, attachment,
+  // recipients, label_options}`). Send the BARE block — NOT wrapped in
+  // `{ delivery: ... }` (a wrapper makes `mode` absent → 422
+  // `errors.analyticsset.delivery`).
+  const payload = await putJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}/delivery`,
+    deliveryToBackend(delivery)
+  );
+  return mapAnalyticsSet(unwrapData<RawAnalyticsSet>(payload));
+}
+
+/**
+ * DELETE /members/analytics-sets/{id}/delivery — clear a saved set's `delivery`
+ * block (R3, design §3). Same gate as the PUT. The set itself is kept; only the
+ * optional delivery instruction is removed (the set reverts to no stored delivery
+ * and loads like a legacy set).
+ */
+export async function deleteAnalyticsSetDelivery(id: string): Promise<void> {
+  await deleteJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}/delivery`
+  );
+}
+
+/** The raw snake_case 202 receipt the SAM deliver route echoes (pre-camelCase map). */
+interface RawDeliveryRunResult {
+  run_id?: string;
+  mode?: MemberDeliveryMode;
+  enqueued?: number;
+  skipped_no_address?: number;
+  job_ids?: string[];
+}
+
+/**
+ * POST /members/analytics-sets/{id}/deliver — RUN a saved set's stored delivery
+ * NOW (mail-spec R3.1/R3.2). This is the interactive "deliver now" trigger: the
+ * gap it closes is that the SAM deliver route already existed but had NO frontend
+ * caller (R3.2). It is a THIN enqueue — the route resolves the set's stored
+ * delivery, runs the SYNCHRONOUS pre-send certification gate, builds the send
+ * job(s) and ENQUEUES them (a worker performs the actual SES send); it NEVER
+ * blocks on the send, returning a 202 ACCEPTED receipt (R3.5).
+ *
+ * The body is empty — the delivery to run is the set's STORED `delivery` block
+ * (recipients + optional CSV attachment), not an ad-hoc body (that is the
+ * separate `POST /members/mail/send` route). The gate is `members:export` + the
+ * existing scope (server-authoritative).
+ *
+ * Error contract (surfaced by the caller via `applyApiError`, API standard v1.0):
+ *   - 422 `errors.analyticsset.delivery.notConfigured` — the set has no stored
+ *     delivery to run (R3.4: a clear error, never a silent no-op);
+ *   - 422 `errors.mail.notCertified` (with a typed `reason`) — the tenant's mail
+ *     sender is not certified/enabled, refused BEFORE enqueue, no substitute
+ *     sender (R4.2/R5.2) — the caller shows the clear bilingual "contact your
+ *     administrator" message + action.
+ *
+ * @returns The accepted/queued receipt (run id, mode, enqueued count, skipped,
+ *   job ids) the UI surfaces as a "queued, N recipients" acknowledgment (R3.5).
+ */
+export async function deliverAnalyticsSet(id: string): Promise<DeliveryRunResult> {
+  // No request body: the deliver route runs the set's STORED delivery block.
+  const payload = await postJson<unknown>(
+    `/members/analytics-sets/${encodeURIComponent(id)}/deliver`
+  );
+  return mapDeliveryRunResult(payload);
+}
+
+/** Shared mapper: the snake_case 202 receipt → the camelCase {@link DeliveryRunResult}. */
+function mapDeliveryRunResult(payload: unknown): DeliveryRunResult {
+  const raw = unwrapData<RawDeliveryRunResult>(payload) ?? {};
+  return {
+    runId: raw.run_id ?? '',
+    mode: raw.mode ?? 'to_fixed',
+    enqueued: typeof raw.enqueued === 'number' ? raw.enqueued : 0,
+    skippedNoAddress:
+      typeof raw.skipped_no_address === 'number' ? raw.skipped_no_address : 0,
+    jobIds: Array.isArray(raw.job_ids) ? raw.job_ids : [],
+  };
+}
+
+/**
+ * The AD-HOC compose body for `POST /members/mail/send` (mail-spec R1/R2, design "two thin
+ * routes, ONE shared send service"). The camelCase mirror of the SAM `AdHocMailBody`
+ * (`sam/members/domain/execute_and_deliver.py`): the stateless interactive send carries the
+ * compose's OWN inputs — the current result rows + the typed recipients / template / attachment —
+ * rather than a saved set + stored delivery block.
+ *
+ * Field-by-field (what the route reads off the JSON body):
+ *   - `mode`         — `per_recipient` (mail each result row individually, address resolved from
+ *                      the row) or `to_fixed` (one message to the fixed `recipients` list).
+ *   - `result_rows`  — the CURRENT result rows the compose is sending (already pivoted
+ *                      client-side). Required for `per_recipient` (the per-member address resolves
+ *                      from each row); for `to_fixed` the rows are the attachment source.
+ *   - `recipients`   — the typed fixed recipient list (e.g. a handling agent). `to_fixed` ONLY;
+ *                      ignored for `per_recipient` (whose addresses come from the rows).
+ *   - `template_id`  — the selected stored template to render (merge body per recipient /
+ *                      covering mail body), or omitted when the compose carries none.
+ *   - `attachment`   — the `to_fixed` attachment kind (`csv` / `pdf_labels`) or omitted. The
+ *                      WORKER builds the attachment bytes from `result_rows` on the SAM plane —
+ *                      the frontend never ships base64 blobs (steering 35: the frontend only
+ *                      triggers + displays, never produces/sends the mail payload itself).
+ *   - `label_options`— the `pdf_labels` options block (snake_case stored shape), when the
+ *                      attachment is labels; omitted otherwise.
+ *   - `recipient_field` — an optional dotted path overriding the per-recipient address column
+ *                      (defaults server-side to `personal.email`).
+ *
+ * `tenant_id` + Reply-To are derived SERVER-SIDE from the verified JWT (verify-before-trust,
+ * R4.3/Property 3) — they are NEVER sent on this body.
+ */
+export interface AdHocMailBody {
+  mode: MemberDeliveryMode;
+  result_rows?: Array<Record<string, unknown>>;
+  recipients?: string[];
+  template_id?: string | null;
+  attachment?: MemberDeliveryAttachment | null;
+  label_options?: Partial<StoredLabelOptions> | null;
+  recipient_field?: string | null;
+  /**
+   * An optional free-form LABEL folded into the audit + the stable job id
+   * (defaults server-side to `"adhoc"`). NOT a saved-set key — an ad-hoc send has
+   * no set; this is only an audit tag (R8.1).
+   */
+  set_id?: string;
+}
+
+/**
+ * POST /members/mail/send — send an AD-HOC interactive compose NOW (mail-spec R1/R2). This is
+ * the core plane-correction of task 2.3: the interactive pivot "Mail" compose now flows on the
+ * SAM plane (`React → API Gateway → Members Lambda → SQS → worker → SES`) with per-tenant sender
+ * resolution, REPLACING the old Flask `POST /api/members/mail-set` route that sent from the wrong
+ * (`jabaki.nl`) sender (R1.1/R1.2 — Members mail must not touch Flask).
+ *
+ * Like {@link deliverAnalyticsSet} this is a THIN enqueue: the route runs the SYNCHRONOUS
+ * pre-send certification gate, builds the send job(s) and ENQUEUES them (a worker performs the
+ * actual SES send); it NEVER blocks on the send, returning a 202 ACCEPTED receipt
+ * (`DeliveryRunResult`) the UI surfaces as a "queued, N recipients" acknowledgment.
+ *
+ * Error contract (surfaced by the caller via `applyApiError`, API standard v1.0):
+ *   - 422 `errors.mail.notCertified` — the tenant's mail sender is not certified/enabled, refused
+ *     BEFORE enqueue, no substitute sender (R4.2/R5.2);
+ *   - 422 (invalid body) — a malformed compose body (e.g. a `per_recipient` send carrying no
+ *     result rows) is rejected at the edge.
+ *
+ * @param body - the ad-hoc compose body (see {@link AdHocMailBody}).
+ * @returns the accepted/queued receipt (run id, mode, enqueued count, skipped, job ids).
+ */
+export async function sendAdHocMail(body: AdHocMailBody): Promise<DeliveryRunResult> {
+  const payload = await postJson<unknown>('/members/mail/send', body);
+  return mapDeliveryRunResult(payload);
+}
+
+// ============================================================================
+// Send-run status / history (R9, mail-spec task 3.2/3.3)
+//
+// The pull-model status surface: READ the send-run records the enqueue + worker
+// write (R9.1/R9.6) and render them on a screen. Two routes, role-scoped
+// SERVER-SIDE (R9.3 — a plain user sees only their OWN runs, a Tenant_Admin sees
+// ALL the tenant's); the frontend never decides scope, it only displays what the
+// edge returns:
+//   - GET /members/mail-runs           → the tenant's run tallies, newest first
+//   - GET /members/mail-runs/{run_id}  → one run's tally + its FAILURE drill-down
+//
+// Both are enveloped `{ data: ... }`; the edge already strips the DynamoDB
+// plumbing keys (tenant_id / sk / ttl) and encodes Decimal counts as ints, so
+// these mappers only translate snake_case → camelCase. HONESTY OF STATUS (R9.4):
+// `sent` is "SES ACCEPTED", never "delivered" — the labelling lives in the
+// screen, not here.
+// ============================================================================
+
+/** The raw backend `mailrun#` tally (snake_case, plumbing keys already stripped). */
+interface RawMailRun {
+  run_id?: string;
+  mode?: MemberDeliveryMode;
+  triggered_by?: string | null;
+  recipient_count?: number;
+  status?: MailRunStatus;
+  sent?: number;
+  failed?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** The raw backend `mailrecipient#` FAILURE sub-record (snake_case). */
+interface RawMailRunFailure {
+  address?: string;
+  status?: MailFailureStatus;
+  reason?: string | null;
+  message_id?: string | null;
+}
+
+/** The raw backend single-run read: one tally + its FAILURE drill-down. */
+interface RawMailRunDetail {
+  run?: RawMailRun;
+  failures?: RawMailRunFailure[];
+}
+
+/** Coerce a value to a non-negative integer count (defensive; absent/NaN → 0). */
+function toCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** Map a raw backend run tally to the camelCase {@link MailRunSummary}. */
+function mapMailRun(raw: RawMailRun): MailRunSummary {
+  return {
+    runId: raw.run_id ?? '',
+    mode: raw.mode ?? 'per_recipient',
+    triggeredBy:
+      typeof raw.triggered_by === 'string' && raw.triggered_by
+        ? raw.triggered_by
+        : null,
+    recipientCount: toCount(raw.recipient_count),
+    status: raw.status ?? 'queued',
+    sent: toCount(raw.sent),
+    failed: toCount(raw.failed),
+    createdAt: typeof raw.created_at === 'string' ? raw.created_at : '',
+    updatedAt: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+  };
+}
+
+/** Map a raw backend FAILURE sub-record to the camelCase {@link MailRunFailure}. */
+function mapMailRunFailure(raw: RawMailRunFailure): MailRunFailure {
+  return {
+    address: typeof raw.address === 'string' ? raw.address : '',
+    status: raw.status ?? 'failed',
+    reason: typeof raw.reason === 'string' && raw.reason ? raw.reason : null,
+    messageId:
+      typeof raw.message_id === 'string' && raw.message_id
+        ? raw.message_id
+        : null,
+  };
+}
+
+/**
+ * GET /members/mail-runs — list the tenant's send-run tallies, newest first
+ * (mail-spec R9.2). The list feeds the status/history screen's run list; each
+ * row carries the aggregated outcome ("198 sent, 2 failed", R9.2) and is
+ * expandable into its FAILURE drill-down via {@link getMailRun}.
+ *
+ * ROLE-SCOPED SERVER-SIDE (R9.3): a plain user receives only the runs THEY
+ * triggered; a Tenant_Admin receives ALL the tenant's runs. The frontend never
+ * filters by owner — it renders exactly what the edge returns. Unwraps the
+ * `{ data: [...] }` envelope and maps each entry to {@link MailRunSummary}.
+ */
+export async function listMailRuns(): Promise<MailRunSummary[]> {
+  const payload = await getJson<unknown>('/members/mail-runs');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? (rows as RawMailRun[]) : [];
+  return list.map(mapMailRun);
+}
+
+/**
+ * GET /members/mail-runs/{runId} — one run's tally + its FAILURE drill-down
+ * (mail-spec R9.2). Backs the status screen's per-run expand: the aggregated
+ * tally plus the per-recipient FAILURES (only failures are stored — a success is
+ * counted in the tally, never listed, per the design's failure-only sub-records).
+ *
+ * ROLE-SCOPED SERVER-SIDE (R9.3): a plain user may drill ONLY into a run they
+ * triggered — a run owned by another user (or an absent run) comes back 404,
+ * surfaced to the caller via `handleResponse` → {@link ApiError}; a Tenant_Admin
+ * may drill into any tenant run. Unwraps the `{ data: { run, failures } }`
+ * envelope and maps both halves to camelCase.
+ */
+export async function getMailRun(runId: string): Promise<MailRunDetail> {
+  const payload = await getJson<unknown>(
+    `/members/mail-runs/${encodeURIComponent(runId)}`
+  );
+  const raw = unwrapData<RawMailRunDetail>(payload) ?? {};
+  return {
+    run: mapMailRun(raw.run ?? {}),
+    failures: Array.isArray(raw.failures)
+      ? raw.failures.map(mapMailRunFailure)
+      : [],
+  };
+}
+
+/**
+ * DELETE /members/mail-runs/{runId} — manually delete one send-run status record
+ * (mail-spec task 3.3, R9.6 retention). Removes the run tally AND all its FAILURE
+ * sub-records in one tenant-pinned op; the status/history screen offers this as a
+ * destructive action (behind an explicit confirm, steering 32) to purge a run
+ * before its 90-day TTL fires.
+ *
+ * ROLE-SCOPED SERVER-SIDE (R9.3): a plain user may delete ONLY a run they
+ * triggered — a run owned by another user (or an absent run) comes back 404,
+ * surfaced to the caller via `handleResponse` → {@link ApiError} (deliberately
+ * indistinguishable so a scoped caller cannot probe for another user's runs); a
+ * Tenant_Admin may delete any tenant run.
+ */
+export async function deleteMailRun(runId: string): Promise<void> {
+  await deleteJson<unknown>(`/members/mail-runs/${encodeURIComponent(runId)}`);
+}
+
+// ============================================================================
+// Schedules (R5, design §2.3 / §3) — attach a recurring run to a set that HAS a
+// delivery block. The Members module OWNS `schedule#<schedule_id>` records in
+// DynamoDB (tenant-pinned); EventBridge Scheduler fires each schedule's cron and
+// reuses the R4 execute-and-deliver path (task 5.2/5.3, built concurrently).
+//
+// The route contract is `GET/POST/PUT/DELETE /members/schedules[/{id}]`; a
+// schedule carries `{ schedule_id, set_id, cron, enabled, created_by,
+// created_at, updated_at }`. These wrappers unwrap the `{ data }` envelope and
+// map the snake_case wire form to the camelCase `MemberSchedule`.
+//
+// Cadence ↔ cron: the editor offers a FRIENDLY cadence (monthly/weekly, design
+// §5) and never shows a raw cron. `cadenceToCron` maps a cadence to the concrete
+// EventBridge expression the backend stores; `cronToCadence` recovers the
+// cadence for the editor when loading an existing schedule (an unrecognized cron
+// falls back to `monthly` so the editor still opens).
+// ============================================================================
+
+/**
+ * The concrete EventBridge cron expression each friendly cadence maps to (design
+ * §5). `monthly` runs at 08:00 UTC on the 1st of every month; `weekly` runs at
+ * 08:00 UTC every Monday. Kept as a single table so the forward and reverse
+ * mappings (and the test) stay in lock-step.
+ */
+export const CADENCE_CRON: Record<MemberScheduleCadence, string> = {
+  monthly: 'cron(0 8 1 * ? *)',
+  weekly: 'cron(0 8 ? * MON *)',
+};
+
+/** The cadences offered, in display order (keeps the picker + mapping aligned). */
+export const SCHEDULE_CADENCES: readonly MemberScheduleCadence[] = [
+  'monthly',
+  'weekly',
+];
+
+/**
+ * Map a friendly {@link MemberScheduleCadence} to the backend cron expression
+ * (design §5). The UI edits a cadence; this is the ONLY place a cron string is
+ * produced for the wire.
+ */
+export function cadenceToCron(cadence: MemberScheduleCadence): string {
+  return CADENCE_CRON[cadence];
+}
+
+/**
+ * Recover the friendly {@link MemberScheduleCadence} from a stored cron
+ * expression so the editor can seed its picker from an existing schedule. An
+ * unrecognized expression falls back to `monthly` (the editor still opens; the
+ * user can re-pick a cadence and save).
+ */
+export function cronToCadence(cron: string): MemberScheduleCadence {
+  const normalized = (cron ?? '').trim();
+  for (const cadence of SCHEDULE_CADENCES) {
+    if (CADENCE_CRON[cadence] === normalized) {
+      return cadence;
+    }
+  }
+  return 'monthly';
+}
+
+/** The raw backend schedule shape (snake_case wire form, string ids). */
+interface RawSchedule {
+  schedule_id: string;
+  set_id: string;
+  cron: string;
+  enabled?: boolean;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Map a raw backend schedule to the camelCase {@link MemberSchedule}. */
+function mapSchedule(raw: RawSchedule): MemberSchedule {
+  return {
+    scheduleId: raw.schedule_id,
+    setId: raw.set_id,
+    cron: raw.cron,
+    enabled: raw.enabled !== false,
+    createdBy: typeof raw.created_by === 'string' ? raw.created_by : '',
+    createdAt: typeof raw.created_at === 'string' ? raw.created_at : '',
+    updatedAt: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+  };
+}
+
+/**
+ * GET /members/schedules — list the tenant's schedules, narrowed to one set.
+ *
+ * The route returns ALL of the tenant's schedules; a saved set has at most one
+ * schedule in this UI, so callers pass the `setId` and this returns only the
+ * schedules for that set. Unwraps the `{ data: [...] }` envelope and maps each
+ * entry. Tenant-scoped by the Lambda.
+ */
+export async function listSchedulesForSet(setId: string): Promise<MemberSchedule[]> {
+  const payload = await getJson<unknown>('/members/schedules');
+  const rows = unwrapData<unknown>(payload);
+  const list = Array.isArray(rows) ? (rows as RawSchedule[]) : [];
+  return list
+    .filter((raw) => raw && raw.set_id === setId)
+    .map(mapSchedule);
+}
+
+/**
+ * POST /members/schedules — create a schedule for a set (R5). The body carries
+ * only domain fields (`set_id`, `cron`, `enabled`); `tenant_id`/`created_by`
+ * come from the verified token server-side (design §3), never the body. The gate
+ * is `members:admin` OR (`members:write` + all-regions) — the backend is
+ * authoritative; the UI only offers the action to a capable caller.
+ */
+export async function createSchedule(
+  setId: string,
+  cadence: MemberScheduleCadence,
+  enabled: boolean
+): Promise<MemberSchedule> {
+  const payload = await postJson<unknown>('/members/schedules', {
+    set_id: setId,
+    cron: cadenceToCron(cadence),
+    enabled,
+  });
+  return mapSchedule(unwrapData<RawSchedule>(payload));
+}
+
+/**
+ * PUT /members/schedules/{id} — update an existing schedule's cadence/enabled
+ * state (R5). Same gate as create.
+ */
+export async function updateSchedule(
+  scheduleId: string,
+  cadence: MemberScheduleCadence,
+  enabled: boolean
+): Promise<MemberSchedule> {
+  const payload = await putJson<unknown>(
+    `/members/schedules/${encodeURIComponent(scheduleId)}`,
+    { cron: cadenceToCron(cadence), enabled }
+  );
+  return mapSchedule(unwrapData<RawSchedule>(payload));
+}
+
+/** DELETE /members/schedules/{id} — remove a schedule (R5). Same gate. */
+export async function deleteSchedule(scheduleId: string): Promise<void> {
+  await deleteJson<unknown>(
+    `/members/schedules/${encodeURIComponent(scheduleId)}`
+  );
+}
+
+// ============================================================================
+// Preferred list (per-user, R11.2 layer 2)
+//
+// One ordered list of TAGGED references per user, keyed server-side by the
+// authenticated Cognito `sub` (user ≠ member — R11.1; the client never sends a
+// `sub`). `preset:<key>` references a predefined preset (code), `set:<id>` a
+// tenant-shared analytics-set. The backend returns `{ sub, refs, updated_at }`
+// wrapped in the `{ data }` envelope; an unset list comes back with `refs: []`.
+// ============================================================================
+
+/** The raw backend preferred-list shape (`refs` ordered tagged references). */
+interface RawPreferredList {
+  sub?: string;
+  refs?: unknown;
+  updated_at?: string;
+}
+
+/** Coerce a raw backend preferred-list into the typed `MemberPreferredList`. */
+function mapPreferredList(raw: RawPreferredList): MemberPreferredList {
+  const refs = Array.isArray(raw.refs)
+    ? raw.refs.filter((r): r is string => typeof r === 'string' && r.length > 0)
+    : [];
+  return {
+    sub: typeof raw.sub === 'string' ? raw.sub : '',
+    refs,
+    updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+  };
+}
+
+/**
+ * GET /members/analytics-sets/preferred — the current user's preferred list.
+ *
+ * Keyed server-side on the authenticated `sub`; returns `refs: []` when the user
+ * has never saved a preferred list (empty is valid, not an error — R11.2).
+ */
+export async function getPreferredList(): Promise<MemberPreferredList> {
+  const payload = await getJson<unknown>('/members/analytics-sets/preferred');
+  return mapPreferredList(unwrapData<RawPreferredList>(payload));
+}
+
+/**
+ * PUT /members/analytics-sets/preferred — replace the current user's preferred
+ * list with `refs` (a FULL replace — exactly one list per user). Pass `[]` to
+ * clear. The backend drops blank/non-string entries and stamps `updated_at`.
+ */
+export async function savePreferredList(
+  refs: string[]
+): Promise<MemberPreferredList> {
+  const payload = await putJson<unknown>('/members/analytics-sets/preferred', {
+    refs,
+  });
+  return mapPreferredList(unwrapData<RawPreferredList>(payload));
+}

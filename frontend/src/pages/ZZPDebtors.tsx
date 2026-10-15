@@ -194,7 +194,7 @@ const ZZPDebtors: React.FC = () => {
                   <Tr>
                     <Td colSpan={5} p={0}>
                       <Collapse in={isExpanded} animateOpacity>
-                        <Box bg="gray.750" px={6} py={3}>
+                        <Box bg="gray.750" px={6} py={3} overflowX="auto">
                           <Table variant="simple" size="sm" color="gray.300">
                             <Thead>
                               <Tr>

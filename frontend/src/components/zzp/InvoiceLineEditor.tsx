@@ -24,7 +24,9 @@ const VAT_CODES = ['high', 'low', 'zero'];
 export const InvoiceLineEditor: React.FC<InvoiceLineEditorProps> = ({
   lines, products, readOnly = false, onChange,
 }) => {
-  const updateLine = (idx: number, field: string, value: any) => {
+  // `value` is a raw form-input value: text inputs yield a string, numeric
+  // inputs a parsed number. It is coerced where needed (Number(...)) below.
+  const updateLine = (idx: number, field: keyof InvoiceLine, value: string | number) => {
     const updated = [...lines];
     updated[idx] = { ...updated[idx], [field]: value };
 

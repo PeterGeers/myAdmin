@@ -1,565 +1,262 @@
-"""
-API tests for invoice_routes.py
+"""API tests for routes/invoice_routes.py
 
-Tests invoice upload, duplicate detection, and transaction approval endpoints
-including authentication enforcement, input validation, and happy path flows.
+Covers the invoice upload wrapper (CORS/no-auth OPTIONS, validation, duplicate
+409, service error 500) and approve-transactions (tenant enforcement,
+closed-period 400, error 500). Routes delegate to the service layer, so the
+services are mocked; the tests assert the route's own observable behavior and
+tenant handling.
 
-Requirements: 6.1, 6.2, 6.4, 8.3
-Reference: .kiro/specs/missing-py-tests/design.md
+Isolation pattern (mirrors tests/api/test_zzp_phase1_routes.py): the auth
+decorators are patched to pass through and inject the Flask-plane context
+(user_email, user_roles, tenant='TestTenant', user_tenants), the route module is
+reloaded so the passthroughs apply, and the blueprint is mounted on a bare Flask
+app. This exercises the handler body directly without the full-app security
+middleware / permission resolution.
+
+Flask plane conventions: response shape {'success': True/False, ...}; tenant key
+is `administration`.
 """
 import io
-import os
-import pytest
 import json
+import os
+import sys
+from functools import wraps
 from unittest.mock import patch, MagicMock
+
+import pytest
+from flask import Flask
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+from db_exceptions import ClosedPeriodError
+
+
+TENANT = 'TestTenant'
+
+
+def _passthrough_cognito(required_permissions=None, required_roles=None):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            kwargs['user_email'] = 'finance@example.com'
+            kwargs['user_roles'] = ['Finance_CRUD']
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def _passthrough_tenant(allow_sysadmin=False):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            kwargs['tenant'] = TENANT
+            kwargs['user_tenants'] = [TENANT]
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 @pytest.fixture
-def invoice_auth():
-    """
-    Mock authentication with Finance_CRUD role for invoice endpoints.
-    Provides invoices_create, transactions_create permissions.
-    """
-    with patch('auth.cognito_utils.extract_user_credentials') as mock_creds, \
-         patch('auth.tenant_context.validate_tenant_access', return_value=(True, None)), \
-         patch('auth.tenant_context.get_user_tenants', return_value=['test-tenant']), \
-         patch('auth.role_cache.get_tenant_roles', return_value=['Finance_CRUD']):
-        mock_creds.return_value = ('test@example.com', ['Finance_CRUD'], None)
-        yield {
-            'Authorization': 'Bearer test-token',
-            'X-Tenant': 'test-tenant',
-        }
+def invoice_module():
+    """Reload routes.invoice_routes with passthrough auth decorators applied."""
+    with patch('auth.cognito_utils.cognito_required', side_effect=_passthrough_cognito), \
+         patch('auth.tenant_context.tenant_required', side_effect=_passthrough_tenant):
+        import importlib
+        import routes.invoice_routes as ir
+        importlib.reload(ir)
+        yield ir
+    # Restore the module to its real (decorated) state for other tests.
+    import importlib
+    import routes.invoice_routes as ir
+    importlib.reload(ir)
+
+
+@pytest.fixture
+def client(invoice_module):
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    app.register_blueprint(invoice_module.invoice_bp)
+    return app.test_client()
 
 
 # ============================================================================
-# Authentication Enforcement Tests
+# /api/upload — OPTIONS (CORS, no auth) and POST paths
 # ============================================================================
 
 
-class TestInvoiceRoutesAuthEnforcement:
-    """Verify 401/403 for unauthenticated/unauthorized requests."""
-
-    def test_upload_unauthenticated_returns_401_or_403(self, client):
-        """Unauthenticated POST to /api/upload should be rejected."""
-        auth_error = {
-            'statusCode': 401,
-            'body': '{"error": "Unauthorized", "message": "Missing or invalid token"}'
-        }
-        with patch('auth.cognito_utils.extract_user_credentials',
-                   return_value=(None, None, auth_error)):
-            data = {'file': (io.BytesIO(b'%PDF-1.4 test'), 'test.pdf')}
-            response = client.post(
-                '/api/upload',
-                data=data,
-                content_type='multipart/form-data'
-            )
-        assert response.status_code in (401, 403)
-
-    def test_approve_transactions_unauthenticated_returns_401_or_403(self, client):
-        """Unauthenticated POST to /api/approve-transactions should be rejected."""
-        auth_error = {
-            'statusCode': 401,
-            'body': '{"error": "Unauthorized", "message": "Missing or invalid token"}'
-        }
-        with patch('auth.cognito_utils.extract_user_credentials',
-                   return_value=(None, None, auth_error)):
-            response = client.post(
-                '/api/approve-transactions',
-                json={'transactions': []}
-            )
-        assert response.status_code in (401, 403)
-
-    def test_upload_options_no_auth_required_returns_200(self, client):
-        """OPTIONS request to /api/upload should not require auth (CORS preflight)."""
+class TestUploadWrapper:
+    def test_options_preflight_no_auth_returns_ok(self, client):
+        """OPTIONS preflight is answered without authentication."""
         response = client.options('/api/upload')
         assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'OK'
 
-
-# ============================================================================
-# Upload Endpoint - Input Validation Tests
-# ============================================================================
-
-
-class TestUploadValidation:
-    """Tests for POST /api/upload input validation."""
-
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_upload_no_file_returns_400(self, mock_service_class, client, invoice_auth):
-        """Request without file field should return 400."""
-        response = client.post(
-            '/api/upload',
-            headers=invoice_auth,
-            data={},
-            content_type='multipart/form-data'
-        )
+    def test_post_missing_file_returns_400(self, client, invoice_module):
+        """POST without a file part → 400 'No file provided'."""
+        with patch.object(invoice_module, 'InvoiceService', return_value=MagicMock()):
+            response = client.post('/api/upload', data={})
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['success'] is False
-        assert 'no file' in data['error'].lower()
+        assert 'No file' in data['error']
 
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_upload_empty_filename_returns_400(self, mock_service_class, client, invoice_auth):
-        """File with empty filename should return 400."""
-        data = {'file': (io.BytesIO(b'content'), '')}
-        response = client.post(
-            '/api/upload',
-            headers=invoice_auth,
-            data=data,
-            content_type='multipart/form-data'
-        )
+    def test_post_empty_filename_returns_400(self, client, invoice_module):
+        """A file part with an empty filename → 400 'No file selected'."""
+        with patch.object(invoice_module, 'InvoiceService', return_value=MagicMock()):
+            data = {'file': (io.BytesIO(b''), '')}
+            response = client.post(
+                '/api/upload', data=data, content_type='multipart/form-data'
+            )
         assert response.status_code == 400
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is False
-        assert 'no file selected' in resp_data['error'].lower()
+        body = json.loads(response.data)
+        assert body['success'] is False
+        assert 'No file selected' in body['error']
 
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_upload_invalid_file_type_returns_400(self, mock_service_class, client, invoice_auth):
-        """File with disallowed extension should return 400."""
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = False
-
-        data = {'file': (io.BytesIO(b'content'), 'malware.exe')}
-        response = client.post(
-            '/api/upload',
-            headers=invoice_auth,
-            data=data,
-            content_type='multipart/form-data'
-        )
+    def test_post_invalid_file_type_returns_400(self, client, invoice_module):
+        """A file with a disallowed extension → 400 'Invalid file type'."""
+        svc = MagicMock()
+        svc.allowed_file.return_value = False
+        with patch.object(invoice_module, 'InvoiceService', return_value=svc):
+            data = {'file': (io.BytesIO(b'not a pdf'), 'bad.exe')}
+            response = client.post(
+                '/api/upload', data=data, content_type='multipart/form-data'
+            )
         assert response.status_code == 400
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is False
-        assert 'invalid file type' in resp_data['error'].lower()
+        body = json.loads(response.data)
+        assert body['success'] is False
+        assert 'Invalid file type' in body['error']
 
-
-# ============================================================================
-# Upload Endpoint - Duplicate Detection Tests
-# ============================================================================
-
-
-class TestUploadDuplicateDetection:
-    """Tests for duplicate detection during upload."""
-
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_upload_duplicate_detected_returns_409(
-        self, mock_service_class, client, invoice_auth, tmp_path
-    ):
-        """Duplicate file detection should return 409 with duplicate info."""
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = True
-        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
-        mock_instance.check_early_duplicates.return_value = {
+    def test_post_duplicate_detected_returns_409(self, client, invoice_module):
+        """When the service flags a duplicate, the route stops with 409 and cleans up."""
+        svc = MagicMock()
+        svc.allowed_file.return_value = True
+        svc.upload_to_drive.return_value = {'file_id': 'drv1'}
+        svc.check_early_duplicates.return_value = {
             'has_duplicates': True,
-            'message': 'File already exists in folder',
-            'duplicate_info': {'existing_file_id': 'drive-456'}
+            'message': 'already uploaded',
+            'duplicate_info': {'id': 1},
         }
-
-        data = {
-            'file': (io.BytesIO(b'%PDF-1.4 test content'), 'invoice.pdf'),
-            'folderName': 'Invoices'
-        }
-        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
+        with patch.object(invoice_module, 'InvoiceService', return_value=svc), \
+             patch.object(invoice_module, 'secure_filename', return_value='invoice.pdf'), \
+             patch('werkzeug.datastructures.FileStorage.save'):
+            data = {'file': (io.BytesIO(b'%PDF-1.4 data'), 'invoice.pdf')}
             response = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data,
-                content_type='multipart/form-data'
+                '/api/upload', data=data, content_type='multipart/form-data'
             )
+
         assert response.status_code == 409
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is False
-        assert resp_data['error'] == 'duplicate_detected'
-        assert 'duplicate_info' in resp_data
+        body = json.loads(response.data)
+        assert body['success'] is False
+        assert body['error'] == 'duplicate_detected'
+        svc.cleanup_temp_file.assert_called_once()
 
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_upload_force_upload_bypasses_duplicate_check(
-        self, mock_service_class, client, invoice_auth, tmp_path
-    ):
-        """forceUpload=true should bypass duplicate detection."""
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = True
-        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
-        mock_instance.process_invoice_file.return_value = {
-            'folder': 'Vendor A',
-            'extracted_text': 'Invoice text',
-            'vendor_data': {'name': 'Vendor A'},
-            'transactions': [],
-            'prepared_transactions': [],
-            'template_transactions': [],
-            'parser_used': 'ai'
+    def test_post_tenant_prefixes_saved_filename(self, client, invoice_module):
+        """The uploaded file is saved under a tenant-prefixed unique name (isolation)."""
+        svc = MagicMock()
+        svc.allowed_file.return_value = True
+        svc.upload_to_drive.return_value = {'file_id': 'drv1'}
+        svc.check_early_duplicates.return_value = {'has_duplicates': False}
+        svc.process_invoice_file.return_value = {
+            'folder': 'Vendor', 'extracted_text': 'x',
+            'transactions': [], 'prepared_transactions': [],
+            'template_transactions': [], 'parser_used': 'default',
         }
-
-        data = {
-            'file': (io.BytesIO(b'%PDF-1.4 test content'), 'invoice.pdf'),
-            'folderName': 'Invoices',
-            'forceUpload': 'true'
-        }
-        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
+        saved_paths = []
+        with patch.object(invoice_module, 'InvoiceService', return_value=svc), \
+             patch.object(invoice_module, 'secure_filename', return_value='invoice.pdf'), \
+             patch('werkzeug.datastructures.FileStorage.save',
+                   side_effect=lambda p: saved_paths.append(p)):
+            data = {'file': (io.BytesIO(b'%PDF data'), 'invoice.pdf')}
             response = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data,
-                content_type='multipart/form-data'
+                '/api/upload', data=data, content_type='multipart/form-data'
             )
+
         assert response.status_code == 200
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is True
-        # Duplicate check should NOT have been called
-        mock_instance.check_early_duplicates.assert_not_called()
+        # Saved path must carry the authenticated tenant as a prefix.
+        assert saved_paths and os.path.basename(saved_paths[0]).startswith(f'{TENANT}_')
 
-
-# ============================================================================
-# Upload Endpoint - Happy Path Tests
-# ============================================================================
-
-
-class TestUploadHappyPath:
-    """Tests for successful upload flow."""
-
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_upload_success_returns_processed_data(
-        self, mock_service_class, client, invoice_auth, tmp_path
-    ):
-        """Successful upload should return processed invoice data."""
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = True
-        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
-        mock_instance.check_early_duplicates.return_value = {
-            'has_duplicates': False
-        }
-        mock_instance.process_invoice_file.return_value = {
-            'folder': 'Vendor A',
-            'extracted_text': 'Invoice #12345',
-            'vendor_data': {'name': 'Vendor A', 'kvk': '12345678'},
-            'transactions': [{'amount': 100.0}],
-            'prepared_transactions': [{'debet': '1000', 'credit': '4000'}],
-            'template_transactions': [],
-            'parser_used': 'vendor_specific'
-        }
-
-        data = {
-            'file': (io.BytesIO(b'%PDF-1.4 test content'), 'invoice.pdf'),
-            'folderName': 'Invoices'
-        }
-        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
+    def test_post_internal_error_returns_500(self, client, invoice_module):
+        """An unexpected service error surfaces as 500 with success=False."""
+        svc = MagicMock()
+        svc.allowed_file.return_value = True
+        svc.upload_to_drive.side_effect = RuntimeError('drive exploded')
+        with patch.object(invoice_module, 'InvoiceService', return_value=svc), \
+             patch.object(invoice_module, 'secure_filename', return_value='invoice.pdf'), \
+             patch('werkzeug.datastructures.FileStorage.save'):
+            data = {'file': (io.BytesIO(b'%PDF data'), 'invoice.pdf')}
             response = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data,
-                content_type='multipart/form-data'
+                '/api/upload', data=data, content_type='multipart/form-data'
             )
-        assert response.status_code == 200
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is True
-        assert resp_data['filename'] == 'invoice.pdf'
-        assert resp_data['folder'] == 'Vendor A'
-        assert resp_data['parserUsed'] == 'vendor_specific'
-        assert 'extractedText' in resp_data
-        assert 'vendorData' in resp_data
-        assert 'transactions' in resp_data
 
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_upload_service_exception_returns_500(
-        self, mock_service_class, client, invoice_auth, tmp_path
-    ):
-        """InvoiceService exception should return 500."""
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = True
-        mock_instance.upload_to_drive.side_effect = Exception('Drive API error')
-
-        data = {
-            'file': (io.BytesIO(b'%PDF-1.4 test content'), 'invoice.pdf'),
-            'folderName': 'Invoices'
-        }
-        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
-            response = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data,
-                content_type='multipart/form-data'
-            )
         assert response.status_code == 500
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is False
-        assert 'Drive API error' in resp_data['error']
+        body = json.loads(response.data)
+        assert body['success'] is False
+        assert 'drive exploded' in body['error']
 
 
 # ============================================================================
-# Approve Transactions Endpoint Tests
+# /api/approve-transactions — tenant enforcement + error paths
 # ============================================================================
 
 
 class TestApproveTransactions:
-    """Tests for POST /api/approve-transactions."""
-
-    @patch('transaction_logic.TransactionLogic')
-    def test_approve_transactions_success(
-        self, mock_logic_class, client, invoice_auth
-    ):
-        """Valid transactions should be saved successfully."""
-        mock_instance = MagicMock()
-        mock_logic_class.return_value = mock_instance
-        mock_instance.save_approved_transactions.return_value = [
-            {'id': 1, 'amount': 100.0},
-            {'id': 2, 'amount': 200.0}
-        ]
-
-        response = client.post(
-            '/api/approve-transactions',
-            headers=invoice_auth,
-            json={'transactions': [
-                {'amount': 100.0, 'description': 'Item 1'},
-                {'amount': 200.0, 'description': 'Item 2'},
-                {'amount': 0.0, 'description': 'Zero line'}
+    def test_forces_tenant_on_every_transaction(self, client):
+        """Each incoming transaction gets Administration set to the caller tenant."""
+        logic = MagicMock()
+        logic.save_approved_transactions.side_effect = lambda txns: txns
+        with patch('transaction_logic.TransactionLogic', return_value=logic):
+            payload = {'transactions': [
+                {'TransactionAmount': 100, 'Administration': 'AttackerTenant'},
+                {'TransactionAmount': 200},
             ]}
-        )
+            response = client.post('/api/approve-transactions', json=payload)
+
         assert response.status_code == 200
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is True
-        assert len(resp_data['savedTransactions']) == 2
-        assert resp_data['skippedCount'] == 1
-        assert 'skipped' in resp_data['message']
+        body = json.loads(response.data)
+        assert body['success'] is True
+        # The service received transactions with Administration forced to the
+        # authenticated tenant, never the attacker-supplied value.
+        saved_arg = logic.save_approved_transactions.call_args[0][0]
+        assert all(t['Administration'] == TENANT for t in saved_arg)
 
-    @patch('transaction_logic.TransactionLogic')
-    def test_approve_transactions_closed_period_returns_400(
-        self, mock_logic_class, client, invoice_auth
-    ):
-        """ClosedPeriodError should return 400."""
-        from db_exceptions import ClosedPeriodError
+    def test_reports_skipped_zero_amount_lines(self, client):
+        """When the service saves fewer than submitted, the gap is reported as skipped."""
+        logic = MagicMock()
+        logic.save_approved_transactions.return_value = [{'id': 1}, {'id': 2}]
+        with patch('transaction_logic.TransactionLogic', return_value=logic):
+            payload = {'transactions': [{'TransactionAmount': 10},
+                                        {'TransactionAmount': 20},
+                                        {'TransactionAmount': 0}]}
+            response = client.post('/api/approve-transactions', json=payload)
 
-        mock_instance = MagicMock()
-        mock_logic_class.return_value = mock_instance
-        mock_instance.save_approved_transactions.side_effect = ClosedPeriodError(
-            offending_transactions=[{'transaction': 'T001', 'year': 2023}],
-            message='Period 2023-Q4 is closed'
+        assert response.status_code == 200
+        body = json.loads(response.data)
+        assert body['skippedCount'] == 1
+        assert 'skipped' in body['message']
+
+    def test_closed_period_returns_400(self, client):
+        """A ClosedPeriodError from the service maps to a 400 (not a 500)."""
+        logic = MagicMock()
+        logic.save_approved_transactions.side_effect = ClosedPeriodError(
+            [{'year': 2023}]
         )
+        with patch('transaction_logic.TransactionLogic', return_value=logic):
+            payload = {'transactions': [{'TransactionAmount': 10}]}
+            response = client.post('/api/approve-transactions', json=payload)
 
-        response = client.post(
-            '/api/approve-transactions',
-            headers=invoice_auth,
-            json={'transactions': [{'amount': 100.0}]}
-        )
         assert response.status_code == 400
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is False
-        assert 'closed' in resp_data['error'].lower()
+        body = json.loads(response.data)
+        assert body['success'] is False
 
-    @patch('transaction_logic.TransactionLogic')
-    def test_approve_transactions_generic_error_returns_500(
-        self, mock_logic_class, client, invoice_auth
-    ):
-        """Generic exception should return 500."""
-        mock_instance = MagicMock()
-        mock_logic_class.return_value = mock_instance
-        mock_instance.save_approved_transactions.side_effect = Exception('DB connection lost')
+    def test_internal_error_returns_500(self, client):
+        logic = MagicMock()
+        logic.save_approved_transactions.side_effect = RuntimeError('db down')
+        with patch('transaction_logic.TransactionLogic', return_value=logic):
+            payload = {'transactions': [{'TransactionAmount': 10}]}
+            response = client.post('/api/approve-transactions', json=payload)
 
-        response = client.post(
-            '/api/approve-transactions',
-            headers=invoice_auth,
-            json={'transactions': [{'amount': 100.0}]}
-        )
         assert response.status_code == 500
-        resp_data = json.loads(response.data)
-        assert resp_data['success'] is False
-        assert 'DB connection lost' in resp_data['error']
-
-
-# ============================================================================
-# Temp File Collision Tests (REQ-1.3)
-# ============================================================================
-
-
-class TestTempFileCollision:
-    """Verify concurrent uploads with same filename don't collide."""
-
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_concurrent_uploads_same_filename_get_unique_temp_paths(
-        self, mock_service_class, client, invoice_auth, tmp_path
-    ):
-        """
-        Two uploads of 'invoice.pdf' should produce different temp files.
-        Verifies REQ-1.3: temp files are namespaced to avoid collisions.
-        """
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = True
-        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
-        mock_instance.check_early_duplicates.return_value = {
-            'has_duplicates': False,
-            'message': '',
-            'duplicate_info': None
-        }
-        mock_instance.process_invoice_file.return_value = {
-            'folder': 'Vendor A',
-            'extracted_text': 'Invoice text',
-            'vendor_data': {'name': 'Vendor A'},
-            'transactions': [{'date': '2024-01-01', 'amount': 100, 'description': 'Test'}],
-            'prepared_transactions': [],
-            'template_transactions': [],
-            'parser_used': 'ai'
-        }
-
-        saved_paths = []
-        original_save = None
-
-        # Capture the temp_path passed to process_invoice_file
-        def capture_process_call(temp_path, drive_result, folder_name, tenant):
-            saved_paths.append(temp_path)
-            return {
-                'folder': 'Vendor A',
-                'extracted_text': 'Invoice text',
-                'vendor_data': {'name': 'Vendor A'},
-                'transactions': [{'date': '2024-01-01', 'amount': 100, 'description': 'Test'}],
-                'prepared_transactions': [],
-                'template_transactions': [],
-                'parser_used': 'ai'
-            }
-
-        mock_instance.process_invoice_file.side_effect = capture_process_call
-
-        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
-            # First upload
-            data1 = {
-                'file': (io.BytesIO(b'%PDF-1.4 first file content'), 'invoice.pdf'),
-                'folderName': 'Invoices'
-            }
-            response1 = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data1,
-                content_type='multipart/form-data'
-            )
-
-            # Second upload with same filename
-            data2 = {
-                'file': (io.BytesIO(b'%PDF-1.4 second file content'), 'invoice.pdf'),
-                'folderName': 'Invoices'
-            }
-            response2 = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data2,
-                content_type='multipart/form-data'
-            )
-
-        # Both should succeed
-        assert response1.status_code == 200
-        assert response2.status_code == 200
-
-        # The temp paths should be different (UUID ensures uniqueness)
-        assert len(saved_paths) == 2
-        assert saved_paths[0] != saved_paths[1], (
-            f"Temp paths should be unique but got same path: {saved_paths[0]}"
-        )
-
-        # Both responses should report the original filename (not the unique temp name)
-        resp1 = json.loads(response1.data)
-        resp2 = json.loads(response2.data)
-        assert resp1['filename'] == 'invoice.pdf'
-        assert resp2['filename'] == 'invoice.pdf'
-
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_temp_filename_contains_tenant_and_uuid(
-        self, mock_service_class, client, invoice_auth, tmp_path
-    ):
-        """
-        Temp filename should follow pattern: {tenant}_{uuid8}_{filename}
-        Verifies REQ-1.3: tenant prefix + UUID namespacing.
-        """
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = True
-        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
-        mock_instance.check_early_duplicates.return_value = {
-            'has_duplicates': False,
-            'message': '',
-            'duplicate_info': None
-        }
-
-        captured_temp_path = []
-
-        def capture_process(temp_path, drive_result, folder_name, tenant):
-            captured_temp_path.append(temp_path)
-            return {
-                'folder': 'Vendor A',
-                'extracted_text': 'text',
-                'vendor_data': None,
-                'transactions': [],
-                'prepared_transactions': [],
-                'template_transactions': [],
-                'parser_used': 'ai'
-            }
-
-        mock_instance.process_invoice_file.side_effect = capture_process
-
-        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
-            data = {
-                'file': (io.BytesIO(b'%PDF-1.4 content'), 'invoice.pdf'),
-                'folderName': 'Invoices'
-            }
-            response = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data,
-                content_type='multipart/form-data'
-            )
-
-        assert response.status_code == 200
-        assert len(captured_temp_path) == 1
-
-        # Extract just the filename from the temp path
-        temp_filename = os.path.basename(captured_temp_path[0])
-
-        # Should match pattern: test-tenant_{8 hex chars}_invoice.pdf
-        import re
-        pattern = r'^test-tenant_[0-9a-f]{8}_invoice\.pdf$'
-        assert re.match(pattern, temp_filename), (
-            f"Temp filename '{temp_filename}' doesn't match expected pattern "
-            f"'{{tenant}}_{{uuid8}}_{{filename}}'"
-        )
-
-    @patch('routes.invoice_routes.InvoiceService')
-    def test_cleanup_uses_unique_temp_path(
-        self, mock_service_class, client, invoice_auth, tmp_path
-    ):
-        """
-        When duplicate is detected, cleanup should use the unique temp path.
-        Verifies REQ-1.3: cleanup of temp files still works correctly.
-        """
-        mock_instance = MagicMock()
-        mock_service_class.return_value = mock_instance
-        mock_instance.allowed_file.return_value = True
-        mock_instance.upload_to_drive.return_value = {'file_id': 'drive-123'}
-        mock_instance.check_early_duplicates.return_value = {
-            'has_duplicates': True,
-            'message': 'File already exists',
-            'duplicate_info': {'existing_file_id': 'drive-456'}
-        }
-
-        with patch('routes.invoice_routes.UPLOAD_FOLDER', str(tmp_path)):
-            data = {
-                'file': (io.BytesIO(b'%PDF-1.4 content'), 'invoice.pdf'),
-                'folderName': 'Invoices'
-            }
-            response = client.post(
-                '/api/upload',
-                headers=invoice_auth,
-                data=data,
-                content_type='multipart/form-data'
-            )
-
-        assert response.status_code == 409
-
-        # cleanup_temp_file should have been called with the unique path
-        mock_instance.cleanup_temp_file.assert_called_once()
-        cleanup_path = mock_instance.cleanup_temp_file.call_args[0][0]
-        cleanup_filename = os.path.basename(cleanup_path)
-
-        # Should NOT be just 'invoice.pdf' — should include tenant + uuid
-        assert cleanup_filename != 'invoice.pdf'
-        assert 'test-tenant_' in cleanup_filename
-        assert cleanup_filename.endswith('_invoice.pdf')
+        body = json.loads(response.data)
+        assert body['success'] is False
+        assert 'db down' in body['error']

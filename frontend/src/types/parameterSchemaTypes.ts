@@ -3,19 +3,29 @@ export interface ParamOption {
   label: string;
 }
 
+/**
+ * A parameter value as delivered by the backend schema. The concrete shape
+ * depends on `type` ('string' | 'number' | 'boolean' | 'json'); `json`
+ * carries an arbitrary serialized shape. Consumers narrow/coerce at the point
+ * of use (e.g. `String(current_value)`), so this stays intentionally dynamic
+ * as `unknown` rather than `any` — forcing a cast at the boundary instead of
+ * silently allowing unchecked member access.
+ */
+export type ParamValue = unknown;
+
 export interface ParamDef {
   label: string;
   label_nl?: string;
   type: 'string' | 'number' | 'boolean' | 'json';
   required?: boolean;
-  default?: any;
+  default?: ParamValue;
   options?: ParamOption[];
   visible_when?: Record<string, string>;
   description?: string;
   read_only?: boolean;
   min?: number;
   max?: number;
-  current_value?: any;
+  current_value?: ParamValue;
   missing?: boolean;
 }
 

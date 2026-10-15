@@ -209,7 +209,7 @@ def test_membership_service_dispatches_on_transition_through_the_unified_registr
         def get_member(self, t, m):
             return None
 
-        def list_members(self, t, *, filters=None, scope_filter=None):
+        def list_members(self, t, *, filters=None):
             return []
 
         def list_membership_types(self, t, *, active_only=False):
