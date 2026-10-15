@@ -145,6 +145,7 @@ const ZZPTrips: React.FC = () => {
       trip_date: '',
       start_address: '',
       end_address: '',
+      end_odometer: '',
       distance_km: '',
       trip_category: '',
       trip_purpose: '',
@@ -425,6 +426,16 @@ const ZZPTrips: React.FC = () => {
                         placeholder="Filter..."
                       />
                       <FilterableHeader
+                        label={t('trips.labels.endOdometer')}
+                        filterValue={filters.end_odometer}
+                        onFilterChange={(v) => setFilter('end_odometer', v)}
+                        sortable
+                        sortDirection={sortField === 'end_odometer' ? sortDirection : null}
+                        onSort={() => handleSort('end_odometer')}
+                        isNumeric
+                        placeholder="km"
+                      />
+                      <FilterableHeader
                         label={t('trips.labels.distance')}
                         filterValue={filters.distance_km}
                         onFilterChange={(v) => setFilter('distance_km', v)}
@@ -480,6 +491,7 @@ const ZZPTrips: React.FC = () => {
                         <Td maxW="50px">{formatDate(trip.trip_date)}</Td>
                         <Td maxW="180px" isTruncated title={trip.start_address}>{trip.start_address}</Td>
                         <Td maxW="180px" isTruncated title={trip.end_address}>{trip.end_address}</Td>
+                        <Td isNumeric maxW="80px">{trip.end_odometer}</Td>
                         <Td isNumeric maxW="60px">{trip.distance_km}</Td>
                         <Td maxW="90px">
                           <Badge
