@@ -83,6 +83,104 @@ export interface AggregateMeasure {
   column: string;
 }
 
+// ---------------------------------------------------------------------------
+// Member Analytics filter operators (data contract)
+//
+// Backward-compatible, operator-aware filter shape for the Member Analytics
+// pivot/list saved-set `definition.filters`. OPAQUE to the SAM Members module
+// and to the SQL pivot framework — both treat `PivotConfig.filters` as an
+// untyped `Record<string, any>`. Only the member-analytics surface interprets
+// an entry as a `FilterClause` (via `normalizeClause`).
+// Reference: .kiro/specs/Members/member-analytics-pivot-filter-operators/design.md §"Data Models"
+// ---------------------------------------------------------------------------
+
+/**
+ * The per-filter comparison operators. Type-adaptive availability is a UI
+ * concern (`operatorsForField`); the engine implements semantics for all of
+ * them regardless of field type.
+ */
+export type FilterOperator =
+  | 'eq' // equals (case-insensitive, trimmed string compare) — the legacy default
+  | 'ne' // not equals
+  | 'gt' // greater than
+  | 'gte' // greater than or equal
+  | 'lt' // less than
+  | 'lte' // less than or equal
+  | 'contains' // substring (case-insensitive)
+  | 'notContains' // does NOT contain substring — exact negation of `contains` for a present value
+  | 'regex' // JS RegExp, case-insensitive default, invalid-pattern guarded
+  | 'notRegex' // does NOT match the pattern (case-insensitive); same invalid-pattern guard as `regex`
+  | 'empty' // field value is blank/absent (no value input)
+  | 'notEmpty'; // field value is present/non-blank (no value input)
+
+/** The set of known operators, used to clamp an unknown stored op to `eq`. */
+const FILTER_OPERATORS: readonly FilterOperator[] = [
+  'eq',
+  'ne',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'contains',
+  'notContains',
+  'regex',
+  'notRegex',
+  'empty',
+  'notEmpty',
+];
+
+/** The new, explicit object form of a single filter entry. */
+export interface FilterClause {
+  op: FilterOperator;
+  /** The comparison value as a string (as entered). Ignored for empty/notEmpty. */
+  value?: string;
+}
+
+/**
+ * The persisted member-analytics filters map. BACKWARD-COMPATIBLE and OPAQUE
+ * to the backend:
+ *   - new form:    { clubblad: { op: 'eq', value: 'Papier' } }
+ *   - legacy form: { clubblad: 'Papier' }  (reads as { op: 'eq', value: 'Papier' })
+ * A value may therefore be a `FilterClause` OR a legacy scalar; `unknown`-tolerant
+ * readers (`normalizeClause`) accept both. NO key is special-cased — every entry,
+ * including `years_member` / `joined_after_year`, is an ordinary filterable field
+ * (a legacy scalar `years_member: 25` reads as an editable `{ op: 'eq', value: '25' }`
+ * row, so a jubilee / new-member list is now expressible generically, e.g.
+ * `years_member gte 25`).
+ */
+export type FilterMap = Record<string, FilterClause | string | number | null>;
+
+/**
+ * Read either the new object form or the legacy scalar form into a FilterClause.
+ *   - legacy scalar  -> { op: 'eq', value: String(scalar) }
+ *   - object with op -> clamped to a known FilterOperator (unknown op -> 'eq')
+ *   - null/undefined -> null (caller treats as "no narrowing")
+ *
+ * Member-analytics reads of `PivotConfig.filters` go through this helper so the
+ * richer structure stays opaque to the backend and the non-member pivot framework.
+ */
+export function normalizeClause(raw: unknown): FilterClause | null {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+
+  // Object (new) form: { op, value? }. Clamp an unknown/absent op to 'eq'.
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as { op?: unknown; value?: unknown };
+    const op = FILTER_OPERATORS.includes(obj.op as FilterOperator)
+      ? (obj.op as FilterOperator)
+      : 'eq';
+    const clause: FilterClause = { op };
+    if (obj.value !== undefined && obj.value !== null) {
+      clause.value = String(obj.value);
+    }
+    return clause;
+  }
+
+  // Legacy scalar form: the raw value is the eq comparison value.
+  return { op: 'eq', value: String(raw) };
+}
+
 /** Display mode for the result table */
 export type DisplayMode = 'flat' | 'hierarchical';
 
@@ -97,7 +195,15 @@ export interface PivotConfig {
   groupColumns: string[];
   /** Aggregate measures to compute (1–10) */
   aggregateMeasures: AggregateMeasure[];
-  /** Filter values keyed by column or filter name */
+  /**
+   * Filter values keyed by column or filter name.
+   *
+   * Kept as `Record<string, any>` so the SQL pivot framework (which also uses
+   * `filters`) is unaffected. The Member Analytics surface treats this map as a
+   * {@link FilterMap}: each entry is a {@link FilterClause} (`{ op, value? }`)
+   * or a legacy scalar (`'Papier'` → `eq`), read via {@link normalizeClause}.
+   * The structure stays OPAQUE to the backend and the non-member framework.
+   */
   filters: Record<string, any>;
   /** Optional column whose distinct values become column headers */
   columnPivot: string | null;
