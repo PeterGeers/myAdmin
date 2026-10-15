@@ -21,8 +21,11 @@ import type {
 import type {
   AggregateFunction,
   AggregateMeasure,
+  FilterOperator,
   PivotConfig,
 } from '../../../types/pivot';
+import { normalizeClause } from '../../../types/pivot';
+import { operatorTakesNoValue } from './analyticsConfig';
 
 /** The aggregate functions the framework supports (mirrors `AggregateFunction`). */
 export const AGGREGATE_FUNCTIONS: readonly AggregateFunction[] = [
@@ -83,23 +86,14 @@ export function fromDrafts(drafts: MeasureDraft[]): AggregateMeasure[] {
   }));
 }
 
-/**
- * The reserved definition-filter keys the jubilee / new-members selectors own
- * (mirrors `analyticsConfig`'s `JUBILEE_YEAR_FILTER_KEY` /
- * `JOINED_AFTER_FILTER_KEY`). The picker's generic Filters section never shows
- * or clobbers these — they are year-aware filters driven by the Pivot Views
- * selector UI, so they are carried through untouched on the composed config.
- * Hardcoded here (rather than imported) to keep the picker's definition filters
- * independent of the selector plumbing.
- */
-export const RESERVED_FILTER_KEYS: readonly string[] = ['years_member', 'joined_after_year'];
-
 /** A single composable definition-filter row in local state (stable id for React keys). */
 export interface FilterDraft {
   id: string;
   /** Field key the filter matches on, or `''` (unset row). */
   field: string;
-  /** The value the field must equal (string equality, applied at execute time). */
+  /** The operator for this row (defaults to `eq`). */
+  op: FilterOperator;
+  /** The comparison value (string). Empty/unused for `empty` / `notEmpty`. */
   value: string;
 }
 
@@ -110,10 +104,14 @@ export function nextFilterId(): string {
 }
 
 /**
- * Seed the editable filter rows from a config's `filters` map, SKIPPING the
- * reserved year keys (they are not generic equality filters). Each remaining
- * entry becomes an editable row so a saved set's definition filters round-trip
- * through the editor (R4.4). A value is stringified for the text input.
+ * Seed the editable filter rows from a config's `filters` map. EVERY non-null
+ * entry becomes an editable row — no key is special-cased, so a legacy scalar
+ * `years_member: 25` reads as an ordinary editable `{ op: 'eq', value: '25' }`
+ * row (R8.5 / R8.9). Each entry is read through {@link normalizeClause}, which
+ * accepts both the legacy scalar form (`{ k: 'Papier' }` → `{ op: 'eq', value:
+ * 'Papier' }`) and the new object form (`{ k: { op, value? } }`, unknown op
+ * clamped to `eq`). `null` / `undefined` entries are skipped (no narrowing).
+ * A clause's `value` is stringified for the text input (`''` when absent).
  */
 export function toFilterDrafts(
   filters: Record<string, unknown> | undefined,
@@ -121,43 +119,48 @@ export function toFilterDrafts(
   if (!filters) return [];
   const drafts: FilterDraft[] = [];
   for (const [field, raw] of Object.entries(filters)) {
-    if (RESERVED_FILTER_KEYS.includes(field)) {
-      continue;
+    const clause = normalizeClause(raw);
+    if (clause === null) {
+      continue; // null/undefined entry → no narrowing
     }
-    if (raw === null || raw === undefined) {
-      continue;
-    }
-    drafts.push({ id: nextFilterId(), field, value: String(raw) });
+    drafts.push({
+      id: nextFilterId(),
+      field,
+      op: clause.op,
+      value: clause.value ?? '',
+    });
   }
   return drafts;
 }
 
 /**
- * Compose the editable filter rows back into a `{ [fieldKey]: value }` map,
- * MERGED onto the set's existing reserved filters (so a jubilee/joined-after
- * year is preserved). Blank rows (no field, or no value) are dropped; the last
- * row wins on a duplicate field key.
+ * Compose the editable filter rows into the persisted {@link FilterClause} map,
+ * built PURELY from the editor rows (there is no reserved-key carry — every
+ * key is an ordinary editable row, so nothing is carried through from an
+ * external base).
+ *
+ * Each kept row emits the object form `{ op, value? }`, with `value` present
+ * ONLY for value-taking operators (every op except `empty` / `notEmpty`). A row
+ * with an empty field key is dropped; a value-taking row with a blank value is
+ * dropped (including `notContains` / `notRegex`, which drop like `contains` /
+ * `regex`); valueless `empty` / `notEmpty` rows are kept. The last row wins on a
+ * duplicate field key.
  */
 export function fromFilterDrafts(
   drafts: FilterDraft[],
-  base: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  // Carry the reserved year filters from the base config untouched.
-  if (base) {
-    for (const key of RESERVED_FILTER_KEYS) {
-      if (key in base && base[key] !== undefined && base[key] !== null) {
-        result[key] = base[key];
-      }
-    }
-  }
   for (const d of drafts) {
     const field = d.field.trim();
-    const value = d.value.trim();
-    if (field === '' || value === '') {
-      continue; // blank row → not a filter
+    if (field === '') {
+      continue; // unset row → not a filter
     }
-    result[field] = value;
+    const takesValue = !operatorTakesNoValue(d.op);
+    const value = d.value.trim();
+    if (takesValue && value === '') {
+      continue; // blank value-taking row → never narrows, so drop it
+    }
+    result[field] = takesValue ? { op: d.op, value } : { op: d.op };
   }
   return result;
 }
