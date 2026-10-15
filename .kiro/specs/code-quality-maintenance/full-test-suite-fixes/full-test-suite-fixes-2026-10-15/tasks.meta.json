@@ -1,0 +1,141 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. **C1. Decouple the SAM invariance test from the MySQL migration import (`ModuleNotFoundError: No module named 'mysql'`).** [M] — a SAM/DynamoDB-plane test must not transitively import `mysql.connector`.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051097809
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051106083
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792053951007
+      }
+    ],
+    "2. **H1. Fix the `membersApiService` column-preferences response-shape drift (3 failing tests, F1).** [M] — source-ahead-of-test drift; align the contract and its paired test in the same change.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051097933
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054010336
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054183135
+      }
+    ],
+    "3. **H2. Fix the `MembersFieldFormBody` rich-enum locale-label regression (`'Standard'` vs `'Standaard'`, F2).** [S] — single-assertion locale/label resolution fix.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051098055
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054188048
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054301609
+      }
+    ],
+    "4. **H3. Clear the 1 CI-blocking ruff `RUF100` in `parameter_admin_routes.py` (unused `# noqa: BLE001`).** [S] — auto-fixable; keep the human rationale comment, drop only the dead `# noqa:` token.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051098143
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054306593
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054373887
+      }
+    ],
+    "5. **H4. Apply `ruff format` to the 3 unformatted backend files (CI-blocking).** [S] — mechanical, fully auto-applied by `ruff format`.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051098253
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054379350
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054823444
+      }
+    ],
+    "6. **L1. Broaden the pre-push guard: `ruff check` + `ruff format --check` + a changed-path test subset (fail on non-zero).** [M] — carried forward across the arc; it would have blocked H3 **and** H4 before they landed on `main`.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051098372
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792054834119
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792055143515
+      }
+    ],
+    "7. **L2. Add a cross-plane import guard so a SAM test can never transitively import `mysql.connector`.** [M] — durable prevention for the C1 class.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051098477
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792055148183
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792055537895
+      }
+    ],
+    "8. **L3. Confirm ruff stays pinned to 0.16.5 (reproducibility guard).** [S] — standing guard carried forward across the arc.": [
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792051098563
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792055545041
+      },
+      {
+        "executionId": "d9c161d9-607f-47b8-89e0-83cb1f735a0f",
+        "chatSessionId": "sess_bf20b3e3-9c92-42e6-84fb-c477ff36faee",
+        "timestamp": 1792055634692
+      }
+    ]
+  }
+}

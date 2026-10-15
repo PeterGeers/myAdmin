@@ -36,6 +36,7 @@ import type {
 } from '../../types/members';
 import { LazySelect } from '../common/LazySelect';
 import type { LazyOption } from '../common/lazySelect.types';
+import { resolveOptionLabel } from '../common/lazySelect.types';
 import { listMembershipTypes } from '../../services/membersApiService';
 import {
   type FieldSection,
@@ -224,6 +225,12 @@ const FieldRow: React.FC<FieldRowProps> = ({
                 options={optionsSource}
                 optionsDepKey={isMembershipType ? 'membership_type' : undefined}
                 filterOption={filterOption}
+                // Resolve option labels against the FORM's `lang` (same as every other label here
+                // via `resolveLabel`), not LazySelect's own `i18n.language` — otherwise a localized
+                // `{ nl, en }` option label falls back to the detected UI locale instead of the
+                // locale this body was rendered with. Keeps the dropdown consistent with its
+                // FormLabel / section headings.
+                getOptionLabel={(opt) => resolveOptionLabel(opt, undefined, lang)}
                 placeholder={t('addModal.fields.selectPlaceholder')}
                 isDisabled={!editable}
                 isInvalid={showError}

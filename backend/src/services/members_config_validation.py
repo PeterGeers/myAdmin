@@ -171,6 +171,7 @@ def _field_enum_values(spec: Mapping[str, Any]) -> list | None:
     dimension values from exactly this list, so the validator checks presence here —
     an enabled scope axis on a value-less/non-enum field is rejected at save (R3.4).
     """
+
     def _collect(raw: Any) -> list | None:
         if not isinstance(raw, (list, tuple)):
             return None
@@ -469,9 +470,7 @@ def validate_default_page_size(value: Any) -> None:
         return
     # bool is a subclass of int — reject it explicitly so True/False is never stored as 1/0.
     if isinstance(value, bool) or not isinstance(value, int):
-        raise MembersConfigError(
-            {"default_page_size": "must be a positive integer"}
-        )
+        raise MembersConfigError({"default_page_size": "must be a positive integer"})
     if value <= 0:
         raise MembersConfigError(
             {"default_page_size": f"must be a positive integer (got {value})"}
