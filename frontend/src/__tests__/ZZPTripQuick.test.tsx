@@ -257,3 +257,84 @@ describe('ZZPTripQuick — odometer pre-fill (Req 10.1)', () => {
     });
   });
 });
+
+/**
+ * Bugfix: zzp-quick-trip-silent-save-failure
+ *
+ * The quick-entry page silently loses a trip when the backend REJECTS the create
+ * with a resolved `{success:false}` body (HTTP 400/500 — the HTTP layer does not
+ * throw on these, only on 401, so `createTrip` resolves rather than rejecting and
+ * the component's `catch` never fires). The classic repro is the RETURN leg: after
+ * saving the outbound leg the user reverses the route and submits again; the backend
+ * rejects (e.g. `end_odometer must be greater than start_odometer`) but the UI shows
+ * success and resets the form, discarding the entry.
+ *
+ * The Chakra auto-mock's `useToast` returns a bare vi.fn() and does not render toast
+ * content, so the reliable observable signal is the FORM-RESET side effect: on a
+ * rejected create the entered end km-stand + Van/Naar addresses must be PRESERVED
+ * (not cleared) so the user can retry.
+ */
+describe('ZZPTripQuick — silent save failure on rejected create (bug condition)', () => {
+  it('does NOT reset the form when createTrip resolves {success:false} (return-leg data loss)', async () => {
+    // Backend rejects the (return) leg but resolves — does not throw.
+    mockCreateTrip.mockResolvedValue({
+      success: false,
+      error: 'end_odometer must be greater than start_odometer',
+    } as never);
+
+    await renderPage();
+    fillRouteAndOdometer('10100');
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('REGISTREER RIT'));
+    });
+
+    // The submit reached the service with the entered payload.
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1));
+
+    // BUG CONDITION: a rejected create must NOT clear the form — the entered values
+    // must survive so the trip can be retried. On the unfixed component the success
+    // path runs and these fields are wiped (end km-stand → '', addresses → '').
+    expect((screen.getByLabelText('Eind km-stand') as HTMLInputElement).value).toBe('10100');
+    expect((screen.getByPlaceholderText('Van') as HTMLInputElement).value).toBe('Amsterdam');
+    expect((screen.getByPlaceholderText('Naar') as HTMLInputElement).value).toBe('Utrecht');
+  });
+
+  it('shows a generic fallback behavior path when {success:false} has no error message', async () => {
+    mockCreateTrip.mockResolvedValue({ success: false } as never);
+
+    await renderPage();
+    fillRouteAndOdometer('10100');
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('REGISTREER RIT'));
+    });
+
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1));
+    // Form preserved even when the backend omits an error message.
+    expect((screen.getByLabelText('Eind km-stand') as HTMLInputElement).value).toBe('10100');
+  });
+});
+
+describe('ZZPTripQuick — successful create resets the form (preservation)', () => {
+  it('clears the form and advances the start odometer when createTrip resolves {success:true}', async () => {
+    mockCreateTrip.mockResolvedValue({ success: true, data: { ...lastTrip } });
+
+    await renderPage();
+    fillRouteAndOdometer('10100');
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('REGISTREER RIT'));
+    });
+
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1));
+
+    // Happy path: addresses + end km-stand cleared, start km-stand advanced to entered end.
+    await waitFor(() => {
+      expect((screen.getByLabelText('Eind km-stand') as HTMLInputElement).value).toBe('');
+    });
+    expect((screen.getByPlaceholderText('Van') as HTMLInputElement).value).toBe('');
+    expect((screen.getByPlaceholderText('Naar') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Start km-stand') as HTMLInputElement).value).toBe('10100');
+  });
+});
