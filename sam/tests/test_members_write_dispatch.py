@@ -361,6 +361,28 @@ def test_transition_missing_to_state_returns_422(repo):
     assert resp["statusCode"] == 422
 
 
+def test_transition_out_of_scope_returns_403(repo):
+    # Tenant-scope WRITE path (Property 4): transition_member authorizes against the member's
+    # scope BEFORE running the lifecycle engine — scope is checked ahead of guards, so an
+    # out-of-scope caller gets a 403 (not a 409) and the lifecycle hook never fires / the state
+    # is never mutated. A Noord-scoped caller cannot activate a Zuid member.
+    body = _valid_member_body(region="Zuid", member_number="5007", status="pending")
+    create = app.handler(_event("POST", "/members", body=body))  # admin creates
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
+    resp = app.handler(
+        _event(
+            "POST",
+            f"/members/{mid}/memberships/MS-1/transition",
+            email=_EMAIL_NOORD,
+            body={"to_state": "active"},
+        )
+    )
+    assert resp["statusCode"] == 403
+    # Scope deny did not mutate the state.
+    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "pending"
+
+
 def test_transition_fires_on_transition_hook_only_on_success(monkeypatch, repo):
     # Register an on_transition spy for h-dcn; it must fire on an allowed move and NOT on a
     # denied one.
@@ -438,6 +460,20 @@ def test_delete_member_removes_the_record(repo):
     assert app.handler(_event("POST", "/members", body=body2))["statusCode"] == 200
 
 
+def test_delete_member_out_of_scope_returns_403(repo):
+    # Tenant-scope WRITE path (Property 4): a Noord-scoped caller must NOT be able to delete a
+    # Zuid member. delete_member authorizes against the EXISTING record's scope before the
+    # DeleteItem, so an out-of-scope delete is a 403 — and the record must survive untouched.
+    body = _valid_member_body(region="Zuid", member_number="7002")
+    create = app.handler(_event("POST", "/members", body=body))  # admin creates
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
+    resp = app.handler(_event("DELETE", f"/members/{mid}", email=_EMAIL_NOORD))
+    assert resp["statusCode"] == 403
+    # Deny-by-default did not mutate: the Zuid member is still present.
+    assert repo.get_member("h-dcn", mid) is not None
+
+
 # ── memberships ───────────────────────────────────────────────────────────────────────
 
 
@@ -458,6 +494,27 @@ def test_create_and_update_membership(repo):
     )
     assert resp["statusCode"] == 200
     assert repo.get_membership("h-dcn", mid, "MS-1")["status"] == "suspended"
+
+
+def test_create_membership_out_of_scope_returns_403(repo):
+    # Child-write tenant-scope path (Property 1/4): every membership/delegate write funnels
+    # through _writable_member_or_raise, which loads the parent member within the tenant and
+    # authorizes the write against ITS scope. A Noord-scoped caller cannot add a membership to a
+    # Zuid member → 403, and nothing is persisted.
+    body = _valid_member_body(region="Zuid", member_number="8003")
+    create = app.handler(_event("POST", "/members", body=body))  # admin creates
+    assert create["statusCode"] == 200
+    mid = _data(create)["member_id"]
+    resp = app.handler(
+        _event(
+            "POST",
+            f"/members/{mid}/memberships",
+            email=_EMAIL_NOORD,
+            body={"membership_id": "MS-7", "status": "active"},
+        )
+    )
+    assert resp["statusCode"] == 403
+    assert repo.get_membership("h-dcn", mid, "MS-7") is None
 
 
 def test_delete_membership_removes_it(repo):

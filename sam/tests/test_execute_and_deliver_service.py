@@ -87,7 +87,7 @@ class FakeRepo:
         self.get_set_calls.append((tenant_id, set_id))
         return self._sets.get((tenant_id, set_id))
 
-    def list_members(self, tenant_id, *, filters=None, scope_filter=None):
+    def list_members(self, tenant_id, *, filters=None):
         # Pin to the tenant partition — a tenant we were never seeded for yields [] (NEVER a
         # scan across other tenants' rows).
         self.list_members_calls.append(tenant_id)
