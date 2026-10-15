@@ -99,13 +99,24 @@ const mockFieldConfig: FieldConfig = {
 /** The overlay column header label the field config resolves to. */
 const OVERLAY_HEADER = 'Motorfiets';
 
-/** Wait for the table to finish loading and show the mocked rows. */
+/**
+ * Wait for the table to finish loading and show the mocked rows.
+ *
+ * Uses an explicit, generous timeout: the whole page gates on a single `loading`
+ * flag from the extracted `useMembersData` hook (both the rows and the stats
+ * strip render under `!loading`), and under the CI forks pool the initial load's
+ * microtasks can settle a little past vitest/RTL's 1000ms `waitFor` default,
+ * which intermittently reddened `drives the stats strip` with the page still on
+ * `table.loading`. A 5s ceiling removes the race without weakening any assertion
+ * (full-test-suite-fixes-2026-10-15b, H1).
+ */
+const SETTLE = { timeout: 5000 };
 const waitForRows = async () => {
   await waitFor(() => {
     expect(screen.getByText('Jan')).toBeInTheDocument();
     expect(screen.getByText('Piet')).toBeInTheDocument();
     expect(screen.getByText('Marie')).toBeInTheDocument();
-  });
+  }, SETTLE);
 };
 
 /**
@@ -375,7 +386,7 @@ describe('MembersPage (Leden Overzicht)', () => {
       // Strip is present and reports the full scoped set.
       await waitFor(() => {
         expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
-      });
+      }, SETTLE);
       expect(screen.getByTestId('stat-filtered')).toHaveTextContent('3');
 
       // Filtering the region column recomputes the strip (total stays the full
