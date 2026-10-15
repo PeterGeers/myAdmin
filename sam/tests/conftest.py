@@ -18,6 +18,67 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# Cross-plane import guard (spec full-test-suite-fixes-2026-10-15, task L2 — durable
+# prevention for the C1 class).
+#
+# The SAM / DynamoDB plane must NEVER transitively import ``mysql.connector``. C1 happened
+# because a SAM-plane test imported a Flask/MySQL-plane migration driver whose top-level
+# ``from database import DatabaseManager`` pulls in ``mysql.connector`` — a module the SAM
+# CI env deliberately does not install. It failed at collection ONLY in CI, because a local
+# dev venv HAS mysql-connector-python installed and silently masks the leak (verified: the
+# driver is importable in the backend .venv this suite runs under).
+#
+# This finder makes that leak fail fast and deterministically EVERYWHERE — not just in CI —
+# the instant any ``sam`` test transitively does ``import mysql`` / ``import mysql.connector``.
+# It is installed at conftest import time (collection), so a re-introduced C1-style leak dies
+# at collection with a clear cross-plane-leak message rather than passing locally and only
+# reddening the nightly suite. Legitimate SAM imports (boto3 / DynamoDB) are unaffected — the
+# finder blocks ONLY the ``mysql`` package.
+# ─────────────────────────────────────────────────────────────────────────────────────
+_CROSS_PLANE_LEAK_MSG = (
+    "SAM plane must not import mysql.connector (cross-plane leak). The SAM/DynamoDB plane is "
+    "deliberately MySQL-free; something under sam/ transitively did `import mysql[.connector]`. "
+    "The usual cause is reaching into a Flask/MySQL-plane module whose import graph needs the "
+    "MySQL driver (e.g. a migration driver that does `from database import DatabaseManager` at "
+    "module top level). Fix: import the pure, DB-free helper directly (not via the DB-bound "
+    "driver), or make the MySQL import lazy — do NOT add mysql-connector-python to the SAM env."
+)
+
+
+class _BlockMysqlFinder:
+    """A ``sys.meta_path`` finder that refuses to import the ``mysql`` package on the SAM plane.
+
+    Raising from ``find_spec`` surfaces at the exact import site (collection/import time) with
+    the cross-plane-leak message, so the offending SAM test is pinpointed immediately. Only the
+    ``mysql`` top-level package and its submodules are blocked; every other import is passed
+    through (``return None`` defers to the rest of ``sys.meta_path``).
+    """
+
+    def find_spec(self, name, path, target=None):
+        if name == "mysql" or name.startswith("mysql."):
+            raise ModuleNotFoundError(_CROSS_PLANE_LEAK_MSG)
+        return None
+
+
+def _install_mysql_import_guard() -> None:
+    """Install the mysql block at the front of ``sys.meta_path`` (idempotent).
+
+    Also drops any already-imported ``mysql`` module so the block is real even if something
+    imported it before conftest loaded (shouldn't happen on the SAM plane, but keeps the guard
+    honest rather than silently defeated by a warm import).
+    """
+    if any(isinstance(f, _BlockMysqlFinder) for f in sys.meta_path):
+        return
+    for _m in [m for m in list(sys.modules) if m == "mysql" or m.startswith("mysql.")]:
+        del sys.modules[_m]
+    sys.meta_path.insert(0, _BlockMysqlFinder())
+
+
+_install_mysql_import_guard()
+
+
 from sam.pretokengen import handler as handler_mod
 
 

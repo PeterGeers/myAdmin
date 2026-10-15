@@ -40,10 +40,24 @@ import json
 import logging
 import os
 import sys
-from typing import Any
 
-# Add src to path (match migrate_tenant_config_to_parameters.py)
+# Add src to path (match migrate_tenant_config_to_parameters.py), and this module's own
+# directory so the sibling pure-transform module resolves as a top-level import whether this
+# module is loaded as `migrations.migrate_overrides_to_fixed_overrides` (src on path) or with
+# `src/migrations` directly on sys.path (the SAM-plane test's layout).
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.dirname(__file__))
+
+# The PURE, DB-free row transform + predicate live in a sibling module with NO database
+# import, so they can be imported from any plane (including the SAM-plane invariance test)
+# without pulling in mysql-connector-python. Re-exported here so existing callers/tests that
+# import them from this migration module keep working.
+from overrides_key_transform import (  # noqa: F401 — re-exported for callers/tests
+    _CANONICAL_KEY,
+    _LEGACY_KEY,
+    overlay_needs_rewrite,
+    rename_overrides_key,
+)
 
 from database import DatabaseManager
 from services.parameter_service import ParameterService
@@ -54,62 +68,6 @@ logger = logging.getLogger(__name__)
 #: The members-namespace parameter whose stored JSON carries the overlay.
 _MEMBERS_NAMESPACE = "members"
 _FIELD_OVERLAY_KEY = "field_overlay"
-
-#: The legacy top-level key being retired and the canonical key it folds into.
-_LEGACY_KEY = "overrides"
-_CANONICAL_KEY = "fixed_overrides"
-
-
-def overlay_needs_rewrite(overlay: Any) -> bool:
-    """True iff ``overlay`` is a dict carrying a top-level legacy ``overrides`` key.
-
-    Pure predicate (no DB) so callers and tests can decide whether a row would change
-    without mutating it. A non-dict overlay, or one without a top-level ``overrides``
-    key, never needs a rewrite (so the migration is a no-op on it — idempotence).
-    """
-    return isinstance(overlay, dict) and _LEGACY_KEY in overlay
-
-
-def rename_overrides_key(overlay: Any) -> Any:
-    """Return a NEW overlay with the legacy ``overrides`` key folded into ``fixed_overrides``.
-
-    Pure, DB-free, and importable so the paired test (task 5.2) can exercise the merge
-    invariant, the collision rule, and idempotence without any database.
-
-    Rules:
-      - If ``overlay`` is not a dict, or carries no top-level ``overrides`` key, it is
-        returned UNCHANGED (same object) — the migration does nothing to it.
-      - Otherwise a shallow copy is made, the top-level ``overrides`` key is removed, and
-        its entries are merged into ``fixed_overrides``. On a per-key collision the
-        PRE-EXISTING ``fixed_overrides`` entry WINS (the canonical authored key). Keys
-        only in ``overrides`` are moved in. Override VALUES are copied verbatim.
-      - Only the KEY NAME is rewritten — every OTHER top-level overlay key (``fields``,
-        labels, etc.) is left exactly as-is.
-
-    Idempotent by construction: the result never carries a top-level ``overrides`` key,
-    so ``rename_overrides_key(rename_overrides_key(x)) == rename_overrides_key(x)``.
-    """
-    if not isinstance(overlay, dict) or _LEGACY_KEY not in overlay:
-        return overlay
-
-    # Shallow copy of the overlay; drop the legacy key, keep every other key as-is.
-    new_overlay = dict(overlay)
-    legacy_overrides = new_overlay.pop(_LEGACY_KEY)
-    existing_fixed = new_overlay.get(_CANONICAL_KEY)
-
-    # Build the merged map: legacy entries first, then the canonical fixed_overrides
-    # entries OVERWRITE them, so on a per-key collision the authored fixed_overrides
-    # entry WINS (R6.2). Keys present only under the legacy map are moved in. Values
-    # are copied verbatim (never altered). Non-dict operands are tolerated defensively
-    # (a non-dict side simply contributes nothing to the merge).
-    merged: dict[str, Any] = {}
-    if isinstance(legacy_overrides, dict):
-        merged.update(legacy_overrides)
-    if isinstance(existing_fixed, dict):
-        merged.update(existing_fixed)
-
-    new_overlay[_CANONICAL_KEY] = merged
-    return new_overlay
 
 
 def migrate(dry_run: bool = True) -> dict:

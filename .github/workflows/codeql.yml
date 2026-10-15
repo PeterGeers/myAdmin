@@ -13,9 +13,10 @@ name: "CodeQL Advanced"
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "test" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "test" ]
+  workflow_dispatch:        # allow manual run: gh workflow run "CodeQL Advanced" --ref <branch>
   schedule:
     - cron: '26 5 * * 5'
 

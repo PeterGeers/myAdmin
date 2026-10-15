@@ -53,6 +53,9 @@ from hypothesis import strategies as st
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
+# backend/src/migrations on sys.path so the PURE, DB-free transform module resolves. We import
+# the transform from `overrides_key_transform` (NOT the `migrate_overrides_to_fixed_overrides`
+# driver), so the SAM env never transitively imports `database`/`mysql.connector`.
 _MIGRATIONS = os.path.join(_REPO_ROOT, "backend", "src", "migrations")
 if _MIGRATIONS not in sys.path:
     sys.path.insert(0, _MIGRATIONS)
@@ -74,7 +77,9 @@ from sam.members.domain.membership_service import MembershipService
 from sam.tests.test_field_config_endpoint import FakeCatalogRepository
 
 # The PURE, DB-free config-row key migration transform (the ONLY Phase 2 data migration, R8.2).
-from migrate_overrides_to_fixed_overrides import rename_overrides_key
+# Imported from the DB-free `overrides_key_transform` module — NOT the migration driver — so this
+# SAM-plane test never transitively imports `database`/`mysql.connector`.
+from overrides_key_transform import rename_overrides_key
 
 
 # ── Generators ──────────────────────────────────────────────────────────────────────────

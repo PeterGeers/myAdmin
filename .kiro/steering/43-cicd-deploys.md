@@ -45,8 +45,31 @@ gates (today: CodeQL + GitGuardian). CI mapping is separate from app source (Req
 | `full-test-suite.yml` ("Full Test Suite") | **ACTIVE — sole lint/test gate today** | Full backend+SAM+frontend suites + artifacts (SAM/frontend lint report-only). Nightly cron `37 1 * * *` + dispatch (scope: all/backend/sam/frontend). |
 | CodeQL + GitGuardian | ACTIVE (only per-PR gates today) | Code scanning + secret scanning. Must be green on a PR before merge. |
 
-CodeQL + GitGuardian are GitHub UI/app setup, not committed YAML. (`gh workflow list --all`
-also shows a legacy `disabled_manually` CodeQL entry; the active scan is the default-setup one.)
+**CodeQL** is an ADVANCED-SETUP workflow committed at `.github/workflows/codeql.yml`
+(`name: "CodeQL Advanced"`). It triggers on push + pull_request to `main` AND `test`, on a
+weekly schedule, and on **`workflow_dispatch`** — so it gates PRs into `test` and `main`, and can
+be run manually. It REPLACED GitHub's old default-setup CodeQL (the non-dispatchable
+`event: dynamic` scan); default setup must stay OFF in Settings → Security → Code scanning or
+the two conflict. Languages: python, javascript-typescript, actions.
+
+**GitGuardian** (secret scanning) is separate and enforced LOCALLY by the git hooks (pre-commit
+`ggshield` + pre-push `scripts/scan-secrets-local.sh`); the `GitGuardian Security Checks` entry
+on a PR is the GitGuardian App mirroring that.
+
+Trigger CodeQL manually:
+
+```bash
+gh workflow run "CodeQL Advanced" --ref <branch>     # e.g. --ref test
+gh run list --workflow "CodeQL Advanced" --limit 5   # watch it
+```
+
+Check a commit's PR gate results (CodeQL + GitGuardian):
+
+```bash
+# <sha> = the commit to inspect (for a PR, its head commit):
+SHA=$(gh pr view <PR> --json headRefOid --jq .headRefOid)   # or: git rev-parse origin/test
+gh api repos/PeterGeers/myAdmin/commits/$SHA/check-runs
+```
 
 > **Bugfix scope note:** a full-suite run is not always warranted. For a scoped bugfix prefer
 > the paired tests for changed files (change-with-tests contract, `34-backend-testing.md` /
