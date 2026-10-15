@@ -437,7 +437,10 @@ describe('MemberPivotViews', () => {
       dataSource: 'members',
       groupColumns: [],
       aggregateMeasures: [],
-      filters: { clubblad: 'Papier' },
+      // Object-form clause (the shape the picker helpers now compose, task 4.1):
+      // `{ field: { op, value } }`. The engine narrows it identically to the
+      // former legacy scalar `{ clubblad: 'Papier' }` — an eq match (R8.1).
+      filters: { clubblad: { op: 'eq', value: 'Papier' } },
       columnPivot: null,
       columnNestLevels: [],
       displayMode: 'flat',
@@ -462,7 +465,53 @@ describe('MemberPivotViews', () => {
     fireEvent.click(screen.getByTestId('member-pivot-execute'));
 
     const table = await screen.findByTestId('mock-pivot-result-table');
-    // Only the two 'Papier'/'papier' members survive the generic equality filter.
+    // Only the two 'Papier'/'papier' members survive the generic eq operator clause.
+    expect(table).toHaveAttribute('data-row-count', '2');
+  });
+
+  it("applies a LEGACY scalar DEFINITION filter at execute as an eq clause (R8.1/R8.8)", async () => {
+    // A set created BEFORE this feature stores the flat scalar form
+    // `{ field: value }`. It must keep running identically — the engine reads a
+    // bare scalar as an eq clause whose value is the stringified scalar, so the
+    // narrowing result is the same as the object-form `{ op: 'eq', value }`
+    // above (backward compatibility, R8.1/R8.8).
+    const paperRows = [
+      { member_id: 'a', clubblad: 'Papier' },
+      { member_id: 'b', clubblad: 'Digitaal' },
+      { member_id: 'c', clubblad: 'papier' }, // case-insensitive match
+    ] as unknown as MemberRow[];
+    const legacyConfig: PivotConfig = {
+      dataSource: 'members',
+      groupColumns: [],
+      aggregateMeasures: [],
+      // Pre-feature legacy scalar shape — NO operator wrapper.
+      filters: { clubblad: 'Papier' },
+      columnPivot: null,
+      columnNestLevels: [],
+      displayMode: 'flat',
+    };
+    const listSummary = { id: 'set-legacy', name: 'Legacy clubblad paper', kind: 'list' as const };
+    listAnalyticsSets.mockResolvedValue([listSummary]);
+    getAnalyticsSet.mockResolvedValue({ ...listSummary, definition: legacyConfig, created_at: '', updated_at: '' });
+    getPreferredList.mockResolvedValue({ sub: 'u1', refs: ['set:set-legacy'], updated_at: '' });
+
+    render(
+      <MemberPivotViews {...makeProps({ processedData: paperRows, members: paperRows as never })} />,
+    );
+    await waitFor(() => {
+      const select = screen.getByTestId('member-pivot-set-select') as HTMLSelectElement;
+      const values = Array.from(select.querySelectorAll('option')).map((o) => o.value);
+      expect(values).toContain('model:set-legacy');
+    });
+
+    fireEvent.change(screen.getByTestId('member-pivot-set-select'), {
+      target: { value: 'model:set-legacy' },
+    });
+    fireEvent.click(screen.getByTestId('member-pivot-execute'));
+
+    const table = await screen.findByTestId('mock-pivot-result-table');
+    // The legacy scalar narrows exactly like the object-form eq clause: the two
+    // 'Papier'/'papier' members survive, 'Digitaal' is excluded.
     expect(table).toHaveAttribute('data-row-count', '2');
   });
 
@@ -752,8 +801,11 @@ describe('MemberPivotViews', () => {
       await waitFor(() => expect(updateAnalyticsSet).toHaveBeenCalledTimes(1));
       const [id, , config] = updateAnalyticsSet.mock.calls[0];
       expect(id).toBe('set-7');
-      // The set's own definition filters travel with the update (R4.4).
-      expect(config.filters).toEqual({ clubblad: 'Papier' });
+      // The set's own definition filters travel with the update (R4.4). The
+      // picker recomposes them through the filter-row helpers, so a legacy
+      // scalar seed re-emits in the object clause form `{ op: 'eq', value }`
+      // (task 4.1) — the same eq narrowing, round-tripped to the new shape.
+      expect(config.filters).toEqual({ clubblad: { op: 'eq', value: 'Papier' } });
       await waitFor(() => expect(listAnalyticsSets.mock.calls.length).toBeGreaterThanOrEqual(2));
     });
 
@@ -792,8 +844,9 @@ describe('MemberPivotViews', () => {
       expect(updateAnalyticsSet).not.toHaveBeenCalled();
       const [name, config] = saveAnalyticsSet.mock.calls[0];
       expect(name).toBe('Variant');
-      // The seeded set's own filters carried into the new set (R4.4).
-      expect(config.filters).toEqual({ clubblad: 'Papier' });
+      // The seeded set's own filters carried into the new set (R4.4), recomposed
+      // through the filter-row helpers to the object clause form (task 4.1).
+      expect(config.filters).toEqual({ clubblad: { op: 'eq', value: 'Papier' } });
     });
 
     it('round-trips a saved set: save → appears in the list → load reproduces its config incl. filters', async () => {

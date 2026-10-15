@@ -364,3 +364,67 @@ class TestAnalyticsSetEntryDeliveryRoundTrip:
             }
         )
         assert rebuilt.delivery is None
+
+
+class TestAnalyticsSetEntryOpaqueFilterRoundTrip:
+    """R9 — the saved-set ``definition`` is OPAQUE to the module: an object-valued
+    ``{op, value}`` filter clause (the new frontend filter-operator shape) must round-trip
+    through to_item/from_item unchanged, and validate() must accept it WITHOUT inspecting the
+    filters entry shape — so persisting the richer filter structure needs NO backend change.
+
+    Feature: member-analytics-pivot-filter-operators,
+    Property 14: SAM definition round-trip is opaque to filter shape
+
+    Validates: Requirements 9.1, 9.2, 9.3
+    """
+
+    def _object_valued_filters(self):
+        """A ``definition.filters`` map in the NEW object form the frontend now persists:
+        each entry is a ``{op, value}`` FilterClause (incl. a valueless presence op)."""
+        return {
+            "clubblad": {"op": "eq", "value": "Papier"},
+            "years_member": {"op": "gte", "value": "25"},
+            "name": {"op": "contains", "value": "jan"},
+            "email": {"op": "notEmpty"},
+        }
+
+    def test_validate_accepts_object_valued_filter_clause(self):
+        # R9.1 — the store validates ``definition`` as a mapping and never inspects the
+        # ``filters`` entry shape, so an object-valued clause is accepted unchanged.
+        definition = _definition(group=[], measures=[])
+        definition["filters"] = self._object_valued_filters()
+        _entry(kind="list", definition=definition).validate()  # must not raise
+
+    def test_to_item_from_item_round_trips_object_valued_filters_unchanged(self):
+        # R9.2 — an object-valued ``{op, value}`` filter entry survives serialization and
+        # deserialization byte-for-byte (the module is agnostic to the filter shape).
+        filters = self._object_valued_filters()
+        definition = _definition(group=[], measures=[])
+        definition["filters"] = filters
+        original = _entry(kind="list", definition=definition)
+
+        rebuilt = AnalyticsSetEntry.from_item(original.to_item())
+
+        assert rebuilt == original
+        assert rebuilt.definition["filters"] == filters
+        # Each clause is preserved as the opaque object form (not flattened to a scalar).
+        assert rebuilt.definition["filters"]["clubblad"] == {"op": "eq", "value": "Papier"}
+        assert rebuilt.definition["filters"]["years_member"] == {"op": "gte", "value": "25"}
+        assert rebuilt.definition["filters"]["email"] == {"op": "notEmpty"}
+
+    def test_mixed_legacy_scalar_and_object_filters_round_trip_unchanged(self):
+        # R9.3 — a mixed map (a legacy scalar entry alongside object-valued clauses) is equally
+        # opaque: the store carries both forms through unchanged with no special-casing.
+        filters = {
+            "clubblad": "Papier",  # legacy scalar form
+            "years_member": {"op": "gte", "value": "25"},  # new object form
+        }
+        definition = _definition(group=[], measures=[])
+        definition["filters"] = filters
+        original = _entry(kind="list", definition=definition)
+
+        rebuilt = AnalyticsSetEntry.from_item(original.to_item())
+
+        assert rebuilt.definition["filters"] == filters
+        assert rebuilt.definition["filters"]["clubblad"] == "Papier"
+        assert rebuilt.definition["filters"]["years_member"] == {"op": "gte", "value": "25"}
