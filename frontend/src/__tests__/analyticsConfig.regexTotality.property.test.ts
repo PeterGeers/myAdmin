@@ -17,9 +17,8 @@
  * Validates: Requirements 7.1, 7.2
  * Spec: `.kiro/specs/Members/member-analytics-pivot-filter-operators`.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it } from 'vitest';
 import fc from 'fast-check';
-
 import { applyDefinitionFilters } from '../components/members/analytics/analyticsConfig';
 import type { FieldConfig, MemberRow } from '../types/members';
 

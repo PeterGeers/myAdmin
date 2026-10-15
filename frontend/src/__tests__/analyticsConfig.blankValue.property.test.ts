@@ -20,7 +20,6 @@
  */
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-
 import { applyDefinitionFilters } from '../components/members/analytics/analyticsConfig';
 import type { FieldConfig, FieldConfigField, MemberRow } from '../types/members';
 import type { FilterOperator } from '../types/pivot';
