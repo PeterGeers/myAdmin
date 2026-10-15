@@ -182,23 +182,23 @@ def validate_category_purpose(
     valid_categories: list[str] | None,
     valid_purposes: list[str] | None,
 ) -> None:
-    """Warn if category or purpose not in configured lists."""
+    """Warn if trip_category is not in the configured list.
+
+    ``trip_category`` is a small fixed taxonomy, so an unknown value is flagged
+    (as a non-blocking warning). ``trip_purpose`` is free-text, business-owned
+    data with no configurable allow-list, so it is NOT checked here — a spurious
+    "unknown purpose" warning would be misleading and inconsistent with the
+    create path, which accepts any purpose (see
+    ``TripService._validate_category_and_purpose``). ``valid_purposes`` is kept
+    in the signature for call-site compatibility but is intentionally unused.
+    """
+    _ = valid_purposes  # intentionally unused: purpose is free-text
     if valid_categories:
         category = row.get("trip_category")
         if category and category not in valid_categories:
             row["_messages"].append(
                 f"Onbekende categorie: '{category}' "
                 f"(verwacht: {', '.join(valid_categories)})"
-            )
-            if row["_status"] == "ok":
-                row["_status"] = "warning"
-
-    if valid_purposes:
-        purpose = row.get("trip_purpose")
-        if purpose and purpose not in valid_purposes:
-            row["_messages"].append(
-                f"Onbekend doel: '{purpose}' "
-                f"(verwacht: {', '.join(valid_purposes)})"
             )
             if row["_status"] == "ok":
                 row["_status"] = "warning"

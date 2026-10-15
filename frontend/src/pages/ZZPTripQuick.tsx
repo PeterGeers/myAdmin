@@ -182,7 +182,26 @@ const ZZPTripQuick: React.FC = () => {
         client_name: trimmedClientName === '' ? null : trimmedClientName,
       };
 
-      await createTrip(tripData);
+      const resp = await createTrip(tripData);
+
+      // The HTTP layer resolves (does not throw) on a 4xx/5xx {success:false}
+      // body, so a backend rejection surfaces here as a resolved response — NOT
+      // as a thrown error. Inspect `success` before reporting a save: otherwise
+      // a rejected (e.g. return) leg would falsely show success and the form
+      // reset below would discard the user's entry (silent data loss).
+      if (!resp.success) {
+        toast({
+          title: 'Rit niet opgeslagen',
+          description:
+            resp.error ||
+            'De rit kon niet worden opgeslagen. Controleer de gegevens en probeer opnieuw.',
+          status: 'error',
+          duration: 5000,
+        });
+        // Keep the form intact (no reset, no odometer advance) so the trip can
+        // be corrected and retried.
+        return;
+      }
 
       toast({
         title: 'Rit geregistreerd!',
