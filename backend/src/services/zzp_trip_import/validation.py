@@ -164,9 +164,7 @@ def validate_odometer_values(row: dict) -> None:
             )
             row["_status"] = "error"
         if end is not None and not isinstance(end, (int, float)):
-            row["_messages"].append(
-                f"Ongeldige km-stand (eind): '{end}' is geen getal"
-            )
+            row["_messages"].append(f"Ongeldige km-stand (eind): '{end}' is geen getal")
             row["_status"] = "error"
         return
 
