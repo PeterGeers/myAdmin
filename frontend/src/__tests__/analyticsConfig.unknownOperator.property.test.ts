@@ -22,7 +22,6 @@
  */
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-
 import { applyDefinitionFilters } from '../components/members/analytics/analyticsConfig';
 import { normalizeClause } from '../types/pivot';
 import type { FieldConfig, MemberRow } from '../types/members';
