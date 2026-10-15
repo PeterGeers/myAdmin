@@ -208,15 +208,34 @@ class TestCreateTrip:
             svc.create_trip(TENANT, data, "user@example.com")
 
     @patch("services.zzp_trip_service.TripService.validate_fields")
-    def test_invalid_purpose_raises_value_error(self, mock_validate):
-        """Invalid trip_purpose raises ValueError."""
+    def test_free_text_purpose_is_accepted(self, mock_validate):
+        """trip_purpose is free-text (business-owned): any non-empty value is
+        accepted, including a value copied from a route preset's default_purpose.
+        A non-listed purpose must NOT raise (regression: previously an undocumented
+        allow-list rejected it, causing silent trip loss on the quick-entry page)."""
+        db = Mock()
+        # Mirror the proven create-path call sequence (see
+        # test_defaults_category_and_purpose): validate_vehicle, detect_gap
+        # (prior trip row so it short-circuits), INSERT, audit, get_trip, enrich.
+        created = _trip_row({"id": 99, "trip_purpose": "Financieel advies"})
+        db.execute_query = Mock(
+            side_effect=[
+                [{"id": 1}],                      # _validate_vehicle
+                [{"end_odometer": 45218}],        # detect_gap: prior trip (no gap)
+                99,                               # INSERT -> new trip id
+                None,                             # _write_audit_entry
+                [created],                        # get_trip
+                [],                               # enrich_with_contacts
+            ]
+        )
         param_svc = Mock()
         param_svc.get_param = Mock(return_value=None)
-        svc = _make_service(parameter_service=param_svc)
+        svc = _make_service(db=db, parameter_service=param_svc)
 
-        data = _valid_trip_data({"trip_purpose": "Strandbezoek"})
-        with pytest.raises(ValueError, match="Invalid trip_purpose"):
-            svc.create_trip(TENANT, data, "user@example.com")
+        data = _valid_trip_data({"trip_purpose": "Financieel advies"})
+        # Must not raise — a non-listed, free-text purpose is allowed.
+        result = svc.create_trip(TENANT, data, "user@example.com")
+        assert result["success"] is True
 
     @patch("services.zzp_trip_service.TripService.validate_fields")
     def test_vehicle_not_found_raises_value_error(self, mock_validate):
@@ -911,14 +930,15 @@ class TestValidateCategoryAndPurpose:
         with pytest.raises(ValueError, match="Invalid trip_category 'Vakantie'"):
             svc._validate_category_and_purpose(TENANT, "Vakantie", "Klantbezoek")
 
-    def test_invalid_purpose_raises_value_error(self):
-        """Invalid purpose raises ValueError."""
+    def test_free_text_purpose_does_not_raise(self):
+        """trip_purpose is free-text: a non-listed value must NOT raise (only
+        trip_category is validated)."""
         param_svc = Mock()
         param_svc.get_param = Mock(return_value=None)
         svc = _make_service(parameter_service=param_svc)
 
-        with pytest.raises(ValueError, match="Invalid trip_purpose 'Strandbezoek'"):
-            svc._validate_category_and_purpose(TENANT, "Zakelijk", "Strandbezoek")
+        # Should not raise for any purpose, including one not in the defaults.
+        svc._validate_category_and_purpose(TENANT, "Zakelijk", "Strandbezoek")
 
     def test_parameter_fallback_to_defaults(self):
         """When ParameterService returns None, falls back to MODULE_REGISTRY."""
@@ -943,12 +963,13 @@ class TestValidateCategoryAndPurpose:
         param_svc.get_param = Mock(side_effect=get_param_side_effect)
         svc = _make_service(parameter_service=param_svc)
 
-        # Default categories no longer valid
+        # Default categories no longer valid (category IS validated).
+        # Purpose is free-text, so any purpose value is accepted alongside.
         with pytest.raises(ValueError, match="Invalid trip_category"):
-            svc._validate_category_and_purpose(TENANT, "Zakelijk", "Purpose1")
+            svc._validate_category_and_purpose(TENANT, "Zakelijk", "anything")
 
-        # Custom categories are valid
-        svc._validate_category_and_purpose(TENANT, "Custom1", "Purpose1")
+        # Custom categories are valid; a free-text purpose is accepted.
+        svc._validate_category_and_purpose(TENANT, "Custom1", "anything")
 
 
 # ── detect_gap ──────────────────────────────────────────────

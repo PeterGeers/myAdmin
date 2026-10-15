@@ -206,22 +206,27 @@ class TripService(FieldConfigMixin):
     def _validate_category_and_purpose(
         self, tenant: str, category: str, purpose: str
     ) -> None:
-        """Validate trip_category and trip_purpose against configured parameter lists.
+        """Validate trip_category against the configured parameter list.
 
-        Raises ValueError if either value is not in the allowed list.
+        ``trip_category`` is a small fixed taxonomy (Zakelijk / Privé / Woon-werk)
+        that drives bijtelling and summary logic, so it is validated and raises
+        ValueError when not in the allowed list.
+
+        ``trip_purpose`` is intentionally NOT validated: it is free-text,
+        business-owned descriptive data with no configurable source wired up
+        (the ``zzp_ritten.trip_purposes`` parameter was only ever read, never
+        configurable). An allow-list here wrongly rejected legitimate purposes —
+        e.g. a value copied from a route preset's ``default_purpose`` — causing
+        silent trip loss on the quick-entry page. Any non-empty purpose is
+        accepted (data-ownership rule: the system does not reject the owner's own
+        descriptive text). ``purpose`` is accepted here and still subject to the
+        required-field check in :meth:`validate_fields`.
         """
         valid_categories = self.get_trip_categories(tenant)
         if category not in valid_categories:
             raise ValueError(
                 f"Invalid trip_category '{category}'. "
                 f"Must be one of: {', '.join(valid_categories)}"
-            )
-
-        valid_purposes = self.get_trip_purposes(tenant)
-        if purpose not in valid_purposes:
-            raise ValueError(
-                f"Invalid trip_purpose '{purpose}'. "
-                f"Must be one of: {', '.join(valid_purposes)}"
             )
 
     def _validate_vehicle(self, tenant: str, vehicle_id: int) -> None:
