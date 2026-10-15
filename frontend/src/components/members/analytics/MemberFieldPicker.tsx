@@ -97,6 +97,22 @@ import type {
 } from '../../../types/pivot';
 import { saveAnalyticsSet, updateAnalyticsSet } from '../../../services/membersApiService';
 import FieldChecklist from '../FieldChecklist';
+// The pure draft/label/filter transforms live in a sibling helpers module (clean cohesion seam).
+import {
+  AGGREGATE_FUNCTIONS,
+  COUNT_STAR,
+  resolveLabel,
+  nextMeasureId,
+  toDrafts,
+  fromDrafts,
+  nextFilterId,
+  toFilterDrafts,
+  fromFilterDrafts,
+  pickableFields,
+  seedListColumns,
+  type MeasureDraft,
+  type FilterDraft,
+} from './memberFieldPicker.helpers';
 
 /** The data source tag the client pivot adapter resolves member rows against. */
 export const MEMBER_PIVOT_DATA_SOURCE = 'members';
@@ -114,146 +130,8 @@ export interface PivotSeed {
   name?: string;
 }
 
-/** The aggregate functions the framework supports (mirrors `AggregateFunction`). */
-const AGGREGATE_FUNCTIONS: readonly AggregateFunction[] = [
-  'COUNT',
-  'SUM',
-  'AVG',
-  'MIN',
-  'MAX',
-];
-
-/** The COUNT(*) sentinel — count all rows in a group, not a specific column. */
-const COUNT_STAR = '*';
-
 /** `members`-namespace i18n key prefix for every label this modal renders. */
 const T = 'analytics.pivotViews.fieldPicker';
-
-/**
- * Resolve a localized (`{nl,en}`) or plain-string label to the active language,
- * mirroring the Members table's `fieldForm.resolveLabel` (prefer active language,
- * then `nl`, then `en`, then the fallback). Kept local so the analytics surface
- * has no cross-module import of a form helper (R4.5 / R6.1).
- */
-function resolveLabel(
-  label: string | LocalizedLabel | undefined,
-  lang: string,
-  fallback: string,
-): string {
-  if (!label) return fallback;
-  if (typeof label === 'string') return label;
-  return label[lang] || label.nl || label.en || fallback;
-}
-
-/** A single composable aggregate-measure row in local state (stable id for React keys). */
-interface MeasureDraft {
-  id: string;
-  function: AggregateFunction;
-  /** Field key, or `''` meaning COUNT(*) (all rows). */
-  column: string;
-}
-
-let measureIdSeq = 0;
-function nextMeasureId(): string {
-  measureIdSeq += 1;
-  return `measure-${measureIdSeq}`;
-}
-
-/** Turn a config's `aggregateMeasures` into editable `MeasureDraft`s. */
-function toDrafts(measures: AggregateMeasure[] | undefined): MeasureDraft[] {
-  return (measures ?? []).map((m) => ({
-    id: nextMeasureId(),
-    function: m.function,
-    column: m.column === COUNT_STAR ? '' : m.column,
-  }));
-}
-
-/** Turn editable `MeasureDraft`s back into framework `AggregateMeasure`s. */
-function fromDrafts(drafts: MeasureDraft[]): AggregateMeasure[] {
-  return drafts.map((d) => ({
-    function: d.function,
-    column: d.function === 'COUNT' && d.column === '' ? COUNT_STAR : d.column,
-  }));
-}
-
-/**
- * The reserved definition-filter keys the jubilee / new-members selectors own
- * (mirrors `analyticsConfig`'s `JUBILEE_YEAR_FILTER_KEY` /
- * `JOINED_AFTER_FILTER_KEY`). The picker's generic Filters section never shows
- * or clobbers these — they are year-aware filters driven by the Pivot Views
- * selector UI, so they are carried through untouched on the composed config.
- * Hardcoded here (rather than imported) to keep the picker's definition filters
- * independent of the selector plumbing.
- */
-const RESERVED_FILTER_KEYS: readonly string[] = ['years_member', 'joined_after_year'];
-
-/** A single composable definition-filter row in local state (stable id for React keys). */
-interface FilterDraft {
-  id: string;
-  /** Field key the filter matches on, or `''` (unset row). */
-  field: string;
-  /** The value the field must equal (string equality, applied at execute time). */
-  value: string;
-}
-
-let filterIdSeq = 0;
-function nextFilterId(): string {
-  filterIdSeq += 1;
-  return `filter-${filterIdSeq}`;
-}
-
-/**
- * Seed the editable filter rows from a config's `filters` map, SKIPPING the
- * reserved year keys (they are not generic equality filters). Each remaining
- * entry becomes an editable row so a saved set's definition filters round-trip
- * through the editor (R4.4). A value is stringified for the text input.
- */
-function toFilterDrafts(
-  filters: Record<string, unknown> | undefined,
-): FilterDraft[] {
-  if (!filters) return [];
-  const drafts: FilterDraft[] = [];
-  for (const [field, raw] of Object.entries(filters)) {
-    if (RESERVED_FILTER_KEYS.includes(field)) {
-      continue;
-    }
-    if (raw === null || raw === undefined) {
-      continue;
-    }
-    drafts.push({ id: nextFilterId(), field, value: String(raw) });
-  }
-  return drafts;
-}
-
-/**
- * Compose the editable filter rows back into a `{ [fieldKey]: value }` map,
- * MERGED onto the set's existing reserved filters (so a jubilee/joined-after
- * year is preserved). Blank rows (no field, or no value) are dropped; the last
- * row wins on a duplicate field key.
- */
-function fromFilterDrafts(
-  drafts: FilterDraft[],
-  base: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  // Carry the reserved year filters from the base config untouched.
-  if (base) {
-    for (const key of RESERVED_FILTER_KEYS) {
-      if (key in base && base[key] !== undefined && base[key] !== null) {
-        result[key] = base[key];
-      }
-    }
-  }
-  for (const d of drafts) {
-    const field = d.field.trim();
-    const value = d.value.trim();
-    if (field === '' || value === '') {
-      continue; // blank row → not a filter
-    }
-    result[field] = value;
-  }
-  return result;
-}
 
 /**
  * An existing saved member set the picker edits (task 7.5 — update path). When
@@ -305,22 +183,6 @@ export interface MemberFieldPickerProps {
    * backend omits it from a save response.
    */
   onSaved?: (config: PivotConfig, name: string, modelId?: string) => void;
-}
-
-/**
- * Build the composable field list from the resolved field config: every field
- * present (fixed ⊕ overlay ⊕ calculated), skipping entries explicitly hidden
- * (`visible === false`) and any without a key. Order follows the config's own
- * order (already sorted by the module), so the picker reflects the tenant's
- * configured field set verbatim (R4.5 / R6.1).
- */
-function pickableFields(fieldConfig: FieldConfig | null): FieldConfigField[] {
-  const fields = fieldConfig?.fields;
-  if (!Array.isArray(fields)) return [];
-  return fields.filter(
-    (f): f is FieldConfigField =>
-      !!f && typeof f.key === 'string' && f.key !== '' && f.visible !== false,
-  );
 }
 
 export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
@@ -759,42 +621,5 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
     </Modal>
   );
 };
-
-/**
- * Seed the list-column selection when the picker opens on a (list) set.
- *
- * Precedence:
- *   1. the config's own `listColumns` (a preset / previously-saved list set that
- *      already named its columns) — used verbatim so editing preserves them;
- *   2. otherwise, a legacy saved/preset LIST set (no group columns) that never
- *      named its columns DEFAULTS to every pickable field — so an old set still
- *      renders its full column set rather than near-empty (the "missing columns"
- *      fix). An aggregate set (group columns present) seeds no list columns.
- *   3. a brand-new blank compose (`config === undefined`) seeds NOTHING — the
- *      user picks the list columns they want rather than starting with every
- *      field pre-checked. The save validation still requires ≥1 list column for
- *      a list set, so a new set can never save near-empty.
- *
- * The `fieldConfig` arg is retained for the legacy-set fallback.
- */
-function seedListColumns(
-  config: PivotConfig | undefined,
-  fieldConfig: FieldConfig | null,
-): string[] {
-  const existing = config?.listColumns;
-  if (Array.isArray(existing) && existing.length > 0) {
-    return existing.filter((k): k is string => typeof k === 'string' && k !== '');
-  }
-  // Brand-new blank compose: nothing pre-selected (user's explicit choice).
-  if (!config) {
-    return [];
-  }
-  const isAggregate = (config.groupColumns?.length ?? 0) > 0;
-  if (isAggregate) {
-    return [];
-  }
-  // Legacy saved/preset list set with no named columns → full set fallback.
-  return pickableFields(fieldConfig).map((f) => f.key);
-}
 
 export default MemberFieldPicker;

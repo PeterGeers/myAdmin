@@ -12,8 +12,16 @@
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * A single CSV cell value. CSV source rows carry arbitrary serializable
+ * values (strings, numbers, booleans, null/undefined, …), so this is `unknown`
+ * rather than `any`: callers must format/coerce (via a {@link CellFormatter}
+ * or the built-in default) before the value is written.
+ */
+export type CellValue = unknown;
+
 /** Optional formatter applied to each cell value before CSV encoding. */
-export type CellFormatter = (value: any, columnIndex: number) => string;
+export type CellFormatter = (value: CellValue, columnIndex: number) => string;
 
 /** Options for CSV generation. */
 export interface GenerateCsvOptions {
@@ -45,7 +53,7 @@ export interface GenerateCsvOptions {
  */
 export function generateCsv(
   headers: string[],
-  rows: any[][],
+  rows: CellValue[][],
   options?: GenerateCsvOptions,
 ): string {
   const delimiter = options?.delimiter ?? ',';
@@ -87,7 +95,7 @@ export function generateCsv(
  */
 export function generateCsvFromObjects(
   columns: { key: string; header: string }[],
-  data: Record<string, any>[],
+  data: Record<string, CellValue>[],
   options?: GenerateCsvOptions,
 ): string {
   const headers = columns.map((c) => c.header);
@@ -145,7 +153,7 @@ function escapeCsvField(value: string, delimiter: string): string {
  * Default formatting for cell values.
  * Converts null/undefined to empty string, everything else to string.
  */
-function defaultFormat(value: any): string {
+function defaultFormat(value: CellValue): string {
   if (value == null) return '';
   if (typeof value === 'number') return String(value);
   return String(value);
