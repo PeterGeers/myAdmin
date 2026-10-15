@@ -73,11 +73,9 @@ import {
   AlertDialogOverlay,
   Box,
   Button,
-  Checkbox,
   FormControl,
   FormLabel,
   HStack,
-  IconButton,
   Input,
   Menu,
   MenuButton,
@@ -95,7 +93,6 @@ import {
   VStack,
   useToast,
 } from '@chakra-ui/react';
-import { AddIcon, DeleteIcon, MinusIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import type { PivotConfig, PivotResult } from '../../../types/pivot';
 import type {
@@ -105,7 +102,6 @@ import type {
   MemberSchedule,
   MemberScheduleCadence,
 } from '../../../types/members';
-import PivotResultTable from '../../pivot/PivotResultTable';
 import {
   listAnalyticsSets,
   getAnalyticsSet,
@@ -141,95 +137,18 @@ import {
 } from '../../../services/memberTemplateService';
 import AnalyticsStateNotice from './areas/AnalyticsStateNotice';
 import { applyDefinitionFilters } from './analyticsConfig';
-import type { FieldConfigField, LocalizedLabel } from '../../../types/members';
-import type { AggregateFunction } from '../../../types/pivot';
-
-/**
- * A selectable set in the dropdown — a materialized preset or a saved member
- * model — flattened to the small shape the dropdown + Execute need.
- */
-interface SelectableSet {
-  /** Stable, collision-free option value (`model:<id>`). */
-  optionValue: string;
-  /** Already-resolved display label (the saved model name). */
-  label: string;
-  /** Which group the option belongs to (saved member models only). */
-  source: 'model';
-  /** A saved set's id (the backend `set_id` string), loaded on Execute. */
-  modelId?: string;
-}
-
-const MODEL_PREFIX = 'model:';
-
-// The preferred list (R11.2) stores TAGGED references, not copies: a saved
-// tenant-shared set is `set:<id>`. The dropdown's internal option scheme uses
-// `model:<id>` for a saved set; these two helpers bridge the two so the
-// preferred list speaks the backend's `set:` vocabulary.
-const SET_PREFIX = 'set:';
-
-/**
- * Convert a dropdown option value (`model:<id>`) into the backend preferred-list
- * tagged reference (`set:<id>`). Returns null when the option value is not a
- * recognizable saved-set reference.
- */
-function optionValueToRef(optionValue: string): string | null {
-  if (optionValue.startsWith(MODEL_PREFIX)) {
-    return `${SET_PREFIX}${optionValue.slice(MODEL_PREFIX.length)}`;
-  }
-  return null;
-}
-
-/**
- * Resolve a localized (`{nl,en}`) or plain-string label to the active language,
- * mirroring the field picker's `resolveLabel` (prefer active language, then
- * `nl`, then `en`, then the fallback). Kept local so the result-header label map
- * is built from the SAME field config the picker lists (no hardcoded English,
- * findings: "result column headers stay English").
- */
-function resolveLabel(
-  label: string | LocalizedLabel | undefined,
-  lang: string,
-  fallback: string,
-): string {
-  if (!label) return fallback;
-  if (typeof label === 'string') return label;
-  return label[lang] || label.nl || label.en || fallback;
-}
-
-/**
- * Parse an aggregate result-column name of the SQL-style form `FUNC(column)`
- * (e.g. `COUNT(*)`, `SUM(age)`) into its function + inner column, or `null` when
- * the name is not an aggregate expression (a plain group/list column key). Used
- * to build a localized aggregate header ("Aantal (Leeftijd)" / "Count (Age)")
- * from the field config + an i18n function label.
- */
-function parseAggregateName(
-  name: string,
-): { fn: AggregateFunction; inner: string } | null {
-  const match = /^([A-Z]+)\((.*)\)$/.exec(name);
-  if (!match) {
-    return null;
-  }
-  const fn = match[1] as AggregateFunction;
-  return { fn, inner: match[2] };
-}
-
-
-
-/**
- * Resolve the `PivotConfig` for the chosen set. A saved set's full definition is
- * fetched via the Members API `getAnalyticsSet` (which converts the module's
- * snake_case `definition` into a camelCase `PivotConfig`), so the saved set's own
- * definition filters travel with it (R4.4), never the page's live filter
- * (R4.4a).
- */
-async function resolveConfig(set: SelectableSet): Promise<PivotConfig | undefined> {
-  if (typeof set.modelId === 'string') {
-    const saved = await getAnalyticsSet(set.modelId);
-    return saved.definition;
-  }
-  return undefined;
-}
+import type { FieldConfigField } from '../../../types/members';
+import MemberPivotResultActions from './MemberPivotResultActions';
+import MemberPivotLibraryModal from './MemberPivotLibraryModal';
+import {
+  type SelectableSet,
+  MODEL_PREFIX,
+  SET_PREFIX,
+  optionValueToRef,
+  resolveLabel,
+  parseAggregateName,
+  resolveConfig,
+} from './memberPivotViewsHelpers';
 
 /**
  * The optional injectable template loader (labels sub-spec R-L2, task 3.1). The
@@ -1437,113 +1356,27 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
           </Box>
         )}
 
-        {/* The produced result (REUSE PivotResultTable, R4.7). Rendered only
-            AFTER an explicit Execute — null until then (R1.6). */}
+        {/* The produced result (REUSE PivotResultTable, R4.7) + the
+            capability-gated export-actions slot. Rendered only AFTER an explicit
+            Execute — null until then (R1.6). Extracted into a sibling
+            presentational component (code-quality split task 4); all state +
+            handlers stay here, so behaviour is unchanged. */}
         {result && resultConfig && (
-          <Box data-testid="member-pivot-result">
-            <PivotResultTable
-              data={result.data}
-              columns={result.columns}
-              config={resultConfig}
-              isLoading={isExecuting}
-              hideExportMenu
-              onVisibleRowsChange={setVisibleRows}
-              columnLabels={columnLabels}
-            />
-
-            {capabilities.canExport && (
-              <HStack
-                mt={3}
-                spacing={2}
-                data-testid="pivot-result-actions"
-                aria-label={t('analytics.export.csv')}
-              >
-                <Menu>
-                  <MenuButton
-                    as={Button}
-                    variant="outline"
-                    colorScheme="orange"
-                    data-testid="member-pivot-export-csv"
-                  >
-                    {t('analytics.export.csv')}
-                  </MenuButton>
-                  <MenuList bg="gray.800" borderColor="gray.600">
-                    <MenuItem
-                      bg="gray.800"
-                      _hover={{ bg: 'gray.700' }}
-                      onClick={handleExportCsv}
-                      data-testid="member-pivot-export-csv-download"
-                    >
-                      {t('analytics.export.csvDownload')}
-                    </MenuItem>
-                    <MenuItem
-                      bg="gray.800"
-                      _hover={{ bg: 'gray.700' }}
-                      onClick={handleOpenCsvMail}
-                      data-testid="member-pivot-export-csv-email"
-                    >
-                      {t('analytics.export.csvEmail')}
-                    </MenuItem>
-                  </MenuList>
-                </Menu>
-                {/* Mail (R1 / pivot-output-actions task 1.3) — OFFERED only when the
-                    tenant is mail-enabled (the R0 `config#mail` gate surfaced as
-                    `fieldConfig.mail_enabled`). When enabled, the compose action /
-                    send path is offered; when NOT enabled the action is HIDDEN and
-                    the shared degradation reason explains why
-                    (`analytics.degradation.mailNotEnabled`), mirroring how the labels
-                    action degrades on an absent address mapping. A tenant ONBOARDING
-                    gate, not a capability gate: CSV + labels stay available regardless. */}
-                {mailEnabled ? (
-                  <Button
-                    variant="outline"
-                    colorScheme="orange"
-                    onClick={() => setIsMailOpen(true)}
-                    data-testid="member-pivot-mail"
-                  >
-                    {t('analytics.export.mail')}
-                  </Button>
-                ) : (
-                  <AnalyticsStateNotice
-                    kind="degradation"
-                    message={t('analytics.degradation.mailNotEnabled')}
-                    testId="member-pivot-mail-unavailable"
-                  />
-                )}
-                {/* Generate address labels (labels sub-spec R-L2 / Property 3) —
-                    a first-class result action beside CSV / Mail. Opens the
-                    labels options UI in a modal.
-
-                    Availability gate (labels sub-spec R-L2 / Property 3): the
-                    slot already requires `members:export`, so the one remaining
-                    condition is that at least one LABEL template exists — together
-                    `canGenerateLabels`. The gate depends ONLY on
-                    `canExport` + `hasLabelTemplate` and deliberately NOT on the
-                    address mapping / any `analytics.*` config (R6). When it holds,
-                    the action is OFFERED; when there is NO label template (or no
-                    export) the action is HIDDEN with the bilingual labels-namespace
-                    degradation reason (`analytics.labels.noTemplate`). A
-                    config/capability gate — NOT a tenant gate: CSV + Mail stay
-                    available regardless. */}
-                {canGenerateLabels ? (
-                  <Button
-                    variant="outline"
-                    colorScheme="orange"
-                    onClick={() => setIsLabelsOpen(true)}
-                    data-testid="member-pivot-labels"
-                  >
-                    {t('analytics.labels.action')}
-                  </Button>
-                ) : (
-                  <AnalyticsStateNotice
-                    kind="degradation"
-                    message={t('analytics.labels.noTemplate')}
-                    testId="member-pivot-labels-unavailable"
-                  />
-                )}
-              </HStack>
-            )}
-          </Box>
+          <MemberPivotResultActions
+            result={result}
+            resultConfig={resultConfig}
+            isExecuting={isExecuting}
+            onVisibleRowsChange={setVisibleRows}
+            columnLabels={columnLabels}
+            capabilities={capabilities}
+            mailEnabled={mailEnabled}
+            canGenerateLabels={canGenerateLabels}
+            onExportCsv={handleExportCsv}
+            onOpenCsvMail={handleOpenCsvMail}
+            onOpenMail={() => setIsMailOpen(true)}
+            onOpenLabels={() => setIsLabelsOpen(true)}
+            t={t}
+          />
         )}
       </VStack>
 
@@ -1556,153 +1389,22 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
                filter, Run + "Add to my list" (disabled / "already added").
           Add/remove/reorder + add are gated on members:export|write; a read-only
           caller sees both lists read-only (Run only). */}
-      <Modal
+      <MemberPivotLibraryModal
         isOpen={isLibraryOpen}
         onClose={() => setIsLibraryOpen(false)}
-        size="2xl"
-        isCentered
-        scrollBehavior="inside"
-      >
-        <ModalOverlay />
-        <ModalContent bg="gray.800" color="white" data-testid="member-pivot-library-modal">
-          <ModalHeader>{t('analytics.pivotViews.library.open')}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            {/* A SINGLE "All sets" list (the separate preferred list was removed —
-                it duplicated the dropdown, which already IS the preferred list).
-                Each row shows the FULL set name on its own line (never truncated),
-                then an actions line: Run; Add (not yet preferred) / Remove + ↑↓
-                reorder (already preferred). */}
-            <Box data-testid="member-pivot-library">
-              <Box color="gray.500" fontSize="xs" mb={2}>
-                {t('analytics.pivotViews.library.description')}
-              </Box>
-
-              <Input
-                size="sm"
-                mb={3}
-                value={libraryFilter}
-                onChange={(e) => setLibraryFilter(e.target.value)}
-                placeholder={t('analytics.pivotViews.library.filterPlaceholder')}
-                aria-label={t('analytics.pivotViews.library.filterPlaceholder')}
-                bg="gray.700"
-                color="white"
-                _placeholder={{ color: 'gray.400' }}
-                data-testid="member-pivot-library-filter"
-              />
-
-              {filteredLibraryItems.length === 0 ? (
-                <Box
-                  color="gray.500"
-                  fontSize="sm"
-                  data-testid="member-pivot-library-empty"
-                >
-                  {t('analytics.pivotViews.library.empty')}
-                </Box>
-              ) : (
-                <VStack
-                  align="stretch"
-                  spacing={2}
-                  data-testid="member-pivot-library-list"
-                >
-                  {filteredLibraryItems.map((item) => {
-                    const addLabel = t('analytics.pivotViews.library.add');
-                    const removeLabel = t('analytics.pivotViews.library.remove');
-                    const deleteLabel = t('analytics.pivotViews.library.delete');
-                    return (
-                      <HStack
-                        key={item.optionValue}
-                        bg="gray.700"
-                        px={3}
-                        py={2}
-                        borderRadius="md"
-                        align="center"
-                        justify="space-between"
-                        spacing={3}
-                        data-testid="member-pivot-library-item"
-                      >
-                        {/* Full name on the left — grows to fill, wraps on word
-                            boundaries (never truncated, never per-character). The
-                            compact icon actions keep a fixed width on the right. */}
-                        <Box
-                          color="white"
-                          fontSize="sm"
-                          flex="1"
-                          whiteSpace="normal"
-                          wordBreak="break-word"
-                          data-testid="member-pivot-library-name"
-                        >
-                          {item.label}
-                        </Box>
-                        {/* Manage-only icon actions (no Run — running is from the
-                            main-pane dropdown + Execute): transfer in/out of my
-                            list + permanently delete a CUSTOM saved set. */}
-                        {canManageSets && (
-                          <HStack spacing={1} flexShrink={0}>
-                            {item.alreadyPreferred ? (
-                              <Tooltip label={removeLabel}>
-                                <IconButton
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="orange"
-                                  aria-label={removeLabel}
-                                  icon={<MinusIcon />}
-                                  onClick={() =>
-                                    item.ref !== null && handleRemovePreferred(item.ref)
-                                  }
-                                  isDisabled={isSavingPreferred}
-                                  data-testid="member-pivot-library-remove"
-                                />
-                              </Tooltip>
-                            ) : (
-                              <Tooltip label={addLabel}>
-                                <IconButton
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="orange"
-                                  aria-label={addLabel}
-                                  icon={<AddIcon />}
-                                  onClick={() => handleAddRef(item.ref)}
-                                  isDisabled={isSavingPreferred}
-                                  data-testid="member-pivot-library-add"
-                                />
-                              </Tooltip>
-                            )}
-                            {/* Permanent delete — only for a CUSTOM saved set
-                                (prefab presets live in code and cannot be
-                                deleted). Gated additionally by canDeleteSets
-                                (members:write|admin). Opens the confirm dialog. */}
-                            {item.savedSetId !== null && canDeleteSets && (
-                              <Tooltip label={deleteLabel}>
-                                <IconButton
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="red"
-                                  aria-label={deleteLabel}
-                                  icon={<DeleteIcon />}
-                                  onClick={() =>
-                                    setPendingDelete({
-                                      id: item.savedSetId as string,
-                                      name: item.label,
-                                      kind: 'count',
-                                    })
-                                  }
-                                  isDisabled={isSavingPreferred}
-                                  data-testid="member-pivot-library-delete"
-                                />
-                              </Tooltip>
-                            )}
-                          </HStack>
-                        )}
-                      </HStack>
-                    );
-                  })}
-                </VStack>
-              )}
-            </Box>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+        libraryFilter={libraryFilter}
+        onLibraryFilterChange={setLibraryFilter}
+        filteredLibraryItems={filteredLibraryItems}
+        canManageSets={canManageSets}
+        canDeleteSets={canDeleteSets}
+        isSavingPreferred={isSavingPreferred}
+        onAddRef={handleAddRef}
+        onRemovePreferred={handleRemovePreferred}
+        onRequestDelete={({ id, name }) =>
+          setPendingDelete({ id, name, kind: 'count' })
+        }
+        t={t}
+      />
 
       {/* Mail status / history modal (mail-spec task 3.3 / R9). Hosts the
           MemberMailStatus screen: a role-scoped list of send-runs + per-run

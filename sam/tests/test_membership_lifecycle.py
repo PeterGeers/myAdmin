@@ -58,7 +58,7 @@ class FakeMembersRepository:
     def get_member(self, tenant_id, member_id):
         return None
 
-    def list_members(self, tenant_id, *, filters=None, scope_filter=None):
+    def list_members(self, tenant_id, *, filters=None):
         return []
 
     def list_membership_types(self, tenant_id, *, active_only=False):

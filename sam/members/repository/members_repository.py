@@ -17,9 +17,10 @@ membership lifecycle, delegates, member payments) so the read routes (Step 3) an
 routes (Step 5) have a stable seam to build against.
 
 Design notes carried on the signatures (for the tasks that implement them):
-- Reads that list are **scope-narrowed in the domain layer**, but the repository accepts an
-  optional ``scope_filter`` so the narrowing can be pushed into the query where the key
-  design allows (design C4/C6). Isolation (``tenant_id``) is always enforced regardless.
+- Reads that list are **scope-narrowed in the domain layer** (the caller's ``allowed_scopes``
+  are applied on top of the repository call — see ``MembershipService.list_members``). The
+  repository does NOT push a scope filter into the query; isolation (``tenant_id`` as the
+  partition key) is always enforced here regardless (design C4/C6).
 - **Uniqueness** (member number per tenant) is a *data* invariant enforced here via a
   DynamoDB conditional write (Property 6) — never assumed by the domain layer.
 - ``membership_type`` referential integrity against the Lidmaatschap Beheer catalog (C8) is
@@ -99,9 +100,14 @@ class MembersRepository(Protocol):
         tenant_id: str,
         *,
         filters: Mapping[str, Any] | None = None,
-        scope_filter: Mapping[str, Sequence[str]] | None = None,
     ) -> Sequence[Member]:
-        """List the tenant's members, optionally narrowed by filters / scope values."""
+        """List the tenant's members for ``tenant_id``, optionally narrowed by ``filters``.
+
+        Scope narrowing (the caller's ``allowed_scopes``) is a **domain-layer** concern applied
+        on top of this call — see :meth:`MembershipService.list_members`. The repository only
+        enforces tenant isolation (``tenant_id`` as partition key) and does not push a scope
+        filter into the query.
+        """
         ...
 
     def save_member(self, tenant_id: str, member: Member) -> Member:
@@ -368,7 +374,7 @@ class _StubMembersRepository:
     def get_member(self, tenant_id: str, member_id: str):
         raise NotImplementedError(self._PENDING)
 
-    def list_members(self, tenant_id: str, *, filters=None, scope_filter=None):
+    def list_members(self, tenant_id: str, *, filters=None):
         raise NotImplementedError(self._PENDING)
 
     def save_member(self, tenant_id: str, member):
@@ -593,14 +599,13 @@ class DynamoDbMembersRepository:
         tenant_id: str,
         *,
         filters: Mapping[str, Any] | None = None,
-        scope_filter: Mapping[str, Sequence[str]] | None = None,
     ) -> Sequence[Member]:
         """List the tenant's member records (SK ``member#<id>`` exactly, not their children).
 
-        Isolation is structural: the query pins ``tenant_id`` as the partition key. ``filters``
-        / ``scope_filter`` narrowing is a **domain-layer** concern (a scoped user stays inside
-        their tenant); this method surfaces the tenant's members and leaves narrowing to the
-        caller unless a future key design lets the filter be pushed down. Child items
+        Isolation is structural: the query pins ``tenant_id`` as the partition key. Scope
+        narrowing (the caller's ``allowed_scopes``) is a **domain-layer** concern applied on
+        top of this call (a scoped user stays inside their tenant); this method surfaces the
+        tenant's members and leaves narrowing to the caller. Child items
         (memberships/delegates/payments/counters/guards) are excluded by shape.
         """
         self._require_tenant(tenant_id)

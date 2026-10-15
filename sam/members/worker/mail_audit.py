@@ -104,8 +104,15 @@ def log_analytics_output(
     Signature-compatible with the Flask ``services.analytics_audit.log_analytics_output`` so the
     worker service depends on the SHAPE, not the plane. Builds the metadata-only record
     (:func:`build_mail_audit_record`) and emits it as a structured CloudWatch log line tagged
-    ``operation="member_analytics_output"``. ``actor_roles`` is accepted for signature parity
-    (the worker runs unattended — there is no user role) and is not recorded. Returns the record.
+    ``operation="member_analytics_output"``. Returns the record.
+
+    ``actor_roles`` is accepted for signature parity with the Flask helper. The worker normally
+    runs UNATTENDED (no user, so an empty list), but the parameter is honoured rather than
+    discarded: the structured line carries an ``attended`` flag — ``True`` when the caller
+    supplied any role, ``False`` otherwise — so an interactive vs scheduled/unattended send is
+    distinguishable in the audit log. The roles are a top-level line field, deliberately NOT folded
+    into ``record`` — the C7 ``record`` shape (``{actor, timestamp, tenant, set_key, record_count,
+    output_kind}``) stays identical across both planes so records remain greppable as one group.
     """
     record = build_mail_audit_record(
         actor=actor,
@@ -117,7 +124,11 @@ def log_analytics_output(
     logger.info(
         "ACCESS_LOG: %s",
         json.dumps(
-            {"operation": AUDIT_OPERATION, "details": record},
+            {
+                "operation": AUDIT_OPERATION,
+                "attended": bool(actor_roles),
+                "details": record,
+            },
             default=str,
             sort_keys=True,
         ),

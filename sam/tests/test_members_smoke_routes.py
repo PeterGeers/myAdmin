@@ -76,7 +76,7 @@ class FakeMembersAndCatalogRepository:
     def get_member(self, tenant_id, member_id):
         return self.members.get((tenant_id, member_id))
 
-    def list_members(self, tenant_id, *, filters=None, scope_filter=None):
+    def list_members(self, tenant_id, *, filters=None):
         self.queried_tenants.append(tenant_id)
         return [dict(m) for (t, _mid), m in self.members.items() if t == tenant_id]
 
