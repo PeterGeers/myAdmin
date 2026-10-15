@@ -1,0 +1,73 @@
+{
+  "specId": "b7f2c0a4-3d81-4e6a-9c52-8a1f6d094c37",
+  "spec": "full-test-suite-fixes-2026-10-15b",
+  "ciRun": 38789557909,
+  "ciRunNumber": 73,
+  "ciConclusion": "failure",
+  "ciHeadSha": "0fe6264eae3d359d2117cb02509f8a4b07dee9db",
+  "ciHeadBranch": "test",
+  "ciEvent": "workflow_dispatch",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #73, 2026-10-15, dispatched on branch test after merging PR #115)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1"
+    ],
+    "medium": [],
+    "low": [
+      "L1",
+      "L2"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Fix the MembersPage stats-strip test: page stuck on table.loading when 'stat-total' is queried (MembersPage.test.tsx:447)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "frontend",
+      "type": "fix",
+      "rootCause": "Frontend job red with exactly ONE assertion failure out of 3797 (3784 passed, 12 skipped). src/__tests__/MembersPage.test.tsx > 'global all-fields search (Option 1)' > 'drives the stats strip (total stays full, filtered follows the search)' at line 447 does `expect(screen.getByTestId('stat-total')).toHaveTextContent('3')`, but TestingLibraryElementError: 'Unable to find an element by: [data-testid=stat-total]'. The rendered DOM shows the page is STILL on its loading state: `<p>table.loading</p>` + `<span role=status>` spinner, and neither the stats strip nor the table body has rendered. So the data-loading promise had not resolved (rows + stats not yet painted) at the moment the assertion ran. The test queries stat-total synchronously / without first awaiting the rows to settle (other tests in the same file use a `waitForRows()` helper before asserting; this case appears to assert before/without that settle). This is a data-loading-hook timing regression surfaced one cycle behind the 2026-10-15 code-quality arc, whose task 6 split MembersPage.tsx (1161 LOC) and EXTRACTED the data-loading hooks. MembersPage is the documented historical red zone (regressed 09-26; the 09-29 lesson warns it recurs one cycle behind every Members UI refactor). Non-deterministic flake class (async settle race), not a product-logic bug: 3784 other tests incl. the full member-analytics-pivot-filter-operators feature set are green. Fix: await the rows/stats to settle before querying stat-total (reuse the file's waitForRows()/waitFor pattern), or ensure the extracted data-loading hook flushes its initial fetch deterministically under the test's fake data. NOT a feature regression from PR #115 (analytics filters) — that touched analytics files, not MembersPage."
+    },
+    {
+      "id": "L1",
+      "title": "Clear the benign ESLint warnings in the new analyticsConfig.*.property.test.ts files (import-x/order + unused 'expect')",
+      "priority": "low",
+      "effort": "S",
+      "plane": "frontend",
+      "type": "hygiene",
+      "rootCause": "Frontend ESLint is REPORT-ONLY / non-blocking, so these did not fail CI, but the member-analytics-pivot-filter-operators PR #115 added warnings worth clearing while the files are fresh: 'There should be no empty line between import groups' (import-x/order) in analyticsConfig.andAcrossClauses/blankValue/contains/emptyNotEmpty/legacyScalarEquivalence/notContains/operators/purityOrder/regexTotality/typedOrdering/unknownOperator.property.test.ts, plus unused 'expect' import in contains/notContains/regexTotality.property.test.ts. All auto-fixable: remove the blank line between import groups and drop the unused `expect` named import. Keeps the frontend ESLint report clean for the files this arc introduced."
+    },
+    {
+      "id": "L2",
+      "title": "Confirm the one-failure flake does not gate the test->main promotion; re-run or quarantine-aware green before release",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "The user's sequence is: merge feature to test (done, PR #115), confirm Full Test Suite green, then promote test->main. This run is red ONLY on the MembersPage async-settle flake (H1) — SAM green (100%), backend not in this dispatch scope's failures, frontend 3784/3797 pass. Per steering 43 the promotion to main must have a verified-green TEST. Options: (a) fix H1 (preferred, durable), then re-dispatch full-test-suite.yml on test and confirm green; or (b) if H1 is confirmed a pure non-deterministic flake and is quarantine-tracked, a re-run showing green is the gate. Do NOT promote to main (production frontend deploy) until the suite is green on test. Standing reproducibility note: this run used the committed vitest/ruff pins; H1 is new async-settle debt on MembersPage, not a version drift."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L2",
+      "type": "blocks",
+      "reason": "H1 is the sole red; TEST is not verified-green (steering 43 promotion gate) until H1 is fixed or confirmed-flaky-and-rerun-green"
+    }
+  ],
+  "recommendedOrder": [
+    "H1",
+    "L1",
+    "L2"
+  ],
+  "notes": [
+    "CI run #73 (id 38789557909, 2026-10-15 18:54 UTC @ 0fe6264ea on branch test, workflow_dispatch) is RED on exactly ONE frontend assertion failure. SAM Module-Plane GREEN (100%, dots-only). Frontend: 1 failed file / 1 failed test, 3784 passed, 12 skipped (3797 total). This dispatch's artifacts contain sam-test-reports + frontend-test-reports (no backend-test-reports/backend-lint artifact in this scope).",
+    "ROOT CAUSE (H1): MembersPage.test.tsx:447 asserts stat-total='3' but the page DOM is still showing <p>table.loading</p> + role=status spinner — the data-loading hook had not resolved when the assertion ran. Classic async-settle race; the sibling tests in the same file gate on a waitForRows() helper first. One cycle behind the 2026-10-15 code-quality arc that split MembersPage.tsx and extracted its data-loading hooks (code-quality-fixes-2026-10-15 task 6).",
+    "RECURRING AREA: MembersPage is the historical red zone. code-quality / full-test-suite specs record MembersPage failures at 2026-09-26 (RC-F1/RC-F2: empty rows / view-context) and 2026-10-10 (F3/F4: session-column filter composition), and the 2026-09-29 lesson explicitly warns 'the Members frontend area regresses one cycle behind every Members UI refactor — re-run the whole Members test group before merging a Members UI refactor.' This is that pattern again, trailing the 10-15 MembersPage split.",
+    "NOT a PR #115 regression: PR #115 (member-analytics-pivot-filter-operators) changed analytics files (types/pivot.ts, analyticsConfig.ts, GroupedFieldSelect, MemberFieldPicker, memberFieldPicker.helpers, locales) and a SAM test — it did NOT touch MembersPage.tsx or its data-loading hook. The feature's own ~95 new/updated tests are green. The MembersPage flake rides along on the same branch but originates from the earlier MembersPage split.",
+    "LINT (report-only, non-blocking): frontend tsc clean; frontend ESLint all 'warning' (no 'error'). PR #115 added benign warnings in the new analyticsConfig.*.property.test.ts files (import-x/order blank-line-between-import-groups x11; unused 'expect' import x3) — captured as L1, auto-fixable. SAM ruff lint report-only: 60 findings by rule (12 I001, 9 RUF022, 7 RUF100, ...), none CI-blocking (SAM job green).",
+    "PROMOTION GATE (steering 43): the user wants test->main after a green Full Test Suite. This run is red on H1 only. Fix H1 (preferred) then re-dispatch full-test-suite.yml --ref test and confirm green before opening/merging the test->main PR (which fires the production frontend deploy). Do not promote on a red TEST.",
+    "No Critical tasks (everything collected and ran; the failure is an assertion/async-settle race, not a collection/import error). No Medium tasks this cycle (the single assertion failure is classified High as it gates the promotion; it is also flake-class, but it is a fixable deterministic await gap, not an infra OOM like the 10-13 M1)."
+  ]
+}
