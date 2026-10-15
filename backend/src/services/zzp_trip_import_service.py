@@ -15,115 +15,43 @@ Business rules:
 - Commit mode: bulk insert validated rows with audit logging
 
 Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.4
+
+Structure note: the parse and validate stages are implemented as pure, DB-free
+helpers in the ``services.zzp_trip_import`` sub-package (``constants`` /
+``parsing`` / ``validation``). ``TripImportService`` owns the DB-bound
+orchestration and delegates to those helpers; the ``_``-prefixed static methods
+below are kept as thin delegators so the historical public surface (including
+``TripImportService._clean_row`` / ``._normalize_date`` and the module-level
+constants / ``_SheetSelectionError``) stays importable from this path. This is a
+pure split — behavior is unchanged.
 """
 
-import datetime
 import io
 import logging
 
-import pandas as pd
-
 from db_exceptions import DatabaseError
+from services.zzp_trip_import import parsing, validation
+from services.zzp_trip_import.constants import (
+    DEFAULT_COLUMN_MAPPING,
+    EXCEL_ERROR_MARKERS,
+    REQUIRED_IMPORT_FIELDS,
+    TEMPLATE_COLUMNS,
+    _is_excel_error_marker,
+    _SheetSelectionError,
+)
 
 logger = logging.getLogger(__name__)
 
-# Default column mapping (Dutch headers → internal field names)
-DEFAULT_COLUMN_MAPPING = {
-    "Datum": "trip_date",
-    "Vertrekadres": "start_address",
-    "Bestemming": "end_address",
-    "Begin KM": "start_odometer",
-    "Eind KM": "end_odometer",
-    "Categorie": "trip_category",
-    "Doel": "trip_purpose",
-    "Klant": "client_name",
-    "Notities": "notes",
-}
-
-# Required fields for a valid import row
-REQUIRED_IMPORT_FIELDS = [
-    "trip_date",
-    "start_address",
-    "end_address",
-    "start_odometer",
-    "end_odometer",
-    "trip_category",
-    "trip_purpose",
-]
-
-# Recognized Excel error markers — the cached value Excel saves for a broken or
-# unresolved formula cell (e.g. an XLOOKUP / x.zoeken that did not resolve).
-# These are never evaluated; they are detected as literal strings and used to
-# flag the row with a specific, column-naming error message.
-EXCEL_ERROR_MARKERS = {
-    "#N/A",
-    "#REF!",
-    "#VALUE!",
-    "#NAME?",
-    "#DIV/0!",
-    "#NULL!",
-    "#NUM!",
-}
-
-
-def _is_excel_error_marker(value) -> bool:
-    """Return True when ``value`` is a recognized Excel error marker string.
-
-    Non-strings (including ``None`` for a plain empty cell) are NOT markers, so an
-    unresolved formula that reads as empty continues to be handled by the existing
-    required-field check. On the stripped string value, this matches the known
-    marker set exactly OR the general leading-``#`` Excel error form (starts with
-    ``#`` and ends with ``!`` or ``?``), so forms like ``#GETTING_DATA`` or future
-    error strings are still caught.
-
-    Args:
-        value: A mapped cell value (any type).
-
-    Returns:
-        True if the value is an Excel error marker; False otherwise.
-    """
-    if not isinstance(value, str):
-        return False
-    v = value.strip()
-    if v in EXCEL_ERROR_MARKERS:
-        return True
-    return v.startswith("#") and v.endswith(("!", "?"))
-
-
-class _SheetSelectionError(Exception):
-    """No worksheet in the workbook carried the required header set.
-
-    Raised by ``TripImportService._read_dataframe`` (Excel branch) when, after
-    scanning every sheet in insertion order, none has a stripped column set that
-    is a superset of the required headers. ``parse_file`` catches this before the
-    generic read-error branch and translates it into a found-vs-expected envelope.
-
-    Attributes:
-        found: The columns actually present (first sheet's columns, used as a
-            readable representation of what the workbook contained).
-        expected: The required header set that no sheet satisfied.
-    """
-
-    def __init__(self, found: list[str], expected: set[str]):
-        self.found = found
-        self.expected = expected
-        super().__init__(
-            f"No worksheet matched the required headers. "
-            f"Found: {found}. Expected (⊆ required): {sorted(expected)}."
-        )
-
-
-# Template CSV columns (Dutch headers for downloadable template)
-TEMPLATE_COLUMNS = [
-    "Datum",
-    "Vertrekadres",
-    "Bestemming",
-    "Begin KM",
-    "Eind KM",
-    "Categorie",
-    "Doel",
-    "Klant",
-    "Notities",
+# Re-exported for a stable public import surface (callers / tests import these
+# from ``services.zzp_trip_import_service``).
+__all__ = [
+    "DEFAULT_COLUMN_MAPPING",
+    "EXCEL_ERROR_MARKERS",
+    "REQUIRED_IMPORT_FIELDS",
+    "TEMPLATE_COLUMNS",
+    "TripImportService",
+    "_SheetSelectionError",
+    "_is_excel_error_marker",
 ]
 
 
@@ -167,6 +95,8 @@ class TripImportService:
                 - unmapped_columns (list[str]): File columns not present in the mapping.
                 - error (str, optional): Error message if parsing failed.
         """
+        import pandas as pd
+
         mapping = column_mapping or DEFAULT_COLUMN_MAPPING
 
         # Detect file type by extension
@@ -628,182 +558,35 @@ class TripImportService:
         return output.getvalue().encode("utf-8")
 
     # -------------------------------------------------------------------------
-    # Private helpers
+    # Private helpers — thin delegators to the parse/validate stage modules.
+    #
+    # These keep the historical ``TripImportService._<name>`` surface stable
+    # (callers/tests invoke several of them directly, e.g. ``._clean_row`` and
+    # ``._normalize_date``) while the actual logic lives in the pure helpers of
+    # the ``services.zzp_trip_import`` sub-package.
     # -------------------------------------------------------------------------
 
     @staticmethod
     def _get_extension(filename: str) -> str:
-        """Extract lowercase file extension from filename.
-
-        Args:
-            filename: Original filename (e.g., "trips_2026.xlsx").
-
-        Returns:
-            Extension with dot (e.g., ".xlsx"), or empty string.
-        """
-        if not filename:
-            return ""
-        dot_idx = filename.rfind(".")
-        if dot_idx < 0:
-            return ""
-        return filename[dot_idx:].lower()
+        """Extract lowercase file extension from filename (see parsing.get_extension)."""
+        return parsing.get_extension(filename)
 
     @staticmethod
-    def _read_dataframe(file_stream, ext: str, required_headers=None) -> pd.DataFrame:
-        """Read file stream into a pandas DataFrame based on extension.
-
-        For Excel files, scans all worksheets (in insertion order) and selects the
-        first sheet whose stripped column set is a superset of ``required_headers``.
-        This handles workbooks where a decoy/summary sheet precedes the data sheet.
-        CSV files are single-sheet and ignore ``required_headers`` entirely.
-
-        Args:
-            file_stream: File-like object with the data.
-            ext: File extension (e.g., ".csv", ".xlsx").
-            required_headers: Optional set of file-column headers that the chosen
-                worksheet must contain. If falsy, the Excel branch defensively
-                returns the first sheet (old behavior).
-
-        Returns:
-            pandas DataFrame with the file contents (the selected sheet for Excel).
-
-        Raises:
-            ValueError: If extension is unsupported.
-            _SheetSelectionError: If no Excel worksheet matches ``required_headers``.
-            Exception: Propagates pandas read errors.
-        """
-        if ext == ".csv":
-            # Try semicolon first (Dutch standard), fall back to comma
-            try:
-                df = pd.read_csv(file_stream, sep=";", dtype=str)
-                # If only 1 column found, it's probably comma-separated
-                if len(df.columns) <= 1:
-                    file_stream.seek(0)
-                    df = pd.read_csv(file_stream, sep=",", dtype=str)
-            except Exception:
-                file_stream.seek(0)
-                df = pd.read_csv(file_stream, sep=",", dtype=str)
-            return df
-        elif ext in (".xlsx", ".xls"):
-            # Buffer the bytes once so we can read with pandas AND re-read with
-            # openpyxl to recover Excel error-marker cells (see below).
-            raw = file_stream.read()
-
-            # Read ALL sheets as an ordered name->df dict (insertion order).
-            sheets = pd.read_excel(io.BytesIO(raw), sheet_name=None, dtype=str)
-
-            # Defensive: no required headers → preserve old first-sheet behavior.
-            if not required_headers:
-                sheet_name = next(iter(sheets))
-                return TripImportService._restore_excel_error_markers(
-                    sheets[sheet_name], raw, sheet_name
-                )
-
-            # Select the first sheet whose stripped headers ⊇ required_headers.
-            for sheet_name, sheet_df in sheets.items():
-                stripped = {str(c).strip() for c in sheet_df.columns}
-                if set(required_headers).issubset(stripped):
-                    return TripImportService._restore_excel_error_markers(
-                        sheet_df, raw, sheet_name
-                    )
-
-            # No sheet matched — report the first sheet's columns as "found".
-            first_df = next(iter(sheets.values()))
-            found = [str(c).strip() for c in first_df.columns]
-            raise _SheetSelectionError(found=found, expected=set(required_headers))
-        else:
-            raise ValueError(f"Unsupported file extension: {ext}")
+    def _read_dataframe(file_stream, ext: str, required_headers=None):
+        """Read file stream into a DataFrame (see parsing.read_dataframe)."""
+        return parsing.read_dataframe(file_stream, ext, required_headers)
 
     @staticmethod
-    def _restore_excel_error_markers(
-        df: pd.DataFrame, raw: bytes, sheet_name: str
-    ) -> pd.DataFrame:
-        """Recover Excel error-marker strings that pandas coerced to NaN.
-
-        A broken/unresolved formula cell (e.g. an XLOOKUP / ``x.zoeken`` that did
-        not resolve) is stored by Excel as an *error-type* cell whose cached value
-        is a marker like ``#N/A`` or ``#REF!``. ``pd.read_excel`` reads every
-        error-type cell as ``NaN`` regardless of ``keep_default_na``/``na_values``,
-        so the marker never survives to the DataFrame. openpyxl, however, exposes
-        the literal marker string for such cells (``data_type == "e"``).
-
-        This helper re-reads the selected worksheet with openpyxl and writes the
-        marker string back into ``df`` at any cell position where pandas produced a
-        null, so the downstream row-level error-marker check can detect it. Formulas
-        are NEVER evaluated — only the cached marker string Excel saved is restored.
-        Genuine empty cells remain null (openpyxl yields ``None`` for them), so they
-        still fall through to the required-field check.
-
-        Args:
-            df: The DataFrame pandas produced for the selected sheet.
-            raw: The full workbook bytes.
-            sheet_name: Name of the selected worksheet.
-
-        Returns:
-            The same DataFrame, with error-marker strings restored in place.
-        """
-        try:
-            from openpyxl import load_workbook
-
-            wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=False)
-            try:
-                if sheet_name not in wb.sheetnames:
-                    return df
-                ws = wb[sheet_name]
-                # Row 1 is the header; data starts at worksheet row 2, which maps
-                # to DataFrame positional index 0.
-                for excel_row_idx, ws_row in enumerate(
-                    ws.iter_rows(min_row=2), start=0
-                ):
-                    if excel_row_idx >= len(df.index):
-                        break
-                    for col_pos, cell in enumerate(ws_row):
-                        if col_pos >= len(df.columns):
-                            break
-                        if cell.data_type == "e" and isinstance(cell.value, str):
-                            # pandas gave NaN for this error cell; restore the marker.
-                            df.iat[excel_row_idx, col_pos] = cell.value
-            finally:
-                wb.close()
-        except Exception as exc:
-            # Marker recovery is best-effort; never fail the whole read because of
-            # it. Without recovery, an error cell simply stays null and is caught
-            # by the required-field check (prior behavior).
-            logger.debug("Could not restore Excel error markers: %s", exc)
-        return df
+    def _restore_excel_error_markers(df, raw: bytes, sheet_name: str):
+        """Recover Excel error-marker strings (see parsing.restore_excel_error_markers)."""
+        return parsing.restore_excel_error_markers(df, raw, sheet_name)
 
     @staticmethod
     def _clean_row(row: dict) -> dict:
-        """Clean a parsed row: strip strings, attempt numeric conversion for odometers.
+        """Clean a parsed row (see parsing.clean_row)."""
+        return parsing.clean_row(row)
 
-        Args:
-            row: Raw row dict from DataFrame.
-
-        Returns:
-            Cleaned row dict.
-        """
-        cleaned = {}
-        for key, value in row.items():
-            if value is None:
-                cleaned[key] = None
-            elif isinstance(value, str):
-                stripped = value.strip()
-                # Try to convert odometer fields to integers
-                if key in ("start_odometer", "end_odometer") and stripped:
-                    try:
-                        # Handle potential decimal values (e.g., "45230.0")
-                        cleaned[key] = int(float(stripped))
-                    except (ValueError, TypeError):
-                        cleaned[key] = stripped
-                else:
-                    cleaned[key] = stripped if stripped else None
-            else:
-                cleaned[key] = value
-        return cleaned
-
-    # -------------------------------------------------------------------------
-    # Validate_import helper methods
-    # -------------------------------------------------------------------------
+    # -- Validate_import helper methods ---------------------------------------
 
     def _get_existing_trips(self, tenant: str, vehicle_id: int) -> list:
         """Fetch existing trips for the vehicle from DB for continuity/duplicate checks."""
@@ -850,167 +633,27 @@ class TripImportService:
 
     @staticmethod
     def _validate_required_fields(row: dict) -> None:
-        """Check that all required fields are present and non-empty."""
-        for field in REQUIRED_IMPORT_FIELDS:
-            value = row.get(field)
-            if value is None or (isinstance(value, str) and value.strip() == ""):
-                row["_messages"].append(f"Verplicht veld ontbreekt: {field}")
-                row["_status"] = "error"
+        """Check required fields present/non-empty (see validation.validate_required_fields)."""
+        validation.validate_required_fields(row)
 
     @staticmethod
     def _validate_error_markers(row: dict) -> None:
-        """Flag the row when any mapped cell carries an Excel error marker.
-
-        A broken/unresolved formula (XLOOKUP / ``x.zoeken``) leaves an Excel error
-        marker (``#N/A``, ``#REF!``, …) as the cell's cached value. Rather than let
-        it masquerade as a generic required-field/format error, flag the row
-        ``error`` with a specific message naming the column (internal field name)
-        and the marker. Formulas are NEVER evaluated — only the cached marker string
-        is inspected. A plain empty/``None`` cell is not a marker, so it still falls
-        through to the required-field check.
-
-        Only mapped internal field names are inspected; ``_``-prefixed helper keys
-        (``_row_number`` / ``_status`` / ``_messages`` / ``_normalized_date``) are
-        skipped.
-
-        Args:
-            row: An annotated row dict (carries ``_status`` / ``_messages``).
-        """
-        for field, value in row.items():
-            if field.startswith("_"):
-                continue
-            if _is_excel_error_marker(value):
-                marker = value.strip()
-                row["_messages"].append(
-                    f"Formulewaarde niet berekend: '{marker}' in kolom {field}"
-                )
-                row["_status"] = "error"
+        """Flag Excel error-marker cells (see validation.validate_error_markers)."""
+        validation.validate_error_markers(row)
 
     @staticmethod
     def _normalize_date(date_value) -> str | None:
-        """Try to parse and normalize a date value to YYYY-MM-DD format.
-
-        Accepts a datetime/date object or a string. For strings, detects the
-        separator and validates numeric ranges rather than relying on fixed
-        string length/positions, so non-zero-padded components are accepted.
-        A trailing time component (whitespace- or 'T'-separated) is discarded,
-        keeping only the date portion; no year inference and no timezone/time
-        semantics are applied (the year is always present).
-
-        Accepts:
-            - datetime/date objects (Excel-valued dates) -> ISO date portion
-            - ISO strings carrying a time component ("2026-05-05 00:00:00",
-              "2026-05-05T00:00:00") -> date portion only
-            - YYYY-M-D / YYYY-MM-DD (ISO)
-            - D-M-YYYY / DD-MM-YYYY (Dutch)
-            - D/M/YYYY / DD/MM/YYYY (Dutch alt)
-          each zero-padded or not.
-
-        Returns:
-            Normalized date string (YYYY-MM-DD) or None if invalid.
-        """
-        if not date_value:
-            return None
-
-        # datetime/date object -> ISO date portion directly. datetime.datetime
-        # is a subclass of datetime.date, so this single check covers both and
-        # .strftime works on both. No time/timezone semantics are applied.
-        if isinstance(date_value, datetime.date):
-            return date_value.strftime("%Y-%m-%d")
-
-        if not isinstance(date_value, str):
-            return None
-
-        date_str = date_value.strip()
-
-        # Strip a trailing time component by taking the leading date token
-        # split on whitespace or 'T':
-        #   "2026-05-05 00:00:00" -> "2026-05-05"
-        #   "2026-05-05T00:00:00" -> "2026-05-05"
-        # A pure date string (no time) is unaffected, so surface-(b) behavior
-        # is identical.
-        date_str = date_str.replace("T", " ").split()[0] if date_str else date_str
-
-        # Choose the separator: '-' takes precedence, then '/'. Reject when
-        # neither is present. This replaces the previous fixed length/position
-        # guards so non-zero-padded components are accepted.
-        if "-" in date_str:
-            sep = "-"
-        elif "/" in date_str:
-            sep = "/"
-        else:
-            return None
-
-        parts = date_str.split(sep)
-        if len(parts) != 3:
-            # Rejects missing-year forms like "5-5" (2 parts).
-            return None
-        if not all(part and part.isdigit() for part in parts):
-            # Rejects empty and non-numeric components ("5-mei").
-            return None
-
-        # Infer ordering: a 4-digit first component is ISO (YYYY-M-D),
-        # otherwise it is the Dutch day-month-year ordering.
-        if len(parts[0]) == 4:
-            year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
-        else:
-            day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
-
-        # Numeric-range validation (no year inference).
-        if 1 <= month <= 12 and 1 <= day <= 31 and year >= 1900:
-            return f"{year:04d}-{month:02d}-{day:02d}"
-
-        return None
+        """Normalize a date value to YYYY-MM-DD (see validation.normalize_date)."""
+        return validation.normalize_date(date_value)
 
     def _validate_date_format(self, row: dict) -> None:
-        """Validate and normalize the trip_date field."""
-        date_value = row.get("trip_date")
-        if date_value is None:
-            # Already caught by required fields check
-            row["_normalized_date"] = "9999-99-99"
-            return
-
-        # Pass the raw value so an actual datetime/date object reaches the
-        # object branch in _normalize_date; the isinstance guards there handle
-        # both object and string forms.
-        normalized = self._normalize_date(date_value)
-        if normalized:
-            row["trip_date"] = normalized
-            row["_normalized_date"] = normalized
-        else:
-            row["_messages"].append(
-                f"Ongeldig datumformaat: '{date_value}' "
-                "(verwacht: YYYY-MM-DD, DD-MM-YYYY, of DD/MM/YYYY)"
-            )
-            row["_status"] = "error"
-            row["_normalized_date"] = "9999-99-99"
+        """Validate and normalize trip_date (see validation.validate_date_format)."""
+        validation.validate_date_format(row)
 
     @staticmethod
     def _validate_odometer_values(row: dict) -> None:
-        """Validate that end_odometer > start_odometer."""
-        start = row.get("start_odometer")
-        end = row.get("end_odometer")
-
-        # Only validate if both are numeric
-        if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
-            # Non-numeric odometers — will be caught as error if they're strings
-            if start is not None and not isinstance(start, (int, float)):
-                row["_messages"].append(
-                    f"Ongeldige km-stand (begin): '{start}' is geen getal"
-                )
-                row["_status"] = "error"
-            if end is not None and not isinstance(end, (int, float)):
-                row["_messages"].append(
-                    f"Ongeldige km-stand (eind): '{end}' is geen getal"
-                )
-                row["_status"] = "error"
-            return
-
-        if end <= start:
-            row["_messages"].append(
-                f"Eind km-stand ({end}) moet groter zijn dan begin km-stand ({start})"
-            )
-            row["_status"] = "error"
+        """Validate end_odometer > start_odometer (see validation.validate_odometer_values)."""
+        validation.validate_odometer_values(row)
 
     @staticmethod
     def _validate_category_purpose(
@@ -1018,102 +661,20 @@ class TripImportService:
         valid_categories: list[str] | None,
         valid_purposes: list[str] | None,
     ) -> None:
-        """Warn if category or purpose not in configured lists."""
-        if valid_categories:
-            category = row.get("trip_category")
-            if category and category not in valid_categories:
-                row["_messages"].append(
-                    f"Onbekende categorie: '{category}' "
-                    f"(verwacht: {', '.join(valid_categories)})"
-                )
-                if row["_status"] == "ok":
-                    row["_status"] = "warning"
-
-        if valid_purposes:
-            purpose = row.get("trip_purpose")
-            if purpose and purpose not in valid_purposes:
-                row["_messages"].append(
-                    f"Onbekend doel: '{purpose}' "
-                    f"(verwacht: {', '.join(valid_purposes)})"
-                )
-                if row["_status"] == "ok":
-                    row["_status"] = "warning"
+        """Warn on unknown category/purpose (see validation.validate_category_purpose)."""
+        validation.validate_category_purpose(row, valid_categories, valid_purposes)
 
     @staticmethod
     def _check_internal_continuity(rows: list) -> None:
-        """Check odometer continuity within the import set.
-
-        Each row's start_odometer should match the previous row's end_odometer.
-        Issues a warning (not error) for discontinuities.
-        """
-        prev_end = None
-        for row in rows:
-            start = row.get("start_odometer")
-            if (
-                prev_end is not None
-                and isinstance(start, (int, float))
-                and start != prev_end
-            ):
-                gap = start - prev_end
-                row["_messages"].append(
-                    f"Km-stand niet aansluitend binnen import: "
-                    f"verwacht {prev_end}, gevonden {start} "
-                    f"(verschil: {gap} km)"
-                )
-                if row["_status"] == "ok":
-                    row["_status"] = "warning"
-
-            end = row.get("end_odometer")
-            if isinstance(end, (int, float)):
-                prev_end = end
+        """Odometer continuity within the import (see validation.check_internal_continuity)."""
+        validation.check_internal_continuity(rows)
 
     @staticmethod
     def _check_db_continuity(rows: list, last_existing_odometer: int | None) -> None:
-        """Check odometer continuity against existing DB trips.
-
-        The first row's start_odometer should match the last existing trip's end_odometer.
-        Issues a warning (not error).
-        """
-        if last_existing_odometer is None:
-            return
-
-        # Find the first row with a valid start_odometer
-        for row in rows:
-            start = row.get("start_odometer")
-            if isinstance(start, (int, float)):
-                if start != last_existing_odometer:
-                    gap = start - last_existing_odometer
-                    row["_messages"].append(
-                        f"Km-stand sluit niet aan op bestaande ritten: "
-                        f"laatste eindstand in DB is {last_existing_odometer}, "
-                        f"import begint op {start} (verschil: {gap} km)"
-                    )
-                    if row["_status"] == "ok":
-                        row["_status"] = "warning"
-                break
+        """Odometer continuity vs DB trips (see validation.check_db_continuity)."""
+        validation.check_db_continuity(rows, last_existing_odometer)
 
     @staticmethod
     def _check_duplicates(rows: list, existing_set: set) -> None:
-        """Flag rows that appear to be duplicates of existing trips in the DB.
-
-        A duplicate is defined as same date + start_odometer + end_odometer.
-        Issues a warning (not error).
-        """
-        for row in rows:
-            date = row.get("trip_date")
-            start = row.get("start_odometer")
-            end = row.get("end_odometer")
-
-            if (
-                date
-                and isinstance(start, (int, float))
-                and isinstance(end, (int, float))
-            ):
-                key = (str(date), int(start), int(end))
-                if key in existing_set:
-                    row["_messages"].append(
-                        "Mogelijk duplicaat: rit met dezelfde datum en km-standen "
-                        "bestaat al in de database"
-                    )
-                    if row["_status"] == "ok":
-                        row["_status"] = "warning"
+        """Flag duplicate rows (see validation.check_duplicates)."""
+        validation.check_duplicates(rows, existing_set)

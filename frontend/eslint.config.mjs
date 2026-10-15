@@ -60,15 +60,22 @@ export default tseslint.config(
   //
   // Components / pages / hooks / utils MUST route backend calls through
   // `services/apiService` (or a sibling service in `services/`). They must NOT
-  // (a) call `fetch(...)` directly against the API, nor (b) hand-build a base
-  // URL from `import.meta.env.VITE_API_URL` / a bare `API_URL`.
+  // (a) call `fetch(...)` directly against the API, (b) call `axios.*(...)`
+  // directly, nor (c) hand-build a base URL from `import.meta.env.VITE_API_URL`
+  // / a bare `API_URL`.
   //
-  // Scope: ONLY the app layers that regressed (Task H1 migrated 32 call sites).
-  // The `services/` + `config/` layer legitimately owns the one real
-  // `fetch`/base-URL construction, so it is NOT in `files` below and stays
-  // exempt. Test files, mocks, and the `examples/` folder are excluded too.
-  // `pages/public/PublicLandingPage.tsx` is excluded because its single
-  // `fetch` reads a CloudFront static asset (landing.json), not an API call.
+  // Scope: everything OUTSIDE `src/services/`. The apiService migration dropped
+  // the direct-fetch bypass from 33 -> 2 sites; this guard locks in the win so
+  // new components can't reintroduce a raw fetch/axios call. The `services/`
+  // layer legitimately owns the one real `fetch`/`axios`/base-URL construction,
+  // so it is NOT in `files` below and stays exempt.
+  //
+  // Allow-list (NOT in `files` / in `ignores`): `src/services/**`,
+  // `*.example.{ts,tsx}` demo files, and test files
+  // (`**/*.test.{ts,tsx}`, `src/tests/**`, `**/__tests__/**`, mocks).
+  // `pages/public/PublicLandingPage.tsx` is no longer excluded: its one real
+  // `fetch` was migrated into `services/publicLandingService.ts` (task 3), so
+  // it is now clean under this rule.
   // ---------------------------------------------------------------------------
   {
     files: [
@@ -82,8 +89,8 @@ export default tseslint.config(
       "**/*.spec.{ts,tsx}",
       "**/__tests__/**",
       "**/__mocks__/**",
-      "src/components/examples/**",
-      "src/pages/public/PublicLandingPage.tsx",
+      "src/tests/**",
+      "**/*.example.{ts,tsx}",
     ],
     rules: {
       "no-restricted-syntax": [
@@ -92,6 +99,11 @@ export default tseslint.config(
           selector: "CallExpression[callee.name='fetch']",
           message:
             "Do not call fetch() directly here. Route backend calls through services/apiService (authenticatedGet/Post/Put/Delete) so auth headers, tenant scoping, and token refresh are handled consistently.",
+        },
+        {
+          selector: "CallExpression[callee.object.name='axios']",
+          message:
+            "Do not call axios.*(...) directly here. Route backend calls through services/apiService; the HTTP client belongs to the services layer only.",
         },
         {
           selector:
