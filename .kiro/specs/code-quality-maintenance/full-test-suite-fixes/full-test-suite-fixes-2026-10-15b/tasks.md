@@ -14,7 +14,7 @@ _None._ Everything collected and ran — SAM passed 100%, and the frontend suite
 
 ### High — running tests that fail (gates the test → main promotion)
 
-- [ ] 1. **H1. Fix the `MembersPage` stats-strip test asserting before the data-loading hook resolves.** [S]
+- [x] 1. **H1. Fix the `MembersPage` stats-strip test asserting before the data-loading hook resolves.** [S]
   - **Why**: Frontend is red on exactly one test: `src/__tests__/MembersPage.test.tsx:447` → `MembersPage (Leden Overzicht) > global all-fields search (Option 1) > drives the stats strip (total stays full, filtered follows the search)`. It does `expect(screen.getByTestId('stat-total')).toHaveTextContent('3')`, but the rendered DOM is still the **loading state** (`<p>table.loading</p>` + `role="status"` spinner) — `stat-total` does not exist yet because the extracted data-loading hook had not resolved. Async-settle race, surfaced one cycle behind the 2026-10-15 `MembersPage.tsx` split (`code-quality-fixes-2026-10-15` task 6 extracted the data-loading hooks). NOT a PR #115 regression (PR #115 did not touch MembersPage).
   - **File(s)**: `frontend/src/__tests__/MembersPage.test.tsx` (the `global all-fields search (Option 1)` block, ~lines 430–448); if the race is in product code, `frontend/src/pages/MembersPage.tsx` + its extracted data-loading hook.
   - **Action** (prefer the test-side await — the product behavior is correct, the test just queries too early):
@@ -40,7 +40,7 @@ _None._ No worker OOM / infra flake this cycle (the 10-13 M1 `ZZPTrips` forks-po
 
 ### Low — prevention / hygiene
 
-- [ ] 2. **L1. Clear the benign ESLint warnings PR #115 added to the new property-test files.** [S] — report-only (non-blocking); clear while fresh.
+- [x] 2. **L1. Clear the benign ESLint warnings PR #115 added to the new property-test files.** [S] — report-only (non-blocking); clear while fresh.
   - **Why**: Frontend ESLint is report-only, so these did not fail CI, but the member-analytics-pivot-filter-operators arc introduced auto-fixable warnings worth clearing: `import-x/order` "no empty line between import groups" in 11 `analyticsConfig.*.property.test.ts` files, and an unused `expect` import in 3 of them (`contains`, `notContains`, `regexTotality`).
   - **File(s)**: `frontend/src/__tests__/analyticsConfig.{andAcrossClauses,blankValue,contains,emptyNotEmpty,legacyScalarEquivalence,notContains,operators,purityOrder,regexTotality,typedOrdering,unknownOperator}.property.test.ts`.
   - **Action**: Remove the blank line between the import groups (`import fc from 'fast-check'` and the local `../components/...` imports), and drop the unused `expect` named import from the three files that import it without using it. `npx eslint --fix` on those paths resolves both.
