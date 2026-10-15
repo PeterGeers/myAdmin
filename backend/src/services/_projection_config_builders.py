@@ -166,6 +166,7 @@ def _enum_values_from_field(spec: Mapping[str, Any]) -> list[str] | None:
     ``None`` as "no enum vocabulary", which is a validation error at save for an ENABLED
     scope axis (R3.4).
     """
+
     def _collect_values(raw: Any) -> list[str] | None:
         if not isinstance(raw, (list, tuple)):
             return None

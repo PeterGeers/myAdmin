@@ -70,7 +70,7 @@ def _project_tenant_change(scope: str, scope_id: str) -> dict:
 
         get_default_trigger().enqueue(scope_id)
         return {"projected": True}
-    except Exception as exc:  # noqa: BLE001 — surface the real projection error to the caller
+    except Exception as exc:  # surface the real projection error to the caller
         logger.error(
             "projection delivery FAILED for tenant %r (write is saved; reconciliation "
             "will retry): %s",
@@ -321,9 +321,7 @@ def update_parameter(
         # surfaced in the response, never hidden behind a bare "Saved".
         projection = _project_tenant_change(row["scope"], row["scope_id"])
 
-        return jsonify(
-            {"success": True, "message": "Parameter updated", **projection}
-        )
+        return jsonify({"success": True, "message": "Parameter updated", **projection})
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
