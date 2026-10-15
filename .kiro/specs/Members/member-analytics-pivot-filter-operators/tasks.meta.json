@@ -1,0 +1,590 @@
+{
+  "pbtResults": {
+    "2.7 Write property test — AND across clauses": {
+      "status": "passed",
+      "lastRunTimestamp": 1792086733347
+    },
+    "2.10 Write property test — unknown operator clamps to eq": {
+      "status": "passed",
+      "lastRunTimestamp": 1792086854764
+    },
+    "4.3 Write property test — filter round-trip": {
+      "status": "passed",
+      "lastRunTimestamp": 1792086982933
+    },
+    "4.4 Write property test — legacy scalar equivalence": {
+      "status": "passed",
+      "lastRunTimestamp": 1792086993208
+    }
+  },
+  "executionHistory": {
+    "1.1 Add `FilterOperator`, `FilterClause`, and `FilterMap` to `frontend/src/types/pivot.ts`; keep `PivotConfig.filters` as `Record<string, any>` and document that member analytics treats it as `FilterMap`": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085036956
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085047616
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085738004
+      }
+    ],
+    "1.2 Add `operatorsForField(field, fieldConfig)` and `operatorTakesNoValue(op)` as pure helpers (type→operator mapping per the design table); the text set includes `contains, notContains, regex, notRegex`; `notContains`/`notRegex` are value-taking (not in `operatorTakesNoValue`)": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037045
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085049498
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085740369
+      }
+    ],
+    "1.3 Write property test for the operator mapping": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037154
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085786973
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086204348
+      }
+    ],
+    "2. Implement operator-aware `applyDefinitionFilters`": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037231
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087738307
+      }
+    ],
+    "2.4a Write property test — notContains complement of contains": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037313
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086223980
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086749890
+      }
+    ],
+    "2.1 Rewrite `applyDefinitionFilters` in `analyticsConfig.ts` to normalize each entry via `normalizeClause`, build active clauses (type + storage group), and match per operator (eq/ne/contains/notContains/typed-ordering/regex/notRegex/empty/notEmpty), with `tryCompileRegex` guard shared by `regex` and `notRegex` (invalid pattern → never-match sentinel for BOTH forms), blank-value skip, absent-cell excluded for value-taking ops, AND semantics, order-preserving and pure": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037442
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085790271
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086213966
+      }
+    ],
+    "2.2 Update + extend the paired engine test `frontend/src/__tests__/analyticsConfig.test.ts` (eq cases stay green; add operator cases)": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037565
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086219736
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086479500
+      }
+    ],
+    "2.3 Write property test — eq/ne semantics": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037653
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086221103
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086479799
+      }
+    ],
+    "2.4 Write property test — contains substring": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037741
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086222530
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086481180
+      }
+    ],
+    "2.5 Write property test — typed ordering": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037867
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086224825
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086482294
+      }
+    ],
+    "2.6 Write property test — empty/notEmpty presence partition": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085037971
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086489855
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086753429
+      }
+    ],
+    "2.7 Write property test — AND across clauses": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038065
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086491262
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086752387
+      }
+    ],
+    "2.8 Write property test — blank value never narrows": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038150
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086492133
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086750938
+      }
+    ],
+    "2.9 Write property test — regex totality": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038254
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086488514
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086748492
+      }
+    ],
+    "2.10 Write property test — unknown operator clamps to eq": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038355
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086760080
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087013377
+      }
+    ],
+    "2.11 Write property test — engine purity and order": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038443
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086758794
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087015600
+      }
+    ],
+    "3. Checkpoint — ensure all engine/type tests pass": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038530
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087770802
+      }
+    ],
+    "4.1 Extend `FilterDraft` with `op`, and rewrite `toFilterDrafts`/`fromFilterDrafts` in `memberFieldPicker.helpers.ts` to read legacy scalar + object clauses for EVERY key (remove the `RESERVED_FILTER_KEYS` concept entirely — delete the export and stop skipping `years_member` / `joined_after_year`; a legacy scalar `years_member: 25` reads as an editable `eq` row), emit the object form (value only for value-taking ops — including `notContains`/`notRegex`), drop blank rows (a blank-value `notContains`/`notRegex` row drops like `contains`/`regex`), keep valueless empty/notEmpty rows; remove the reserved-key carry from `fromFilterDrafts` and drop its now-unused `base` parameter (its only reason was reserved-key carry) so the composed map is built purely from the editor rows": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038610
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085794454
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086211434
+      }
+    ],
+    "4.2 Write unit tests for the helpers (co-located) — FLIP any reserved-key assertion to the new behavior": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038686
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086761531
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087011935
+      }
+    ],
+    "4.3 Write property test — filter round-trip": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038796
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086762947
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087010515
+      }
+    ],
+    "4.4 Write property test — legacy scalar equivalence": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038885
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086763849
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087014302
+      }
+    ],
+    "5.1 Create `frontend/src/components/members/GroupedFieldSelect.tsx` — a dark-theme Chakra `Select` rendering `<optgroup>`s from `sectionFields()` (imported from `FieldChecklist`), bilingual labels via `resolveLabel`, placeholder option, `aria-label`, ungrouped fallback": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085038983
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085051512
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085742677
+      }
+    ],
+    "5.2 Write unit tests for `GroupedFieldSelect`": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039066
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085795911
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086205755
+      }
+    ],
+    "5.3 Write property test — grouping mirrors the checklist": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039153
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085796900
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086206819
+      }
+    ],
+    "6.1 Add `filterOperator`, `operators.*` (all twelve, incl. `operators.notContains` and `operators.notRegex` — nl: \"bevat niet\", \"komt niet overeen met patroon\"; en: \"does not contain\", \"does not match pattern\"), `filterRegexInvalid`, and update `filtersHint` under `analytics.pivotViews.fieldPicker.*` in both `frontend/src/locales/nl/members.json` and `frontend/src/locales/en/members.json`": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039272
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085053748
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085744925
+      }
+    ],
+    "7.1 Replace the measure-column flat `<Select>` with `GroupedFieldSelect` (placeholder = COUNT-all `''`)": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039362
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087111324
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087442608
+      }
+    ],
+    "7.2 Replace the filter-row field `<Select>` with `GroupedFieldSelect`, add the operator `<Select>` (from `operatorsForField`, text fields now including `notContains`/`notRegex`), hide the value `Input` for empty/notEmpty (shown for notContains/notRegex), default new rows to `eq`, reset operator to `eq` on incompatible field change, and show the inline `filterRegexInvalid` message on an invalid `regex` OR `notRegex` row": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039464
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087204266
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087443874
+      }
+    ],
+    "7.3 Update `MemberFieldPicker.test.tsx` to the new filter-row shape and grouped selects (keep green) — FLIP the retired reserved-key case": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039541
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087450659
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087723144
+      }
+    ],
+    "8.1 Update the `MemberPivotViews.test.tsx` \"applies a saved set's generic DEFINITION filter at execute (issue 3)\" test to carry the new object form, and add a NEW case asserting a legacy scalar `{field:value}` set still runs as eq": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039620
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087449391
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087724856
+      }
+    ],
+    "9.1 Add a Python domain test asserting `AnalyticsSetEntry.to_item`/`from_item` round-trips a `definition.filters` object-valued `{op,value}` entry unchanged, and that `validate` accepts it": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039742
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087024220
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087105109
+      }
+    ],
+    "10. Final checkpoint — ensure all tests pass": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085039843
+      },
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792088022876
+      }
+    ],
+    "6. Add i18n keys (operators, invalid-pattern, hint) to nl + en members namespaces": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792085745011
+      }
+    ],
+    "1. Define the filter data contract and type→operator mapping": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086204478
+      }
+    ],
+    "5. Build the shared `GroupedFieldSelect` control": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792086206940
+      }
+    ],
+    "4. Update the picker helpers for operators (round-trip + legacy read)": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087014388
+      }
+    ],
+    "2.9a Write property test — notRegex totality": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087015693
+      }
+    ],
+    "9. Verify the SAM definition round-trip stays opaque (no backend change)": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087105198
+      }
+    ],
+    "7. Wire the new control and operators into `MemberFieldPicker`": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087723269
+      }
+    ],
+    "8. Update the execute-path test and add legacy-compat coverage": [
+      {
+        "executionId": "6fc8e0b5-6963-4b32-bfc8-c5cc2b2f5e84",
+        "chatSessionId": "sess_669f555c-4052-4e49-b921-57252a340795",
+        "timestamp": 1792087724946
+      }
+    ]
+  }
+}

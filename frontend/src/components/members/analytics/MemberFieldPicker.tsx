@@ -93,15 +93,16 @@ import type {
 import type {
   AggregateFunction,
   AggregateMeasure,
+  FilterOperator,
   PivotConfig,
 } from '../../../types/pivot';
 import { saveAnalyticsSet, updateAnalyticsSet } from '../../../services/membersApiService';
 import FieldChecklist from '../FieldChecklist';
+import GroupedFieldSelect from '../GroupedFieldSelect';
+import { operatorsForField, operatorTakesNoValue } from './analyticsConfig';
 // The pure draft/label/filter transforms live in a sibling helpers module (clean cohesion seam).
 import {
   AGGREGATE_FUNCTIONS,
-  COUNT_STAR,
-  resolveLabel,
   nextMeasureId,
   toDrafts,
   fromDrafts,
@@ -116,6 +117,25 @@ import {
 
 /** The data source tag the client pivot adapter resolves member rows against. */
 export const MEMBER_PIVOT_DATA_SOURCE = 'members';
+
+/**
+ * Local invalid-pattern guard for the inline `regex` / `notRegex` validity hint
+ * (R7.3, R7.7). Mirrors the filter engine's own private `tryCompileRegex`
+ * (`analyticsConfig.ts`, case-insensitive, swallows a bad pattern) so the row's
+ * inline message agrees with the engine's never-match behaviour: an INVALID
+ * pattern returns `false` here and matches NO row at execute, for BOTH `regex`
+ * and `notRegex`. Kept local because the engine's helper is module-private; the
+ * picker only needs the valid/invalid predicate, not the compiled RegExp.
+ */
+function isValidRegex(pattern: string): boolean {
+  try {
+    // eslint-disable-next-line no-new
+    new RegExp(pattern, 'i');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * A starting-point SEED for a NEW set (the Save-as flow): the config to
@@ -199,6 +219,14 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
 
   const lang = (language || 'nl').slice(0, 2);
   const fields = useMemo(() => pickableFields(fieldConfig), [fieldConfig]);
+  // Key → resolved field, so a filter row can look up its field's type to drive
+  // the type-adaptive operator list (operatorsForField) without re-scanning the
+  // field array per render.
+  const fieldByKey = useMemo(() => {
+    const map = new Map<string, FieldConfigField>();
+    for (const f of fields) map.set(f.key, f);
+    return map;
+  }, [fields]);
   // Both field lists (Group by + List columns) render THROUGH the shared
   // FieldChecklist (session-columns C1 / R4.1), which owns the functional-group
   // sectioning (catalog order, alphabetical within) so this picker and the
@@ -289,10 +317,10 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
       dataSource: MEMBER_PIVOT_DATA_SOURCE,
       groupColumns: [...groupColumns],
       aggregateMeasures: fromDrafts(measures),
-      // The DEFINITION filters are composed from the editable rows (issue 3),
-      // merged onto the base config's RESERVED year filters so a jubilee/joined
-      // selector choice is preserved and never clobbered.
-      filters: fromFilterDrafts(filterDrafts, base?.filters),
+      // The DEFINITION filters are composed purely from the editable rows
+      // (issue 3). There is no reserved-key carry — every filter key, including
+      // the former year keys, is an ordinary editable row.
+      filters: fromFilterDrafts(filterDrafts),
       columnPivot: base?.columnPivot ?? null,
       columnNestLevels: base?.columnNestLevels ?? [],
       displayMode: base?.displayMode ?? 'flat',
@@ -329,7 +357,12 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
   };
 
   const addFilter = () => {
-    setFilterDrafts((prev) => [...prev, { id: nextFilterId(), field: '', value: '' }]);
+    // A new filter row defaults its operator to `eq` (R3.5); the operator UI is
+    // wired in a later task, but the draft must carry a valid op so it composes.
+    setFilterDrafts((prev) => [
+      ...prev,
+      { id: nextFilterId(), field: '', op: 'eq', value: '' },
+    ]);
   };
 
   const removeFilter = (id: string) => {
@@ -338,6 +371,25 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
 
   const updateFilter = (id: string, patch: Partial<Omit<FilterDraft, 'id'>>) => {
     setFilterDrafts((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  };
+
+  /**
+   * Change a filter row's field, resetting its operator to `eq` when the new
+   * field's type no longer offers the row's current operator (R3.6). `eq` is in
+   * every type's operator set, so it is always a valid fallback — e.g. switching
+   * a row from a text field (`contains`) to a `number` field (which offers no
+   * `contains`) snaps the operator back to `eq`. When the current operator is
+   * still valid for the new field type it is preserved.
+   */
+  const changeFilterField = (id: string, field: string) => {
+    setFilterDrafts((prev) =>
+      prev.map((f) => {
+        if (f.id !== id) return f;
+        const allowed = operatorsForField(fieldByKey.get(field), fieldConfig ?? undefined);
+        const op = allowed.includes(f.op) ? f.op : ('eq' as FilterOperator);
+        return { ...f, field, op };
+      }),
+    );
   };
 
   const handleSave = async () => {
@@ -490,20 +542,19 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
                         </option>
                       ))}
                     </Select>
-                    <Select
-                      aria-label={t(`${T}.measureColumn`)}
+                    {/* Measure column — the grouped single-select (R2.2). Its
+                        empty-value placeholder is the COUNT(*)-over-all-rows
+                        sentinel (value ''), the only valid empty-column choice;
+                        aggregate-measure semantics are unchanged (R11.1). */}
+                    <GroupedFieldSelect
+                      fields={fields}
                       value={m.column}
-                      onChange={(e) => updateMeasure(m.id, { column: e.target.value })}
-                      bg="gray.900"
-                    >
-                      {/* COUNT(*) over all rows — the only valid empty-column choice. */}
-                      <option value="">{t(`${T}.countAll`)}</option>
-                      {fields.map((f) => (
-                        <option key={f.key} value={f.key}>
-                          {resolveLabel(f.label, lang, f.key)}
-                        </option>
-                      ))}
-                    </Select>
+                      onChange={(key) => updateMeasure(m.id, { column: key })}
+                      functionalGroups={fieldConfig?.functional_groups}
+                      lang={lang}
+                      ariaLabel={t(`${T}.measureColumn`)}
+                      placeholder={t(`${T}.countAll`)}
+                    />
                     <IconButton
                       aria-label={t(`${T}.removeMeasure`)}
                       data-testid={`field-picker-remove-measure-${m.id}`}
@@ -540,44 +591,104 @@ export const MemberFieldPicker: React.FC<MemberFieldPickerProps> = ({
                 {t(`${T}.filtersHint`)}
               </Text>
               <VStack align="stretch" spacing={2} data-testid="field-picker-filters">
-                {filterDrafts.map((f) => (
-                  <HStack key={f.id} data-testid={`field-picker-filter-${f.id}`}>
-                    <Select
-                      aria-label={t(`${T}.filterField`)}
-                      value={f.field}
-                      onChange={(e) => updateFilter(f.id, { field: e.target.value })}
-                      bg="gray.900"
-                      maxW="50%"
-                      data-testid={`field-picker-filter-field-${f.id}`}
+                {filterDrafts.map((f) => {
+                  // The operator list is type-adaptive (R3.1–R3.4): a text field
+                  // offers contains/notContains/regex/notRegex, a number/date
+                  // field offers the ordering ops, and every type always offers
+                  // eq/ne/empty/notEmpty.
+                  const operators = operatorsForField(
+                    fieldByKey.get(f.field),
+                    fieldConfig ?? undefined,
+                  );
+                  // The value Input is hidden for the presence checks (empty /
+                  // notEmpty, R4.1) and shown for every value-taking op —
+                  // including notContains / notRegex (R4.2).
+                  const takesValue = !operatorTakesNoValue(f.op);
+                  // Inline invalid-pattern hint on a regex OR notRegex row whose
+                  // value will not compile (R7.3, R7.7). Non-empty value only —
+                  // a blank value never narrows, so it is not "invalid" yet.
+                  const regexInvalid =
+                    (f.op === 'regex' || f.op === 'notRegex') &&
+                    f.value.trim() !== '' &&
+                    !isValidRegex(f.value);
+                  return (
+                    <VStack
+                      key={f.id}
+                      align="stretch"
+                      spacing={1}
+                      data-testid={`field-picker-filter-${f.id}`}
                     >
-                      <option value="">{t(`${T}.filterField`)}</option>
-                      {fields.map((field) => (
-                        <option key={field.key} value={field.key}>
-                          {resolveLabel(field.label, lang, field.key)}
-                        </option>
-                      ))}
-                    </Select>
-                    <Input
-                      aria-label={t(`${T}.filterValue`)}
-                      placeholder={t(`${T}.filterValue`)}
-                      value={f.value}
-                      onChange={(e) => updateFilter(f.id, { value: e.target.value })}
-                      bg="gray.900"
-                      color="white"
-                      _placeholder={{ color: 'gray.400' }}
-                      data-testid={`field-picker-filter-value-${f.id}`}
-                    />
-                    <IconButton
-                      aria-label={t(`${T}.removeFilter`)}
-                      data-testid={`field-picker-remove-filter-${f.id}`}
-                      size="sm"
-                      variant="ghost"
-                      colorScheme="red"
-                      icon={<Text aria-hidden>✕</Text>}
-                      onClick={() => removeFilter(f.id)}
-                    />
-                  </HStack>
-                ))}
+                      <HStack>
+                        {/* Filter field — the grouped single-select (R2.1), so
+                            the filter surface groups by functional group like the
+                            checklist. Placeholder = the "Field" label (value ''). */}
+                        <GroupedFieldSelect
+                          fields={fields}
+                          value={f.field}
+                          onChange={(key) => changeFilterField(f.id, key)}
+                          functionalGroups={fieldConfig?.functional_groups}
+                          lang={lang}
+                          ariaLabel={t(`${T}.filterField`)}
+                          placeholder={t(`${T}.filterField`)}
+                          testId={`field-picker-filter-field-${f.id}`}
+                          maxW="40%"
+                        />
+                        {/* Operator — the type-adaptive list (R3.*). */}
+                        <Select
+                          aria-label={t(`${T}.filterOperator`)}
+                          value={f.op}
+                          onChange={(e) =>
+                            updateFilter(f.id, { op: e.target.value as FilterOperator })
+                          }
+                          bg="gray.900"
+                          maxW="30%"
+                          data-testid={`field-picker-filter-op-${f.id}`}
+                        >
+                          {operators.map((op) => (
+                            <option key={op} value={op}>
+                              {t(`${T}.operators.${op}`)}
+                            </option>
+                          ))}
+                        </Select>
+                        {/* Value — hidden for empty/notEmpty (R4.1), shown for
+                            every value-taking op incl. notContains/notRegex (R4.2). */}
+                        {takesValue && (
+                          <Input
+                            aria-label={t(`${T}.filterValue`)}
+                            placeholder={t(`${T}.filterValue`)}
+                            value={f.value}
+                            onChange={(e) => updateFilter(f.id, { value: e.target.value })}
+                            bg="gray.900"
+                            color="white"
+                            _placeholder={{ color: 'gray.400' }}
+                            data-testid={`field-picker-filter-value-${f.id}`}
+                          />
+                        )}
+                        <IconButton
+                          aria-label={t(`${T}.removeFilter`)}
+                          data-testid={`field-picker-remove-filter-${f.id}`}
+                          size="sm"
+                          variant="ghost"
+                          colorScheme="red"
+                          icon={<Text aria-hidden>✕</Text>}
+                          onClick={() => removeFilter(f.id)}
+                        />
+                      </HStack>
+                      {/* Inline invalid-pattern message (R7.3, R7.7). The save is
+                          never blocked on it — the row simply matches nothing at
+                          execute, consistent with the engine guard (R7.4). */}
+                      {regexInvalid && (
+                        <Text
+                          fontSize="xs"
+                          color="red.300"
+                          data-testid={`field-picker-filter-regex-invalid-${f.id}`}
+                        >
+                          {t(`${T}.filterRegexInvalid`)}
+                        </Text>
+                      )}
+                    </VStack>
+                  );
+                })}
                 <Button
                   size="sm"
                   variant="outline"

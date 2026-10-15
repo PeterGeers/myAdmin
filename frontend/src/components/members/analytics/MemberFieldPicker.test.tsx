@@ -337,9 +337,32 @@ describe('MemberFieldPicker', () => {
     expect(checkboxInput('field-picker-list-clubblad')).not.toBeChecked();
   });
 
-  // --- Issue 3: definition filters (field == value) compose + round-trip. ---
-  describe('definition filters (issue 3)', () => {
-    it('composes a filter (field == value) into config.filters and persists it', async () => {
+  // --- Issue 3 / task 7: definition filter ROWS (grouped field + operator +
+  // value) compose into the object FilterClause shape + round-trip. The filter
+  // row is now `[GroupedFieldSelect | operator-select | value-input | remove]`;
+  // each row's testids are keyed by the draft id:
+  //   field  → field-picker-filter-field-<id> (grouped <select>, placeholder '')
+  //   op     → field-picker-filter-op-<id>     (operator <select>, default 'eq')
+  //   value  → field-picker-filter-value-<id>  (ABSENT for empty/notEmpty)
+  //   regex-invalid → field-picker-filter-regex-invalid-<id> (regex OR notRegex)
+  // and the composed `config.filters` is the object form
+  // `{ key: { op, value? } }` — a legacy scalar reads back as `{ op:'eq', … }`.
+  describe('definition filter rows (grouped field + operator + value)', () => {
+    /** The one filter row's testid-anchored controls (there is exactly one row). */
+    function soleFilterRow() {
+      const filters = screen.getByTestId('field-picker-filters');
+      const fieldSelect = filters.querySelector(
+        '[data-testid^="field-picker-filter-field-"]',
+      ) as HTMLSelectElement;
+      const opSelect = filters.querySelector(
+        '[data-testid^="field-picker-filter-op-"]',
+      ) as HTMLSelectElement;
+      // The draft id is the suffix shared across the row's testids.
+      const id = fieldSelect.getAttribute('data-testid')!.replace('field-picker-filter-field-', '');
+      return { id, fieldSelect, opSelect };
+    }
+
+    it('composes a filter row (field + eq operator + value) into the object FilterClause shape', async () => {
       render(<MemberFieldPicker {...makeProps()} />);
       fireEvent.change(screen.getByTestId('field-picker-name'), {
         target: { value: 'Clubblad paper' },
@@ -347,22 +370,190 @@ describe('MemberFieldPicker', () => {
       // Make it an aggregate so the test does not depend on list columns.
       clickCheckbox('field-picker-group-membership_type');
 
-      // Add a filter row and set clubblad == 'Papier'.
+      // Add a filter row, pick clubblad on the GROUPED field select, keep the
+      // default `eq` operator, and type the value.
       fireEvent.click(screen.getByTestId('field-picker-add-filter'));
-      const row = screen.getByTestId('field-picker-filters');
-      const fieldSelect = row.querySelector('select') as HTMLSelectElement;
+      const { id, fieldSelect, opSelect } = soleFilterRow();
+      // A new row defaults its operator to `eq`.
+      expect(opSelect.value).toBe('eq');
       fireEvent.change(fieldSelect, { target: { value: 'clubblad' } });
-      const valueInput = row.querySelector('input') as HTMLInputElement;
+      const valueInput = screen.getByTestId(
+        `field-picker-filter-value-${id}`,
+      ) as HTMLInputElement;
       fireEvent.change(valueInput, { target: { value: 'Papier' } });
 
       fireEvent.click(screen.getByTestId('field-picker-save'));
 
       await waitFor(() => expect(mockSaveAnalyticsSet).toHaveBeenCalledTimes(1));
       const [, config] = mockSaveAnalyticsSet.mock.calls[0];
-      expect(config.filters).toEqual({ clubblad: 'Papier' });
+      // The persisted shape is the object FilterClause, not a legacy scalar.
+      expect(config.filters).toEqual({ clubblad: { op: 'eq', value: 'Papier' } });
     });
 
-    it('seeds (round-trips) existing filters from the edited model, skipping reserved year keys', () => {
+    it('the filter field select is GROUPED (optgroups mirror the checklist sections)', () => {
+      const grouped = {
+        functional_groups: [
+          { key: 'contact', label: { en: 'Contact', nl: 'Contact' }, order: 1 },
+          { key: 'membership', label: { en: 'Membership', nl: 'Lidmaatschap' }, order: 2 },
+        ],
+        fields: [
+          { key: 'email', functional_group: 'contact', label: { en: 'Email' } },
+          { key: 'tier', functional_group: 'membership', label: { en: 'Tier' } },
+        ],
+      } as unknown as FieldConfig;
+      render(<MemberFieldPicker {...makeProps({ fieldConfig: grouped })} />);
+
+      fireEvent.click(screen.getByTestId('field-picker-add-filter'));
+      const { fieldSelect } = soleFilterRow();
+      // The grouped field select renders an <optgroup> per catalog section.
+      const groups = Array.from(fieldSelect.querySelectorAll('optgroup')).map((g) =>
+        g.getAttribute('label'),
+      );
+      expect(groups).toEqual(['Contact', 'Membership']);
+    });
+
+    it('the measure column select is GROUPED (shares the checklist sectioning)', () => {
+      const grouped = {
+        functional_groups: [
+          { key: 'contact', label: { en: 'Contact', nl: 'Contact' }, order: 1 },
+          { key: 'membership', label: { en: 'Membership', nl: 'Lidmaatschap' }, order: 2 },
+        ],
+        fields: [
+          { key: 'email', functional_group: 'contact', label: { en: 'Email' } },
+          { key: 'tier', functional_group: 'membership', label: { en: 'Tier' } },
+        ],
+      } as unknown as FieldConfig;
+      render(<MemberFieldPicker {...makeProps({ fieldConfig: grouped })} />);
+
+      fireEvent.click(screen.getByTestId('field-picker-add-measure'));
+      // The measure row's second <select> is the grouped column select.
+      const selects = screen
+        .getByTestId('field-picker-measures')
+        .querySelectorAll('select');
+      const columnSelect = selects[1] as HTMLSelectElement;
+      const groups = Array.from(columnSelect.querySelectorAll('optgroup')).map((g) =>
+        g.getAttribute('label'),
+      );
+      expect(groups).toEqual(['Contact', 'Membership']);
+    });
+
+    it('offers notContains / notRegex on a text field (type-adaptive operator list)', () => {
+      render(<MemberFieldPicker {...makeProps()} />);
+      fireEvent.click(screen.getByTestId('field-picker-add-filter'));
+      const { id, fieldSelect, opSelect } = soleFilterRow();
+      // clubblad has no `type` → the text operator set.
+      fireEvent.change(fieldSelect, { target: { value: 'clubblad' } });
+      const ops = Array.from(opSelect.querySelectorAll('option')).map((o) =>
+        (o as HTMLOptionElement).value,
+      );
+      expect(ops).toEqual([
+        'eq',
+        'ne',
+        'contains',
+        'notContains',
+        'regex',
+        'notRegex',
+        'empty',
+        'notEmpty',
+      ]);
+      // The negated-text ops are value-TAKING — picking notContains keeps the value input.
+      fireEvent.change(opSelect, { target: { value: 'notContains' } });
+      expect(screen.getByTestId(`field-picker-filter-value-${id}`)).toBeInTheDocument();
+    });
+
+    it('hides the value input for empty / notEmpty and shows it otherwise', () => {
+      render(<MemberFieldPicker {...makeProps()} />);
+      fireEvent.click(screen.getByTestId('field-picker-add-filter'));
+      const { id, fieldSelect, opSelect } = soleFilterRow();
+      fireEvent.change(fieldSelect, { target: { value: 'clubblad' } });
+
+      // Default `eq` → value input shown.
+      expect(screen.getByTestId(`field-picker-filter-value-${id}`)).toBeInTheDocument();
+      // `empty` → value input hidden.
+      fireEvent.change(opSelect, { target: { value: 'empty' } });
+      expect(screen.queryByTestId(`field-picker-filter-value-${id}`)).not.toBeInTheDocument();
+      // `notEmpty` → still hidden.
+      fireEvent.change(opSelect, { target: { value: 'notEmpty' } });
+      expect(screen.queryByTestId(`field-picker-filter-value-${id}`)).not.toBeInTheDocument();
+      // back to a value-taking op → shown again.
+      fireEvent.change(opSelect, { target: { value: 'contains' } });
+      expect(screen.getByTestId(`field-picker-filter-value-${id}`)).toBeInTheDocument();
+    });
+
+    it('composes a valueless empty clause (no value key) into the object shape', async () => {
+      render(<MemberFieldPicker {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('field-picker-name'), {
+        target: { value: 'Has clubblad' },
+      });
+      clickCheckbox('field-picker-group-membership_type');
+      fireEvent.click(screen.getByTestId('field-picker-add-filter'));
+      const { fieldSelect, opSelect } = soleFilterRow();
+      fireEvent.change(fieldSelect, { target: { value: 'clubblad' } });
+      fireEvent.change(opSelect, { target: { value: 'notEmpty' } });
+
+      fireEvent.click(screen.getByTestId('field-picker-save'));
+      await waitFor(() => expect(mockSaveAnalyticsSet).toHaveBeenCalledTimes(1));
+      const [, config] = mockSaveAnalyticsSet.mock.calls[0];
+      // A presence check carries no `value`.
+      expect(config.filters).toEqual({ clubblad: { op: 'notEmpty' } });
+    });
+
+    it('resets the operator to eq when the field changes to an incompatible type', () => {
+      // A config with a text field AND a number field, so switching the row's
+      // field from text (contains) to number (no contains) resets op → eq.
+      const typed = {
+        fields: [
+          { key: 'clubblad', label: { en: 'Clubblad' } }, // no type → text
+          { key: 'age', type: 'number', label: { en: 'Age' } },
+        ],
+      } as unknown as FieldConfig;
+      render(<MemberFieldPicker {...makeProps({ fieldConfig: typed })} />);
+
+      fireEvent.click(screen.getByTestId('field-picker-add-filter'));
+      const { fieldSelect, opSelect } = soleFilterRow();
+      // Pick the text field and a text-only operator.
+      fireEvent.change(fieldSelect, { target: { value: 'clubblad' } });
+      fireEvent.change(opSelect, { target: { value: 'contains' } });
+      expect(opSelect.value).toBe('contains');
+
+      // Switch the field to the number field, whose operator set excludes
+      // `contains` → the operator snaps back to `eq`.
+      fireEvent.change(fieldSelect, { target: { value: 'age' } });
+      expect(opSelect.value).toBe('eq');
+      // The number field offers the numeric/date ordering set (no contains/regex).
+      const ops = Array.from(opSelect.querySelectorAll('option')).map((o) =>
+        (o as HTMLOptionElement).value,
+      );
+      expect(ops).toEqual(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'empty', 'notEmpty']);
+    });
+
+    it('shows the inline invalid-pattern message on an invalid notRegex row', () => {
+      render(<MemberFieldPicker {...makeProps()} />);
+      fireEvent.click(screen.getByTestId('field-picker-add-filter'));
+      const { id, fieldSelect, opSelect } = soleFilterRow();
+      fireEvent.change(fieldSelect, { target: { value: 'clubblad' } });
+      fireEvent.change(opSelect, { target: { value: 'notRegex' } });
+      const valueInput = screen.getByTestId(
+        `field-picker-filter-value-${id}`,
+      ) as HTMLInputElement;
+      // An unbalanced group is an invalid pattern.
+      fireEvent.change(valueInput, { target: { value: '([' } });
+
+      expect(
+        screen.getByTestId(`field-picker-filter-regex-invalid-${id}`),
+      ).toHaveTextContent('analytics.pivotViews.fieldPicker.filterRegexInvalid');
+
+      // A valid pattern clears the message.
+      fireEvent.change(valueInput, { target: { value: 'pap' } });
+      expect(
+        screen.queryByTestId(`field-picker-filter-regex-invalid-${id}`),
+      ).not.toBeInTheDocument();
+    });
+
+    // FLIPPED (task 7.3): the former reserved-key carve-out is retired. A legacy
+    // scalar `years_member: 25` is NO LONGER skipped — it reads as an ordinary
+    // editable `eq` row ALONGSIDE the generic clubblad filter (R8.5 / R8.9).
+    it('seeds a legacy scalar year filter as an editable eq row alongside the generic filter', () => {
       const existingModel = {
         id: 'set-11',
         name: 'Paper + jubilee',
@@ -370,8 +561,8 @@ describe('MemberFieldPicker', () => {
           dataSource: 'members',
           groupColumns: ['membership_type'],
           aggregateMeasures: [{ function: 'COUNT' as const, column: '*' }],
-          // A generic filter (shown + editable) AND a reserved year filter
-          // (owned by the jubilee selector — must NOT appear as an editable row).
+          // A generic filter AND a legacy scalar year filter — BOTH now surface
+          // as editable rows (the reserved-key carve-out is gone).
           filters: { clubblad: 'Papier', years_member: 25 },
           columnPivot: null,
           columnNestLevels: [],
@@ -380,15 +571,30 @@ describe('MemberFieldPicker', () => {
       };
       render(<MemberFieldPicker {...makeProps({ existingModel })} />);
 
-      // Exactly one editable filter row (the generic clubblad filter); the
-      // reserved years_member key is not surfaced as a row.
       const filters = screen.getByTestId('field-picker-filters');
-      const valueInputs = filters.querySelectorAll('input');
-      expect(valueInputs).toHaveLength(1);
-      expect((valueInputs[0] as HTMLInputElement).value).toBe('Papier');
+      // TWO editable filter rows now — clubblad AND years_member.
+      const fieldSelects = filters.querySelectorAll(
+        '[data-testid^="field-picker-filter-field-"]',
+      );
+      expect(fieldSelects).toHaveLength(2);
+      const fieldValues = Array.from(fieldSelects).map(
+        (s) => (s as HTMLSelectElement).value,
+      );
+      expect(fieldValues).toEqual(['clubblad', 'years_member']);
+
+      // The years_member row is an `eq` row carrying the stringified scalar.
+      const opSelects = filters.querySelectorAll('[data-testid^="field-picker-filter-op-"]');
+      expect(Array.from(opSelects).map((s) => (s as HTMLSelectElement).value)).toEqual([
+        'eq',
+        'eq',
+      ]);
+      const valueInputs = Array.from(
+        filters.querySelectorAll('[data-testid^="field-picker-filter-value-"]'),
+      ) as HTMLInputElement[];
+      expect(valueInputs.map((i) => i.value)).toEqual(['Papier', '25']);
     });
 
-    it('preserves the reserved year filter through an update (not clobbered)', async () => {
+    it('composes BOTH year + generic rows into the object shape through an update', async () => {
       const existingModel = {
         id: 'set-11',
         name: 'Paper + jubilee',
@@ -407,8 +613,12 @@ describe('MemberFieldPicker', () => {
 
       await waitFor(() => expect(mockUpdateAnalyticsSet).toHaveBeenCalledTimes(1));
       const [, , config] = mockUpdateAnalyticsSet.mock.calls[0];
-      // Both the generic filter and the reserved year filter survive.
-      expect(config.filters).toEqual({ clubblad: 'Papier', years_member: 25 });
+      // Both rows compose generically to the object FilterClause form; the legacy
+      // scalar year filter re-saves as an ordinary `eq` clause (stringified value).
+      expect(config.filters).toEqual({
+        clubblad: { op: 'eq', value: 'Papier' },
+        years_member: { op: 'eq', value: '25' },
+      });
     });
 
     it('drops a blank filter row (no field or no value)', async () => {
@@ -417,7 +627,7 @@ describe('MemberFieldPicker', () => {
         target: { value: 'No filter set' },
       });
       clickCheckbox('field-picker-group-membership_type');
-      // Add a filter row but leave it blank.
+      // Add a filter row but leave it blank (no field key).
       fireEvent.click(screen.getByTestId('field-picker-add-filter'));
       fireEvent.click(screen.getByTestId('field-picker-save'));
 
@@ -535,14 +745,16 @@ describe('MemberFieldPicker', () => {
       expect(name).toBe('Paper clubblad');
       // The edit is persisted …
       expect(config.groupColumns).toEqual(['membership_type', 'clubblad']);
-      // … and the set's OWN definition filters travel with it (R4.4).
-      expect(config.filters).toEqual({ clubblad: 'Papier' });
+      // … and the set's OWN definition filters travel with it (R4.4), now
+      // re-saved in the object FilterClause shape (a legacy scalar reads back
+      // as `{ op: 'eq', value }` — equivalent narrowing, R8.2 / R8.8).
+      expect(config.filters).toEqual({ clubblad: { op: 'eq', value: 'Papier' } });
       expect(kind).toBe('count');
 
       // onSaved reports the SAME id so the caller can reselect it.
       await waitFor(() =>
         expect(onSaved).toHaveBeenCalledWith(
-          expect.objectContaining({ filters: { clubblad: 'Papier' } }),
+          expect.objectContaining({ filters: { clubblad: { op: 'eq', value: 'Papier' } } }),
           'Paper clubblad',
           'set-7',
         ),
