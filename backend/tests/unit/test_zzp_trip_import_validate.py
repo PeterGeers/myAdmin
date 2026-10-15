@@ -354,13 +354,16 @@ class TestCategoryPurposeValidation:
         assert result["rows"][0]["_status"] == "warning"
         assert any("categorie" in msg.lower() for msg in result["rows"][0]["_messages"])
 
-    def test_invalid_purpose_is_warning(self, service_with_params):
-        """Invalid purpose triggers a warning (not error)."""
+    def test_free_text_purpose_no_warning(self, service_with_params):
+        """trip_purpose is free-text (business-owned): an unknown purpose is
+        accepted on import with NO warning (only trip_category is checked). This
+        matches the create path, which no longer validates purpose against an
+        allow-list."""
         rows = [make_valid_row(trip_category="Zakelijk", trip_purpose="Onbekend")]
         result = service_with_params.validate_import("tenant1", 1, rows)
 
-        assert result["rows"][0]["_status"] == "warning"
-        assert any("doel" in msg.lower() for msg in result["rows"][0]["_messages"])
+        assert result["rows"][0]["_status"] == "ok"
+        assert not any("doel" in msg.lower() for msg in result["rows"][0]["_messages"])
 
     def test_no_param_service_no_category_warning(self, service):
         """Without parameter_service, no category/purpose warnings."""
