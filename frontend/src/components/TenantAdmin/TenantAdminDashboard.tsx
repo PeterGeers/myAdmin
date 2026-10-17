@@ -19,7 +19,7 @@ import MemberSenderIdentitiesTab from './MemberSenderIdentitiesTab';
 import AdvancedTab from './AdvancedTab';
 import FunctionsTab from './FunctionsTab';
 import { LandingPageEditor } from './LandingPage';
-import { MembersConfigEditor } from './MembersConfig';
+import { MembersConfigEditor, MembershipTypesManager } from './MembersConfig';
 
 interface TenantInfo {
   name: string;
@@ -39,7 +39,9 @@ export function TenantAdminDashboard() {
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [tenantModules, setTenantModules] = useState<string[]>([]);
   const toast = useToast();
-  const { t } = useTypedTranslation('admin');
+  const { t, i18n } = useTypedTranslation('admin');
+  // Nederlands-default language for the Members admin sub-tab labels (house `t(nl,en)` style).
+  const membersLang: 'nl' | 'en' = i18n.language?.startsWith('nl') ? 'nl' : 'en';
   const { currentTenant } = useTenant(); // Just read from context, don't manage it here
 
   useEffect(() => {
@@ -258,7 +260,31 @@ export function TenantAdminDashboard() {
             )}
             {hasMembers && (
               <TabPanel>
-                <MembersConfigEditor tenant={currentTenant} />
+                {/* Members admin area: the field-config editor + the membership-type catalog
+                    management surface (membership-type-catalog-admin-ui task 2.1) as sibling
+                    sections under the same hasMembers gate. */}
+                <Tabs colorScheme="orange" variant="soft-rounded" size="sm" isLazy>
+                  <TabList>
+                    <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+                      {membersLang === 'nl' ? 'Veldconfiguratie' : 'Field configuration'}
+                    </Tab>
+                    <Tab
+                      color="gray.300"
+                      _selected={{ color: 'orange.400', bg: 'gray.800' }}
+                      data-testid="members-admin-membership-types-tab"
+                    >
+                      {membersLang === 'nl' ? 'Lidmaatschapstypes' : 'Membership types'}
+                    </Tab>
+                  </TabList>
+                  <TabPanels>
+                    <TabPanel px={0}>
+                      <MembersConfigEditor tenant={currentTenant} />
+                    </TabPanel>
+                    <TabPanel px={0}>
+                      <MembershipTypesManager tenant={currentTenant} />
+                    </TabPanel>
+                  </TabPanels>
+                </Tabs>
               </TabPanel>
             )}
             <TabPanel>

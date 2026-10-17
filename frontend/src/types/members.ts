@@ -66,8 +66,11 @@ export interface MemberRow extends Member {
 }
 
 /**
- * A membership-type catalog entry (`GET /membership-types`). Only the fields the
- * page/dropdowns read are modeled here.
+ * A membership-type catalog entry (`GET /membership-types`). Mirrors the SAM
+ * domain `MembershipTypeEntry` ({@link https} `sam/members/domain/membership_type_catalog.py`):
+ * `{ tenant_id, type_code, label{nl,en}, active, order }`. Only the fields the
+ * page/dropdowns/management surface read are modeled here (`tenant_id` is
+ * server-derived and never surfaced to the client).
  */
 export interface MembershipType {
   /**
@@ -81,9 +84,55 @@ export interface MembershipType {
    * `type_code`. Kept optional so both shapes resolve (options prefer `type_code`).
    */
   key?: string;
-  /** Human label (localized or plain). */
+  /** Human label (localized {@link LocalizedLabel} `{nl,en}` or plain string). */
   label?: string | LocalizedLabel;
   /** Whether the type is currently active (for active-only dropdowns). */
+  active?: boolean;
+  /**
+   * The catalog presentation order the management list surface sorts by
+   * (`(order, type_code)`, R1.2). Integer; the server defaults it to `0`.
+   */
+  order?: number;
+}
+
+/**
+ * The CREATE body for `POST /membership-types` (members:admin), the authoritative
+ * write shape owned here and consumed by the service wrapper in
+ * `services/members/membersConfigApi.ts`. Mirrors the SAM create route:
+ * `{ type_code, label, order?, active? }`.
+ *
+ * `type_code` and `label` are REQUIRED (the server requires a non-blank `nl`
+ * label — enforced pre-submit by UI task 2.3, authoritatively by the SAM
+ * domain); `order`/`active` are optional (the server defaults `order=0`,
+ * `active=true`). `tenant_id` is server-derived from the verified token and is
+ * NEVER sent by the client.
+ */
+export interface MembershipTypeCreateBody {
+  /** The stable catalog id (create-time only; immutable on edit). Non-blank, no `#`. */
+  type_code: string;
+  /** The bilingual label; a non-blank `nl` is required server-side. */
+  label: LocalizedLabel;
+  /** Presentation order (integer); server defaults to `0` when omitted. */
+  order?: number;
+  /** Active flag; server defaults to `true` when omitted. */
+  active?: boolean;
+}
+
+/**
+ * The UPDATE body for `PUT /membership-types/{type_code}` (members:admin), the
+ * authoritative write shape owned here and consumed by the service wrapper in
+ * `services/members/membersConfigApi.ts`. Mirrors the SAM update route:
+ * `{ label?, order?, active? }`.
+ *
+ * `type_code` is the path param and the stable, immutable id — it is NOT part of
+ * the update body (edit changes only `label`/`order`/`active`; R2.2).
+ */
+export interface MembershipTypeUpdateBody {
+  /** The bilingual label; when present a non-blank `nl` is required server-side. */
+  label?: LocalizedLabel;
+  /** Presentation order (integer). */
+  order?: number;
+  /** Active flag. */
   active?: boolean;
 }
 
