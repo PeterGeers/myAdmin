@@ -454,6 +454,13 @@
     "delete": "Verwijderen",
     "transition": "Status wijzigen"
   },
+  "inbox": {
+    "label": "Aanmeldingen-inbox:",
+    "applications": "Aanmeldingen",
+    "duplicates": "Mogelijke duplicaten",
+    "notNotified": "Niet automatisch gemeld",
+    "clear": "Wissen"
+  },
   "view": {
     "compact": "Compact",
     "full": "Volledig"
@@ -617,5 +624,19 @@
     "previous": "Vorige",
     "next": "Volgende",
     "pageOf": "Pagina {{page}} van {{total}}"
+  },
+  "publicApplication": {
+    "notAvailable": {
+      "title": "Aanmeldingen zijn nog niet beschikbaar",
+      "body": "Deze organisatie accepteert nog geen aanmeldingen. Probeer het later opnieuw."
+    },
+    "notFound": {
+      "title": "Pagina niet gevonden",
+      "body": "Er is geen aanmeldformulier gevonden op dit adres."
+    },
+    "error": {
+      "title": "Er is iets misgegaan",
+      "body": "Het aanmeldformulier kon niet worden geladen. Probeer het later opnieuw."
+    }
   }
 }

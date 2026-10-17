@@ -361,6 +361,11 @@ _DESIGNED_ATTRIBUTE_KEYS = {
     "calculated_from",
     "scope_binding",
     "alias",
+    # Public member-application attributes (application-app spec: D20; R4.2/R4a/R4b/R7.1).
+    "application_visible",
+    "application_required",
+    "application_choices",
+    "format",
 }
 
 
@@ -967,6 +972,13 @@ _DATACLASS_FIELD_TO_ATTRIBUTE: dict[str, str] = {
     # the drift guard asserts key presence, not type-shape equivalence (the spec's forward-compat
     # value_type="bool" stays as pinned by test_scope_binding_is_declared_only_with_phase_3_note).
     "scope": "scope_binding",
+    # Public member-application attributes (application-app spec task 3.1: D20; R4.2/R4a/R4b/R7.1).
+    # Added to FixedField / OverlayField / FixedFieldOverride mirroring `member_number_format`;
+    # each maps to its identically-named AttributeSpec declared in ATTRIBUTE_VOCABULARY.
+    "application_visible": "application_visible",
+    "application_required": "application_required",
+    "application_choices": "application_choices",
+    "format": "format",
 }
 
 #: EXPLICIT allow-list of dataclass fields that are deliberately NOT modelled catalog attributes
