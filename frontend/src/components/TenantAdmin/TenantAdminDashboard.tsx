@@ -186,7 +186,6 @@ export function TenantAdminDashboard() {
 
   const hasFIN = tenantModules.includes('FIN');
   const hasMembers = tenantModules.includes('MEMBERS');
-  const isSysAdmin = userRoles.includes('SysAdmin');
 
   return (
     <Box minH="100vh" bg="gray.900" p={6}>
@@ -236,11 +235,13 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               🌐 {t('tenantAdmin.tabs.landingPage')}
             </Tab>
-            {isSysAdmin && (
-              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                🔧 {t('tenantAdmin.tabs.advanced')}
-              </Tab>
-            )}
+            {/* Advanced (raw parameters) — any Tenant_Admin of the current tenant.
+                Reaching this dashboard already requires Tenant_Admin (loadUserInfo +
+                the render guards), and the backend scopes/filters by tenant + active
+                modules and masks secrets, so no extra SysAdmin gate belongs here. */}
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              🔧 {t('tenantAdmin.tabs.advanced')}
+            </Tab>
           </TabList>
 
           <TabPanels>
@@ -286,11 +287,9 @@ export function TenantAdminDashboard() {
             <TabPanel>
               <LandingPageEditor tenant={currentTenant} tenantModules={tenantModules} />
             </TabPanel>
-            {isSysAdmin && (
-              <TabPanel>
-                <AdvancedTab tenant={currentTenant} />
-              </TabPanel>
-            )}
+            <TabPanel>
+              <AdvancedTab tenant={currentTenant} />
+            </TabPanel>
           </TabPanels>
         </Tabs>
       </VStack>

@@ -40,13 +40,9 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.lifecycle_config import (
-    HDCN_LIFECYCLE_CONFIG,
-    StaticLifecycleConfigProvider,
-)
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
-from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
+from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.handler import app
 from sam.members.repository.members_repository import DynamoDbMembersRepository
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
@@ -119,7 +115,7 @@ def inject_service(monkeypatch, repo, hooks):
     _seed_hdcn_catalog(repo)
     service = MembershipService(
         repo,
-        lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
         tenant_hooks=hooks,
     )
     monkeypatch.setattr(app, "_get_membership_service", lambda: service)
@@ -215,7 +211,8 @@ def test_create_member_with_no_member_number_saves_empty(repo):
     mid = _data(resp)["member_id"]
     stored = repo.get_member("h-dcn", mid)
     assert not stored["membership"].get("member_number")  # empty / absent — no L-000001
-    # Initial lifecycle state from HDCN_LIFECYCLE_CONFIG (application).
+    # retire-members-status-lifecycle-engine (preserve 3.1): create defaults status to
+    # "application" — a plain literal default now, not the engine initial_state.
     assert stored["membership"]["status"] == "application"
 
 
@@ -290,158 +287,6 @@ def test_update_member_out_of_scope_returns_403(repo):
 def test_update_missing_member_returns_404():
     resp = app.handler(_event("PUT", "/members/ghost", body={"personal": {"first_name": "x"}}))
     assert resp["statusCode"] == 404
-
-
-# ── transition (lifecycle engine + hook) ────────────────────────────────────────────
-
-
-def test_transition_allowed_returns_200_and_persists(repo):
-    # Seed a pending member with the fields the pending→active guard requires, then activate.
-    body = _valid_member_body(member_number="5001", status="pending")
-    create = app.handler(_event("POST", "/members", body=body))
-    assert create["statusCode"] == 200
-    mid = _data(create)["member_id"]
-    resp = app.handler(
-        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "active"})
-    )
-    assert resp["statusCode"] == 200
-    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "active"
-
-
-def test_transition_denied_by_guard_returns_409(repo):
-    # application→pending requires context.approved == True; omit it → denied (409), and the
-    # state is NOT mutated.
-    body = _valid_member_body(member_number="5002", status="application")
-    create = app.handler(_event("POST", "/members", body=body))
-    assert create["statusCode"] == 200
-    mid = _data(create)["member_id"]
-    resp = app.handler(
-        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "pending"})
-    )
-    assert resp["statusCode"] == 409
-    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "application"
-
-
-def test_transition_approved_application_moves_to_pending(repo):
-    body = _valid_member_body(member_number="5003", status="application")
-    create = app.handler(_event("POST", "/members", body=body))
-    assert create["statusCode"] == 200
-    mid = _data(create)["member_id"]
-    resp = app.handler(
-        _event(
-            "POST",
-            f"/members/{mid}/memberships/MS-1/transition",
-            body={"to_state": "pending", "context": {"approved": True}},
-        )
-    )
-    assert resp["statusCode"] == 200
-    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "pending"
-
-
-def test_transition_undeclared_edge_returns_409(repo):
-    body = _valid_member_body(member_number="5004", status="application")
-    create = app.handler(_event("POST", "/members", body=body))
-    assert create["statusCode"] == 200
-    mid = _data(create)["member_id"]
-    # application→active is not in the graph → denied.
-    resp = app.handler(
-        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "active"})
-    )
-    assert resp["statusCode"] == 409
-
-
-def test_transition_missing_to_state_returns_422(repo):
-    body = _valid_member_body(member_number="5005", status="pending")
-    create = app.handler(_event("POST", "/members", body=body))
-    assert create["statusCode"] == 200
-    mid = _data(create)["member_id"]
-    resp = app.handler(
-        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={})
-    )
-    assert resp["statusCode"] == 422
-
-
-def test_transition_out_of_scope_returns_403(repo):
-    # Tenant-scope WRITE path (Property 4): transition_member authorizes against the member's
-    # scope BEFORE running the lifecycle engine — scope is checked ahead of guards, so an
-    # out-of-scope caller gets a 403 (not a 409) and the lifecycle hook never fires / the state
-    # is never mutated. A Noord-scoped caller cannot activate a Zuid member.
-    body = _valid_member_body(region="Zuid", member_number="5007", status="pending")
-    create = app.handler(_event("POST", "/members", body=body))  # admin creates
-    assert create["statusCode"] == 200
-    mid = _data(create)["member_id"]
-    resp = app.handler(
-        _event(
-            "POST",
-            f"/members/{mid}/memberships/MS-1/transition",
-            email=_EMAIL_NOORD,
-            body={"to_state": "active"},
-        )
-    )
-    assert resp["statusCode"] == 403
-    # Scope deny did not mutate the state.
-    assert repo.get_member("h-dcn", mid)["membership"]["status"] == "pending"
-
-
-def test_transition_fires_on_transition_hook_only_on_success(monkeypatch, repo):
-    # Register an on_transition spy for h-dcn; it must fire on an allowed move and NOT on a
-    # denied one.
-    fired = []
-    hooks = register_hdcn_hooks(TenantHookRegistry())
-    hooks.register(
-        HookName.ON_TRANSITION,
-        "h-dcn",
-        lambda tid, member, frm, to: fired.append((frm.value, to.value)),
-    )
-    service = MembershipService(
-        repo,
-        lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
-        tenant_hooks=hooks,
-    )
-    monkeypatch.setattr(app, "_get_membership_service", lambda: service)
-
-    body = _valid_member_body(member_number="5006", status="application")
-    create = app.handler(_event("POST", "/members", body=body))
-    assert create["statusCode"] == 200
-    mid = _data(create)["member_id"]
-
-    # Denied move: application→active is not in the graph → hook must NOT fire.
-    denied = app.handler(
-        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "active"})
-    )
-    assert denied["statusCode"] == 409
-    assert fired == []
-
-    # Allowed move: application→pending (approved) → hook fires.
-    allowed = app.handler(
-        _event(
-            "POST",
-            f"/members/{mid}/memberships/MS-1/transition",
-            body={"to_state": "pending", "context": {"approved": True}},
-        )
-    )
-    assert allowed["statusCode"] == 200
-    assert ("application", "pending") in fired
-
-
-# ── bulk transition ───────────────────────────────────────────────────────────────────
-
-
-def test_bulk_transition_reports_per_item_outcomes(repo):
-    mids = []
-    for i in (1, 2):
-        body = _valid_member_body(member_number=f"60{i}", status="pending")
-        create = app.handler(_event("POST", "/members", body=body))
-        assert create["statusCode"] == 200
-        mids.append(_data(create)["member_id"])
-    resp = app.handler(
-        _event("POST", "/memberships/transition",
-               body={"to_state": "active", "member_ids": [mids[0], mids[1], "ghost"]})
-    )
-    assert resp["statusCode"] == 200
-    data = _data(resp)
-    assert data["succeeded"] == 2
-    assert data["failed"] == 1
 
 
 # ── delete_member ─────────────────────────────────────────────────────────────────────
@@ -593,12 +438,11 @@ def test_send_delegate_invitation_missing_email_returns_422(repo):
 def test_duplicate_member_number_across_members_is_allowed(table):
     # s5k: the member-number uniqueness guard was removed. Two members with the SAME number
     # both persist — a duplicate is a data-quality concern, not a write-time conflict.
-    lifecycle = StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG})
     hooks = register_hdcn_hooks(TenantHookRegistry())
     repo_a = DynamoDbMembersRepository(table=table, client=table.meta.client)
     repo_b = DynamoDbMembersRepository(table=table, client=table.meta.client)
-    svc_a = MembershipService(repo_a, lifecycle_provider=lifecycle, tenant_hooks=hooks)
-    svc_b = MembershipService(repo_b, lifecycle_provider=lifecycle, tenant_hooks=hooks)
+    svc_a = MembershipService(repo_a, tenant_hooks=hooks)
+    svc_b = MembershipService(repo_b, tenant_hooks=hooks)
 
     b1 = _valid_member_body(member_number="12345")
     created_a = svc_a.create_member("h-dcn", b1, {"region": ["*"]})
@@ -647,7 +491,7 @@ def _overlay_service_over(table) -> MembershipService:
     return MembershipService(
         repo,
         overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
-        lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
         tenant_hooks=register_hdcn_hooks(TenantHookRegistry()),
     )
 
@@ -784,18 +628,9 @@ def test_validation_error_carries_success_false_error_envelope(repo):
     assert "personal.last_name" in _error_fields(resp)
 
 
-def test_transition_denied_carries_success_false_and_reasons(repo):
-    # A 409 transition denial → {success:false, error, reasons:[...]} (anticipated mapping).
-    body = _valid_member_body(member_number="E-2", status="application")
-    create = app.handler(_event("POST", "/members", body=body))
-    mid = _data(create)["member_id"]
-    resp = app.handler(
-        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "pending"})
-    )
-    assert resp["statusCode"] == 409
-    env = _envelope(resp)
-    assert env["success"] is False
-    assert isinstance(env["reasons"], list)
+# retire-members-status-lifecycle-engine (§A/§F): the 409 transition-denial envelope test was
+# removed with the transition route + the `errors.transition.denied` code — status is now a
+# plain open-enum field edit, so there is no transition-denial 409 to envelope.
 
 
 def test_unhandled_exception_returns_bodied_500_not_empty_502(monkeypatch, repo, hooks):
@@ -852,33 +687,20 @@ def test_422_errors_is_rfc9457_array_with_field_code_detail(repo):
     assert "params" not in entry or entry["params"]
 
 
-def test_422_mustBeOneOf_entry_carries_allowed_params(repo):
-    # An invalid closed-enum value surfaces validation.mustBeOneOf with params.allowed for i18n.
+def test_create_member_accepts_an_arbitrary_status_value_open_enum(repo):
+    # retire-members-status-lifecycle-engine (§C): `membership.status` is now an OPEN enum, so a
+    # value the old closed set rejected is ACCEPTED on create (200) and persisted verbatim — the
+    # former `test_422_mustBeOneOf_entry_carries_allowed_params`, which asserted status was a
+    # closed enum, is re-pointed here to the intended post-retirement behavior. (The
+    # `validation.mustBeOneOf` code + `allowed` params stay pinned for a genuinely CLOSED enum in
+    # `test_field_error_codes.py`.)
     body = _valid_member_body(member_number="E-9")
     body["membership"]["status"] = "not-a-real-status"
     resp = app.handler(_event("POST", "/members", groups=("Regio_All",), body=body))
-    assert resp["statusCode"] == 422
-    by_field = {e["field"]: e for e in _envelope(resp)["errors"]}
-    entry = by_field["membership.status"]
-    assert entry["code"] == "errors.validation.mustBeOneOf"
-    assert "allowed" in entry["params"]
+    assert resp["statusCode"] == 200
+    assert _data(resp)["membership"]["status"] == "not-a-real-status"
 
 
-def test_409_reasons_is_rfc9457_array_with_code_and_detail(repo):
-    # A 409 transition denial carries `reasons` as an ARRAY of {code, detail} (no `field`) and a
-    # top-level `code`.
-    body = _valid_member_body(member_number="E-10", status="application")
-    create = app.handler(_event("POST", "/members", body=body))
-    mid = _data(create)["member_id"]
-    resp = app.handler(
-        _event("POST", f"/members/{mid}/memberships/MS-1/transition", body={"to_state": "pending"})
-    )
-    assert resp["statusCode"] == 409
-    env = _envelope(resp)
-    assert env["code"] == "errors.transition.denied"
-    reasons = env["reasons"]
-    assert isinstance(reasons, list) and reasons
-    first = reasons[0]
-    assert first["code"] == "errors.transition.denied"
-    assert isinstance(first["detail"], str) and first["detail"].strip()
-    assert "field" not in first  # a denial is not tied to one input field
+# retire-members-status-lifecycle-engine (§A/§F): the 409 `errors.transition.denied` RFC-9457
+# `reasons`-array test was removed with the transition route + the `errors.transition.denied`
+# code. The RFC-9457 error-envelope shape itself stays covered by the 422 validation tests above.

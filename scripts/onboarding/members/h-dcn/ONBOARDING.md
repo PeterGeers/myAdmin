@@ -157,7 +157,7 @@ The field is universal (code) but its value list is tenant config (R4.2).
 | Field (Fixed) | Storage | h-dcn options (`value` → `{nl,en}`) | Notes |
 | --- | --- | --- | --- |
 | `gender` | `personal` | `M`→{Man, Male}, `V`→{Vrouw, Female}, `X`→{Anders, Other}, `N`→{Wil niet zeggen, Prefer not to say} | open enum (`choices=None` in code); h-dcn supplies M/V/X/N |
-| `status` | `membership` | the **closed** platform set, tenant relabels only: `application`→{Aanmelding, Application}, `pending`→{In behandeling, Pending}, `active`→{Actief, Active}, `suspended`→{Geschorst, Suspended}, `lapsed`→{Verlopen, Lapsed}, `left`→{Uitgeschreven, Left} | the state *values* are fixed (`MembershipStatus`); only labels/gating are config |
+| `status` | `membership` | an **OPEN** enum (`choices=None` in code, like `gender`): the tenant authors the value list AND the labels. A sensible default seed is `application`→{Aanmelding, Application}, `pending`→{In behandeling, Pending}, `active`→{Actief, Active}, `suspended`→{Geschorst, Suspended}, `lapsed`→{Verlopen, Lapsed}, `left`→{Uitgeschreven, Left}, but h-dcn may **add/relabel** values freely (e.g. `died`/"Overleden") | tenant-driven open enum (`retire-members-status-lifecycle-engine`); values survive save → projection → resolved config, exactly like `gender` |
 
 ### Bucket 2 — Enum values on a **Parameter (overlay)** field (`members.field_overlay`)
 
@@ -238,7 +238,7 @@ tenant hook. Summary of what enforces what TODAY:
 | Layer | What it does | Enforced today? |
 | --- | --- | --- |
 | **UI (SPA)** | renders the dropdown from the field's `choices`/`options`; hides role-gated options the caller may not pick | Yes — **convenience only**, never the security boundary |
-| **SAM domain — generic (fixed fields)** | `gender`/`status` enum membership, `member_number` format, dates, required-ness (`validate_fixed_fields`) | Yes |
+| **SAM domain — generic (fixed fields)** | `member_number` format, dates, required-ness, and non-blank-string checks for the OPEN enums `gender`/`status` (`validate_fixed_fields`). `status` is open like `gender` — `validate_fixed_fields` does not pin it to a closed set; resolved tenant `choices` enforce membership downstream (`retire-members-status-lifecycle-engine`). | Yes |
 | **SAM domain — generic (all enums): value-level role gating** | rejects a role-restricted option the caller may not set (`_reject_disallowed_enum_values`) | Yes |
 | **SAM domain — generic (overlay enums): choice-membership** | "an overlay value must be one of its `choices`" (e.g. `motor_brand` ∈ the 4 brands) | **NO — not wired** (the gap; §8) |
 | **SAM domain — tenant hook** (`validate_member`, `sam/members/tenants/hdcn/`) | h-dcn-specific / cross-field rules the generic model can't express | Yes (mechanism exists; use sparingly) |
@@ -296,7 +296,9 @@ Tenant-Admin members-config UI (preferred, audited) or
 
     "membership.status": {
       "functional_group": "membership",
-      // relabel only — the VALUE set is the closed MembershipStatus enum (do not add values)
+      // OPEN enum like `gender` (retire-members-status-lifecycle-engine): the tenant AUTHORS
+      // this value list and MAY add/relabel values (e.g. add `died`/"Overleden"). The list
+      // below is a sensible default seed, not a closed platform set.
       "choices": [
         { "value": "application", "label": {"nl": "Aanmelding",     "en": "Application"} },
         { "value": "pending",     "label": {"nl": "In behandeling", "en": "Pending"} },
@@ -398,8 +400,9 @@ Tenant-Admin members-config UI (preferred, audited) or
 > **Review notes:**
 > - `region` VALUES are authored in `members.scope_dimensions` (§6), not in this overlay — the
 >   overlay only declares the field so it renders in the "membership" group.
-> - `status` `choices` here are **relabel-only**: do NOT add values (the platform state set is
->   closed). Adding a value the domain doesn't know will be rejected.
+> - `status` `choices` here are a **default seed**, not a closed set: the tenant MAY add and
+>   relabel values exactly like `gender` (`retire-members-status-lifecycle-engine`). A
+>   tenant-authored value survives save → projection → resolved config and validates.
 > - The `show_when` / `op` shapes above are illustrative — confirm against the resolved-field
 >   `show_when` schema the code actually enforces before authoring.
 
