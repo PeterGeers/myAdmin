@@ -96,6 +96,8 @@ nav:
                   - Overzicht: members/index.md
                   - Filteren & weergave: members/filters-and-views.md
                   - Leden beheren: members/managing-members.md
+                  - Aanmeldformulier: members/application-form.md
+                  - Aanmeldingen beoordelen: members/reviewing-applications.md
                   - Status & overgangen: members/transitions.md
                   - Lidmaatschapstypen: members/membership-types.md
                   - Exporteren: members/export.md

@@ -57,6 +57,7 @@ table (PAY_PER_REQUEST, retain, managed outside CloudFormation) is Step 4 (task 
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
@@ -66,6 +67,8 @@ from services.dynamodb_client import get_dynamodb_resource, require_env
 __all__ = [
     "LEADING_KEYS_IAM_POLICY_PLAN",
     "MEMBERS_TABLE_ENV_VAR",
+    "NAME_DOB_GSI_INDEX_NAME",
+    "NAME_DOB_KEY_ATTR",
     "PARTITION_KEY_ATTR",
     "RECORD_TYPE_ANALYTICS_SET",
     "RECORD_TYPE_DELEGATES",
@@ -73,6 +76,7 @@ __all__ = [
     "RECORD_TYPE_MEMBERSHIP",
     "RECORD_TYPE_MEMBERSHIP_TYPE",
     "RECORD_TYPE_COLUMN_PREFS",
+    "RECORD_TYPE_APP_SESSION",
     "RECORD_TYPE_MAIL_SENT",
     "RECORD_TYPE_MAIL_RUN",
     "RECORD_TYPE_MAIL_RECIPIENT",
@@ -84,6 +88,7 @@ __all__ = [
     "SORT_KEY_SEPARATOR",
     "TEMPLATE_S3_PREFIX",
     "analytics_set_sk",
+    "app_session_sk",
     "build_analytics_set_item",
     "build_schedule_item",
     "schedule_sk",
@@ -109,6 +114,9 @@ __all__ = [
     "mail_recipient_sk_prefix",
     "build_mail_run_item",
     "build_mail_recipient_item",
+    "name_dob_gsi_attribute_definition",
+    "name_dob_gsi_definition",
+    "normalize_name_dob_key",
     "member_sk",
     "member_sk_prefix",
     "membership_sk",
@@ -149,6 +157,42 @@ SORT_KEY_ATTR = "sk"
 
 #: Separator that joins the sort-key segments into the sort-key value.
 SORT_KEY_SEPARATOR = "#"
+
+
+# --- Duplicate-flag GSI (D25, application-app task 2.5) --------------------
+#
+# The public applicant intake flags a POSSIBLE existing-member duplicate on NAME + DATE OF
+# BIRTH (both required, R6.1a — a stronger "same person" key than a reused email). The lookup
+# is a cheap INDEXED read, never a public-endpoint partition scan (R3a.8): a Global Secondary
+# Index keyed on the SAME ``tenant_id`` partition key (so the index stays tenant-scoped —
+# Property 1, LeadingKeys) with a NORMALIZED ``name+dob`` composite as its range key.
+#
+# The index is SPARSE: ``build_member_item`` writes the :data:`NAME_DOB_KEY_ATTR` attribute
+# only when BOTH a usable name AND a birth date are present (:func:`normalize_name_dob_key`
+# returns ``None`` otherwise). A member missing either simply does not appear in the index —
+# which is exactly right: the name+DOB match requires both, so an un-indexable record can
+# never be a match and need not be queried. The GSI is NOT a uniqueness constraint (DynamoDB
+# GSIs can't enforce one) — correct, since the flag never blocks a write (R3a.5/R3a.7).
+
+#: GSI name for the name+DOB duplicate-flag lookup (D25). Hash key = :data:`PARTITION_KEY_ATTR`
+#: (``tenant_id`` — the index stays inside the tenant, Property 1); range key =
+#: :data:`NAME_DOB_KEY_ATTR` (the normalized ``name+dob`` composite).
+NAME_DOB_GSI_INDEX_NAME = "name_dob_index"
+
+#: Item attribute holding the normalized ``name+dob`` composite that backs
+#: :data:`NAME_DOB_GSI_INDEX_NAME`. Written by :func:`build_member_item` ONLY when
+#: :func:`normalize_name_dob_key` yields a non-``None`` key (sparse index). Derived, never
+#: client-supplied — it is recomputed from the record's own name parts + ``birth_date`` on
+#: every write so it cannot drift from the stored fields.
+NAME_DOB_KEY_ATTR = "name_dob_key"
+
+#: Separator joining the normalized name and the canonical DOB in the composite key. A ``|``
+#: (not ``#``) so the composite is visibly distinct from the ``record_type#id`` sort-key
+#: convention and never collides with a date's own separators.
+_NAME_DOB_SEPARATOR = "|"
+
+#: Collapses any run of Unicode whitespace to a single space (name normalization).
+_WHITESPACE_RUN = re.compile(r"\s+")
 
 
 # --- Record-type tokens (leading segments of the SK value) -----------------
@@ -232,6 +276,19 @@ RECORD_TYPE_MAIL_RUN = "mailrun"
 #: every other entity (the PK is tenant_id — Property 3).
 RECORD_TYPE_MAIL_RECIPIENT = "mailrecipient"
 
+#: A **public-application SESSION de-dup marker** (R3a, application-app task 2.1). An
+#: ``appsession#<session_key>`` item records the ``member_id`` the FIRST submit of a public
+#: application form session created, so a resend within the same fill-in session resolves to that
+#: same record and UPDATES it rather than inserting a second one (R3a.1-R3a.3). It is the public
+#: intake's analogue of the mail worker's ``mailsent#<job_id>`` idempotency marker: the repository
+#: writes it with a CONDITIONAL ``attribute_not_exists`` put, so a near-simultaneous double submit
+#: (impatient click / retry) races to a SINGLE create -- the first put wins, the rest read the
+#: existing marker and update the mapped member. Carries the session key, the mapped ``member_id``,
+#: a timestamp, and a ``ttl`` epoch (stale sessions expire). Metadata only -- never form field
+#: values / applicant PII. Lives in the tenant partition like every other entity (the PK is
+#: tenant_id -- a session marker can only ever match within its own tenant; Property 1).
+RECORD_TYPE_APP_SESSION = "appsession"
+
 
 # --- Sort-key composition / parsing ----------------------------------------
 
@@ -281,6 +338,107 @@ def split_sort_key(sort_key_value: str) -> tuple[str, ...]:
     if not sort_key_value:
         raise ValueError("sort-key value must be a non-empty string")
     return tuple(sort_key_value.split(SORT_KEY_SEPARATOR))
+
+
+# --- Name+DOB normalization + GSI definition (D25, duplicate flag) ---------
+
+
+def _normalize_name_part(value: Any) -> str:
+    """Trim + collapse-whitespace + casefold one name part (``""`` for an absent/blank part).
+
+    ``casefold`` (not ``lower``) so case differences across locales fold consistently; internal
+    whitespace runs collapse to a single space so ``"van  der"`` and ``"van der"`` agree.
+    """
+    if value is None:
+        return ""
+    text = _WHITESPACE_RUN.sub(" ", str(value).strip())
+    return text.casefold()
+
+
+def normalize_name_dob_key(
+    first_name: Any,
+    name_infix: Any,
+    last_name: Any,
+    birth_date: Any,
+) -> str | None:
+    """Build the normalized ``name+dob`` composite key for the duplicate-flag GSI (D25).
+
+    Normalization (pinned here — design §12 left the exact shape to the build):
+
+    - **Name:** the three name parts (``first_name`` + ``name_infix`` + ``last_name``) are each
+      trimmed, internal-whitespace-collapsed, and case-folded, then joined with a single space
+      in that fixed order (``"sam van der berg"``). The order is canonical so two records with
+      the same parts always produce the same key.
+    - **DOB:** ``birth_date`` is trimmed. The platform stores it as an ISO ``YYYY-MM-DD`` string
+      (``fixed_fields`` / ``calculated_fields._parse_iso_date``), so it is already canonical; we
+      only strip surrounding whitespace rather than re-parse (a malformed value still keys
+      consistently and simply won't match a well-formed one — the flag never blocks).
+    - **Composite:** ``"<name>|<dob>"``.
+
+    Returns ``None`` when EITHER the combined name is empty OR the DOB is blank — the match
+    signal requires BOTH (R6.1a). A ``None`` key means the record is NOT written into the sparse
+    index (it can never be a name+DOB match, so it need not be indexed or queried).
+    """
+    name = " ".join(
+        part
+        for part in (
+            _normalize_name_part(first_name),
+            _normalize_name_part(name_infix),
+            _normalize_name_part(last_name),
+        )
+        if part
+    )
+    dob = "" if birth_date is None else str(birth_date).strip()
+    if not name or not dob:
+        return None
+    return f"{name}{_NAME_DOB_SEPARATOR}{dob}"
+
+
+def _name_dob_key_from_member(member: Mapping[str, Any]) -> str | None:
+    """Derive the normalized name+DOB key from a member payload's ``personal`` bucket.
+
+    Reads ``personal.{first_name, name_infix, last_name, birth_date}`` (the platform's fixed
+    name/DOB fields) and runs :func:`normalize_name_dob_key`. Tolerant of a missing/odd-shaped
+    ``personal`` bucket (returns ``None`` — un-indexable, never raises on a write path).
+    """
+    personal = member.get("personal")
+    if not isinstance(personal, Mapping):
+        return None
+    return normalize_name_dob_key(
+        personal.get("first_name"),
+        personal.get("name_infix"),
+        personal.get("last_name"),
+        personal.get("birth_date"),
+    )
+
+
+def name_dob_gsi_attribute_definition() -> dict:
+    """The AttributeDefinition the GSI range key needs (``name_dob_key``, type ``S``).
+
+    The table's PK ``tenant_id`` is ALREADY defined for the base table; a GSI only needs the
+    NEW key attribute declared. Returned separately so the provisioner can append exactly this
+    one definition without re-declaring the base keys.
+    """
+    return {"AttributeName": NAME_DOB_KEY_ATTR, "AttributeType": "S"}
+
+
+def name_dob_gsi_definition() -> dict:
+    """The ``GlobalSecondaryIndexes`` entry for the name+DOB duplicate-flag GSI (D25).
+
+    Hash key = ``tenant_id`` (the base PK — the index stays tenant-scoped, Property 1); range
+    key = ``name_dob_key`` (the normalized composite). ``ALL`` projection so the duplicate
+    check can read the matched member's id/fields from the index alone (no base-table follow-up
+    read on the public path). No provisioned throughput block — the table is PAY_PER_REQUEST, so
+    the GSI inherits on-demand billing.
+    """
+    return {
+        "IndexName": NAME_DOB_GSI_INDEX_NAME,
+        "KeySchema": [
+            {"AttributeName": PARTITION_KEY_ATTR, "KeyType": "HASH"},
+            {"AttributeName": NAME_DOB_KEY_ATTR, "KeyType": "RANGE"},
+        ],
+        "Projection": {"ProjectionType": "ALL"},
+    }
 
 
 # --- Typed SK builders (one per access pattern) ----------------------------
@@ -360,6 +518,20 @@ def mail_sent_marker_sk(job_id: str) -> str:
     service's SHA-256 hex id never does).
     """
     return build_sort_key(RECORD_TYPE_MAIL_SENT, job_id)
+
+
+def app_session_sk(session_key: str) -> str:
+    """SK for a public-application session de-dup marker: ``appsession#<session_key>`` (R3a).
+
+    ``session_key`` is the stable id the public form mints on first render and sends on every
+    submit of that fill-in session (R3a.1). The repository conditionally puts this marker
+    (``attribute_not_exists``) on the first submit so a near-simultaneous resend of the SAME
+    session finds the marker and UPDATES the member it mapped instead of creating a second
+    record (R3a.2/R3a.3) — the public-intake analogue of the mail worker's ``mailsent#<job_id>``
+    dedupe. ``session_key`` must be non-blank and contain no key separator (a uuid4-style id the
+    form mints never does).
+    """
+    return build_sort_key(RECORD_TYPE_APP_SESSION, session_key)
 
 
 def mail_run_sk(run_id: str) -> str:
@@ -504,6 +676,16 @@ def build_member_item(
     item[SORT_KEY_ATTR] = member_sk(member_id)
     # Keep the bare id addressable without re-parsing the sort key.
     item.setdefault("member_id", member_id)
+    # Duplicate-flag GSI key (D25): DERIVE the normalized name+DOB composite from the record's
+    # own name parts + birth_date on every write (never trust a client-supplied value — it is
+    # recomputed so it can't drift from the stored fields). SPARSE: only set when both a name
+    # and a DOB are present; drop any stale value otherwise so a record that LOSES its name/DOB
+    # leaves the index. This makes the name+DOB possible-duplicate lookup a cheap indexed read.
+    name_dob_key = _name_dob_key_from_member(item)
+    if name_dob_key is not None:
+        item[NAME_DOB_KEY_ATTR] = name_dob_key
+    else:
+        item.pop(NAME_DOB_KEY_ATTR, None)
     # Fail-fast if the composed key would be invalid (blank tenant, etc.).
     build_key(tenant_id, item[SORT_KEY_ATTR])
     return item

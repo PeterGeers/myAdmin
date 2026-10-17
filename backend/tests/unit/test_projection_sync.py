@@ -1293,6 +1293,158 @@ def test_build_config_fields_row_non_scope_field_carries_none_scope():
     assert item.attributes["fields"]["motor_type"]["scope"] is None
 
 
+def test_build_config_fields_row_overlay_field_carries_application_attributes():
+    """Member Application Form (R4c.1/R4c.2, D20): the four per-field application attributes
+    ride 1:1 onto an OVERLAY field's config#fields entry.
+
+    A tenant authors ``application_visible`` / ``application_required`` /
+    ``application_choices`` (an enum subset) / ``format`` (a FieldFormat {checker, params})
+    on a variable overlay field; each must be carried verbatim onto the projected row so the
+    SAM read side (R4/R4a/R4b/R5) can project the public form from it.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "membership_kind": {
+                        "type": "enum",
+                        "choices": ["basis", "gezin", "jeugd", "ere"],
+                        "application_visible": True,
+                        "application_required": True,
+                        "application_choices": ["basis", "gezin", "jeugd"],
+                        "format": {"checker": "EMAIL", "params": {}},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    field = item.attributes["fields"]["membership_kind"]
+    assert field["application_visible"] is True
+    assert field["application_required"] is True
+    assert field["application_choices"] == ["basis", "gezin", "jeugd"]
+    assert field["format"] == {"checker": "EMAIL", "params": {}}
+
+
+def test_build_config_fields_row_overlay_field_application_attributes_default_back_compatible():
+    """R4c.5: an overlay field that authors NONE of the application attributes projects the
+    back-compatible defaults — off the public form, not required, full choice set, no format —
+    so a tenant not using the application form gets a well-formed, unchanged-behaviour row.
+    """
+    params = FakeParameterService(
+        {("members", "field_overlay", "h-dcn"): {"fields": {"motor_type": {}}}}
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    field = item.attributes["fields"]["motor_type"]
+    assert field["application_visible"] is False
+    assert field["application_required"] is False
+    assert field["application_choices"] is None
+    assert field["format"] is None
+
+
+def test_build_config_fields_row_overlay_field_application_defaults_present_alongside_other_attrs():
+    """R4c.5 / R14.20: the four application-attribute keys are ALWAYS projected on an overlay
+    field — with their back-compatible defaults — even when the tenant authors only UNRELATED
+    attributes (label/type/order) and none of the application ones.
+
+    This pins the 1:1 carry as key-present-with-default (not key-absent), so the SAM read side
+    can rely on the keys existing on every projected overlay field regardless of what else the
+    tenant happened to author. The distinct earlier default test authors a fully-empty field;
+    this is the realistic back-compat case of a pre-application-form tenant that authors normal
+    field attributes but nothing application-related.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "motor_brand": {
+                        "type": "string",
+                        "label": {"nl": "Merk"},
+                        "order": 3,
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    field = item.attributes["fields"]["motor_brand"]
+    # The authored (unrelated) attributes survive.
+    assert field["label"] == {"nl": "Merk"}
+    assert field["order"] == 3
+    # The application-attribute keys are present with their back-compatible defaults.
+    assert field["application_visible"] is False
+    assert field["application_required"] is False
+    assert field["application_choices"] is None
+    assert field["format"] is None
+
+
+def test_build_config_fields_row_fixed_override_carries_application_attributes():
+    """R4c.1/R4c.2 (D20): the four application attributes also ride on a FIXED-field override,
+    so a tenant can select a fixed field (e.g. ``membership.membership_type``) onto the public
+    form with its own subset / requiredness / FieldFormat — carried 1:1 like on an overlay
+    field. Additive: only the authored attributes are present on the override.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "membership.membership_type": {
+                        "options": [
+                            {"value": "basis", "label": {"nl": "Basis"}},
+                            {"value": "gezin", "label": {"nl": "Gezin"}},
+                            {"value": "ere", "label": {"nl": "Ere"}},
+                        ],
+                        "application_visible": True,
+                        "application_required": True,
+                        "application_choices": ["basis", "gezin"],
+                        "format": {"checker": "IBAN", "params": None},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    override = item.attributes["overrides"]["membership.membership_type"]
+    assert override["application_visible"] is True
+    assert override["application_required"] is True
+    assert override["application_choices"] == ["basis", "gezin"]
+    assert override["format"] == {"checker": "IBAN", "params": None}
+    # The enum subset (application_choices) is DISTINCT from the full enum vocabulary; the
+    # fixed-override coherence step leaves the full `choices` as the options-derived list.
+    assert override["choices"] == ["basis", "gezin", "ere"]
+
+
+def test_build_config_fields_row_fixed_override_application_attributes_additive():
+    """R4c.5: a fixed override that authors NO application attributes carries none of them
+    (additive — a missing attribute means "leave the fixed base as-is"), so an existing
+    override's projected shape is unchanged for a tenant not using the application form.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {"personal.name": {"label": {"nl": "Naam"}, "order": 1}}
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    override = item.attributes["overrides"]["personal.name"]
+    assert override == {"label": {"nl": "Naam"}, "order": 1}
+    assert "application_visible" not in override
+    assert "application_required" not in override
+    assert "application_choices" not in override
+    assert "format" not in override
+
+
 def test_build_config_fields_row_projects_authored_default_page_size():
     """An authored positive members.default_page_size is carried onto config#fields (R2.1)."""
     params = FakeParameterService(
@@ -1908,10 +2060,14 @@ def test_build_config_mail_row_true_flag_projects_enabled():
     assert item.tenant_id == "h-dcn"
     assert item.sort_key == schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail")
     assert item.version == 7
+    # application-app task 8.2: the D9a scope-copy toggle now always rides the row as a
+    # fail-closed boolean (False here — un-authored); the D26 consent notice is omitted
+    # when un-authored.
     assert item.attributes == {
         "mail_enabled": True,
         "mail_local_part": "noreply",
         "mail_certified": False,
+        "application_scope_copy": False,
     }
 
 
@@ -1927,6 +2083,7 @@ def test_build_config_mail_row_false_flag_projects_disabled():
         "mail_enabled": False,
         "mail_local_part": "noreply",
         "mail_certified": False,
+        "application_scope_copy": False,
     }
 
 
@@ -1957,6 +2114,9 @@ def test_build_config_mail_row_projects_all_four_fields_into_single_row():
         "mail_domain": "h-dcn.nl",
         "mail_local_part": "info",
         "mail_certified": True,
+        # application-app task 8.2: fail-closed scope-copy toggle (none authored here);
+        # consent notice omitted (none authored).
+        "application_scope_copy": False,
     }
     # The DynamoDB projection carries the canonical key attrs + the four fields.
     dynamo = item.to_dynamodb_item()
@@ -2031,6 +2191,8 @@ def test_build_config_mail_row_no_param_fails_closed_to_false():
         "mail_enabled": False,
         "mail_local_part": "noreply",
         "mail_certified": False,
+        # application-app task 8.2: scope-copy fails closed to False; consent notice omitted.
+        "application_scope_copy": False,
     }
 
 
@@ -2053,8 +2215,9 @@ def test_build_config_mail_row_malformed_values_fail_closed_to_false():
 def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
     """One-directional (Property 1): only tenant-scope READS of the members.* params.
 
-    The builder reads each of the four mail params for this tenant and issues ZERO
-    writes — never a cross-tenant or unscoped read.
+    The builder reads each of the six params for this tenant and issues ZERO writes —
+    never a cross-tenant or unscoped read. application-app task 8.2 added two params that
+    ride the SAME config#mail row (the D9a scope-copy toggle + the D26 consent notice).
     """
     params = FakeParameterService(
         {("members", "mail_enabled", "h-dcn"): True}
@@ -2063,13 +2226,15 @@ def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
     build_config_mail_row({"administration": "h-dcn"}, params)
 
     # Every call is a read scoped to THIS tenant on the members namespace — no write.
-    assert len(params.calls) == 4
+    assert len(params.calls) == 6
     read_keys = {call["key"] for call in params.calls}
     assert read_keys == {
         "mail_enabled",
         "mail_domain",
         "mail_local_part",
         "mail_certified",
+        "application_scope_copy",
+        "application_consent_notice",
     }
     for call in params.calls:
         assert call["namespace"] == "members"
@@ -2080,6 +2245,140 @@ def test_build_config_mail_row_missing_tenant_key_raises():
     """A tenant without administration/tenant_id is a cross-tenant hazard (R5.4)."""
     with pytest.raises(ValueError):
         build_config_mail_row({}, FakeParameterService({}))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# Member Application Form task 8.2 — the D9a scope-copy toggle + the D26 consent notice,
+# both projected onto the SAME config#mail row (application-app design §7, R4c).
+#
+# Feature: Members/application-app, R4c / R12 / D9a / D26. The application Reply-To param
+# is DROPPED (D24 — Reply-To is the all-scope Members_CRUD set, not configured).
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def test_build_config_mail_row_scope_copy_true_projects_enabled():
+    """An explicit members.application_scope_copy=True enables the D9a scope-matched copy."""
+    params = FakeParameterService(
+        {("members", "application_scope_copy", "h-dcn"): True}
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["application_scope_copy"] is True
+
+
+def test_build_config_mail_row_scope_copy_fails_closed_to_false():
+    """Fail-closed (D9a): only an explicit boolean True enables the scope-matched copy.
+
+    Any other/absent value projects False — the D9 all-scope-only default — so a malformed
+    value never silently fans the staff notification out to scope-limited recipients.
+    """
+    for raw in ("true", "True", 1, "yes", [], {}, None, False):
+        params = FakeParameterService(
+            {("members", "application_scope_copy", "h-dcn"): raw}
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert item.attributes["application_scope_copy"] is False, (
+            f"raw scope_copy={raw!r} must fail closed to False"
+        )
+
+
+def test_build_config_mail_row_scope_copy_always_present_even_unauthored():
+    """The scope-copy toggle ALWAYS rides the row (present-but-False ≠ not projected)."""
+    item = build_config_mail_row(
+        {"administration": "h-dcn"}, FakeParameterService({})
+    )
+
+    assert item.attributes["application_scope_copy"] is False
+
+
+def test_build_config_mail_row_projects_wellformed_consent_notice():
+    """A versioned, bilingual consent notice projects as {version, text:{nl,en}} (D26)."""
+    notice = {
+        "version": "2026-01-15",
+        "text": {
+            "nl": "Door te verzenden ga je akkoord met onze privacyverklaring.",
+            "en": "By submitting you agree to our privacy notice.",
+        },
+    }
+    params = FakeParameterService(
+        {("members", "application_consent_notice", "h-dcn"): notice}
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["consent_notice"] == {
+        "version": "2026-01-15",
+        "text": {
+            "nl": "Door te verzenden ga je akkoord met onze privacyverklaring.",
+            "en": "By submitting you agree to our privacy notice.",
+        },
+    }
+    # The notice rides the config#mail DynamoDB item too.
+    dynamo = item.to_dynamodb_item()
+    assert dynamo["consent_notice"]["version"] == "2026-01-15"
+
+
+def test_build_config_mail_row_consent_notice_coerces_scalar_version():
+    """A stable non-blank scalar version (int) is projected as its string form (R12.1a)."""
+    params = FakeParameterService(
+        {
+            ("members", "application_consent_notice", "h-dcn"): {
+                "version": 3,
+                "text": {"nl": "Akkoord."},
+            }
+        }
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["consent_notice"]["version"] == "3"
+    assert item.attributes["consent_notice"]["text"] == {"nl": "Akkoord."}
+
+
+def test_build_config_mail_row_consent_notice_drops_blank_locale_bodies():
+    """Only non-blank string locale bodies survive into the projected notice text (R12.1c)."""
+    params = FakeParameterService(
+        {
+            ("members", "application_consent_notice", "h-dcn"): {
+                "version": "v1",
+                "text": {"nl": "Akkoord.", "en": "   ", "de": 123},
+            }
+        }
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["consent_notice"]["text"] == {"nl": "Akkoord."}
+
+
+def test_build_config_mail_row_omits_consent_notice_when_unauthored_or_malformed():
+    """Un-authored / malformed notice → consent_notice OMITTED (back-compatible row, R4c.5).
+
+    A tenant not using the application form (no notice, or a notice missing its version or a
+    usable locale body) projects a row WITHOUT a consent_notice attribute — the public
+    field-config read then serves no tenant notice (a platform seed may apply, R12.1c).
+    """
+    malformed = (
+        None,
+        "just a string",
+        {},  # no version, no text
+        {"text": {"nl": "Akkoord."}},  # missing version
+        {"version": "v1"},  # missing text
+        {"version": "", "text": {"nl": "Akkoord."}},  # blank version
+        {"version": "   ", "text": {"nl": "Akkoord."}},  # whitespace version
+        {"version": True, "text": {"nl": "Akkoord."}},  # bool version is not an id
+        {"version": "v1", "text": {}},  # empty text
+        {"version": "v1", "text": {"nl": "   ", "en": ""}},  # all-blank bodies
+    )
+    for raw in malformed:
+        params = FakeParameterService(
+            {("members", "application_consent_notice", "h-dcn"): raw}
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert "consent_notice" not in item.attributes, (
+            f"malformed/absent notice {raw!r} must NOT project a consent_notice attribute"
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════

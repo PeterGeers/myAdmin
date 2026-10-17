@@ -183,8 +183,9 @@ class SesBotoSender:
                 "Body": {"Html": {"Data": body_html or "", "Charset": "UTF-8"}},
             },
         }
-        if reply_to:
-            kwargs["ReplyToAddresses"] = [reply_to]
+        reply_addresses = _split_reply_to(reply_to)
+        if reply_addresses:
+            kwargs["ReplyToAddresses"] = reply_addresses
         if self.configuration_set:
             kwargs["ConfigurationSetName"] = self.configuration_set
         # SES message tags (the feedback routing key, R9.5) — supplied via the SendEmail `Tags`
@@ -211,8 +212,11 @@ class SesBotoSender:
         msg["Subject"] = subject
         msg["From"] = sender
         msg["To"] = ", ".join(recipients)
-        if reply_to:
-            msg["Reply-To"] = reply_to
+        reply_addresses = _split_reply_to(reply_to)
+        if reply_addresses:
+            # RFC 5322 Reply-To is an address LIST — a comma-joined set (the application
+            # all-scope Members_CRUD Reply-To, R9a) becomes the multi-address header value.
+            msg["Reply-To"] = ", ".join(reply_addresses)
         # SES message tags on the RAW (attachment) path cannot ride the SendRawEmail `Tags` of the
         # simple path — SES reads them off the `X-SES-MESSAGE-TAGS` header instead (same key=value
         # pairs, comma-separated), echoed back identically as `mail.tags` (R9.5). One mechanism,
@@ -307,6 +311,21 @@ class DynamoDbMailSentMarkerStore:
             if code == "ConditionalCheckFailedException":
                 return False  # marker already present → redelivery → skip the send
             raise
+
+
+def _split_reply_to(reply_to: str | None) -> list[str]:
+    """Split the single ``reply_to`` field into the SES ``ReplyToAddresses`` address LIST.
+
+    The worker passes ONE ``reply_to`` string (the port's contract), but it MAY carry a
+    comma-separated SET of addresses — the member-application Reply-To is the all-scope
+    ``Members_CRUD`` recipient set (R9a / application-app D8/D24), which can be more than one
+    address. SES ``ReplyToAddresses`` is a list, so we split on commas and trim, dropping blanks.
+    A single address stays a one-element list (identical to the previous ``[reply_to]`` behaviour);
+    an empty / ``None`` value yields ``[]`` (no Reply-To header is set).
+    """
+    if not reply_to:
+        return []
+    return [part.strip() for part in reply_to.split(",") if part.strip()]
 
 
 def _clean_message_tags(tags: Mapping[str, str] | None) -> list[dict[str, str]]:

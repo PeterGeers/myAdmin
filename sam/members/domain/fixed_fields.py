@@ -88,6 +88,7 @@ __all__ = [
     "PERSONAL_FIELDS",
     "EnumOption",
     "FieldError",
+    "FieldFormat",
     "FieldGroup",
     "FieldType",
     "FieldValidationError",
@@ -243,6 +244,30 @@ class MemberNumberFormat:
         return None
 
 
+@dataclass(frozen=True)
+class FieldFormat:
+    """A declarative, named field VALIDATOR attached to a field (R7.1, D16).
+
+    Generalizes the :class:`MemberNumberFormat` precedent from a single hardcoded constraint to
+    a config-driven one: instead of baking a checker into code, a field carries a ``checker``
+    token (a key into the platform-defined validator registry built in
+    :mod:`sam.members.domain.field_formats`, task 3.2 — e.g. ``EMAIL`` / ``IBAN``) plus optional
+    ``params`` the checker interprets. The attribute itself is pure DATA — it names a checker and
+    its parameters; it holds NO validation logic (the registry owns the callables). This keeps the
+    field model storage-agnostic exactly like ``MemberNumberFormat``.
+
+    Defaults to "no format" (``None`` on the field). ``params`` is a mapping the registered checker
+    reads (empty by default); ``checker`` is the registry token the platform defines (a tenant
+    picks a known token, it never authors code — R7.7). Conditionality is NOT expressed here: a
+    field's existing ``show_when`` governs whether the format runs (R7.4), so a hidden field is
+    neither required nor format-checked. Frozen because it is shared config, never mutated in
+    place.
+    """
+
+    checker: str
+    params: Mapping[str, Any] = field(default_factory=dict)
+
+
 #: The canonical dotted key of the member-number field (single source of truth).
 MEMBER_NUMBER_FIELD_KEY = "membership.member_number"
 
@@ -272,6 +297,15 @@ class FixedField:
     member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
     show_when: Mapping[str, Any] | None = None            # per-field conditional-visibility condition (R4.12)
     order: int = 0
+    # ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ──────────────────
+    # The four sibling attributes the public application form reads, carried the same way as
+    # `member_number_format` (pure data, authored in Flask → projected onto `config#fields`,
+    # read-only on the SAM plane). Defaults keep every existing field OFF the public form and
+    # back-compatible: a tenant that authors none of these is unaffected.
+    application_visible: bool = False                      # on the public application form? (R4.2/R4.3)
+    application_required: bool = False                     # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = None     # enum application SUBSET (R4a); None → full set
+    format: FieldFormat | None = None                     # declarative field validator (R7.1); None → none
 
     def dotted_key(self) -> str:
         """Fully-qualified path of the field in the record, e.g. ``membership.status``."""

@@ -85,9 +85,16 @@ class RecordingTable:
         item = self.store.get((Key[td.PARTITION_KEY_ATTR], Key[td.SORT_KEY_ATTR]))
         return {"Item": dict(item)} if item is not None else {}
 
-    def query(self, KeyConditionExpression=None, ExclusiveStartKey=None):
+    def query(self, KeyConditionExpression=None, ExclusiveStartKey=None, IndexName=None):
+        # ``IndexName`` is accepted so a GSI query — e.g. the name+DOB duplicate-flag lookup
+        # (task 2.5, ``query_by_name_dob``) — records like any other query for the
+        # tenant-partition invariant. The GSI's HASH key is ``tenant_id`` (Property 1), so
+        # ``_walk_condition`` still extracts the tenant pk from its ``=`` condition and the
+        # completeness/PK-pinning assertions cover the indexed read exactly like a base query.
         pk, sk_prefix = _walk_condition(KeyConditionExpression)
-        self.calls.append({"op": "query", "pk": pk, "sk_prefix": sk_prefix})
+        self.calls.append(
+            {"op": "query", "pk": pk, "sk_prefix": sk_prefix, "index": IndexName}
+        )
         items = [
             dict(v)
             for k, v in self.store.items()
@@ -96,7 +103,11 @@ class RecordingTable:
         return {"Items": items}
 
     # -- writes ------------------------------------------------------------
-    def put_item(self, Item=None):
+    def put_item(self, Item=None, ConditionExpression=None):
+        # ``ConditionExpression`` is accepted (and ignored) so a CONDITIONAL put — e.g. the
+        # application-session ``attribute_not_exists`` claim (task 2.1) — records like any other
+        # put for the tenant-partition invariant. The conditional FIRST-WINS semantics are
+        # exercised separately in test_application_session_dedup.py; here we only assert the PK.
         self.calls.append({"op": "put_item", "pk": Item.get(td.PARTITION_KEY_ATTR), "item": Item})
         self.store[(Item[td.PARTITION_KEY_ATTR], Item[td.SORT_KEY_ATTR])] = dict(Item)
         return {}
@@ -300,6 +311,22 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
             repo.record_mail_failure(TENANT, "run-1", address="x@y.com"),
             repo.delete_mail_run(TENANT, "run-1"),
         ),
+        # Public-application session de-dup (application-app task 2.1): both ops pin the tenant
+        # partition (the appsession#<session_key> marker lives in the tenant partition — Property
+        # 1), so they belong in the completeness-covered surface like every other op.
+        "claim_application_session": lambda: repo.claim_application_session(
+            TENANT, "sess-1", "M-1"
+        ),
+        "get_application_session_member": lambda: repo.get_application_session_member(
+            TENANT, "sess-1"
+        ),
+        # Duplicate-flag name+DOB lookup (application-app task 2.5, D25): a GSI query whose
+        # HASH key is ``tenant_id`` — it stays inside the tenant partition like every other op
+        # (Property 1), so it belongs in the completeness-covered surface too. A non-empty key
+        # is passed so the op actually issues the indexed query (an empty key short-circuits).
+        "query_by_name_dob": lambda: repo.query_by_name_dob(
+            TENANT, "sam berg|1990-05-01"
+        ),
     }
 
 
@@ -351,6 +378,9 @@ class TestEveryOperationPinsTheTenantPartition:
             "list_mail_run_failures",
             "list_mail_runs",
             "delete_mail_run",
+            "claim_application_session",
+            "get_application_session_member",
+            "query_by_name_dob",
         ],
     )
     def test_operation_only_touches_the_callers_tenant_partition(self, repo, table, op_name):

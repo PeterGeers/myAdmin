@@ -454,6 +454,13 @@
     "delete": "Delete",
     "transition": "Change status"
   },
+  "inbox": {
+    "label": "Applications inbox:",
+    "applications": "Applications",
+    "duplicates": "Possible duplicates",
+    "notNotified": "Not auto-notified",
+    "clear": "Clear"
+  },
   "view": {
     "compact": "Compact",
     "full": "Full"
@@ -617,5 +624,19 @@
     "previous": "Previous",
     "next": "Next",
     "pageOf": "Page {{page}} of {{total}}"
+  },
+  "publicApplication": {
+    "notAvailable": {
+      "title": "Applications are not available yet",
+      "body": "This organisation is not accepting applications yet. Please try again later."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "body": "No application form was found at this address."
+    },
+    "error": {
+      "title": "Something went wrong",
+      "body": "The application form could not be loaded. Please try again later."
+    }
   }
 }

@@ -22,6 +22,8 @@ import flask
 
 from services.members_config_validation import (
     MembersConfigError,
+    validate_application_consent_notice,
+    validate_application_scope_copy,
     validate_field_overlay,
     validate_mail_certified,
     validate_mail_domain,
@@ -30,6 +32,7 @@ from services.members_config_validation import (
     validate_default_page_size,
     FIXED_FIELD_KEYS,
     CALCULATED_FIELD_KEYS,
+    PLATFORM_FORMAT_TOKENS,
 )
 
 
@@ -292,6 +295,256 @@ class TestFieldOverlayValidation:
 
 
 # ---------------------------------------------------------------------------
+# 8.3 — per-field APPLICATION attributes save validation (Member Application Form, R4c.3)
+# ---------------------------------------------------------------------------
+
+
+class TestApplicationAttributesValidation:
+    """Fail-loud at Save of the four application attrs carried by task 8.1 (R4c.3):
+
+    - enum `application_choices` subset ⊆ the field's own choices (R4a.4);
+    - `format.checker` must be a PLATFORM-KNOWN token (R7.7);
+    - `application_required` cannot relax a platform-required fixed field (R4c.3).
+    """
+
+    # ── application_choices ⊆ field choices (R4a.4) ────────────────────────────────────
+
+    def test_application_subset_within_variable_field_choices_accepts(self):
+        overlay = {
+            "fields": {
+                "blood_type": {
+                    "type": "enum",
+                    "choices": ["A", "B", "AB", "O"],
+                    "application_visible": True,
+                    "application_choices": ["A", "O"],
+                }
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    def test_application_subset_within_rich_options_choices_accepts(self):
+        overlay = {
+            "fields": {
+                "blood_type": {
+                    "type": "enum",
+                    "options": [{"value": "A"}, {"value": "B"}, {"value": "O"}],
+                    "application_choices": ["A", "O"],
+                }
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    def test_application_subset_entry_not_a_field_choice_raises(self):
+        overlay = {
+            "fields": {
+                "blood_type": {
+                    "type": "enum",
+                    "choices": ["A", "B", "O"],
+                    "application_choices": ["A", "Z"],
+                }
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.blood_type" in exc.value.reasons
+
+    def test_application_subset_on_field_without_choices_raises(self):
+        overlay = {
+            "fields": {
+                "nickname": {
+                    "type": "string",
+                    "application_choices": ["A"],
+                }
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.nickname" in exc.value.reasons
+
+    def test_application_subset_not_a_list_raises(self):
+        overlay = {
+            "fields": {
+                "blood_type": {
+                    "type": "enum",
+                    "choices": ["A", "B"],
+                    "application_choices": "A",
+                }
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.blood_type" in exc.value.reasons
+
+    def test_application_subset_on_fixed_override_within_choices_accepts(self):
+        overlay = {
+            "fixed_overrides": {
+                "membership.membership_type": {
+                    "options": [{"value": "regular"}, {"value": "student"}],
+                    "application_visible": True,
+                    "application_choices": ["student"],
+                }
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    # ── format.checker platform-known (R7.7) ───────────────────────────────────────────
+
+    @pytest.mark.parametrize("token", ["EMAIL", "IBAN"])
+    def test_format_checker_known_token_accepts(self, token):
+        overlay = {
+            "fixed_overrides": {
+                "personal.email": {"format": {"checker": token}},
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    def test_format_checker_unknown_token_raises(self):
+        overlay = {
+            "fields": {
+                "iban": {"type": "string", "format": {"checker": "SORT_CODE"}},
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.iban" in exc.value.reasons
+
+    def test_format_checker_non_string_raises(self):
+        overlay = {
+            "fields": {
+                "iban": {"type": "string", "format": {"checker": 123}},
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.iban" in exc.value.reasons
+
+    def test_format_not_an_object_raises(self):
+        overlay = {
+            "fields": {
+                "iban": {"type": "string", "format": "IBAN"},
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "overlay.iban" in exc.value.reasons
+
+    def test_format_with_params_accepts(self):
+        overlay = {
+            "fields": {
+                "iban": {
+                    "type": "string",
+                    "format": {"checker": "IBAN", "params": {"country": "NL"}},
+                },
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    # ── application_required cannot relax a platform-required field (R4c.3) ─────────────
+
+    def test_application_required_false_on_platform_required_field_raises(self):
+        overlay = {
+            "fixed_overrides": {
+                "personal.email": {
+                    "application_visible": True,
+                    "application_required": False,
+                }
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        assert "personal.email" in exc.value.reasons
+
+    def test_application_required_true_on_platform_required_field_accepts(self):
+        # Tightening (or matching) the platform floor on the public form is fine.
+        overlay = {
+            "fixed_overrides": {
+                "personal.email": {
+                    "application_visible": True,
+                    "application_required": True,
+                }
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    def test_application_required_false_on_optional_fixed_field_accepts(self):
+        # A platform-OPTIONAL fixed field may be application-optional on the form.
+        overlay = {
+            "fixed_overrides": {
+                "personal.phone": {
+                    "application_visible": True,
+                    "application_required": False,
+                }
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    def test_application_required_false_on_variable_field_accepts(self):
+        # An added variable field is never platform-required → may be optional.
+        overlay = {
+            "fields": {
+                "nickname": {"type": "string", "application_required": False},
+            }
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    def test_unauthored_application_attrs_accepts(self):
+        # Back-compatible (R4c.5): a tenant authoring none of the attrs validates cleanly.
+        overlay = {
+            "fields": {"nickname": {"type": "string"}},
+            "fixed_overrides": {"personal.email": {"visible": True}},
+        }
+        validate_field_overlay(overlay)  # should not raise
+
+    # ── fail-loud: no partial write (R14.20 / R4c.3) ───────────────────────────────────
+
+    def test_mixed_overlay_with_both_bad_application_attrs_rejects_whole_save(self):
+        # R14.20 "fail loud, no partial write": a save carrying a VALID field alongside two
+        # DISTINCT application-attribute violations — an invalid enum subset (R4a.4) and an
+        # unknown FieldFormat.checker (R7.7) — must be rejected wholesale, with BOTH offending
+        # fields surfaced in reasons (not one silently projected while the other is dropped).
+        overlay = {
+            "fields": {
+                # Valid field — present to prove the reject is not "any attr present" but
+                # targets only the violating entries.
+                "ok_field": {
+                    "type": "enum",
+                    "choices": ["A", "B"],
+                    "application_visible": True,
+                    "application_choices": ["A"],
+                },
+                # Invalid subset entry ("Z" not a choice of the field).
+                "bad_subset": {
+                    "type": "enum",
+                    "choices": ["A", "B"],
+                    "application_choices": ["A", "Z"],
+                },
+                # Unknown FieldFormat.checker token.
+                "bad_checker": {
+                    "type": "string",
+                    "format": {"checker": "SORT_CODE"},
+                },
+            }
+        }
+        with pytest.raises(MembersConfigError) as exc:
+            validate_field_overlay(overlay)
+        # Both violations are reported together (atomic reject, no partial acceptance).
+        assert "overlay.bad_subset" in exc.value.reasons
+        assert "overlay.bad_checker" in exc.value.reasons
+        # The valid sibling is NOT itself flagged.
+        assert "overlay.ok_field" not in exc.value.reasons
+
+    # ── drift guard against the SAM source of truth (R7.7, task 8.3) ───────────────────
+
+    def test_platform_format_tokens_match_sam_source_of_truth(self):
+        # The Flask transcription MUST mirror sam/members/domain/field_formats.known_tokens()
+        # (currently {"EMAIL", "IBAN"}). The two planes are intentionally NOT import-coupled
+        # (see the module docstring), so the canonical set is pinned here as a literal — if a
+        # checker token is added/renamed in the SAM registry, update both the transcription
+        # and this assertion.
+        assert PLATFORM_FORMAT_TOKENS == frozenset({"EMAIL", "IBAN"})
+
+
+# ---------------------------------------------------------------------------
 # mail/0.1 — mail config save validation (R4 / §5f: per-tenant From + cert gate)
 # ---------------------------------------------------------------------------
 
@@ -384,6 +637,74 @@ class TestMailCertifiedValidation:
 
 
 # ---------------------------------------------------------------------------
+# Member Application Form task 8.2 — application_scope_copy (D9a) save validation
+# ---------------------------------------------------------------------------
+
+
+class TestApplicationScopeCopyValidation:
+    """`members.application_scope_copy`: an OPTIONAL boolean D9a scope-copy toggle."""
+
+    @pytest.mark.parametrize("value", [True, False, None])
+    def test_validate_application_scope_copy_bool_or_none_accepts(self, value):
+        # Real bool (either way) or unset (None → builder fails closed to False) is accepted.
+        validate_application_scope_copy(value)
+
+    @pytest.mark.parametrize("value", ["true", "false", 1, 0, "yes", [], {}])
+    def test_validate_application_scope_copy_non_bool_raises(self, value):
+        # Fail-closed gate: an ambiguous truthy value must never enable the extra fan-out.
+        with pytest.raises(MembersConfigError) as exc:
+            validate_application_scope_copy(value)
+        assert "application_scope_copy" in exc.value.reasons
+
+
+# ---------------------------------------------------------------------------
+# Member Application Form task 8.2 — application_consent_notice (D26) save validation
+# ---------------------------------------------------------------------------
+
+
+class TestApplicationConsentNoticeValidation:
+    """`members.application_consent_notice`: an OPTIONAL versioned bilingual notice (D26)."""
+
+    def test_validate_application_consent_notice_none_accepts(self):
+        # Optional param — unset defers to a platform seed (R12.1c).
+        validate_application_consent_notice(None)
+
+    def test_validate_application_consent_notice_wellformed_accepts(self):
+        validate_application_consent_notice(
+            {
+                "version": "2026-01-15",
+                "text": {"nl": "Akkoord.", "en": "Agreed."},
+            }
+        )  # should not raise
+
+    def test_validate_application_consent_notice_int_version_accepts(self):
+        # A stable non-blank scalar id (int) is a valid version.
+        validate_application_consent_notice({"version": 3, "text": {"nl": "Akkoord."}})
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "just a string",          # not an object
+            42,                        # not an object
+            {},                        # no version, no text
+            {"text": {"nl": "x"}},    # missing version
+            {"version": "v1"},        # missing text
+            {"version": "", "text": {"nl": "x"}},      # blank version
+            {"version": "   ", "text": {"nl": "x"}},   # whitespace version
+            {"version": True, "text": {"nl": "x"}},    # bool is not a stable id
+            {"version": "v1", "text": "nope"},         # text not a map
+            {"version": "v1", "text": {}},             # empty text
+            {"version": "v1", "text": {"nl": "  ", "en": ""}},  # all-blank bodies
+            {"version": "v1", "text": {"nl": 123}},    # non-string body
+        ],
+    )
+    def test_validate_application_consent_notice_malformed_raises(self, value):
+        with pytest.raises(MembersConfigError) as exc:
+            validate_application_consent_notice(value)
+        assert "application_consent_notice" in exc.value.reasons
+
+
+# ---------------------------------------------------------------------------
 # Phase 2 step (a) — default_page_size save validation (R2.1, R2.6)
 # ---------------------------------------------------------------------------
 
@@ -452,6 +773,21 @@ class TestValidateMembersParamDispatch:
         validate_members_param("mail_certified", True)  # valid → no raise
         with pytest.raises(MembersConfigError):
             validate_members_param("mail_certified", "true")
+
+    def test_validate_members_param_application_scope_copy_dispatches(self):
+        validate_members_param("application_scope_copy", True)  # valid → no raise
+        validate_members_param("application_scope_copy", None)  # optional → no raise
+        with pytest.raises(MembersConfigError):
+            validate_members_param("application_scope_copy", "true")
+
+    def test_validate_members_param_application_consent_notice_dispatches(self):
+        validate_members_param(
+            "application_consent_notice",
+            {"version": "v1", "text": {"nl": "Akkoord."}},
+        )  # valid → no raise
+        validate_members_param("application_consent_notice", None)  # optional → no raise
+        with pytest.raises(MembersConfigError):
+            validate_members_param("application_consent_notice", {"text": {"nl": "x"}})
 
     def test_validate_members_param_default_page_size_dispatches(self):
         validate_members_param("default_page_size", 25)   # valid → no raise
