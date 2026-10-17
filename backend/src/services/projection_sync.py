@@ -41,19 +41,25 @@ in-memory fakes and never touch real AWS / MySQL:
   env, R4.1) only when not injected, so importing this module never forces AWS
   config.
 
-**Versioning strategy (R5.6).** The conditional write is expressed two ways that
-must agree:
+**Write decision (R1.2/R1.3/R1.5/R5.6).** The write is decided in Python, not by a
+datastore compare-and-set:
 
-- The sync reads the stored item's ``version`` (``get_item``) and decides in
-  Python whether the incoming ``version`` supersedes it. This is the logic the
-  property tests exercise against an in-memory fake with no boto3 condition
-  engine.
-- The ``put_item`` also carries a DynamoDB ``ConditionExpression``
-  (``attribute_not_exists(version) OR version < :incoming``) so that against a
-  *real* concurrent store the write is still guarded at the datastore level. A
-  fake table may ignore the expression; a real table enforces it. On a real
-  ``ConditionalCheckFailedException`` the write is treated as a benign no-op
-  (another writer already advanced the version), preserving idempotence.
+- The sync reads the FULL stored item (``get_item``) and writes iff the item is new,
+  its SEMANTIC CONTENT differs from the stored row (content-driven, R1.2/R1.3 — this
+  heals a stale row wedged at the current version), OR its ``version`` strictly
+  supersedes the stored one (an additional trigger that keeps the S3 monotonic-version
+  contract: a real version bump is picked up, a stale lower version never clobbers,
+  R5.6/R5.8). An unchanged source is a no-op (idempotent). This is the logic the
+  property tests exercise against an in-memory fake.
+- The ``put_item`` carries **NO** DynamoDB ``ConditionExpression`` (design.md A3 option
+  (a), decided in task 3.2): the single-process Flask monolith drains its projection
+  queue SERIALLY (``projection_sync_trigger``), so there is no concurrent second writer
+  of a given key to race — a datastore guard buys nothing and would only risk
+  re-wedging a row by rejecting a real content change at an equal/lower version. The
+  rare genuine race resolves last-writer-wins and self-corrects on the next (content-
+  driven) sync. Benign no-op handling is retained defensively: a
+  ``ConditionalCheckFailedException`` surfaced by any table wrapper is still treated as
+  a no-op rather than a crash, preserving idempotence.
 
 Internal layout (code-quality split M2 — a pure structural refactor, no behaviour
 change). This module is the **stable facade**: its full public import surface
@@ -79,6 +85,7 @@ composes the builders + source seam above.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -160,10 +167,73 @@ def _supersedes(incoming_version: Any, stored_version: Any) -> bool:
     return incoming_version > stored_version
 
 
-# Placeholder-less condition guard for the real-store write. Written as a raw
-# expression string with an expression-attribute-name for the reserved word
-# ``version`` and a value placeholder for the incoming version.
-_CONDITION_EXPRESSION = "attribute_not_exists(#v) OR #v < :incoming"
+# Bookkeeping attribute names EXCLUDED from the content comparison (R1.5,
+# design.md A3 step 2). ``version``/``updated_at`` are volatile recording/ordering
+# metadata, NOT semantic payload: a row whose semantic content is unchanged but
+# whose version advanced must NOT count as a "content change". The key attributes
+# (``tenant_id``/``sk``) are the item's identity, not payload, so they are excluded
+# too — the content key is computed per-key, so including them would be redundant
+# and would wrongly make two different keys' contents never compare equal.
+_CONTENT_EXCLUDED_ATTRS = frozenset(
+    {
+        schema.PARTITION_KEY_ATTR,
+        schema.SORT_KEY_ATTR,
+        schema.VERSION_ATTR,
+        "updated_at",
+    }
+)
+
+
+def _content_key(dynamo_item: Mapping[str, Any]) -> str:
+    """Return a canonical, stable content key for a (stored or incoming) item.
+
+    The WRITE DECISION is content-driven (R1.2/R1.3, design.md A3): two items are
+    "the same content" iff their SEMANTIC PAYLOAD is equal, independent of the
+    volatile ``version``/``updated_at`` bookkeeping (:data:`_CONTENT_EXCLUDED_ATTRS`)
+    and of the key attributes (identity, compared separately per-key). The payload
+    is canonicalised to a stable JSON string — ``sort_keys=True`` so attribute order
+    never matters, ``default=str`` so a ``Decimal`` / ``datetime`` left on a stored
+    row (DynamoDB numerics deserialize to ``Decimal``) renders deterministically.
+    ``ensure_ascii=False`` keeps unicode payloads (e.g. ``Overleden``) stable rather
+    than escaped.
+
+    General (R1.7): computed over the FLAT ``to_dynamodb_item()`` shape, so it
+    applies uniformly to ``config#fields`` / ``config#scope`` / ``config#mail`` and
+    every base/scopegrant row — not a status/``config#fields`` special case.
+
+    Args:
+        dynamo_item: A rendered DynamoDB item dict (incoming
+            :meth:`ProjectionItem.to_dynamodb_item` output, or a stored row read
+            back via ``get_item``).
+
+    Returns:
+        A canonical JSON string of the item's semantic payload (excluding
+        bookkeeping + key attrs). Equal strings ⇒ equal content ⇒ skip; different
+        strings ⇒ content differs ⇒ write.
+    """
+    payload = {
+        key: value
+        for key, value in dynamo_item.items()
+        if key not in _CONTENT_EXCLUDED_ATTRS
+    }
+    return json.dumps(
+        payload, sort_keys=True, default=str, ensure_ascii=False, separators=(",", ":")
+    )
+
+
+# NOTE (TASK 3.2, design.md A3 option (a)): the projection write carries NO
+# DynamoDB ``ConditionExpression``. The single-process Flask monolith drains its
+# projection queue SERIALLY (``projection_sync_trigger``), so there is no concurrent
+# second writer of a given key to guard against; the write decision is content-driven
+# (``_conditional_put``) and a datastore compare-and-set would only risk re-wedging a
+# row (an equal/lower incoming version blocking a real content change). The former
+# ``attribute_not_exists(#v) OR #v < :incoming`` guard was therefore removed.
+
+# The parameter namespace carrying the Members tenant-scope config the C2 builders
+# read. Mirrors ``_projection_config_builders._MEMBERS_PARAM_NAMESPACE`` (kept local
+# so the facade does not import a private name): used to evict this tenant's cached
+# members config before a build so the sync reads a non-stale source (R1.1, A2).
+_MEMBERS_PARAM_NAMESPACE = "members"
 
 
 class ProjectionSync:
@@ -308,6 +378,15 @@ class ProjectionSync:
         # SAM/MEMBERS tenant -> also emit the S5b C2 rows (design.md C2/C3),
         # reading the tenant-scope members.* config read-only via ParameterService.
         param_svc = self.parameter_service
+        # BUILD FROM A COHERENT (UNCACHED) SOURCE (R1.1, design.md A2). The sync's
+        # ParameterService is a process-wide singleton reused across every run, so a
+        # value cached by an earlier run (or a concurrent one) can serialize STALE
+        # content while the UNCACHED ``get_param_revision`` stamps a FRESH version —
+        # the version/content desync that wedges a row. Drop this service's cached
+        # ``members.*`` values for THIS tenant before building, so the builders re-read
+        # the current value and the built content always matches its version. No MySQL
+        # I/O (read-only cache maintenance) → the one-directional guarantee holds.
+        self._invalidate_members_cache(param_svc, administration)
         config_scope = build_config_scope_row(source.tenant, param_svc)
         if config_scope is not None:
             items.append(config_scope)
@@ -333,10 +412,27 @@ class ProjectionSync:
         # atomic per tenant, no partial write on a malformed item (R5.5).
         validate_items(items)
 
+        # Resolve DUPLICATE keys within this batch to their LAST occurrence before
+        # the content-driven write (R1.3/R1.6 idempotence). A source can legitimately
+        # list two rows that collapse to one projection key with DIFFERENT content
+        # (e.g. the same module twice, active + inactive); the final stored state is
+        # last-writer-wins, so only the LAST occurrence of a key drives the write.
+        # Earlier occurrences are counted as skips (they would be immediately
+        # overwritten), which (a) keeps the write decision purely content-driven
+        # instead of thrashing between two contents on every re-sync — the old
+        # version gate only masked this by skipping equal-version duplicates — and
+        # (b) preserves the batch attempt count (written + skipped == len(items)).
+        last_index_for_key: dict[tuple[str, str], int] = {}
+        for index, item in enumerate(items):
+            last_index_for_key[(item.tenant_id, item.sort_key)] = index
+
         written = 0
         skipped = 0
-        for item in items:
-            if self._conditional_put(item):
+        for index, item in enumerate(items):
+            is_last_for_key = (
+                last_index_for_key[(item.tenant_id, item.sort_key)] == index
+            )
+            if is_last_for_key and self._conditional_put(item):
                 written += 1
             else:
                 skipped += 1
@@ -361,6 +457,24 @@ class ProjectionSync:
             deleted=deleted,
             administrations=(administration,),
         )
+
+    def _invalidate_members_cache(self, param_svc: Any, administration: str) -> None:
+        """Best-effort: drop the param service's cached ``members.*`` for one tenant.
+
+        Called at the start of each tenant's C2 build (R1.1, design.md A2) so the
+        ``config#*`` builders read the CURRENT source value rather than a value a
+        previous/concurrent sync left cached on the reused ParameterService — the fix
+        that keeps a built row's content coherent with its (uncached) version.
+
+        Resolved defensively via ``getattr`` so any read-only param provider that does
+        NOT expose the invalidation seam (e.g. a minimal test fake, or a provider whose
+        reads are already uncached) is simply skipped — the sync still works, it just
+        does not need the eviction. Read-only cache maintenance: no MySQL write, so the
+        one-directional guarantee (Property 1) is untouched.
+        """
+        invalidate = getattr(param_svc, "invalidate_namespace", None)
+        if callable(invalidate):
+            invalidate(_MEMBERS_PARAM_NAMESPACE, tenant=administration)
 
     def _reconcile_scopegrants(
         self, administration: str, desired_items: Sequence[ProjectionItem]
@@ -445,45 +559,173 @@ class ProjectionSync:
             query_kwargs["ExclusiveStartKey"] = last_key
         return sort_keys
 
-    def _stored_version(self, item: ProjectionItem) -> Any:
-        """Return the currently-stored version for ``item``'s key, or ``None``.
+    def delete_config_views_residue(
+        self, administrations: Sequence[str], *, dry_run: bool = True
+    ) -> dict[str, int]:
+        """Delete stored ``config#views`` PROJECTION residue per tenant (R2.1/R2.6).
 
-        Reads the projection table (``get_item``) for the item's primary key. A
-        missing item / missing ``version`` attribute yields ``None`` (treated as
-        "no stored version" -> the incoming write supersedes).
+        Phase 2 step (d): ``config#views`` (the retired Members ``view_contexts``
+        column-layouts) is NO LONGER emitted — the builder was removed and the sync
+        never produces the row (``config#views`` would even fail
+        :func:`validate_items` now). BUT a stored row written BEFORE retirement is
+        ORPHANED: unlike ``scopegrant#…`` rows (swept by
+        :meth:`_reconcile_scopegrants`), ``config#*`` rows are UPSERT-ONLY — the
+        reconcile is confined to the ``scopegrant#…`` SK space and never deletes a
+        ``config#*`` row (see
+        ``test_sync_reconcile_never_deletes_non_scopegrant_rows``). So an orphaned
+        ``config#views`` row is never swept automatically; this explicit, tenant-scoped
+        cleanup removes it.
+
+        Tenant-scoped (Property 1/2, R5.4): each tenant's row is addressed by its own
+        partition key (``build_key(administration, 'config#views')``) via ``get_item``
+        — the loop never addresses another tenant's partition. Confined to the single
+        ``config#views`` SK per tenant: no other record type is read or deleted.
+
+        Idempotent (R2.1): a tenant with no residue contributes 0; a re-run after a
+        successful apply finds nothing and deletes 0 — a safe no-op.
+
+        ``dry_run`` is the DEFAULT: a dry run COUNTS the present residue rows and makes
+        NO write; pass ``dry_run=False`` to actually ``delete_item`` them. Mirrors the
+        ``--dry-run`` contract of the companion MySQL migration
+        (``retire_members_view_contexts.py``) — but this touches the DynamoDB projection
+        table, not MySQL, so it lives with the sole-writer of that table (here), not in
+        a MySQL migration.
+
+        Args:
+            administrations: The tenant scopes to clean. No tenant name is hardcoded —
+                the caller supplies the tenants from the data (`31` Data Ownership).
+            dry_run: When True (default), only count; when False, delete.
+
+        Returns:
+            A summary dict ``{"scanned": <rows present>, "deleted": <rows deleted>}``.
+            ``deleted`` is 0 on a dry run.
+        """
+        views_sk = schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS
+        )
+        scanned = 0
+        deleted = 0
+        for administration in administrations:
+            key = schema.build_key(administration, views_sk)
+            response = self.table.get_item(Key=key)
+            stored = response.get("Item") if isinstance(response, Mapping) else None
+            if not stored:
+                continue
+            scanned += 1
+            logger.info(
+                "config#views residue present for tenant %r%s",
+                administration,
+                " (dry run — not deleting)" if dry_run else "",
+            )
+            if dry_run:
+                continue
+            self.table.delete_item(Key=key)
+            deleted += 1
+        logger.info(
+            "config#views residue cleanup %s: %d scanned, %d deleted.",
+            "DRY RUN" if dry_run else "APPLIED",
+            scanned,
+            deleted,
+        )
+        return {"scanned": scanned, "deleted": deleted}
+
+    def _stored_item(self, item: ProjectionItem) -> Mapping[str, Any] | None:
+        """Return the FULL currently-stored row for ``item``'s key, or ``None``.
+
+        Reads the projection table (``get_item``) for the item's primary key and
+        returns the whole stored item (all attributes), so the content-driven write
+        decision (:meth:`_conditional_put`, R1.2/R1.3, design.md A3) can compare the
+        stored SEMANTIC PAYLOAD — not just the ``version`` — against the incoming
+        row. A missing item yields ``None`` (treated as "absent" → the incoming
+        write always lands, healing a never-written key).
         """
         key = schema.build_key(item.tenant_id, item.sort_key)
         response = self.table.get_item(Key=key)
         stored = response.get("Item") if isinstance(response, Mapping) else None
-        if not stored:
-            return None
-        return stored.get(schema.VERSION_ATTR)
+        return stored or None
 
     def _conditional_put(self, item: ProjectionItem) -> bool:
-        """Write ``item`` iff its version supersedes the stored one (R5.6).
+        """Write ``item`` iff it is new OR its CONTENT differs from the stored row.
 
-        Returns True if the item was written, False if skipped as a no-op
-        (stored version already >= incoming). The put carries a DynamoDB
-        ``ConditionExpression`` so a real concurrent store is guarded at the
-        datastore level too; a datastore-level conditional failure is treated as
-        a benign no-op (another writer advanced the version).
+        CONTENT-DRIVEN WRITE DECISION (R1.2/R1.3/R1.5/R1.6/R1.7, design.md A3).
+        ``version`` is NO LONGER the sole gate — it desynced from content and
+        wedged a stale row at the current revision so the old strict-greater gate
+        could never heal it. The decision is now:
+
+        1. Read the FULL stored row (:meth:`_stored_item`).
+        2. **Write when stored is ABSENT or the semantic CONTENT differs**
+           (:func:`_content_key` — the payload canonicalised, excluding
+           ``version``/bookkeeping): this HEALS the wedge (content differs at an
+           equal version, R1.2/R1.8).
+        3. **Skip when content is EQUAL** (idempotent, no churn, R1.3/R1.6) — even
+           if the version advanced; a truly-unchanged re-sync writes nothing.
+        4. As an ADDITIONAL (not sole) trigger, a strict-greater ``version`` with
+           EQUAL content still writes, so version keeps its recording/ordering role
+           (R1.5) and the S3 monotonic-version contract (R5.6/R5.8: a real version
+           bump is picked up, a stale lower version never clobbers) is preserved.
+           The union — ``absent OR content-differs OR version-supersedes`` — is the
+           reconciliation: content difference is a NEW reason to write that the old
+           version-only gate lacked; it never skips a content change and never
+           churns on an unchanged source.
+
+        Datastore concurrency guard (DECIDED in TASK 3.2, design.md A3 option (a)).
+        The put carries **NO** ``ConditionExpression``. Task 3.1 left a MIXED stopgap
+        — the strict-greater ``#v < :incoming`` guard attached on the version-driven
+        path but OMITTED on the content-heal path (so it could not reject a heal). A3
+        asked for a coherent final choice between (a) dropping the version condition
+        and relying on last-writer-wins, or (b) a content/etag datastore guard. We
+        take (a): the condition is dropped ENTIRELY, because the single-process Flask
+        monolith drains its projection queue SERIALLY — ``projection_sync_trigger``'s
+        in-process ``InMemorySyncQueue`` is drained synchronously, one administration
+        at a time, in the same process that enqueued it (see
+        ``ProjectionSyncTrigger._drain`` / ``enqueue``). There is no concurrent second
+        writer of a given key to race, so a datastore compare-and-set buys nothing and
+        would only risk re-introducing the wedge (an equal/lower incoming version
+        blocking a real content change). The reconciliation backstop (``sync_all``) is
+        likewise serial. For the rare genuine race, last-writer-wins is acceptable and
+        self-corrects on the next sync (the write decision is content-driven, so a
+        later sync re-detects any divergence and rewrites). ``version``/``updated_at``
+        STAY on the row (:meth:`ProjectionItem.to_dynamodb_item`) for recording ("when
+        last projected") and for ordering genuinely concurrent writes (R1.5) — they are
+        just no longer a datastore write gate.
+
+        Benign no-op handling is RETAINED defensively: should any configured table
+        wrapper still surface a ``ConditionalCheckFailedException`` (a real boto3
+        ``Table`` can carry a table-level condition, or a test fake may raise one), it
+        is treated as a benign no-op (a concurrent writer already advanced the row —
+        R5.6), never a crash. Any other error propagates (fail loudly).
+
+        Returns:
+            True if the item was written, False if skipped as a content-equal no-op.
         """
-        stored_version = self._stored_version(item)
-        if not _supersedes(item.version, stored_version):
+        stored = self._stored_item(item)
+        dynamo_item = item.to_dynamodb_item()
+
+        version_supersedes = _supersedes(
+            item.version, stored.get(schema.VERSION_ATTR) if stored else None
+        )
+        content_differs = stored is None or _content_key(stored) != _content_key(
+            dynamo_item
+        )
+
+        # Content-driven gate (R1.2/R1.3): write on absence or a content change;
+        # version supersession is an additional trigger (R1.5, S3 R5.6/R5.8) that
+        # keeps a pure version bump writing and a stale lower version skipping.
+        if not content_differs and not version_supersedes:
             return False
 
-        dynamo_item = item.to_dynamodb_item()
+        # Last-writer-wins put: NO datastore ConditionExpression (design.md A3 (a)).
+        # The serial in-process drain means there is no concurrent writer to guard
+        # against, and the Python content/version decision above is the sole gate —
+        # so the datastore write is unconditional, which also means a content-heal at
+        # an equal/lower version can never be rejected (the wedge this spec fixes).
         try:
-            self.table.put_item(
-                Item=dynamo_item,
-                ConditionExpression=_CONDITION_EXPRESSION,
-                ExpressionAttributeNames={"#v": schema.VERSION_ATTR},
-                ExpressionAttributeValues={":incoming": item.version},
-            )
+            self.table.put_item(Item=dynamo_item)
         except Exception as exc:
-            # A conditional-check failure means a concurrent writer already
-            # advanced the stored version — a benign no-op (idempotence, R5.6),
-            # not an error. Any other error propagates (fail loudly).
+            # Defensive: if some table wrapper still raises a conditional-check
+            # failure (benign — a concurrent writer already advanced the row, R5.6),
+            # treat it as a no-op rather than crashing the sync. Any other error
+            # propagates (fail loudly).
             if _is_conditional_check_failure(exc):
                 return False
             raise

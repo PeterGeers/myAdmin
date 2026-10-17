@@ -105,14 +105,14 @@ describe('membersConfigService', () => {
 
     it('issues exactly ONE create (POST) when no tenant row exists', async () => {
       vi.mocked(parameterService.createParameter).mockResolvedValue({ success: true });
-      const res = await saveMembersParameter('view_contexts', [{ key: 'overview' }], null);
+      const res = await saveMembersParameter('scope_dimensions', [{ key: 'overview' }], null);
 
       expect(res.success).toBe(true);
       expect(parameterService.createParameter).toHaveBeenCalledTimes(1);
       expect(parameterService.createParameter).toHaveBeenCalledWith({
         scope: 'tenant',
         namespace: 'members',
-        key: 'view_contexts',
+        key: 'scope_dimensions',
         value: [{ key: 'overview' }],
         value_type: 'json',
         is_secret: false,

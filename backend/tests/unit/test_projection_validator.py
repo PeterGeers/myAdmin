@@ -228,3 +228,190 @@ def test_validate_items_valid_siblings_unaffected_when_validated_alone():
     assert is_valid_item(good_tenant) is True
     assert is_valid_item(good_role) is True
     assert is_valid_item(bad_module) is False
+
+
+# --- config#* rows: structural completeness/syntax gate (R1.4) --------------
+#
+# A ``config#<id>`` row must carry its sub-config's own well-formed attribute
+# shape — the exact structure the builders in ``_projection_config_builders.py``
+# always produce. A structurally incomplete/malformed config build is REJECTED
+# here (raises) BEFORE any write, never written or silently skipped (task 4.1,
+# design.md A4, R1.4). These helpers build the WELL-FORMED row each builder emits.
+
+
+def _config_scope_item(tenant_id="TenantA", version=1, attrs=None):
+    return ProjectionItem(
+        tenant_id=tenant_id,
+        sort_key=schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE
+        ),
+        version=version,
+        attributes={"dimensions": []} if attrs is None else attrs,
+    )
+
+
+def _config_fields_item(tenant_id="TenantA", version=1, attrs=None):
+    return ProjectionItem(
+        tenant_id=tenant_id,
+        sort_key=schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
+        ),
+        version=version,
+        attributes={
+            "fields": {},
+            "overrides": {},
+            "functional_groups": [],
+            "default_page_size": None,
+        }
+        if attrs is None
+        else attrs,
+    )
+
+
+def _config_mail_item(tenant_id="TenantA", version=1, attrs=None):
+    return ProjectionItem(
+        tenant_id=tenant_id,
+        sort_key=schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL
+        ),
+        version=version,
+        attributes={
+            "mail_enabled": False,
+            "mail_local_part": "noreply",
+            "mail_certified": False,
+            "application_scope_copy": False,
+        }
+        if attrs is None
+        else attrs,
+    )
+
+
+# A well-formed row of each config sub-config passes (the builders' empty/fail-closed
+# default collapse is valid — R1.6/R1.7/R0).
+
+
+def test_validate_item_valid_config_scope_returns_item():
+    item = _config_scope_item()
+    assert validate_item(item) is item
+    assert is_valid_item(item) is True
+
+
+def test_validate_item_valid_config_fields_returns_item():
+    item = _config_fields_item()
+    assert validate_item(item) is item
+    assert is_valid_item(item) is True
+
+
+def test_validate_item_valid_config_mail_returns_item():
+    item = _config_mail_item()
+    assert validate_item(item) is item
+    assert is_valid_item(item) is True
+
+
+# A structurally INCOMPLETE config row (a missing required attribute) RAISES.
+
+
+def test_validate_item_config_fields_missing_fields_raises():
+    item = _config_fields_item(attrs={"overrides": {}, "functional_groups": []})
+    with pytest.raises(ProjectionValidationError, match="fields"):
+        validate_item(item)
+    assert is_valid_item(item) is False
+
+
+def test_validate_item_config_fields_missing_overrides_raises():
+    item = _config_fields_item(attrs={"fields": {}, "functional_groups": []})
+    with pytest.raises(ProjectionValidationError, match="overrides"):
+        validate_item(item)
+
+
+def test_validate_item_config_fields_missing_functional_groups_raises():
+    item = _config_fields_item(attrs={"fields": {}, "overrides": {}})
+    with pytest.raises(ProjectionValidationError, match="functional_groups"):
+        validate_item(item)
+
+
+def test_validate_item_config_scope_missing_dimensions_raises():
+    item = _config_scope_item(attrs={})
+    with pytest.raises(ProjectionValidationError, match="dimensions"):
+        validate_item(item)
+
+
+def test_validate_item_config_mail_missing_gate_flag_raises():
+    item = _config_mail_item(
+        attrs={"mail_local_part": "noreply", "mail_certified": False}
+    )  # missing mail_enabled
+    with pytest.raises(ProjectionValidationError, match="mail_enabled"):
+        validate_item(item)
+
+
+# A structurally MALFORMED config row (a required attribute of the wrong shape) RAISES.
+
+
+def test_validate_item_config_fields_fields_wrong_type_raises():
+    # ``fields`` must be a mapping; a list is malformed.
+    item = _config_fields_item(
+        attrs={"fields": [], "overrides": {}, "functional_groups": []}
+    )
+    with pytest.raises(ProjectionValidationError, match="fields"):
+        validate_item(item)
+
+
+def test_validate_item_config_scope_dimensions_wrong_type_raises():
+    # ``dimensions`` must be a list; a mapping is malformed.
+    item = _config_scope_item(attrs={"dimensions": {}})
+    with pytest.raises(ProjectionValidationError, match="dimensions"):
+        validate_item(item)
+
+
+def test_validate_item_config_mail_gate_flag_wrong_type_raises():
+    # The fail-closed gate flags must be real bools — a stray string is malformed
+    # (and could never be trusted as a gate).
+    item = _config_mail_item(
+        attrs={
+            "mail_enabled": "yes",
+            "mail_local_part": "noreply",
+            "mail_certified": False,
+        }
+    )
+    with pytest.raises(ProjectionValidationError, match="mail_enabled"):
+        validate_item(item)
+
+
+def test_validate_item_config_mail_local_part_wrong_type_raises():
+    # ``mail_local_part`` must be a str; a bool (which is an int in Python) is malformed.
+    item = _config_mail_item(
+        attrs={
+            "mail_enabled": False,
+            "mail_local_part": True,
+            "mail_certified": False,
+        }
+    )
+    with pytest.raises(ProjectionValidationError, match="mail_local_part"):
+        validate_item(item)
+
+
+def test_validate_item_config_unknown_sub_id_raises():
+    # The builders only ever emit scope/fields/mail; a stray config#views (the
+    # retired residue, R2.6) or any other id is itself a structural defect.
+    item = ProjectionItem(
+        tenant_id="TenantA",
+        sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views"),
+        version=1,
+        attributes={},
+    )
+    with pytest.raises(ProjectionValidationError, match="unknown sub-config id"):
+        validate_item(item)
+
+
+# Batch atomicity (R5.5): one malformed config row makes the WHOLE batch fail loudly.
+
+
+def test_validate_items_one_malformed_config_fields_raises_for_batch():
+    batch = [
+        _tenant_item(),
+        _config_scope_item(),
+        _config_fields_item(attrs={"overrides": {}, "functional_groups": []}),
+        _config_mail_item(),
+    ]
+    with pytest.raises(ProjectionValidationError, match="fields"):
+        validate_items(batch)
