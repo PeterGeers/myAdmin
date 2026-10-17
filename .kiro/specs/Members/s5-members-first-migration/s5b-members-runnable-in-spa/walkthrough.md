@@ -1,9 +1,16 @@
 # S5b Local Walkthrough — Members runnable + clickable in the myAdmin SPA
 
+> **Superseded note (`retire-members-status-lifecycle-engine`).** The membership lifecycle
+> engine was retired. Steps **3.6 (single transition)** and **3.7 (bulk transition)** below no
+> longer apply: there is no transition modal or transition route. A member's `status` is now
+> changed as a plain field edit inside the **edit modal** (step 3.4) — it is an OPEN enum, so
+> pick any status value and save. Read the "transition (single + bulk)" leg of the surface
+> below as "edit status (a plain field)".
+
 This is the **runnable + clickable** acceptance walkthrough for S5b (Requirements
 **R9.1**, **R9.3**). From a clean start it brings up the full local stack, onboards
 `h-dcn` through the governance projection, and steps a human through the Leden Overzicht
-feature surface: **filter → view → edit → add → transition (single + bulk) → export**.
+feature surface: **filter → view → edit → add → edit status (a plain field) → export**.
 
 > **Definition of done** (R9.1): a human starts the stack, logs in, and *operates* Leden
 > Overzicht against real projected/seeded data — not merely "tests pass".
@@ -203,7 +210,12 @@ Step through each feature built in this spec, in order:
 
 > **Expected:** a `POST /members` fires and the new member appears as a new row.
 
-### 3.6 — Single transition
+### 3.6 — Single transition — SUPERSEDED (`retire-members-status-lifecycle-engine`)
+
+> The single-transition modal + route were removed. To change a member's status now: open the
+> member's **edit** modal (as in 3.4), change the `status` field to any value, and save — a
+> plain `PUT /members/{member_id}` field edit, no transition endpoint. The steps below are
+> retained only as a record of the old flow.
 
 1. Open a member's view modal, click **Status wijzigen** (Change status).
 2. Pick a target status — the allowed targets come from the module response, not the UI.
@@ -212,7 +224,12 @@ Step through each feature built in this spec, in order:
 > **Expected:** a `POST /members/{member_id}/memberships/{membership_id}/transition`
 > fires and the member's status updates.
 
-### 3.7 — Bulk transition
+### 3.7 — Bulk transition — SUPERSEDED (`retire-members-status-lifecycle-engine`)
+
+> The bulk-transition modal + route (`POST /memberships/transition`) were removed. Row
+> selection (the checkbox column) still exists but no longer drives a status change. Edit each
+> member's `status` field individually via the edit modal (3.4). The steps below are retained
+> only as a record of the old flow.
 
 1. Select several rows via their checkboxes; the bulk action bar appears.
 2. Pick a target status for the selection and confirm.

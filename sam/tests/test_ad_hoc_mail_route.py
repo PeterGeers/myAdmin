@@ -40,10 +40,6 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.lifecycle_config import (
-    HDCN_LIFECYCLE_CONFIG,
-    StaticLifecycleConfigProvider,
-)
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.handler import app
@@ -73,9 +69,7 @@ def repo(table) -> DynamoDbMembersRepository:
 def service(repo) -> MembershipService:
     return MembershipService(
         repo,
-        lifecycle_provider=StaticLifecycleConfigProvider(
-            {"h-dcn": HDCN_LIFECYCLE_CONFIG}
-        ),
+        # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
         tenant_hooks=register_hdcn_hooks(TenantHookRegistry()),
     )
 

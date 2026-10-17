@@ -1,8 +1,11 @@
 /**
- * Advanced Tab - Raw data management (SysAdmin only)
- * 
- * Shows ParameterManagement for raw parameter access.
- * Only visible to SysAdmin users (parent handles visibility).
+ * Advanced Tab - Raw data management (tenant administrator)
+ *
+ * Shows ParameterManagement for raw parameter access, scoped to the current
+ * tenant. Visible to any Tenant_Admin of the tenant (parent gates on the
+ * dashboard's Tenant_Admin guard). The backend (`/api/tenant-admin/parameters`)
+ * restricts rows to this tenant + its ACTIVE modules and masks secrets for
+ * non-SysAdmin callers, so no extra SysAdmin-only gate belongs here.
  */
 
 import React from 'react';

@@ -26,6 +26,8 @@ Endpoints (design §6.2):
     POST /api/members/sender-identities   — verify/activate a tenant sender address
                                              (drives SES VerifyEmailIdentity)
     GET  /api/members/sender-identities   — read current sender verification status
+    POST /api/members/sender-identities/resend — resend the SES verification email
+                                             for the tenant's pending sender
 
 Authorization (steering 22, design §3 table): ``members:admin`` — the tenant-admin
 capability. ``cognito_required`` expands the caller's verified tenant roles through
@@ -162,4 +164,53 @@ def create_sender_identity(
         logger.exception("Error verifying sender identity for tenant %s", tenant)
         return jsonify(
             {"success": False, "error": "Failed to verify sender identity"}
+        ), 500
+
+
+@members_sender_identity_bp.route(
+    "/api/members/sender-identities/resend", methods=["POST"]
+)
+@cognito_required(required_permissions=[CAP_MEMBERS_ADMIN])
+@tenant_required()
+def resend_sender_identity(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
+    """Resend the SES verification email for the active tenant's pending sender.
+
+    Re-drives SES ``VerifyEmailIdentity`` for the tenant's current (non-verified)
+    sender via the service, which enforces a 60s resend cooldown. The tenant is
+    always taken from the verified token context (steering 22), never the body;
+    the service resolves the address from the active verification record, so this
+    endpoint takes no body.
+
+    Returns:
+        200 ``{"success": true}`` once the resend is initiated.
+        400 ``{"success": false, "error"}`` when there is no record to resend or
+            the 60s cooldown has not elapsed (a domain error from the service).
+        500 ``{"success": false, "error"}`` on an unexpected failure.
+    """
+    try:
+        db = DatabaseManager()
+        service = EmailVerificationService(db_manager=db)
+
+        result = service.resend_verification(tenant)
+
+        if result.get("success"):
+            return jsonify({"success": True}), 200
+
+        # Service surfaced a domain error (no record, or cooldown not elapsed).
+        return jsonify(
+            {
+                "success": False,
+                "error": result.get("error", "Failed to resend verification"),
+            }
+        ), 400
+
+    except Exception:
+        # Detail is captured server-side via logger.exception; do NOT return the
+        # exception text to the client (CodeQL: information exposure through an
+        # exception).
+        logger.exception("Error resending sender identity for tenant %s", tenant)
+        return jsonify(
+            {"success": False, "error": "Failed to resend verification"}
         ), 500

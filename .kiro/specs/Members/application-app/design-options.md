@@ -1,5 +1,16 @@
 # Member Application Form (public applicant intake) — Design Options
 
+> **Superseded note (`retire-members-status-lifecycle-engine`).** This options/analysis
+> document was written while the membership **lifecycle engine** was live, so any passage
+> that treats `status` as a **closed `MembershipStatus` enum**, speaks of a lifecycle
+> **initial state**, or of status changes as **transitions** between declared states is
+> **superseded**. After the retirement: `status` is a plain tenant-driven **OPEN** enum
+> (authored like `gender`, tenant values win end-to-end), `application` is a plain default
+> literal stamped on create (not an engine "initial state"), and a status change is an
+> ordinary member **field edit** — there is no transition graph, guard, transition route, or
+> transition modal. The applicant-intake decisions (D1/Option 1, the public write path,
+> notification, inbox) are unaffected; only the lifecycle framing is.
+
 ## Problem
 
 A prospective member has no way to apply themselves. Today a member record is
@@ -308,11 +319,12 @@ domain the SAM plane sends as, independent of Flask's `support@jabaki.nl`.
   shape the create path expects. One field model, flattened for the UI, nested for
   storage — identical to the overview, so the form and the table stay in lockstep
   with the tenant's config with zero duplication.
-- **"Applicant" is the `application` status.** `MembershipStatus` is a closed
-  enum (`application, pending, active, suspended, lapsed, left`); the applicant
-  state is `application` ("Aanmelding") and is already the lifecycle **initial
-  state**. `MembershipService.create_member` already defaults `status` to the
-  tenant's initial state when the body omits it.
+- **"Applicant" is the `application` status.** The applicant value is `application`
+  ("Aanmelding"), the default create-time status. `MembershipService.create_member`
+  defaults `status` to the plain literal `"application"` when the body omits it.
+  (Superseded framing: `status` is now an OPEN tenant-driven enum, not a closed
+  `MembershipStatus` set, and `application` is a default literal, not a lifecycle
+  "initial state" — see the superseded note at the top.)
 - **Tenant is never client-trusted today.** The SAM edge
   (`handler/app.py::_establish_tenant_context`) derives the active tenant from the
   verified token's capability-scoped `tenant_keys`, with `X-Tenant` only

@@ -1,19 +1,21 @@
 /**
  * Members modals — structured error surfacing (API standard v1.0, task 4.4).
  *
- * Drives the Add and Transition modals THROUGH the page with the mocked members service throwing
- * a real `ApiError`, and asserts:
+ * Drives the Add modal THROUGH the page with the mocked members service throwing a real
+ * `ApiError`, and asserts:
  *  - Add: a 422 `errors[]` renders the matching field error INLINE (localized via `code`, else
  *    `detail`) AND fires a summary toast; an UNMATCHED `field` folds into the toast;
- *  - Transition: a 409 `reasons[]` shows in the toast;
  *  - a network failure (non-ApiError) shows the localized fallback toast.
+ *
+ * (retire-members-status-lifecycle-engine, design D/F: the Transition-modal half of this file
+ * was removed with the SPA transition surface — the modal + `transitionMembership` no longer
+ * exist. Status is now a plain field edit via the member edit modal.)
  *
  * `useToast` is spied so toast titles are asserted directly; the real i18n resolves codes.
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import MembersPage from '../pages/MembersPage';
-import { MembersTransitionModal } from '../components/members/MembersTransitionModal';
 import * as membersApiService from '../services/membersApiService';
 import { ApiError } from '../shared/api/ApiError';
 import type { Member, FieldConfig } from '../types/members';
@@ -42,7 +44,6 @@ const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
 const mockCreateMember = vi.mocked(membersApiService.createMember);
 const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
-const mockTransitionMembership = vi.mocked(membersApiService.transitionMembership);
 
 const mockMembers: Member[] = [
   {
@@ -184,64 +185,7 @@ describe('MembersAddModal — 422 field errors (task 4.4)', () => {
   });
 });
 
-describe('MembersTransitionModal — 409 reasons (task 4.4)', () => {
-  // A minimal module-provided lifecycle so the modal offers a target from `active`.
-  const transitionMember = { ...mockMembers[0], status: 'active' } as Member;
-  const lifecycleConfig = {
-    lifecycle: { allowed_transitions: { active: ['inactive'] } },
-  } as unknown as FieldConfig;
-
-  it('shows the 409 transition reasons in the toast (localized)', async () => {
-    mockTransitionMembership.mockRejectedValue(
-      new ApiError(409, {
-        error: 'Transition denied',
-        code: 'errors.transition.denied',
-        reasons: [{ code: 'errors.transition.denied', detail: 'member number required to activate' }],
-      }),
-    );
-
-    render(
-      <MembersTransitionModal
-        isOpen
-        onClose={() => { }}
-        member={transitionMember}
-        fieldConfig={lifecycleConfig}
-        onDone={() => { }}
-      />,
-    );
-    const dialog = await screen.findByRole('dialog');
-    const select = dialog.querySelector('[name="to_state"]') as HTMLElement;
-    fireEvent.change(select, { target: { value: 'inactive' } });
-    fireEvent.click(within(dialog).getByText('transition.confirm'));
-
-    await waitFor(() => expect(mockTransitionMembership).toHaveBeenCalled());
-    await waitFor(() => expect(toastSpy).toHaveBeenCalled());
-    const titles = toastSpy.mock.calls.map((c) => String(c[0]?.title));
-    // The 409 reason surfaces in the toast (key-echo env → the reason's English detail, since the
-    // top-level code has no resolved copy here; localization proven in applyApiError.test.ts).
-    expect(titles.some((tt) => tt.includes('member number required to activate'))).toBe(true);
-  });
-
-  it('shows the localized fallback toast on a network failure', async () => {
-    mockTransitionMembership.mockRejectedValue(new Error('Failed to fetch'));
-
-    render(
-      <MembersTransitionModal
-        isOpen
-        onClose={() => { }}
-        member={transitionMember}
-        fieldConfig={lifecycleConfig}
-        onDone={() => { }}
-      />,
-    );
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(dialog.querySelector('[name="to_state"]') as HTMLElement, {
-      target: { value: 'inactive' },
-    });
-    fireEvent.click(within(dialog).getByText('transition.confirm'));
-
-    await waitFor(() => expect(toastSpy).toHaveBeenCalled());
-    const titles = toastSpy.mock.calls.map((c) => c[0]?.title);
-    expect(titles).toContain('errors:api.serverError');
-  });
-});
+// retire-members-status-lifecycle-engine (design D/F): the `MembersTransitionModal — 409 reasons`
+// suite was removed with the SPA transition surface (the modal + `transitionMembership` are
+// gone). Status is now an ordinary field edit via the member edit modal; its error surfacing is
+// the same `createMember`/`updateMember` ApiError path the Add-modal suite above already covers.

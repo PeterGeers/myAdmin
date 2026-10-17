@@ -1,8 +1,10 @@
 """
 S5 Task 1.1 — tests for the fixed base field registry (personal + membership).
 
-Unit tests pin the registry's shape (canonical keys, groups, the closed status enum) and
-its validation behaviour (required-ness, per-type rules, partial updates). A property test
+Unit tests pin the registry's shape (canonical keys, groups, the OPEN status enum —
+retire-members-status-lifecycle-engine §C: `status` is now a tenant-driven open enum like
+`gender`, no closed `MembershipStatus` set) and its validation behaviour (required-ness,
+per-type rules, partial updates). A property test
 asserts the round-trip invariant: any member built from the registry's own definitions
 validates, and clearing a required field always fails.
 
@@ -24,11 +26,14 @@ from sam.members.domain.fixed_fields import (
     FieldType,
     FieldValidationError,
     FixedField,
-    MembershipStatus,
     canonical_keys,
     field_by_key,
     validate_fixed_fields,
 )
+
+# §C: the closed `MembershipStatus` enum was deleted; status is a plain OPEN enum. "active" is
+# just one of the seed option values a tenant may relabel/extend — authored as a plain string.
+_STATUS_ACTIVE = "active"
 
 
 # A minimal, fully-valid member record (fixed fields only) used as a baseline.
@@ -50,7 +55,7 @@ def _valid_member() -> dict:
         },
         "membership": {
             "member_number": "H-0001",
-            "status": MembershipStatus.ACTIVE.value,
+            "status": _STATUS_ACTIVE,
             "membership_type": "erelid",
             "joined_date": "2020-01-01",
         },
@@ -111,10 +116,18 @@ def test_fixed_fields_are_immutable():
         FIXED_FIELDS[0].key = "mutated"  # type: ignore[misc]
 
 
-def test_status_field_is_the_closed_membership_enum():
+def test_status_field_is_an_open_enum_like_gender():
+    # §C: `membership.status` is now an OPEN enum (`choices=None`), exactly like `gender` —
+    # the tenant supplies the value list via `members.field_overlay`; there is no closed
+    # `MembershipStatus` set. The base only carries a minimal default-seed `options` list.
     status = field_by_key("membership.status")
+    gender = field_by_key("personal.gender")
     assert status is not None and status.type is FieldType.ENUM
-    assert set(status.choices) == {s.value for s in MembershipStatus}
+    assert status.choices is None
+    assert gender is not None and gender.choices is None  # the precedent status now follows
+    # The seed options exist as DATA (a fresh tenant's starting values) but are NOT a gate.
+    assert status.options is not None
+    assert "application" in {o.value for o in status.options}
 
 
 # ── Validation: happy path ────────────────────────────────────────────────────────────
@@ -219,19 +232,37 @@ def test_blank_required_string_still_fails(blank):
 
 def test_partial_update_skips_absent_required_fields_but_still_checks_present_ones():
     # Absent key in a partial update = "leave unchanged" → allowed.
-    validate_fixed_fields({"membership": {"status": "active"}}, partial=True)
-    # But a present, invalid value is still rejected even in partial mode.
+    validate_fixed_fields({"membership": {"status": _STATUS_ACTIVE}}, partial=True)
+    # A present status value is NOT gated by a closed set anymore (open enum, §C): any
+    # non-blank string is accepted even in partial mode.
+    validate_fixed_fields({"membership": {"status": "anything"}}, partial=True)
+    # But a present, TYPE-invalid value is still rejected even in partial mode — exercised on
+    # joined_date (a DATE field), whose per-type rule is untouched by the status change.
     with pytest.raises(FieldValidationError) as exc:
-        validate_fixed_fields({"membership": {"status": "bogus"}}, partial=True)
-    assert "membership.status" in exc.value.errors
+        validate_fixed_fields({"membership": {"joined_date": "not-a-date"}}, partial=True)
+    assert "membership.joined_date" in exc.value.errors
 
 
 # ── Validation: per-type rules ────────────────────────────────────────────────────────
 
 
-def test_invalid_status_enum_fails():
+def test_open_status_enum_accepts_a_tenant_authored_value():
+    # §C: status is an OPEN enum — a value outside the old closed set (e.g. "vip"/"died") now
+    # VALIDATES (the closed-set gate is gone; resolved tenant choices enforce membership
+    # downstream). This replaces the former `test_invalid_status_enum_fails`, aligning it with
+    # the task-1 exploration test's intended post-retirement behavior.
     m = _valid_member()
     m["membership"]["status"] = "vip"
+    validate_fixed_fields(m)  # must NOT raise
+    m["membership"]["status"] = "died"
+    validate_fixed_fields(m)  # a tenant-authored value, also accepted
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_status_still_fails_open_enum_requires_non_blank(blank):
+    # The open enum still requires a non-blank string (status is required).
+    m = _valid_member()
+    m["membership"]["status"] = blank
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
     assert "membership.status" in exc.value.errors

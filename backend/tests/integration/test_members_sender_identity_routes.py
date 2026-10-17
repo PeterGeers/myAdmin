@@ -24,7 +24,6 @@ Reference: .kiro/specs/Members/pivot-output-actions/design.md §6.2, requirement
 
 import os
 import sys
-from datetime import datetime
 from functools import wraps
 from unittest.mock import MagicMock, patch
 
@@ -32,10 +31,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
-from flask import Flask, jsonify  # noqa: E402
+from flask import Flask, jsonify
 
-from routes.members_sender_identity_routes import members_sender_identity_bp  # noqa: E402
-
+from routes.members_sender_identity_routes import (
+    members_sender_identity_bp,
+)
 
 # ---------------------------------------------------------------------------
 # Auth passthrough decorators (mirror test_email_verification_integration.py)
@@ -294,6 +294,71 @@ class TestSenderIdentityAuthGate:
         """A caller lacking members:admin is rejected 403."""
         client, _mod = _build_client(cognito=_passthrough_cognito_no_permission)
         resp = client.get("/api/members/sender-identities")
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# POST /api/members/sender-identities/resend
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+class TestResendSenderIdentity:
+    def test_resend_success_returns_200(self):
+        """POST /resend drives the service and returns 200 on success (no body)."""
+        client, mod = _build_client()
+        mock_service = MagicMock()
+        mock_service.resend_verification.return_value = {"success": True, "error": None}
+
+        with patch.object(mod, "DatabaseManager"), patch.object(
+            mod, "EmailVerificationService", return_value=mock_service
+        ):
+            resp = client.post("/api/members/sender-identities/resend")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        # Tenant pinned from the auth context; address resolved server-side.
+        mock_service.resend_verification.assert_called_once_with("MembersTestTenant")
+
+    def test_resend_cooldown_returns_400(self):
+        """A service cooldown/no-record rejection surfaces as a bodied 400."""
+        client, mod = _build_client()
+        mock_service = MagicMock()
+        mock_service.resend_verification.return_value = {
+            "success": False,
+            "error": "Please wait 60 seconds before resending",
+        }
+
+        with patch.object(mod, "DatabaseManager"), patch.object(
+            mod, "EmailVerificationService", return_value=mock_service
+        ):
+            resp = client.post("/api/members/sender-identities/resend")
+
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["success"] is False
+        assert data["error"] == "Please wait 60 seconds before resending"
+
+    def test_resend_service_error_returns_500(self):
+        """An unexpected service failure surfaces as a bodied 500 (API standard)."""
+        client, mod = _build_client()
+        mock_service = MagicMock()
+        mock_service.resend_verification.side_effect = RuntimeError("boom")
+
+        with patch.object(mod, "DatabaseManager"), patch.object(
+            mod, "EmailVerificationService", return_value=mock_service
+        ):
+            resp = client.post("/api/members/sender-identities/resend")
+
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["success"] is False
+        assert "error" in data
+
+    def test_resend_no_permission_returns_403(self):
+        """A caller lacking members:admin is rejected 403 on resend."""
+        client, _mod = _build_client(cognito=_passthrough_cognito_no_permission)
+        resp = client.post("/api/members/sender-identities/resend")
         assert resp.status_code == 403
 
 

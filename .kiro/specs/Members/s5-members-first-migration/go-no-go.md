@@ -14,10 +14,20 @@
 
 ## Decision (to record at the gate)
 
+> **Update (`retire-members-status-lifecycle-engine`).** The membership **lifecycle engine
+> was retired** after this Go/No-Go was first written. `status` is now a plain tenant-driven
+> **OPEN** enum (authored like `gender`) and a status change is an ordinary member **field
+> edit** — no transition graph, guards, transition routes, or transition modal. The two
+> transition routes (single + bulk) were removed, so the declared route map is now **22/22**
+> (membership lifecycle **5**, not 7) rather than 24. Every "runs through the engine" /
+> "transition" / "declarative guard" claim below is **superseded**: those behaviours no longer
+> exist. The rest of the verdict (the platform pattern, regional authz, backfill fidelity,
+> the ladder discipline) stands unchanged.
+
 - **Verdict:** **Conditional-Go** — the pilot proved the platform pattern end-to-end in
-  test/local: the generic Members module answers h-dcn's full behavioural contract (24/24
-  routes), authz incl. regional scope holds, backfill round-trips, and the lifecycle runs
-  through the engine — with the tenant-agnostic core carrying h-dcn as pilot **data**, not
+  test/local: the generic Members module answers h-dcn's full behavioural contract (22/22
+  routes), authz incl. regional scope holds, and backfill round-trips — with the
+  tenant-agnostic core carrying h-dcn as pilot **data**, not
   a code branch. The conditions before this becomes a full Go are the items that need a
   human / live environment, not code that failed: (1) the live **look & feel / UX
   walkthrough** (the one MANUAL parity item), and (2) the conditional **Step 7 Pool A**
@@ -48,17 +58,23 @@
     Lidmaatschap Beheer dropdown lists only ACTIVE types while the management list still
     shows soft-deleted ones; a backfilled member (via the 4.1 `map_hdcn_row` transform on a
     fixture row) round-trips create → read with its historical member number preserved.
-  - API contract (frontend sees no difference): **PASS.** All **24/24** declared routes
+  - API contract (frontend sees no difference): **PASS.** All **22/22** declared routes
     answer as designed (never a 404 no-route, never a 501 stub). The route map is the
-    **union** of h-dcn's ~18 handler behaviours (member CRUD 8, membership lifecycle 7,
+    **union** of h-dcn's ~18 handler behaviours (member CRUD 8, membership lifecycle **5**,
     delegates 2, member payments 1) **plus** the new Lidmaatschap Beheer catalog group (5:
-    2 reads + 3 writes) — 19 + 5 = 24. The harness asserts every declared route name is
+    2 reads + 3 writes) — 17 + 5 = 22. The harness asserts every declared route name is
     exercised (`routes_covered == route_names()`), so a missing route would be a parity gap.
-  - Membership workflow (application → transitions → delegates): **PASS.** h-dcn's lifecycle
-    (application → pending → active ⇄ suspended → lapsed → left) runs through the engine with
-    the declarative guards enforced — an unapproved `application→pending` is denied (409, no
-    mutation), activation requires member-number + contact, and an undeclared edge
-    (`application→active`) is denied.
+    (Was 24/24 with membership lifecycle 7; the two transition routes — single + bulk — were
+    removed by `retire-members-status-lifecycle-engine`, so lifecycle dropped 7 → 5 and the
+    total 24 → 22.)
+  - Membership status + delegates: **PASS.** A member's `status` is a plain tenant-driven
+    OPEN enum (authored like `gender`) and a status change is an ordinary member **field
+    edit** — any value → any value, with no transition graph, guard, or transition endpoint.
+    (Superseded: this bullet previously asserted an h-dcn lifecycle `application → pending →
+    active ⇄ suspended → lapsed → left` running through the engine with declarative guards —
+    an unapproved `application→pending` denied 409, activation requiring member-number +
+    contact, an undeclared edge denied. The engine was retired by
+    `retire-members-status-lifecycle-engine`; none of that gatekeeping exists any more.)
   - **Look & feel / UX parity: MANUAL — pending a human walkthrough.** The harness flags
     this as the one MANUAL item (frontend rendering, delegate-invitation email delivery,
     export file formatting): the module serves the contract, but presentation-only frontend
@@ -116,25 +132,32 @@ was actually built:
 
 - **Rung 1 — config / data.** Tenant scope config (a single `region` dimension:
   values Noord/Zuid/Oost/West, `all_wildcard=Regio_All`, `required_for=Members_CRUD`), the
-  lifecycle graph (`HDCN_LIFECYCLE_CONFIG`), the field overlay (**empty** for h-dcn beyond
-  the club Motor detail), the Lidmaatschap Beheer catalog **seeded as data** (task 4.2), and
-  the membership types. The bulk of h-dcn landed here.
-- **Rung 2 — declarative rules.** Lifecycle transition guards (approval flag;
-  member-number + contact required to activate; required-field-by-status) and scope-access
-  resolution (`resolve_scope_access`: admin/all → `["*"]`, `Regio_*` → subset,
-  `required_for` without a grant → deny). h-dcn's `determine_regional_access` generalized
-  cleanly into this declarative resolver.
+  field overlay (**empty** for h-dcn beyond the club Motor detail), the Lidmaatschap Beheer
+  catalog **seeded as data** (task 4.2), and the membership types. The bulk of h-dcn landed
+  here. (Superseded: the lifecycle graph `HDCN_LIFECYCLE_CONFIG` used to live here too — it
+  was removed by `retire-members-status-lifecycle-engine`; `status` is now a plain OPEN enum
+  authored like the other tenant config, with no graph.)
+- **Rung 2 — declarative rules.** Scope-access resolution (`resolve_scope_access`:
+  admin/all → `["*"]`, `Regio_*` → subset, `required_for` without a grant → deny). h-dcn's
+  `determine_regional_access` generalized cleanly into this declarative resolver.
+  (Superseded: lifecycle transition guards — approval flag; member-number + contact required
+  to activate; required-field-by-status — also lived at this rung; they were removed with the
+  lifecycle engine by `retire-members-status-lifecycle-engine`. A status change is now an
+  ordinary field edit with no guards.)
 - **Rung 3 — registered hooks.** h-dcn registered **only 2 of 5** named hooks:
   - `derive_member_number` — the `L-000042` (`L-` + zero-padded) format (a genuine tenant
     nuance, kept pure: the counter value is threaded in, storage stays in the repository).
   - `validate_member` — an ACTIVE h-dcn member must carry a motorcycle in the overlay
     (`overlay.motor`/`motor_type`); the rule only bites at `status == active`.
 
-  The other three stayed on their **safe defaults**: `on_transition` (no-op — the workflow
-  is fully declarative), `resolve_visible_regions` (identity — regional visibility is fully
-  declarative via `resolve_scope_access`), and `calculate_fee` (unused — h-dcn has no
-  per-record fee). That regional access + the lifecycle stayed **below** Rung 3 is a
-  **positive** result: the generic model absorbed h-dcn without leaking those to hooks.
+  The other two stayed on their **safe defaults**: `resolve_visible_regions` (identity —
+  regional visibility is fully declarative via `resolve_scope_access`), and `calculate_fee`
+  (unused — h-dcn has no per-record fee). That regional access stayed **below** Rung 3 is a
+  **positive** result: the generic model absorbed h-dcn without leaking it to a hook.
+  (Superseded: a third named hook, `on_transition`, also stayed on its no-op default here —
+  it was the lifecycle engine's welcome-mail seam. The engine and that named hook were
+  removed by `retire-members-status-lifecycle-engine`, so there is no longer an
+  `on_transition` point; the "2 of 5 hooks" tally reflects the pre-retirement registry.)
 - **Rung 4 — separate service / escape hatch.** **NONE needed.** Nothing about h-dcn
   required carving out a tenant-specific service.
 
