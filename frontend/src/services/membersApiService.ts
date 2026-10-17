@@ -94,4 +94,7 @@ export {
 export {
   getFieldConfig,
   listMembershipTypes,
+  createMembershipType,
+  updateMembershipType,
+  deactivateMembershipType,
 } from './members/membersConfigApi';
