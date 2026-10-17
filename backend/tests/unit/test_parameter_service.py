@@ -287,3 +287,182 @@ class TestEdgeCases:
 
         result = svc.get_param('ns', 'k', tenant='T1')
         assert result == 'tenant_val'
+
+
+# ---------------------------------------------------------------------------
+# Cache-invalidation seam (invalidate_namespace)
+#
+# ProjectionSync reuses a single long-lived ParameterService across every
+# sync run. A value edited through a DIFFERENT service instance (the save
+# route's own ParameterService) never reaches this one's write-through
+# invalidation, so a later sync can serialize STALE cached content while the
+# uncached get_param_revision reports a fresh version — the "wedge". The sync
+# calls invalidate_namespace('members', tenant) before building so the builders
+# re-read the CURRENT value. These tests prove that seam evicts the stale entry
+# so the NEXT get_param re-fetches fresh content, and that it is correctly
+# scoped (tenant=None evicts all scopes; a scoped invalidate leaves unrelated
+# cache entries intact).
+#
+# Requirements: 1.1, 1.7
+# ---------------------------------------------------------------------------
+
+class TestInvalidateNamespaceSeam:
+
+    def test_invalidate_namespace_tenant_scoped_post_write_read_is_fresh(self):
+        """After a tenant-scoped invalidate, get_param re-fetches the NEW value.
+
+        Simulates the sync's reuse pattern: a value is cached via get_param,
+        then the SOURCE row changes behind this service's back (another service
+        instance's write), then invalidate_namespace evicts the stale entry so
+        the next read reflects the current source.
+
+        Validates: Requirements 1.1
+        """
+        stored = {
+            ('tenant', 'T1', 'members', 'field_overlay'): {
+                'value': json.dumps('six_values'), 'is_secret': False
+            }
+        }
+        db = make_mock_db(stored)
+        svc = ParameterService(db)
+
+        # First read populates the cache with the stale value.
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'six_values'
+
+        # Source changes out-of-band (as the save route's own service would write).
+        db._stored[('tenant', 'T1', 'members', 'field_overlay')] = {
+            'value': json.dumps('seven_values'), 'is_secret': False
+        }
+
+        # Without invalidation the stale value would still be served from cache.
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'six_values'
+
+        # The seam evicts the namespace+tenant entry...
+        svc.invalidate_namespace('members', tenant='T1')
+
+        # ...so the next read re-fetches the FRESH source value.
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'seven_values'
+
+    def test_invalidate_namespace_tenant_none_evicts_all_scopes(self):
+        """tenant=None evicts every scope's cached entries in the namespace.
+
+        Validates: Requirements 1.1, 1.7
+        """
+        stored = {
+            ('tenant', 'T1', 'members', 'field_overlay'): {
+                'value': json.dumps('tenant_old'), 'is_secret': False
+            },
+            ('system', '_system_', 'members', 'field_overlay'): {
+                'value': json.dumps('system_old'), 'is_secret': False
+            },
+        }
+        db = make_mock_db(stored)
+        svc = ParameterService(db)
+
+        # Populate both a tenant-scope and a system-scope cache entry.
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'tenant_old'
+        assert svc.get_param('members', 'field_overlay') == 'system_old'
+
+        # Source changes for both scopes.
+        db._stored[('tenant', 'T1', 'members', 'field_overlay')] = {
+            'value': json.dumps('tenant_new'), 'is_secret': False
+        }
+        db._stored[('system', '_system_', 'members', 'field_overlay')] = {
+            'value': json.dumps('system_new'), 'is_secret': False
+        }
+
+        # Unscoped invalidate drops every scope in the namespace.
+        svc.invalidate_namespace('members', tenant=None)
+
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'tenant_new'
+        assert svc.get_param('members', 'field_overlay') == 'system_new'
+
+    def test_invalidate_namespace_tenant_scoped_leaves_other_tenant_cached(self):
+        """A scoped invalidate for one tenant does not evict another tenant's entry.
+
+        Validates: Requirements 1.7
+        """
+        stored = {
+            ('tenant', 'T1', 'members', 'field_overlay'): {
+                'value': json.dumps('t1_v1'), 'is_secret': False
+            },
+            ('tenant', 'T2', 'members', 'field_overlay'): {
+                'value': json.dumps('t2_v1'), 'is_secret': False
+            },
+        }
+        db = make_mock_db(stored)
+        svc = ParameterService(db)
+
+        # Cache both tenants.
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 't1_v1'
+        assert svc.get_param('members', 'field_overlay', tenant='T2') == 't2_v1'
+
+        # Source changes for BOTH tenants, out-of-band.
+        db._stored[('tenant', 'T1', 'members', 'field_overlay')] = {
+            'value': json.dumps('t1_v2'), 'is_secret': False
+        }
+        db._stored[('tenant', 'T2', 'members', 'field_overlay')] = {
+            'value': json.dumps('t2_v2'), 'is_secret': False
+        }
+
+        # Invalidate only T1.
+        svc.invalidate_namespace('members', tenant='T1')
+
+        # T1 re-fetches fresh; T2's cache entry is untouched (still the old value).
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 't1_v2'
+        assert svc.get_param('members', 'field_overlay', tenant='T2') == 't2_v1'
+
+    def test_invalidate_namespace_tenant_scoped_leaves_other_namespace_cached(self):
+        """A scoped invalidate does not evict a different namespace's entry.
+
+        Validates: Requirements 1.7
+        """
+        stored = {
+            ('tenant', 'T1', 'members', 'field_overlay'): {
+                'value': json.dumps('members_v1'), 'is_secret': False
+            },
+            ('tenant', 'T1', 'storage', 'provider'): {
+                'value': json.dumps('google_drive'), 'is_secret': False
+            },
+        }
+        db = make_mock_db(stored)
+        svc = ParameterService(db)
+
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'members_v1'
+        assert svc.get_param('storage', 'provider', tenant='T1') == 'google_drive'
+
+        # Both sources change out-of-band.
+        db._stored[('tenant', 'T1', 'members', 'field_overlay')] = {
+            'value': json.dumps('members_v2'), 'is_secret': False
+        }
+        db._stored[('tenant', 'T1', 'storage', 'provider')] = {
+            'value': json.dumps('dropbox'), 'is_secret': False
+        }
+
+        # Invalidate only the members namespace.
+        svc.invalidate_namespace('members', tenant='T1')
+
+        # members re-fetches fresh; storage keeps its cached value.
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'members_v2'
+        assert svc.get_param('storage', 'provider', tenant='T1') == 'google_drive'
+
+    def test_invalidate_namespace_unknown_namespace_is_noop(self):
+        """Invalidating a namespace with no cached entries is a harmless no-op.
+
+        Validates: Requirements 1.7
+        """
+        stored = {
+            ('tenant', 'T1', 'members', 'field_overlay'): {
+                'value': json.dumps('v1'), 'is_secret': False
+            }
+        }
+        db = make_mock_db(stored)
+        svc = ParameterService(db)
+
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'v1'
+
+        # Evicting an unrelated/empty namespace must not touch the members entry.
+        svc.invalidate_namespace('nonexistent', tenant='T1')
+
+        # Still served from cache (no DB re-read needed, value unchanged).
+        assert svc.get_param('members', 'field_overlay', tenant='T1') == 'v1'
